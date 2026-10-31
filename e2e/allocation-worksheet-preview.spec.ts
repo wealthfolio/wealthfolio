@@ -255,8 +255,12 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(current).toBeVisible();
     await expect(projected).toBeVisible();
     const impact = page.locator("[data-impact-rail]");
-    await expect(impact.locator("[data-track-legend]")).toHaveText(/Current → Projected \/ Target/);
-    await expect(impact.locator("[data-impact-summary]")).not.toContainText("→");
+    // The arrow points the way the line reads.
+    const arrow = dir === "rtl" ? "←" : "→";
+    await expect(impact.locator("[data-track-legend]")).toHaveText(
+      new RegExp(`Current ${arrow} Projected / Target`),
+    );
+    await expect(impact.locator("[data-impact-summary]")).not.toContainText(arrow);
     await expect(impact.getByText(/Largest difference| adjusted$/)).toHaveCount(0);
     await impact.locator("[data-impact-summary]").click();
     await expect(impact.getByText("Net change", { exact: true })).toHaveCount(0);

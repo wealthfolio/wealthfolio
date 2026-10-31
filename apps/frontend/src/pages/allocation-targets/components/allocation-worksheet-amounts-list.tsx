@@ -1,4 +1,4 @@
-import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
+import { useChangeArrow, worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { Button, Icons, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -316,6 +316,7 @@ function AmountRow({
   isPriceSyncing,
 }: AmountRowProps) {
   const { t } = useTranslation();
+  const arrow = useChangeArrow();
   const { formatAmount, formatPrice, currencyFractionDigits } = useAmountFormatting();
   const { formatQuantity, decimalSeparator } = useNumberFormatting();
   const {
@@ -447,7 +448,9 @@ function AmountRow({
         <span className="text-end text-xs tabular-nums @[36rem]/positions:pt-2 @[36rem]/positions:text-start">
           {isChanged ? (
             <>
-              <span className="text-muted-foreground">{position.currentPct.toFixed(1)} → </span>
+              <span className="text-muted-foreground">
+                {position.currentPct.toFixed(1)} {arrow}{" "}
+              </span>
               <span className="font-semibold">{projectedPct.toFixed(1)}%</span>
             </>
           ) : (
@@ -721,9 +724,10 @@ function RowStatusCell({
       );
     case "placed":
       // With one account there is nothing to place: the row states where it sits.
+      // Account names read in their own direction, so a clipped one keeps its start.
       if (!canPlace) {
         return (
-          <span className="text-muted-foreground block truncate">
+          <span dir="auto" className="text-muted-foreground block truncate rtl:text-right">
             {accountNames.get(status.accountIds[0]) ?? t("allocation:worksheet.unknownAccount")}
           </span>
         );
@@ -731,9 +735,10 @@ function RowStatusCell({
       return (
         <button
           type="button"
+          dir="auto"
           aria-expanded={isExpanded}
           onClick={onToggleExpanded}
-          className={cn(linkClass, "text-muted-foreground")}
+          className={cn(linkClass, "text-muted-foreground rtl:text-right")}
         >
           {status.accountIds.length === 1
             ? (accountNames.get(status.accountIds[0]) ?? t("allocation:worksheet.unknownAccount"))

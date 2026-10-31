@@ -1,4 +1,4 @@
-import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
+import { useChangeArrow, worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { Button, Card, CardContent, Icons, useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 
@@ -82,6 +82,7 @@ function shareOfClass(
   row: ImpactRailRow,
   item: ImpactClass,
   weightBps: number,
+  arrow: string,
 ): string | undefined {
   const valueNow = row.valueIn[item.categoryId] ?? 0;
   const delta = changeInCategory(row.change, weightBps);
@@ -90,7 +91,7 @@ function shareOfClass(
     Math.abs(delta) >= AMOUNT_EPSILON && item.projectedValue > 0
       ? Math.max(0, valueNow + delta) / item.projectedValue
       : undefined;
-  if (after !== undefined) return `${formatFraction(now ?? 0)} → ${formatFraction(after)}`;
+  if (after !== undefined) return `${formatFraction(now ?? 0)} ${arrow} ${formatFraction(after)}`;
   return now === undefined ? undefined : formatFraction(now);
 }
 
@@ -113,6 +114,7 @@ export function ImpactRail({
   describeWarning,
 }: ImpactRailProps) {
   const { t } = useTranslation();
+  const arrow = useChangeArrow();
   const { formatAmount } = useAmountFormatting();
   const pointedOrSelected = useHighlight((state) => activeTarget(state));
   const selected = useHighlight((state) => state.selected);
@@ -247,7 +249,7 @@ export function ImpactRail({
                 <span className="bg-muted-foreground h-px w-2.5" />
                 <span className="bg-muted-foreground h-2 w-2 rounded-full" />
               </span>
-              {t("allocation:worksheet.legendCurrent")} →{" "}
+              {t("allocation:worksheet.legendCurrent")} {arrow}{" "}
               {t("allocation:worksheet.legendProjected")}
             </span>
             <span aria-hidden="true">{" / "}</span>
@@ -273,7 +275,9 @@ export function ImpactRail({
                 }
                 shareText={(() => {
                   const inClass =
-                    activeRow && share ? shareOfClass(activeRow, item, share.weightBps) : undefined;
+                    activeRow && share
+                      ? shareOfClass(activeRow, item, share.weightBps, arrow)
+                      : undefined;
                   return activeRow && inClass
                     ? t("allocation:worksheet.rowShareOfClass", {
                         symbol: activeRow.symbol,
@@ -434,6 +438,7 @@ function ImpactClassRow({
   netChange,
 }: ImpactClassRowProps) {
   const { t } = useTranslation();
+  const arrow = useChangeArrow();
   const { point, unpoint, toggleSelected } = useHighlightActions();
   const target: HighlightTarget = { kind: "category", categoryId: item.categoryId };
 
@@ -474,7 +479,7 @@ function ImpactClassRow({
           className="text-muted-foreground text-2xs shrink-0 font-mono tabular-nums"
           title={t("allocation:worksheet.classFiguresTitle")}
         >
-          {formatWeight(item.currentBps)} →{" "}
+          {formatWeight(item.currentBps)} {arrow}{" "}
           <span
             data-outside-range={isOutsideRange || undefined}
             className={cn(
