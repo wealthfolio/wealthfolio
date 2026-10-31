@@ -269,6 +269,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             "Access to account information and management",
         ),
         (
+            "alternative-assets",
+            "alternativeAssets",
+            vec!["getAll"],
+            "Read-only access to alternative assets and liabilities",
+        ),
+        (
             "market-data",
             "market",
             vec![
