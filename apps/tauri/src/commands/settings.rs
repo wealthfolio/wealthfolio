@@ -78,23 +78,8 @@ pub async fn update_settings(
     if let Some(menu_visible) = settings_update.menu_bar_visible {
         #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "macos")))]
         {
-            if menu_visible {
-                // Create and set the menu on desktop platforms
-                match crate::menu::create_menu(&handle) {
-                    Ok(menu) => {
-                        if let Err(e) = handle.set_menu(menu) {
-                            debug!("Failed to set menu: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        debug!("Failed to create menu: {}", e);
-                    }
-                }
-            } else {
-                // Remove the menu entirely by setting it to None
-                if let Err(e) = handle.remove_menu() {
-                    debug!("Failed to remove menu: {}", e);
-                }
+            if let Err(e) = crate::menu::set_menu_visibility(&handle, menu_visible) {
+                debug!("Failed to apply menu visibility: {}", e);
             }
         }
 

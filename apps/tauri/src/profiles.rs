@@ -310,6 +310,17 @@ impl NativeProfiles {
         // Run this for every activated profile, including one opened from the
         // chooser after startup. Issue its scope first so job events are scoped.
         if let Some(context) = runtime.try_context() {
+            #[cfg(all(desktop, not(target_os = "macos")))]
+            match context.settings_service().get_settings() {
+                Ok(settings) => {
+                    if let Err(error) =
+                        crate::menu::set_menu_visibility(handle, settings.menu_bar_visible)
+                    {
+                        log::warn!("Failed to apply profile menu visibility: {error}");
+                    }
+                }
+                Err(error) => log::warn!("Failed to load profile menu visibility: {error}"),
+            }
             if portfolio_history_backfill_needed(&context) {
                 crate::events::emit_portfolio_trigger_recalculate(
                     handle,

@@ -50,8 +50,19 @@
 }
 
 .profile-settings-screen {
+  /* The body blocks scroll chaining, so long forms need their own viewport. */
+  height: 100dvh;
+  overflow-y: auto;
+  align-items: flex-start;
   padding-top: calc(2rem + env(safe-area-inset-top, 0px));
   padding-bottom: calc(7rem + var(--inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .profile-settings-screen {
+    /* Save/Cancel are in the form here, so no fixed-button clearance is needed. */
+    padding-bottom: calc(2rem + var(--inset-bottom));
+  }
 }
 
 /* React loading uses the same background and glow as the pre-React splash. */
