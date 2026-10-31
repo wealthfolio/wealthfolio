@@ -1,0 +1,101 @@
+{
+  "buttons": {
+    "continue": "Tiếp tục",
+    "subscribeConnect": "Đăng ký & Kết nối",
+    "getStarted": "Bắt đầu"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Hai cách để theo dõi danh mục đầu tư của bạn.",
+      "holdings": {
+        "title": "Vị thế nắm giữ",
+        "subtitle": "Theo dõi giá trị",
+        "badge": "Tốt nhất để theo dõi đơn giản, ít tốn công bảo trì.",
+        "features": {
+          "netWorth": "Giá trị tài sản ròng & phân bổ",
+          "unrealizedPnl": "Giá trị & Lãi/Lỗ chưa thực hiện",
+          "priceBased": "Hiệu suất dựa trên biến động giá",
+          "fastSetup": "Thiết lập nhanh chóng & nhẹ nhàng"
+        },
+        "limit": "Giới hạn: Không có TWR/IRR dựa trên giao dịch.",
+        "note": "Lưu ý: Cần duy trì các vị thế nắm giữ."
+      },
+      "transactions": {
+        "title": "Giao dịch",
+        "subtitle": "Theo dõi hiệu suất",
+        "badge": "Tốt nhất để phân tích hiệu suất chuyên sâu.",
+        "features": {
+          "totalReturn": "Tổng lợi nhuận theo thời gian",
+          "attribution": "Phân bổ lợi nhuận & dòng tiền",
+          "completeView": "Góc nhìn hiệu suất toàn diện nhất",
+          "brokerSync": "Tối ưu nhất khi đồng bộ môi giới hoặc nhập CSV"
+        },
+        "limit": "Giới hạn: Yêu cầu theo dõi tất cả các giao dịch.",
+        "note": "Lưu ý: Hoàn toàn tự động nếu đồng bộ với công ty chứng khoán."
+      },
+      "footnote": "Bạn có thể sử dụng các chế độ khác nhau cho từng tài khoản.",
+      "learnMore": "Tìm hiểu thêm"
+    },
+    "preferences": {
+      "subtitle": "Chỉ một vài tùy chọn để bạn bắt đầu",
+      "currencyLabel": "Tiền tệ",
+      "timezoneLabel": "Múi giờ",
+      "other": "Khác",
+      "selectCurrency": "Chọn đơn vị tiền tệ",
+      "selectTimezone": "Chọn múi giờ",
+      "searchCurrenciesPlaceholder": "Tìm kiếm tiền tệ...",
+      "searchTimezonesPlaceholder": "Tìm kiếm múi giờ...",
+      "noCurrenciesFound": "Không tìm thấy tiền tệ nào",
+      "noTimezonesFound": "Không tìm thấy múi giờ nào",
+      "currencyRequired": "Vui lòng chọn đơn vị tiền tệ cơ sở.",
+      "timezoneRequired": "Vui lòng chọn múi giờ.",
+      "languageLabel": "Ngôn ngữ",
+      "formattingRegionLabel": "Vùng & định dạng",
+      "searchRegionsPlaceholder": "Tìm kiếm khu vực...",
+      "noRegionsFound": "Không tìm thấy khu vực nào",
+      "searchLanguagesPlaceholder": "Tìm kiếm ngôn ngữ...",
+      "noLanguagesFound": "Không tìm thấy ngôn ngữ nào"
+    }
+  },
+  "appearance": {
+    "subtitle": "Tùy chỉnh giao diện hiển thị",
+    "themeLabel": "Chủ đề",
+    "fontLabel": "Phông chữ",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Hệ thống",
+    "themeLightPreviewAlt": "Xem trước chủ đề sáng",
+    "themeDarkPreviewAlt": "Xem trước chủ đề tối",
+    "themeSystemPreviewAlt": "Xem trước chủ đề hệ thống",
+    "fontSample": "Đầu tư với sự thấu suốt và minh bạch.",
+    "fonts": {
+      "monoLabel": "Mono",
+      "monoDescription": "Kỹ thuật & chính xác",
+      "sansLabel": "Sans",
+      "sansDescription": "Gọn gàng & hiện đại",
+      "serifLabel": "Serif",
+      "serifDescription": "Cổ điển & trang nhã"
+    },
+    "navigationLabel": "Điều hướng"
+  },
+  "connect": {
+    "optional": "Tùy chọn",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Tự động đồng bộ các tài khoản chứng khoán trong khi dữ liệu vẫn hoàn toàn riêng tư.",
+    "learnMore": "Tìm hiểu thêm về Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Đồng bộ công ty chứng khoán",
+        "description": "Tự động đồng bộ tài khoản và giao dịch vào cơ sở dữ liệu cục bộ của bạn."
+      },
+      "deviceSync": {
+        "title": "Đồng bộ thiết bị",
+        "description": "Giữ cơ sở dữ liệu luôn đồng bộ trên tất cả thiết bị với mã hóa đầu cuối."
+      },
+      "householdView": {
+        "title": "Chế độ xem gia đình",
+        "description": "Chia sẻ các tài khoản đã chọn với gia đình và xem tổng hợp cùng nhau."
+      }
+    }
+  }
+}

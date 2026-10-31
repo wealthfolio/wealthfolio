@@ -31,6 +31,8 @@ describe("locale formatting", () => {
     expect(resolveFormattingLocale("DE", "en")).toBe("de-DE");
     expect(resolveFormattingLocale("DE", "ja")).toBe("de-DE");
     expect(resolveFormattingLocale("TW", "en")).toBe("zh-TW");
+    expect(resolveFormattingLocale("VN", "en")).toBe("vi-VN");
+    expect(resolveFormattingLocale("VN", "vi")).toBe("vi-VN");
     expect(resolveFormattingLocale("AT", "en")).toBe("de-AT");
     expect(resolveFormattingLocale("RO", "en")).toBe("ro-RO");
     expect(resolveFormattingLocale("BG", "en")).toBe("bg-BG");
@@ -540,6 +542,68 @@ describe("de-AT formatting", () => {
       expect(parseLocalizedDecimalString(`€ ${value}`, locale)).toBeUndefined();
     },
   );
+});
+
+describe("vi-VN formatting", () => {
+  const locale = resolveFormattingLocale("VN");
+  const formatter = createFormatter(locale);
+
+  it("resolves Vietnam region to Vietnamese formatting locale", () => {
+    expect(locale).toBe("vi-VN");
+    expect(resolveFormattingLocale("VN", "en")).toBe("vi-VN");
+    expect(resolveFormattingLocale("VN", "vi")).toBe("vi-VN");
+    expect(resolveFormattingLocale("vi-VN")).toBe("vi-VN");
+  });
+
+  it.each([
+    ["VND", 1234567, "1234567"],
+    ["USD", 1234.56, "1234.56"],
+    ["EUR", 1234.56, "1234.56"],
+    ["VND", -1234567, "-1234567"],
+  ] as const)("round-trips Vietnamese %s currency amounts (%s)", (currency, value, expected) => {
+    const amount = formatter.formatAmount(value, currency);
+
+    expect(formatter.parseNumber(amount)).toBe(value);
+    expect(parseLocalizedNumber(amount, locale)).toBe(value);
+    expect(parseLocalizedDecimalString(amount, locale)).toBe(expected);
+  });
+
+  it("accepts decimal and currency grouping while preserving precision", () => {
+    expect(formatter.parseNumber(formatter.formatDecimal(1234.56))).toBe(1234.56);
+    expect(parseLocalizedDecimalString("1.234,56", locale)).toBe("1234.56");
+    expect(parseLocalizedDecimalString("123.456.789.012.345.678,12345678 ₫", locale)).toBe(
+      "123456789012345678.12345678",
+    );
+  });
+
+  it("parses grouped integers and localized decimals", () => {
+    expect(formatter.parseNumber("1.234 ₫")).toBe(1234);
+    expect(parseLocalizedDecimalString("1.234 ₫", locale)).toBe("1234");
+    expect(formatter.parseNumber("1.234")).toBe(1234);
+    expect(parseLocalizedDecimalString("1.234", locale)).toBe("1234");
+    expect(formatter.parseNumber("1,234")).toBe(1.234);
+    expect(parseLocalizedDecimalString("1,234", locale)).toBe("1.234");
+  });
+
+  it.each(["1234.56", "1,234.56", "$1,234.56"])("preserves machine-formatted input %s", (value) => {
+    expect(formatter.parseNumber(value)).toBe(1234.56);
+    expect(parseLocalizedDecimalString(value, locale)).toBe("1234.56");
+  });
+
+  it.each(["12.34,56", "1.23.456,78", "1.234,5.6", "1.234,56,78"])(
+    "rejects malformed Vietnamese currency grouping %s",
+    (value) => {
+      expect(formatter.parseNumber(`${value} ₫`)).toBeUndefined();
+      expect(parseLocalizedDecimalString(`${value} ₫`, locale)).toBeUndefined();
+    },
+  );
+
+  it("formats dates and configures date-fns locale with Monday week start", () => {
+    const dateFnsLocale = dateFnsLocaleFor("vi-VN");
+    expect(dateFnsLocale.options?.weekStartsOn).toBe(1);
+    expect(dateFnsLocale.localize.month(0)).toMatch(/tháng một/i);
+    expect(parseLocalizedDate("10/07/2026", "vi-VN")?.getMonth()).toBe(6);
+  });
 });
 
 describe("en-IN formatting", () => {

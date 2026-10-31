@@ -15,6 +15,7 @@ import itCommon from "./locales/it/common.json";
 import jaCommon from "./locales/ja/common.json";
 import koCommon from "./locales/ko/common.json";
 import ptCommon from "./locales/pt/common.json";
+import viCommon from "./locales/vi/common.json";
 import zhHantSettings from "./locales/zh-Hant/settings.json";
 import zhCommon from "./locales/zh/common.json";
 import zhHantCommon from "./locales/zh-Hant/common.json";
@@ -67,6 +68,7 @@ describe("global event translations", () => {
     ["it", itCommon],
     ["pt", ptCommon],
     ["ar", arCommon],
+    ["vi", viCommon],
   ])("resolves asset-count messages for %s", async (locale, common) => {
     const i18n = i18next.createInstance();
     await i18n.init({
