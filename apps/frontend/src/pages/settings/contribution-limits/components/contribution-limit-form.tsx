@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
-import { useForm, useWatch, type Resolver } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -27,7 +27,6 @@ import {
   Switch,
 } from "@wealthfolio/ui";
 
-import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { createContributionLimitSchema, newContributionLimitSchema } from "@/lib/schemas";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { MoneyInput } from "@wealthfolio/ui";
@@ -73,19 +72,6 @@ export function ContributionLimitForm({
     form.setValue("startDate", startDate);
     form.setValue("endDate", endDate);
   };
-
-  // Watch for changes to contributionYear
-  const contributionYear = useWatch({
-    control: form.control,
-    name: "contributionYear",
-  });
-
-  // Update dates when year changes
-  useEffectOnChange(() => {
-    if (contributionYear) {
-      updateDatesBasedOnYear(contributionYear);
-    }
-  }, [contributionYear]);
 
   async function onSubmit(data: NewContributionLimit) {
     const { id, ...rest } = data;
@@ -196,7 +182,12 @@ export function ContributionLimitForm({
                               placeholder={t("settings:limits_form_year_placeholder")}
                               maxDecimalPlaces={0}
                               value={field.value}
-                              onValueChange={(value) => field.onChange(value)}
+                              onValueChange={(value, isUserEdit) => {
+                                field.onChange(value);
+                                // Only a typed year moves the dates, so the dates a form
+                                // opens with (saved or projected) stay as they are.
+                                if (isUserEdit && value) updateDatesBasedOnYear(value);
+                              }}
                             />
                           </FormControl>
 
