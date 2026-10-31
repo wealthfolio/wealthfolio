@@ -247,7 +247,9 @@
     "thisMonth": "本月",
     "mtdShort": "MTD",
     "lastMonth": "上月",
-    "prevShort": "上一",
+    "prevMonth": "上月",
+    "lastYear": "去年",
+    "prevYear": "前年",
     "viewingMonth": "正在查看 {{label}}，点击可更改",
     "pickMonth": "选择特定月份",
     "selectMonth": "选择月份",
@@ -964,7 +966,8 @@
     "interval3M": "过去 3 个月",
     "interval6M": "过去 6 个月",
     "intervalYtd": "年初至今",
-    "interval1Y": "过去一年",
+    "interval1Y": "过去12个月",
+    "intervalLastYear": "过去一年",
     "plusMore_other": "+ {{count}} 项"
   },
   "budgetEditor": {

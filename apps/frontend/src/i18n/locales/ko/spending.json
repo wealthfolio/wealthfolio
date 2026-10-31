@@ -247,7 +247,9 @@
     "thisMonth": "이번 달",
     "mtdShort": "이번 달",
     "lastMonth": "지난달",
-    "prevShort": "이전",
+    "prevMonth": "저번달",
+    "lastYear": "작년",
+    "prevYear": "저번해",
     "viewingMonth": "{{label}} 보는 중, 클릭하여 변경",
     "pickMonth": "특정 월 선택",
     "selectMonth": "월 선택",
@@ -964,7 +966,8 @@
     "interval3M": "최근 3개월",
     "interval6M": "최근 6개월",
     "intervalYtd": "연초 이후",
-    "interval1Y": "지난 1년",
+    "interval1Y": "최근 12개월",
+    "intervalLastYear": "지난 1년",
     "plusMore_other": "+ {{count}} 더보기"
   },
   "budgetEditor": {
