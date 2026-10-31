@@ -7,6 +7,12 @@ for (const direction of ["ltr", "rtl"]) {
   }) => {
     test.setTimeout(90_000);
     const runId = `${direction}_${Date.now().toString(36)}`;
+    const portfolioErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && message.text().startsWith("Portfolio Update Error:")) {
+        portfolioErrors.push(message.text());
+      }
+    });
     const state = await (
       await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
     ).json();
@@ -28,6 +34,8 @@ for (const direction of ["ltr", "rtl"]) {
     await api(
       "settings",
       {
+        baseCurrency: "USD",
+        timezone: "UTC",
         onboardingCompleted: true,
         language: "en",
         theme: "light",
@@ -78,12 +86,6 @@ for (const direction of ["ltr", "rtl"]) {
       ]) {
         const button = page.getByRole("button", { name });
         await expect(button).toBeEnabled({ timeout: 30_000 });
-        // Existing notifications can cover the import's fixed footer.
-        for (const close of await page
-          .getByRole("button", { name: "Close toast", exact: true })
-          .all()) {
-          await close.click();
-        }
         await button.click();
       }
       await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 30_000 });
@@ -134,6 +136,8 @@ for (const direction of ["ltr", "rtl"]) {
           );
         })
         .toEqual([category.id]);
+      expect(portfolioErrors).toEqual([]);
+      await expect(page.getByText("Portfolio Update Failed", { exact: true })).toHaveCount(0);
     } finally {
       await api("spending/settings", previousSettings, "PUT");
     }
