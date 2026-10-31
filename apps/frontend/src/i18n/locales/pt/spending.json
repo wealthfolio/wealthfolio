@@ -83,7 +83,7 @@
     "addTitle": "Adicionar regra",
     "editDescription": "Rotule automaticamente as atividades por padrão de nome. As regras de maior prioridade prevalecem quando várias coincidem.",
     "categoryCompatibilityHint": "As categorias seguem o fluxo de caixa da transação. As categorias de poupança aplicam-se apenas a transferências vinculadas para fora das suas contas de despesas acompanhadas.",
-    "runIncompatible": "Categorias incompatíveis: {{count}}. As categorias de poupança exigem uma transferência vinculada para fora das suas contas de despesas acompanhadas.",
+    "runIncompatible": "Categorias incompatíveis: {{count}}. As categorias seguem o fluxo de caixa da transação. As categorias de poupança aplicam-se apenas a transferências vinculadas para fora das suas contas de despesas acompanhadas.",
     "runProtected": "Categorias ou divisões existentes mantidas: {{count}}.",
     "runUnchanged": "Já categorizadas conforme solicitado: {{count}}.",
     "runWithoutTarget": "Correspondências sem categoria de destino: {{count}}.",

@@ -82,7 +82,7 @@
     "addTitle": "添加规则",
     "editDescription": "按名称模式自动标记活动。当多条规则匹配时，优先级较高的规则生效。",
     "categoryCompatibilityHint": "分类遵循交易的现金流类型。储蓄分类仅适用于已关联且转出支出跟踪账户范围的转账。",
-    "runIncompatible": "不兼容的分类：{{count}}。储蓄分类需要关联一笔从支出跟踪账户转出的转账。",
+    "runIncompatible": "不兼容的分类：{{count}}。分类遵循交易的现金流类型。储蓄分类仅适用于已关联且转出支出跟踪账户范围的转账。",
     "runProtected": "保留现有分类或拆分：{{count}}。",
     "runUnchanged": "已按要求分类：{{count}}。",
     "runWithoutTarget": "无目标分类的匹配项：{{count}}。",

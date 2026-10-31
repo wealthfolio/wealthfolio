@@ -48,18 +48,18 @@ describe("categorization rule feedback", () => {
     mocks.rerunCategorizationRulesDetailed.mockResolvedValue(summary);
   });
 
-  it("explains an incompatible Savings rule without claiming its matches were categorized", async () => {
+  it("explains incompatible matches without claiming they were categorized", async () => {
     const { result } = renderHook(() => useCategorizationRuleMutations(), { wrapper });
     await act(() => result.current.rerun.mutateAsync(true));
 
     expect(mocks.rerunCategorizationRulesDetailed).toHaveBeenCalledWith(true);
     expect(mocks.success).not.toHaveBeenCalled();
-    expect(mocks.warning).toHaveBeenCalledWith(
-      "Categorized 0 activities.",
-      expect.objectContaining({
-        description: expect.stringContaining("Savings categories require a linked transfer"),
-      }),
-    );
+    // Any taxonomy can mismatch (e.g. a spending rule on a refund deposit), so the
+    // explanation states the general rule before the Savings-specific one.
+    expect(mocks.warning).toHaveBeenCalledWith("Categorized 0 activities.", {
+      description:
+        "Incompatible categories: 5. Categories follow the transaction's cash flow. Savings categories apply only to linked transfers leaving your tracked spending accounts.",
+    });
     expect(mocks.invalidateSpendingCaches).toHaveBeenCalled();
   });
 
@@ -70,15 +70,32 @@ describe("categorization rule feedback", () => {
       incompatible: 0,
       protectedManual: 2,
       protectedSplits: 1,
-      skippedExisting: 1,
     });
     const { result } = renderHook(() => useCategorizationRuleMutations(), { wrapper });
     await act(() => result.current.rerun.mutateAsync(false));
 
-    expect(mocks.success).toHaveBeenCalledWith(
-      "Re-categorized 1 activity.",
-      expect.objectContaining({ description: expect.stringContaining("4") }),
-    );
+    expect(mocks.success).toHaveBeenCalledWith("Re-categorized 1 activity.", {
+      description: "Existing categories or splits kept: 3.",
+    });
+  });
+
+  it("does not report categorized rows an uncategorized-only run skips by request", async () => {
+    mocks.rerunCategorizationRulesDetailed.mockResolvedValue({
+      ...summary,
+      matched: 6,
+      eligible: 1,
+      changed: 1,
+      incompatible: 0,
+      protectedManual: 1,
+      protectedSplits: 1,
+      skippedExisting: 3,
+    });
+    const { result } = renderHook(() => useCategorizationRuleMutations(), { wrapper });
+    await act(() => result.current.rerun.mutateAsync(true));
+
+    expect(mocks.success).toHaveBeenCalledWith("Categorized 1 activity.", {
+      description: undefined,
+    });
   });
 
   it("reports an ordinary successful run without skip explanations", async () => {

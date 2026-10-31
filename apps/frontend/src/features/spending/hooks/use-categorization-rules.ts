@@ -74,8 +74,11 @@ export function useCategorizationRuleMutations() {
       if (summary.incompatible > 0) {
         details.push(i18n.t("spending:rules.runIncompatible", { count: summary.incompatible }));
       }
-      const protectedCount =
-        summary.protectedManual + summary.protectedSplits + summary.skippedExisting;
+      // Uncategorized-only runs skip every categorized row by request, so only a
+      // full re-run reports the manual categories and splits it kept.
+      const protectedCount = onlyUncategorized
+        ? 0
+        : summary.protectedManual + summary.protectedSplits;
       if (protectedCount > 0) {
         details.push(i18n.t("spending:rules.runProtected", { count: protectedCount }));
       }

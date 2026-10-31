@@ -82,7 +82,7 @@
     "addTitle": "新增規則",
     "editDescription": "依名稱模式自動標記活動。多條規則同時符合時，會套用優先順序較高的規則。",
     "categoryCompatibilityHint": "分類依據交易的現金流類型。儲蓄分類僅適用於已連結且轉出支出追蹤帳戶範圍的轉帳。",
-    "runIncompatible": "不相容的分類：{{count}}。儲蓄分類需要連結一筆從支出追蹤帳戶轉出的轉帳。",
+    "runIncompatible": "不相容的分類：{{count}}。分類依據交易的現金流類型。儲蓄分類僅適用於已連結且轉出支出追蹤帳戶範圍的轉帳。",
     "runProtected": "保留現有分類或分攤：{{count}}。",
     "runUnchanged": "已依要求分類：{{count}}。",
     "runWithoutTarget": "無目標分類的符合項目：{{count}}。",
