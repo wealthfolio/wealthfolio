@@ -632,7 +632,7 @@
     "name": "Name",
     "name_placeholder": "Enter asset name...",
     "ownership_pct": "Ownership %",
-    "ownership_pct_description": "Your share of this asset. Only affects your net worth total — the displayed value always shows 100%.",
+    "ownership_pct_description": "Your share of this asset. Only affects your net worth total — the displayed value always shows 100%. A new share is applied to your whole net worth history, not just from today.",
     "purchase_information": "Purchase Information",
     "purchase_information_description": "Optional purchase details for gain/loss tracking",
     "purchase_price_per_unit": "Purchase Price (per unit)",

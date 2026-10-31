@@ -30,10 +30,7 @@ use super::loan::{
     AssetDetailsChange, LoanAction, LoanActionResult, LoanBalanceSource, LoanError, LoanPayment,
     LoanRecord, LoanSchedulePreview, LoanSetup, LoanSummary, PaymentLink, LOAN_FIELDS,
 };
-use super::{
-    ownership_pct_from_metadata, Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode,
-    OWNERSHIP_PCT_METADATA_KEY,
-};
+use super::{Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
@@ -218,19 +215,6 @@ impl AlternativeAssetService {
         meta
     }
 
-    /// Gives a liability without its own ownership percentage the linked asset's share.
-    fn inherit_ownership_pct(metadata: &mut Value, linked_asset: &Asset) {
-        if ownership_pct_from_metadata(Some(metadata)).is_some() {
-            return;
-        }
-        if let (Some(pct), Some(obj)) = (linked_asset.ownership_pct(), metadata.as_object_mut()) {
-            obj.insert(
-                OWNERSHIP_PCT_METADATA_KEY.to_string(),
-                json!(pct.to_string()),
-            );
-        }
-    }
-
     /// Removes linked_asset_id from metadata.
     fn remove_linked_asset_id(metadata: Option<Value>) -> Option<Value> {
         let mut meta = metadata?;
@@ -395,18 +379,6 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 setup,
                 request.value_date,
             )?);
-        }
-        // A liability created already linked takes the linked asset's share, as
-        // linking an existing one does. Creation never required the linked asset
-        // to be readable, so the pre-fill is skipped when it is not.
-        if let (true, Some(linked_id), Some(meta)) = (
-            is_liability,
-            request.linked_asset_id.as_deref(),
-            metadata.as_mut(),
-        ) {
-            if let Ok(linked_asset) = self.asset_repository.get_by_id(linked_id) {
-                Self::inherit_ownership_pct(meta, &linked_asset);
-            }
         }
 
         // 2. Determine display_code from metadata
@@ -596,9 +568,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         }
 
         // Update liability metadata with linked_asset_id
-        let mut new_metadata =
-            Self::set_linked_asset_id(liability.metadata, &request.target_asset_id);
-        Self::inherit_ownership_pct(&mut new_metadata, &target);
+        let new_metadata = Self::set_linked_asset_id(liability.metadata, &request.target_asset_id);
         self.alternative_asset_repository
             .update_asset_metadata(&request.liability_id, Some(new_metadata))
             .await?;
@@ -711,12 +681,17 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 let updated_metadata =
                     merged_details(asset.metadata.as_ref(), request.metadata.as_ref());
                 let display_code = Self::derive_display_code(&asset.kind, &updated_metadata);
+                // The repository leaves metadata untouched when given None, so an
+                // edit that removes the last key must write an empty object.
+                let stored_metadata = updated_metadata
+                    .clone()
+                    .or_else(|| asset.metadata.as_ref().map(|_| json!({})));
                 self.alternative_asset_repository
                     .update_asset_details(
                         &request.asset_id,
                         request.name.as_deref(),
                         Some(&display_code),
-                        updated_metadata.clone(),
+                        stored_metadata,
                         request.notes.as_deref(),
                     )
                     .await?;
@@ -1448,13 +1423,17 @@ mod tests {
 
         async fn update_asset_details(
             &self,
-            _asset_id: &str,
+            asset_id: &str,
             _name: Option<&str>,
             _display_code: Option<&str>,
-            _metadata: Option<serde_json::Value>,
+            metadata: Option<serde_json::Value>,
             _notes: Option<&str>,
         ) -> Result<()> {
-            unimplemented!("not used in this test")
+            self.metadata_writes
+                .lock()
+                .unwrap()
+                .push((asset_id.to_string(), metadata));
+            Ok(())
         }
 
         async fn update_loan(
@@ -1628,10 +1607,12 @@ mod tests {
         assert!(removed.is_none()); // Only had linked_asset_id, so should be None when removed
     }
 
+    /// The asset and the liability keep separate ownership shares: owning half of
+    /// a property does not mean owing half of its mortgage, so creating a linked
+    /// liability never copies the asset's share.
     #[tokio::test]
-    async fn create_linked_liability_prefills_ownership_pct_from_linked_asset() {
-        // (liability's own ownership_pct, expected ownership_pct after creation)
-        for (own_pct, expected_pct) in [(None, "50"), (Some("25"), "25")] {
+    async fn create_linked_liability_keeps_its_own_ownership_pct() {
+        for own_pct in [None, Some("25")] {
             let asset_repo = Arc::new(MockAssetRepository::new(vec![super::super::Asset {
                 id: "property".into(),
                 kind: AssetKind::Property,
@@ -1666,14 +1647,17 @@ mod tests {
             let created = asset_repo.created.lock().unwrap();
             let metadata = created[0].metadata.as_ref().unwrap();
             assert_eq!(metadata["linked_asset_id"], json!("property"));
-            assert_eq!(metadata["ownership_pct"], json!(expected_pct));
+            assert_eq!(
+                metadata.get("ownership_pct"),
+                own_pct.map(|p| json!(p)).as_ref()
+            );
         }
     }
 
+    /// Linking only groups a liability under an asset; neither share changes.
     #[tokio::test]
-    async fn link_liability_prefills_ownership_pct_from_target() {
-        // (liability's own ownership_pct, expected ownership_pct after linking)
-        for (own_pct, expected_pct) in [(None, "50"), (Some("25"), "25")] {
+    async fn link_liability_keeps_its_own_ownership_pct() {
+        for own_pct in [None, Some("25")] {
             let mut metadata = json!({ "sub_type": "mortgage" });
             if let Some(pct) = own_pct {
                 metadata["ownership_pct"] = json!(pct);
@@ -1712,12 +1696,51 @@ mod tests {
 
             let mut expected = metadata;
             expected["linked_asset_id"] = json!("property");
-            expected["ownership_pct"] = json!(expected_pct);
             assert_eq!(
                 *alt_repo.metadata_writes.lock().unwrap(),
                 vec![("mortgage".into(), Some(expected))],
             );
         }
+    }
+
+    /// Clearing the share when it is the only metadata key must still reach the
+    /// repository, which treats None as "leave metadata unchanged".
+    #[tokio::test]
+    async fn clearing_the_only_metadata_key_writes_empty_metadata() {
+        let alt_repo = Arc::new(MockAltAssetRepository::default());
+        let service = AlternativeAssetService::new(
+            alt_repo.clone(),
+            Arc::new(MockAssetRepository::new(vec![super::super::Asset {
+                id: "art".into(),
+                kind: AssetKind::Other,
+                metadata: Some(json!({ "ownership_pct": "50" })),
+                ..Default::default()
+            }])),
+            Arc::new(MockQuoteService {
+                cutoff: Arc::default(),
+                as_of_quotes: HashMap::new(),
+                latest_quotes: HashMap::new(),
+            }),
+        );
+
+        service
+            .update_asset_details(UpdateAssetDetailsRequest {
+                asset_id: "art".into(),
+                name: None,
+                notes: None,
+                metadata: Some(HashMap::from([(
+                    "ownership_pct".to_string(),
+                    Some(String::new()),
+                )])),
+                loan: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            *alt_repo.metadata_writes.lock().unwrap(),
+            vec![("art".into(), Some(json!({})))],
+        );
     }
 
     /// Regression test for: liability with a future-dated 0 quote must NOT appear

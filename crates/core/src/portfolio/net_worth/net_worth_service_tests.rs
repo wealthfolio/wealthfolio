@@ -1374,11 +1374,9 @@ async fn test_property_ownership_percentage_discounts_net_worth() {
         .iter()
         .find(|b| b.category == "properties")
         .expect("expected a properties category row");
-    assert!(
-        category_item.name.contains("(50%)"),
-        "expected category row name to include ownership suffix when unambiguous, got: {}",
-        category_item.name
-    );
+    // The frontend replaces the category name with a translated label, so the
+    // share is only shown on the asset rows.
+    assert_eq!(category_item.name, "Properties");
 
     let property_item = category_item
         .children
@@ -1393,10 +1391,9 @@ async fn test_property_ownership_percentage_discounts_net_worth() {
 }
 
 #[tokio::test]
-async fn test_mixed_ownership_percentages_omit_ambiguous_category_suffix() {
+async fn test_ownership_suffix_labels_only_partially_owned_items() {
     // Two properties with different ownership percentages in the same category:
-    // the category row must NOT show a single "(N%)" suffix since that would be
-    // misleading. Individual property rows still show their own percentage.
+    // each row shows its own share and fully-owned rows get no suffix.
     let account1 = create_test_account("prop1", "PROPERTY", "USD");
     let mut asset1 = create_test_asset("PROP-a", AssetKind::Property, "USD");
     asset1.metadata = Some(json!({ "ownership_pct": "50" }));
@@ -1436,10 +1433,7 @@ async fn test_mixed_ownership_percentages_omit_ambiguous_category_suffix() {
         .iter()
         .find(|b| b.category == "properties")
         .expect("expected a properties category row");
-    assert_eq!(
-        category_item.name, "Properties",
-        "mixed ownership percentages within a category should not add an ambiguous suffix"
-    );
+    assert_eq!(category_item.name, "Properties");
 
     let a_item = category_item
         .children
@@ -2379,6 +2373,40 @@ async fn test_history_ownership_percentage_discounts_alt_assets_and_liabilities(
         assert_eq!(at_date.net_worth, point.net_worth);
         assert_eq!(at_date.liabilities.total, point.total_liabilities);
     }
+}
+
+#[tokio::test]
+async fn test_asset_and_linked_liability_shares_apply_independently() {
+    // Owning half of a property does not mean owing half of its mortgage: a
+    // linked liability without its own share counts in full.
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    let mut property = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    property.metadata = Some(json!({ "ownership_pct": "50" }));
+    let mut mortgage = create_test_asset("LIAB-own", AssetKind::Liability, "USD");
+    mortgage.metadata = Some(json!({
+        "original_amount": "300000",
+        "origination_date": d1.to_string(),
+        "linked_asset_id": "PROP-shared",
+    }));
+    let quotes = vec![create_test_quote("PROP-shared", dec!(400000), d1, "USD")];
+
+    let service = create_net_worth_service_with_valuations(
+        vec![],
+        vec![property, mortgage],
+        vec![],
+        quotes,
+        vec![],
+    );
+
+    let history = service.get_net_worth_history(d1, d1).await.unwrap();
+    assert_eq!(history[0].alternative_assets_value, dec!(200000));
+    assert_eq!(history[0].total_liabilities, dec!(300000));
+    assert_eq!(history[0].net_worth, dec!(-100000));
+
+    let at_date = service.get_net_worth(d1).await.unwrap();
+    assert_eq!(at_date.net_worth, dec!(-100000));
+    assert_eq!(at_date.liabilities.total, dec!(300000));
 }
 
 #[tokio::test]

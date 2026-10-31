@@ -279,20 +279,12 @@ impl NetWorthService {
         // Aggregate by category, collecting individual items for drill-down.
         let mut category_totals: HashMap<AssetCategory, Decimal> = HashMap::new();
         let mut category_children: HashMap<AssetCategory, Vec<BreakdownItem>> = HashMap::new();
-        // Distinct ownership percentages seen per category (unset defaults to 100),
-        // used to label the category row itself when unambiguous (single asset, or
-        // multiple assets all sharing the same ownership split).
-        let mut category_ownership_pcts: HashMap<AssetCategory, HashSet<Decimal>> = HashMap::new();
 
         for val in valuations {
             if val.category == AssetCategory::Liability {
                 continue;
             }
             *category_totals.entry(val.category).or_insert(Decimal::ZERO) += val.market_value_base;
-            category_ownership_pcts
-                .entry(val.category)
-                .or_default()
-                .insert(val.ownership_pct.unwrap_or(Decimal::from(100)));
 
             // Skip per-item children for investments — they can be hundreds of
             // holdings, and the dedicated allocation view handles that drill-down.
@@ -318,19 +310,9 @@ impl NetWorthService {
             .map(|(category, value)| {
                 let mut children = category_children.remove(&category).unwrap_or_default();
                 children.sort_by_key(|c| std::cmp::Reverse(c.value));
-
-                let mut name = Self::category_display_name(category).to_string();
-                if let Some(pcts) = category_ownership_pcts.get(&category) {
-                    if let [pct] = pcts.iter().collect::<Vec<_>>()[..] {
-                        if *pct < Decimal::from(100) {
-                            name = format!("{} ({}%)", name, pct.normalize());
-                        }
-                    }
-                }
-
                 BreakdownItem {
                     category: Self::category_key(category).to_string(),
-                    name,
+                    name: Self::category_display_name(category).to_string(),
                     value,
                     asset_id: None,
                     first_value_date: None,
@@ -531,7 +513,6 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: account_valuation.valuation_date,
                         category: AssetCategory::Investment,
                         is_cash_like: false,
-                        ownership_pct: None,
                     });
                 }
 
@@ -548,7 +529,6 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: account_valuation.valuation_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
-                        ownership_pct: None,
                     });
                 }
             }
@@ -663,7 +643,6 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date,
                         category,
                         is_cash_like: false,
-                        ownership_pct,
                     });
                 }
             }
@@ -696,7 +675,6 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Liability,
                         is_cash_like: true,
-                        ownership_pct: None,
                     });
                 } else if cash_base_total > Decimal::ZERO {
                     valuations.push(ValuationInfo {
@@ -706,7 +684,6 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
-                        ownership_pct: None,
                     });
                 }
                 continue;
@@ -748,7 +725,6 @@ impl NetWorthServiceTrait for NetWorthService {
                     valuation_date: snapshot.snapshot_date,
                     category,
                     is_cash_like: true,
-                    ownership_pct: None,
                 });
             }
         }
@@ -865,7 +841,6 @@ impl NetWorthServiceTrait for NetWorthService {
                 valuation_date,
                 category,
                 is_cash_like: false,
-                ownership_pct,
             });
         }
 

@@ -632,7 +632,7 @@
     "name": "名稱",
     "name_placeholder": "輸入資產名稱……",
     "ownership_pct": "所有權比例",
-    "ownership_pct_description": "您在此資產中所佔的份額。僅影響您的淨資產總額——顯示的資產價值始終為 100%。",
+    "ownership_pct_description": "您在此資產中所佔的份額。僅影響您的淨資產總額——顯示的資產價值始終為 100%。新的份額將套用於您的全部淨資產歷史，而不僅是從今天開始。",
     "purchase_information": "購買資訊",
     "purchase_information_description": "用於損益追蹤的選填購買詳細資訊",
     "purchase_price_per_unit": "購買價格（每單位）",

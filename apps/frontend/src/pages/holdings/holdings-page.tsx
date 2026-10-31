@@ -64,6 +64,7 @@ import {
   AlternativeAssetQuickAddModal,
   AssetDetailsSheet,
   UpdateValuationModal,
+  invalidateAlternativeAssetQueries,
   toLinkedLiability,
   type AssetDetailsSheetAsset,
   type LinkableAsset,
@@ -73,7 +74,6 @@ import { updateAlternativeAssetMetadata } from "@/adapters";
 import { ClassificationSheet } from "@/components/classification/classification-sheet";
 import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
 import { useQueryClient } from "@tanstack/react-query";
-import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
@@ -247,10 +247,9 @@ export const HoldingsPage = () => {
       setIsSavingDetails(true);
       try {
         await updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan);
-        // Invalidate queries to refresh the list and the asset detail page
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
+        // Same refresh as the asset page's edit, so net worth history also picks
+        // up changes that apply to past values (e.g. the ownership share).
+        await invalidateAlternativeAssetQueries(queryClient);
       } finally {
         setIsSavingDetails(false);
       }

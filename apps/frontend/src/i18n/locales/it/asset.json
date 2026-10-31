@@ -636,7 +636,7 @@
     "name": "Nome",
     "name_placeholder": "Inserisci il nome dell'asset...",
     "ownership_pct": "Percentuale di proprietà",
-    "ownership_pct_description": "La tua quota di questo asset. Influisce solo sul totale del tuo patrimonio netto: il valore visualizzato mostra sempre il 100%.",
+    "ownership_pct_description": "La tua quota di questo asset. Influisce solo sul totale del tuo patrimonio netto: il valore visualizzato mostra sempre il 100%. Una nuova quota si applica a tutto lo storico del patrimonio netto, non solo da oggi.",
     "purchase_information": "Informazioni di acquisto",
     "purchase_information_description": "Dettagli di acquisto facoltativi per il monitoraggio di guadagni/perdite",
     "purchase_price_per_unit": "Prezzo di acquisto (per unità)",
