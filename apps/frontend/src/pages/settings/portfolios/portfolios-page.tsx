@@ -201,9 +201,13 @@ export default function PortfoliosPage() {
 
                   <div className="flex items-center space-x-2">
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" />}>
+                      {/* Named by aria-label, as in account operations: an sr-only span
+                          here is placed against the settings shell (#2252). */}
+                      <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon-xs" />}
+                        aria-label={t("settings:portfolios.operations_open")}
+                      >
                         <Icons.MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>

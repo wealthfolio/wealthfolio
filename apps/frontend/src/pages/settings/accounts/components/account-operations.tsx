@@ -58,9 +58,14 @@ export function AccountOperations({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" />}>
+        {/* Named by aria-label, not an sr-only span: the span is positioned against the
+            settings shell, not the page that scrolls, so a long list stretched the shell
+            and gave it a second scrollbar (#2252). */}
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-xs" />}
+          aria-label={t("settings:accounts_operations_open")}
+        >
           <Icons.MoreVertical className="h-4 w-4" />
-          <span className="sr-only">{t("settings:accounts_operations_open")}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onEdit(account)}>
