@@ -1330,7 +1330,7 @@
       },
       "activities_write": {
         "label": "Atividades: confirmar/gravar",
-        "description": "Confirmar atividades, atualizar as existentes e vincular ou desvincular transferências. Requer o escopo de rascunho."
+        "description": "Confirmar atividades, atualizar, anular ou excluir as existentes, e vincular ou desvincular transferências. Requer o escopo de rascunho."
       },
       "classification_suggest": {
         "label": "Classificação de ativos — Classificação: sugerir",

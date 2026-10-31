@@ -1330,7 +1330,7 @@
       },
       "activities_write": {
         "label": "Movimenti — conferma/scrittura",
-        "description": "Conferma i movimenti, aggiorna quelli esistenti e collega o scollega i trasferimenti. Richiede l'ambito bozza."
+        "description": "Conferma i movimenti, aggiorna, annulla o elimina quelli esistenti, e collega o scollega i trasferimenti. Richiede l'ambito bozza."
       },
       "classification_suggest": {
         "label": "Classificazione degli asset — suggerisci",
