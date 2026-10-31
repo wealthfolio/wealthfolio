@@ -278,8 +278,10 @@ export function SwipableView({
         </div>
       )}
 
-      {/* Swipable Content */}
-      <div ref={emblaRef} className="h-full grow overflow-hidden">
+      {/* Swipable Content. Clipped, not hidden: an element scrolled into view inside a
+          slide (a pill strip centring its active pill) would otherwise scroll this window
+          sideways too, leaving two views half on screen while the carousel stays put. */}
+      <div ref={emblaRef} className="h-full grow overflow-clip">
         <div
           className="flex h-full touch-pan-y"
           style={{
