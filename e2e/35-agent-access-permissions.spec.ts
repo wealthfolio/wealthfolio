@@ -20,6 +20,8 @@ for (const direction of ["ltr", "rtl"]) {
     const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
       headers: { "x-wf-profile-scope": session.scopeId },
       data: {
+        baseCurrency: "USD",
+        timezone: "UTC",
         onboardingCompleted: true,
         language: "en",
         theme: "light",
@@ -28,6 +30,7 @@ for (const direction of ["ltr", "rtl"]) {
       },
     });
     expect(settings.ok()).toBeTruthy();
+    expect(await settings.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
     await page.goto(`${BASE_URL}/settings/agent-access?dir=${direction}`);
     const name = `Permission test ${direction}`;
     await page.getByRole("button", { name: "Create token", exact: true }).click();
