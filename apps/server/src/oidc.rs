@@ -191,13 +191,23 @@ impl OidcManager {
                 builder = builder.add_root_certificate(cert);
             }
         }
-        let http_client = builder.build()?;
+        // `load_extra_roots` only splits the PEM blocks; the certificates inside
+        // are parsed here, so a corrupt one surfaces as a build error.
+        let http_client = builder
+            .build()
+            .map_err(|e| match config.ca_file.as_deref() {
+                Some(path) => anyhow::anyhow!(
+                    "Invalid certificate in WF_OIDC_CA_FILE {path}: {}",
+                    error_chain(&e)
+                ),
+                None => e.into(),
+            })?;
 
         let issuer = IssuerUrl::new(config.issuer_url.clone())
             .map_err(|e| anyhow::anyhow!("Invalid WF_OIDC_ISSUER_URL: {e}"))?;
         let provider_metadata = CoreProviderMetadata::discover_async(issuer.clone(), &http_client)
             .await
-            .map_err(|e| anyhow::anyhow!("OIDC discovery failed: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("OIDC discovery failed: {}", error_chain(&e)))?;
         let redirect_url = RedirectUrl::new(config.redirect_url.clone())
             .map_err(|e| anyhow::anyhow!("Invalid WF_OIDC_REDIRECT_URL: {e}"))?;
 
@@ -274,7 +284,7 @@ impl OidcManager {
         let fresh =
             CoreProviderMetadata::discover_async(self.issuer_url.clone(), &self.http_client)
                 .await
-                .map_err(|e| anyhow::anyhow!("OIDC re-discovery failed: {e}"))?;
+                .map_err(|e| anyhow::anyhow!("OIDC re-discovery failed: {}", error_chain(&e)))?;
         *self
             .provider_metadata
             .write()
@@ -717,12 +727,39 @@ fn error_redirect(code: &str) -> Response {
 fn load_extra_roots(path: &str) -> anyhow::Result<Vec<reqwest::Certificate>> {
     let pem = std::fs::read(path)
         .map_err(|e| anyhow::anyhow!("Cannot read WF_OIDC_CA_FILE {path}: {e}"))?;
-    let certs = reqwest::Certificate::from_pem_bundle(&pem)
-        .map_err(|e| anyhow::anyhow!("Invalid PEM in WF_OIDC_CA_FILE {path}: {e}"))?;
+    let certs = reqwest::Certificate::from_pem_bundle(&pem).map_err(|e| {
+        anyhow::anyhow!("Invalid PEM in WF_OIDC_CA_FILE {path}: {}", error_chain(&e))
+    })?;
     if certs.is_empty() {
         anyhow::bail!("WF_OIDC_CA_FILE {path} contains no certificates");
     }
     Ok(certs)
+}
+
+/// Renders `err` and its `source()` chain as "outer: inner: …". `{err}` alone
+/// drops the cause: discovery says only "Request failed" while the TLS error
+/// sits further down. User info in a reqwest error's URL is removed, since that
+/// URL comes from `WF_OIDC_ISSUER_URL` or the discovery document.
+fn error_chain(err: &(dyn std::error::Error + 'static)) -> String {
+    let mut parts = Vec::new();
+    let mut next = Some(err);
+    while let Some(e) = next {
+        let mut message = e.to_string();
+        let url = e
+            .downcast_ref::<reqwest::Error>()
+            .or_else(|| e.downcast_ref::<Box<reqwest::Error>>().map(|b| b.as_ref()))
+            .and_then(reqwest::Error::url);
+        if let Some(url) = url.filter(|u| !u.username().is_empty() || u.password().is_some()) {
+            let mut redacted = url.clone();
+            // Only fails for URLs that cannot carry user info in the first place.
+            let _ = redacted.set_username("");
+            let _ = redacted.set_password(None);
+            message = message.replace(url.as_str(), redacted.as_str());
+        }
+        parts.push(message);
+        next = e.source();
+    }
+    parts.join(": ")
 }
 
 fn env_nonempty(key: &str) -> Option<String> {
@@ -781,6 +818,71 @@ mod tests {
             err.to_string().contains("Cannot read WF_OIDC_CA_FILE"),
             "{err}"
         );
+    }
+
+    // A well-formed PEM block whose body is not a certificate.
+    const CORRUPT_CERT: &str = "-----BEGIN CERTIFICATE-----\nZm9vYmFy\n-----END CERTIFICATE-----\n";
+
+    #[tokio::test]
+    async fn corrupt_certificate_in_ca_file_names_setting_and_path() {
+        let path = write_temp("corrupt.pem", CORRUPT_CERT);
+        let path_str = path.to_str().unwrap().to_string();
+        let config = OidcConfig {
+            // Invalid on purpose: startup must stop before any request is sent.
+            issuer_url: "not a url".into(),
+            client_id: "wf".into(),
+            client_secret: None,
+            redirect_url: "http://127.0.0.1/api/v1/auth/oidc/callback".into(),
+            scopes: vec!["openid".into()],
+            allowed_emails: vec![],
+            allowed_subs: vec![],
+            post_logout_redirect_url: None,
+            rp_logout: false,
+            ca_file: Some(path_str.clone()),
+        };
+        let result = OidcManager::discover(&config, [0u8; 32]).await;
+        std::fs::remove_file(&path).ok();
+        let Err(err) = result else {
+            panic!("a corrupt certificate must stop startup");
+        };
+        let message = err.to_string();
+        assert!(
+            message.starts_with(&format!(
+                "Invalid certificate in WF_OIDC_CA_FILE {path_str}: "
+            )),
+            "{message}"
+        );
+        assert!(message.contains("BadEncoding"), "{message}");
+    }
+
+    #[test]
+    fn discovery_error_message_includes_cause_without_url_credentials() {
+        // A reqwest error whose rustls cause sits in `source()`, wrapped the way
+        // `discover_async` returns transport failures.
+        let cert = reqwest::Certificate::from_pem(CORRUPT_CERT.as_bytes()).unwrap();
+        let transport = reqwest::ClientBuilder::new()
+            .add_root_certificate(cert)
+            .build()
+            .unwrap_err()
+            .with_url(
+                "https://user:hunter2@idp.example/.well-known/openid-configuration"
+                    .parse()
+                    .unwrap(),
+            );
+        let err: openidconnect::DiscoveryError<openidconnect::HttpClientError<reqwest::Error>> =
+            openidconnect::DiscoveryError::Request(openidconnect::HttpClientError::Reqwest(
+                Box::new(transport),
+            ));
+
+        let message = error_chain(&err);
+        assert!(message.starts_with("Request failed: "), "{message}");
+        assert!(
+            message.contains("(https://idp.example/.well-known/openid-configuration)"),
+            "{message}"
+        );
+        assert!(message.ends_with("BadEncoding"), "{message}");
+        assert!(!message.contains("hunter2"), "{message}");
+        assert!(!message.contains("user"), "{message}");
     }
 
     #[test]
