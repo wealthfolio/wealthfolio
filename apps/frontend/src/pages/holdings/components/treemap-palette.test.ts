@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { fallbackPalette, getTreemapColor, subscribeToTreemapTheme } from "./treemap-palette";
+import {
+  fallbackPalette,
+  getTreemapColor,
+  readableLabel,
+  readableLabelColors,
+  subscribeToTreemapTheme,
+} from "./treemap-palette";
 
 describe("treemap palette", () => {
   it("draws Classic's ramp: soft sage and rose through their midpoints", () => {
@@ -57,6 +63,35 @@ describe("treemap palette", () => {
       negativeHigh: tile,
     };
     expect(getTreemapColor(-0.015, "daily", palette).isLightTile).toBe(true);
+  });
+
+  it("labels any fill with the label that contrasts more", () => {
+    // Poster dark: its first chart colour is its light label, #f2f2f2 (1:1), so the
+    // dark label goes on it; its card, #1b1b1b, takes the light one.
+    const poster = { ...fallbackPalette, labelDark: [17, 17, 17], labelLight: [242, 242, 242] };
+    expect(readableLabel([242, 242, 242], poster)).toBe(poster.labelDark);
+    expect(readableLabel([27, 27, 27], poster)).toBe(poster.labelLight);
+  });
+
+  it("resolves CSS colours on the page before picking their labels", () => {
+    // jsdom has no canvas: stand in one that reads back the rgb() it was given.
+    let fill = "";
+    const context = {
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      set fillStyle(value: string) {
+        fill = value;
+      },
+      getImageData: () => ({ data: [...fill.match(/\d+/g)!.map(Number), 255] }),
+    };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    expect(readableLabelColors(["rgb(242, 242, 242)", "rgb(27, 27, 27)"], fallbackPalette)).toEqual(
+      ["rgb(16,15,15)", "rgb(255,252,240)"],
+    );
+    expect(document.body.childElementCount).toBe(0);
+    getContext.mockRestore();
   });
 
   it("re-reads the palette when the mode, theme or gain and loss colours change", async () => {
