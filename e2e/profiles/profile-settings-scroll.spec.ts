@@ -21,6 +21,8 @@ for (const direction of ["ltr", "rtl"]) {
     const saved = await context.request.put("/api/v1/settings", {
       headers: { "x-wf-profile-scope": session.scopeId },
       data: {
+        baseCurrency: "USD",
+        timezone: "UTC",
         onboardingCompleted: true,
         syncEnabled: false,
         autoUpdateCheckEnabled: false,
@@ -28,6 +30,7 @@ for (const direction of ["ltr", "rtl"]) {
       },
     });
     expect(saved.ok()).toBeTruthy();
+    expect(await saved.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
 
     await page.setViewportSize({ width: 1280, height: 600 });
     await page.goto(`/?dir=${direction}`);
