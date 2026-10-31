@@ -281,7 +281,18 @@ impl CategorizationRulesService {
                 .is_some()
                 {
                     matched_count += 1;
-                    incompatible += 1;
+                    // A mismatch only explains rows it leaves uncategorized; once
+                    // the row has a category in its own taxonomy, it is settled.
+                    let own_taxonomy = row.cash_flow_bucket.taxonomy_id();
+                    let categorized = row
+                        .assignments
+                        .iter()
+                        .map(|assignment| assignment.taxonomy_id.as_str())
+                        .chain(row.splits.iter().map(|split| split.taxonomy_id.as_str()))
+                        .any(|taxonomy_id| Some(taxonomy_id) == own_taxonomy);
+                    if !categorized {
+                        incompatible += 1;
+                    }
                 }
                 continue;
             };
@@ -879,7 +890,12 @@ mod tests {
                     };
                     let mut row = serde_json::to_value(a)?;
                     row["cashFlowBucket"] = serde_json::json!(bucket);
-                    row["assignments"] = serde_json::json!([]);
+                    row["assignments"] = serde_json::to_value(
+                        self.assignments
+                            .iter()
+                            .filter(|assignment| assignment.activity_id == a.id)
+                            .collect::<Vec<_>>(),
+                    )?;
                     row["splits"] = serde_json::json!([]);
                     row["netAmount"] = serde_json::json!(0.0);
                     row["visibleSpendingAmount"] = serde_json::json!(0.0);
@@ -937,6 +953,8 @@ mod tests {
 
     struct MockActivityRepo {
         activities: Vec<Activity>,
+        /// Activity-scope assignments the rows carry, as `list_for_rules` loads them.
+        assignments: Vec<ActivityTaxonomyAssignment>,
     }
 
     fn mk_activity(id: &str, account: &str, notes: &str) -> Activity {
@@ -1227,6 +1245,7 @@ mod tests {
         let assignment_repo = Arc::new(MockAssignmentRepo::default());
         let activity_repo = Arc::new(MockActivityRepo {
             activities: vec![mk_activity("withdrawal", "acct1", "TRANSFER TO BROKER")],
+            assignments: vec![],
         });
         let svc = CategorizationRulesService::new(
             rules_repo,
@@ -1269,6 +1288,7 @@ mod tests {
         linked.source_group_id = Some("investment-transfer".to_string());
         let activity_repo = Arc::new(MockActivityRepo {
             activities: vec![withdrawal, unlinked, linked],
+            assignments: vec![],
         });
         let svc = CategorizationRulesService::new(
             rules_repo,
@@ -1292,6 +1312,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn incompatible_matches_skip_rows_categorized_in_their_own_taxonomy() {
+        // A spending rule matching refund deposits, which are income.
+        let rules_repo = Arc::new(MockRulesRepo {
+            rules: Mutex::new(vec![mk_rule(
+                "shopping",
+                "AMZN",
+                "spending_categories",
+                "cat_shopping",
+                10,
+            )]),
+        });
+        let assignment_repo = Arc::new(MockAssignmentRepo::default());
+        let mut categorized = mk_activity("categorized", "acct1", "AMZN REFUND");
+        categorized.activity_type = "DEPOSIT".to_string();
+        let mut uncategorized = categorized.clone();
+        uncategorized.id = "uncategorized".to_string();
+        let now = Utc::now().naive_utc();
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![categorized, uncategorized],
+            assignments: vec![ActivityTaxonomyAssignment {
+                id: "manual-income".to_string(),
+                activity_id: "categorized".to_string(),
+                taxonomy_id: "income_sources".to_string(),
+                category_id: "cat_income_other".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+                created_at: now,
+                updated_at: now,
+            }],
+        });
+        let svc = CategorizationRulesService::new(
+            rules_repo,
+            activity_repo,
+            Arc::new(ActivityTaxonomyAssignmentService::new(
+                assignment_repo.clone(),
+            )),
+        );
+
+        for only_uncategorized in [true, false] {
+            let summary = svc
+                .rerun_detailed(&["acct1".to_string()], only_uncategorized)
+                .await
+                .unwrap();
+            // Both still match, so the legacy numeric result is unchanged.
+            assert_eq!(summary.matched, 2);
+            assert_eq!(summary.decisions.incompatible, 1);
+        }
+        assert!(assignment_repo.writes.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
     async fn rerun_does_not_skip_cross_taxonomy_for_manual_income() {
         // Activity has a manual income_sources assignment and NO spending_categories
         // assignment. A rule targeting spending_categories should still apply.
@@ -1310,6 +1381,7 @@ mod tests {
         });
         let activity_repo = Arc::new(MockActivityRepo {
             activities: vec![mk_activity("act1", "acct1", "AMAZON ORDER #123")],
+            assignments: vec![],
         });
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo.clone() as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
@@ -1365,6 +1437,7 @@ mod tests {
         });
         let activity_repo = Arc::new(MockActivityRepo {
             activities: vec![mk_activity("act1", "acct1", "AMAZON ORDER #123")],
+            assignments: vec![],
         });
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo.clone() as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
@@ -1398,6 +1471,7 @@ mod tests {
         let assignment_repo = Arc::new(MockAssignmentRepo::default());
         let activity_repo = Arc::new(MockActivityRepo {
             activities: vec![mk_activity("act1", "acct1", "AMAZON ORDER #123")],
+            assignments: vec![],
         });
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo.clone() as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
@@ -1447,7 +1521,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![],
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
@@ -1489,7 +1566,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![],
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
@@ -1531,7 +1611,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![],
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
@@ -1577,7 +1660,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![],
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
@@ -1621,7 +1707,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![],
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo.clone() as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
@@ -1797,7 +1886,10 @@ mod tests {
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo.clone() as Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
         ));
-        let activity_repo = Arc::new(MockActivityRepo { activities });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities,
+            assignments: vec![],
+        });
         let svc = CategorizationRulesService::new(
             rules_repo.clone() as Arc<dyn CategorizationRulesRepositoryTrait>,
             activity_repo as Arc<dyn CashActivityServiceTrait>,
