@@ -165,8 +165,28 @@ mod tests {
     }
 
     fn match_preset_as(preset_id: &str, notes: &str, activity_type: &str) -> Option<String> {
+        match_installed_presets(&[preset_id], notes, activity_type)
+    }
+
+    /// Matches against several presets installed in the given order. On equal
+    /// priority the rule installed first wins, as `list` orders rules by
+    /// priority, then creation time.
+    fn match_installed_presets(
+        preset_ids: &[&str],
+        notes: &str,
+        activity_type: &str,
+    ) -> Option<String> {
+        let rules = preset_ids
+            .iter()
+            .flat_map(|preset_id| preset_rules(preset_id))
+            .collect::<Vec<_>>();
+        match_rules(&rules, notes, activity_type, "account", None)
+            .and_then(|matched| matched.rule.category_id.clone())
+    }
+
+    fn preset_rules(preset_id: &str) -> Vec<CategorizationRule> {
         let now = Utc::now().naive_utc();
-        let rules = load_preset(preset_id)
+        load_preset(preset_id)
             .expect("preset should load")
             .rules
             .into_iter()
@@ -192,10 +212,7 @@ mod tests {
                 created_at: now,
                 updated_at: now,
             })
-            .collect::<Vec<_>>();
-
-        match_rules(&rules, notes, activity_type, "account", None)
-            .and_then(|matched| matched.rule.category_id.clone())
+            .collect()
     }
 
     fn match_swedish_preset(notes: &str) -> Option<String> {
@@ -472,6 +489,33 @@ mod tests {
             assert_eq!(match_preset_as("it", notes, "DEPOSIT"), None, "{notes}");
         }
         assert_eq!(match_preset("it", "ACME SRL — STIPENDIO OTTOBRE"), None);
+    }
+
+    #[test]
+    fn italian_merchants_outrank_us_personal_care_when_both_presets_are_installed() {
+        // Most Italian company names end in "SpA", and the US personal care rule
+        // matches `spa\b` (and `ulta\b`) on any activity type.
+        for installed in [["us", "it"], ["it", "us"]] {
+            for (notes, category) in [
+                ("ESSELUNGA SPA MILANO", "groceries"),
+                ("TELEPASS SPA", "transport_parking"),
+                ("TRENITALIA SPA", "transport_public"),
+                ("AUTOGRILL SPA", "food_restaurants"),
+                ("BAR CENTRALE SPA", "food_coffee"),
+                ("VIRGIN ACTIVE ITALIA SPA", "health_fitness"),
+                ("PAGAMENTO MULTA", "fees"),
+                // US spas and salons still file under personal care.
+                ("SERENITY DAY SPA", "personal"),
+                ("BLISS SPA NYC", "personal"),
+                ("GREAT CLIPS #123", "personal"),
+            ] {
+                assert_eq!(
+                    match_installed_presets(&installed, notes, "WITHDRAWAL").as_deref(),
+                    Some(category),
+                    "{notes} with {installed:?} installed"
+                );
+            }
+        }
     }
 
     #[test]
