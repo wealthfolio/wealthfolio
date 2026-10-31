@@ -235,6 +235,7 @@ export const COMMANDS: CommandMap = {
   upsert_categorization_rule: { method: "POST", path: "/spending/rules/upsert" },
   delete_categorization_rule: { method: "DELETE", path: "/spending/rules" },
   rerun_categorization_rules: { method: "POST", path: "/spending/rules/rerun" },
+  rerun_categorization_rules_detailed: { method: "POST", path: "/spending/rules/rerun/detailed" },
   list_rule_presets: { method: "GET", path: "/spending/rule-presets" },
   import_rule_preset: { method: "POST", path: "/spending/rule-presets" },
   remove_rule_preset: { method: "DELETE", path: "/spending/rule-presets" },
@@ -1510,7 +1511,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(id)}`;
       break;
     }
-    case "rerun_categorization_rules": {
+    case "rerun_categorization_rules":
+    case "rerun_categorization_rules_detailed": {
       const { onlyUncategorized } = payload as { onlyUncategorized: boolean };
       body = JSON.stringify({ onlyUncategorized });
       break;

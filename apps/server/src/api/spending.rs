@@ -24,7 +24,7 @@ use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
-    CategorizationRule, NewCategorizationRule, UpdateCategorizationRule,
+    CategorizationRule, CategorizationRunSummary, NewCategorizationRule, UpdateCategorizationRule,
 };
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
@@ -347,6 +347,22 @@ async fn rerun_categorization_rules(
         state
             .categorization_rules_service
             .rerun_all(&s.account_ids, body.only_uncategorized)
+            .await?,
+    ))
+}
+
+async fn rerun_categorization_rules_detailed(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<RerunRulesBody>,
+) -> ApiResult<Json<CategorizationRunSummary>> {
+    let settings = state.spending_settings_service.get().await?;
+    if !settings.enabled {
+        return Ok(Json(CategorizationRunSummary::default()));
+    }
+    Ok(Json(
+        state
+            .categorization_rules_service
+            .rerun_detailed(&settings.account_ids, body.only_uncategorized)
             .await?,
     ))
 }
@@ -799,6 +815,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         )
         .route("/spending/rules/upsert", post(upsert_categorization_rule))
         .route("/spending/rules/rerun", post(rerun_categorization_rules))
+        .route(
+            "/spending/rules/rerun/detailed",
+            post(rerun_categorization_rules_detailed),
+        )
         .route("/spending/rule-presets", get(list_rule_presets))
         .route(
             "/spending/rule-presets/{preset_id}/import",

@@ -11,7 +11,7 @@ import {
   listCategorizationRules,
   listRulePresets,
   removeRulePreset,
-  rerunCategorizationRules,
+  rerunCategorizationRulesDetailed,
   updateCategorizationRule,
 } from "../adapters/rules";
 import { invalidateSpendingCaches } from "../lib/invalidation";
@@ -66,17 +66,34 @@ export function useCategorizationRuleMutations() {
   });
 
   const rerun = useMutation({
-    mutationFn: (onlyUncategorized: boolean) => rerunCategorizationRules(onlyUncategorized),
-    onSuccess: (count, onlyUncategorized) => {
+    mutationFn: (onlyUncategorized: boolean) => rerunCategorizationRulesDetailed(onlyUncategorized),
+    onSuccess: (summary, onlyUncategorized) => {
       // Rerun touches every cash activity's category — refresh report/budget too.
       invalidateSpendingCaches(qc);
-      toast.success(
+      const details: string[] = [];
+      if (summary.incompatible > 0) {
+        details.push(i18n.t("spending:rules.runIncompatible", { count: summary.incompatible }));
+      }
+      const protectedCount =
+        summary.protectedManual + summary.protectedSplits + summary.skippedExisting;
+      if (protectedCount > 0) {
+        details.push(i18n.t("spending:rules.runProtected", { count: protectedCount }));
+      }
+      if (summary.unchanged > 0) {
+        details.push(i18n.t("spending:rules.runUnchanged", { count: summary.unchanged }));
+      }
+      if (summary.withoutTarget > 0) {
+        details.push(i18n.t("spending:rules.runWithoutTarget", { count: summary.withoutTarget }));
+      }
+      const notify = summary.incompatible > 0 ? toast.warning : toast.success;
+      notify(
         i18n.t(
           onlyUncategorized
             ? "spending:txTab.categorizedCount"
             : "common:notifications.recategorized",
-          { count },
+          { count: summary.changed },
         ),
+        { description: details.length > 0 ? details.join(" ") : undefined },
       );
     },
     onError: () => toast.error(i18n.t("common:notifications.failed_to_re_run_rules")),

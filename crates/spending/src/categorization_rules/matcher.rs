@@ -64,8 +64,8 @@ pub fn compile_rules(rules: &[CategorizationRule]) -> Vec<CompiledRule<'_>> {
 /// `amount` must be the activity's unsigned amount (callers pass
 /// `activity.amount.map(|d| d.abs())`); an activity without an amount never
 /// matches a rule that has an amount condition.
-pub fn match_compiled<'r>(
-    compiled: &[CompiledRule<'r>],
+pub fn match_compiled<'c, 'r: 'c>(
+    compiled: impl IntoIterator<Item = &'c CompiledRule<'r>>,
     notes_upper: &str,
     notes_raw: &str,
     activity_type: &str,

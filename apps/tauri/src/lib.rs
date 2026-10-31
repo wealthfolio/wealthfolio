@@ -347,6 +347,7 @@ pub fn run() {
             commands::spending::upsert_categorization_rule,
             commands::spending::delete_categorization_rule,
             commands::spending::rerun_categorization_rules,
+            commands::spending::rerun_categorization_rules_detailed,
             commands::spending::list_rule_presets,
             commands::spending::import_rule_preset,
             commands::spending::remove_rule_preset,

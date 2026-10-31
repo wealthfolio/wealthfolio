@@ -258,24 +258,41 @@ impl CategorizationRulesService {
             let a = &row.activity;
             let notes_raw = a.notes.as_deref().unwrap_or("");
             let notes_upper = notes_raw.to_uppercase();
+            // Choose priority within this bucket: an inapplicable Savings rule
+            // must not hide a matching Spending rule. Keep targetless rules'
+            // existing priority and reporting semantics.
+            let compatible = compiled.iter().filter(|candidate| {
+                candidate.rule.category_id.is_none()
+                    || candidate.rule.taxonomy_id.is_none()
+                    || candidate.rule.taxonomy_id.as_deref() == row.cash_flow_bucket.taxonomy_id()
+            });
             let Some(m) = match_compiled(
-                &compiled,
+                compatible,
                 &notes_upper,
                 notes_raw,
                 a.effective_type(),
                 &a.account_id,
                 a.amount.map(|d| d.abs()),
             ) else {
+                if match_compiled(
+                    &compiled,
+                    &notes_upper,
+                    notes_raw,
+                    a.effective_type(),
+                    &a.account_id,
+                    a.amount.map(|d| d.abs()),
+                )
+                .is_some()
+                {
+                    matched_count += 1;
+                    incompatible += 1;
+                }
                 continue;
             };
             matched_count += 1;
             if let (Some(tax_id), Some(cat_id)) =
                 (m.rule.taxonomy_id.clone(), m.rule.category_id.clone())
             {
-                if row.cash_flow_bucket.taxonomy_id() != Some(tax_id.as_str()) {
-                    incompatible += 1;
-                    continue;
-                }
                 writes.push(NewActivityTaxonomyAssignment {
                     id: None,
                     activity_id: a.id.clone(),
@@ -1189,6 +1206,93 @@ mod tests {
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
         }
+    }
+
+    #[tokio::test]
+    async fn incompatible_savings_rule_does_not_block_a_spending_rule() {
+        let rules_repo = Arc::new(MockRulesRepo {
+            rules: Mutex::new(vec![
+                mk_rule(
+                    "savings",
+                    "TRANSFER",
+                    "savings_categories",
+                    "cat_savings_investments",
+                    10,
+                ),
+                mk_rule(
+                    "spending",
+                    "TRANSFER",
+                    "spending_categories",
+                    "cat_other",
+                    1,
+                ),
+            ]),
+        });
+        let assignment_repo = Arc::new(MockAssignmentRepo::default());
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![mk_activity("withdrawal", "acct1", "TRANSFER TO BROKER")],
+        });
+        let svc = CategorizationRulesService::new(
+            rules_repo,
+            activity_repo,
+            Arc::new(ActivityTaxonomyAssignmentService::new(
+                assignment_repo.clone(),
+            )),
+        );
+
+        let summary = svc
+            .rerun_detailed(&["acct1".to_string()], true)
+            .await
+            .unwrap();
+        assert_eq!(summary.matched, 1);
+        assert_eq!(summary.decisions.changed, 1);
+        assert_eq!(summary.decisions.incompatible, 0);
+        let writes = assignment_repo.writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0].category_id, "cat_other");
+    }
+
+    #[tokio::test]
+    async fn savings_rules_report_incompatible_withdrawals_and_accept_linked_transfers() {
+        let rules_repo = Arc::new(MockRulesRepo {
+            rules: Mutex::new(vec![mk_rule(
+                "savings",
+                "BROKER",
+                "savings_categories",
+                "cat_savings_investments",
+                10,
+            )]),
+        });
+        let assignment_repo = Arc::new(MockAssignmentRepo::default());
+        let withdrawal = mk_activity("withdrawal", "acct1", "BROKER");
+        let mut unlinked = mk_activity("unlinked", "acct1", "BROKER");
+        unlinked.activity_type = "TRANSFER_OUT".to_string();
+        let mut linked = unlinked.clone();
+        linked.id = "linked".to_string();
+        // The counterpart is outside the Spending scope, so only this leg is loaded.
+        linked.source_group_id = Some("investment-transfer".to_string());
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![withdrawal, unlinked, linked],
+        });
+        let svc = CategorizationRulesService::new(
+            rules_repo,
+            activity_repo,
+            Arc::new(ActivityTaxonomyAssignmentService::new(
+                assignment_repo.clone(),
+            )),
+        );
+
+        let summary = svc
+            .rerun_detailed(&["acct1".to_string()], true)
+            .await
+            .unwrap();
+        assert_eq!(summary.matched, 3);
+        assert_eq!(summary.decisions.changed, 1);
+        assert_eq!(summary.decisions.incompatible, 2);
+        let writes = assignment_repo.writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0].activity_id, "linked");
+        assert_eq!(writes[0].taxonomy_id, "savings_categories");
     }
 
     #[tokio::test]
