@@ -19,8 +19,8 @@ use rust_decimal::Decimal;
 use std::sync::Arc;
 use wealthfolio_agent_tools::AgentTool;
 use wealthfolio_ai::env::test_env::{
-    MockAccountService, MockAssetService, MockCashActivityService, MockEnvironment,
-    MockHealthService, MockTaxonomyService,
+    MockAccountService, MockAssetService, MockCashActivityService, MockCategorizationRulesService,
+    MockEnvironment, MockHealthService, MockTaxonomyService,
 };
 use wealthfolio_ai::tools::{
     GetAccounts, GetAssetAllocation, GetAssetTaxonomyAssignments, GetCashBalances, GetGoals,
@@ -755,6 +755,61 @@ fn categorization_env() -> Arc<MockEnvironment> {
         ],
     });
     Arc::new(env)
+}
+
+#[tokio::test]
+async fn incompatible_savings_rule_does_not_hide_compatible_rule_proposals() {
+    use wealthfolio_agent_tools::tools::categorization_context::{
+        compute_categorization_state, CategorizationFilters,
+    };
+    use wealthfolio_spending::categorization_rules::{CategorizationRule, RuleMatchType};
+
+    let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
+    let now = Utc::now().naive_utc();
+    env.categorization_rules_service = Arc::new(MockCategorizationRulesService {
+        rules: [
+            ("savings_categories", "cat-savings", 10),
+            ("spending_categories", "cat-coffee", 1),
+        ]
+        .into_iter()
+        .map(|(taxonomy, category, priority)| CategorizationRule {
+            id: category.to_string(),
+            name: category.to_string(),
+            pattern: "COFFEE".to_string(),
+            match_type: RuleMatchType::Contains,
+            taxonomy_id: Some(taxonomy.to_string()),
+            category_id: Some(category.to_string()),
+            activity_type: None,
+            amount_op: None,
+            amount_value: None,
+            amount_value2: None,
+            priority,
+            is_global: true,
+            account_id: None,
+            preset_id: None,
+            preset_rule_key: None,
+            preset_version: None,
+            preset_modified: false,
+            created_at: now,
+            updated_at: now,
+        })
+        .collect(),
+    });
+
+    let state = compute_categorization_state(
+        &env,
+        CategorizationFilters {
+            activity_ids: Some(vec!["cash-a".to_string()]),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(state.proposals.len(), 1);
+    assert_eq!(state.proposals[0].activity_id, "cash-a");
+    assert_eq!(state.proposals[0].category_id, "cat-coffee");
+    assert_eq!(state.proposals[0].source, "rule");
+    assert!(state.unproposed.is_empty());
 }
 
 output_test_dyn_env!(

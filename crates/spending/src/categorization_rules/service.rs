@@ -7,7 +7,10 @@ use tokio::sync::Mutex;
 
 use rust_decimal::Decimal;
 
-use super::matcher::{compile_regex_pattern, compile_rules, match_compiled, MAX_REGEX_PATTERN_LEN};
+use super::matcher::{
+    compile_regex_pattern, compile_rules, match_compiled, match_compiled_for_taxonomy,
+    MAX_REGEX_PATTERN_LEN,
+};
 use super::model::{
     CategorizationRule, NewCategorizationRule, RuleAmountOp, RuleMatchType,
     UpdateCategorizationRule,
@@ -258,16 +261,9 @@ impl CategorizationRulesService {
             let a = &row.activity;
             let notes_raw = a.notes.as_deref().unwrap_or("");
             let notes_upper = notes_raw.to_uppercase();
-            // Choose priority within this bucket: an inapplicable Savings rule
-            // must not hide a matching Spending rule. Keep targetless rules'
-            // existing priority and reporting semantics.
-            let compatible = compiled.iter().filter(|candidate| {
-                candidate.rule.category_id.is_none()
-                    || candidate.rule.taxonomy_id.is_none()
-                    || candidate.rule.taxonomy_id.as_deref() == row.cash_flow_bucket.taxonomy_id()
-            });
-            let Some(m) = match_compiled(
-                compatible,
+            let Some(m) = match_compiled_for_taxonomy(
+                &compiled,
+                row.cash_flow_bucket.taxonomy_id(),
                 &notes_upper,
                 notes_raw,
                 a.effective_type(),

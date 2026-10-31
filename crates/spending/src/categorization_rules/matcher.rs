@@ -130,6 +130,32 @@ pub fn match_compiled<'c, 'r: 'c>(
     best.map(|rule| RuleMatch { rule })
 }
 
+/// Select priority within the activity's cash-flow taxonomy. A rule that cannot
+/// apply must not hide a compatible rule. Targetless rules retain their existing
+/// priority so callers can continue reporting matches without a category target.
+pub fn match_compiled_for_taxonomy<'r>(
+    compiled: &[CompiledRule<'r>],
+    taxonomy_id: Option<&str>,
+    notes_upper: &str,
+    notes_raw: &str,
+    activity_type: &str,
+    account_id: &str,
+    amount: Option<Decimal>,
+) -> Option<RuleMatch<'r>> {
+    match_compiled(
+        compiled.iter().filter(|candidate| {
+            candidate.rule.category_id.is_none()
+                || candidate.rule.taxonomy_id.is_none()
+                || candidate.rule.taxonomy_id.as_deref() == taxonomy_id
+        }),
+        notes_upper,
+        notes_raw,
+        activity_type,
+        account_id,
+        amount,
+    )
+}
+
 /// Single-shot match against an un-compiled rule slice. Convenience for the
 /// rule-tester / single-activity paths where the per-call compile cost is
 /// negligible. Bulk paths should use [`compile_rules`] + [`match_compiled`].
