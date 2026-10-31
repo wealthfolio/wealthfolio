@@ -851,7 +851,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       className={`bg-background text-foreground relative flex min-h-dvh items-center justify-center px-6 py-16 ${mode === "unlock" && busy ? "profile-centering" : ""} ${isProfilePicker ? "profile-lock-screen pt-24" : isProfileEditor ? "profile-lock-screen profile-settings-screen" : isRecoveryView ? "profile-lock-screen" : ""}`}
       aria-busy={busy}
     >
-      <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-50 h-8" />
+      <div data-tauri-drag-region className="fixed inset-x-0 top-0 z-50 h-8" />
       {isProfilePicker && (
         <div
           aria-hidden="true"
@@ -867,7 +867,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <div
-        className={`w-full space-y-6 ${isRecoveryView ? "!max-w-md rounded-3xl border border-white/40 bg-white/40 p-6 text-start shadow-xl shadow-black/5 backdrop-blur-xl sm:p-8 dark:border-white/10 dark:bg-white/5" : isProfileEditor ? "max-w-2xl text-start" : "max-w-xl text-center"}`}
+        className={`w-full space-y-6 ${isRecoveryView ? "!max-w-md rounded-3xl border border-white/40 bg-white/40 p-6 text-start shadow-xl shadow-black/5 backdrop-blur-xl sm:p-8 dark:border-white/10 dark:bg-white/5" : isProfileEditor ? "profile-settings-content max-w-2xl text-start" : "max-w-xl text-center"}`}
       >
         {isRecoveryView && selected && (
           <div className="flex items-center gap-3 !overflow-visible">

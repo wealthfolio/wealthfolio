@@ -3,7 +3,7 @@ import ar from "../../apps/frontend/src/i18n/locales/ar/common.json" with { type
 import en from "../../apps/frontend/src/i18n/locales/en/common.json" with { type: "json" };
 
 for (const direction of ["ltr", "rtl"]) {
-  test(`profile settings scrolls with the mouse wheel in ${direction}`, async ({
+  test(`profile settings scrolls, keeps its drag strip, and centers fitting content in ${direction}`, async ({
     page,
     context,
   }) => {
@@ -44,16 +44,28 @@ for (const direction of ["ltr", "rtl"]) {
       name: copy.avatarGroup.replace("{{style}}", copy.avatarAll),
       exact: true,
     });
+    const dragStrip = page.locator(".profile-settings-screen [data-tauri-drag-region]");
+    await expect.poll(async () => (await dragStrip.boundingBox())!.y).toBe(0);
     const before = (await gallery.boundingBox())!;
     await page.mouse.move(before.x + before.width / 2, Math.min(before.y + 20, 500));
     await page.mouse.wheel(0, 450);
     await expect.poll(async () => (await gallery.boundingBox())!.y).toBeLessThan(before.y - 100);
+    expect((await dragStrip.boundingBox())!.y).toBe(0);
+    expect(
+      await page.evaluate(() =>
+        document.elementFromPoint(50, 16)?.hasAttribute("data-tauri-drag-region"),
+      ),
+    ).toBe(true);
 
     const after = (await gallery.boundingBox())!;
     await page.mouse.wheel(0, -450);
     await expect.poll(async () => (await gallery.boundingBox())!.y).toBeGreaterThan(after.y + 100);
 
-    await page.setViewportSize({ width: 1280, height: 960 });
+    const content = page.locator(".profile-settings-content");
+    // A little room around the current form: adding avatar rows must not
+    // invalidate the test's assumption that the form fits in this viewport.
+    const fittedHeight = Math.ceil((await content.boundingBox())!.height + 100);
+    await page.setViewportSize({ width: 1280, height: fittedHeight });
     await expect
       .poll(() =>
         page
@@ -61,5 +73,12 @@ for (const direction of ["ltr", "rtl"]) {
           .evaluate((element) => element.scrollHeight <= element.clientHeight),
       )
       .toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= document.documentElement.clientHeight,
+      ),
+    ).toBe(true);
+    const centered = (await content.boundingBox())!;
+    expect(Math.abs(centered.y + centered.height / 2 - fittedHeight / 2)).toBeLessThan(1);
   });
 }
