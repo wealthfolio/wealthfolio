@@ -197,4 +197,34 @@ describe("ContributionLimitForm dates", () => {
     expect(updatedLimit.startDate).toBe(taxYear.startDate);
     expect(updatedLimit.endDate ?? null).toBeNull();
   });
+
+  it("keeps the dates it opens with until the year is changed", async () => {
+    const mutateAsync = vi.fn();
+    mocks.useAddLimit = () => ({ mutateAsync, isPending: false });
+    // A projected limit for a tax year that doesn't follow the calendar year.
+    const startDate = new Date(2027, 3, 6);
+    const endDate = new Date(2028, 3, 5);
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{
+            groupName: "ISA",
+            contributionYear: 2027,
+            limitAmount: 20000,
+            startDate,
+            endDate,
+          }}
+        />
+      </Dialog>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+    mocks.useAddLimit = null;
+  });
 });
