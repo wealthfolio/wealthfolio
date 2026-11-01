@@ -716,8 +716,17 @@ impl AutoClassificationService {
         name: Option<&str>,
         kind: &AssetKind,
     ) {
+        // `InstrumentType::from_external_str` also accepts `MUTUAL_FUND`, which
+        // the quote-type mapping does not know.
         let label = instrument_type_label
             .map(str::trim)
+            .map(|label| {
+                if label.eq_ignore_ascii_case("MUTUAL_FUND") {
+                    "MUTUALFUND"
+                } else {
+                    label
+                }
+            })
             .filter(|label| map_quote_type_to_instrument_type(label, name).is_some());
         let Some(label) = label else {
             self.classify_from_spec(asset_id, instrument_type, kind)
@@ -1658,6 +1667,24 @@ mod tests {
                 "Example Corporate Bond Fund",
                 "FUND_MUTUAL",
                 "FIXED_INCOME",
+            ),
+            (
+                "MUTUAL_FUND",
+                "Example Corporate Bond Fund",
+                "FUND_MUTUAL",
+                "FIXED_INCOME",
+            ),
+            (
+                "mutual_fund",
+                "Example Equity Fund",
+                "FUND_MUTUAL",
+                "EQUITY",
+            ),
+            (
+                "Mutual Fund",
+                "Example Equity Fund",
+                "FUND_MUTUAL",
+                "EQUITY",
             ),
             ("ETF", "Example Equity ETF", "ETF", "EQUITY"),
         ];
