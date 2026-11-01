@@ -584,6 +584,14 @@
     cursor: pointer;
   }
 
+  /* The phone stack focuses a pushed screen's heading (or the screen) so screen readers
+     start there. It isn't a control, so it shows no focus ring; WebKit drew one, cut to a
+     line under a truncated title. */
+  [data-stack-screen] h1[tabindex="-1"]:focus,
+  [data-stack-screen][tabindex="-1"]:focus {
+    outline: none;
+  }
+
   /* Safe area support for notched devices */
   @supports (padding: max(0px)) {
     .pt-safe {
