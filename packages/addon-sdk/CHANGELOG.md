@@ -117,6 +117,16 @@ and this project adheres to
   `unlinkTransferPairId` are not forwarded by `update` or `saveMany`;
   `activities.unlinkTransfer` retains its separate function grant.
 
+### Fixed
+
+- The package root exports the data types' runtime values, not only their types:
+  `ActivityType`, `ACTIVITY_TYPES`, `ActivityStatus`, `ACTIVITY_SUBTYPES`,
+  `AssetKind`, `QuoteMode`, `DataSource`, `AccountType`, `HoldingType`,
+  `ACTIVITY_TYPE_PREFIX_LENGTH`, `getEffectiveType` and `hasUserOverride`.
+  Before, they were exported as types only, so code such as
+  `ACTIVITY_SUBTYPES.CONVERSION_OUT` failed to compile (TS1362, "cannot be used
+  as a value because it was exported using 'export type'").
+
 ## [3.11.0] - 2026-10-22
 
 ### Added

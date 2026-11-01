@@ -46,8 +46,9 @@ export type {
 export type { QueryClient } from '@tanstack/react-query';
 export { QueryKeys } from './query-keys';
 
-// Comprehensive data types
-export type * from './data-types';
+// Comprehensive data types, plus their runtime constants (ActivityType,
+// ACTIVITY_SUBTYPES, AccountType, …) and helpers.
+export * from './data-types';
 
 // Manifest and metadata types
 export type {
