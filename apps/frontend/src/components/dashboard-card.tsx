@@ -33,19 +33,24 @@ export function DashboardCard({
 }: DashboardCardProps) {
   return (
     <div className="w-full">
-      <div className="flex items-baseline justify-between pb-2">
+      {/* When the title and action don't fit on one row (a phone, a larger text size),
+          the action wraps under the title, at the end, instead of running off the card. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
           {subtitle != null && subtitle !== "" && (
             <span className="text-muted-foreground/60 text-xs">{subtitle}</span>
           )}
         </div>
-        {action ??
-          (meta ? (
-            <span className="text-muted-foreground/70 text-xs font-medium tracking-wide uppercase">
-              {meta}
-            </span>
-          ) : null)}
+        {(action != null || meta) && (
+          <div className="ms-auto">
+            {action ?? (
+              <span className="text-muted-foreground/70 text-xs font-medium tracking-wide uppercase">
+                {meta}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <Card className={cn(padded && "p-3 md:p-4", className)}>{children}</Card>
     </div>
