@@ -125,7 +125,9 @@ and this project adheres to
   `ACTIVITY_TYPE_PREFIX_LENGTH`, `getEffectiveType` and `hasUserOverride`.
   Before, they were exported as types only, so code such as
   `ACTIVITY_SUBTYPES.CONVERSION_OUT` failed to compile (TS1362, "cannot be used
-  as a value because it was exported using 'export type'").
+  as a value because it was exported using 'export type'"). The host supplies
+  the SDK at run time, so add-ons that use these values must set
+  `minWealthfolioVersion` to `3.12.0` or newer.
 
 ## [3.11.0] - 2026-10-22
 
