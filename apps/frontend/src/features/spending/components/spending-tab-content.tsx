@@ -24,17 +24,17 @@ import type { DateRange, TaxonomyCategory } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
   Icons,
   PrivacyAmount,
   Skeleton,
   stripBidiControls,
   useAmountFormatting,
-  type FormattingApi,
   useDateFormatting,
   useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
-import { usePersistentState } from "@/hooks/use-persistent-state";
 
 import { useBudget } from "../hooks/use-budget";
 import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-activities";
@@ -93,7 +93,7 @@ import { SpendingPeriodSelector } from "./spending-period-toggle";
 
 const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
-type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
+type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y" | "LAST_YEAR";
 
 type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
@@ -107,6 +107,7 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
   "6M",
   "YTD",
   "1Y",
+  "LAST_YEAR",
 ];
 
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
@@ -117,6 +118,7 @@ const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
   "6M": "spending:tabContent.interval6M",
   YTD: "spending:tabContent.intervalYtd",
   "1Y": "spending:tabContent.interval1Y",
+  LAST_YEAR: "spending:tabContent.intervalLastYear",
 };
 
 // The three insights stages, surfaced as a "Dig deeper" strip under Recent
@@ -199,6 +201,11 @@ function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string |
         return { start: { year: today.year, month: 1, day: 1 }, end: today };
       case "1Y":
         return { start: { ...today, year: today.year - 1 }, end: today };
+      case "LAST_YEAR":
+        return {
+          start: { year: today.year - 1, month: 1, day: 1 },
+          end: { year: today.year - 1, month: 12, day: 31 },
+        };
     }
   })();
 

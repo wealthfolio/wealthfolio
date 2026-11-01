@@ -6,12 +6,12 @@ import { useIsMobileViewport } from "@/hooks";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
+import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { useSettingsContext } from "@/lib/settings-provider";
 
-import { useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 
 import { CategoryTransactionsSheet } from "../components/reports/category-transactions-sheet";
 import { HeatmapCellSheet } from "../components/reports/heatmap-cell-sheet";
@@ -26,16 +26,6 @@ import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
-import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
-import {
-  addMonthsToMonthKey,
-  currentMonthKey,
-  monthReportsRange,
-  monthLabel,
-  parseMonthKey,
-  SPENDING_MONTH_PARAM,
-  SPENDING_MONTH_STORAGE_KEY,
-} from "../lib/month-period";
 import {
   DASHBOARD_INTERVAL_STORAGE_KEY,
   DASHBOARD_PERIOD_STORAGE_KEY,
@@ -45,16 +35,26 @@ import {
   type DashboardPeriodPick,
 } from "../lib/dashboard-period-sync";
 import {
-  INSIGHTS_PERIOD_STORAGE_KEY,
-  normalizeReportsPeriod,
-  SPENDING_INTERVAL_STORAGE_KEY,
-} from "../lib/period-preferences";
-import {
   SPENDING_RANGE_FROM_PARAM,
   SPENDING_RANGE_TO_PARAM,
   spendingRangeFromParams,
   spendingRangeToReportsRange,
 } from "../lib/date-range-params";
+import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
+import {
+  addMonthsToMonthKey,
+  currentMonthKey,
+  monthLabel,
+  monthReportsRange,
+  parseMonthKey,
+  SPENDING_MONTH_PARAM,
+  SPENDING_MONTH_STORAGE_KEY,
+} from "../lib/month-period";
+import {
+  INSIGHTS_PERIOD_STORAGE_KEY,
+  normalizeReportsPeriod,
+  SPENDING_INTERVAL_STORAGE_KEY,
+} from "../lib/period-preferences";
 import {
   comparisonRange,
   DEFAULT_REPORTS_PERIOD,
@@ -340,8 +340,8 @@ export default function SpendingInsightsPage({
   // One server call returns budgets + actuals + uncategorized + prior, all
   // computed against the same window — the math is reconciled by construction.
   const customPriorRange = useMemo(
-    () => (customRange ? comparisonRange(range, "prior", appTimezone) : null),
-    [customRange, range, appTimezone],
+    () => (customRange ? comparisonRange(range, "prior", appTimezone, period) : null),
+    [customRange, range, appTimezone, period],
   );
   const insightRequest = useMemo(
     () => ({
@@ -746,6 +746,7 @@ const MONTHS_PER_PERIOD: Record<ReportsPeriod, number> = {
   "6M": 6,
   YTD: 12,
   "1Y": 12,
+  LAST_YEAR: 12,
 };
 
 function shiftRangeBack(

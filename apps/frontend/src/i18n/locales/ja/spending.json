@@ -247,7 +247,9 @@
     "thisMonth": "今月",
     "mtdShort": "月初来",
     "lastMonth": "先月",
-    "prevShort": "前期",
+    "prevMonth": "先月",
+    "lastYear": "昨年",
+    "prevYear": "一昨年",
     "viewingMonth": "{{label}}を表示中。クリックで変更",
     "pickMonth": "特定の月を選択",
     "selectMonth": "月を選択",
@@ -964,7 +966,8 @@
     "interval3M": "直近3ヶ月",
     "interval6M": "直近6ヶ月",
     "intervalYtd": "年初来",
-    "interval1Y": "直近1年",
+    "interval1Y": "直近12ヶ月",
+    "intervalLastYear": "直近1年",
     "plusMore_other": "+ 他{{count}}件"
   },
   "budgetEditor": {
