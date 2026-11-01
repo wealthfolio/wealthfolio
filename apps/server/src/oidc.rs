@@ -749,11 +749,16 @@ fn error_chain(err: &(dyn std::error::Error + 'static)) -> String {
             .downcast_ref::<reqwest::Error>()
             .or_else(|| e.downcast_ref::<Box<reqwest::Error>>().map(|b| b.as_ref()))
             .and_then(reqwest::Error::url);
-        if let Some(url) = url.filter(|u| !u.username().is_empty() || u.password().is_some()) {
+        // A provider's URLs (such as its jwks_uri) can carry a token in the user
+        // info or the query, so neither reaches the log.
+        if let Some(url) = url
+            .filter(|u| !u.username().is_empty() || u.password().is_some() || u.query().is_some())
+        {
             let mut redacted = url.clone();
             // Only fails for URLs that cannot carry user info in the first place.
             let _ = redacted.set_username("");
             let _ = redacted.set_password(None);
+            redacted.set_query(None);
             message = message.replace(url.as_str(), redacted.as_str());
         }
         parts.push(message);
@@ -883,6 +888,20 @@ mod tests {
         assert!(message.ends_with("BadEncoding"), "{message}");
         assert!(!message.contains("hunter2"), "{message}");
         assert!(!message.contains("user"), "{message}");
+    }
+
+    #[test]
+    fn error_message_drops_a_url_query() {
+        let cert = reqwest::Certificate::from_pem(CORRUPT_CERT.as_bytes()).unwrap();
+        let transport = reqwest::ClientBuilder::new()
+            .add_root_certificate(cert)
+            .build()
+            .unwrap_err()
+            .with_url("https://idp.example/jwks?token=s3cret".parse().unwrap());
+
+        let message = error_chain(&transport);
+        assert!(message.contains("(https://idp.example/jwks)"), "{message}");
+        assert!(!message.contains("s3cret"), "{message}");
     }
 
     #[test]
