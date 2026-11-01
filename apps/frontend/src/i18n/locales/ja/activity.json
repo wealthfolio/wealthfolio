@@ -469,6 +469,7 @@
     "convert_desc": "このアクティビティを口座間の振替に変換します。相手口座の対応するアクティビティを選ぶか、そこに作成してください。",
     "convert_no_matches": "7日以内に一致するアクティビティはありません。",
     "convert_new": "別の口座に作成",
+    "convert_removes_split": "振替に変換すると分割は削除されます。",
     "convert_account": "相手口座",
     "convert_amount": "{{currency}}での金額",
     "convert_button": "振替に変換",

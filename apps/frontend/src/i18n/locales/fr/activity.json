@@ -477,6 +477,7 @@
     "convert_desc": "Transformez cette activité en virement entre vos comptes. Choisissez l'activité correspondante dans l'autre compte ou créez-la.",
     "convert_no_matches": "Aucune activité correspondante dans les 7 jours.",
     "convert_new": "La créer dans un autre compte",
+    "convert_removes_split": "La conversion en virement supprime la ventilation.",
     "convert_account": "Autre compte",
     "convert_amount": "Montant en {{currency}}",
     "convert_button": "Convertir en virement",

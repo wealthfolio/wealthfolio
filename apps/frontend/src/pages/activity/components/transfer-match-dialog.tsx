@@ -6,6 +6,7 @@ import {
   isActivityEditCancelled,
   useConvertToTransferSplitReview,
 } from "@/features/spending/components/activity-split-review-provider";
+import { useActivitySplits } from "@/features/spending/hooks/use-cash-activities";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
   convertToInternalTransfer,
@@ -364,6 +365,24 @@ function ActivitySummaryRow({
   );
 }
 
+/** Flags a split row: converting retypes it, and a transfer cannot keep spending splits. */
+function SplitRemovalNotice({ activityId, className }: { activityId: string; className?: string }) {
+  const { t } = useTranslation();
+  const { data: splits = [] } = useActivitySplits(activityId);
+  if (splits.length === 0) return null;
+  return (
+    <div className={cn("text-2xs space-y-1.5", className)}>
+      <Badge variant="secondary" className="rounded-sm px-1.5 py-0">
+        {t("spending:transactions.splitLines", { count: splits.length })}
+      </Badge>
+      <div className="text-warning flex items-start gap-1.5">
+        <Icons.AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+        <span>{t("activity:transfer_match.convert_removes_split")}</span>
+      </div>
+    </div>
+  );
+}
+
 function CandidateButton({
   candidate,
   accountMap,
@@ -412,6 +431,9 @@ function CandidateButton({
               </div>
             ) : null}
           </div>
+        ) : null}
+        {selected && canConvertToTransfer(candidate.activity) ? (
+          <SplitRemovalNotice activityId={candidate.activity.id} className="px-3 pb-2.5" />
         ) : null}
       </div>
     </button>
@@ -556,11 +578,10 @@ function ConvertToTransferDialog({
             <div className="text-muted-foreground text-xs font-medium uppercase">
               {t("activity:transfer_match.selected_row")}
             </div>
-            <ActivitySummaryRow
-              activity={sourceActivity}
-              accountMap={accountMap}
-              className="bg-muted/30 border"
-            />
+            <div className="bg-muted/30 rounded-md border">
+              <ActivitySummaryRow activity={sourceActivity} accountMap={accountMap} />
+              <SplitRemovalNotice activityId={sourceActivity.id} className="px-3 pb-2.5" />
+            </div>
           </div>
 
           <div className="space-y-2">

@@ -7,8 +7,10 @@ import {
   reviewConvertToTransferSplitEffects,
   searchActivities,
 } from "@/adapters";
+import { getActivitySplits } from "@/features/spending/adapters/cash-activities";
 import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityStatus } from "@/lib/constants";
+import type { ActivitySplit } from "@/features/spending/types/cash-activity";
 import type { Account, Activity, TransferMatchCandidate } from "@/lib/types";
 import { fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { TransferMatchDialog } from "./transfer-match-dialog";
@@ -22,6 +24,9 @@ vi.mock("@/adapters", () => ({
   getTransferPairForActivity: vi.fn(),
   searchActivities: vi.fn(),
   logger: { warn: vi.fn() },
+}));
+vi.mock("@/features/spending/adapters/cash-activities", () => ({
+  getActivitySplits: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("../hooks/use-activity-mutations", () => ({
   useActivityMutations: () => ({
@@ -153,6 +158,7 @@ describe("converting a deposit or withdrawal into a transfer", () => {
   beforeEach(() => {
     vi.mocked(convertToInternalTransfer).mockReset();
     vi.mocked(reviewConvertToTransferSplitEffects).mockReset().mockResolvedValue([]);
+    vi.mocked(getActivitySplits).mockReset().mockResolvedValue([]);
   });
 
   it("pairs the withdrawal with the chosen deposit", async () => {
@@ -180,9 +186,17 @@ describe("converting a deposit or withdrawal into a transfer", () => {
     };
     vi.mocked(reviewConvertToTransferSplitEffects).mockResolvedValue([effect]);
     vi.mocked(findTransferMatchCandidates).mockResolvedValue([depositMatch]);
+    vi.mocked(getActivitySplits).mockImplementation(async (activityId) =>
+      activityId === "synthetic-withdrawal"
+        ? [{ id: "s1" }, { id: "s2" }].map((split) => split as ActivitySplit)
+        : [],
+    );
     renderConversion();
 
+    expect(await screen.findByText("Split · 2 lines")).toBeInTheDocument();
+    expect(screen.getByText("Converting it to a transfer removes the split.")).toBeInTheDocument();
     fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
+    expect(screen.getAllByText("Split · 2 lines")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
 
     expect(
