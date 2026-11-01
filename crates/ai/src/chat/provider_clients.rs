@@ -1562,10 +1562,17 @@ pub(crate) mod transport_tests {
         use crate::types::{AiStreamEvent, ChatModelConfig, SendMessageRequest};
 
         // rig sends the Gemini key in the URL query, and a transport error
-        // quotes the URL. Point the provider at a closed port.
+        // quotes the URL. Drop every connection before responding, title
+        // requests and chat retries included. The listener stays bound so
+        // no other test's fixture can take the port meanwhile.
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
-        drop(listener);
+        let server = tokio::spawn(async move {
+            loop {
+                let (socket, _) = listener.accept().await.unwrap();
+                drop(socket);
+            }
+        });
         let settings = serde_json::json!({ "schemaVersion": 2, "providers": {
             "google": { "enabled": true, "customUrl": url }
         } });
@@ -1606,6 +1613,7 @@ pub(crate) mod transport_tests {
         assert!(errors
             .iter()
             .any(|message| message.contains("key=[redacted]")));
+        server.abort();
     }
 
     #[tokio::test]
