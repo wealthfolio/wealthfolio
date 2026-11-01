@@ -66,6 +66,10 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "assets.updateDataSource": "Change asset data provider",
   "assets.updateQuoteMode": "Switch between market and manual prices",
 
+  // AllocationTargetsAPI functions
+  "allocation-targets.getAll": "View your allocation targets",
+  "allocation-targets.getDrift": "Compare your holdings with a target",
+
   // QuotesAPI functions
   "quotes.update": "Update current prices",
   "quotes.getHistory": "View price history",

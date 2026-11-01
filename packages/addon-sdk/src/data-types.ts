@@ -1705,3 +1705,73 @@ export interface SpendingContext {
   accountIds: string[];
   excludedCategoryIds: string[];
 }
+
+// Allocation targets shared by the public host API. Read-only; targets are
+// created and edited only in the Wealthfolio UI. Weights and drift are in
+// basis points (10000 = 100%).
+export type AllocationTargetScopeType = 'all' | 'portfolio' | 'account';
+export type AllocationBandType = 'absolute' | 'hybrid';
+export type AllocationDriftStatus =
+  | 'in_band'
+  | 'underweight'
+  | 'overweight'
+  | 'not_targeted';
+
+export interface AllocationTargetWeight {
+  /** Category id within the target's taxonomy. */
+  categoryId: string;
+  /** The category's stable key, e.g. `REAL_ESTATE`; ids differ between installs. */
+  categoryKey: string;
+  categoryName: string;
+  targetBps: number;
+}
+
+export interface AllocationTarget {
+  id: string;
+  name: string;
+  scopeType: AllocationTargetScopeType;
+  /** Account id or portfolio id; null when `scopeType` is `'all'`. */
+  scopeId: string | null;
+  /** Taxonomy the weights' categories belong to, e.g. `asset_classes`. */
+  taxonomyId: string;
+  /** Absolute range in bps; for `'hybrid'` bands, the floor of the range. */
+  driftBandBps: number;
+  bandType: AllocationBandType;
+  /** Relative part of a hybrid range, in bps of the category's target. */
+  relativeFactorBps: number;
+  allowSells: boolean;
+  wholeSharesOnly: boolean;
+  /** Decimal string in the base currency. */
+  minTradeAmount: string;
+  maxTurnoverBps: number | null;
+  weights: AllocationTargetWeight[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AllocationDriftRow {
+  categoryId: string;
+  categoryName: string;
+  currentBps: number;
+  targetBps: number;
+  driftBps: number;
+  currentValue: number;
+  targetValue: number;
+  valueDelta: number;
+  /** Range applied to this category after resolving a hybrid band. */
+  effectiveBandBps: number;
+  status: AllocationDriftStatus;
+  isCash: boolean;
+}
+
+export interface AllocationDrift {
+  targetId: string;
+  scopeType: AllocationTargetScopeType;
+  scopeId: string | null;
+  baseCurrency: string;
+  totalValue: number;
+  maxDriftBps: number;
+  outOfBandCount: number;
+  deployableCash: number;
+  rows: AllocationDriftRow[];
+}

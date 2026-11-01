@@ -293,6 +293,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             "Access to asset profiles and data sources",
         ),
         (
+            "allocation-targets",
+            "allocationTargets",
+            vec!["getAll", "getDrift"],
+            "Read-only access to allocation targets and how holdings compare to them",
+        ),
+        (
             "quotes",
             "quotes",
             vec!["update", "getHistory"],
