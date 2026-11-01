@@ -24,6 +24,18 @@ describe("a call site's classes replace the theme's component tokens", () => {
     expect(classes).not.toContain("text-secondary-foreground");
   });
 
+  it("keeps a destructive button's label colour when a call site sets a text size", () => {
+    render(
+      <Button variant="destructive" size="xs" className="rounded-md text-xs">
+        Delete
+      </Button>,
+    );
+    const classes = screen.getByRole("button", { name: "Delete" }).className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining(["text-xs", "text-(color:--button-destructive-foreground)"]),
+    );
+  });
+
   it("keeps a field's own border colour", () => {
     render(<Input aria-label="Amount" className="border-destructive shadow-none" />);
     const classes = screen.getByRole("textbox", { name: "Amount" }).className.split(" ");

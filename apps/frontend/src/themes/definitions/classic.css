@@ -47,6 +47,16 @@
   --button-secondary-image: none;
   --button-secondary-shadow: 0 0 #0000;
   --button-secondary-hover-bg: color-mix(in oklab, var(--secondary) 80%, transparent);
+  /* The destructive variant: a red tint, with no border or shadow. */
+  --button-destructive-bg: var(--destructive-subtle);
+  --button-destructive-foreground: var(--destructive-subtle-foreground);
+  --button-destructive-border: transparent;
+  --button-destructive-shadow: 0 0 #0000;
+  --button-destructive-hover-bg: color-mix(
+    in oklab,
+    var(--destructive-subtle-border) 50%,
+    transparent
+  );
   /* Fields: border, the text input's resting shadow, and a glow the select
      trigger and textarea add (none in Classic). */
   --field-border: var(--input);
