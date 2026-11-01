@@ -477,6 +477,7 @@
     "convert_desc": "Convierte esta actividad en una transferencia entre tus cuentas. Elige la actividad correspondiente en la otra cuenta o créala allí.",
     "convert_no_matches": "No hay actividad coincidente en 7 días.",
     "convert_new": "Crearla en otra cuenta",
+    "convert_removes_split": "Al convertirla en transferencia se elimina la división.",
     "convert_account": "Otra cuenta",
     "convert_amount": "Importe en {{currency}}",
     "convert_button": "Convertir en transferencia",

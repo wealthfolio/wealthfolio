@@ -369,6 +369,7 @@
     "convert_desc": "Machen Sie aus dieser Aktivität eine Überweisung zwischen Ihren Konten. Wählen Sie die passende Aktivität im anderen Konto oder legen Sie sie dort an.",
     "convert_no_matches": "Keine passende Aktivität innerhalb von 7 Tagen.",
     "convert_new": "Im anderen Konto anlegen",
+    "convert_removes_split": "Beim Umwandeln in eine Überweisung wird die Aufteilung entfernt.",
     "convert_account": "Anderes Konto",
     "convert_amount": "Betrag in {{currency}}",
     "convert_button": "In Überweisung umwandeln",

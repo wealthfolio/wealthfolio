@@ -472,6 +472,7 @@
     "convert_desc": "Turn this activity into a transfer between your accounts. Pick the matching activity in the other account, or create it there.",
     "convert_no_matches": "No matching activity within 7 days.",
     "convert_new": "Create it in another account",
+    "convert_removes_split": "Converting it to a transfer removes the split.",
     "convert_account": "Other account",
     "convert_amount": "Amount in {{currency}}",
     "convert_button": "Convert to transfer",

@@ -469,6 +469,7 @@
     "convert_desc": "将此活动转为账户之间的转账。选择另一账户中对应的活动，或在该账户中创建。",
     "convert_no_matches": "7 天内没有匹配的活动。",
     "convert_new": "在另一账户中创建",
+    "convert_removes_split": "转为转账后将移除拆分。",
     "convert_account": "另一账户",
     "convert_amount": "{{currency}} 金额",
     "convert_button": "转为转账",
