@@ -635,6 +635,8 @@
     "asset_description": "Modifier le nom, les informations d'achat et d'autres détails",
     "name": "Nom",
     "name_placeholder": "Saisir le nom de l'actif...",
+    "ownership_pct": "Pourcentage de propriété",
+    "ownership_pct_description": "Votre part de cet actif. Affecte uniquement le total de votre valeur nette — la valeur affichée indique toujours 100 %. Une nouvelle part s'applique à tout l'historique de votre valeur nette, pas seulement à partir d'aujourd'hui.",
     "purchase_information": "Informations d'achat",
     "purchase_information_description": "Détails d'achat facultatifs pour le suivi des gains/pertes",
     "purchase_price_per_unit": "Prix d'achat (par unité)",
@@ -713,7 +715,9 @@
       "name_must_be_less_than_100_characters": "Le nom doit comporter moins de 100 caractères",
       "interest_rate_must_be_0_or_greater": "Le taux d'intérêt doit être égal ou supérieur à 0",
       "description_must_be_less_than_200_characters": "La description doit comporter moins de 200 caractères",
-      "original_amount_must_be_greater_than_0": "Le montant initial doit être supérieur à 0"
+      "original_amount_must_be_greater_than_0": "Le montant initial doit être supérieur à 0",
+      "ownership_must_be_greater_than_0": "La part de propriété doit être supérieure à 0",
+      "ownership_must_be_100_or_less": "La part de propriété doit être inférieure ou égale à 100"
     }
   },
   "updateValuation": {

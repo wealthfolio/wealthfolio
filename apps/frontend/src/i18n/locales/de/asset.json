@@ -631,6 +631,8 @@
     "asset_description": "Name, Kaufinformationen und andere Details bearbeiten",
     "name": "Name",
     "name_placeholder": "Anlagennamen eingeben...",
+    "ownership_pct": "Eigentumsanteil %",
+    "ownership_pct_description": "Ihr Anteil an diesem Vermögenswert. Wirkt sich nur auf Ihr Gesamtnettovermögen aus — der angezeigte Wert zeigt immer 100 %. Ein neuer Anteil gilt für Ihren gesamten Nettovermögensverlauf, nicht erst ab heute.",
     "purchase_information": "Kaufinformationen",
     "purchase_information_description": "Optionale Kaufdetails zur Gewinn-/Verlustverfolgung",
     "purchase_price_per_unit": "Kaufpreis (pro Einheit)",
@@ -709,7 +711,9 @@
       "name_must_be_less_than_100_characters": "Der Name muss weniger als 100 Zeichen lang sein",
       "interest_rate_must_be_0_or_greater": "Der Zinssatz muss 0 oder höher sein",
       "description_must_be_less_than_200_characters": "Die Beschreibung muss weniger als 200 Zeichen lang sein",
-      "original_amount_must_be_greater_than_0": "Der ursprüngliche Betrag muss größer als 0 sein"
+      "original_amount_must_be_greater_than_0": "Der ursprüngliche Betrag muss größer als 0 sein",
+      "ownership_must_be_greater_than_0": "Der Eigentumsanteil muss größer als 0 sein",
+      "ownership_must_be_100_or_less": "Der Eigentumsanteil darf höchstens 100 betragen"
     }
   },
   "updateValuation": {

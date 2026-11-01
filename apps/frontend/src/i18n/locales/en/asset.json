@@ -631,6 +631,8 @@
     "asset_description": "Edit name, purchase information, and other details",
     "name": "Name",
     "name_placeholder": "Enter asset name...",
+    "ownership_pct": "Ownership %",
+    "ownership_pct_description": "Your share of this asset. Only affects your net worth total — the displayed value always shows 100%. A new share is applied to your whole net worth history, not just from today.",
     "purchase_information": "Purchase Information",
     "purchase_information_description": "Optional purchase details for gain/loss tracking",
     "purchase_price_per_unit": "Purchase Price (per unit)",
@@ -709,7 +711,9 @@
       "name_must_be_less_than_100_characters": "Name must be less than 100 characters",
       "interest_rate_must_be_0_or_greater": "Interest rate must be 0 or greater",
       "description_must_be_less_than_200_characters": "Description must be less than 200 characters",
-      "original_amount_must_be_greater_than_0": "Original amount must be greater than 0"
+      "original_amount_must_be_greater_than_0": "Original amount must be greater than 0",
+      "ownership_must_be_greater_than_0": "Ownership must be greater than 0",
+      "ownership_must_be_100_or_less": "Ownership must be 100 or less"
     }
   },
   "updateValuation": {

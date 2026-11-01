@@ -635,6 +635,8 @@
     "asset_description": "Editar nombre, información de compra y otros detalles",
     "name": "Nombre",
     "name_placeholder": "Introduce el nombre del activo...",
+    "ownership_pct": "Porcentaje de propiedad",
+    "ownership_pct_description": "Tu parte de este activo. Solo afecta al total de tu patrimonio neto — el valor mostrado siempre indica el 100%. Un nuevo porcentaje se aplica a todo tu historial de patrimonio neto, no solo desde hoy.",
     "purchase_information": "Información de compra",
     "purchase_information_description": "Detalles de compra opcionales para el seguimiento de ganancias/pérdidas",
     "purchase_price_per_unit": "Precio de compra (por unidad)",
@@ -713,7 +715,9 @@
       "name_must_be_less_than_100_characters": "El nombre debe tener menos de 100 caracteres.",
       "interest_rate_must_be_0_or_greater": "La tasa de interés debe ser 0 o mayor.",
       "description_must_be_less_than_200_characters": "La descripción debe tener menos de 200 caracteres.",
-      "original_amount_must_be_greater_than_0": "El importe original debe ser mayor que 0"
+      "original_amount_must_be_greater_than_0": "El importe original debe ser mayor que 0",
+      "ownership_must_be_greater_than_0": "La propiedad debe ser mayor que 0",
+      "ownership_must_be_100_or_less": "La propiedad debe ser 100 o menos"
     }
   },
   "updateValuation": {

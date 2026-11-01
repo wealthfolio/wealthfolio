@@ -631,6 +631,8 @@
     "asset_description": "编辑名称、购买信息及其他详情",
     "name": "名称",
     "name_placeholder": "输入资产名称……",
+    "ownership_pct": "所有权比例",
+    "ownership_pct_description": "您在此资产中所占的份额。仅影响您的净资产总额——显示的资产价值始终为 100%。新的份额将应用于您的全部净资产历史，而不仅是从今天开始。",
     "purchase_information": "购买信息",
     "purchase_information_description": "用于盈亏跟踪的可选购买详情",
     "purchase_price_per_unit": "购买价格（每单位）",
@@ -709,7 +711,9 @@
       "name_must_be_less_than_100_characters": "名称必须少于 100 个字符",
       "interest_rate_must_be_0_or_greater": "利率必须为 0 或更大",
       "description_must_be_less_than_200_characters": "描述必须少于 200 个字符",
-      "original_amount_must_be_greater_than_0": "原始金额必须大于0"
+      "original_amount_must_be_greater_than_0": "原始金额必须大于0",
+      "ownership_must_be_greater_than_0": "所有权比例必须大于 0",
+      "ownership_must_be_100_or_less": "所有权比例必须小于或等于 100"
     }
   },
   "updateValuation": {

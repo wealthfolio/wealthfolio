@@ -1,1 +1,4 @@
-export { useAlternativeAssetMutations } from "./use-alternative-asset-mutations";
+export {
+  invalidateAlternativeAssetQueries,
+  useAlternativeAssetMutations,
+} from "./use-alternative-asset-mutations";

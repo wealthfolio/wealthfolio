@@ -681,12 +681,17 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 let updated_metadata =
                     merged_details(asset.metadata.as_ref(), request.metadata.as_ref());
                 let display_code = Self::derive_display_code(&asset.kind, &updated_metadata);
+                // The repository leaves metadata untouched when given None, so an
+                // edit that removes the last key must write an empty object.
+                let stored_metadata = updated_metadata
+                    .clone()
+                    .or_else(|| asset.metadata.as_ref().map(|_| json!({})));
                 self.alternative_asset_repository
                     .update_asset_details(
                         &request.asset_id,
                         request.name.as_deref(),
                         Some(&display_code),
-                        updated_metadata.clone(),
+                        stored_metadata,
                         request.notes.as_deref(),
                     )
                     .await?;
@@ -1116,8 +1121,8 @@ mod tests {
             unimplemented!("not used in this test")
         }
 
-        async fn add_quote(&self, _quote: &Quote) -> Result<Quote> {
-            unimplemented!("not used in this test")
+        async fn add_quote(&self, quote: &Quote) -> Result<Quote> {
+            Ok(quote.clone())
         }
 
         async fn update_quote(&self, _quote: Quote) -> Result<Quote> {
@@ -1276,12 +1281,28 @@ mod tests {
     // ---------------------------------------------------------------------------
     struct MockAssetRepository {
         assets: Vec<crate::assets::assets_model::Asset>,
+        created: std::sync::Mutex<Vec<NewAsset>>,
+    }
+
+    impl MockAssetRepository {
+        fn new(assets: Vec<crate::assets::assets_model::Asset>) -> Self {
+            Self {
+                assets,
+                created: Default::default(),
+            }
+        }
     }
 
     #[async_trait]
     impl AssetRepositoryTrait for MockAssetRepository {
-        async fn create(&self, _new_asset: NewAsset) -> Result<crate::assets::assets_model::Asset> {
-            unimplemented!("not used in this test")
+        async fn create(&self, new_asset: NewAsset) -> Result<crate::assets::assets_model::Asset> {
+            self.created.lock().unwrap().push(new_asset.clone());
+            Ok(crate::assets::assets_model::Asset {
+                id: "created".into(),
+                kind: new_asset.kind,
+                metadata: new_asset.metadata,
+                ..Default::default()
+            })
         }
 
         async fn create_batch(
@@ -1402,13 +1423,17 @@ mod tests {
 
         async fn update_asset_details(
             &self,
-            _asset_id: &str,
+            asset_id: &str,
             _name: Option<&str>,
             _display_code: Option<&str>,
-            _metadata: Option<serde_json::Value>,
+            metadata: Option<serde_json::Value>,
             _notes: Option<&str>,
         ) -> Result<()> {
-            unimplemented!("not used in this test")
+            self.metadata_writes
+                .lock()
+                .unwrap()
+                .push((asset_id.to_string(), metadata));
+            Ok(())
         }
 
         async fn update_loan(
@@ -1527,21 +1552,19 @@ mod tests {
 
         for metadata in [None, Some(original), Some(previously_linked)] {
             let alt_repo = Arc::new(MockAltAssetRepository::default());
-            let asset_repo = MockAssetRepository {
-                assets: vec![
-                    super::super::Asset {
-                        id: "mortgage".into(),
-                        kind: AssetKind::Liability,
-                        metadata: metadata.clone(),
-                        ..Default::default()
-                    },
-                    super::super::Asset {
-                        id: "property".into(),
-                        kind: AssetKind::Property,
-                        ..Default::default()
-                    },
-                ],
-            };
+            let asset_repo = MockAssetRepository::new(vec![
+                super::super::Asset {
+                    id: "mortgage".into(),
+                    kind: AssetKind::Liability,
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                },
+                super::super::Asset {
+                    id: "property".into(),
+                    kind: AssetKind::Property,
+                    ..Default::default()
+                },
+            ]);
             let service = AlternativeAssetService::new(
                 alt_repo.clone(),
                 Arc::new(asset_repo),
@@ -1582,6 +1605,142 @@ mod tests {
 
         let removed = AlternativeAssetService::remove_linked_asset_id(Some(metadata));
         assert!(removed.is_none()); // Only had linked_asset_id, so should be None when removed
+    }
+
+    /// The asset and the liability keep separate ownership shares: owning half of
+    /// a property does not mean owing half of its mortgage, so creating a linked
+    /// liability never copies the asset's share.
+    #[tokio::test]
+    async fn create_linked_liability_keeps_its_own_ownership_pct() {
+        for own_pct in [None, Some("25")] {
+            let asset_repo = Arc::new(MockAssetRepository::new(vec![super::super::Asset {
+                id: "property".into(),
+                kind: AssetKind::Property,
+                metadata: Some(json!({ "ownership_pct": "50" })),
+                ..Default::default()
+            }]));
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository::default()),
+                asset_repo.clone(),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            );
+            service
+                .create_alternative_asset(CreateAlternativeAssetRequest {
+                    kind: AssetKind::Liability,
+                    name: "Mortgage".to_string(),
+                    currency: "USD".to_string(),
+                    current_value: Decimal::new(300_000, 0),
+                    value_date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+                    purchase_price: None,
+                    purchase_date: None,
+                    metadata: own_pct.map(|pct| json!({ "ownership_pct": pct })),
+                    linked_asset_id: Some("property".to_string()),
+                    loan: None,
+                })
+                .await
+                .unwrap();
+
+            let created = asset_repo.created.lock().unwrap();
+            let metadata = created[0].metadata.as_ref().unwrap();
+            assert_eq!(metadata["linked_asset_id"], json!("property"));
+            assert_eq!(
+                metadata.get("ownership_pct"),
+                own_pct.map(|p| json!(p)).as_ref()
+            );
+        }
+    }
+
+    /// Linking only groups a liability under an asset; neither share changes.
+    #[tokio::test]
+    async fn link_liability_keeps_its_own_ownership_pct() {
+        for own_pct in [None, Some("25")] {
+            let mut metadata = json!({ "sub_type": "mortgage" });
+            if let Some(pct) = own_pct {
+                metadata["ownership_pct"] = json!(pct);
+            }
+            let alt_repo = Arc::new(MockAltAssetRepository::default());
+            let asset_repo = MockAssetRepository::new(vec![
+                super::super::Asset {
+                    id: "mortgage".into(),
+                    kind: AssetKind::Liability,
+                    metadata: Some(metadata.clone()),
+                    ..Default::default()
+                },
+                super::super::Asset {
+                    id: "property".into(),
+                    kind: AssetKind::Property,
+                    metadata: Some(json!({ "ownership_pct": "50" })),
+                    ..Default::default()
+                },
+            ]);
+            let service = AlternativeAssetService::new(
+                alt_repo.clone(),
+                Arc::new(asset_repo),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            );
+            service
+                .link_liability(LinkLiabilityRequest {
+                    liability_id: "mortgage".into(),
+                    target_asset_id: "property".into(),
+                })
+                .await
+                .unwrap();
+
+            let mut expected = metadata;
+            expected["linked_asset_id"] = json!("property");
+            assert_eq!(
+                *alt_repo.metadata_writes.lock().unwrap(),
+                vec![("mortgage".into(), Some(expected))],
+            );
+        }
+    }
+
+    /// Clearing the share when it is the only metadata key must still reach the
+    /// repository, which treats None as "leave metadata unchanged".
+    #[tokio::test]
+    async fn clearing_the_only_metadata_key_writes_empty_metadata() {
+        let alt_repo = Arc::new(MockAltAssetRepository::default());
+        let service = AlternativeAssetService::new(
+            alt_repo.clone(),
+            Arc::new(MockAssetRepository::new(vec![super::super::Asset {
+                id: "art".into(),
+                kind: AssetKind::Other,
+                metadata: Some(json!({ "ownership_pct": "50" })),
+                ..Default::default()
+            }])),
+            Arc::new(MockQuoteService {
+                cutoff: Arc::default(),
+                as_of_quotes: HashMap::new(),
+                latest_quotes: HashMap::new(),
+            }),
+        );
+
+        service
+            .update_asset_details(UpdateAssetDetailsRequest {
+                asset_id: "art".into(),
+                name: None,
+                notes: None,
+                metadata: Some(HashMap::from([(
+                    "ownership_pct".to_string(),
+                    Some(String::new()),
+                )])),
+                loan: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            *alt_repo.metadata_writes.lock().unwrap(),
+            vec![("art".into(), Some(json!({})))],
+        );
     }
 
     /// Regression test for: liability with a future-dated 0 quote must NOT appear
@@ -1625,9 +1784,7 @@ mod tests {
             ..Default::default()
         };
 
-        let asset_repo = MockAssetRepository {
-            assets: vec![liability],
-        };
+        let asset_repo = MockAssetRepository::new(vec![liability]);
         let alt_repo = MockAltAssetRepository::default();
 
         let timezone = Arc::new(RwLock::new("Pacific/Kiritimati".to_string()));
@@ -1680,9 +1837,7 @@ mod tests {
         };
         let service = AlternativeAssetService::new(
             Arc::new(MockAltAssetRepository::default()),
-            Arc::new(MockAssetRepository {
-                assets: vec![asset],
-            }),
+            Arc::new(MockAssetRepository::new(vec![asset])),
             Arc::new(quotes),
         )
         .with_timezone(Arc::new(RwLock::new("UTC".into())));
@@ -1710,9 +1865,7 @@ mod tests {
         };
         let service = AlternativeAssetService::new(
             Arc::new(MockAltAssetRepository::default()),
-            Arc::new(MockAssetRepository {
-                assets: vec![asset],
-            }),
+            Arc::new(MockAssetRepository::new(vec![asset])),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
                 as_of_quotes: HashMap::new(),
@@ -1751,9 +1904,7 @@ mod tests {
         };
         let service = AlternativeAssetService::new(
             Arc::new(MockAltAssetRepository::default()),
-            Arc::new(MockAssetRepository {
-                assets: vec![loan, house],
-            }),
+            Arc::new(MockAssetRepository::new(vec![loan, house])),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
                 as_of_quotes: [(
@@ -1832,9 +1983,7 @@ mod tests {
                 .unwrap_or_default();
             let service = AlternativeAssetService::new(
                 Arc::new(MockAltAssetRepository::default()),
-                Arc::new(MockAssetRepository {
-                    assets: vec![asset],
-                }),
+                Arc::new(MockAssetRepository::new(vec![asset])),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
                     as_of_quotes: quotes,
@@ -1873,9 +2022,7 @@ mod tests {
             };
             let service = AlternativeAssetService::new(
                 Arc::new(MockAltAssetRepository::default()),
-                Arc::new(MockAssetRepository {
-                    assets: vec![asset],
-                }),
+                Arc::new(MockAssetRepository::new(vec![asset])),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
                     as_of_quotes: HashMap::new(),
@@ -1909,9 +2056,7 @@ mod tests {
         };
         let service = AlternativeAssetService::new(
             Arc::new(MockAltAssetRepository::default()),
-            Arc::new(MockAssetRepository {
-                assets: vec![asset],
-            }),
+            Arc::new(MockAssetRepository::new(vec![asset])),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
                 as_of_quotes: HashMap::new(),

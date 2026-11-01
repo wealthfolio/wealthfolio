@@ -1346,6 +1346,111 @@ async fn test_property_breakdown() {
 }
 
 #[tokio::test]
+async fn test_property_ownership_percentage_discounts_net_worth() {
+    let account = create_test_account("prop1", "PROPERTY", "USD");
+    let mut asset = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    asset.metadata = Some(json!({ "ownership_pct": "50" }));
+    let position = create_test_position("prop1", "PROP-shared", dec!(1), dec!(400000), "USD");
+    let snapshot = create_test_snapshot("prop1", vec![position], HashMap::new());
+    let quote = create_test_quote(
+        "PROP-shared",
+        dec!(500000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let service = create_net_worth_service(vec![account], vec![asset], vec![snapshot], vec![quote]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    // Full market value is $500,000, but only 50% ownership counts toward net worth.
+    assert_eq!(result.net_worth, dec!(250000));
+    assert_eq!(get_category_value(&result, "properties"), dec!(250000));
+
+    let category_item = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "properties")
+        .expect("expected a properties category row");
+    // The frontend replaces the category name with a translated label, so the
+    // share is only shown on the asset rows.
+    assert_eq!(category_item.name, "Properties");
+
+    let property_item = category_item
+        .children
+        .first()
+        .expect("expected a property breakdown child");
+    assert_eq!(property_item.value, dec!(250000));
+    assert!(
+        property_item.name.contains("(50%)"),
+        "expected name to include ownership suffix, got: {}",
+        property_item.name
+    );
+}
+
+#[tokio::test]
+async fn test_ownership_suffix_labels_only_partially_owned_items() {
+    // Two properties with different ownership percentages in the same category:
+    // each row shows its own share and fully-owned rows get no suffix.
+    let account1 = create_test_account("prop1", "PROPERTY", "USD");
+    let mut asset1 = create_test_asset("PROP-a", AssetKind::Property, "USD");
+    asset1.metadata = Some(json!({ "ownership_pct": "50" }));
+    let position1 = create_test_position("prop1", "PROP-a", dec!(1), dec!(200000), "USD");
+    let snapshot1 = create_test_snapshot("prop1", vec![position1], HashMap::new());
+    let quote1 = create_test_quote(
+        "PROP-a",
+        dec!(200000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let account2 = create_test_account("prop2", "PROPERTY", "USD");
+    let asset2 = create_test_asset("PROP-b", AssetKind::Property, "USD"); // fully owned (100%)
+    let position2 = create_test_position("prop2", "PROP-b", dec!(1), dec!(100000), "USD");
+    let snapshot2 = create_test_snapshot("prop2", vec![position2], HashMap::new());
+    let quote2 = create_test_quote(
+        "PROP-b",
+        dec!(100000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let service = create_net_worth_service(
+        vec![account1, account2],
+        vec![asset1, asset2],
+        vec![snapshot1, snapshot2],
+        vec![quote1, quote2],
+    );
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    let category_item = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "properties")
+        .expect("expected a properties category row");
+    assert_eq!(category_item.name, "Properties");
+
+    let a_item = category_item
+        .children
+        .iter()
+        .find(|c| c.asset_id.as_deref() == Some("PROP-a"))
+        .expect("expected PROP-a child");
+    assert!(a_item.name.contains("(50%)"));
+
+    let b_item = category_item
+        .children
+        .iter()
+        .find(|c| c.asset_id.as_deref() == Some("PROP-b"))
+        .expect("expected PROP-b child");
+    assert!(!b_item.name.contains('%'));
+}
+
+#[tokio::test]
 async fn test_cash_included_in_investments() {
     let account = create_test_account("acc1", "SECURITIES", "USD");
     let mut cash = HashMap::new();
@@ -2220,6 +2325,88 @@ async fn test_history_alt_assets_only_no_portfolio() {
 
     assert_eq!(history[1].alternative_assets_value, dec!(410000));
     assert_eq!(history[1].net_worth, dec!(410000));
+}
+
+#[tokio::test]
+async fn test_history_ownership_percentage_discounts_alt_assets_and_liabilities() {
+    // A 50%-owned property valued by quotes (seed value on d1, quote path on d2)
+    // and a 50%-owned mortgage valued from its unconfirmed principal. History
+    // must count only the user's share and match the point-in-time totals.
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let d2 = NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
+
+    let mut property = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    property.metadata = Some(json!({ "ownership_pct": "50" }));
+    let mut mortgage = create_test_asset("LIAB-shared", AssetKind::Liability, "USD");
+    mortgage.metadata = Some(json!({
+        "original_amount": "300000",
+        "origination_date": d1.to_string(),
+        "ownership_pct": "50",
+    }));
+    let quotes = vec![
+        create_test_quote("PROP-shared", dec!(400000), d1, "USD"),
+        create_test_quote("PROP-shared", dec!(410000), d2, "USD"),
+    ];
+
+    let service = create_net_worth_service_with_valuations(
+        vec![],
+        vec![property, mortgage],
+        vec![],
+        quotes,
+        vec![], // No portfolio valuations
+    );
+
+    let history = service.get_net_worth_history(d1, d2).await.unwrap();
+
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].alternative_assets_value, dec!(200000));
+    assert_eq!(history[0].total_liabilities, dec!(150000));
+    assert_eq!(history[0].net_worth, dec!(50000));
+    assert_eq!(history[0].breakdown.get("properties"), Some(&dec!(200000)));
+    assert_eq!(history[0].breakdown.get("LIAB-shared"), Some(&dec!(150000)));
+
+    assert_eq!(history[1].alternative_assets_value, dec!(205000));
+    assert_eq!(history[1].net_worth, dec!(55000));
+
+    for point in &history {
+        let at_date = service.get_net_worth(point.date).await.unwrap();
+        assert_eq!(at_date.net_worth, point.net_worth);
+        assert_eq!(at_date.liabilities.total, point.total_liabilities);
+    }
+}
+
+#[tokio::test]
+async fn test_asset_and_linked_liability_shares_apply_independently() {
+    // Owning half of a property does not mean owing half of its mortgage: a
+    // linked liability without its own share counts in full.
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    let mut property = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    property.metadata = Some(json!({ "ownership_pct": "50" }));
+    let mut mortgage = create_test_asset("LIAB-own", AssetKind::Liability, "USD");
+    mortgage.metadata = Some(json!({
+        "original_amount": "300000",
+        "origination_date": d1.to_string(),
+        "linked_asset_id": "PROP-shared",
+    }));
+    let quotes = vec![create_test_quote("PROP-shared", dec!(400000), d1, "USD")];
+
+    let service = create_net_worth_service_with_valuations(
+        vec![],
+        vec![property, mortgage],
+        vec![],
+        quotes,
+        vec![],
+    );
+
+    let history = service.get_net_worth_history(d1, d1).await.unwrap();
+    assert_eq!(history[0].alternative_assets_value, dec!(200000));
+    assert_eq!(history[0].total_liabilities, dec!(300000));
+    assert_eq!(history[0].net_worth, dec!(-100000));
+
+    let at_date = service.get_net_worth(d1).await.unwrap();
+    assert_eq!(at_date.net_worth, dec!(-100000));
+    assert_eq!(at_date.liabilities.total, dec!(300000));
 }
 
 #[tokio::test]
