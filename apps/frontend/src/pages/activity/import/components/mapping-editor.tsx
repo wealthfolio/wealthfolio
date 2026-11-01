@@ -14,7 +14,7 @@ interface CsvMappingEditorProps {
   headers: string[];
   data: CsvRowData[];
   accounts: Account[];
-  handleColumnMapping: (field: ImportFormat, value: string) => void;
+  handleColumnMapping: (field: ImportFormat, value: string | string[]) => void;
   handleActivityTypeMapping: (csvActivity: string, activityType: string) => void;
   handleSymbolMapping: (csvSymbol: string, newSymbol: string) => void;
   getMappedValue: (row: CsvRowData, field: ImportFormat) => string;

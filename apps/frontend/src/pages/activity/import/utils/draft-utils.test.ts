@@ -4,6 +4,7 @@ import {
   createDraftActivities,
   draftToActivityImport,
   reconcileExpenseReversalBoundary,
+  resolveMappedValue,
 } from "./draft-utils";
 import { getActivityImportProfileForAccountType } from "./activity-import-profile";
 import { applyAssetResolution } from "./asset-review-utils";
@@ -52,6 +53,43 @@ function createSingleDraftWithMapping(row: string[], activityMappings: Record<st
   expect(draft).toBeDefined();
   return draft;
 }
+
+describe("multi-column field mappings", () => {
+  const row: Record<string, string> = { Payee: " PayPal ", Purpose: "Order 42", Empty: " " };
+  const getValue = (header: string) => row[header];
+
+  it("joins the non-empty comment columns in mapping order", () => {
+    expect(resolveMappedValue(ImportFormat.COMMENT, ["Payee", "Empty", "Purpose"], getValue)).toBe(
+      "PayPal | Order 42",
+    );
+    expect(resolveMappedValue(ImportFormat.COMMENT, ["Empty"], getValue)).toBeUndefined();
+  });
+
+  it("keeps first-non-empty fallback for other fields", () => {
+    expect(resolveMappedValue(ImportFormat.AMOUNT, ["Empty", "Purpose", "Payee"], getValue)).toBe(
+      "Order 42",
+    );
+  });
+
+  it("imports a joined comment from several CSV columns", () => {
+    const [draft] = createDraftActivities(
+      [["2024-01-15", "DEPOSIT", "100", "USD", "Employer GmbH", "Salary 01/2024"]],
+      [...headers, "Payee", "Purpose"],
+      {
+        ...baseMapping,
+        fieldMappings: {
+          ...baseMapping.fieldMappings,
+          [ImportFormat.COMMENT]: ["Payee", "Purpose"],
+        },
+        activityMappings: { [ActivityType.DEPOSIT]: ["DEPOSIT"] },
+      },
+      parseConfig,
+      "account-1",
+    );
+
+    expect(draft.comment).toBe("Employer GmbH | Salary 01/2024");
+  });
+});
 
 describe("expense reversal boundary reconciliation", () => {
   const accountTypes = new Map([
