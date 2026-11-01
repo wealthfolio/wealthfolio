@@ -105,6 +105,49 @@ pub struct Risk {
     pub trough_date: Option<NaiveDate>,
     pub recovery_date: Option<NaiveDate>,
     pub drawdown_duration_days: Option<i64>,
+    /// Root-mean-square drawdown across the whole window, as a positive
+    /// fraction. Weights a decline by how long it lasted as well as how deep it
+    /// went, which volatility cannot express.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub ulcer_index: Option<Decimal>,
+    /// Annualised return divided by the depth of the maximum drawdown.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub calmar_ratio: Option<Decimal>,
+    /// Calmar with the classic Sterling adjustment added to the drawdown.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub sterling_ratio: Option<Decimal>,
+    /// Loss thresholds as negative returns, matching the sign of `max_drawdown`.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub var_95: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub var_99: Option<Decimal>,
+    /// Mean loss beyond the corresponding VaR threshold, also negative.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub cvar_95: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub cvar_99: Option<Decimal>,
+    /// Set whenever any VaR figure is present; names how it was estimated.
+    #[serde(default)]
+    pub var_method: Option<VarMethod>,
+    /// Shape of the realised return distribution. Read beside the VaR figures:
+    /// a skewed, fat-tailed series is what makes a normal assumption optimistic.
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub skewness: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub excess_kurtosis: Option<Decimal>,
+    /// Number of return observations every figure above was computed from.
+    #[serde(default)]
+    pub period_count: Option<usize>,
+}
+
+/// How a reported Value at Risk figure was estimated. Historical and parametric
+/// VaR disagree materially on fat-tailed series, so the figure is only auditable
+/// alongside the method that produced it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VarMethod {
+    /// Empirical quantile of the realised return series. Assumes no distribution.
+    Historical,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
