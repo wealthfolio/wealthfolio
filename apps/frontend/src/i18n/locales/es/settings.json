@@ -1293,6 +1293,7 @@
     "dialog_done": "Listo",
     "scope_locked_title": "Requerido por Actividades: confirmar/escribir",
     "scope_locked_market_data_title": "Requerido por Datos de mercado: escribir",
+    "scope_locked_classification_title": "Requerido por Clasificación de activos: aplicar/escribir",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {

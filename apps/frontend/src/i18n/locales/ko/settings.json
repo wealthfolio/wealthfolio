@@ -1237,6 +1237,7 @@
     "dialog_done": "완료",
     "scope_locked_title": "활동에 필요 — 확정/쓰기",
     "scope_locked_market_data_title": "시장 데이터 — 쓰기에 필요",
+    "scope_locked_classification_title": "자산 분류 — 적용/쓰기에 필요",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "토큰",
     "scope": {

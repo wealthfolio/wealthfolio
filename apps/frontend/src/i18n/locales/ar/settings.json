@@ -438,6 +438,7 @@
       }
     },
     "scope_locked_market_data_title": "مطلوب من قِبل بيانات السوق — كتابة",
+    "scope_locked_classification_title": "مطلوب من قِبل تصنيف الأصول — تطبيق وكتابة",
     "scope_locked_title": "مطلوب من قِبل الأنشطة — اعتماد/كتابة",
     "server_card_title": "خادم MCP",
     "server_footer_note": "إيقاف الخادم يُبقي الرموز المميزة صالحة. أزل رمزًا مميزًا أدناه لقطع الوصول.",

@@ -1293,6 +1293,7 @@
     "dialog_done": "Concluído",
     "scope_locked_title": "Requerido por Atividades: confirmar/gravar",
     "scope_locked_market_data_title": "Requerido por Dados de mercado: gravar",
+    "scope_locked_classification_title": "Requerido por Classificação de ativos: aplicar/gravar",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {

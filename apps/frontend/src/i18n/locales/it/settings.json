@@ -1293,6 +1293,7 @@
     "dialog_done": "Fatto",
     "scope_locked_title": "Richiesto da Movimenti — conferma/scrittura",
     "scope_locked_market_data_title": "Richiesto da Dati di mercato — scrittura",
+    "scope_locked_classification_title": "Richiesto da Classificazione degli asset — applica/scrittura",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {

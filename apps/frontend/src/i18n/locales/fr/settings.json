@@ -1293,6 +1293,7 @@
     "dialog_done": "Terminé",
     "scope_locked_title": "Requis par Activités — valider/écrire",
     "scope_locked_market_data_title": "Requis par Données de marché — écrire",
+    "scope_locked_classification_title": "Requis par Classification des actifs — appliquer/écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {

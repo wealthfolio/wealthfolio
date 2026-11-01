@@ -1213,6 +1213,7 @@
     "dialog_done": "Done",
     "scope_locked_title": "Required by Activities — commit/write",
     "scope_locked_market_data_title": "Required by Market data — write",
+    "scope_locked_classification_title": "Required by Asset classification — apply/write",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {

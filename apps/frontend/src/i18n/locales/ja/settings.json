@@ -1237,6 +1237,7 @@
     "dialog_done": "完了",
     "scope_locked_title": "「取引 — 確定/書き込み」に必要です",
     "scope_locked_market_data_title": "「市場データ — 書き込み」に必要です",
+    "scope_locked_classification_title": "「資産分類 — 適用・書き込み」に必要です",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "トークン",
     "scope": {
