@@ -79,11 +79,7 @@ export function ContributionLimitOperations({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
 
-            <Button
-              disabled={isDeleting}
-              onClick={() => handleDelete()}
-              className="bg-destructive focus:ring-destructive"
-            >
+            <Button variant="destructive" disabled={isDeleting} onClick={() => handleDelete()}>
               {isDeleting ? (
                 <Spinner className="me-2 h-4 w-4" />
               ) : (

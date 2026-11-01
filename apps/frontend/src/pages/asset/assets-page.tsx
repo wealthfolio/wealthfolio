@@ -150,7 +150,7 @@ export default function AssetsPage() {
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleteAssetMutation.isPending}
-              className="bg-destructive hover:bg-destructive/90 dark:text-foreground"
+              variant="destructive"
             >
               {deleteAssetMutation.isPending ? t("asset:securities.deleting") : t("common:delete")}
             </AlertDialogAction>
