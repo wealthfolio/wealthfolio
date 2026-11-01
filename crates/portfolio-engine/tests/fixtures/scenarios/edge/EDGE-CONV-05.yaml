@@ -44,3 +44,7 @@ expected_notes: >
   on 02-03 is unrealized gain. All time, unrealized P&L is 208.57 and the FX
   effect -8.57: without the conversion the same history gives 108.57 and
   -8.57, so the conversion adds exactly the 100.
+  Historical FX is past-only, so the 01-02 observation is used through 01-09.
+  The 01-10 rate expires after 01-17; rows from 01-18 through 02-02 are
+  unavailable until the 02-03 observation. TWR and its curve are unavailable
+  across that gap; endpoint-based IRR and value return remain available.

@@ -4,6 +4,8 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+mod historical;
+
 /// A calculator for currency conversions using a Graph-based approach.
 /// It stores rates as independent time-series per pair and calculates paths on demand.
 /// It supports exact matching and "nearest neighbor" lookups (past or future).
@@ -188,6 +190,32 @@ impl CurrencyConverter {
         date: NaiveDate,
     ) -> Result<Decimal, FxError> {
         self.convert_amount(Decimal::ONE, from_currency, to_currency, date)
+    }
+
+    /// Converts using a bounded as-of historical lookup.
+    ///
+    /// Unlike the public nearest-neighbor methods, this path never uses a
+    /// future quote and only carries a quote forward by seven calendar days.
+    /// The bound is applied independently to every edge in an inverse or
+    /// triangulated path.
+    pub(crate) fn convert_amount_as_of(
+        &self,
+        amount: Decimal,
+        from_currency: &str,
+        to_currency: &str,
+        date: NaiveDate,
+    ) -> Result<Decimal, FxError> {
+        historical::convert_amount_as_of(self, amount, from_currency, to_currency, date)
+    }
+
+    /// Returns one unit's bounded as-of historical rate.
+    pub(crate) fn get_rate_as_of(
+        &self,
+        from_currency: &str,
+        to_currency: &str,
+        date: NaiveDate,
+    ) -> Result<Decimal, FxError> {
+        self.convert_amount_as_of(Decimal::ONE, from_currency, to_currency, date)
     }
 }
 

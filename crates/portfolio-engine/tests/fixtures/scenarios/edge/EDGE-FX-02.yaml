@@ -7,7 +7,7 @@ intent: >
   around CHF, so every needed pair has exactly ONE shortest path of two
   hops and the BFS in `CurrencyConverter::convert_amount` is deterministic:
   EUR->USD = 0.94 x 1.10 = 1.034; GBP->EUR = 1.12 / 0.94; GBP->USD = 1.12 x
-  1.10 = 1.232. A single observation day makes the rates static.
+  1.10 = 1.232. A single observation day permits carry for seven days.
 policy:
   base_currency: USD
   timezone: UTC
@@ -48,5 +48,6 @@ expected_notes: >
   880.85, total 1000, fx_rate_to_base 1.034, total_base 1034; 01-08
   investment 131.06 (110 GBP), total 1011.91, base 1046.32.
   net_contribution 1000 EUR / 1034 USD. The rates are observed on 01-02
-  only, so the GBP->EUR and EUR->USD carries of up to 8 days by 01-10 are
-  reported as CarriedFxRate informational diagnostics.
+  only, so the GBP->EUR and EUR->USD carries through 01-09 are reported as
+  CarriedFxRate informational diagnostics. On 01-10 they are eight days old:
+  the affected values and period returns are unavailable with FX diagnostics.

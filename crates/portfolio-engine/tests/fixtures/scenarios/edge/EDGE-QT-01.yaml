@@ -58,7 +58,7 @@ expected_notes: >
   USD, fx_rate_to_account 1.40, fx_rate_to_base 1.40, basis_base 1400.
   Dense valuations every day 01-06..01-14 (nine rows). Investment value in
   CAD: 01-07 1410; 01-08 1434.2; 01-09 1458.6; Fri 01-10 1483.2; Sat 01-11
-  1483.2 (Friday close 103 x Friday rate 1.44); Sun 01-12 1503.8 (Friday
-  close 103 x MONDAY rate 1.46 - nearest observation looks forward); Mon
+  1483.2 (Friday close 103 x Friday rate 1.44); Sun 01-12 1483.2 (Friday
+  close 103 x Friday rate 1.44 - future Monday FX is not used); Mon
   01-13 1533; 01-14 1558.2. Cost basis stays 1400; fx_rate_to_base is 1
   (CAD base); value_status complete on every row.

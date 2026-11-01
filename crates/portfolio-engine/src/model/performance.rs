@@ -432,9 +432,9 @@ pub struct PerformanceResult {
     /// to `measure`; not part of the result a host reads.
     #[serde(skip)]
     pub(crate) holdings_flows_unavailable: bool,
-    /// A period endpoint is UNAVAILABLE: IRR, value return and the headline
-    /// amount stay unavailable through every summary refresh. Internal to
-    /// `measure`; not part of the result a host reads.
+    /// A period endpoint or transaction flow amount is UNAVAILABLE: IRR,
+    /// value return and the headline amount stay unavailable through every
+    /// summary refresh. Internal to `measure`; not part of the result a host reads.
     #[serde(skip)]
     pub(crate) coverage_unavailable: bool,
 }

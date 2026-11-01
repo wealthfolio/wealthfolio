@@ -28,9 +28,9 @@ pub struct FactsRequest {
     /// registers inverses).
     pub currency_pairs: BTreeSet<(String, String)>,
     /// Observation window. Loaders must add the latest observation on or
-    /// before `range.start` per asset/pair (carry-forward seed) and, for FX,
-    /// the nearest observation after `range.end` (nearest-neighbour
-    /// resolution looks both ways).
+    /// before `range.start` per asset/pair (carry-forward seed). Loaders may
+    /// retain the legacy extra FX observation after `range.end`; historical
+    /// resolution never uses it for an earlier valued day.
     pub range: DateRange,
 }
 

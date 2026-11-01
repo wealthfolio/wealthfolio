@@ -67,7 +67,7 @@ baseline:
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.5"
+          fx_rate_to_base: "0"
           investment_market_value: "0"
           investment_market_value_base: "0"
           net_contribution: "0"
@@ -75,7 +75,7 @@ baseline:
           performance_eligible_value_base: "0"
           total_value: "0"
           total_value_base: "0"
-          value_status: complete
+          value_status: unavailable
     acc-scheduled:
       currency: CAD
       disposals: []
@@ -216,56 +216,38 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "140"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: ok
+          quality: partial
           returns:
-            annualized_irr: "76.59518658"
+            annualized_irr: ~
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "0.1"
-            twr: "0.1"
-            value_return: "0.1"
+            irr: ~
+            twr: ~
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "0.42175983"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0.05"
-            - date: 2025-01-07
-              value: "0.05"
-            - date: 2025-01-08
-              value: "0.05"
-            - date: 2025-01-09
-              value: "0.05"
-            - date: 2025-01-10
-              value: "0.1"
+            volatility: "0.35243446"
+          series: []
           summary:
-            amount: "140"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.1"
-            percent_status: complete
-            quality: ok
+            percent: ~
+            percent_status: unavailable
+            quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -430,27 +412,28 @@ baseline:
           value_status: complete
         - basis_status: complete
           book_basis: "1000"
-          book_basis_base: "1400"
+          book_basis_base: "0"
           cash_balance: "500"
-          cash_balance_base: "700"
+          cash_balance_base: "0"
           cost_basis: "500"
-          cost_basis_base: "700"
+          cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.4"
+          fx_rate_to_base: "0"
           investment_market_value: "600"
-          investment_market_value_base: "840"
+          investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "1400"
-          performance_eligible_value_base: "1540"
+          performance_eligible_value_base: "0"
           total_value: "1100"
-          total_value_base: "1540"
-          value_status: complete
+          total_value_base: "0"
+          value_status: unavailable
   diagnostics:
-    - "value/acc-idle:EUR->CAD: Info CarriedFxRate: EUR->CAD rate taken from an observation up to 8 days away (valued 2025-01-10)"
-    - "value/acc-trade:USD->CAD: Info CarriedFxRate: USD->CAD rate taken from an observation up to 8 days away (valued 2025-01-10)"
+    - "value/acc-idle:EUR->CAD: Warning FxUnavailable: no EUR->CAD rate on 2025-01-10; base values unavailable"
+    - "value/acc-trade:USD->CAD: Info CarriedFxRate: USD->CAD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-trade:USD->CAD: Warning FxUnavailable: no USD->CAD rate on 2025-01-10; base values unavailable"
   portfolio:
     all_time:
       attribution:
@@ -462,55 +445,37 @@ baseline:
         realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "140"
+        unrealized_pnl_change: "0"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: false
       method: timeWeighted
       period_end: 2025-01-10
       period_start: 2025-01-02
-      quality: ok
+      quality: partial
       returns:
-        annualized_irr: "76.59518658"
+        annualized_irr: ~
         annualized_twr: ~
         annualized_value_return: ~
-        irr: "0.1"
-        twr: "0.1"
-        value_return: "0.1"
+        irr: ~
+        twr: ~
+        value_return: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "0"
         peak_date: 2025-01-02
         recovery_date: ~
         trough_date: 2025-01-03
-        volatility: "0.42175983"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0"
-        - date: 2025-01-04
-          value: "0"
-        - date: 2025-01-05
-          value: "0"
-        - date: 2025-01-06
-          value: "0.05"
-        - date: 2025-01-07
-          value: "0.05"
-        - date: 2025-01-08
-          value: "0.05"
-        - date: 2025-01-09
-          value: "0.05"
-        - date: 2025-01-10
-          value: "0.1"
+        volatility: "0.35243446"
+      series: []
       summary:
-        amount: "140"
-        amount_status: complete
+        amount: ~
+        amount_status: unavailable
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
-        percent: "0.1"
-        percent_status: complete
-        quality: ok
+        percent: ~
+        percent_status: unavailable
+        quality: partial
   portfolio_flows: []
 scenario: LIFE-IDLE-01

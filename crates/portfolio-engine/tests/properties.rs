@@ -1222,6 +1222,9 @@ fn p_agg_scope_aggregation_is_exact() {
         for day in &portfolio.days {
             let rows: Vec<DailyValuation> = scope
                 .iter()
+                // Match aggregate_scope's P-IDLE rule: an unstarted foreign
+                // account may lack FX, but contributes no amount or status.
+                .filter(|id| has_started(&pipeline, id))
                 .filter_map(|id| pipeline.series.get(id))
                 .filter_map(|s| s.days.iter().find(|d| d.date == day.date))
                 .map(DailyValuation::stored)
@@ -2056,6 +2059,31 @@ fn p_reject_a_rejected_activity_leaves_no_trace() {
             .activities
             .retain(|a| !rejected.contains(&ActivityId::new(a.id.as_str())));
         let other = Pipeline::from_scenario(&without);
+        // Removing a rejected leg also removes pairing metadata for its valid
+        // counterpart. Its boundary/provenance may then become unknown. That
+        // is a different input fact, not a monetary effect of the rejected leg;
+        // it must not retroactively change earlier rows in a windowed run.
+        let changed_boundaries: BTreeSet<_> = pipeline
+            .facts()
+            .transfer_pairs()
+            .iter()
+            .filter(|pair| {
+                rejected.contains(&pair.transfer_in) != rejected.contains(&pair.transfer_out)
+            })
+            .filter_map(|pair| {
+                let survivor = if rejected.contains(&pair.transfer_in) {
+                    &pair.transfer_out
+                } else {
+                    &pair.transfer_in
+                };
+                pipeline
+                    .facts()
+                    .activities()
+                    .iter()
+                    .find(|activity| activity.id == *survivor)
+                    .map(|activity| (activity.account.clone(), activity.date))
+            })
+            .collect();
         for (account, frames) in &pipeline.bundle.keyframes {
             for frame in frames {
                 let other_frame = other
@@ -2096,7 +2124,9 @@ fn p_reject_a_rejected_activity_leaves_no_trace() {
                 };
                 let id = format!("{}: P-REJECT {account} on {}", scenario.id, day.date);
                 assert_eq!(day.total_value_base, same.total_value_base, "{id}: value");
-                assert_eq!(day.flow, same.flow, "{id}: flow");
+                if !changed_boundaries.contains(&(account.clone(), day.date)) {
+                    assert_eq!(day.flow, same.flow, "{id}: flow");
+                }
             }
         }
         let reported: Vec<Value> = pipeline
@@ -2317,9 +2347,11 @@ fn p_txf_legs_transfers_carry_their_lots() {
                     close(received_base, moved_base),
                     "{id}: cost in base {received_base} received, {moved_base} moved"
                 );
-                // Without a quote both legs flow at cost: the incoming one
-                // what the pair moved, read from the sender's records
-                // (EDGE-TXF-15), never from what the receiver booked.
+                // When the sender's base cost is known, both legs flow at
+                // cost: the incoming one what the pair moved, read from the
+                // sender's records (EDGE-TXF-15), never from the receiver's
+                // local book basis. An unknown sender cost remains unavailable
+                // rather than becoming a fabricated receiver flow.
                 let at_cost = effects
                     .events
                     .iter()
@@ -2410,9 +2442,17 @@ fn p_txf_legs_transfers_carry_their_lots() {
                 .find(|p| p.group_id == *group)
                 .and_then(|p| event_of(&p.transfer_in))
                 .is_some_and(|e| e.date > end);
+            let rejected_incoming = pipeline
+                .facts()
+                .transfer_pairs()
+                .iter()
+                .find(|p| p.group_id == *group)
+                .filter(|p| rejected.contains(&p.transfer_in))
+                .and_then(|p| event_of(&p.transfer_in))
+                .is_some_and(|e| e.date <= end);
             assert!(
-                pending,
-                "{}: P-TXF-LEGS lots of {group} left in the transfer cache",
+                pending || rejected_incoming,
+                "{}: P-TXF-LEGS lots of {group} left in the transfer cache without a pending or rejected incoming leg",
                 scenario.id
             );
         }

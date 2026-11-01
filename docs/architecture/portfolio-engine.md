@@ -176,19 +176,20 @@ back one path and first stale day per account:
 The kernel's rules: prices revalue their asset's holders from the day, or from
 the beginning when the close is one of the two around a split (they decide
 whether the provider already adjusted the series, which rescales every earlier
-price). Conversions take the nearest FX observation in either direction, so a
-changed rate reaches back to the day after its pair's previous observation:
-every account revalues from there, and only accounts with activity since then
-also refold (the fold converts on activity days alone). Asset facts and splits
-refold the asset's holders from the beginning. When the day moves, facts dated
-in the new days (a scheduled deposit) were outside the previous range, so their
-account refolds; a split among them revalues its asset's holders from the
-beginning. A refold reaches the account's transfer partners. A transactions
-account with no activity in the range (none yet, or only scheduled ones) has no
-keyframe: valuation presents its empty state as one row on `as_of`, which moves
-with it. Whatever reaches such an account refolds it from the beginning: a
-revalue would find no keyframe to value, and a rewrite from a later day would
-leave the old row behind.
+price). Historical conversions use only past FX observations, carried for at
+most seven calendar days per edge. FX invalidation conservatively retains its
+existing reach to the day after the pair's previous observation: every account
+revalues from there, and only accounts with activity since then also refold (the
+fold converts on activity days alone). Asset facts and splits refold the asset's
+holders from the beginning. When the day moves, facts dated in the new days (a
+scheduled deposit) were outside the previous range, so their account refolds; a
+split among them revalues its asset's holders from the beginning. A refold
+reaches the account's transfer partners. A transactions account with no activity
+in the range (none yet, or only scheduled ones) has no keyframe: valuation
+presents its empty state as one row on `as_of`, which moves with it. Whatever
+reaches such an account refolds it from the beginning: a revalue would find no
+keyframe to value, and a rewrite from a later day would leave the old row
+behind.
 
 Holdings-mode accounts only revalue: their facts are observed snapshots. A
 refold is not resumed from a stored state: folding the refolded accounts (and
@@ -442,7 +443,7 @@ pub fn normalize(raw: RawFacts) -> Result<Normalized, EngineError>;
 pub fn compile(facts: &CanonicalFacts) -> CompiledLedger;
 
 /// 3. Resolve quote and FX surfaces ONCE over the full range: carry-forward
-///    with age, minor-unit normalisation, direct/inverse/nearest/multi-hop FX
+///    with age, minor-unit normalisation, direct/inverse/as-of/multi-hop FX
 ///    with provenance, split-factor detection and the per-asset factor
 ///    schedule. The output is DATA; later stages never consult raw
 ///    observations, so chunking cannot change a resolution verdict.
@@ -652,11 +653,12 @@ product shows when the inputs are imperfect.
   otherwise report a complete −100 % return for an asset the system simply could
   not price.
 - **A carried quote or rate is visible when it matters.** Prices carry forward
-  from the last observation and FX rates resolve to the nearest observation in
-  either direction. A carry of a week or more is reported once per account and
-  asset (`CarriedQuote`) or pair (`CarriedFxRate`) as an informational
-  diagnostic with its age, so a stale series is never mistaken for a live one;
-  shorter carries (weekends, holidays) are silent.
+  from the last observation. Historical FX uses the last observation on or
+  before the valued day, carried for at most seven calendar days per conversion
+  edge, including inverse and multi-hop paths. A seven-day FX carry is reported
+  once per account and pair (`CarriedFxRate`); older or future-only FX is
+  unavailable. Price carries of a week or more use `CarriedQuote`. Shorter
+  carries (weekends, holidays) are silent.
 - **An amount without a rate is excluded, never added as another currency.** A
   cash bucket, contribution or lot basis that no rate converts is left out of
   the converted total with an `FxUnavailable` diagnostic, in the projection as
@@ -748,10 +750,11 @@ Testable contract; the property suite (§5) encodes each one.
   underflows below 1e-28 over long histories) and are rounded to 8 places. They
   feed no other stage and no checkpoint, so every projection, valuation and
   checkpoint stays byte-identical across machines.
-- FX nearest-neighbour resolution may look forward in time. A valuation is
-  deterministic given the surface, and the surface is part of the facts; a
-  late-arriving rate changing history is a change of facts like any other: the
-  shell records the write, and `impact` says how far back it reaches.
+- Historical FX never looks forward in time or substitutes a latest rate for
+  missing history. A valuation is deterministic given the surface, and the
+  surface is part of the facts; a late-arriving historical rate changing history
+  is a change of facts like any other: the shell records the write, and `impact`
+  says how far back it reaches.
 
 ### 4.8 Memory envelope and scoping
 

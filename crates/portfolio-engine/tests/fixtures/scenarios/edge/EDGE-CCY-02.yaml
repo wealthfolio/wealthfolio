@@ -141,4 +141,6 @@ expected_notes: >
   basis_status partialUnknown: the position's book cost converts to neither
   GBP nor USD, so it is left out of cost_basis and reported. The
   rates are observed on 01-02 only, so each account reports a CarriedFxRate
-  informational diagnostic (8 days by 01-10).
+  informational diagnostic through 01-09 (seven days). On 01-10 the rates
+  are eight days old: values and period returns are unavailable with FX
+  diagnostics rather than carrying indefinitely.

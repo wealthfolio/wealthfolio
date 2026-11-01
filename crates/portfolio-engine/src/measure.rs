@@ -441,11 +441,19 @@ fn performance_core(
 
     let end_value = end_point.total_value_base;
     let flows = period_flows(history);
-    // A gain needs both endpoints valued: an UNAVAILABLE endpoint carries a
-    // partial (or zero) base value, so IRR, value return and the headline
-    // amount are unavailable rather than silently zero (legacy had no row).
+    // A gain needs both endpoints and every flow amount valued. Unknown flow
+    // amounts (including failed FX conversions) cannot silently become zero
+    // and turn arriving capital into an apparent gain.
     let coverage_unavailable = start_point.value_status.is_unavailable_for_returns()
-        || end_point.value_status.is_unavailable_for_returns();
+        || end_point.value_status.is_unavailable_for_returns()
+        || (!holdings && flows.iter().any(|flow| flow.source == FlowSource::Unknown));
+    // Return samples pause across unavailable values. Rendering those pauses
+    // as flat points would invent an FX curve, even if both endpoints recover.
+    let include_series = include_series
+        && !coverage_unavailable
+        && !history
+            .iter()
+            .any(|day| day.value_status.is_unavailable_for_returns());
     let holdings_flows_unavailable = holdings
         && start_opt.is_some()
         && flows.iter().any(|f| f.source.is_unavailable_for_returns());
@@ -724,8 +732,8 @@ fn performance_core(
     if holdings {
         result.basis_status = end_point.basis_status;
         result.holdings_flows_unavailable = holdings_flows_unavailable;
-        refresh_summary(&mut result);
     }
+    refresh_summary(&mut result);
     result
 }
 
@@ -2529,7 +2537,8 @@ fn mixed_scope_performance(
             reasons =
                 transaction_component_reasons(component_result.data_quality.not_applicable_reasons);
             (
-                Some(component_result.attribution.pnl()),
+                (!component_result.coverage_unavailable)
+                    .then_some(component_result.attribution.pnl()),
                 component_result.attribution,
                 BasisStatus::NotApplicable,
             )
@@ -2577,7 +2586,13 @@ fn build_mixed_result(
         QualityNote::MixedTwrNotApplicable,
         QualityNote::MixedIrrNotApplicable,
     ];
-    let mut coverage_complete = true;
+    let coverage_unavailable = metrics.iter().any(|component| {
+        component
+            .reasons
+            .iter()
+            .any(|reason| matches!(reason, QualityNote::CoverageUnavailable { .. }))
+    });
+    let mut coverage_complete = !coverage_unavailable;
 
     if metrics.is_empty() {
         reasons.push(QualityNote::TwoValuationPointsRequired);
@@ -2688,6 +2703,7 @@ fn build_mixed_result(
         .iter()
         .map(|m| m.basis_status)
         .fold(BasisStatus::NotApplicable, BasisStatus::combine);
+    result.coverage_unavailable = coverage_unavailable;
     let amount_available = metrics.iter().any(|m| m.amount.is_some());
     result.summary.amount_status = if amount_available {
         SummaryStatus::Complete
@@ -3012,6 +3028,29 @@ mod tests {
             basis_status: BasisStatus::default(),
             flow: DailyFlow::default(),
         }
+    }
+
+    #[test]
+    fn unknown_flow_amount_cannot_be_counted_as_a_gain() {
+        let mut history = vec![row("2026-05-01", dec!(100)), row("2026-05-02", dec!(150))];
+        history[1].flow.source = FlowSource::Unknown;
+        let currency = Currency::parse("CAD").unwrap();
+        let result = performance_core(
+            &history,
+            false,
+            None,
+            Baseline::Inception,
+            true,
+            MeasureProfile::Full,
+            true,
+            &currency,
+        );
+        assert!(result.returns.twr.is_none());
+        assert!(result.returns.irr.is_none());
+        assert!(result.returns.value_return.is_none());
+        assert_eq!(result.summary.amount_status, SummaryStatus::Unavailable);
+        assert!(result.summary.amount.is_none());
+        assert!(result.series.is_empty());
     }
 
     #[test]

@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-09
 base_currency: USD
@@ -474,23 +473,7 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-03
             volatility: "2.43740425"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0.33"
-            - date: 2025-01-04
-              value: "0.33"
-            - date: 2025-01-05
-              value: "0.33"
-            - date: 2025-01-06
-              value: "0.33"
-            - date: 2025-01-07
-              value: "0.33"
-            - date: 2025-01-08
-              value: "0.33"
-            - date: 2025-01-09
-              value: "0.33"
+          series: []
           summary:
             amount: ~
             amount_status: unavailable
@@ -700,23 +683,7 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-03
         volatility: "2.01470211"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "-0.21"
-        - date: 2025-01-04
-          value: "-0.21"
-        - date: 2025-01-05
-          value: "-0.21"
-        - date: 2025-01-06
-          value: "-0.21"
-        - date: 2025-01-07
-          value: "-0.21"
-        - date: 2025-01-08
-          value: "-0.21"
-        - date: 2025-01-09
-          value: "-0.21"
+      series: []
       summary:
         amount: ~
         amount_status: unavailable

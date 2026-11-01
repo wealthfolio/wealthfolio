@@ -117,9 +117,10 @@ pub fn impact(
                 }
             }
             FactChange::FxRate { from, to, day } => {
-                // Conversions take the nearest observation either way, so a
-                // rate reaches back to the day after the pair's previous one
-                // (the recorded day and the rate's day may differ by one).
+                // Keep the conservative invalidation reach from the day after
+                // the pair's previous observation (the recorded day and the
+                // rate's day may differ by one). Historical resolution is
+                // past-only; this may revisit earlier unchanged rows.
                 // Valuations convert every day; the fold on activity days.
                 let policy = &facts.policy;
                 let before = day.pred_opt().unwrap_or(*day);

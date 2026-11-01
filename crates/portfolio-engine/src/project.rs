@@ -344,6 +344,13 @@ struct RunLog {
 }
 
 impl RunLog {
+    fn rejected(&self, source: &ActivityId) -> bool {
+        self.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::ActivityRejected
+                && diagnostic.source == source.as_str()
+        })
+    }
+
     /// A conversion the fold went without: "no FROM->TO rate on DAY", then
     /// what the missing rate cost.
     fn no_rate(
@@ -805,11 +812,23 @@ impl Projector<'_> {
         day: NaiveDate,
         run: &mut RunLog,
     ) -> AccountState {
+        // A rejected activity restores its account savepoint, so a day on
+        // which every activity was rejected has no state change to close.
+        // Recomputing totals here would report diagnostics for pre-existing
+        // cash or positions on the rejected activity's date, leaving a trace
+        // that does not exist when the activity is absent altogether.
+        if events.iter().all(|event| run.rejected(&event.source)) {
+            return account;
+        }
         // Book costs at acquisition FX of the positions the day's events
         // touched (the others keep theirs: acquisition FX does not move with
         // the day), then the account's total by the same rule as valuation,
         // then cash totals (once per day).
-        let touched: BTreeSet<&AssetId> = events.iter().flat_map(|e| footprint(e)).collect();
+        let touched: BTreeSet<&AssetId> = events
+            .iter()
+            .filter(|event| !run.rejected(&event.source))
+            .flat_map(|e| footprint(e))
+            .collect();
         let account_currency = account.currency.as_str().to_string();
         let base = self.base().to_string();
         for (asset, position) in account.positions.iter_mut() {
