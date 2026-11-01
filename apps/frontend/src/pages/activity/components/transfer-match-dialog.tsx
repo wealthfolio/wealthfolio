@@ -1218,7 +1218,7 @@ function ManualTransferSearch({
               count: filteredManualResults.length,
             })}
           </div>
-          <ScrollArea className="max-h-72">
+          <ScrollArea className="max-h-72 overflow-y-auto">
             <div className="space-y-2 pe-3">
               {filteredManualResults.length > 0 ? (
                 filteredManualResults.map((candidate) => (
