@@ -44,7 +44,12 @@ import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { invalidTypeError } from "@/lib/zod-errors";
-import { getCurrencyDisplayLabel, MoneyInput, worldCurrencies } from "@wealthfolio/ui";
+import {
+  canonicalCurrencyCode,
+  getCurrencyDisplayLabel,
+  MoneyInput,
+  worldCurrencies,
+} from "@wealthfolio/ui";
 
 interface ExchangeRateFormData {
   fromCurrency: string;
@@ -123,17 +128,21 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
 
   const renderCurrencyField = (fieldName: "fromCurrency" | "toCurrency") => {
     const [searchValue, setSearchValue] = useState("");
+    const customCode = canonicalCurrencyCode(searchValue);
+    const showCustomCode =
+      customCode !== "" && !worldCurrencies.some((currency) => currency.value === customCode);
 
     const handleSearchChange = (value: string) => {
-      setSearchValue(value);
+      const query = value.trim();
+      setSearchValue(query);
       const matchingCurrency = worldCurrencies.find(
         (currency) =>
-          currency.label.toLowerCase().includes(value.toLowerCase()) ||
-          currencyLabel(currency.value).toLowerCase().includes(value.toLowerCase()) ||
-          currency.value.includes(value),
+          currency.label.toLowerCase().includes(query.toLowerCase()) ||
+          currencyLabel(currency.value).toLowerCase().includes(query.toLowerCase()) ||
+          currency.value.includes(query),
       );
-      if (!matchingCurrency && value) {
-        form.setValue(fieldName, value.toUpperCase());
+      if (!matchingCurrency && query) {
+        form.setValue(fieldName, canonicalCurrencyCode(query));
       }
     };
 
@@ -172,22 +181,22 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                   <CommandList>
                     <CommandGroup>
                       <ScrollArea className="max-h-96 overflow-y-auto">
-                        {searchValue && (
+                        {showCustomCode && (
                           <CommandItem
-                            value={searchValue}
-                            key={searchValue}
+                            value={customCode}
+                            key={customCode}
                             onSelect={() => {
-                              form.setValue(fieldName, searchValue);
+                              form.setValue(fieldName, customCode);
                             }}
                           >
                             <Icons.Plus
                               className={cn(
                                 "me-2 h-4 w-4",
-                                searchValue === field.value ? "opacity-100" : "opacity-0",
+                                customCode === field.value ? "opacity-100" : "opacity-0",
                               )}
                             />
                             <span className="font-semibold italic">
-                              {t("settings:fx_custom_search", { value: searchValue })}
+                              {t("settings:fx_custom_search", { value: customCode })}
                             </span>
                           </CommandItem>
                         )}
