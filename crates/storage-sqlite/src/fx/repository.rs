@@ -1,6 +1,6 @@
 use wealthfolio_core::assets::{AssetKind, NewAsset};
 use wealthfolio_core::errors::{DatabaseError, ValidationError};
-use wealthfolio_core::fx::{ExchangeRate, FxRepositoryTrait};
+use wealthfolio_core::fx::{ExchangeRate, FxError, FxRepositoryTrait};
 use wealthfolio_core::quotes::constants::DATA_SOURCE_MANUAL;
 use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
@@ -464,6 +464,17 @@ impl FxRepository {
                 if let Some(existing_asset) = existing {
                     Ok(existing_asset.id)
                 } else {
+                    // `new_fx_asset` stores the pair upper-cased, so a code in any
+                    // other case would be inserted under a different key than the
+                    // one looked up above and read back below (#2188). Pairs that
+                    // older versions stored as entered are found above.
+                    if let Some(code) = [&from_owned, &to_owned]
+                        .into_iter()
+                        .find(|code| code.to_uppercase() != **code)
+                    {
+                        return Err(FxError::InvalidCurrencyCode(code.clone()).into());
+                    }
+
                     let new_asset = NewAsset::new_fx_asset(&from_owned, &to_owned, &source_owned);
                     let asset_db: InsertableAssetDB = new_asset.into();
 

@@ -141,10 +141,60 @@ it("preserves custom currency values when the language changes", async () => {
   fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
     target: { value: "MyCoin" },
   });
-  await user.click(await screen.findByRole("option", { name: /MyCoin/ }));
+  await user.click(await screen.findByRole("option", { name: /MYCOIN/ }));
   await user.keyboard("{Escape}");
   await act(() => i18n.changeLanguage("en"));
   expect(screen.getByRole("combobox", { name: enSettings.fx_from_currency })).toHaveTextContent(
-    "MyCoin",
+    "MYCOIN",
+  );
+});
+
+// FX pairs are stored upper-cased, so a lower-case code would miss its pair (#2188).
+it.each(["cny", " cny "])("offers and submits %j in upper case", async (query) => {
+  const { onSubmit, user } = await exchangeForm();
+  await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: query },
+  });
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    "人民币 (CNY)",
+  ]);
+  await user.click(screen.getByRole("option", { name: "人民币 (CNY)" }));
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("combobox", { name: zhSettings.fx_to_currency }));
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: "usdt" },
+  });
+  await user.click(
+    await screen.findByRole("option", {
+      name: zhSettings.fx_custom_search.replace("{{value}}", "USDT"),
+    }),
+  );
+  await user.keyboard("{Escape}");
+  fireEvent.change(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), {
+    target: { value: "7" },
+  });
+  await user.click(screen.getByRole("button", { name: zhSettings.fx_add_title }));
+  await waitFor(() =>
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      fromCurrency: "CNY",
+      toCurrency: "USDT",
+      source: "MANUAL",
+      rate: 7,
+      timestamp: expect.any(String),
+    }),
+  );
+});
+
+// Typing a code no currency matches fills it in without picking the custom item.
+it("fills in a typed quote unit with its spelling", async () => {
+  const { user } = await exchangeForm();
+  await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: " zac " },
+  });
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("combobox", { name: zhSettings.fx_from_currency })).toHaveTextContent(
+    "ZAc",
   );
 });

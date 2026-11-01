@@ -1,7 +1,7 @@
 import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
-import { getCurrencyDisplayLabel, worldCurrencies } from "../../lib/currencies";
+import { canonicalCurrencyCode, getCurrencyDisplayLabel, worldCurrencies } from "../../lib/currencies";
 import { cn } from "../../lib/utils";
 import type { ButtonProps } from "../ui/button";
 import { Button } from "../ui/button";
@@ -95,18 +95,19 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     };
 
     const getCustomCurrencyValue = (query: string) => {
-      const trimmed = query.trim();
-      if (!allowCustom || !trimmed) return undefined;
-      if (worldCurrencies.some((currency) => currency.value === trimmed)) return undefined;
-      return trimmed;
+      const code = canonicalCurrencyCode(query);
+      if (!allowCustom || !code) return undefined;
+      if (worldCurrencies.some((currency) => currency.value === code)) return undefined;
+      return code;
     };
 
     if (isMobile) {
+      const query = searchQuery.trim().toLowerCase();
       const filteredCurrencies = worldCurrencies.filter(
         (curr) =>
-          curr.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          curr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          currencyLabel(curr).toLowerCase().includes(searchQuery.toLowerCase()),
+          curr.value.toLowerCase().includes(query) ||
+          curr.label.toLowerCase().includes(query) ||
+          currencyLabel(curr).toLowerCase().includes(query),
       );
       const customCurrencyValue = getCustomCurrencyValue(searchQuery);
       const mobileDisplayText = selectedCurrency
@@ -281,8 +282,8 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
 
     const desktopCustomCurrencyValue = getCustomCurrencyValue(desktopSearchQuery);
     // cmdk can't reorder items inside the ScrollArea, so Enter takes the first match in list
-    // order: list an exactly typed code before fuzzy matches such as USD for "EUR".
-    const typedCode = desktopSearchQuery.trim();
+    // order: list a code typed in any case before fuzzy matches such as USD for "EUR".
+    const typedCode = canonicalCurrencyCode(desktopSearchQuery);
     const desktopCurrencies = [...worldCurrencies].sort(
       (a, b) => Number(b.value === typedCode) - Number(a.value === typedCode),
     );
