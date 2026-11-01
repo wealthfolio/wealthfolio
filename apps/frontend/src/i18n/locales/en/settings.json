@@ -790,6 +790,7 @@
     "failed_count_one": "{{count}} failed",
     "failed_count_other": "{{count}} failed",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS provides delayed and end-of-day prices for shares, depositary receipts and ETFs traded on MOEX. No API key required.",
       "YAHOO": "Yahoo Finance is a leading financial data provider for many markets. It provides historical and real-time stock data.",
       "MARKETDATA_APP": "MarketData.app provides real-time and historical data for U.S. stocks, options, ETFs, mutual funds, and more.",
       "ALPHA_VANTAGE": "Alpha Vantage provides free APIs for real-time and historical data on stocks, forex, and cryptocurrencies.",
@@ -825,6 +826,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Canadian stock & fund history (TSX symbol or Fundserv code)"
     },
     "instrumentLabels": {
+      "depositary_receipts": "Depositary receipts",
       "stocks": "Stocks",
       "crypto": "Crypto",
       "etfs": "ETFs",
@@ -1211,6 +1213,7 @@
     "dialog_done": "Done",
     "scope_locked_title": "Required by Activities — commit/write",
     "scope_locked_market_data_title": "Required by Market data — write",
+    "scope_locked_classification_title": "Required by Asset classification — apply/write",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1248,7 +1251,7 @@
       },
       "activities_write": {
         "label": "Activities — commit/write",
-        "description": "Commit activities, update existing ones, and link or unlink transfers. Requires the draft scope."
+        "description": "Commit activities, update existing ones, mark them void or delete them, and link or unlink transfers. Requires the draft scope."
       },
       "classification_suggest": {
         "label": "Asset classification — suggest",
@@ -1592,6 +1595,7 @@
     "functions": {
       "accounts_getAll": "View all accounts",
       "accounts_create": "Create new accounts",
+      "alternative-assets_getAll": "View alternative assets and liabilities",
       "portfolio_getHoldings": "View your investment holdings",
       "portfolio_getHolding": "View individual holding details",
       "portfolio_update": "Update portfolio calculations",
@@ -1602,6 +1606,14 @@
       "activities_getAll": "View all transactions",
       "activities_search": "Search transactions with filters",
       "activities_searchCashActivities": "Search categorized spending transactions",
+      "activities_assignCategory": "Categorize spending transactions",
+      "activities_unassignCategory": "Clear a transaction category",
+      "activities_setEvent": "Attach or clear transaction event tags",
+      "spending_getContext": "View enabled spending accounts",
+      "spending_getBudget": "View budgets and groups",
+      "spending_getEvents": "View spending events",
+      "spending_getEventTypes": "View event types",
+      "budgets_upsertBudgetTarget": "Change default and monthly budget targets",
       "activities_create": "Add new transactions",
       "activities_update": "Modify transactions",
       "activities_saveMany": "Save multiple transactions",
@@ -1618,9 +1630,11 @@
       "market_syncHistory": "Download price history",
       "market_sync": "Sync market data for symbols",
       "market_getProviders": "View market data providers",
+      "market_fetchDividends": "Download dividend history",
       "assets_getProfile": "View asset profile details",
       "assets_updateProfile": "Update asset information",
       "assets_updateDataSource": "Change asset data provider",
+      "assets_updateQuoteMode": "Switch between market and manual prices",
       "quotes_update": "Update current prices",
       "quotes_getHistory": "View price history",
       "performance_calculateHistory": "Calculate performance history",
@@ -1661,14 +1675,20 @@
       "secrets_set": "Store secure credentials",
       "secrets_use": "Use stored credentials for brokered requests",
       "secrets_delete": "Remove stored credentials",
-      "events_import_onDropHover": "Detect file drag-and-drop",
-      "events_import_onDrop": "Handle file drops",
-      "events_import_onDropCancelled": "Handle cancelled drops",
-      "events_portfolio_onUpdateStart": "Monitor portfolio update start",
-      "events_portfolio_onUpdateComplete": "Monitor portfolio update completion",
-      "events_portfolio_onUpdateError": "Monitor portfolio update errors",
-      "events_market_onSyncStart": "Monitor market sync start",
-      "events_market_onSyncComplete": "Monitor market sync completion",
+      "snapshots_getAll": "View holdings snapshots",
+      "snapshots_getByDate": "View holdings on a snapshot date",
+      "snapshots_save": "Save holdings snapshots",
+      "snapshots_checkImport": "Validate snapshot import data",
+      "snapshots_importSnapshots": "Import holdings snapshots",
+      "snapshots_delete": "Delete holdings snapshots",
+      "events_onDropHover": "Detect file drag-and-drop",
+      "events_onDrop": "Handle file drops",
+      "events_onDropCancelled": "Handle cancelled drops",
+      "events_onUpdateStart": "Monitor portfolio update start",
+      "events_onUpdateComplete": "Monitor portfolio update completion",
+      "events_onUpdateError": "Monitor portfolio update errors",
+      "events_onSyncStart": "Monitor market sync start",
+      "events_onSyncComplete": "Monitor market sync completion",
       "network_request": "Send brokered network requests"
     },
     "categories": {
@@ -1711,6 +1731,10 @@
       "spending": {
         "name": "Spending",
         "description": "View aggregate spending reports and categories, and manage categorization rules that auto-tag transactions"
+      },
+      "budgets": {
+        "name": "Budget Management",
+        "description": "Change default budget targets and monthly overrides"
       },
       "financial-planning": {
         "name": "Financial Planning",

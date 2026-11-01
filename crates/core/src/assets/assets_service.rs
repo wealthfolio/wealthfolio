@@ -479,6 +479,14 @@ impl AssetService {
             return Some(serde_json::json!({ "preferred_provider": "BOERSE_FRANKFURT" }));
         }
 
+        // Yahoo no longer serves MOEX listings, and a bare ticker there resolves
+        // to whatever other venue shares it (AFLT -> an Amundi ETF on XPAR).
+        if matches!(instrument_type, Some(InstrumentType::Equity))
+            && exchange_mic.is_some_and(|mic| mic.trim().eq_ignore_ascii_case("MISX"))
+        {
+            return Some(serde_json::json!({ "preferred_provider": "MOEX" }));
+        }
+
         None
     }
 
@@ -1149,12 +1157,14 @@ impl AssetService {
         &self,
         asset_id: &str,
         instrument_type: Option<&InstrumentType>,
+        instrument_type_label: Option<&str>,
+        name: Option<&str>,
         kind: &AssetKind,
     ) {
         if let Some(taxonomy_service) = &self.taxonomy_service {
             let classifier = AutoClassificationService::new(Arc::clone(taxonomy_service));
             classifier
-                .classify_from_spec(asset_id, instrument_type, kind)
+                .classify_new_asset(asset_id, instrument_type, instrument_type_label, name, kind)
                 .await;
         }
     }
@@ -2276,7 +2286,7 @@ impl AssetServiceTrait for AssetService {
         let asset = self.asset_repository.create(new_asset).await?;
 
         // Auto-classify the newly created asset
-        self.classify_new_asset(&asset.id, instrument_type.as_ref(), &kind)
+        self.classify_new_asset(&asset.id, instrument_type.as_ref(), None, None, &kind)
             .await;
 
         // Emit event for newly created asset
@@ -2523,12 +2533,21 @@ impl AssetServiceTrait for AssetService {
         );
 
         let instrument_type = new_asset.instrument_type.clone();
+        let name = new_asset.name.clone();
         let kind = new_asset.kind.clone();
         let asset = self.asset_repository.create(new_asset).await?;
 
         // Auto-classify the newly created asset
-        self.classify_new_asset(&asset.id, instrument_type.as_ref(), &kind)
-            .await;
+        self.classify_new_asset(
+            &asset.id,
+            instrument_type.as_ref(),
+            metadata
+                .as_ref()
+                .and_then(|m| m.instrument_type_label.as_deref()),
+            name.as_deref(),
+            &kind,
+        )
+        .await;
 
         // Emit event for newly created asset
         self.event_sink
@@ -3035,8 +3054,14 @@ impl AssetServiceTrait for AssetService {
                 });
                 if let Some(id) = asset_id {
                     if created_set.contains(id) {
-                        self.classify_new_asset(id, spec.instrument_type.as_ref(), &spec.kind)
-                            .await;
+                        self.classify_new_asset(
+                            id,
+                            spec.instrument_type.as_ref(),
+                            None,
+                            None,
+                            &spec.kind,
+                        )
+                        .await;
                     }
                 }
             }
@@ -4028,6 +4053,32 @@ mod tests {
             existing_asset_id: None,
             index: String::new(),
             score: 1.0,
+        }
+    }
+
+    /// An AMFI scheme as `MarketDataClient` converts the provider's result.
+    fn amfi_search_result(code: &str, name: &str) -> SymbolSearchResult {
+        SymbolSearchResult {
+            symbol: code.to_string(),
+            canonical_symbol: Some(code.to_string()),
+            canonical_exchange_mic: None,
+            provider_id: Some("AMFI".to_string()),
+            provider_symbol: Some(code.to_string()),
+            short_name: name.to_string(),
+            long_name: name.to_string(),
+            exchange: "AMFI".to_string(),
+            exchange_mic: None,
+            exchange_name: None,
+            quote_type: "MUTUALFUND".to_string(),
+            type_display: String::new(),
+            currency: Some("INR".to_string()),
+            currency_source: Some("provider".to_string()),
+            data_source: Some("AMFI".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            is_existing: false,
+            existing_asset_id: None,
+            index: String::new(),
+            score: 0.0,
         }
     }
 
@@ -5035,6 +5086,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_resolve_import_asset_inputs_prefers_listed_fund_to_amfi_scheme() {
+        // With AMFI enabled, an ISIN search lists Yahoo's BSE fund and AMFI's
+        // scheme. The listed fund keeps winning, as before AMFI searched.
+        let mut listed = yahoo_search_result(
+            "0P0000YWL1.BO",
+            "0P0000YWL1",
+            "XBOM",
+            "Parag Parikh Flexi Cap Dir Gr",
+            "INR",
+            "0P0000YWL1.BO",
+        );
+        listed.quote_type = "MUTUALFUND".to_string();
+        let scheme = amfi_search_result(
+            "122639",
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+        );
+        // The registry lists AMFI's exact match first; order must not decide.
+        for results in [
+            vec![scheme.clone(), listed.clone()],
+            vec![listed.clone(), scheme.clone()],
+        ] {
+            let service = test_asset_service(
+                Vec::new(),
+                TestQuoteService::default().with_result("INF879O01027", results),
+            );
+
+            let output = service
+                .resolve_import_asset_inputs(vec![import_input("INF879O01027", "INR")])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.provider_id.as_deref(), Some("YAHOO"));
+            assert_eq!(output.provider_symbol.as_deref(), Some("0P0000YWL1.BO"));
+            assert_eq!(output.exchange_mic.as_deref(), Some("XBOM"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_uses_amfi_scheme_when_no_listing_matches() {
+        let name = "Parag Parikh Flexi Cap Fund - Direct Plan - Growth";
+        // OpenFIGI's text search answers a scheme code with unrelated bonds
+        // that share the number; they sit on both sides of AMFI's scheme.
+        let bond = SymbolSearchResult {
+            provider_id: Some("OPENFIGI".to_string()),
+            data_source: Some("OPENFIGI".to_string()),
+            exchange: "EUWAX STUTTGART".to_string(),
+            quote_type: "BOND".to_string(),
+            currency: None,
+            currency_source: None,
+            long_name: "DEUTSCHE BANK AG - DB 0 01/21/13 000A".to_string(),
+            ..amfi_search_result("122639", "")
+        };
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default()
+                .with_result("INF879O01027", vec![amfi_search_result("122639", name)])
+                .with_result(
+                    "122639",
+                    vec![bond.clone(), amfi_search_result("122639", name), bond],
+                ),
+        );
+
+        for symbol in ["INF879O01027", "122639"] {
+            let output = service
+                .resolve_import_asset_inputs(vec![import_input(symbol, "INR")])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.provider_id.as_deref(), Some("AMFI"), "{symbol}");
+            assert_eq!(
+                output.canonical_symbol.as_deref(),
+                Some("122639"),
+                "{symbol}"
+            );
+            assert_eq!(output.exchange_mic, None, "{symbol}");
+            assert_eq!(output.quote_ccy.as_deref(), Some("INR"), "{symbol}");
+            assert_eq!(output.name.as_deref(), Some(name), "{symbol}");
+            let draft = output.draft.expect("new fund draft");
+            assert_eq!(draft.instrument_symbol.as_deref(), Some("122639"));
+            assert_eq!(
+                draft.provider_config,
+                Some(serde_json::json!({ "preferred_provider": "AMFI" })),
+                "{symbol}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_resolve_import_asset_inputs_crypto_pair_rejects_incompatible_equity_result() {
         let service = test_asset_service(
             Vec::new(),
@@ -5259,6 +5402,48 @@ mod tests {
         assert_eq!(output.canonical_symbol.as_deref(), Some("ACME"));
         assert_eq!(output.name.as_deref(), Some("Acme B"));
         assert_eq!(output.provider_symbol.as_deref(), Some("ACME-B"));
+    }
+
+    /// HYDR is RusHydro on MOEX and a hydrogen ETF on Nasdaq. With both
+    /// listings in the search results, the activity currency picks the venue.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_uses_currency_to_pick_moex_listing() {
+        let mut nasdaq = yahoo_search_result(
+            "HYDR",
+            "HYDR",
+            "XNAS",
+            "Global X Hydrogen ETF",
+            "USD",
+            "HYDR",
+        );
+        nasdaq.quote_type = "ETF".to_string();
+        nasdaq.score = 20_000.0;
+        let mut moex = yahoo_search_result("HYDR", "HYDR", "MISX", "RusHydro", "RUB", "HYDR");
+        moex.provider_id = Some("MOEX".to_string());
+        moex.data_source = Some("MOEX".to_string());
+        moex.score = 0.0;
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result("HYDR", vec![nasdaq, moex]),
+        );
+
+        let resolved = |currency: &'static str| {
+            let service = &service;
+            async move {
+                service
+                    .resolve_import_asset_inputs(vec![import_input("HYDR", currency)])
+                    .await
+                    .unwrap()
+                    .pop()
+                    .unwrap()
+            }
+        };
+
+        let rub = resolved("RUB").await;
+        assert_eq!(rub.exchange_mic.as_deref(), Some("MISX"));
+        assert_eq!(rub.name.as_deref(), Some("RusHydro"));
+        let usd = resolved("USD").await;
+        assert_eq!(usd.exchange_mic.as_deref(), Some("XNAS"));
     }
 
     #[tokio::test]
@@ -5750,6 +5935,30 @@ mod tests {
     }
 
     #[test]
+    fn test_moex_equity_prefers_moex() {
+        let provider_config = AssetService::inferred_provider_config(
+            QuoteMode::Market,
+            Some(&InstrumentType::Equity),
+            Some("AFLT"),
+            Some("MISX"),
+        );
+
+        assert_eq!(
+            provider_config,
+            Some(serde_json::json!({ "preferred_provider": "MOEX" })),
+            "MISX equities should prefer MOEX"
+        );
+
+        let manual = AssetService::inferred_provider_config(
+            QuoteMode::Manual,
+            Some(&InstrumentType::Equity),
+            Some("AFLT"),
+            Some("MISX"),
+        );
+        assert!(manual.is_none(), "manual assets keep no provider config");
+    }
+
+    #[test]
     fn test_profile_provider_change_resets_sync_state() {
         let before = Asset {
             provider_config: Some(serde_json::json!({ "preferred_provider": "YAHOO" })),
@@ -6013,5 +6222,33 @@ mod tests {
             instrument_symbol: Some("AAPL".to_string()),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn test_delisted_moex_import_avoids_foreign_ticker_collision() {
+        let foreign = yahoo_search_result(
+            "600107.SS",
+            "600107",
+            "XSHG",
+            "Mailyard",
+            "CNY",
+            "600107.SS",
+        );
+        let mut moex = yahoo_search_result("MAIL", "MAIL", "MISX", "VK GDR", "RUB", "MAIL");
+        moex.provider_id = Some("MOEX".to_string());
+        moex.data_source = Some("MOEX".to_string());
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result("MAIL", vec![foreign, moex]),
+        );
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("MAIL", "RUB")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(output.canonical_symbol.as_deref(), Some("MAIL"));
+        assert_eq!(output.exchange_mic.as_deref(), Some("MISX"));
+        assert_eq!(output.provider_id.as_deref(), Some("MOEX"));
     }
 }

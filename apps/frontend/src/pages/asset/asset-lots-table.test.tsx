@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@/test/render";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AssetLotView } from "@/lib/types";
 
@@ -59,6 +59,10 @@ const usdLot: AssetLotView = {
 };
 
 describe("AssetLotsTable", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each([
     { marketPrice: 10.1, costBasis: 30.3 },
     { marketPrice: 0.1, costBasis: 0.3 },
@@ -200,5 +204,52 @@ describe("AssetLotsTable", () => {
     expect(screen.getAllByText("£283.95").length).toBeGreaterThan(0);
     expect(screen.getAllByText("+26.05").length).toBeGreaterThan(0);
     expect(screen.getAllByText("+9.17%").length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    { isClosed: true, closeDate: "2024-06-10", expected: "held 5mo · closed Jun 10, 2024" },
+    { isClosed: false, closeDate: null, expected: "held 2y 9mo" },
+  ])(
+    "ends the holding period on the sale date ($expected)",
+    ({ isClosed, closeDate, expected }) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 24, 12));
+      render(
+        <AssetLotsTable
+          lots={[{ ...usdLot, acquisitionDate: "2024-01-10", isClosed, closeDate }]}
+          currency="USD"
+          marketPrice={10.1}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /expand all/i }));
+
+      // Desktop and mobile lot rows.
+      expect(screen.getAllByText(expected)).toHaveLength(2);
+    },
+  );
+
+  it("measures a sold lot by calendar dates west of UTC", () => {
+    const originalTimezone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 24, 12));
+      render(
+        <AssetLotsTable
+          lots={[
+            { ...usdLot, acquisitionDate: "2024-02-01", isClosed: true, closeDate: "2024-03-01" },
+          ]}
+          currency="USD"
+          marketPrice={10.1}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /expand all/i }));
+
+      expect(screen.getAllByText("held 1mo · closed Mar 1, 2024")).toHaveLength(2);
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
   });
 });

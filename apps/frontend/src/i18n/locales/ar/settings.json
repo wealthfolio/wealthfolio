@@ -389,7 +389,7 @@
         "label": "الأنشطة (قراءة)"
       },
       "activities_write": {
-        "description": "اعتماد الأنشطة وتحديث الأنشطة الحالية وربط التحويلات أو إلغاء ربطها. يتطلب نطاق المسودة.",
+        "description": "اعتماد الأنشطة، وتحديث الأنشطة الحالية أو إلغاؤها أو حذفها، وربط التحويلات أو إلغاء ربطها. يتطلب نطاق المسودة.",
         "label": "الأنشطة — اعتماد/كتابة"
       },
       "classification_read": {
@@ -438,6 +438,7 @@
       }
     },
     "scope_locked_market_data_title": "مطلوب من قِبل بيانات السوق — كتابة",
+    "scope_locked_classification_title": "مطلوب من قِبل تصنيف الأصول — تطبيق وكتابة",
     "scope_locked_title": "مطلوب من قِبل الأنشطة — اعتماد/كتابة",
     "server_card_title": "خادم MCP",
     "server_footer_note": "إيقاف الخادم يُبقي الرموز المميزة صالحة. أزل رمزًا مميزًا أدناه لقطع الوصول.",
@@ -1236,6 +1237,7 @@
     "website": "الموقع الإلكتروني",
     "feature_dividends": "توزيعات الأرباح",
     "providerDescriptions": {
+      "MOEX": "توفر Moscow Exchange ISS أسعارًا متأخرة وأسعار نهاية اليوم للأسهم وإيصالات الإيداع وصناديق المؤشرات المتداولة في MOEX. لا يلزم مفتاح API.",
       "YAHOO": "Yahoo Finance هي شركة رائدة في توفير البيانات المالية للعديد من الأسواق. ويوفر بيانات المخزون التاريخية وفي الوقت الحقيقي.",
       "MARKETDATA_APP": "يوفر تطبيق MarketData.app بيانات تاريخية وفي الوقت الفعلي للأسهم الأمريكية والخيارات وصناديق الاستثمار المتداولة وصناديق الاستثمار المشتركة والمزيد.",
       "ALPHA_VANTAGE": "توفر Alpha Vantage واجهات برمجة التطبيقات (APIs) المجانية للبيانات التاريخية واللحظية المتعلقة بالأسهم والعملات الأجنبية والعملات المشفرة.",
@@ -1270,6 +1272,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "سجل الأسهم والصناديق الكندية (رمز التداول في TSX أو رمز Fundserv)"
     },
     "instrumentLabels": {
+      "depositary_receipts": "إيصالات الإيداع",
       "stocks": "الأسهم",
       "crypto": "العملات الرقمية",
       "etfs": "صناديق ETF",
@@ -1796,6 +1799,7 @@
     "functions": {
       "accounts_getAll": "عرض جميع الحسابات",
       "accounts_create": "إنشاء حسابات جديدة",
+      "alternative-assets_getAll": "عرض الأصول البديلة والالتزامات",
       "portfolio_getHoldings": "عرض حيازاتك الاستثمارية",
       "portfolio_getHolding": "عرض تفاصيل حيازة منفردة",
       "portfolio_update": "تحديث حسابات المحفظة",
@@ -1806,6 +1810,14 @@
       "activities_getAll": "عرض جميع المعاملات",
       "activities_search": "البحث في المعاملات باستخدام عوامل التصفية",
       "activities_searchCashActivities": "البحث في معاملات الإنفاق المصنفة",
+      "activities_assignCategory": "تصنيف معاملات الإنفاق",
+      "activities_unassignCategory": "إزالة تصنيف معاملة",
+      "activities_setEvent": "تعيين وسوم الأحداث للمعاملات أو إزالتها",
+      "spending_getContext": "عرض الحسابات المفعّل فيها الإنفاق",
+      "spending_getBudget": "عرض الميزانيات والمجموعات",
+      "spending_getEvents": "عرض أحداث الإنفاق",
+      "spending_getEventTypes": "عرض أنواع الأحداث",
+      "budgets_upsertBudgetTarget": "تغيير أهداف الميزانية الافتراضية والشهرية",
       "activities_create": "إضافة معاملات جديدة",
       "activities_update": "تعديل المعاملات",
       "activities_saveMany": "حفظ عدة معاملات",
@@ -1822,9 +1834,11 @@
       "market_syncHistory": "تنزيل سجل الأسعار",
       "market_sync": "مزامنة بيانات السوق للرموز",
       "market_getProviders": "عرض موفري بيانات السوق",
+      "market_fetchDividends": "تنزيل سجل توزيعات الأرباح",
       "assets_getProfile": "عرض تفاصيل ملف الأصل",
       "assets_updateProfile": "تحديث معلومات الأصل",
       "assets_updateDataSource": "تغيير موفر بيانات الأصل",
+      "assets_updateQuoteMode": "التبديل بين أسعار السوق والأسعار اليدوية",
       "quotes_update": "تحديث الأسعار الحالية",
       "quotes_getHistory": "عرض سجل الأسعار",
       "performance_calculateHistory": "حساب سجل الأداء",
@@ -1865,14 +1879,20 @@
       "secrets_set": "تخزين بيانات الاعتماد بأمان",
       "secrets_use": "استخدام بيانات الاعتماد المخزنة في الطلبات التي يمررها وسيط التطبيق",
       "secrets_delete": "إزالة بيانات الاعتماد المخزنة",
-      "events_import_onDropHover": "اكتشاف سحب الملفات وإفلاتها",
-      "events_import_onDrop": "معالجة إفلات الملفات",
-      "events_import_onDropCancelled": "معالجة عمليات الإفلات الملغاة",
-      "events_portfolio_onUpdateStart": "مراقبة بدء تحديث المحفظة",
-      "events_portfolio_onUpdateComplete": "مراقبة اكتمال تحديث المحفظة",
-      "events_portfolio_onUpdateError": "مراقبة أخطاء تحديث المحفظة",
-      "events_market_onSyncStart": "مراقبة بدء مزامنة السوق",
-      "events_market_onSyncComplete": "مراقبة اكتمال مزامنة السوق",
+      "snapshots_getAll": "عرض لقطات الحيازات",
+      "snapshots_getByDate": "عرض الحيازات في تاريخ لقطة",
+      "snapshots_save": "حفظ لقطات الحيازات",
+      "snapshots_checkImport": "التحقق من صحة بيانات استيراد اللقطات",
+      "snapshots_importSnapshots": "استيراد لقطات الحيازات",
+      "snapshots_delete": "حذف لقطات الحيازات",
+      "events_onDropHover": "اكتشاف سحب الملفات وإفلاتها",
+      "events_onDrop": "معالجة إفلات الملفات",
+      "events_onDropCancelled": "معالجة عمليات الإفلات الملغاة",
+      "events_onUpdateStart": "مراقبة بدء تحديث المحفظة",
+      "events_onUpdateComplete": "مراقبة اكتمال تحديث المحفظة",
+      "events_onUpdateError": "مراقبة أخطاء تحديث المحفظة",
+      "events_onSyncStart": "مراقبة بدء مزامنة السوق",
+      "events_onSyncComplete": "مراقبة اكتمال مزامنة السوق",
       "network_request": "إرسال طلبات الشبكة عبر وسيط التطبيق"
     },
     "categories": {
@@ -1915,6 +1935,10 @@
       "spending": {
         "name": "الإنفاق",
         "description": "عرض تقارير الإنفاق المجمعة وفئاته وإدارة قواعد التصنيف التي تضع وسوماً للمعاملات تلقائياً"
+      },
+      "budgets": {
+        "name": "إدارة الميزانيات",
+        "description": "تغيير أهداف الميزانية الافتراضية والتعديلات الشهرية"
       },
       "financial-planning": {
         "name": "التخطيط المالي",

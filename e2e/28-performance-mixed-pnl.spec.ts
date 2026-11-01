@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import type { PerformanceResult } from "../apps/frontend/src/lib/types";
 import { BASE_URL } from "./helpers";
 
+const SERIES_WARNING =
+  "Return series unavailable for mixed scopes because transaction and holdings components use different baselines.";
+
 test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", async ({ page }) => {
   test.setTimeout(180_000);
   const state = await (
@@ -83,9 +86,16 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
   expect(["complete", "notApplicable"]).toContain(history.summary?.basisStatus);
   expect(history.attribution.residual).toBe(0);
   expect(history.dataQuality.warnings).toHaveLength(2);
-  expect(history.dataQuality.warnings[1]).toMatch(
-    /Return series unavailable for all-time mixed scopes/,
-  );
+  expect(history.dataQuality.warnings[1]).toBe(SERIES_WARNING);
+  const boundedResponse = await page.request.post(`${BASE_URL}/api/v1/performance/history`, {
+    headers,
+    data: { ...body, startDate: "2021-05-12", endDate: "2026-05-12" },
+  });
+  expect(boundedResponse.ok(), await boundedResponse.text()).toBeTruthy();
+  const bounded: PerformanceResult = await boundedResponse.json();
+  expect(bounded.summary?.amount).toBe(0);
+  expect(bounded.series).toHaveLength(0);
+  expect(bounded.dataQuality.warnings).toContain(SERIES_WARNING);
   const summaryResponse = await page.request.post(`${BASE_URL}/api/v1/performance/summary`, {
     headers,
     data: { ...body, profile: "summary" },
@@ -115,7 +125,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
       localStorage.setItem(key("performance:selectedItemId"), JSON.stringify(id));
       localStorage.setItem(
         key("performance:dateRange"),
-        JSON.stringify({ from: new Date(1970, 0, 1), to: new Date(2026, 4, 12) }),
+        JSON.stringify({ from: new Date(2021, 4, 12), to: new Date(2026, 4, 12) }),
       );
     },
     { profileId: session.profileId, accountIds },
@@ -142,12 +152,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
       await page
         .getByRole("button", { name: /calculation notes? for value(?: return)?$/i })
         .click();
-      await expect(
-        page.getByText(
-          "Return series unavailable for all-time mixed scopes because transaction and holdings components use different baselines.",
-          { exact: true },
-        ),
-      ).toBeVisible();
+      await expect(page.getByText(SERIES_WARNING, { exact: true })).toBeVisible();
       await page.keyboard.press("Escape");
     }
   }

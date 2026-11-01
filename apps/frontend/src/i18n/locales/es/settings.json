@@ -858,6 +858,7 @@
     "failed_count_many": "{{count}} fallidas",
     "feature_dividends": "Dividendos",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS proporciona cotizaciones con retraso y de cierre para acciones, certificados de depósito y ETF negociados en MOEX. No se requiere clave API.",
       "YAHOO": "Yahoo Finance es un proveedor líder de datos financieros para muchos mercados. Proporciona datos bursátiles históricos y en tiempo real.",
       "MARKETDATA_APP": "MarketData.app proporciona datos históricos y en tiempo real sobre acciones, opciones, ETF, fondos mutuos y más de EE. UU.",
       "ALPHA_VANTAGE": "Alpha Vantage proporciona API gratuitas para datos históricos y en tiempo real sobre acciones, divisas y criptomonedas.",
@@ -892,6 +893,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Historial de acciones y fondos canadienses (símbolo TSX o código Fundserv)"
     },
     "instrumentLabels": {
+      "depositary_receipts": "Certificados de depósito",
       "stocks": "Acciones",
       "crypto": "Cripto",
       "etfs": "ETF",
@@ -1291,6 +1293,7 @@
     "dialog_done": "Listo",
     "scope_locked_title": "Requerido por Actividades: confirmar/escribir",
     "scope_locked_market_data_title": "Requerido por Datos de mercado: escribir",
+    "scope_locked_classification_title": "Requerido por Clasificación de activos: aplicar/escribir",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1328,7 +1331,7 @@
       },
       "activities_write": {
         "label": "Actividades: confirmar/escribir",
-        "description": "Confirmar actividades, actualizar las existentes y vincular o desvincular transferencias. Requiere el ámbito de borrador."
+        "description": "Confirmar actividades, actualizar, anular o eliminar las existentes, y vincular o desvincular transferencias. Requiere el ámbito de borrador."
       },
       "classification_suggest": {
         "label": "Clasificación de activos — Clasificación: sugerir",
@@ -1643,6 +1646,7 @@
     "functions": {
       "accounts_getAll": "Ver todas las cuentas",
       "accounts_create": "Crear nuevas cuentas",
+      "alternative-assets_getAll": "Ver activos alternativos y pasivos",
       "portfolio_getHoldings": "Ver sus posiciones de inversión",
       "portfolio_getHolding": "Ver los detalles de una posición",
       "portfolio_update": "Actualizar los cálculos de la cartera",
@@ -1653,6 +1657,14 @@
       "activities_getAll": "Ver todas las transacciones",
       "activities_search": "Buscar transacciones con filtros",
       "activities_searchCashActivities": "Buscar transacciones de gastos categorizadas",
+      "activities_assignCategory": "Categorizar transacciones de gastos",
+      "activities_unassignCategory": "Quitar la categoría de una transacción",
+      "activities_setEvent": "Asignar o quitar etiquetas de evento de transacciones",
+      "spending_getContext": "Ver las cuentas con gastos habilitados",
+      "spending_getBudget": "Ver presupuestos y grupos",
+      "spending_getEvents": "Ver eventos de gastos",
+      "spending_getEventTypes": "Ver tipos de evento",
+      "budgets_upsertBudgetTarget": "Cambiar objetivos de presupuesto predeterminados y mensuales",
       "activities_create": "Añadir nuevas transacciones",
       "activities_update": "Modificar transacciones",
       "activities_saveMany": "Guardar varias transacciones",
@@ -1669,9 +1681,11 @@
       "market_syncHistory": "Descargar el historial de precios",
       "market_sync": "Sincronizar datos de mercado de símbolos",
       "market_getProviders": "Ver proveedores de datos de mercado",
+      "market_fetchDividends": "Descargar el historial de dividendos",
       "assets_getProfile": "Ver los detalles del perfil del activo",
       "assets_updateProfile": "Actualizar la información del activo",
       "assets_updateDataSource": "Cambiar el proveedor de datos del activo",
+      "assets_updateQuoteMode": "Cambiar entre precios de mercado y manuales",
       "quotes_update": "Actualizar los precios actuales",
       "quotes_getHistory": "Ver el historial de precios",
       "performance_calculateHistory": "Calcular el historial de rendimiento",
@@ -1712,14 +1726,20 @@
       "secrets_set": "Almacenar credenciales de forma segura",
       "secrets_use": "Usar credenciales almacenadas para solicitudes intermediadas",
       "secrets_delete": "Eliminar credenciales almacenadas",
-      "events_import_onDropHover": "Detectar archivos arrastrados y soltados",
-      "events_import_onDrop": "Gestionar archivos soltados",
-      "events_import_onDropCancelled": "Gestionar acciones de soltar canceladas",
-      "events_portfolio_onUpdateStart": "Supervisar el inicio de las actualizaciones de la cartera",
-      "events_portfolio_onUpdateComplete": "Supervisar la finalización de las actualizaciones de la cartera",
-      "events_portfolio_onUpdateError": "Supervisar errores de actualización de la cartera",
-      "events_market_onSyncStart": "Supervisar el inicio de la sincronización de mercado",
-      "events_market_onSyncComplete": "Supervisar la finalización de la sincronización de mercado",
+      "snapshots_getAll": "Ver instantáneas de posiciones",
+      "snapshots_getByDate": "Ver las posiciones en la fecha de una instantánea",
+      "snapshots_save": "Guardar instantáneas de posiciones",
+      "snapshots_checkImport": "Validar los datos de importación de instantáneas",
+      "snapshots_importSnapshots": "Importar instantáneas de posiciones",
+      "snapshots_delete": "Eliminar instantáneas de posiciones",
+      "events_onDropHover": "Detectar archivos arrastrados y soltados",
+      "events_onDrop": "Gestionar archivos soltados",
+      "events_onDropCancelled": "Gestionar acciones de soltar canceladas",
+      "events_onUpdateStart": "Supervisar el inicio de las actualizaciones de la cartera",
+      "events_onUpdateComplete": "Supervisar la finalización de las actualizaciones de la cartera",
+      "events_onUpdateError": "Supervisar errores de actualización de la cartera",
+      "events_onSyncStart": "Supervisar el inicio de la sincronización de mercado",
+      "events_onSyncComplete": "Supervisar la finalización de la sincronización de mercado",
       "network_request": "Enviar solicitudes de red intermediadas"
     },
     "categories": {
@@ -1762,6 +1782,10 @@
       "spending": {
         "name": "Gastos",
         "description": "Ver informes agregados y categorías de gastos, y gestionar reglas de categorización que etiquetan automáticamente las transacciones"
+      },
+      "budgets": {
+        "name": "Gestión de presupuestos",
+        "description": "Cambiar los objetivos de presupuesto predeterminados y los ajustes mensuales"
       },
       "financial-planning": {
         "name": "Planificación financiera",

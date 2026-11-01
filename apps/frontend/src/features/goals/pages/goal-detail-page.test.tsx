@@ -29,6 +29,7 @@ vi.mock("../hooks/use-goal-detail", () => ({
 }));
 vi.mock("../hooks/use-goals", () => ({
   useGoalMutations: () => ({ deleteMutation: mocks.useDeleteGoal() }),
+  useGoals: () => ({ goals: [] }),
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: "UTC", baseCurrency: "USD" } }),

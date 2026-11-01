@@ -469,7 +469,9 @@
 
   --inset-top: env(safe-area-inset-top, 0px);
   --inset-right: env(safe-area-inset-right, 0px);
-  --inset-bottom: env(safe-area-inset-bottom, 0px);
+  /* The Android app's WebView reports no bottom safe area, so the app sends the
+     navigation bar's height (use-android-system-bars.ts). Use this, not env(). */
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-navigation-bar-inset, 0px));
   --inset-left: env(safe-area-inset-left, 0px);
 
   --mobile-nav-ui-height: 4rem; /* nav bar height */
@@ -582,13 +584,21 @@
     cursor: pointer;
   }
 
+  /* The phone stack focuses a pushed screen's heading (or the screen) so screen readers
+     start there. It isn't a control, so it shows no focus ring; WebKit drew one, cut to a
+     line under a truncated title. */
+  [data-stack-screen] h1[tabindex="-1"]:focus,
+  [data-stack-screen][tabindex="-1"]:focus {
+    outline: none;
+  }
+
   /* Safe area support for notched devices */
   @supports (padding: max(0px)) {
     .pt-safe {
       padding-top: max(env(safe-area-inset-top), 0.75rem);
     }
     .pb-safe {
-      padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
+      padding-bottom: max(var(--inset-bottom), 1.5rem);
     }
   }
   /*
@@ -718,6 +728,21 @@ body.qr-scan-active > .qr-overlay {
   }
 }
 
+/* Android's Material navigation bar sits flush with the bottom edge: content clears its
+   height plus the gesture area, without the floating bar's gap. */
+.app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+  --mobile-nav-ui-height: 5rem;
+  --mobile-nav-bottom-offset: var(--inset-bottom);
+  --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+}
+
+@media (orientation: landscape) {
+  .app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+    --mobile-nav-ui-height: 3.5rem;
+    --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+  }
+}
+
 /* Mobile optimizations for native feel */
 @layer utilities {
   .scroll-touch {
@@ -764,7 +789,7 @@ body.qr-scan-active > .qr-overlay {
 
   /* Safe area support for iOS */
   .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--inset-bottom);
   }
 
   .safe-area-inset-top {

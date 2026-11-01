@@ -860,6 +860,7 @@
     "failed_count_many": "{{count}} échouées",
     "feature_dividends": "Dividendes",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS fournit des cours différés et de fin de journée pour les actions, les certificats de dépôt et les ETF négociés sur MOEX. Aucune clé API requise.",
       "YAHOO": "Yahoo Finance est l'un des principaux fournisseurs de données financières pour de nombreux marchés. Il fournit des données boursières historiques et en temps réel.",
       "MARKETDATA_APP": "MarketData.app fournit des données historiques et en temps réel sur les actions, options, ETF, fonds communs de placement américains, etc.",
       "ALPHA_VANTAGE": "Alpha Vantage fournit des API gratuites pour les données historiques et en temps réel sur les actions, le forex et les crypto-monnaies.",
@@ -894,6 +895,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Historique des actions et fonds canadiens (symbole TSX ou code Fundserv)"
     },
     "instrumentLabels": {
+      "depositary_receipts": "Certificats de dépôt",
       "stocks": "Actions",
       "crypto": "Crypto",
       "etfs": "FNB",
@@ -1291,6 +1293,7 @@
     "dialog_done": "Terminé",
     "scope_locked_title": "Requis par Activités — valider/écrire",
     "scope_locked_market_data_title": "Requis par Données de marché — écrire",
+    "scope_locked_classification_title": "Requis par Classification des actifs — appliquer/écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {
@@ -1328,7 +1331,7 @@
       },
       "activities_write": {
         "label": "Activités — valider/écrire",
-        "description": "Valider des activités, modifier les activités existantes et lier ou délier des transferts. Nécessite la portée brouillon."
+        "description": "Valider des activités, modifier, annuler ou supprimer les activités existantes, et lier ou délier des transferts. Nécessite la portée brouillon."
       },
       "classification_suggest": {
         "label": "Classification des actifs — suggérer",
@@ -1643,6 +1646,7 @@
     "functions": {
       "accounts_getAll": "Consulter tous les comptes",
       "accounts_create": "Créer des comptes",
+      "alternative-assets_getAll": "Consulter les actifs alternatifs et les passifs",
       "portfolio_getHoldings": "Consulter vos positions d’investissement",
       "portfolio_getHolding": "Consulter les détails d’une position",
       "portfolio_update": "Mettre à jour les calculs du portefeuille",
@@ -1653,6 +1657,14 @@
       "activities_getAll": "Consulter toutes les transactions",
       "activities_search": "Rechercher des transactions avec des filtres",
       "activities_searchCashActivities": "Rechercher des dépenses classées par catégorie",
+      "activities_assignCategory": "Classer des dépenses par catégorie",
+      "activities_unassignCategory": "Retirer la catégorie d’une transaction",
+      "activities_setEvent": "Ajouter ou retirer des étiquettes d’événement sur les transactions",
+      "spending_getContext": "Consulter les comptes suivis dans Dépenses",
+      "spending_getBudget": "Consulter les budgets et les groupes",
+      "spending_getEvents": "Consulter les événements de dépenses",
+      "spending_getEventTypes": "Consulter les types d’événements",
+      "budgets_upsertBudgetTarget": "Modifier les objectifs budgétaires par défaut et mensuels",
       "activities_create": "Ajouter des transactions",
       "activities_update": "Modifier des transactions",
       "activities_saveMany": "Enregistrer plusieurs transactions",
@@ -1669,9 +1681,11 @@
       "market_syncHistory": "Télécharger l’historique des cours",
       "market_sync": "Synchroniser les données de marché des symboles",
       "market_getProviders": "Consulter les fournisseurs de données de marché",
+      "market_fetchDividends": "Télécharger l’historique des dividendes",
       "assets_getProfile": "Consulter les détails de la fiche d’un actif",
       "assets_updateProfile": "Mettre à jour les informations d’un actif",
       "assets_updateDataSource": "Changer le fournisseur de données d’un actif",
+      "assets_updateQuoteMode": "Basculer entre cours du marché et cours manuels",
       "quotes_update": "Mettre à jour les cours actuels",
       "quotes_getHistory": "Consulter l’historique des cours",
       "performance_calculateHistory": "Calculer l’historique des performances",
@@ -1712,14 +1726,20 @@
       "secrets_set": "Stocker des identifiants de manière sécurisée",
       "secrets_use": "Utiliser les identifiants stockés pour des requêtes relayées",
       "secrets_delete": "Supprimer les identifiants stockés",
-      "events_import_onDropHover": "Détecter le glisser-déposer de fichiers",
-      "events_import_onDrop": "Traiter les fichiers déposés",
-      "events_import_onDropCancelled": "Traiter l’annulation d’un dépôt de fichiers",
-      "events_portfolio_onUpdateStart": "Suivre le démarrage des mises à jour du portefeuille",
-      "events_portfolio_onUpdateComplete": "Suivre la fin des mises à jour du portefeuille",
-      "events_portfolio_onUpdateError": "Suivre les erreurs de mise à jour du portefeuille",
-      "events_market_onSyncStart": "Suivre le démarrage de la synchronisation du marché",
-      "events_market_onSyncComplete": "Suivre la fin de la synchronisation du marché",
+      "snapshots_getAll": "Consulter les instantanés de positions",
+      "snapshots_getByDate": "Consulter les positions à la date d’un instantané",
+      "snapshots_save": "Enregistrer des instantanés de positions",
+      "snapshots_checkImport": "Valider les instantanés à importer",
+      "snapshots_importSnapshots": "Importer des instantanés de positions",
+      "snapshots_delete": "Supprimer des instantanés de positions",
+      "events_onDropHover": "Détecter le glisser-déposer de fichiers",
+      "events_onDrop": "Traiter les fichiers déposés",
+      "events_onDropCancelled": "Traiter l’annulation d’un dépôt de fichiers",
+      "events_onUpdateStart": "Suivre le démarrage des mises à jour du portefeuille",
+      "events_onUpdateComplete": "Suivre la fin des mises à jour du portefeuille",
+      "events_onUpdateError": "Suivre les erreurs de mise à jour du portefeuille",
+      "events_onSyncStart": "Suivre le démarrage de la synchronisation du marché",
+      "events_onSyncComplete": "Suivre la fin de la synchronisation du marché",
       "network_request": "Envoyer des requêtes réseau relayées"
     },
     "categories": {
@@ -1762,6 +1782,10 @@
       "spending": {
         "name": "Dépenses",
         "description": "Consulter les rapports de dépenses agrégés et les catégories, et gérer les règles qui catégorisent automatiquement les transactions"
+      },
+      "budgets": {
+        "name": "Gestion des budgets",
+        "description": "Modifier les objectifs budgétaires par défaut et les ajustements mensuels"
       },
       "financial-planning": {
         "name": "Planification financière",

@@ -208,14 +208,16 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between pb-0">
-        <CardTitle className="flex w-full justify-between text-lg font-bold">
+        {/* When a long quantity and value don't fit side by side (larger text sizes), the
+            value wraps under the quantity, still at the end, instead of running into it. */}
+        <CardTitle className="flex w-full flex-wrap items-start justify-between gap-x-4 gap-y-2 text-lg font-bold">
           <div>
             <div>
               <QuantityDisplay value={numShares} isHidden={isBalanceHidden} />
             </div>
             <div className="text-muted-foreground text-sm font-normal">{quantityLabel}</div>
           </div>
-          <div>
+          <div className="ms-auto text-end">
             <div className="text-xl font-extrabold">
               <AmountDisplay value={marketValue} currency={currency} isHidden={isBalanceHidden} />
             </div>

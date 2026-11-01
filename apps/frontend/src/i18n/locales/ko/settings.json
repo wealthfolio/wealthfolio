@@ -820,6 +820,7 @@
     "failed_count_other": "{{count}}건 실패",
     "feature_dividends": "배당금",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS는 MOEX에서 거래되는 주식, 주식예탁증서 및 ETF의 지연 시세와 종가를 제공합니다. API 키가 필요하지 않습니다.",
       "YAHOO": "Yahoo Finance는 많은 시장에서 선도적인 금융 데이터 제공업체입니다. 과거 및 실시간 주식 데이터를 제공합니다.",
       "MARKETDATA_APP": "MarketData.app은 미국 주식, 옵션, ETF, 뮤추얼 펀드 등에 대한 실시간 및 과거 데이터를 제공합니다.",
       "ALPHA_VANTAGE": "Alpha Vantage는 주식, 외환 및 암호화폐에 대한 실시간 및 과거 데이터를 위한 무료 API를 제공합니다.",
@@ -854,6 +855,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "캐나다 주식 및 펀드 이력(TSX 종목 기호 또는 Fundserv 코드)"
     },
     "instrumentLabels": {
+      "depositary_receipts": "주식예탁증서",
       "stocks": "주식",
       "crypto": "암호화폐",
       "etfs": "ETF",
@@ -1235,6 +1237,7 @@
     "dialog_done": "완료",
     "scope_locked_title": "활동에 필요 — 확정/쓰기",
     "scope_locked_market_data_title": "시장 데이터 — 쓰기에 필요",
+    "scope_locked_classification_title": "자산 분류 — 적용/쓰기에 필요",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "토큰",
     "scope": {
@@ -1272,7 +1275,7 @@
       },
       "activities_write": {
         "label": "거래 내역 — 확정/쓰기",
-        "description": "거래를 확정하고 기존 거래를 수정하며 이체를 연결하거나 연결 해제합니다. 초안 범위가 필요합니다."
+        "description": "거래를 확정하고 기존 거래를 수정, 무효 처리 또는 삭제하며 이체를 연결하거나 연결 해제합니다. 초안 범위가 필요합니다."
       },
       "classification_suggest": {
         "label": "자산 분류 — 제안",
@@ -1565,6 +1568,7 @@
     "functions": {
       "accounts_getAll": "모든 계좌 보기",
       "accounts_create": "새 계좌 만들기",
+      "alternative-assets_getAll": "대체 자산 및 부채 보기",
       "portfolio_getHoldings": "투자 보유 자산 보기",
       "portfolio_getHolding": "개별 보유 자산 상세 보기",
       "portfolio_update": "포트폴리오 계산 업데이트",
@@ -1575,6 +1579,14 @@
       "activities_getAll": "모든 거래 보기",
       "activities_search": "필터로 거래 검색",
       "activities_searchCashActivities": "분류된 지출 거래 검색",
+      "activities_assignCategory": "지출 거래 분류",
+      "activities_unassignCategory": "거래 카테고리 해제",
+      "activities_setEvent": "거래 이벤트 태그 지정 또는 해제",
+      "spending_getContext": "지출이 활성화된 계좌 보기",
+      "spending_getBudget": "예산 및 그룹 보기",
+      "spending_getEvents": "지출 이벤트 보기",
+      "spending_getEventTypes": "이벤트 유형 보기",
+      "budgets_upsertBudgetTarget": "기본 및 월별 예산 목표 변경",
       "activities_create": "새 거래 추가",
       "activities_update": "거래 수정",
       "activities_saveMany": "여러 거래 저장",
@@ -1591,9 +1603,11 @@
       "market_syncHistory": "가격 기록 다운로드",
       "market_sync": "종목의 시장 데이터 동기화",
       "market_getProviders": "시장 데이터 제공자 보기",
+      "market_fetchDividends": "배당금 기록 다운로드",
       "assets_getProfile": "자산 프로필 상세 보기",
       "assets_updateProfile": "자산 정보 업데이트",
       "assets_updateDataSource": "자산 데이터 제공자 변경",
+      "assets_updateQuoteMode": "시장 가격과 수동 가격 간 전환",
       "quotes_update": "현재 가격 업데이트",
       "quotes_getHistory": "가격 기록 보기",
       "performance_calculateHistory": "성과 기록 계산",
@@ -1634,14 +1648,20 @@
       "secrets_set": "자격 증명 안전하게 저장",
       "secrets_use": "저장된 자격 증명으로 중개 요청 보내기",
       "secrets_delete": "저장된 자격 증명 제거",
-      "events_import_onDropHover": "파일 끌어서 놓기 감지",
-      "events_import_onDrop": "파일 놓기 처리",
-      "events_import_onDropCancelled": "취소된 놓기 처리",
-      "events_portfolio_onUpdateStart": "포트폴리오 업데이트 시작 모니터링",
-      "events_portfolio_onUpdateComplete": "포트폴리오 업데이트 완료 모니터링",
-      "events_portfolio_onUpdateError": "포트폴리오 업데이트 오류 모니터링",
-      "events_market_onSyncStart": "시장 동기화 시작 모니터링",
-      "events_market_onSyncComplete": "시장 동기화 완료 모니터링",
+      "snapshots_getAll": "보유 자산 스냅샷 보기",
+      "snapshots_getByDate": "스냅샷 날짜의 보유 자산 보기",
+      "snapshots_save": "보유 자산 스냅샷 저장",
+      "snapshots_checkImport": "가져올 스냅샷 데이터 검증",
+      "snapshots_importSnapshots": "보유 자산 스냅샷 가져오기",
+      "snapshots_delete": "보유 자산 스냅샷 삭제",
+      "events_onDropHover": "파일 끌어서 놓기 감지",
+      "events_onDrop": "파일 놓기 처리",
+      "events_onDropCancelled": "취소된 놓기 처리",
+      "events_onUpdateStart": "포트폴리오 업데이트 시작 모니터링",
+      "events_onUpdateComplete": "포트폴리오 업데이트 완료 모니터링",
+      "events_onUpdateError": "포트폴리오 업데이트 오류 모니터링",
+      "events_onSyncStart": "시장 동기화 시작 모니터링",
+      "events_onSyncComplete": "시장 동기화 완료 모니터링",
       "network_request": "중개 네트워크 요청 보내기"
     },
     "categories": {
@@ -1684,6 +1704,10 @@
       "spending": {
         "name": "지출",
         "description": "집계된 지출 보고서와 카테고리를 보고 거래를 자동 태그하는 분류 규칙 관리"
+      },
+      "budgets": {
+        "name": "예산 관리",
+        "description": "기본 예산 목표와 월별 재정의 변경"
       },
       "financial-planning": {
         "name": "재무 계획",

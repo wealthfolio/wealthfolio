@@ -10,6 +10,7 @@ import {
   refreshGoalSummary,
 } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
+import { invalidateRetirementGoal } from "./use-goals";
 import type {
   Goal,
   GoalFundingRule,
@@ -81,6 +82,7 @@ export function useGoalPlanMutations(goalId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QueryKeys.goalFunding(goalId) });
       invalidateGoal();
+      invalidateRetirementGoal(queryClient);
       toast.success(t("goals:funding_saved"));
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : t("goals:funding_error")),

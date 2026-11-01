@@ -820,6 +820,7 @@
     "failed_count_other": "{{count}}件失敗",
     "feature_dividends": "配当",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS は、MOEX で取引される株式、預託証券、ETF の遅延価格と終値を提供します。API キーは不要です。",
       "YAHOO": "Yahoo Finance は、多くの市場を対象とする大手金融データ プロバイダーです。過去およびリアルタイムの株式データを提供します。",
       "MARKETDATA_APP": "MarketData.app は、米国株、オプション、ETF、投資信託などのリアルタイム データと履歴データを提供します。",
       "ALPHA_VANTAGE": "Alpha Vantage は、株式、外国為替、暗号通貨に関するリアルタイムおよび履歴データ用の無料 API を提供します。",
@@ -854,6 +855,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "カナダの株式・ファンドの履歴（TSX銘柄コードまたはFundservコード）"
     },
     "instrumentLabels": {
+      "depositary_receipts": "預託証券",
       "stocks": "株式",
       "crypto": "暗号資産",
       "etfs": "ETF",
@@ -1235,6 +1237,7 @@
     "dialog_done": "完了",
     "scope_locked_title": "「取引 — 確定/書き込み」に必要です",
     "scope_locked_market_data_title": "「市場データ — 書き込み」に必要です",
+    "scope_locked_classification_title": "「資産分類 — 適用・書き込み」に必要です",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "トークン",
     "scope": {
@@ -1272,7 +1275,7 @@
       },
       "activities_write": {
         "label": "取引 — 確定/書き込み",
-        "description": "取引を確定し、既存の取引を更新し、振替をリンクまたはリンク解除します。下書きのスコープが必要です。"
+        "description": "取引を確定し、既存の取引を更新・無効化・削除し、振替をリンクまたはリンク解除します。下書きのスコープが必要です。"
       },
       "classification_suggest": {
         "label": "資産分類 — 提案",
@@ -1565,6 +1568,7 @@
     "functions": {
       "accounts_getAll": "すべての口座を表示",
       "accounts_create": "新しい口座を作成",
+      "alternative-assets_getAll": "代替資産と負債を表示",
       "portfolio_getHoldings": "投資保有資産を表示",
       "portfolio_getHolding": "個別保有資産の詳細を表示",
       "portfolio_update": "ポートフォリオ計算を更新",
@@ -1575,6 +1579,14 @@
       "activities_getAll": "すべての取引を表示",
       "activities_search": "条件で取引を検索",
       "activities_searchCashActivities": "分類済みの支出取引を検索",
+      "activities_assignCategory": "支出取引を分類",
+      "activities_unassignCategory": "取引のカテゴリーを解除",
+      "activities_setEvent": "取引のイベントタグを設定または解除",
+      "spending_getContext": "支出が有効な口座を表示",
+      "spending_getBudget": "予算とグループを表示",
+      "spending_getEvents": "支出イベントを表示",
+      "spending_getEventTypes": "イベントの種類を表示",
+      "budgets_upsertBudgetTarget": "デフォルトと月別の予算目標を変更",
       "activities_create": "新しい取引を追加",
       "activities_update": "取引を変更",
       "activities_saveMany": "複数の取引を保存",
@@ -1591,9 +1603,11 @@
       "market_syncHistory": "価格履歴をダウンロード",
       "market_sync": "銘柄の市場データを同期",
       "market_getProviders": "市場データプロバイダーを表示",
+      "market_fetchDividends": "配当履歴をダウンロード",
       "assets_getProfile": "資産プロフィールの詳細を表示",
       "assets_updateProfile": "資産情報を更新",
       "assets_updateDataSource": "資産データプロバイダーを変更",
+      "assets_updateQuoteMode": "市場価格と手動価格を切り替え",
       "quotes_update": "現在の価格を更新",
       "quotes_getHistory": "価格履歴を表示",
       "performance_calculateHistory": "パフォーマンス履歴を計算",
@@ -1634,14 +1648,20 @@
       "secrets_set": "認証情報を安全に保存",
       "secrets_use": "保存済み認証情報で仲介リクエストを送信",
       "secrets_delete": "保存済み認証情報を削除",
-      "events_import_onDropHover": "ファイルのドラッグアンドドロップを検出",
-      "events_import_onDrop": "ファイルのドロップを処理",
-      "events_import_onDropCancelled": "キャンセルされたドロップを処理",
-      "events_portfolio_onUpdateStart": "ポートフォリオ更新開始を監視",
-      "events_portfolio_onUpdateComplete": "ポートフォリオ更新完了を監視",
-      "events_portfolio_onUpdateError": "ポートフォリオ更新エラーを監視",
-      "events_market_onSyncStart": "市場データ同期開始を監視",
-      "events_market_onSyncComplete": "市場データ同期完了を監視",
+      "snapshots_getAll": "保有資産スナップショットを表示",
+      "snapshots_getByDate": "スナップショット日付の保有資産を表示",
+      "snapshots_save": "保有資産スナップショットを保存",
+      "snapshots_checkImport": "スナップショットのインポートデータを検証",
+      "snapshots_importSnapshots": "保有資産スナップショットをインポート",
+      "snapshots_delete": "保有資産スナップショットを削除",
+      "events_onDropHover": "ファイルのドラッグアンドドロップを検出",
+      "events_onDrop": "ファイルのドロップを処理",
+      "events_onDropCancelled": "キャンセルされたドロップを処理",
+      "events_onUpdateStart": "ポートフォリオ更新開始を監視",
+      "events_onUpdateComplete": "ポートフォリオ更新完了を監視",
+      "events_onUpdateError": "ポートフォリオ更新エラーを監視",
+      "events_onSyncStart": "市場データ同期開始を監視",
+      "events_onSyncComplete": "市場データ同期完了を監視",
       "network_request": "仲介ネットワークリクエストを送信"
     },
     "categories": {
@@ -1684,6 +1704,10 @@
       "spending": {
         "name": "支出",
         "description": "集計支出レポートとカテゴリーの表示、および取引を自動タグ付けする分類ルールの管理"
+      },
+      "budgets": {
+        "name": "予算管理",
+        "description": "デフォルトの予算目標と月別の上書きを変更"
       },
       "financial-planning": {
         "name": "財務計画",

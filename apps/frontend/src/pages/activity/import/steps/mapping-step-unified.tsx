@@ -104,9 +104,10 @@ export function MappingStepUnified() {
     () => data.filter((_, rowIndex) => !skippedRowSet.has(rowIndex)),
     [data, skippedRowSet],
   );
-  // Skips go by position in parsedRows: a CSV column named "lineNumber" replaces a row's number
+  // Rows go by position in parsedRows: a CSV column named "lineNumber" replaces row.lineNumber
   const rowPositions = useMemo(() => new Map(data.map((row, rowIndex) => [row, rowIndex])), [data]);
   const rowIndexOf = useCallback((row: CsvRowData) => rowPositions.get(row) ?? -1, [rowPositions]);
+  const rowNumberOf = useCallback((row: CsvRowData) => rowIndexOf(row) + 1, [rowIndexOf]);
 
   // Use the import mapping hook
   const {
@@ -512,38 +513,35 @@ export function MappingStepUnified() {
 
   const dataToMap = useMemo(() => {
     const rowsNeedingMapping = new Set<CsvRowData>();
-    const processedRows = new Map<string, CsvRowData>();
+    const processedRows = new Set<CsvRowData>();
 
     distinctActivityTypes.forEach(({ row, appType }) => {
-      const lineNumber = row.lineNumber;
-      processedRows.set(lineNumber, row);
+      processedRows.add(row);
       if (!appType) {
         rowsNeedingMapping.add(row);
       }
     });
 
     distinctSymbolRows.forEach(({ row, isValid, mappedSymbol }) => {
-      const lineNumber = row.lineNumber;
-      processedRows.set(lineNumber, row);
+      processedRows.add(row);
       if (!isValid && !mappedSymbol) {
         rowsNeedingMapping.add(row);
       }
     });
 
     distinctAccountRows.forEach(({ row, isValid, mappedAccount }) => {
-      const lineNumber = row.lineNumber;
-      processedRows.set(lineNumber, row);
+      processedRows.add(row);
       if (!isValid && !mappedAccount) {
         rowsNeedingMapping.add(row);
       }
     });
 
     missingAccountRows.forEach((row) => {
-      processedRows.set(row.lineNumber, row);
+      processedRows.add(row);
       rowsNeedingMapping.add(row);
     });
 
-    return Array.from(processedRows.values()).sort((a, b) => {
+    return Array.from(processedRows).sort((a, b) => {
       const aNeedsMapping = rowsNeedingMapping.has(a);
       const bNeedsMapping = rowsNeedingMapping.has(b);
 
@@ -559,9 +557,15 @@ export function MappingStepUnified() {
         if (aType !== bType) return aType.localeCompare(bType);
       }
 
-      return parseInt(a.lineNumber) - parseInt(b.lineNumber);
+      return rowIndexOf(a) - rowIndexOf(b);
     });
-  }, [distinctActivityTypes, distinctSymbolRows, distinctAccountRows, missingAccountRows]);
+  }, [
+    distinctActivityTypes,
+    distinctSymbolRows,
+    distinctAccountRows,
+    missingAccountRows,
+    rowIndexOf,
+  ]);
 
   // Filters on the raw CSV values. With any filter on, the preview lists every matching
   // row, skipped ones included, instead of one example row per value.
@@ -1125,7 +1129,7 @@ export function MappingStepUnified() {
                 mapping={displayMapping}
                 headers={headers}
                 data={previewRows}
-                getRowKey={rowIndexOf}
+                getRowNumber={rowNumberOf}
                 isRowIncluded={isRowIncluded}
                 onRowIncludedChange={setRowIncluded}
                 includedRowsState={includedRowsState}

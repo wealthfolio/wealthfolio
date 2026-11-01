@@ -2,6 +2,45 @@
   "defaultAsOf": "2026-05-12",
   "instruments": [
     {
+      "symbol": "AFLT",
+      "name": "Synthetic MOEX Airline",
+      "provider": "MOEX",
+      "assetType": "EQUITY",
+      "currency": "RUB",
+      "exchange": "MOEX",
+      "exchangeMic": "MISX",
+      "exchangeName": "Moscow Exchange",
+      "basePrice": 40,
+      "baseVolume": 1000,
+      "seed": 568
+    },
+    {
+      "symbol": "HYDR",
+      "name": "Synthetic MOEX Hydropower",
+      "provider": "MOEX",
+      "assetType": "EQUITY",
+      "currency": "RUB",
+      "exchange": "MOEX",
+      "exchangeMic": "MISX",
+      "exchangeName": "Moscow Exchange",
+      "basePrice": 40,
+      "baseVolume": 1000,
+      "seed": 569
+    },
+    {
+      "symbol": "MAIL",
+      "name": "Synthetic Delisted MOEX Receipt",
+      "provider": "MOEX",
+      "assetType": "EQUITY",
+      "currency": "RUB",
+      "exchange": "MOEX",
+      "exchangeMic": "MISX",
+      "exchangeName": "Moscow Exchange",
+      "basePrice": 40,
+      "baseVolume": 1000,
+      "seed": 570
+    },
+    {
       "symbol": "US037833EZ91",
       "aliases": ["037833EZ9"],
       "name": "Synthetic Corporate Bond 2031",

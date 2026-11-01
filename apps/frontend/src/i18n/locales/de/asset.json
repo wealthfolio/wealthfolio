@@ -63,7 +63,7 @@
       "symbol_required": "Symbol ist erforderlich",
       "symbol_max": "Symbol darf höchstens 100 Zeichen lang sein",
       "name_required": "Name ist erforderlich",
-      "name_max": "Name darf höchstens 100 Zeichen lang sein",
+      "name_max": "Name darf höchstens 200 Zeichen lang sein",
       "instrument_type_required": "Instrumententyp ist erforderlich",
       "currency_required": "Währung ist erforderlich"
     },
@@ -234,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "z. B. SBER, AFLT",
+    "moex_symbol_hint": "Verwenden Sie eine MOEX-Wertpapierkennung ohne Präfix oder Suffix. Wählen Sie Moscow Exchange (MISX) als Börse.",
     "identity_conflict": "Ein anderer Vermögenswert hat bereits diese Identität. Ihre Änderungen wurden nicht gespeichert. Verwenden Sie den vorhandenen Vermögenswert oder wählen Sie einen anderen Handelsplatz.",
     "general": "Allgemein",
     "classification": "Klassifizierung",

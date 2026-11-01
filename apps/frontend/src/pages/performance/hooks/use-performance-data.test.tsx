@@ -350,10 +350,11 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^GSPC": benchmarkFrom("2010-01-01"),
     });
 
-    renderHistory([ACCOUNT, ACCOUNT_2, BENCHMARK]);
+    const { result } = renderHistory([ACCOUNT, ACCOUNT_2, BENCHMARK]);
 
     await waitFor(() => expect(symbolStarts()).toHaveLength(1));
     expect(symbolStarts()).toEqual(["2015-06-01"]);
+    expect(result.current.allTimeFrom).toEqual(new Date(2015, 5, 1));
   });
 
   it("keeps the backend default when only benchmarks are selected", async () => {
@@ -460,6 +461,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.data).toEqual([]);
+    expect(result.current.allTimeFrom).toBeUndefined();
 
     account.resolve(performanceResult(["2023-03-28", "2023-03-29"]));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -491,6 +493,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     const { result, rerender } = renderHistory([ACCOUNT, BENCHMARK], ONE_YEAR);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(symbolStarts()).toEqual(["2025-10-08"]);
+    expect(result.current.allTimeFrom).toBeUndefined();
 
     rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
     await waitFor(() =>
@@ -505,10 +508,12 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     );
     expect(result.current.isLoading).toBe(true);
     expect(symbolStarts()).toEqual(["2025-10-08"]);
+    expect(result.current.allTimeFrom).toBeUndefined();
 
     allTimeAccount.resolve(performanceResult(["2023-03-28", "2023-03-29"]));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(symbolStarts()).toEqual(["2025-10-08", "2023-03-28"]);
+    expect(result.current.allTimeFrom).toEqual(new Date(2023, 2, 28));
     const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
     expect(benchmark?.series[0]?.date).toBe("2023-03-28");
   });

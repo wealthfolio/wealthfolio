@@ -529,9 +529,7 @@ export function SplitTransactionSheet({
         <SheetFooter
           className={cn(
             "border-t",
-            isMobile
-              ? "border-border px-4 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]"
-              : "gap-2 pt-4",
+            isMobile ? "border-border px-4 py-4 pb-[calc(var(--inset-bottom)+1rem)]" : "gap-2 pt-4",
           )}
         >
           {isMobile ? (

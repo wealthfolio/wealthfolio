@@ -2476,7 +2476,7 @@ describe("AllocationWorksheetTab Amounts panel", () => {
     expect(screen.getByRole("button", { name: "Previous: Setup" })).toBeInTheDocument();
   });
 
-  it("opens each step at its top, wherever the last one was left", async () => {
+  it("opens the worksheet and each step at its top, wherever the page was left", async () => {
     const startedAt: Element[] = [];
     const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(function (
       this: HTMLElement,
@@ -2495,13 +2495,14 @@ describe("AllocationWorksheetTab Amounts panel", () => {
     } as DOMRect);
     try {
       const user = await renderWorksheet(report);
-      expect(startedAt).toHaveLength(0);
+      // Opened from a page scrolled to its button (a phone's target details).
+      expect(startedAt).toHaveLength(1);
 
       await user.click(screen.getByRole("button", { name: "Enter adjustments yourself" }));
       await user.click(screen.getByRole("button", { name: "Next: Review" }));
 
-      expect(startedAt).toHaveLength(2);
-      expect(startedAt[1]).toContainElement(screen.getByRole("navigation"));
+      expect(startedAt).toHaveLength(3);
+      expect(startedAt[2]).toContainElement(screen.getByRole("navigation"));
     } finally {
       scroll.mockRestore();
       rect.mockRestore();

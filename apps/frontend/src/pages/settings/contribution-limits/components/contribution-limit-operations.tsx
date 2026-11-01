@@ -46,9 +46,13 @@ export function ContributionLimitOperations({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" />}>
+        {/* Named by aria-label, as in account operations: an sr-only span here is placed
+            against the settings shell, and a long list stretched it (#2252). */}
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-xs" />}
+          aria-label={t("settings:limits_operations_open")}
+        >
           <Icons.MoreVertical className="h-4 w-4" />
-          <span className="sr-only">{t("settings:limits_operations_open")}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onEdit(limit)}>
@@ -75,11 +79,7 @@ export function ContributionLimitOperations({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
 
-            <Button
-              disabled={isDeleting}
-              onClick={() => handleDelete()}
-              className="bg-destructive focus:ring-destructive"
-            >
+            <Button variant="destructive" disabled={isDeleting} onClick={() => handleDelete()}>
               {isDeleting ? (
                 <Spinner className="me-2 h-4 w-4" />
               ) : (

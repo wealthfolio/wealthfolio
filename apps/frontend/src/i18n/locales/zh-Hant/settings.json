@@ -837,6 +837,7 @@
       "OPENFIGI": "OpenFIGI 提供金融工具標識符（FIGI、ISIN、CUSIP、股票代碼）的映射服務。",
       "METAL_PRICE_API": "提供貴金屬（黃金、白銀、鉑金、鈀金）的實時和歷史現貨價格。",
       "CUSTOM_SCRAPER": "為使用者自訂資料源提供運行時調度。",
+      "MOEX": "Moscow Exchange ISS 提供 MOEX 上交易的股票、存託憑證和 ETF 的延遲行情及收盤價。無需 API 金鑰。",
       "YAHOO": "Yahoo Finance 提供多個市場的歷史及實時股票資料。",
       "MARKETDATA_APP": "MarketData.app 提供美國股票、期權、ETF、共同基金等的實時和歷史資料。",
       "ALPHA_VANTAGE": "Alpha Vantage 為股票、外匯和加密貨幣的實時和歷史資料提供免費的 API。",
@@ -866,6 +867,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "加拿大股票與基金歷史資料（TSX 股票代碼或 Fundserv 代碼）"
     },
     "instrumentLabels": {
+      "depositary_receipts": "存託憑證",
       "stocks": "股票",
       "crypto": "加密貨幣",
       "etfs": "ETF",
@@ -1252,6 +1254,7 @@
     "dialog_done": "完成",
     "scope_locked_title": "「交易紀錄 — 提交／寫入」需要此權限",
     "scope_locked_market_data_title": "「市場資料 — 寫入」需要此權限",
+    "scope_locked_classification_title": "「資產分類 — 套用/寫入」需要此權限",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "權杖",
     "scope": {
@@ -1289,7 +1292,7 @@
       },
       "activities_write": {
         "label": "交易紀錄 — 提交／寫入",
-        "description": "提交交易紀錄、更新現有交易紀錄，並連結或取消連結轉帳。需要草稿範圍。"
+        "description": "提交交易紀錄，更新、作廢或刪除現有交易紀錄，並連結或取消連結轉帳。需要草稿範圍。"
       },
       "classification_suggest": {
         "label": "資產分類 — 建議",
@@ -1592,6 +1595,7 @@
     "functions": {
       "accounts_getAll": "查看所有帳戶",
       "accounts_create": "建立新帳戶",
+      "alternative-assets_getAll": "查看另類資產及負債",
       "portfolio_getHoldings": "查看投資持倉",
       "portfolio_getHolding": "查看個別持倉詳情",
       "portfolio_update": "更新投資組合計算",
@@ -1602,6 +1606,14 @@
       "activities_getAll": "查看所有交易",
       "activities_search": "依條件搜尋交易",
       "activities_searchCashActivities": "搜尋已分類的支出交易",
+      "activities_assignCategory": "為支出交易分類",
+      "activities_unassignCategory": "清除交易類別",
+      "activities_setEvent": "設定或清除交易事件標籤",
+      "spending_getContext": "查看已啟用支出的帳戶",
+      "spending_getBudget": "查看預算和群組",
+      "spending_getEvents": "查看支出事件",
+      "spending_getEventTypes": "查看事件類型",
+      "budgets_upsertBudgetTarget": "變更預設和每月預算目標",
       "activities_create": "新增交易",
       "activities_update": "修改交易",
       "activities_saveMany": "儲存多筆交易",
@@ -1618,9 +1630,11 @@
       "market_syncHistory": "下載歷史價格",
       "market_sync": "同步證券代碼的行情資料",
       "market_getProviders": "查看行情資料來源",
+      "market_fetchDividends": "下載歷史股息",
       "assets_getProfile": "查看資產資料詳情",
       "assets_updateProfile": "更新資產資訊",
       "assets_updateDataSource": "變更資產資料來源",
+      "assets_updateQuoteMode": "在市場價格與手動價格之間切換",
       "quotes_update": "更新目前價格",
       "quotes_getHistory": "查看歷史價格",
       "performance_calculateHistory": "計算歷史績效",
@@ -1661,14 +1675,20 @@
       "secrets_set": "安全儲存憑證",
       "secrets_use": "使用已儲存的憑證發起代理請求",
       "secrets_delete": "移除已儲存的憑證",
-      "events_import_onDropHover": "偵測檔案拖放",
-      "events_import_onDrop": "處理檔案拖放",
-      "events_import_onDropCancelled": "處理取消的拖放",
-      "events_portfolio_onUpdateStart": "監測投資組合更新開始",
-      "events_portfolio_onUpdateComplete": "監測投資組合更新完成",
-      "events_portfolio_onUpdateError": "監測投資組合更新錯誤",
-      "events_market_onSyncStart": "監測行情同步開始",
-      "events_market_onSyncComplete": "監測行情同步完成",
+      "snapshots_getAll": "查看持倉快照",
+      "snapshots_getByDate": "查看快照日期的持倉",
+      "snapshots_save": "儲存持倉快照",
+      "snapshots_checkImport": "驗證快照匯入資料",
+      "snapshots_importSnapshots": "匯入持倉快照",
+      "snapshots_delete": "刪除持倉快照",
+      "events_onDropHover": "偵測檔案拖放",
+      "events_onDrop": "處理檔案拖放",
+      "events_onDropCancelled": "處理取消的拖放",
+      "events_onUpdateStart": "監測投資組合更新開始",
+      "events_onUpdateComplete": "監測投資組合更新完成",
+      "events_onUpdateError": "監測投資組合更新錯誤",
+      "events_onSyncStart": "監測行情同步開始",
+      "events_onSyncComplete": "監測行情同步完成",
       "network_request": "傳送代理網路請求"
     },
     "categories": {
@@ -1711,6 +1731,10 @@
       "spending": {
         "name": "支出",
         "description": "查看彙總支出報告及類別，並管理自動標記交易的分類規則"
+      },
+      "budgets": {
+        "name": "預算管理",
+        "description": "變更預設預算目標和每月覆寫值"
       },
       "financial-planning": {
         "name": "財務規劃",

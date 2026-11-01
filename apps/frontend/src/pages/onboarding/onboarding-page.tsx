@@ -151,7 +151,7 @@ const OnboardingPage = () => {
 
       {/* The footer stays in view while a step scrolls; its fade shows only over
           content scrolling under it. */}
-      <footer className="bg-background before:from-background sticky bottom-0 z-10 flex-none pb-[env(safe-area-inset-bottom)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:to-transparent">
+      <footer className="bg-background before:from-background sticky bottom-0 z-10 flex-none pb-[var(--inset-bottom)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:to-transparent">
         <div
           className={cn(
             "mx-auto max-w-4xl px-4 sm:px-6",

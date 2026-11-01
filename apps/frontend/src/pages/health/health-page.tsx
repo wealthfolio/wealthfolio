@@ -4,6 +4,7 @@ import {
   useHealthStatus,
   useRunHealthChecks,
 } from "@/hooks/use-health";
+import { HOVER_SLOT } from "@/lib/hover-slot";
 import type { HealthCategory, HealthIssue, HealthSeverity } from "@/lib/types";
 import {
   Badge,
@@ -115,14 +116,14 @@ function HealthIssueRow({
 
   return (
     <div
-      className="hover:bg-muted/50 group flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors"
+      className="hover:bg-muted/50 group/row flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors"
       onClick={onClick}
     >
       <SeverityDot severity={issue.severity} />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">
+          <span className="line-clamp-2 text-sm font-medium sm:line-clamp-1">
             {translateIssueText(t, issue, "title")}
           </span>
           {issue.affectedCount > 0 && (
@@ -137,12 +138,13 @@ function HealthIssueRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* On a phone the title needs the room; the issue's sheet names its category. */}
         <Tooltip>
           <TooltipTrigger
             render={
               <Badge
                 variant="outline"
-                className="text-muted-foreground text-2xs h-6 gap-1 px-2 font-normal"
+                className="text-muted-foreground text-2xs hidden h-6 gap-1 px-2 font-normal sm:inline-flex"
               />
             }
           >
@@ -176,7 +178,8 @@ function HealthIssueRow({
         <Button
           size="icon"
           variant="ghost"
-          className="text-muted-foreground h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+          // Shown on touch screens, which can't hover to reveal it.
+          className={cn("text-muted-foreground h-7 w-7", HOVER_SLOT)}
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation();
             onDismiss();

@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@wealthfolio/ui/components/ui/table";
+import { parseISO } from "date-fns";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -631,7 +632,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
         <div className="text-muted-foreground text-2xs">
           {isSnapshot
             ? t("asset:lots.as_of_snapshot")
-            : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
+            : t("asset:lots.held", { period: formatHoldingPeriod(lot, t) })}
           {lot.isClosed &&
             lot.closeDate &&
             ` · ${t("asset:lots.closed", { date: formatDate(lot.closeDate, dateFormatting) })}`}
@@ -725,7 +726,7 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
           <div className="text-muted-foreground text-2xs">
             {isSnapshot
               ? t("asset:lots.as_of_snapshot")
-              : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
+              : t("asset:lots.held", { period: formatHoldingPeriod(lot, t) })}
             {lot.isClosed &&
               lot.closeDate &&
               ` · ${t("asset:lots.closed", { date: formatDate(lot.closeDate, dateFormatting) })}`}
@@ -789,19 +790,22 @@ function formatLotDate(lot: AssetLotView, formatting: FormattingApi) {
   return date ? formatDate(date, formatting) : "—";
 }
 
-function formatHoldingPeriod(acquisitionDate: string | null | undefined, t: TFunction): string {
-  if (!acquisitionDate) return "—";
-  const start = new Date(acquisitionDate);
+function formatHoldingPeriod(lot: AssetLotView, t: TFunction): string {
+  if (!lot.acquisitionDate) return "—";
+  const start = parseISO(lot.acquisitionDate);
   if (Number.isNaN(start.getTime())) return "—";
 
-  const now = new Date();
-  let years = now.getFullYear() - start.getFullYear();
-  let months = now.getMonth() - start.getMonth();
-  let days = now.getDate() - start.getDate();
+  // A sold lot's period ends on its sale date; open lots count to today. parseISO reads
+  // date-only strings as local calendar dates, so both ends land on the same day everywhere.
+  const closed = lot.isClosed && lot.closeDate ? parseISO(lot.closeDate) : null;
+  const end = closed && !Number.isNaN(closed.getTime()) ? closed : new Date();
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  let days = end.getDate() - start.getDate();
 
   if (days < 0) {
     months -= 1;
-    const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
     days += prevMonth.getDate();
   }
   if (months < 0) {

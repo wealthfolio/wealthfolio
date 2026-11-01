@@ -25,6 +25,8 @@
     &nbsp;·&nbsp;
     <a href="https://apps.apple.com/us/app/wealthfolio-private-finance/id6732888445">📱&nbsp;iOS&nbsp;App</a>
     &nbsp;·&nbsp;
+    <a href="https://play.google.com/store/apps/details?id=com.teymz.wealthfolio">🤖&nbsp;Android&nbsp;App</a>
+    &nbsp;·&nbsp;
     <a href="https://wealthfolio.app/docs/guide/self-hosting/docker?utm_source=github&utm_medium=readme">🐳&nbsp;Docker</a>
   </p>
 </div>
@@ -70,27 +72,39 @@ Visit the website at
 ### ✨ Key Features
 
 - **📊 Portfolio Tracking** - Track your investments across multiple accounts
-  and asset types
+  and asset types, including options and short positions
 - **📈 Performance Analytics** - True time-weighted and money-weighted returns,
-  benchmark comparison, and historical analysis
+  benchmark comparison, historical analysis, and a choice of cost basis method
+  (FIFO, weighted average, LIFO, HIFO)
 - **💰 Activity Management** - Import and manage all your trading activities
-- **🎯 Goal Planning** - Set and track financial goals with allocation
-  management
-- **🔒 Local Data** - All data stored locally with no cloud dependencies
+- **🏠 Net Worth** - Liabilities, loans and mortgages, and alternative assets
+  such as real estate and vehicles alongside your investments
+- **💳 Spending & Budgets** - Categorize transactions with rules, set budgets,
+  and see where your money goes
+- **🎯 Goals & Planning** - Track financial goals, simulate save-up goals, and
+  plan retirement or FIRE
+- **⚖️ Rebalancing** - Set allocation targets and get a plan to reach them
+- **🤖 AI Assistant** - Ask questions and import CSV files with a local model or
+  your own API key, and connect AI agents such as Claude, ChatGPT or Cursor
+  through MCP
+- **🔒 Private by Design** - All data stored locally, with optional database
+  encryption, app lock, and separate profiles
 - **🔄 Optional Broker Sync** - Auto-sync 30+ brokerages with
   [Wealthfolio Connect](https://wealthfolio.app/connect?utm_source=github&utm_medium=readme)
   (read-only, entirely optional)
 - **🧩 Extensible** - Powerful addon system for custom functionality
 - **🌍 Multi-Currency** - Support for multiple currencies with exchange rate
   management
-- **📱 Cross-Platform** - Desktop (Windows, macOS, Linux), iOS, and self-hosted
-  Docker/web
+- **🌐 11 Languages** - Including right-to-left Arabic, with regional number and
+  currency formats
+- **📱 Cross-Platform** - Desktop (Windows, macOS, Linux), iOS, Android, and
+  self-hosted Docker/web
 
-Wealthfolio 3.7 requires macOS 12 or newer and iOS/iPadOS 16 or newer. macOS 12
-installations should apply current macOS and Safari updates so the system
-WKWebView meets the Safari 16 browser floor. Windows uses the evergreen WebView2
-runtime; Linux and self-hosted installations should keep WebKitGTK or their
-browser updated.
+Wealthfolio requires macOS 12 or newer, iOS/iPadOS 16 or newer, or Android 7.0
+or newer. macOS 12 installations should apply current macOS and Safari updates
+so the system WKWebView meets the Safari 16 browser floor. Windows uses the
+evergreen WebView2 runtime; Linux and self-hosted installations should keep
+WebKitGTK or their browser updated.
 
 ### 🧩 Addon System
 
@@ -147,6 +161,10 @@ See [ROADMAP.md](./ROADMAP.md).
   documentation with examples
 - **[Architecture](docs/addons/addon-architecture.md)** - Design patterns and
   architecture guide
+- **[Packages](docs/addons/addon-packages.md)** - SDK, dev tools, and shared UI
+  packages
+- **[Localization](docs/addons/addon-localization.md)** - Translating addons and
+  supporting right-to-left layouts
 - **[v3.6 to v3.7 Migration](docs/addons/addon-migration-guide-v3.6-to-v3.7.md)** -
   Packaged assets and compatibility notes
 
@@ -276,7 +294,7 @@ without it.
 
 #### Addon Development Mode
 
-Addon hot reload servers now start only when you explicitly opt in.
+Addon hot reload servers start only when you explicitly opt in.
 
 **For desktop development with Tauri:**
 
@@ -410,6 +428,20 @@ All configuration is done via environment variables in `.env.web`.
   `<data-root>/secrets.json`)
 - `WF_ADDONS_DIR` - **Optional** path to addons directory (default: derived from
   database path)
+- `WF_DB_REQUIRE_ENCRYPTION` - **Optional**, default `false`. Set to `true` to
+  create new databases encrypted. The server then refuses to start on a
+  plaintext database, and an encrypted database needs it set. It does not
+  convert an existing database. See
+  [database encryption](docs/self-host/README.md#database-encryption-optional).
+- `WF_LOG_FORMAT` - **Optional** log output format: `text` (default) or `json`
+- AI Agent Access / MCP (optional) - exposes `/mcp` for external AI agents.
+  Requires authentication when the server listens on a non-loopback address,
+  even with `WF_AUTH_REQUIRED=false`.
+  - `WF_MCP_ENABLED` - Set to `true` to enable the endpoint (default: `false`)
+  - `WF_MCP_AUDIT_ENABLED` - Set to `false` to stop recording MCP tool calls in
+    the audit log (default: `true`)
+  - `WF_MCP_ALLOWED_HOSTS` - **Optional** comma-separated `Host` header values
+    accepted on `/mcp`. Unset disables the check; access tokens remain required.
 
 **Vite Configuration**:
 
@@ -515,7 +547,8 @@ docker build -t wealthfolio .
 
 The build process:
 
-1. Builds frontend assets from source (`pnpm install` + `pnpm vite build`)
+1. Builds frontend assets from source (`pnpm install` +
+   `pnpm --filter frontend... build`)
 2. Compiles Rust backend from source (`cargo build --release`)
 3. Creates minimal Alpine-based image with only the runtime artifacts
 
@@ -712,7 +745,7 @@ steps and provides an isolated environment with all necessary dependencies.
 
 - [Docker](https://www.docker.com/)
 - [Visual Studio Code](https://code.visualstudio.com/)
-- [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
   VS Code extension
 
 #### Features
@@ -738,7 +771,7 @@ steps and provides an isolated environment with all necessary dependencies.
 
 3. **Launch DevContainer**:
    - Press `F1` or `Ctrl+Shift+P`
-   - Type "Remote-Containers: Reopen in Container"
+   - Type "Dev Containers: Reopen in Container"
    - Press Enter
 
 4. **Wait for container build**:
@@ -843,8 +876,6 @@ for maintained addon examples including:
 - **ESLint**: Retained checks that need its plugin or parser APIs.
 - **Oxfmt**: Code formatting and Tailwind class sorting.
 - **pnpm**: Fast, disk space efficient package manager.
-- **Turborepo**: High-performance build system for JavaScript and TypeScript
-  codebases.
 
 ## Folder Structure
 
@@ -859,6 +890,8 @@ wealthfolio/
 │   │   │   ├── features/        # Feature modules (self-contained)
 │   │   │   ├── pages/           # Application pages and routes
 │   │   │   ├── hooks/           # Custom React hooks
+│   │   │   ├── i18n/            # Translations and locale setup
+│   │   │   ├── themes/          # Theme definitions
 │   │   │   └── lib/             # Utility libraries and helpers
 │   │   ├── public/              # Static assets
 │   │   ├── index.html           # HTML entry point
@@ -867,8 +900,14 @@ wealthfolio/
 │   └── server/                  # Axum HTTP server for web mode
 ├── crates/                      # Rust crates (shared backend logic)
 │   ├── core/                    # Core business logic, services, models
+│   ├── portfolio-engine/        # Holdings, cash, valuation, and returns engine
+│   ├── spending/                # Spending, categorization rules, and budgets
 │   ├── storage-sqlite/          # SQLite storage layer (Diesel ORM)
 │   ├── market-data/             # Market data providers
+│   ├── ai/                      # In-app AI assistant
+│   ├── agent-tools/             # Tool catalog shared by the assistant and MCP
+│   ├── wealthfolio-mcp/         # MCP server for external AI agents
+│   ├── http/                    # Shared HTTP clients and certificate policy
 │   ├── connect/                 # External service integrations
 │   └── device-sync/             # Device sync functionality
 ├── packages/                    # Shared TypeScript packages
@@ -878,7 +917,9 @@ wealthfolio/
 ├── docs/                        # Documentation
 │   ├── addons/                  # Addon development docs
 │   ├── activities/              # Activity types docs
-│   └── architecture/            # Architecture docs
+│   ├── architecture/            # Architecture docs
+│   ├── features/                # Feature design docs
+│   └── self-host/               # Self-hosting guides
 ├── e2e/                         # End-to-end tests
 ├── scripts/                     # Build and dev scripts
 ├── Cargo.toml                   # Rust workspace config
@@ -900,18 +941,28 @@ dependencies:
 
 - Portfolio holdings and performance data
 - Trading activities and transaction history
+- Spending categories, rules, and budgets
 - Account information and settings
 - Goals and contribution limits
 
+The database can be encrypted with SQLCipher, and profiles can be locked with a
+password. See
+[database encryption and backups](docs/architecture/database-encryption-and-backups.md)
+and [profiles and app lock](docs/architecture/multi-profile-and-app-lock.md).
+
 #### API Keys & Secrets
 
-API credentials are securely stored using the operating system keyring through
-the `keyring` crate:
+Credentials for external services, such as provider API keys and sync tokens, go
+through a shared secret store:
 
-- **Core App**: Use `set_secret` and `get_secret` commands for external services
+- **Desktop and mobile**: The operating system's credential store (macOS and iOS
+  Keychain, Windows Credential Manager, Linux Secret Service, Android Keystore)
+- **Self-hosted server**: An encrypted vault file (`secrets.json` by default),
+  encrypted with the server's master key
 - **Addons**: Use the Secrets API (`ctx.api.secrets`) for addon-specific
   sensitive data
-- **No Disk Storage**: Keys never written to disk or configuration files
+
+See [credential storage](docs/architecture/credential-storage.md) for details.
 
 #### Permission System
 
@@ -924,14 +975,9 @@ Addons operate under a comprehensive permission system:
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Make your changes.
-4. Commit your changes (`git commit -m 'Add some feature'`).
-5. Push to the branch (`git push origin feature-branch`).
-6. Open a pull request.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to
+report bugs, suggest features, and submit code. All contributions require
+agreeing to the [Contributor License Agreement](CLA.md).
 
 ## License
 

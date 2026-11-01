@@ -185,7 +185,7 @@ export function AppearanceForm() {
                 className="sm:gap-3 lg:grid-cols-4"
                 compact
               />
-              {!(isTauri && isMacOS) && (
+              {isTauri && !isMacOS && (
                 <>
                   <ItemSeparator className="mt-4" />
                   <FormField

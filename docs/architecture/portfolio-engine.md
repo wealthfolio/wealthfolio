@@ -857,11 +857,13 @@ income, each by its amount (rules R7.4). Fees and taxes are attributed for
 trades, income and standalone charge rows; fees on deposits, withdrawals and
 transfers are booked to cash but knowingly not attributed. Credit-card interest
 is a charge on a liability, so its amount is attributed as a fee, never as
-income (EDGE-CC-01). Shortability: options may go negative implicitly, equities
-require explicit intent, everything else rejects a negative lot. Cash books into
-the account currency at the supplied rate when the activity carries one and the
-currencies differ, otherwise into the activity-currency bucket; an empty
-currency is a diagnostic, never a bucket key.
+income (EDGE-CC-01). A credit inside the boundary (cash back, a rebate, a
+refund) is attributed as income, gross; an external credit is a contribution and
+attributes like a deposit (NOM-CASH-03). Shortability: options may go negative
+implicitly, equities require explicit intent, everything else rejects a negative
+lot. Cash books into the account currency at the supplied rate when the activity
+carries one and the currencies differ, otherwise into the activity-currency
+bucket; an empty currency is a diagnostic, never a bucket key.
 
 ## Glossary
 

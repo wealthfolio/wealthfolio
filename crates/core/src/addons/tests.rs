@@ -408,6 +408,40 @@ fn test_detect_addon_permissions_assets_and_market_data_sdk_categories() {
 }
 
 #[test]
+fn test_detect_addon_permissions_alternative_assets() {
+    let addon_files = vec![AddonFile {
+        name: "addon.js".to_string(),
+        content: r#"
+            export default async function enable(ctx) {
+                const holdings = await ctx.api.alternativeAssets.getAll();
+            }
+        "#
+        .to_string(),
+        is_main: true,
+    }];
+
+    let detected_permissions = detect_addon_permissions(&addon_files);
+    let alternative_assets_permission = detected_permissions
+        .iter()
+        .find(|permission| permission.category == "alternative-assets")
+        .expect("alternative-assets permissions should be detected");
+
+    assert!(
+        alternative_assets_permission
+            .functions
+            .iter()
+            .any(|function| function.name == "getAll"),
+        "getAll should be detected under alternative-assets"
+    );
+    assert!(
+        detected_permissions
+            .iter()
+            .all(|permission| permission.category != "accounts"),
+        "alternativeAssets.getAll should not be detected under accounts"
+    );
+}
+
+#[test]
 fn test_detect_addon_permissions_historical_exchange_rates() {
     let addon_files = vec![AddonFile {
         name: "addon.js".to_string(),

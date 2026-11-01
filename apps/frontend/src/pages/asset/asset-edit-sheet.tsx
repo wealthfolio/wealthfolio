@@ -429,7 +429,11 @@ function SymbolMappingRow({
               <FormControl>
                 <div className="relative flex items-center">
                   <Input
-                    placeholder={getSymbolPlaceholder(provider ?? "")}
+                    placeholder={
+                      provider === "MOEX"
+                        ? t("asset:editSheet.moex_symbol_placeholder")
+                        : getSymbolPlaceholder(provider ?? "")
+                    }
                     {...{
                       ...symbolField,
                       value: (symbolField.value as string | undefined) ?? "",
@@ -455,6 +459,11 @@ function SymbolMappingRow({
                   </span>
                 </div>
               </FormControl>
+              {provider === "MOEX" && (
+                <p className="text-muted-foreground text-xs">
+                  {t("asset:editSheet.moex_symbol_hint")}
+                </p>
+              )}
             </FormItem>
           )}
         />

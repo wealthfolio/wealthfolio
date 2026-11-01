@@ -75,7 +75,13 @@ async fn delete_goal(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
-    let _ = state.goal_service.delete_goal(id).await?;
+    let goal = state.goal_service.get_goal(&id).ok();
+    let deleted = state.goal_service.delete_goal(id).await?;
+    // A deleted savings goal releases its shares, which changes what retirement
+    // counts; other clients refresh their goal caches from this event.
+    if let Some(goal) = goal.filter(|_| deleted > 0) {
+        emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

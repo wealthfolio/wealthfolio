@@ -10,8 +10,14 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, CardTitle, Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  fallbackPalette,
+  getTreemapPaletteSnapshot,
+  readableLabelColors,
+  subscribeToTreemapTheme,
+} from "@/pages/holdings/components/treemap-palette";
 import {
   accountTreeWeights,
   buildBreakdownTree,
@@ -75,6 +81,21 @@ function collapseWeights(
 }
 
 function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
+  // Each label takes the theme's dark or light label colour, whichever reads better on
+  // its segment, as the treemap's tiles do; both follow the theme and mode.
+  const palette = useSyncExternalStore(
+    subscribeToTreemapTheme,
+    getTreemapPaletteSnapshot,
+    () => fallbackPalette,
+  );
+  const labelColors = useMemo(
+    () =>
+      readableLabelColors(
+        nodes.map((node) => node.color),
+        palette,
+      ),
+    [nodes, palette],
+  );
   return (
     <div className="bg-muted flex h-6 w-full overflow-hidden rounded-lg">
       {nodes.map((node, index) => (
@@ -89,7 +110,12 @@ function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
           title={`${node.name} · ${node.percentage.toFixed(1)}%`}
         >
           {node.percentage >= 8 && (
-            <span className="text-2xs truncate font-bold text-white/95">{node.name}</span>
+            <span
+              className="text-2xs truncate font-bold text-white/95"
+              style={{ color: labelColors[index] }}
+            >
+              {node.name}
+            </span>
           )}
         </div>
       ))}

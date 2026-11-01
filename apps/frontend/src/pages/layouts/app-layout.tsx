@@ -38,7 +38,7 @@ const AppLayoutContent = () => {
   const { settings } = useSettingsContext();
   const location = useLocation();
   const navigation = useNavigation();
-  const { platform, isMobile, isMacOS, isTauri } = usePlatform();
+  const { platform, isMobile, isMacOS, isTauri, isAndroid } = usePlatform();
   const isMobileViewport = useIsMobileViewport();
   const isIPad =
     typeof window !== "undefined" &&
@@ -96,6 +96,7 @@ const AppLayoutContent = () => {
       <ApplicationShell
         className="app-shell h-screen overflow-x-hidden"
         data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
+        data-nav-style={shouldUseMobileNavigation && isAndroid ? "material" : undefined}
         style={{
           ...(launchBarHeight ? { ["--mobile-nav-ui-height" as string]: launchBarHeight } : {}),
           ...(titleBarNudge ? { ["--titlebar-nudge" as string]: titleBarNudge } : {}),

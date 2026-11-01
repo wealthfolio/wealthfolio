@@ -35,16 +35,20 @@ export function ScopeSelector({
     const lockedBySpending =
       scope.key === "spending:read" &&
       (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
+    const lockedByClassification =
+      scope.key === "classification:suggest" && selectedScopes.includes("classification:write");
     const locked =
       lockedBySpending ||
       lockedByMarketData ||
-      (scope.key === "activities:draft" && selectedScopes.includes("activities:write")) ||
-      (scope.key === "classification:suggest" && selectedScopes.includes("classification:write"));
+      lockedByClassification ||
+      (scope.key === "activities:draft" && selectedScopes.includes("activities:write"));
     const lockedTitle = lockedBySpending
       ? t("settings:agentAccess.scope_locked_spending_title")
       : lockedByMarketData
         ? t("settings:agentAccess.scope_locked_market_data_title")
-        : t("settings:agentAccess.scope_locked_title");
+        : lockedByClassification
+          ? t("settings:agentAccess.scope_locked_classification_title")
+          : t("settings:agentAccess.scope_locked_title");
     return (
       <button
         key={scope.key}

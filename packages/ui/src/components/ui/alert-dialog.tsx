@@ -48,7 +48,7 @@ function AlertDialogContent({ className, ...props }: AlertDialogContentProps) {
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          "bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 sm:rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) max-sm:shadow-(--popup-shadow) fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-env(safe-area-inset-bottom,0px)-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 outline-none duration-100 max-sm:bottom-[calc(env(safe-area-inset-bottom)+1rem)] max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl [&>*]:min-w-0",
+          "bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 sm:rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) max-sm:shadow-(--popup-shadow) fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-var(--inset-bottom,env(safe-area-inset-bottom,0px))-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 outline-none duration-100 max-sm:bottom-[calc(var(--inset-bottom,env(safe-area-inset-bottom,0px))+1rem)] max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl [&>*]:min-w-0",
           className,
         )}
         {...props}

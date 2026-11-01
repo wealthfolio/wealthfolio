@@ -573,7 +573,7 @@ describe("Addon Type Bridge", () => {
         spendingGuard("rerunRules"),
       );
 
-      await sdkAPI.spending.rerunRules();
+      await expect(sdkAPI.spending.rerunRules()).resolves.toBe(3);
 
       expect(mockRerun).toHaveBeenCalledWith(true);
     });

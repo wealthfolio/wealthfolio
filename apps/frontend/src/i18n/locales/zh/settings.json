@@ -829,6 +829,7 @@
     "feature_no_api_key": "无需 API 密钥",
     "us_treasury_name": "美国财政部（计算）",
     "providerDescriptions": {
+      "MOEX": "Moscow Exchange ISS 提供 MOEX 上交易的股票、存托凭证和 ETF 的延迟行情及收盘价。无需 API 密钥。",
       "YAHOO": "Yahoo Finance 提供多个市场的历史及实时股票数据。",
       "MARKETDATA_APP": "MarketData.app 提供美国股票、期权、ETF、共同基金等的实时和历史数据。",
       "ALPHA_VANTAGE": "Alpha Vantage 为股票、外汇和加密货币的实时和历史数据提供免费的 API。",
@@ -854,6 +855,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "加拿大股票和基金历史数据（TSX 股票代码或 Fundserv 代码）"
     },
     "instrumentLabels": {
+      "depositary_receipts": "存托凭证",
       "stocks": "股票",
       "crypto": "加密货币",
       "etfs": "ETF",
@@ -1235,6 +1237,7 @@
     "dialog_done": "完成",
     "scope_locked_title": "由“活动”所需——提交/写入",
     "scope_locked_market_data_title": "由“市场数据——写入”所需",
+    "scope_locked_classification_title": "由“资产分类——应用/写入”所需",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "令牌",
     "scope": {
@@ -1272,7 +1275,7 @@
       },
       "activities_write": {
         "label": "活动——提交/写入",
-        "description": "提交活动、更新现有活动，并关联或取消关联转账。需要草稿作用域。"
+        "description": "提交活动，更新、作废或删除现有活动，并关联或取消关联转账。需要草稿作用域。"
       },
       "classification_suggest": {
         "label": "资产分类 — 建议",
@@ -1565,6 +1568,7 @@
     "functions": {
       "accounts_getAll": "查看所有账户",
       "accounts_create": "创建新账户",
+      "alternative-assets_getAll": "查看另类资产及负债",
       "portfolio_getHoldings": "查看投资持仓",
       "portfolio_getHolding": "查看单项持仓详情",
       "portfolio_update": "更新投资组合计算",
@@ -1575,6 +1579,14 @@
       "activities_getAll": "查看所有交易",
       "activities_search": "按条件搜索交易",
       "activities_searchCashActivities": "搜索已分类的支出交易",
+      "activities_assignCategory": "为支出交易分类",
+      "activities_unassignCategory": "清除交易类别",
+      "activities_setEvent": "设置或清除交易事件标签",
+      "spending_getContext": "查看已启用支出的账户",
+      "spending_getBudget": "查看预算和分组",
+      "spending_getEvents": "查看支出事件",
+      "spending_getEventTypes": "查看事件类型",
+      "budgets_upsertBudgetTarget": "更改默认和每月预算目标",
       "activities_create": "添加新交易",
       "activities_update": "修改交易",
       "activities_saveMany": "保存多笔交易",
@@ -1591,9 +1603,11 @@
       "market_syncHistory": "下载历史价格",
       "market_sync": "同步证券代码的行情数据",
       "market_getProviders": "查看行情数据源",
+      "market_fetchDividends": "下载历史股息",
       "assets_getProfile": "查看资产资料详情",
       "assets_updateProfile": "更新资产信息",
       "assets_updateDataSource": "更改资产数据源",
+      "assets_updateQuoteMode": "在市场价格和手动价格之间切换",
       "quotes_update": "更新当前价格",
       "quotes_getHistory": "查看历史价格",
       "performance_calculateHistory": "计算历史绩效",
@@ -1634,14 +1648,20 @@
       "secrets_set": "安全存储凭据",
       "secrets_use": "使用已存储的凭据发起代理请求",
       "secrets_delete": "移除已存储的凭据",
-      "events_import_onDropHover": "检测文件拖放",
-      "events_import_onDrop": "处理文件拖放",
-      "events_import_onDropCancelled": "处理取消的拖放",
-      "events_portfolio_onUpdateStart": "监测投资组合更新开始",
-      "events_portfolio_onUpdateComplete": "监测投资组合更新完成",
-      "events_portfolio_onUpdateError": "监测投资组合更新错误",
-      "events_market_onSyncStart": "监测行情同步开始",
-      "events_market_onSyncComplete": "监测行情同步完成",
+      "snapshots_getAll": "查看持仓快照",
+      "snapshots_getByDate": "查看快照日期的持仓",
+      "snapshots_save": "保存持仓快照",
+      "snapshots_checkImport": "验证快照导入数据",
+      "snapshots_importSnapshots": "导入持仓快照",
+      "snapshots_delete": "删除持仓快照",
+      "events_onDropHover": "检测文件拖放",
+      "events_onDrop": "处理文件拖放",
+      "events_onDropCancelled": "处理取消的拖放",
+      "events_onUpdateStart": "监测投资组合更新开始",
+      "events_onUpdateComplete": "监测投资组合更新完成",
+      "events_onUpdateError": "监测投资组合更新错误",
+      "events_onSyncStart": "监测行情同步开始",
+      "events_onSyncComplete": "监测行情同步完成",
       "network_request": "发送代理网络请求"
     },
     "categories": {
@@ -1684,6 +1704,10 @@
       "spending": {
         "name": "支出",
         "description": "查看汇总支出报告及类别，并管理自动标记交易的分类规则"
+      },
+      "budgets": {
+        "name": "预算管理",
+        "description": "更改默认预算目标和每月覆盖值"
       },
       "financial-planning": {
         "name": "财务规划",

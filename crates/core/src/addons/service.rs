@@ -269,6 +269,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             "Access to account information and management",
         ),
         (
+            "alternative-assets",
+            "alternativeAssets",
+            vec!["getAll"],
+            "Read-only access to alternative assets and liabilities",
+        ),
+        (
             "market-data",
             "market",
             vec![
@@ -866,7 +872,10 @@ fn extract_addon_zip_archive(zip_data: Vec<u8>) -> Result<ExtractedAddonArchive,
         }
 
         // Archives zipped on Windows (e.g. Compress-Archive) use '\\' as separator.
-        let file_name = file.name().replace('\\', "/");
+        let file_name = file
+            .name()
+            .map_err(|e| format!("Invalid file name for entry {}: {}", i, e))?
+            .replace('\\', "/");
         validated_addon_archive_path(&file_name)?;
 
         if file_name.ends_with(".map") {
@@ -2065,7 +2074,9 @@ pub fn save_addon_to_staging(
             let mut manifest_found = false;
             for i in 0..archive.len() {
                 if let Ok(file) = archive.by_index(i) {
-                    if file.name() == "manifest.json" || file.name().ends_with("/manifest.json") {
+                    if file.name().is_ok_and(|name| {
+                        name == "manifest.json" || name.ends_with("/manifest.json")
+                    }) {
                         manifest_found = true;
                         break;
                     }

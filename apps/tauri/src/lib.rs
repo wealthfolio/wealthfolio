@@ -69,21 +69,8 @@ mod desktop {
 
     /// Sets up the application menu and its event handler.
     pub fn setup_menu(handle: &AppHandle, menu_bar_visible: bool) {
-        // macOS always keeps the menu: without it, Cmd+C, Cmd+V, Cmd+Z and
-        // Cmd+Q stop working, so the setting only applies on other platforms.
-        if menu_bar_visible || cfg!(target_os = "macos") {
-            match menu::create_menu(handle) {
-                Ok(menu) => {
-                    if let Err(e) = handle.set_menu(menu) {
-                        error!("Failed to set menu: {}", e);
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to create menu: {}", e);
-                }
-            }
-        } else if let Err(e) = handle.remove_menu() {
-            error!("Failed to remove menu: {}", e);
+        if let Err(e) = menu::set_menu_visibility(handle, menu_bar_visible) {
+            error!("Failed to apply menu visibility: {}", e);
         }
 
         handle.on_menu_event(move |app, event| {
@@ -360,6 +347,7 @@ pub fn run() {
             commands::spending::upsert_categorization_rule,
             commands::spending::delete_categorization_rule,
             commands::spending::rerun_categorization_rules,
+            commands::spending::rerun_categorization_rules_detailed,
             commands::spending::list_rule_presets,
             commands::spending::import_rule_preset,
             commands::spending::remove_rule_preset,

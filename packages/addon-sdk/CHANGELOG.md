@@ -4,7 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.12.0] - 2026-11-01
 
 ### Added
 
@@ -42,9 +42,50 @@ and this project adheres to
   not `--success` and `--destructive`, for a price or value going up or down.
   `--loss-blue` and its subtle surface are the true blue that losses take with
   `red-up-blue-down`, and `--heatmap-blue-*` its treemap ramp.
+- Eight `spending` functions, each behind its own grant:
+  - `getContext()`: whether Spending is on, its accounts and its excluded
+    categories (`spending.getContext`). It never enrolls an account.
+  - `getBudget(periodKey?)`: the budget for a `YYYY-MM` month (the current one
+    when omitted), or for the default targets with `"default"`
+    (`spending.getBudget`).
+  - `getEvents()` and `getEventTypes()`: the stored events and the event types
+    (`spending.getEvents`, `spending.getEventTypes`).
+  - `assignCategory(activityId, kind, categoryId)` and
+    `unassignCategory(activityId, kind)`: set or clear a transaction's category
+    as a manual choice (`activities.assignCategory`,
+    `activities.unassignCategory`, high risk). Assigning fails on a split
+    transaction; clearing leaves its splits as they are.
+  - `setEvent(activityId, eventId)`: tag a transaction with an event, or pass
+    `null` to untag it (`activities.setEvent`, high risk).
+  - `upsertBudgetTarget(target, periodKey?)`: save a default target
+    (`target.periodKey` `"default"`) or a month's override, and get back the
+    budget for `periodKey` (`budgets.upsertBudgetTarget`, high risk, in the new
+    Budget Management category). A default target applies to every month that
+    inherits it, past months included; a month's override wins.
+- `SpendingPeriodSummary.fromSavings`: money brought back from savings in the
+  period, so `net = income - outflow - saved + fromSavings`. Absent on older
+  hosts.
+- `@wealthfolio/ui`: `SwipableView` takes `onSelectView`, called on release as
+  soon as a swipe picks a view, while the slide still moves (keep it light, a
+  highlight), and `onSwipeStart`, called once per drag when the slide first
+  moves. `DateRangeSelector` takes `allTimeFrom`, the earliest date the ALL
+  preset stands for: the calendar shows and opens on it, while the ALL value
+  keeps its sentinel start. Data grid `select` cells take `isDisabled(rowData)`,
+  like `checkbox` cells.
 
 ### Changed
 
+- `SwipableView` calls `onViewChange` when a swipe lands on its view, not when
+  it is released. A `selectedIndex` naming a view whose slide isn't there yet is
+  reached once the slide mounts, instead of the slide it stopped on being
+  reported as a swipe.
+- `goals.getFunding()` returns Retirement's share of an account as the user set
+  it, not what Retirement counts. Retirement's share is now an upper limit:
+  savings goals take their shares first and Retirement counts at most what they
+  leave, so the shares on one account can add up to more than 100%.
+- `goals.update()` saves only a goal's editable inputs. Health, progress and
+  projection fields are calculated by the host, and values sent for them are
+  ignored.
 - `GainAmount`, `GainPercent` and `AmountDisplay` (with `colorFormat`) draw with
   the gain and loss tokens, so they follow the user's gain and loss colours;
   with the default they look as before.
@@ -75,6 +116,18 @@ and this project adheres to
   SDK fields (including the legacy `notes` alias). Native-only controls such as
   `unlinkTransferPairId` are not forwarded by `update` or `saveMany`;
   `activities.unlinkTransfer` retains its separate function grant.
+
+### Fixed
+
+- The package root exports the data types' runtime values, not only their types:
+  `ActivityType`, `ACTIVITY_TYPES`, `ActivityStatus`, `ACTIVITY_SUBTYPES`,
+  `AssetKind`, `QuoteMode`, `DataSource`, `AccountType`, `HoldingType`,
+  `ACTIVITY_TYPE_PREFIX_LENGTH`, `getEffectiveType` and `hasUserOverride`.
+  Before, they were exported as types only, so code such as
+  `ACTIVITY_SUBTYPES.CONVERSION_OUT` failed to compile (TS1362, "cannot be used
+  as a value because it was exported using 'export type'"). The host supplies
+  the SDK at run time, so add-ons that use these values must set
+  `minWealthfolioVersion` to `3.12.0` or newer.
 
 ## [3.11.0] - 2026-10-22
 

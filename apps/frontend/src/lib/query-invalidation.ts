@@ -77,12 +77,14 @@ export function invalidateAfterGoalSummariesUpdated(
   const { goalIds, inputsChanged } = payload;
   queryClient.invalidateQueries({ queryKey: [QueryKeys.GOALS] });
   for (const goalId of goalIds) {
-    queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goalId) });
     if (inputsChanged) {
       queryClient.invalidateQueries({ queryKey: QueryKeys.goalPlan(goalId) });
       queryClient.invalidateQueries({ queryKey: QueryKeys.goalFunding(goalId) });
     }
     queryClient.invalidateQueries({ queryKey: QueryKeys.saveUpOverview(goalId) });
-    queryClient.invalidateQueries({ queryKey: QueryKeys.retirementOverview(goalId) });
   }
+  // Retirement counts what savings goals leave free, so a change to any goal can move
+  // its summary and overview, which core has refreshed by the time this event arrives.
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.GOAL] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.RETIREMENT_OVERVIEW] });
 }

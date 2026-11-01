@@ -423,6 +423,7 @@ export function RuleForm({
                       </FormControl>
                     }
                   />
+                  <FormDescription>{t("spending:rules.categoryCompatibilityHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               );

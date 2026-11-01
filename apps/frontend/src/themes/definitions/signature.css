@@ -160,6 +160,13 @@
   --button-secondary-image: var(--button-outline-image);
   --button-secondary-shadow: var(--button-outline-shadow);
   --button-secondary-hover-bg: var(--button-outline-hover-bg);
+  /* Destructive buttons are the ink pill in red: the rim is the red lightened,
+     with the same edges and drop. */
+  --button-destructive-bg: var(--destructive);
+  --button-destructive-foreground: var(--destructive-foreground);
+  --button-destructive-border: color-mix(in srgb, var(--destructive) 85%, white);
+  --button-destructive-shadow: var(--button-shadow);
+  --button-destructive-hover-bg: color-mix(in oklab, var(--destructive) 90%, transparent);
   --field-border: #e8e8e8;
   --field-shadow: 0 0 #0000;
   --switch-thumb: #ffffff;
@@ -269,6 +276,8 @@
   --button-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 -1px 0 rgb(0 0 0 / 0.12),
     0 1px 2px rgb(0 0 0 / 0.5), 0 6px 18px -8px rgb(0 0 0 / 0.6);
+  /* The light red pill takes a darkened rim, as the white one does. */
+  --button-destructive-border: color-mix(in srgb, var(--destructive) 85%, black);
   --button-outline-border: rgb(255 252 240 / 0.1);
   --button-outline-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 8px -2px rgb(0 0 0 / 0.55);
   --button-outline-hover-bg: #333337;

@@ -128,6 +128,7 @@ impl ManualSnapshotService {
                     .instrument_type
                     .as_deref()
                     .and_then(InstrumentType::from_external_str),
+                instrument_type_label: holding.instrument_type.clone(),
                 requested_quote_ccy: holding.quote_ccy.clone(),
                 provider_config: None,
                 provider_id: holding.provider_id.clone(),

@@ -122,12 +122,6 @@ export function BudgetLineChartCard({
       dayOfMonth,
       daysInMonth,
       daysRemaining: isCurrentMonth ? Math.max(0, daysInMonth - dayOfMonth) : 0,
-      monthLabel: dateFormatting
-        .formatCalendarDate(
-          { year, month, day: 1 },
-          { calendar: "gregory", month: "long", year: "numeric" },
-        )
-        .toUpperCase(),
       shortLabel: dateFormatting
         .formatCalendarDate(
           { year, month, day: 1 },
@@ -136,7 +130,7 @@ export function BudgetLineChartCard({
         .toUpperCase(),
     };
   }, [monthKey, isCurrentMonth, dateFormatting, today]);
-  const { dayOfMonth, daysInMonth, daysRemaining, monthLabel } = monthMeta;
+  const { dayOfMonth, daysInMonth, daysRemaining } = monthMeta;
 
   const cumulative = useMemo(() => {
     const byDay = new Map<number, number>();
@@ -246,7 +240,6 @@ export function BudgetLineChartCard({
     return (
       <DashboardCard
         title={t("spending:budgetChart.monthlyBudget")}
-        subtitle={monthMeta.shortLabel}
         action={headerAction}
         className="text-center"
       >
@@ -313,11 +306,7 @@ export function BudgetLineChartCard({
   const pillTopPx = Math.max(0, endY - 28);
 
   return (
-    <DashboardCard
-      title={t("spending:budgetChart.monthlyBudget")}
-      subtitle={monthLabel}
-      action={headerAction}
-    >
+    <DashboardCard title={t("spending:budgetChart.monthlyBudget")} action={headerAction}>
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 shrink-0" style={{ color: a.accent }} />
         <span className="text-foreground text-sm font-semibold">{statusLabel}</span>

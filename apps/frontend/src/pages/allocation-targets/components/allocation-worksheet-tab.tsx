@@ -773,18 +773,20 @@ export function AllocationWorksheetTab({
 
   const [panel, setPanel] = useState<WorksheetPanel>("setup");
   const worksheetRef = useRef<HTMLDivElement>(null);
-  const shownPanelRef = useRef(panel);
-  // A step opens at its top, wherever the last one was left: at once, since
-  // the content was replaced rather than moved. Before paint, and before an
-  // issue's own scroll to its row, which waits for the next frame.
+  const shownPanelRef = useRef<WorksheetPanel | null>(null);
+  // The worksheet, once loaded, and then each step opens at its top, wherever
+  // the page or the last step was left: at once, since the content was
+  // replaced rather than moved. Before paint, and before an issue's own scroll
+  // to its row, which waits for the next frame. After every render, since the
+  // worksheet's element only exists once it has loaded.
   useLayoutEffect(() => {
-    if (shownPanelRef.current === panel) return;
-    shownPanelRef.current = panel;
     const worksheet = worksheetRef.current;
-    if (worksheet && worksheet.getBoundingClientRect().top < 0) {
+    if (!worksheet || shownPanelRef.current === panel) return;
+    shownPanelRef.current = panel;
+    if (worksheet.getBoundingClientRect().top < 0) {
       worksheet.scrollIntoView({ behavior: "instant", block: "start" });
     }
-  }, [panel]);
+  });
   const [editMode, setEditMode] = useState<WorksheetEditMode>("amount");
   const [mode, setMode] = useState<WorksheetMode>("invest_cash");
   // `null` follows the cash the chosen accounts record; a string is the

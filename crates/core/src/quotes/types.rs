@@ -77,6 +77,7 @@ impl ProviderId {
     pub const FINNHUB: &'static str = "FINNHUB";
     pub const US_TREASURY_CALC: &'static str = "US_TREASURY_CALC";
     pub const BOERSE_FRANKFURT: &'static str = "BOERSE_FRANKFURT";
+    pub const MOEX: &'static str = "MOEX";
     pub const OPENFIGI: &'static str = "OPENFIGI";
     pub const AMFI: &'static str = "AMFI";
     pub const BROKER: &'static str = "BROKER";
@@ -112,6 +113,10 @@ impl ProviderId {
 
     pub fn boerse_frankfurt() -> Self {
         Self(Self::BOERSE_FRANKFURT.to_string())
+    }
+
+    pub fn moex() -> Self {
+        Self(Self::MOEX.to_string())
     }
 
     pub fn openfigi() -> Self {

@@ -636,6 +636,11 @@ export const AssetProfilePage = () => {
     return items;
   }, [hasManualSnapshots, assetLots.length, t]);
 
+  const overviewSubTabIndex = Math.max(
+    0,
+    overviewSubTabs.findIndex((item) => item.value === overviewSubTab),
+  );
+
   const handleSubTabChange = useCallback(
     (next: OverviewSubTab) => {
       if (next === overviewSubTab) return;
@@ -1656,6 +1661,9 @@ export const AssetProfilePage = () => {
           isMobile ? (
             <SwipableView
               withMobileNavOffset
+              // Open on the tab the URL names, as the desktop toggle does.
+              initialIndex={activeTab === "history" ? 1 : 0}
+              selectedIndex={activeTab === "history" ? 1 : 0}
               items={[
                 {
                   name: t("asset:profile.overview"),
@@ -1754,6 +1762,9 @@ export const AssetProfilePage = () => {
             )}
             <SwipableView
               withMobileNavOffset
+              // Open on the sub-tab the URL names; Lots and Snapshots join once their data loads.
+              initialIndex={overviewSubTabIndex}
+              selectedIndex={overviewSubTabIndex}
               items={swipableTabs}
               displayToggle={true}
               onViewChange={(_index: number, name: string) => {

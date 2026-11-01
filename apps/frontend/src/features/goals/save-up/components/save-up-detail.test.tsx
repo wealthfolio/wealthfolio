@@ -123,3 +123,39 @@ describe("SaveUpDetailPage plan save", () => {
     expect(screen.getAllByRole("button", { name: "Save" })[0]).toBeEnabled();
   });
 });
+
+describe("SaveUpDetailPage dates", () => {
+  const lateGoal = { ...goal, targetAmount: 20000, targetDate: "2026-12-30" };
+
+  it("shows the day for the target date and finish when they fall in the same month", () => {
+    render(
+      <SaveUpDetailPage
+        goal={lateGoal}
+        plan={null}
+        overview={{ ...preview, projectedCompletionDate: "2026-12-31" }}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("by Dec 30, 2026.");
+    // The hero metric and the plan sidebar.
+    expect(screen.getAllByText("Dec 30, 2026")).toHaveLength(2);
+    expect(screen.getByText("Dec 31, 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Dec 2026")).not.toBeInTheDocument();
+  });
+
+  it("shows only the month when the finish falls in another month", () => {
+    render(
+      <SaveUpDetailPage
+        goal={lateGoal}
+        plan={null}
+        overview={{ ...preview, projectedCompletionDate: "2027-01-04" }}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getAllByText("Dec 2026")).toHaveLength(2);
+    expect(screen.getByText("Jan 2027")).toBeInTheDocument();
+    expect(screen.queryByText("Dec 30, 2026")).not.toBeInTheDocument();
+  });
+});

@@ -50,8 +50,8 @@ interface MappingTableProps {
   includedRowsState?: "all" | "some" | "none";
   onIncludeAllChange?: (included: boolean) => void;
   includeAllLabel?: string;
-  // Rows can share a lineNumber that comes from the CSV; a caller listing every row passes a unique key
-  getRowKey?: (row: CsvRowData) => string | number;
+  // A CSV column named "lineNumber" replaces row.lineNumber, so a caller can number rows itself
+  getRowNumber?: (row: CsvRowData) => string | number;
   className?: string;
 }
 
@@ -78,7 +78,7 @@ export function MappingTable({
   includedRowsState,
   onIncludeAllChange,
   includeAllLabel,
-  getRowKey,
+  getRowNumber = (row) => row.lineNumber,
   className,
 }: MappingTableProps) {
   const { t } = useTranslation();
@@ -148,13 +148,14 @@ export function MappingTable({
             <TableBody>
               {data.map((row, index) => {
                 const isIncluded = isRowIncluded?.(row) ?? true;
+                const rowNumber = getRowNumber(row);
                 return (
                   <motion.tr
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     // Filtered views can list every row; cap the stagger so long lists still appear promptly
                     transition={{ duration: 0.2, delay: Math.min(index, 10) * 0.03 }}
-                    key={getRowKey?.(row) ?? `row-${row.lineNumber}`}
+                    key={`row-${rowNumber}`}
                     className={cn(
                       "hover:bg-muted/50 group transition-colors",
                       index % 2 === 0 ? "bg-background" : "bg-muted/20",
@@ -167,11 +168,11 @@ export function MappingTable({
                             checked={isIncluded}
                             onCheckedChange={(checked) => onRowIncludedChange(row, checked)}
                             aria-label={t("activity:import.mapping.includeRow", {
-                              line: row.lineNumber,
+                              line: rowNumber,
                             })}
                           />
                         )}
-                        {row.lineNumber}
+                        {rowNumber}
                       </div>
                     </TableCell>
                     {visibleFields.map((field) => {

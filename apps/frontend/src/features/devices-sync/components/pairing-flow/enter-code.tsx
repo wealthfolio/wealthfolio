@@ -276,7 +276,7 @@ export function EnterCode({
             <DialogContent
               showCloseButton={false}
               finalFocus={scanButtonRef}
-              className="qr-overlay fixed inset-0 start-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] text-white shadow-none duration-0 data-closed:animate-none data-open:animate-none"
+              className="qr-overlay fixed inset-0 start-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,var(--inset-bottom))] text-white shadow-none duration-0 data-closed:animate-none data-open:animate-none"
             >
               <div className="qr-scan-frame absolute top-1/2 left-1/2 aspect-square w-[min(68vw,34dvh,17.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/25">
                 <div className="absolute bottom-full left-1/2 mb-6 w-[min(85vw,21.25rem)] -translate-x-1/2 text-center">
