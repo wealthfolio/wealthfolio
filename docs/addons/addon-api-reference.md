@@ -809,6 +809,58 @@ const performance = await ctx.api.performance.calculateAccountsSimple([
 
 ---
 
+## Allocation Targets API
+
+Read the user's allocation targets and how their holdings compare to them.
+Read-only: targets are created and edited only in the Wealthfolio UI. Requires a
+release shipping the Allocation Targets API. Both methods use the high-risk
+`allocation-targets` permission; declare only the methods your addon calls.
+
+Weights and differences are in basis points (10000 = 100%). Values are in the
+base currency.
+
+| Method               | Permission category       | Behavior                                                                                 |
+| -------------------- | ------------------------- | ---------------------------------------------------------------------------------------- |
+| `getAll()`           | high `allocation-targets` | Live targets with scope, range settings and weights; archived targets are left out       |
+| `getDrift(targetId)` | high `allocation-targets` | Current against target by category over the target's own scope; `null` for an unknown id |
+
+### Methods
+
+#### `getAll(): Promise<AllocationTarget[]>`
+
+Returns every live target. Several targets can share a scope: `scopeType` is
+`'all'`, `'portfolio'` or `'account'`, and `scopeId` is the portfolio or account
+id (`null` for `'all'`). Each weight carries its category's `categoryId`,
+`categoryKey` and `categoryName`. Ids of user-created categories differ between
+installs, so match categories by `categoryKey`.
+
+```typescript
+const targets = await ctx.api.allocationTargets.getAll();
+const overall = targets.find((target) => target.scopeType === "all");
+const realEstateBps =
+  overall?.weights.find((weight) => weight.categoryKey === "REAL_ESTATE")
+    ?.targetBps ?? 0;
+```
+
+#### `getDrift(targetId: string): Promise<AllocationDrift | null>`
+
+Compares current holdings with the target over the target's own scope. There is
+one row per weighted category, and a `not_targeted` row for each held category
+without a weight. `status` is `'in_band'`, `'underweight'`, `'overweight'` or
+`'not_targeted'`, judged against `effectiveBandBps`. It values holdings live, so
+call it when the user opens a view rather than on a timer.
+
+```typescript
+const drift = await ctx.api.allocationTargets.getDrift(targetId);
+if (drift) {
+  for (const row of drift.rows) {
+    console.log(row.categoryName, row.currentBps, row.targetBps, row.driftBps);
+  }
+}
+```
+
+---
+
 ## Exchange Rates API
 
 Manage currency exchange rates for multi-currency portfolios.

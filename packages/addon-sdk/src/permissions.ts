@@ -69,6 +69,14 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     riskLevel: 'high',
   },
   {
+    id: 'allocation-targets',
+    name: 'Allocation Targets',
+    description:
+      'Read-only access to your allocation targets and how your holdings compare to them',
+    functions: ['getAll', 'getDrift'],
+    riskLevel: 'high',
+  },
+  {
     id: 'portfolio',
     name: 'Portfolio Data',
     description: 'Access to holdings, portfolio performance, and account valuations',

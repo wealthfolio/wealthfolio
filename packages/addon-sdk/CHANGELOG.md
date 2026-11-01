@@ -62,6 +62,16 @@ and this project adheres to
     budget for `periodKey` (`budgets.upsertBudgetTarget`, high risk, in the new
     Budget Management category). A default target applies to every month that
     inherits it, past months included; a month's override wins.
+- `allocationTargets`, read-only, in the new Allocation Targets category (high
+  risk), each function behind its own grant:
+  - `getAll()`: the user's targets, archived ones excluded, each with its scope,
+    range settings and weights. A weight carries its category's id, `key` and
+    name, so an addon can tell categories apart across installs
+    (`allocation-targets.getAll`).
+  - `getDrift(targetId)`: current against target by category over the target's
+    own scope, in the base currency, or `null` when no live target has that id
+    (`allocation-targets.getDrift`). It values holdings live, so call it on
+    demand.
 - `SpendingPeriodSummary.fromSavings`: money brought back from savings in the
   period, so `net = income - outflow - saved + fromSavings`. Absent on older
   hosts.

@@ -61,6 +61,10 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "assets.updateProfile": "Update asset information",
   "assets.updateDataSource": "Change asset data provider",
 
+  // AllocationTargetsAPI functions
+  "allocation-targets.getAll": "View your allocation targets",
+  "allocation-targets.getDrift": "Compare your holdings with a target",
+
   // QuotesAPI functions
   "quotes.update": "Update current prices",
   "quotes.getHistory": "View price history",

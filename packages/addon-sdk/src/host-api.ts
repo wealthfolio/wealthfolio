@@ -26,6 +26,8 @@ import type {
   ImportActivitiesResult,
   Asset,
   AlternativeAssetHolding,
+  AllocationDrift,
+  AllocationTarget,
   ContributionLimit,
   DepositsCalculation,
   ExchangeRate,
@@ -379,6 +381,31 @@ export interface AlternativeAssetsAPI {
    * @returns Promise resolving to array of alternative asset holdings
    */
   getAll(): Promise<AlternativeAssetHolding[]>;
+}
+
+/**
+ * Allocation target APIs. Read-only: creating/editing targets is only available
+ * in the Wealthfolio UI. Each function requires its own `allocation-targets`
+ * grant.
+ */
+export interface AllocationTargetsAPI {
+  /**
+   * Get the user's allocation targets, archived ones excluded, each with its
+   * category weights. Several targets can share a scope.
+   * Requires allocation-targets.getAll.
+   * @returns Promise resolving to array of allocation targets
+   */
+  getAll(): Promise<AllocationTarget[]>;
+
+  /**
+   * Compare current holdings with a target, by category of the target's
+   * taxonomy, over the target's own scope. Values are in the base currency.
+   * Runs a live valuation, so call it on demand rather than on a timer.
+   * Requires allocation-targets.getDrift.
+   * @param targetId Allocation target identifier
+   * @returns Promise resolving to the comparison, or null when no live target has this id
+   */
+  getDrift(targetId: string): Promise<AllocationDrift | null>;
 }
 
 /**
@@ -1038,6 +1065,9 @@ export interface HostAPI {
 
   /** Alternative assets (property, vehicle, liability, ...) operations */
   alternativeAssets: AlternativeAssetsAPI;
+
+  /** Allocation targets and how holdings compare to them (read-only) */
+  allocationTargets: AllocationTargetsAPI;
 
   /** Quote management operations */
   quotes: QuotesAPI;
