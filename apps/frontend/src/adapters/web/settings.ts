@@ -35,7 +35,7 @@ export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
     return await invoke<boolean>("is_auto_update_check_enabled");
   } catch (_error) {
     logger.error("Error checking auto-update setting.");
-    return true; // Default to enabled
+    return false; // Skip automatic checks rather than run one the user may have turned off
   }
 };
 
