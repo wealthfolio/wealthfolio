@@ -64,6 +64,7 @@ import {
   mergeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
 } from "../utils/activity-import-profile";
+import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
 import { badgeVariants } from "@wealthfolio/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,6 +296,7 @@ function formatConfigValue(t: TFunction, key: string, value: string | number | b
       ",": t("activity:import.parseSettings.valueComma"),
       ";": t("activity:import.parseSettings.valueSemicolon"),
       "\t": t("activity:import.parseSettings.valueTab"),
+      "\\t": t("activity:import.parseSettings.valueTab"),
     };
     return delimiterLabels[value as string] || String(value);
   }
@@ -619,7 +621,9 @@ export function UploadStep() {
           const result = await parseCsv(state.file, nextParseConfig);
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          dispatch(
+            setParseConfig(mergeDetectedParseConfig(nextParseConfig, result.detectedConfig)),
+          );
           headers = result.headers;
         } catch (err) {
           setParseError(
@@ -696,7 +700,9 @@ export function UploadStep() {
         .then((result) => {
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          dispatch(
+            setParseConfig(mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig)),
+          );
         })
         .catch((error) => {
           setParseError(
@@ -737,7 +743,11 @@ export function UploadStep() {
             .then((result) => {
               setParseError(null);
               dispatch(setParsedData(result.headers, result.rows));
-              dispatch(setParseConfig(result.detectedConfig));
+              dispatch(
+                setParseConfig(
+                  mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig),
+                ),
+              );
             })
             .catch((error) => {
               setParseError(
@@ -831,7 +841,7 @@ export function UploadStep() {
     onSuccess: (result) => {
       setParseError(null);
       dispatch(setParsedData(result.headers, result.rows));
-      dispatch(setParseConfig(result.detectedConfig));
+      dispatch(setParseConfig(mergeDetectedParseConfig(state.parseConfig, result.detectedConfig)));
     },
     onError: (error) => {
       setParseError(
