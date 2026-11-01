@@ -37,6 +37,8 @@ describe("ContributionLimitForm on a screen kept out of sight", () => {
               groupName: "TFSA",
               contributionYear: 2026,
               limitAmount: 7000,
+              startDate: new Date(2026, 0, 1),
+              endDate: new Date(2026, 11, 31),
             }}
           />
         </Dialog>
@@ -46,7 +48,7 @@ describe("ContributionLimitForm on a screen kept out of sight", () => {
     const [startMonth] = monthSegments();
     expect(startMonth).toHaveAttribute("aria-valuenow", "1");
 
-    // The year's dates fill in; the user moves the start to April.
+    // The user moves the start to April.
     act(() => startMonth.focus());
     for (let step = 0; step < 3; step++) fireEvent.keyDown(startMonth, { key: "ArrowUp" });
     expect(monthSegments()[0]).toHaveAttribute("aria-valuenow", "4");
@@ -90,13 +92,50 @@ describe("ContributionLimitForm on a screen kept out of sight", () => {
 });
 
 describe("ContributionLimitForm dates", () => {
-  it("saves the year's first and last days as the date picker would", async () => {
+  it("saves a typed year's first and last days as the date picker would", async () => {
     const mutateAsync = vi.fn();
     mocks.useAddLimit = () => ({ mutateAsync, isPending: false });
     render(
       <Dialog open>
         <ContributionLimitForm
-          defaultValues={{ groupName: "TFSA", contributionYear: 2026, limitAmount: 7000 }}
+          defaultValues={{
+            groupName: "TFSA",
+            contributionYear: 2025,
+            limitAmount: 7000,
+            startDate: new Date(2025, 0, 1),
+            endDate: new Date(2025, 11, 31),
+          }}
+        />
+      </Dialog>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("e.g., 2024"), { target: { value: "2026" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({
+      startDate: new Date(2026, 0, 1).toISOString(),
+      endDate: new Date(2026, 11, 31).toISOString(),
+    });
+    mocks.useAddLimit = null;
+  });
+
+  it("keeps the dates it opens with until the year is changed", async () => {
+    const mutateAsync = vi.fn();
+    mocks.useAddLimit = () => ({ mutateAsync, isPending: false });
+    // A projected limit for a tax year that doesn't follow the calendar year.
+    const startDate = new Date(2027, 3, 6);
+    const endDate = new Date(2028, 3, 5);
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{
+            groupName: "ISA",
+            contributionYear: 2027,
+            limitAmount: 20000,
+            startDate,
+            endDate,
+          }}
         />
       </Dialog>,
     );
@@ -105,8 +144,8 @@ describe("ContributionLimitForm dates", () => {
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     expect(mutateAsync.mock.calls[0][0]).toMatchObject({
-      startDate: new Date(2026, 0, 1).toISOString(),
-      endDate: new Date(2026, 11, 31).toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
     });
     mocks.useAddLimit = null;
   });

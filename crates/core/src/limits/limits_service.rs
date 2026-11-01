@@ -1514,6 +1514,7 @@ mod tests {
                     updated_at: now,
                     start_date: Some(start.to_string()),
                     end_date: Some(end.to_string()),
+                    is_recurring: false,
                 }),
             }),
             Arc::new(MockActivityRepository::new(activities)),
