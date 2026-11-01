@@ -24,6 +24,8 @@ use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::test_support::in_memory::*;
 use crate::test_support::scenario::{as_of_instant, load_all_scenarios, Scenario, ScenarioFacts};
 
+mod currency_transition;
+
 struct Harness {
     coordinator: PortfolioCoordinator,
     account_repo: Arc<InMemoryAccountRepository>,

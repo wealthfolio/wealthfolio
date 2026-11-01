@@ -4,7 +4,7 @@ import { Button } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { isTauri, logger } from "@/adapters";
 import { setAddonLocalizationSnapshot } from "@/addons/iframe/addon-sandbox-localization";
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
 import { getPlatform } from "@/hooks/use-platform";
 import { useSettings } from "@/hooks/use-settings";
@@ -130,6 +130,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
   }, [data, appearanceAttempt, t]);
 
+  // Appearance application is asynchronous. On web, the settings query is
+  // authoritative for a completed currency transition, so expose its new
+  // currency immediately while the local appearance state catches up.
+  const providedSettings = useMemo(() => {
+    if (
+      isTauri ||
+      !settings ||
+      !data?.baseCurrency ||
+      settings.baseCurrency === data.baseCurrency
+    ) {
+      return settings;
+    }
+    return { ...settings, baseCurrency: data.baseCurrency };
+  }, [data?.baseCurrency, settings]);
+
   // Cleanup any lingering listeners when provider unmounts
   useEffect(() => {
     return () => {
@@ -156,7 +171,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [followsSystemTextSize]);
 
   const contextValue: ExtendedSettingsContextType = {
-    settings,
+    settings: providedSettings,
     isLoading,
     isError,
     updateBaseCurrency,
