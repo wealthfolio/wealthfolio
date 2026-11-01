@@ -41,10 +41,10 @@ export default function SpendingSettingsPage() {
             <span className="text-muted-foreground/50">/</span>
             <span>{t("common:portfolio")}</span>
             <span className="text-muted-foreground/50">/</span>
-            <span className="text-foreground">{t("settings:spending.title")}</span>
+            <span className="text-foreground">{t("settings:nav.items.spending")}</span>
           </nav>
           <h1 className="text-foreground text-base font-semibold tracking-tight sm:text-lg lg:text-2xl">
-            {t("settings:spending.title")}
+            {t("settings:nav.items.spending")}
           </h1>
           <p className="text-muted-foreground mt-1 hidden max-w-[64ch] text-sm sm:block">
             {t("settings:spending.page_description")}
@@ -124,7 +124,7 @@ function Section({ title, meta, children }: SectionProps) {
   return (
     <section>
       <div className="mb-3.5 flex items-baseline justify-between gap-3">
-        <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           {title}
         </h2>
         {meta && <span className="text-muted-foreground/80 hidden text-xs sm:inline">{meta}</span>}

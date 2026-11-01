@@ -246,9 +246,9 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
 
   return (
     <Card className={cn("flex flex-col", className)}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-x-3 pb-2">
         <CardTitle className="text-lg font-bold">{resolvedBalanceLabel}</CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-2">
           {balanceWarning ? (
             <TooltipProvider>
               <Tooltip>
@@ -321,9 +321,9 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           <Separator />
           <div className={cn(compact ? "space-y-2.5" : "space-y-4", "text-sm")}>
             {rows.map(({ label, value }, idx) => (
-              <div key={idx} className="flex justify-between">
+              <div key={idx} className="flex flex-wrap justify-between gap-x-3">
                 <span className="text-muted-foreground">{label}</span>
-                <span className={`font-medium`}>{value}</span>
+                <span className="ms-auto font-medium">{value}</span>
               </div>
             ))}
           </div>
@@ -336,7 +336,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           isHoldingsMode={isHoldingsMode}
         />
       </CardContent>
-      <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pb-3 pt-0">
+      <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
         {performanceError ? (
           <p className="text-muted-foreground m-0 p-0 text-xs">
             {lastUpdated && <>{t("account:last_updated", { date: lastUpdated })}</>}

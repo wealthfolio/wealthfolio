@@ -29,6 +29,13 @@ impl CompiledLedger {
 pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
     let mut events = Vec::with_capacity(facts.activities.len());
     let mut diagnostics = Vec::new();
+    let by_id: std::collections::HashMap<&ActivityId, &Activity> =
+        if facts.conversions.iter().next().is_some() {
+            facts.activities.iter().map(|a| (&a.id, a)).collect()
+        } else {
+            Default::default()
+        };
+    let mut converted: std::collections::HashSet<&str> = Default::default();
     for activity in &facts.activities {
         // `normalize` only admits activities of known accounts; facts built
         // any other way still compile without a panic.
@@ -40,6 +47,29 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
             ));
             continue;
         };
+        // A conversion row `normalize` could not pair changes nothing (rules
+        // R7.5): its event only carries why, and the projection rejects it,
+        // as it rejects any activity, so its account still folds.
+        if let Some(reason) = facts.conversions.rejection(&activity.id) {
+            let mut event = invalid_conversion_event(activity, reason);
+            event.sequence = events.len() as u32;
+            diagnostics.extend(event.diagnostics.iter().cloned());
+            events.push(event);
+            continue;
+        }
+        // A conversion's two rows fold as one event, at the first of them.
+        if let Some(pair) = facts.conversions.pair_for(&activity.id) {
+            if converted.insert(pair.group_id.as_str()) {
+                if let (Some(out_leg), Some(in_leg)) =
+                    (by_id.get(&pair.out_activity), by_id.get(&pair.in_activity))
+                {
+                    let mut event = conversion_event(out_leg, in_leg, activity);
+                    event.sequence = events.len() as u32;
+                    events.push(event);
+                }
+            }
+            continue;
+        }
         for leg in expand(activity) {
             let mut event = compile_leg(&leg, account, facts);
             event.sequence = events.len() as u32;
@@ -50,6 +80,64 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
     CompiledLedger {
         events,
         diagnostics,
+    }
+}
+
+/// A conversion's event (rules R7.5): the `CONVERSION_OUT` row's id and
+/// data, at the place of its pair's first row. No cash, charges,
+/// contribution, flow or attribution.
+fn conversion_event(out_leg: &Activity, in_leg: &Activity, first: &Activity) -> EconomicEvent {
+    let asset = |leg: &Activity| leg.asset.clone().unwrap_or_else(|| AssetId::new(""));
+    EconomicEvent {
+        id: EventId::new(out_leg.id.as_str()),
+        source: out_leg.id.clone(),
+        kind: ActivityKind::Adjustment,
+        account: out_leg.account.clone(),
+        date: out_leg.date,
+        timestamp: first.timestamp,
+        sequence: 0,
+        currency: out_leg.currency.clone(),
+        fx_rate: None,
+        cash: None,
+        charges: Charges::default(),
+        action: Action::Conversion {
+            from_asset: asset(out_leg),
+            from_quantity: out_leg.quantity,
+            to_asset: asset(in_leg),
+            to_quantity: in_leg.quantity,
+            arriving: in_leg.id.clone(),
+        },
+        contribution: Contribution::None,
+        flow: Flow::NONE,
+        attribution: Attributed::default(),
+        diagnostics: Vec::new(),
+    }
+}
+
+/// A conversion row that does not form a pair: no cash, action or flow, and
+/// an `InvalidConversion` diagnostic the projection rejects it with.
+fn invalid_conversion_event(activity: &Activity, reason: &str) -> EconomicEvent {
+    EconomicEvent {
+        id: EventId::new(activity.id.as_str()),
+        source: activity.id.clone(),
+        kind: activity.kind,
+        account: activity.account.clone(),
+        date: activity.date,
+        timestamp: activity.timestamp,
+        sequence: 0,
+        currency: activity.currency.clone(),
+        fx_rate: None,
+        cash: None,
+        charges: Charges::default(),
+        action: Action::None,
+        contribution: Contribution::None,
+        flow: Flow::NONE,
+        attribution: Attributed::default(),
+        diagnostics: vec![Diagnostic::error(
+            DiagnosticCode::InvalidConversion,
+            activity.id.as_str(),
+            format!("conversion row rejected: {reason}"),
+        )],
     }
 }
 
@@ -394,7 +482,8 @@ fn action_for(activity: &Activity, diagnostics: &mut Vec<Diagnostic>) -> Action 
 /// taxes are attributed for trades, income and standalone charge rows; fees
 /// on deposits, withdrawals and transfers are booked but knowingly not
 /// attributed. Credit-card interest is a charge on a liability (its cash is
-/// negative), so its amount is attributed as a fee, never as income.
+/// negative), so its amount is attributed as a fee, never as income. An
+/// internal credit is income; an external one is a contribution.
 fn attribution_for(activity: &Activity, account: &AccountFacts, action: &Action) -> Attributed {
     use ActivityKind::*;
     let amount = activity.amount.unwrap_or(Decimal::ZERO);
@@ -431,6 +520,18 @@ fn attribution_for(activity: &Activity, account: &AccountFacts, action: &Action)
             tax,
             ..Attributed::default()
         },
+        // A credit inside the boundary (cash back, a rebate, a refund) is a
+        // gain without a contribution, so it is income like interest. An
+        // external credit is new capital and attributes like a deposit.
+        // Without final cash, neither income nor charges are booked.
+        Credit if !credit_is_external(activity) => activity
+            .amount
+            .map(|amount| Attributed {
+                income: amount + fee + tax,
+                fee,
+                tax,
+            })
+            .unwrap_or_default(),
         // Cash transfers book tax to cash; asset transfers book only the fee.
         Credit | Deposit | Withdrawal => Attributed {
             tax,
@@ -787,10 +888,26 @@ mod tests {
                 assert_eq!(event.contribution, Contribution::CashGross, "{case}");
                 assert_eq!(event.flow.boundary, Boundary::External, "{case}");
                 assert_eq!(event.flow.value, FlowValue::Cash(dec!(100)), "{case}");
+                assert_eq!(event.attribution.income, Decimal::ZERO, "{case}");
             } else {
                 assert_eq!(event.contribution, Contribution::None, "{case}");
                 assert_eq!(event.flow, Flow::NONE, "{case}");
+                assert_eq!(event.attribution.income, dec!(100), "{case}");
             }
         }
+    }
+
+    #[test]
+    fn internal_credit_is_income_attributed_gross() {
+        let mut rebate = raw("rebate", "a1", "CREDIT", "2025-03-01T10:00:00Z");
+        rebate.subtype = Some("REBATE".into());
+        rebate.amount = Some(dec!(100));
+        rebate.fee = Some(dec!(2));
+        rebate.tax = Some(dec!(5));
+        let ledger = ledger(vec![rebate], "SECURITIES");
+        let attribution = &ledger.events[0].attribution;
+        assert_eq!(attribution.income, dec!(107));
+        assert_eq!(attribution.fee, dec!(2));
+        assert_eq!(attribution.tax, dec!(5));
     }
 }

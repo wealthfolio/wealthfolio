@@ -37,6 +37,29 @@ key from `/opt/wealthfolio/.env` for the conversion, then update
 `WF_DB_REQUIRE_ENCRYPTION` in that file and start the service. Never generate a
 new master key during an upgrade or conversion.
 
+## OIDC with a private CA
+
+For a native LXC using an IdP behind a private CA, use a server build containing
+[#2253](https://github.com/wealthfolio/wealthfolio/pull/2253). Place the PEM CA
+bundle inside the LXC, for example `/etc/wealthfolio/internal-ca.pem`, and add
+this to the service's existing environment file (normally
+`/opt/wealthfolio/.env` for the community installer):
+
+```dotenv
+WF_OIDC_CA_FILE=/etc/wealthfolio/internal-ca.pem
+```
+
+Check the installed unit's `User` and `EnvironmentFile` if you customized the
+service. The bundle must be readable by that user and protected against changes
+by untrusted users. Restart `wealthfolio.service` after changing the setting or
+replacing the bundle. Keep the setting unset when no private CA is needed.
+
+For Docker deployments, use an opt-in read-only file mount and a container path
+instead. See
+[OIDC providers using a private CA](../README.md#oidc-providers-using-a-private-ca)
+for the Compose overlay and startup checks. Installing the CA only in the LXC's
+system trust store does not configure the OIDC client.
+
 ## Backups and recovery
 
 Use [the shared backup flow](../backups.md) for password-protected exports and

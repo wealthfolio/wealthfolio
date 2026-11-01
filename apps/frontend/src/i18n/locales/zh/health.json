@@ -192,7 +192,12 @@
     "to_market_data": "查看市场数据",
     "to_general_settings": "打开常规设置",
     "to_connect": "配置账户",
-    "review_transfers": "检查转账"
+    "review_transfers": "检查转账",
+    "rebuild_account_history": "重建历史",
+    "add_price": "添加价格",
+    "update_cost_basis": "更新成本基础",
+    "review_transaction": "检查交易",
+    "review_entry": "查看记录"
   },
   "updatedAt": "更新于 {{time}}",
   "healthy": {

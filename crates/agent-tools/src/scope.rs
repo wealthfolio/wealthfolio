@@ -19,11 +19,14 @@ pub enum AgentScope {
     FinancialPlanningRead,
     HealthRead,
     ClassificationRead,
+    SpendingRead,
     ActivitiesDraft,
     ActivitiesWrite,
     ClassificationSuggest,
     ClassificationWrite,
     MarketDataWrite,
+    SpendingWrite,
+    BudgetWrite,
 }
 
 impl AgentScope {
@@ -37,11 +40,14 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::SpendingRead,
         AgentScope::ActivitiesDraft,
         AgentScope::ActivitiesWrite,
         AgentScope::ClassificationSuggest,
         AgentScope::ClassificationWrite,
         AgentScope::MarketDataWrite,
+        AgentScope::SpendingWrite,
+        AgentScope::BudgetWrite,
     ];
 
     /// The read-only scopes — what the `read-only` preset grants. Kept
@@ -55,6 +61,7 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::SpendingRead,
     ];
 
     /// Canonical wire format, e.g. `"accounts:read"`.
@@ -72,6 +79,9 @@ impl AgentScope {
             AgentScope::ClassificationSuggest => "classification:suggest",
             AgentScope::ClassificationWrite => "classification:write",
             AgentScope::MarketDataWrite => "market-data:write",
+            AgentScope::SpendingRead => "spending:read",
+            AgentScope::SpendingWrite => "spending:write",
+            AgentScope::BudgetWrite => "budget:write",
         }
     }
 
@@ -81,6 +91,21 @@ impl AgentScope {
     pub fn parse(s: &str) -> Option<Self> {
         Self::ALL.iter().copied().find(|scope| scope.as_str() == s)
     }
+}
+
+/// Shared validation for token creation and permission editing on both hosts.
+pub fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, String> {
+    if requested.is_empty() {
+        return Err("At least one scope is required".into());
+    }
+    let mut set = AgentScopeSet::new();
+    for scope in requested {
+        set.insert(AgentScope::parse(scope).ok_or_else(|| format!("Unknown scope: {scope}"))?);
+    }
+    if let Some(error) = set.dependency_error() {
+        return Err(error);
+    }
+    Ok(set.iter().map(|scope| scope.as_str().to_string()).collect())
 }
 
 impl std::fmt::Display for AgentScope {
@@ -132,7 +157,8 @@ impl AgentScopeSet {
         set
     }
 
-    /// Read-only + activity writes + classification suggestions/writes.
+    /// All reads + activity writes + asset-classification suggestions/writes.
+    /// Does not grant Spending organization or budget writes.
     pub fn read_activity_write_classification_suggest() -> Self {
         let mut set = Self::read_activity_write();
         set.insert(AgentScope::ClassificationSuggest);
@@ -191,6 +217,11 @@ impl AgentScopeSet {
                 "market-data:write requires holdings:read (quote imports show stored quotes)"
                     .to_string(),
             );
+        }
+        for scope in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            if self.contains(scope) && !self.contains(AgentScope::SpendingRead) {
+                return Some(format!("{scope} requires spending:read"));
+            }
         }
         None
     }
@@ -257,6 +288,29 @@ mod tests {
     }
 
     #[test]
+    fn spending_writes_require_read_but_are_independent() {
+        for write in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            let mut set = AgentScopeSet::from_iter([write]);
+            assert!(set.dependency_error().is_some());
+            set.insert(AgentScope::SpendingRead);
+            assert!(set.dependency_error().is_none());
+            assert!(!set.contains(AgentScope::ActivitiesRead));
+            assert!(!set.contains(AgentScope::ClassificationSuggest));
+        }
+        let old = AgentScopeSet::from_strs([
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        assert!(!old.contains(AgentScope::SpendingRead));
+        assert!(!old.contains(AgentScope::SpendingWrite));
+        let reads = AgentScopeSet::read_only();
+        assert!(reads.contains(AgentScope::SpendingRead));
+        assert!(!reads.contains(AgentScope::SpendingWrite));
+        assert!(!reads.contains(AgentScope::BudgetWrite));
+    }
+
+    #[test]
     fn grants_all_requires_every_scope() {
         let set = AgentScopeSet::from_strs(["accounts:read"]);
         assert!(set.grants_all(&[AgentScope::AccountsRead]));
@@ -287,5 +341,33 @@ mod tests {
 
         set.insert(AgentScope::HoldingsRead);
         assert!(set.dependency_error().is_none());
+    }
+}
+
+#[cfg(test)]
+mod request_validation_tests {
+    use super::*;
+    #[test]
+    fn token_permission_edits_validate_the_complete_replacement() {
+        assert!(validate_requested_scopes(&[]).is_err());
+        assert!(validate_requested_scopes(&["unknown:scope".into()]).is_err());
+        assert!(validate_requested_scopes(&["activities:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["classification:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["market-data:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["spending:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["budget:write".into()]).is_err());
+        assert_eq!(
+            validate_requested_scopes(&["budget:write".into(), "spending:read".into()]).unwrap(),
+            vec!["spending:read", "budget:write"]
+        );
+        assert_eq!(
+            validate_requested_scopes(&[
+                "holdings:read".into(),
+                "accounts:read".into(),
+                "holdings:read".into()
+            ])
+            .unwrap(),
+            vec!["accounts:read", "holdings:read"]
+        );
     }
 }

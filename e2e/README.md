@@ -165,15 +165,49 @@ npx playwright test && npx playwright show-report
 | `36-phone-taps-and-swipes.spec.ts`     | Phone: Spending's Next doesn't save, Performance's Plus stays on screen, swipes scroll period rows                          |
 | `38-account-section-scroll.spec.ts`    | Phone, in WebKit: switching an account between Holdings and Activities keeps the page's scroll position                     |
 | `34-import-mapping-sticky.spec.ts`     | CSV import Mapping step: the Activity Preview's header row and # column stay pinned as it scrolls (#2010)                   |
+| `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
+| `39-text-size.spec.ts`                 | Appearance's text size saves, scales the root font size, and is applied by index.html before the app loads (#1734)          |
+| `37-import-skip-rows.spec.ts`          | CSV import Mapping step: skipping a row with an unmapped symbol lets the other rows import (#2262)                          |
+| `43-phone-dashboard-wash.spec.ts`      | Phone: each dashboard tab's coloured wash reaches the bottom of the screen, scrolled to the end or shorter than the screen  |
+| `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
+| `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
+| `46-phone-tab-links.spec.ts`           | Phone: links to the dashboard's and Insights' Spending tab open it, though the tab joins the page after settings load       |
 
 ---
 
-## Not in CI (tracked follow-up)
+## CI coverage and local gates
 
-None of the specs in this directory run in CI. `pr-check.yml` installs
-Playwright only for `pnpm test:e2e:addon-sandbox`, a standalone frontend-only
-harness; the app suite needs a built Rust backend on :8088, a seeded database,
-and serial execution against shared state.
+The PR workflow keeps formatting, lint, type checks, unit tests, and the
+frontend build automatic for frontend changes. It installs browsers and runs
+`pnpm test:e2e:addon-sandbox` only for changes to the addon runtime or its
+shared inputs: UI/SDK/dev-tool packages, styles/localization, browser tests,
+build configuration/scripts, dependencies, and CI workflows/helpers. The
+[`addon_sandbox` classifier](../.github/scripts/ci_changes.py) defines the exact
+paths. Both installation and test execution use that filter, so unrelated page
+and documentation changes do not install browsers. The sandbox suite still runs
+in Chromium, Firefox, and WebKit and blocks the PR if it fails when requested.
+
+The standalone net-worth suite is a local gate for relevant layout changes,
+including RTL; it is not run in PR checks. It starts its own Vite harness and
+does not need the Rust backend or a seeded database:
+
+```bash
+pnpm build:types
+pnpm exec playwright install chromium
+pnpm test:e2e:net-worth
+```
+
+The standalone addon sandbox runner also needs no Rust backend or database. To
+run it locally, install its browsers, then let the runner build the frontend and
+start its preview server:
+
+```bash
+pnpm exec playwright install --with-deps chromium firefox webkit
+pnpm test:e2e:addon-sandbox
+```
+
+The top-level application specs do not run in CI. That suite needs a built Rust
+backend on :8088, a seeded database, and serial execution against shared state.
 
 Standing that up is its own change — it should add the whole suite as one job,
 not smuggle individual specs in. Until then these specs are a local gate only:

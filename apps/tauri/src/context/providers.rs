@@ -26,7 +26,7 @@ use wealthfolio_core::{
     limits::ContributionLimitService,
     portfolio::{
         allocation::AllocationService,
-        allocation_targets::{AllocationTargetService, DriftService, RebalanceService},
+        allocation_targets::{AllocationTargetService, AllocationWorksheetService, DriftService},
         holdings::{HoldingsService, HoldingsValuationService},
         income::IncomeService,
         net_worth::NetWorthService,
@@ -367,7 +367,7 @@ async fn build_context(
     let categorization_rules_service = Arc::new(
         wealthfolio_spending::categorization_rules::CategorizationRulesService::new(
             categorization_rules_repo,
-            activity_repository.clone(),
+            cash_activity_service.clone(),
             activity_taxonomy_assignment_service.clone(),
         ),
     );
@@ -459,10 +459,6 @@ async fn build_context(
         asset_service.as_ref(),
     )
     .await?;
-    let goal_service = Arc::new(
-        GoalService::new(goal_repo.clone(), account_service.clone())
-            .with_timezone(timezone.clone()),
-    );
     let limits_service = Arc::new(ContributionLimitService::new_with_timezone(
         fx_service.clone(),
         limit_repository.clone(),
@@ -487,6 +483,17 @@ async fn build_context(
         .with_event_sink(domain_event_sink.clone()),
     );
 
+    let goal_service = Arc::new(
+        GoalService::new(goal_repo.clone(), account_service.clone())
+            .with_timezone(timezone.clone())
+            .with_valuation_services(wealthfolio_core::goals::GoalValuationServices {
+                snapshots: snapshot_service.clone(),
+                assets: asset_service.clone(),
+                quotes: quote_service.clone(),
+                fx: fx_service.clone(),
+                base_currency: base_currency.clone(),
+            }),
+    );
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
         fx_service.clone(),
         quote_service.clone(),
@@ -597,11 +604,16 @@ async fn build_context(
         .with_holdings_service(holdings_service.clone())
         .with_taxonomy_service(taxonomy_service.clone()),
     );
-    let rebalance_service = Arc::new(RebalanceService::new(
+    let allocation_worksheet_service = Arc::new(AllocationWorksheetService::new(
         allocation_target_service.clone(),
         drift_service.clone(),
         allocation_service.clone(),
         holdings_service.clone(),
+        account_service.clone(),
+        asset_service.clone(),
+        taxonomy_service.clone(),
+        quote_service.clone(),
+        fx_service.clone(),
     ));
 
     let alternative_asset_repository = Arc::new(AlternativeAssetRepository::new(
@@ -682,6 +694,7 @@ async fn build_context(
     // Create AI environment and chat service
     let ai_environment = Arc::new(TauriAiEnvironment::new(
         base_currency.clone(),
+        timezone.clone(),
         account_service.clone(),
         activity_service.clone(),
         holdings_service.clone(),
@@ -703,6 +716,12 @@ async fn build_context(
         cash_activity_service.clone(),
         activity_taxonomy_assignment_service.clone(),
         categorization_rules_service.clone(),
+        budget_service.clone(),
+        events_service.clone(),
+        spending_analytics_service.clone(),
+        spending_insight_service.clone(),
+        snapshot_service.clone(),
+        lots_repository.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();
@@ -778,7 +797,7 @@ async fn build_context(
             allocation_service,
             allocation_target_service,
             drift_service,
-            rebalance_service,
+            allocation_worksheet_service,
             valuation_service,
             portfolio_coordinator,
             net_worth_service,

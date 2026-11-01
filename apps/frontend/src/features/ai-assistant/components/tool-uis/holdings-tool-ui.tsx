@@ -201,7 +201,7 @@ function getColorScale(gain: number, maxGain: number, minGain: number): ColorSca
   if (isNaN(gain) || isNaN(maxGain) || isNaN(minGain)) {
     return {
       opacity: 0.5,
-      className: isGain ? "fill-success" : "fill-destructive",
+      className: isGain ? "fill-gain" : "fill-loss",
     };
   }
 
@@ -216,7 +216,7 @@ function getColorScale(gain: number, maxGain: number, minGain: number): ColorSca
 
   return {
     opacity,
-    className: isGain ? "fill-success" : "fill-destructive",
+    className: isGain ? "fill-gain" : "fill-loss",
   };
 }
 
@@ -341,7 +341,7 @@ const TreemapTooltip: FC<TreemapTooltipProps> = ({ active, payload, currency = "
           </div>
           <div className="flex items-center justify-between gap-4 text-xs">
             <span className="text-muted-foreground">{t("ai:holdings.today")}</span>
-            <span className={cn("font-medium", isPositive ? "text-success" : "text-destructive")}>
+            <span className={cn("font-medium", isPositive ? "text-gain" : "text-loss")}>
               {isPositive ? "+" : ""}
               {numberFormatting.formatPercent(gain)}
             </span>
@@ -566,7 +566,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
 
   // Treemap view component
   const TreemapView = () => (
-    <div className="pb-2 pt-4">
+    <div className="pt-4 pb-2">
       <div className="flex flex-wrap items-start justify-between gap-2 px-4 pb-2">
         <div>
           <p className="text-sm font-medium">
@@ -590,8 +590,8 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                 portfolioChange == null
                   ? "text-muted-foreground"
                   : portfolioChange >= 0
-                    ? "text-success"
-                    : "text-destructive",
+                    ? "text-gain"
+                    : "text-loss",
               )}
             >
               {portfolioChange == null ? (
@@ -658,10 +658,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
               <span className="text-xl font-bold">{formatValue(totalValue)}</span>
               {!isBalanceHidden && (
                 <p
-                  className={cn(
-                    "text-sm font-medium",
-                    gainAmount >= 0 ? "text-success" : "text-destructive",
-                  )}
+                  className={cn("text-sm font-medium", gainAmount >= 0 ? "text-gain" : "text-loss")}
                 >
                   {gainAmount > 0 ? "+" : ""}
                   {amountFormatting.formatAmount(gainAmount, currency)} (
@@ -711,7 +708,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                       <div>
                         <div className="font-medium">{holding.symbol}</div>
                         {holding.name && (
-                          <div className="text-muted-foreground text-2xs max-w-30 sm:max-w-50 truncate">
+                          <div className="text-muted-foreground text-2xs max-w-30 truncate sm:max-w-50">
                             {holding.name}
                           </div>
                         )}
@@ -729,7 +726,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                         <span
                           className={cn(
                             "tabular-nums",
-                            tableGainPct >= 0 ? "text-success" : "text-destructive",
+                            tableGainPct >= 0 ? "text-gain" : "text-loss",
                           )}
                         >
                           {tableGainPct > 0 ? "+" : ""}
@@ -798,7 +795,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
         {ReturnTypeToggle}
       </CardHeader>
-      <CardContent className="px-0 pb-0 pt-4">
+      <CardContent className="px-0 pt-4 pb-0">
         <TableView />
       </CardContent>
     </Card>

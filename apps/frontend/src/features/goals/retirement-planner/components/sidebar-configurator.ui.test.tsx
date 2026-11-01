@@ -2,9 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RetirementOverview } from "@/lib/types";
 import { DEFAULT_RETIREMENT_PLAN } from "../lib/plan-adapter";
 import type { RetirementPlan } from "../types";
 import { SidebarConfigurator } from "./sidebar-configurator";
+
+const privacy = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/hooks/use-balance-privacy", () => ({
+  useBalancePrivacy: () => ({ isBalanceHidden: privacy.hidden }),
+}));
 
 function renderConfigurator(plan: RetirementPlan, onSavePlan: (plan: RetirementPlan) => void) {
   render(
@@ -28,6 +34,7 @@ function saveIncomeSection() {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  privacy.hidden = false;
 });
 
 it.each([undefined, {}])("adds distinct income streams without crypto APIs (%j)", (crypto) => {
@@ -122,3 +129,40 @@ describe("SidebarConfigurator pension fund returns", () => {
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai" } }),
 }));
+
+describe("SidebarConfigurator savings goals contribution note", () => {
+  function renderWithGoalsMonthly(amount: number) {
+    render(
+      <FormattingProvider locale="en-US">
+        <TooltipProvider>
+          <SidebarConfigurator
+            plan={structuredClone(DEFAULT_RETIREMENT_PLAN)}
+            currency="USD"
+            plannerMode="fire"
+            onSavePlan={vi.fn()}
+            retirementOverview={
+              { savingsGoalsMonthlyContribution: amount } as unknown as RetirementOverview
+            }
+          />
+        </TooltipProvider>
+      </FormattingProvider>,
+    );
+  }
+
+  it("shows what savings goals plan beside the retirement contribution", () => {
+    renderWithGoalsMonthly(1500);
+    expect(screen.getByText("Savings goals also plan $1,500.00/mo")).toBeInTheDocument();
+  });
+
+  it("masks the amounts while balances are hidden", () => {
+    privacy.hidden = true;
+    renderWithGoalsMonthly(1500);
+    expect(screen.getByText("Savings goals also plan ••••/mo")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\$\s?\d/);
+  });
+
+  it("stays hidden when no savings goal plans a contribution", () => {
+    renderWithGoalsMonthly(0);
+    expect(screen.queryByText(/Savings goals also plan/)).not.toBeInTheDocument();
+  });
+});

@@ -58,3 +58,19 @@ pub(crate) fn convert(
         }
     }
 }
+
+/// Coverage of the conversions attempted by a native calculation. Zero means
+/// no missing rate, not a guarantee about the source data or accounting policy.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculationQuality {
+    pub missing_fx_transactions: usize,
+    pub missing_fx_currencies: std::collections::BTreeSet<String>,
+}
+
+impl CalculationQuality {
+    pub(crate) fn record_missing(&mut self, currency: &str) {
+        self.missing_fx_transactions += 1;
+        self.missing_fx_currencies.insert(currency.to_string());
+    }
+}

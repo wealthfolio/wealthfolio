@@ -267,8 +267,10 @@
       "horizon_hint": "計畫應涵蓋至此年齡。",
       "monthly_contribution": "每月投入",
       "monthly_contribution_hint": "退休前每月投入的金額。",
-      "return_before_hint": "儲蓄期間的假設年報酬率，未扣除投資費用。",
-      "return_during_hint": "開始提領後的假設年報酬率，未扣除投資費用。",
+      "savings_goals_contribution": "儲蓄目標另計畫每月 {{amount}}",
+      "savings_goals_contribution_hint": "你的儲蓄目標另計畫每月 {{amount}}。這裡只填寫用於退休的金額。",
+      "return_before_hint": "儲蓄期間的假設長期年複合成長率（CAGR），未扣除投資費用。",
+      "return_during_hint": "開始提領後的假設長期年複合成長率（CAGR），未扣除投資費用。",
       "annual_fee_hint": "預估的年度投資費用。",
       "inflation_hint": "假設的年度物價漲幅。"
     },
@@ -329,6 +331,7 @@
       "current_fund_balance": "目前基金餘額",
       "monthly_fund_contribution": "每月基金提撥",
       "fund_return_before_payout": "給付前基金報酬率",
+      "fund_return_hint": "扣除基金本身費用後的年複合成長率。不會扣除計畫的投資費用。",
       "fund_payout_rate": "基金給付率",
       "fund_payout_mode": "給付方式",
       "fund_payout_mode_help": "年金模式假設付款持續至規劃期末；提領模式使用基金餘額直至耗盡。",
@@ -359,7 +362,7 @@
       "effective_before_return": "退休前費後報酬率",
       "effective_retirement_return": "退休期間費後報酬率",
       "annual_volatility": "年度波動率",
-      "annual_volatility_tip": "年度報酬率圍繞預期報酬率的波動幅度。波動率越高，市場路徑的結果區間越寬。",
+      "annual_volatility_tip": "年度報酬率的波動幅度。只用於市場路徑檢查：會擴大結果區間，但不會改變主要預測。",
       "inflation": "通膨",
       "contribution_growth_per_year": "每年投入成長率"
     },
@@ -523,7 +526,7 @@
       "inflation_title": "通膨率",
       "inflation_desc": "通膨假設使支出及與通膨連動的收入隨時間增加。各個項目可以使用各自的成長率。",
       "returns_title": "報酬率、費用與波動率",
-      "returns_desc": "退休前報酬率影響資產累積，退休期間報酬率則影響提領階段與所需資本。年度投資費用會從兩者扣除。波動率只用於市場路徑檢查；數值越高，結果分布越寬。",
+      "returns_desc": "退休前報酬率影響資產累積，退休期間報酬率則影響提領階段與所需資本。兩者都請以長期年複合成長率（CAGR）輸入，也就是資金每年實際成長的速度，而不是年度報酬率的簡單平均。年度投資費用會從兩者扣除。波動率只用於市場路徑檢查；數值越高，結果分布越寬。",
       "horizon_title": "規劃期限年齡",
       "horizon_desc": "退休支出及假設分析結果建模到的年齡。這是規劃期間的假設，不是壽命預測。"
     },
@@ -569,6 +572,7 @@
     "saving": "正在儲存……",
     "edit_account_shares": "編輯帳戶占比",
     "reserved_share_note": "目標進行期間會保留此占比；目標達成或封存後便會釋出。",
+    "retirement_share_note": "退休最多計入每個帳戶的此占比。進行中的儲蓄目標所保留的占比不會計入。",
     "set_type": "設定類型",
     "change_tax_bucket": "點選變更稅務類別",
     "pension": "退休金",
@@ -579,6 +583,7 @@
     "used_by_other_goals": "{{percent}}% 已被其他進行中的目標使用",
     "still_unassigned": "{{percent}}% 仍未分配",
     "use_max": "使用最大值 {{percent}}%",
+    "counting": "計入 {{percent}}%",
     "overallocated": "此帳戶超額分配了 {{percent}}%。",
     "add_accounts": "新增帳戶",
     "add_accounts_action": "新增帳戶",
@@ -614,6 +619,13 @@
     "spending_covered": "支出支應比例："
   },
   "portfolio_chart": {
+    "goal_milestones": "儲蓄目標",
+    "goal_milestones_tip": "每個進行中的儲蓄目標會顯示在其目標日期，並依狀態著色。儲蓄目標保有自己的資金，此預測不包含這筆錢。",
+    "goal_milestones_toggle": "點擊以顯示或隱藏。",
+    "goal_milestone_target": "{{date}}前達到{{amount}}",
+    "goal_milestone_aria": "{{name}}，{{target}}，{{status}}",
+    "goal_milestone_aria_no_status": "{{name}}，{{target}}",
+    "goal_milestone_not_projected": "未計入此預測",
     "phase_retirement": "退休",
     "phase_accumulation": "累積",
     "tooltip_header": "{{age}} 歲 · {{phase}} · {{valueLabel}}",
@@ -715,17 +727,18 @@
     "needed": "所需",
     "finish": "完成",
     "not_reached": "未達成",
-    "edit_aria": "編輯 {{title}}"
+    "edit_aria": "編輯 {{title}}",
+    "highReturnWarning": "報酬率假設偏高，這意味著持續超越大盤報酬。"
   },
   "projection": {
     "kicker": "預測",
     "title": "儲蓄軌跡",
     "series_projected": "預計",
-    "series_target": "目標",
+    "series_target": "維持進度所需金額",
     "high_range": "高區間（{{rate}}）",
     "low_range": "低區間（{{rate}}）",
     "legend_projected": "預計",
-    "legend_target": "目標",
+    "legend_target": "維持進度所需金額",
     "legend_range": "區間（±{{pct}}）"
   },
   "milestones": {

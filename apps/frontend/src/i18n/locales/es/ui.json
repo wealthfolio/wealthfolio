@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "Diapositiva anterior",
-    "next": "Diapositiva siguiente"
+    "next": "Diapositiva siguiente",
+    "role": "carrusel",
+    "slide": "diapositiva"
   },
   "currency": {
     "selectTitle": "Seleccionar moneda",
@@ -14,7 +16,15 @@
     "searchPrompt": "Busca cualquier moneda o selecciona una de las opciones populares de arriba.",
     "useCustom": "Usar \"{{value}}\" como moneda personalizada",
     "noneFound": "No se encontraron monedas para \"{{query}}\".",
-    "noneFoundShort": "No se encontró ninguna moneda."
+    "noneFoundShort": "No se encontró ninguna moneda.",
+    "units": {
+      "GBp": "Peniques británicos",
+      "GBX": "Peniques británicos",
+      "ILA": "Agorot israelíes",
+      "USX": "Centavos estadounidenses",
+      "ZAc": "Centavos sudafricanos",
+      "KWF": "Fils kuwaitíes"
+    }
   },
   "dataGrid": {
     "label": "Cuadrícula de datos",
@@ -75,7 +85,13 @@
     "clearSymbol": "Borrar símbolo",
     "currency": "Moneda",
     "searchCurrency": "Buscar moneda...",
-    "noCurrencyFound": "No se encontró ninguna moneda."
+    "noCurrencyFound": "No se encontró ninguna moneda.",
+    "copyFailed": "No se pudo copiar al portapapeles",
+    "cutFailed": "No se pudo cortar al portapapeles",
+    "pasteFailed": "No se pudo pegar. Vuelva a intentarlo.",
+    "cellsSkipped_one": "Se omitió {{count}} celda al pegar por datos no válidos",
+    "cellsSkipped_other": "Se omitieron {{count}} celdas al pegar por datos no válidos",
+    "cellsSkipped_many": "Se omitieron {{count}} celdas al pegar por datos no válidos"
   },
   "dataTable": {
     "noResults": "Sin resultados",
@@ -197,5 +213,27 @@
   "page": {
     "back": "Atrás"
   },
-  "remove": "Quitar {{label}}"
+  "remove": "Quitar {{label}}",
+  "actionConfirm": {
+    "pending": "En curso…"
+  },
+  "select": {
+    "placeholder": "Seleccionar una opción"
+  },
+  "progress": {
+    "title": "Procesando",
+    "message": "Procesando…",
+    "description": "Espere mientras procesamos su solicitud. Esto puede tardar unos momentos."
+  },
+  "navigation": {
+    "view": "Vista {{number}}",
+    "goTo": "Ir a {{name}}"
+  },
+  "quoteImport": {
+    "noFile": "Ningún archivo seleccionado",
+    "validateFailed": "No se pudo validar el CSV",
+    "validateFirst": "No hay cotizaciones para importar. Valide primero el archivo.",
+    "noValid": "No hay cotizaciones válidas para importar. Todas tienen errores de validación.",
+    "importFailed": "No se pudieron importar las cotizaciones"
+  }
 }

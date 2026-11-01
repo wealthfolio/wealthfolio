@@ -15,6 +15,7 @@ interface PullToRefreshHandlers {
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: (e: React.TouchEvent) => void;
+  onTouchCancel: (e: React.TouchEvent) => void;
 }
 
 interface PullToRefreshState {
@@ -165,19 +166,22 @@ export function usePullToRefresh({
     ],
   );
 
-  const onTouchEnd = useCallback(
-    (_e: React.TouchEvent) => {
+  // A touch ends with touchend, or with touchcancel when the system takes it over (a
+  // system gesture, a call): both put the content back, only touchend refreshes.
+  const endGesture = useCallback(
+    (refresh: boolean) => {
       if (disabled || !containerRef.current) return;
 
       const target = containerRef.current;
       const deltaY = currentYRef.current - startYRef.current;
+      const pulled = gestureRef.current === "PULL";
 
       // Reset any container styles (defensive)
       target.style.transform = "";
       target.style.transition = "";
 
       // Trigger refresh if pulled far enough
-      if (deltaY > activationDistance && isPulling) {
+      if (refresh && deltaY > activationDistance && isPulling) {
         handleRefresh();
       }
 
@@ -193,7 +197,11 @@ export function usePullToRefresh({
       containerRef.current = null;
       hasTriggeredHapticRef.current = false;
 
-      const content = target.querySelector<HTMLElement>("[data-ptr-content]") ?? null;
+      // Only a pull moved the content. Easing it back after a swipe or a scroll restyled
+      // the whole page as the finger lifted, which stalled a sideways swipe.
+      const content = pulled
+        ? (target.querySelector<HTMLElement>("[data-ptr-content]") ?? null)
+        : null;
       if (content) {
         content.style.transition = "transform 180ms ease-out";
         content.style.transform = "translateY(0px)";
@@ -205,6 +213,8 @@ export function usePullToRefresh({
     },
     [activationDistance, disabled, handleRefresh, isPulling],
   );
+  const onTouchEnd = useCallback(() => endGesture(true), [endGesture]);
+  const onTouchCancel = useCallback(() => endGesture(false), [endGesture]);
 
   return [
     isRefreshing,
@@ -212,6 +222,7 @@ export function usePullToRefresh({
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      onTouchCancel,
     },
     {
       isPulling,

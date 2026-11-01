@@ -17,8 +17,9 @@ import { getZonedDateParts } from "../../../lib/timezone";
 import type { EventSpendingSummary } from "../../../types/event";
 import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
-const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-4 backdrop-blur-xl";
+const CARD_CLASS = "p-4";
 const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-normal uppercase tracking-[0.12em]";
 
 interface Props {
@@ -82,7 +83,7 @@ export const EventsCalendarCard: FC<Props> = ({
   const orderedDayNames = [...dayNames.slice(weekStartsOn), ...dayNames.slice(0, weekStartsOn)];
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       {/* Header */}
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
@@ -210,7 +211,7 @@ export const EventsCalendarCard: FC<Props> = ({
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 };
 

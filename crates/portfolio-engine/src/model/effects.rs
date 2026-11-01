@@ -25,7 +25,8 @@ pub struct Effects {
     pub accounts: BTreeMap<AccountId, AccountProfile>,
     /// One entry per ledger event, in ledger order.
     pub events: Vec<EventEffect>,
-    /// Resolved transfer pairs, in group order.
+    /// Resolved transfer pairs, in group order, then conversion pairs (one
+    /// account on both sides; rules R7.5).
     pub pairs: Vec<PairEffect>,
 }
 

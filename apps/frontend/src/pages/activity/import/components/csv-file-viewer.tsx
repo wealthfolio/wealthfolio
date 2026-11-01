@@ -43,7 +43,7 @@ interface CSVFileViewerProps {
   maxHeight?: string;
 }
 
-export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileViewerProps) {
+export function CSVFileViewer({ data, className, maxHeight }: CSVFileViewerProps) {
   const { t } = useTranslation();
   // Determine initial column filters based on whether lines have errors
   const initialColumnFilters = useMemo<ColumnFiltersState>(() => {
@@ -88,8 +88,8 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         const lineNumber = row.original.id + 1;
 
         return isValid ? (
-          <div className="w-15 flex items-center gap-1 text-xs">
-            <div className="text-success-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+          <div className="flex w-15 items-center gap-1 text-xs">
+            <div className="text-success-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
               <Icons.CheckCircle className="h-3.5 w-3.5" />
             </div>
             <span className="text-muted-foreground text-xs">
@@ -101,9 +101,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
             <Tooltip>
               <TooltipTrigger
                 delay={30}
-                render={<div className="w-15 flex cursor-help items-center gap-1 text-xs" />}
+                render={<div className="flex w-15 cursor-help items-center gap-1 text-xs" />}
               >
-                <div className="text-destructive-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+                <div className="text-destructive-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
                   <Icons.XCircle className="h-3.5 w-3.5" />
                 </div>
                 <span className="text-muted-foreground text-xs">
@@ -140,8 +140,14 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         const content = row.getValue("content");
         const isHeader = row.original.id === 0;
 
+        // `allow-select` keeps the CSV text selectable under the desktop app's lockdown
         return (
-          <div className={cn("whitespace-nowrap font-mono text-xs", isHeader && "font-semibold")}>
+          <div
+            className={cn(
+              "allow-select whitespace-nowrap font-mono text-xs",
+              isHeader && "font-semibold",
+            )}
+          >
             {(content as React.ReactNode) || (
               <span className="text-muted-foreground italic">
                 {t("activity:import.csvViewer.emptyLine")}
@@ -176,12 +182,14 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
   });
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <DataTableToolbar table={table} searchBy="content" filters={filters} />
+    <div className={cn("flex flex-col gap-2", className)}>
+      <div className="shrink-0">
+        <DataTableToolbar table={table} searchBy="content" filters={filters} />
+      </div>
 
-      <Card className="overflow-clip">
+      <Card className="flex min-h-20 flex-1 flex-col overflow-clip">
         {/* Header bar similar to a code editor */}
-        <div className="border-border bg-muted flex items-center justify-between border-b px-3 py-2">
+        <div className="border-border bg-muted flex shrink-0 items-center justify-between border-b px-3 py-2">
           <span className="text-muted-foreground text-xs">
             {t("activity:import.csvViewer.csvFile")}
           </span>
@@ -192,7 +200,7 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
           </span>
         </div>
 
-        <div style={{ maxHeight }} className="overflow-auto">
+        <div style={{ maxHeight }} className="min-h-0 flex-1 overflow-auto">
           <Table>
             <TableBody className="text-xs">
               {table.getRowModel().rows?.length ? (
@@ -242,7 +250,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         </div>
       </Card>
 
-      <DataTablePagination table={table} />
+      <div className="shrink-0">
+        <DataTablePagination table={table} />
+      </div>
     </div>
   );
 }

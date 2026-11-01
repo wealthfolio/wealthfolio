@@ -1,55 +1,41 @@
 import { cn } from "@/lib/utils";
+import { fontLabelKeys, type FontRole } from "@/themes/selection";
+import { AnimatedToggleGroup } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 
 interface FontSelectorProps {
   value?: string;
-  onChange: (value: string) => void;
+  onChange: (value: FontRole) => void;
   className?: string;
+  "aria-label"?: string;
 }
 
-const fonts = [
-  {
-    value: "font-sans",
-    labelKey: "component.font_sans",
-    preview: "Aa",
-  },
-  {
-    value: "font-serif",
-    labelKey: "component.font_serif",
-    preview: "Aa",
-  },
-  {
-    value: "font-mono",
-    labelKey: "component.font_mono",
-    preview: "Aa",
-  },
-];
-
-export function FontSelector({ value, onChange, className }: FontSelectorProps) {
+/** Sans, serif or mono, each option set in its own face, as one segmented control. */
+export function FontSelector({
+  value,
+  onChange,
+  className,
+  "aria-label": ariaLabel,
+}: FontSelectorProps) {
   const { t } = useTranslation();
   return (
-    <div className={cn("grid grid-cols-3 gap-2 md:gap-4", className)}>
-      {fonts.map((font) => (
-        <button
-          key={font.value}
-          type="button"
-          onClick={() => onChange(font.value)}
-          className={cn(
-            "hover:bg-accent/50 relative flex flex-col items-center justify-center rounded-lg border-2 p-3 transition-all duration-200 sm:p-4",
-            value === font.value
-              ? "border-primary bg-accent/30"
-              : "border-muted hover:border-accent",
-          )}
-        >
-          <div className={cn("mb-1 text-xl font-medium sm:text-2xl", font.value)}>
-            {font.preview}
-          </div>
-          <div className="text-xs font-medium sm:text-sm">{t(`common:${font.labelKey}`)}</div>
-          {value === font.value && (
-            <div className="bg-primary absolute end-2 top-2 h-1.5 w-1.5 rounded-full" />
-          )}
-        </button>
-      ))}
-    </div>
+    <AnimatedToggleGroup<FontRole>
+      size="sm"
+      value={(value as FontRole | undefined) ?? null}
+      onValueChange={onChange}
+      className={className}
+      aria-label={ariaLabel}
+      items={(Object.keys(fontLabelKeys) as FontRole[]).map((font) => ({
+        value: font,
+        label: (
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("text-sm font-semibold", font)}>
+              Aa
+            </span>
+            {t(fontLabelKeys[font])}
+          </span>
+        ),
+      }))}
+    />
   );
 }

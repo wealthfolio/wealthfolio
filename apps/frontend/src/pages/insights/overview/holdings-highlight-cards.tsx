@@ -64,7 +64,7 @@ function HighlightTitle({ title, description }: { title: string; description: st
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1.5">
-      <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+      <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
         {title}
       </CardTitle>
       <Popover>
@@ -139,7 +139,7 @@ export function TopMoversCard({ holdings, currency, isLoading }: HighlightProps)
         ) : (
           (["gainers", "losers"] as const).map((group) => (
             <div key={group} className="mt-3 first:mt-0">
-              <h3 className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
+              <h3 className="text-muted-foreground text-2xs font-medium tracking-wider uppercase">
                 {t(`insights:highlights.${group}`)}
               </h3>
               {movers[group].length === 0 ? (

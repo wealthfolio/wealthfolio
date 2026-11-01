@@ -88,8 +88,8 @@ function splitSummary(items: LayoutItem[], breakpoint: LayoutBreakpoint): Layout
 }
 
 function addPnl(items: LayoutItem[], breakpoint: LayoutBreakpoint): LayoutItem[] {
-  const summaries = SUMMARY_WIDGET_IDS.filter((id) => id !== "pnl").map(
-    (id) => items.find((item) => item.i === id)!,
+  const summaries = SUMMARY_WIDGET_IDS.filter((id) => id !== "pnl").map((id) =>
+    items.find((item) => item.i === id)!,
   );
   const first = summaries[0];
   const bottom = Math.max(...summaries.map((item) => item.y + item.h));

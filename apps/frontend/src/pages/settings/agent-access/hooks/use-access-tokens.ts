@@ -1,6 +1,9 @@
+import i18n from "i18next";
 import {
   createAgentAccessToken,
+  updateAgentAccessTokenScopes,
   type CreateAgentAccessTokenInput,
+  type AgentAccessToken,
   deleteAgentAccessToken,
   listAgentAccessTokens,
   logger,
@@ -25,8 +28,28 @@ export function useAccessTokens() {
     onError: (error) => {
       logger.error(`Error creating personal access token: ${String(error)}`);
       toast({
-        title: "Failed to create token",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        title: i18n.t("common:notifications.failed_to_create_token"),
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, scopes }: { id: string; scopes: string[] }) =>
+      updateAgentAccessTokenScopes(id, { scopes }),
+    onSuccess: async (updated) => {
+      queryClient.setQueryData<AgentAccessToken[]>([QueryKeys.AGENT_ACCESS_TOKENS], (tokens) =>
+        tokens?.map((token) => (token.id === updated.id ? updated : token)),
+      );
+      await queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_ACCESS_TOKENS] });
+      toast({ title: i18n.t("settings:agentAccess.edit_success"), variant: "success" });
+    },
+    onError: (error) => {
+      toast({
+        title: i18n.t("settings:agentAccess.edit_failed"),
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
     },
@@ -36,13 +59,14 @@ export function useAccessTokens() {
     mutationFn: (id: string) => deleteAgentAccessToken(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_ACCESS_TOKENS] });
-      toast({ title: "Token removed", variant: "success" });
+      toast({ title: i18n.t("common:notifications.token_removed"), variant: "success" });
     },
     onError: (error) => {
       logger.error(`Error removing personal access token: ${String(error)}`);
       toast({
-        title: "Failed to remove token",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        title: i18n.t("common:notifications.failed_to_remove_token"),
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -52,6 +76,7 @@ export function useAccessTokens() {
     tokens: tokensQuery.data ?? [],
     isLoading: tokensQuery.isLoading,
     createMutation,
+    updateMutation,
     deleteMutation,
   };
 }

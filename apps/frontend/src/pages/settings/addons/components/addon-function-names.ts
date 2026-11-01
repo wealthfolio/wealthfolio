@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 /**
  * User-friendly display names for structured addon function names
  * This mapping converts technical API function names to human-readable descriptions
@@ -14,6 +16,9 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "accounts.getAll": "View all accounts",
   "accounts.create": "Create new accounts",
 
+  // AlternativeAssetsAPI functions
+  "alternative-assets.getAll": "View alternative assets and liabilities",
+
   // PortfolioAPI functions
   "portfolio.getHoldings": "View your investment holdings",
   "portfolio.getHolding": "View individual holding details",
@@ -27,6 +32,14 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "activities.getAll": "View all transactions",
   "activities.search": "Search transactions with filters",
   "activities.searchCashActivities": "Search categorized spending transactions",
+  "activities.assignCategory": "Categorize spending transactions",
+  "activities.unassignCategory": "Clear a transaction category",
+  "activities.setEvent": "Attach or clear transaction event tags",
+  "spending.getContext": "View enabled spending accounts",
+  "spending.getBudget": "View budgets and groups",
+  "spending.getEvents": "View spending events",
+  "spending.getEventTypes": "View event types",
+  "budgets.upsertBudgetTarget": "Change default and monthly budget targets",
   "activities.create": "Add new transactions",
   "activities.update": "Modify transactions",
   "activities.saveMany": "Save multiple transactions",
@@ -45,11 +58,13 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "market.syncHistory": "Download price history",
   "market.sync": "Sync market data for symbols",
   "market.getProviders": "View market data providers",
+  "market.fetchDividends": "Download dividend history",
 
   // AssetsAPI functions
   "assets.getProfile": "View asset profile details",
   "assets.updateProfile": "Update asset information",
   "assets.updateDataSource": "Change asset data provider",
+  "assets.updateQuoteMode": "Switch between market and manual prices",
 
   // QuotesAPI functions
   "quotes.update": "Update current prices",
@@ -109,19 +124,27 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "secrets.use": "Use stored credentials for brokered requests",
   "secrets.delete": "Remove stored credentials",
 
+  // SnapshotsAPI functions
+  "snapshots.getAll": "View holdings snapshots",
+  "snapshots.getByDate": "View holdings on a snapshot date",
+  "snapshots.save": "Save holdings snapshots",
+  "snapshots.checkImport": "Validate snapshot import data",
+  "snapshots.importSnapshots": "Import holdings snapshots",
+  "snapshots.delete": "Delete holdings snapshots",
+
   // EventsAPI functions - Import events
-  "events.import.onDropHover": "Detect file drag-and-drop",
-  "events.import.onDrop": "Handle file drops",
-  "events.import.onDropCancelled": "Handle cancelled drops",
+  "events.onDropHover": "Detect file drag-and-drop",
+  "events.onDrop": "Handle file drops",
+  "events.onDropCancelled": "Handle cancelled drops",
 
   // EventsAPI functions - Portfolio events
-  "events.portfolio.onUpdateStart": "Monitor portfolio update start",
-  "events.portfolio.onUpdateComplete": "Monitor portfolio update completion",
-  "events.portfolio.onUpdateError": "Monitor portfolio update errors",
+  "events.onUpdateStart": "Monitor portfolio update start",
+  "events.onUpdateComplete": "Monitor portfolio update completion",
+  "events.onUpdateError": "Monitor portfolio update errors",
 
   // EventsAPI functions - Market events
-  "events.market.onSyncStart": "Monitor market sync start",
-  "events.market.onSyncComplete": "Monitor market sync completion",
+  "events.onSyncStart": "Monitor market sync start",
+  "events.onSyncComplete": "Monitor market sync completion",
 
   // Network broker
   "network.request": "Send brokered network requests",
@@ -129,13 +152,26 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
 
 /**
  * Get user-friendly display name for a function within its category context
- * @param category The permission category (e.g., 'accounts', 'portfolio', 'events.import')
+ * @param category The permission category (e.g., 'accounts', 'portfolio', 'events')
  * @param functionName The function name (e.g., 'getAll', 'create', 'onDrop')
  * @returns User-friendly description or the original function name if no mapping exists
  */
-export function getFunctionDisplayName(category: string, functionName: string): string {
-  const key = `${category}.${functionName}`;
-  return FUNCTION_DISPLAY_NAMES[key] || functionName;
+export function getFunctionDisplayName(
+  category: string,
+  functionName: string,
+  t?: TFunction,
+): string {
+  const displayCategory =
+    category === "market-data"
+      ? "market"
+      : category === "contribution-limits"
+        ? "contributionLimits"
+        : category;
+  const key = `${displayCategory}.${functionName}`;
+  const label = FUNCTION_DISPLAY_NAMES[key];
+  return label && t
+    ? t(`settings:addonPermissions.functions.${key.replaceAll(".", "_")}`, { defaultValue: label })
+    : label || functionName;
 }
 
 /**

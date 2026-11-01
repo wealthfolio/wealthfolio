@@ -38,6 +38,9 @@ pub struct AccountDB {
     #[diesel(skip_insertion)]
     pub updated_at: NaiveDateTime,
     pub platform_id: Option<String>,
+    // The update resolves the number before writing, so `None` here is a
+    // cleared number and must write NULL instead of being skipped.
+    #[diesel(treat_none_as_null = true)]
     pub account_number: Option<String>,
     pub meta: Option<String>,
     pub provider: Option<String>,

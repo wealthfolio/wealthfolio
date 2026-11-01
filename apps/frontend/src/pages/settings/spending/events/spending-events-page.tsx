@@ -1,3 +1,4 @@
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
@@ -239,7 +240,7 @@ function EventTypeRow({
             size="sm"
             className="h-6 w-6 shrink-0 p-0"
             onClick={onToggleExpanded}
-            aria-label={type.name}
+            aria-label={getEventTypeLabel(t, type.id, type.name)}
             aria-expanded={isExpanded}
           >
             {isExpanded ? (
@@ -254,7 +255,9 @@ function EventTypeRow({
         {type.color && (
           <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: type.color }} />
         )}
-        <span className="min-w-0 truncate text-sm font-medium">{type.name}</span>
+        <span className="min-w-0 truncate text-sm font-medium">
+          {getEventTypeLabel(t, type.id, type.name)}
+        </span>
         {hasEvents && (
           <span className="text-muted-foreground shrink-0 text-xs">({typeEvents.length})</span>
         )}
@@ -292,7 +295,7 @@ function EventTypeRow({
       <ActionPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        title={type.name}
+        title={getEventTypeLabel(t, type.id, type.name)}
         groups={paletteGroups}
         align="end"
         trigger={
@@ -312,7 +315,9 @@ function EventTypeRow({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings:spending.events.delete_type_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("settings:spending.events.delete_type_confirm", { name: type.name })}
+              {t("settings:spending.events.delete_type_confirm", {
+                name: getEventTypeLabel(t, type.id, type.name),
+              })}
               {hasEvents && (
                 <span className="text-destructive mt-2 block font-medium">
                   {t("settings:spending.events.delete_type_cascade", {

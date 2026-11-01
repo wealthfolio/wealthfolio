@@ -4,7 +4,7 @@
 //! others, accounts without activity or with only scheduled activity, a
 //! holdings account without a snapshot, sparse, invalid and missing quotes,
 //! splits adjusted or not by the provider, transfers across days and both
-//! ways, shorts, minor units, options, FX), written as YAML in
+//! ways, conversions, shorts, minor units, options, FX), written as YAML in
 //! the fixture schema. The engine's property laws and the app parity test
 //! (`crates/core`, which includes this file by path) both run over them, so
 //! it uses the standard library only.
@@ -412,6 +412,49 @@ pub fn scenario_yaml(seed: u64) -> String {
                     ledger.row(day, to_id, &format!("type: TRANSFER_IN, {body}"));
                 }
                 _ => {}
+            }
+        }
+        // Now and then a trading account converts part of what it holds of
+        // one asset into another quoted in the same currency, on a day
+        // neither splits (rules R7.5).
+        if assets.len() > 1 && rng.chance(20) {
+            let index = *rng.pick(&traders);
+            let a = rng.below(assets.len() as u64) as usize;
+            let b = rng.below(assets.len() as u64) as usize;
+            let units = held.get(&(index, a)).copied().unwrap_or(0);
+            let split_today = |asset: usize| splits.iter().any(|s| s.0 == asset && s.1 == day);
+            if day >= opens[&index]
+                && a != b
+                && units > 0
+                && held.get(&(index, b)).copied().unwrap_or(0) >= 0
+                && !assets[a].option
+                && !assets[b].option
+                && assets[a].quote == assets[b].quote
+                && !split_today(a)
+                && !split_today(b)
+            {
+                let leaving = 1 + rng.below(units as u64);
+                let arriving = 1 + rng.below(40);
+                group += 1;
+                let account = &accounts[index].id;
+                ledger.row(
+                    day,
+                    account,
+                    &format!(
+                        "type: ADJUSTMENT, subtype: CONVERSION_OUT, asset: {}, quantity: {leaving}, source_group_id: g{group}",
+                        assets[a].id
+                    ),
+                );
+                ledger.row(
+                    day,
+                    account,
+                    &format!(
+                        "type: ADJUSTMENT, subtype: CONVERSION_IN, asset: {}, quantity: {arriving}, source_group_id: g{group}",
+                        assets[b].id
+                    ),
+                );
+                *held.entry((index, a)).or_default() -= leaving as i64;
+                *held.entry((index, b)).or_default() += arriving as i64;
             }
         }
         // Holdings accounts record activities too; their numbers come only

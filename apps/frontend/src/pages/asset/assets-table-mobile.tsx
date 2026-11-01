@@ -366,7 +366,7 @@ export function AssetsTableMobile({
 
       {/* Filter Sheet */}
       <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[70vh] flex-col">
+        <SheetContent side="bottom" className="mx-1 flex h-[70vh] flex-col rounded-t-4xl">
           <SheetHeader className="text-start">
             <SheetTitle>{t("asset:mobileTable.filter_options")}</SheetTitle>
           </SheetHeader>
@@ -375,7 +375,7 @@ export function AssetsTableMobile({
               {/* Status Filter */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                     {t("asset:mobileTable.portfolio")}
                   </h4>
                   {selectedStatus.length > 0 &&
@@ -444,7 +444,7 @@ export function AssetsTableMobile({
               {/* Data Source Filter */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                     {t("asset:mobileTable.data_source")}
                   </h4>
                   {selectedDataSources.length > 0 && (
@@ -505,7 +505,7 @@ export function AssetsTableMobile({
               {/* Asset Kind Filter */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                     {t("asset:mobileTable.asset_kind")}
                   </h4>
                   {selectedAssetKinds.length > 0 && (
@@ -568,7 +568,7 @@ export function AssetsTableMobile({
               {/* Price Status Filter */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                     {t("asset:mobileTable.price_status")}
                   </h4>
                   {selectedPriceStatus.length > 0 && (

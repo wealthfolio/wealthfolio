@@ -134,6 +134,17 @@ pub trait MarketDataProvider: Send + Sync {
         })
     }
 
+    /// Whether `search` looks `query` up as one of this provider's own
+    /// identifiers, such as a fund code.
+    ///
+    /// The registry adds the results of such a lookup to those of the search
+    /// providers, whatever they found, so the provider must answer it from data
+    /// it already holds or meter its own requests. Default: `false`.
+    fn looks_up_identifier(&self, query: &str) -> bool {
+        let _ = query;
+        false
+    }
+
     /// Fetch asset profile information.
     ///
     /// # Arguments

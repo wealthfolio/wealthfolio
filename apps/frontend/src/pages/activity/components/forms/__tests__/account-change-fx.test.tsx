@@ -1,3 +1,4 @@
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityType } from "@/lib/constants";
 import { render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { TaxForm } from "../tax-form";
 
 const adapter = vi.hoisted(() => ({
   updateActivity: vi.fn(),
+  reviewActivitiesSplitEffects: vi.fn(),
   deleteActivity: vi.fn(),
   logger: { error: vi.fn() },
 }));
@@ -71,6 +73,9 @@ describe("account currency change through validated desktop submission", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter.updateActivity.mockResolvedValue({ id: "synthetic-activity" });
+    adapter.reviewActivitiesSplitEffects.mockImplementation(async (updates: unknown[]) =>
+      updates.map(() => []),
+    );
   });
   describe.each(["DEPOSIT", "FEE", "TAX"] as const)("%s", (type) => {
     it.each(["USD", "CAD", "EUR"])(
@@ -78,7 +83,9 @@ describe("account currency change through validated desktop submission", () => {
       async (currency) => {
         render(
           <QueryClientProvider client={new QueryClient()}>
-            <EditDeposit type={type} destinationCurrency={currency} />
+            <ActivitySplitReviewProvider>
+              <EditDeposit type={type} destinationCurrency={currency} />
+            </ActivitySplitReviewProvider>
           </QueryClientProvider>,
         );
         const user = userEvent.setup();
@@ -88,6 +95,7 @@ describe("account currency change through validated desktop submission", () => {
         await user.keyboard("[End][Enter]");
         await user.click(screen.getByRole("button", { name: /update/i }));
         await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
+        expect(adapter.reviewActivitiesSplitEffects).toHaveBeenCalledTimes(1);
         const payload = JSON.parse(JSON.stringify(adapter.updateActivity.mock.calls[0][0]));
         expect(payload).toMatchObject({
           accountId: "new",
@@ -101,13 +109,15 @@ describe("account currency change through validated desktop submission", () => {
       },
     );
   });
-  describe.each(["FEE", "TAX"] as const)("hidden FX in %s", (type) => {
+  describe.each(["FEE", "TAX"] as const)("legacy FX in %s", (type) => {
     it.each(["0", "1.234567890123456789"])(
       "leaves the stored %s rate untouched",
       async (storedRate) => {
         render(
           <QueryClientProvider client={new QueryClient()}>
-            <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
+            <ActivitySplitReviewProvider>
+              <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
+            </ActivitySplitReviewProvider>
           </QueryClientProvider>,
         );
         const user = userEvent.setup();
@@ -121,5 +131,61 @@ describe("account currency change through validated desktop submission", () => {
         ).not.toHaveProperty("fxRate");
       },
     );
+  });
+
+  describe.each(["FEE", "TAX"] as const)("explicit FX edits in %s", (type) => {
+    it("submits a changed rate", async () => {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActivitySplitReviewProvider>
+            <EditDeposit type={type} destinationCurrency="USD" />
+          </ActivitySplitReviewProvider>
+        </QueryClientProvider>,
+      );
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId("advanced-options-button"));
+      await user.clear(screen.getByTestId("fx-rate-input"));
+      await user.type(screen.getByTestId("fx-rate-input"), "1.35");
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
+      expect(adapter.updateActivity.mock.calls[0][0]).toMatchObject({ fxRate: "1.35" });
+    });
+
+    it("submits an explicit clear", async () => {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActivitySplitReviewProvider>
+            <EditDeposit type={type} destinationCurrency="USD" />
+          </ActivitySplitReviewProvider>
+        </QueryClientProvider>,
+      );
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId("advanced-options-button"));
+      await user.clear(screen.getByTestId("fx-rate-input"));
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
+      expect(adapter.updateActivity.mock.calls[0][0]).toMatchObject({ fxRate: null });
+    });
+
+    it("submits an untouched draft rate on creation", async () => {
+      const onSubmit = vi.fn();
+      const Component = type === "FEE" ? FeeForm : TaxForm;
+      render(
+        <Component
+          accounts={[{ value: "old", label: "Original account", currency: "USD" }]}
+          defaultValues={{
+            accountId: "old",
+            activityDate: new Date(),
+            amount: 5,
+            currency: "EUR",
+            fxRate: 1.08,
+          }}
+          onSubmit={onSubmit}
+        />,
+      );
+      await userEvent.setup().click(screen.getByRole("button", { name: /add/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ fxRate: 1.08 });
+    });
   });
 });

@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "Passen Sie Ihr Erlebnis an",
-    "themeLabel": "Design",
-    "fontLabel": "Schriftart",
-    "themeLight": "Hell",
-    "themeDark": "Dunkel",
-    "themeSystem": "System",
-    "themeLightPreviewAlt": "Vorschau des hellen Designs",
-    "themeDarkPreviewAlt": "Vorschau des dunklen Designs",
-    "themeSystemPreviewAlt": "Vorschau des System-Designs",
-    "fontSample": "Investieren mit Klarheit.",
-    "fonts": {
-      "monoLabel": "Mono",
-      "monoDescription": "Technisch & präzise",
-      "sansLabel": "Sans",
-      "sansDescription": "Klar & modern",
-      "serifLabel": "Serif",
-      "serifDescription": "Klassisch & elegant"
-    },
-    "navigationLabel": "Navigation"
+    "changeLater": "Sie können das jederzeit in den Einstellungen ändern."
   },
   "connect": {
     "optional": "Optional",

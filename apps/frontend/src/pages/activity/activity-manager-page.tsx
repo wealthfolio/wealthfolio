@@ -112,6 +112,8 @@ const ActivityManagerPage = () => {
       activity.currency = assetProfile.quoteCcy;
       activity.exchangeMic = assetProfile.instrumentExchangeMic ?? undefined;
       activity.assetQuoteMode = assetProfile.quoteMode;
+      // A crypto asset's totals stay exact and its money fields take 8 decimals.
+      activity.instrumentType = assetProfile.instrumentType ?? undefined;
     }
 
     return activity;
@@ -136,6 +138,7 @@ const ActivityManagerPage = () => {
       value: account.id,
       label: account.name,
       currency: account.currency,
+      accountType: account.accountType,
     }));
   }, [activeAccounts, selectedType]);
 

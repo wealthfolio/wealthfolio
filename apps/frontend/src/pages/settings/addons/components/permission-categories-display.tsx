@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { FunctionPermission, Permission } from "@/adapters";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { useTranslation } from "react-i18next";
@@ -18,13 +19,20 @@ interface PermissionCategoriesDisplayProps {
 }
 
 // Helper to convert SDK Permission to display format
-const convertToDisplayPermission = (permission: Permission): PermissionForDisplay => {
+const convertToDisplayPermission = (permission: Permission, t: TFunction): PermissionForDisplay => {
   const category = getPermissionCategory(permission.category);
   return {
     category: permission.category,
-    name:
-      category?.name ?? permission.category.charAt(0).toUpperCase() + permission.category.slice(1),
-    description: category?.description ?? permission.purpose,
+    name: category
+      ? t(`settings:addonPermissions.categories.${category.id}.name`, {
+          defaultValue: category.name,
+        })
+      : permission.category.charAt(0).toUpperCase() + permission.category.slice(1),
+    description: category
+      ? t(`settings:addonPermissions.categories.${category.id}.description`, {
+          defaultValue: category.description,
+        })
+      : permission.purpose,
     riskLevel: category?.riskLevel ?? "medium",
     functions: permission.functions,
     purpose: permission.purpose,
@@ -57,7 +65,9 @@ export function PermissionCategoriesDisplay({ permissions }: PermissionCategorie
   }
 
   // Convert SDK permissions to display format
-  const displayPermissions = consentedPermissions.map(convertToDisplayPermission);
+  const displayPermissions = consentedPermissions.map((permission) =>
+    convertToDisplayPermission(permission, t),
+  );
 
   return (
     <div className="space-y-4">
@@ -84,7 +94,7 @@ export function PermissionCategoriesDisplay({ permissions }: PermissionCategorie
                           className="text-xs font-light"
                           title={func.name} // Show technical name on hover
                         >
-                          {getFunctionDisplayName(permission.category, func.name)}
+                          {getFunctionDisplayName(permission.category, func.name, t)}
                         </Badge>
                       ))}
                     </div>

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -182,7 +183,11 @@ export function CategoryTransactionsSheet({
       return {
         ...row,
         name:
-          row.id === DIRECT_ROW_ID ? t("spending:categorySheet.direct") : (meta?.name ?? row.id),
+          row.id === DIRECT_ROW_ID
+            ? t("spending:categorySheet.direct")
+            : meta
+              ? getCategoryLabel(t, meta.taxonomyId, meta.id, meta.name)
+              : row.id,
         color: meta?.color ?? "var(--muted-foreground)",
       };
     });
@@ -227,7 +232,7 @@ export function CategoryTransactionsSheet({
             backgroundImage: `linear-gradient(to bottom, ${headerFill} 0%, ${headerFillMid} 55%, transparent 100%)`,
           }}
         >
-          <div className="text-muted-foreground/80 text-2xs font-semibold uppercase tracking-[0.14em]">
+          <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.14em] uppercase">
             {t("spending:categorySheet.eyebrow")}
           </div>
           <div className="mt-2 flex items-start gap-3">
@@ -243,7 +248,9 @@ export function CategoryTransactionsSheet({
             </span>
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-foreground truncate text-2xl font-semibold tracking-tight">
-                {category?.name ?? t("spending:categorySheet.categoryFallback")}
+                {category
+                  ? getCategoryLabel(t, category.taxonomyId, category.id, category.name)
+                  : t("spending:categorySheet.categoryFallback")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {formatRangeLabel(rangeStart, rangeEnd, dateFormatting)} ·{" "}
@@ -404,7 +411,7 @@ export function CategoryTransactionsSheet({
                       className="hover:bg-muted/30 flex items-center gap-2.5 px-1 py-2 transition-colors"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="text-foreground text-sm font-medium leading-tight">
+                        <div className="text-foreground text-sm leading-tight font-medium">
                           {it.notes != null ? (
                             <TruncatedText text={it.notes} />
                           ) : (
@@ -428,7 +435,7 @@ export function CategoryTransactionsSheet({
                         {isOutflow ? "−" : "+"}
                         <PrivacyAmount value={displayAmount} currency={it.currency} />
                         {it.currency !== currency && (
-                          <span className="text-muted-foreground/70 text-2xs ms-1 uppercase tracking-wide">
+                          <span className="text-muted-foreground/70 text-2xs ms-1 tracking-wide uppercase">
                             {it.currency}
                           </span>
                         )}
@@ -490,10 +497,10 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-muted-foreground/70 text-2xs font-semibold uppercase tracking-[0.12em]">
+      <div className="text-muted-foreground/70 text-2xs font-semibold tracking-[0.12em] uppercase">
         {label}
       </div>
-      <div className="text-foreground mt-1 text-base font-semibold tabular-nums tracking-tight">
+      <div className="text-foreground mt-1 text-base font-semibold tracking-tight tabular-nums">
         {value}
       </div>
       {hint && <div className="text-muted-foreground/70 text-2xs mt-0.5 truncate">{hint}</div>}

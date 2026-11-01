@@ -1,16 +1,9 @@
 import type { RetirementTrajectoryPoint } from "@/lib/types";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  useAmountFormatting,
-} from "@wealthfolio/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 const PAGE_SIZE = 10;
 
@@ -29,7 +22,7 @@ function SnapshotAmount({
   compact?: boolean;
   empty?: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   if (value <= 0) return empty;
   const scaledValue = scaleForModeAtAge(value, age);
   return compact
@@ -54,7 +47,7 @@ export function RetirementSnapshotTable({
   currency: string;
   scaleForModeAtAge: (value: number, age: number) => number;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(0);
   const totalPages = Math.ceil(snapshots.length / PAGE_SIZE);
@@ -66,7 +59,7 @@ export function RetirementSnapshotTable({
     <Card>
       <CardHeader className="flex-row items-start justify-between pb-3">
         <div>
-          <div className="text-muted-foreground text-2xs mb-0.5 font-semibold uppercase tracking-wider">
+          <div className="text-muted-foreground text-2xs mb-0.5 font-semibold tracking-wider uppercase">
             {t("goals:snapshot.table")}
           </div>
           <CardTitle className="text-sm">{t("goals:snapshot.title")}</CardTitle>
@@ -125,7 +118,7 @@ export function RetirementSnapshotTable({
             return (
               <div
                 key={snap.age}
-                className={`border-border border-b border-s-2 px-3 py-2.5 last:border-b-0 ${rowClassName}`}
+                className={`border-border border-s-2 border-b px-3 py-2.5 last:border-b-0 ${rowClassName}`}
               >
                 <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2">
                   <div className="text-muted-foreground text-xs font-semibold tabular-nums">
@@ -151,11 +144,13 @@ export function RetirementSnapshotTable({
                   </div>
                 </div>
 
-                <div className="text-2xs mt-1.5 grid grid-cols-4 gap-2 ps-[2.75rem]">
+                {/* At least 3rem a column: four on a phone at the default text size,
+                    fewer once larger text would cut the amounts. */}
+                <div className="text-2xs mt-1.5 grid grid-cols-[repeat(auto-fit,minmax(3rem,1fr))] gap-2 ps-[2.75rem]">
                   {mobileMetrics.map((metric) => (
                     <div key={metric.label} className="min-w-0">
                       <div className="text-muted-foreground leading-3">{metric.label}</div>
-                      <div className="truncate font-medium tabular-nums leading-4">
+                      <div className="truncate leading-4 font-medium tabular-nums">
                         <SnapshotAmount
                           value={metric.value}
                           age={snap.age}
@@ -167,7 +162,7 @@ export function RetirementSnapshotTable({
                     </div>
                   ))}
                   {hasPensionFunds && (
-                    <div className="col-span-4 min-w-0">
+                    <div className="col-span-full min-w-0">
                       <span className="text-muted-foreground me-1">{t("goals:snapshot.fund")}</span>
                       <span className="font-medium tabular-nums">
                         <SnapshotAmount
@@ -187,7 +182,7 @@ export function RetirementSnapshotTable({
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-215 w-full text-xs">
+          <table className="w-full min-w-215 text-xs">
             <thead>
               <tr className="text-muted-foreground border-b">
                 <th className="pb-2 text-start">{t("goals:snapshot.col_age")}</th>

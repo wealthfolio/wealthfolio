@@ -52,8 +52,6 @@ expected_notes: >
   net_contribution: 1000, then 1050 from 01-03 and never again (only BONUS).
   `flows` (account and portfolio): exactly one row, 01-03 inflow 50
   CASH_AMOUNT. TWR: 01-03 is 0% ((1050-50)/1000 - 1), then 1075/1050 - 1 =
-  2.380952% cumulative; contributions 1050. LEGACY BEHAVIOR: the 25 of
-  non-bonus credits are not attributed anywhere (CREDIT is not an income
-  type in attribution): income 0, residual 0, summary amount 0, quality
-  partial, and the diagnostics report "attribution incomplete, difference
-  25" at both scopes.
+  2.380952% cumulative; contributions 1050. The 25 of non-bonus credits are
+  internal gains and are attributed as income: income 25, residual 0,
+  summary amount 25, quality ok at both scopes.

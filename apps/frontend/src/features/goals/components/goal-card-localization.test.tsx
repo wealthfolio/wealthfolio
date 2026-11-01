@@ -51,8 +51,9 @@ describe("GoalCard localization", () => {
           <GoalCard goal={{ ...goal, targetDate: "2026-01-01" }} />
         </MemoryRouter>,
       );
-      expect(screen.queryByText(/DUE/)).not.toBeInTheDocument();
-      expect(screen.getByText(/0M LEFT/)).toBeInTheDocument();
+      expect(screen.queryByText(/\bdue\b/i)).not.toBeInTheDocument();
+      // The date line reads in normal case: "<date> · 0m left".
+      expect(screen.getByText(/ · 0m left$/)).not.toHaveClass("uppercase");
     } finally {
       vi.useRealTimers();
     }

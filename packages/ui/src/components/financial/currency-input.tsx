@@ -1,7 +1,7 @@
 import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
-import { worldCurrencies } from "../../lib/currencies";
+import { getCurrencyDisplayLabel, worldCurrencies } from "../../lib/currencies";
 import { cn } from "../../lib/utils";
 import type { ButtonProps } from "../ui/button";
 import { Button } from "../ui/button";
@@ -52,7 +52,9 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     },
     ref,
   ) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const currencyLabel = (currency: (typeof worldCurrencies)[number]) =>
+      getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t);
     const placeholderText = placeholder ?? t("ui:currency.placeholder", "Select currency");
     const isControlled = openProp !== undefined;
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -78,8 +80,8 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       ? valueDisplay === "code"
         ? selectedCurrency.value
         : valueDisplay === "code-label"
-          ? `${selectedCurrency.value} - ${selectedCurrency.label}`
-          : selectedCurrency.label
+          ? `${selectedCurrency.value} - ${currencyLabel(selectedCurrency)}`
+          : currencyLabel(selectedCurrency)
       : value || placeholderText;
 
     const handleSelect = (currencyValue: string) => {
@@ -100,15 +102,16 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       const filteredCurrencies = worldCurrencies.filter(
         (curr) =>
           curr.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          curr.label.toLowerCase().includes(searchQuery.toLowerCase()),
+          curr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          currencyLabel(curr).toLowerCase().includes(searchQuery.toLowerCase()),
       );
       const customCurrencyValue = getCustomCurrencyValue(searchQuery);
       const mobileDisplayText = selectedCurrency
         ? valueDisplay === "code"
           ? selectedCurrency.value
           : valueDisplay === "label"
-            ? selectedCurrency.label
-            : `${selectedCurrency.value} - ${selectedCurrency.label}`
+            ? currencyLabel(selectedCurrency)
+            : `${selectedCurrency.value} - ${currencyLabel(selectedCurrency)}`
         : value || placeholderText;
 
       return (
@@ -133,10 +136,10 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetContent
               side="bottom"
-              className="rounded-t-4xl mx-1 h-[85vh] p-0"
+              className="mx-1 h-[85vh] rounded-t-4xl p-0"
               initialFocus={autoFocusSearch ? searchInputRef : undefined}
             >
-              <SheetHeader className="border-border border-b px-6 pb-4 pt-6">
+              <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
                 <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
                 <SheetDescription>{t("ui:currency.selectDescription", "Choose a currency")}</SheetDescription>
               </SheetHeader>
@@ -211,7 +214,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                             <div className="flex items-center gap-2">
                               <span className="text-foreground truncate font-semibold">{curr.value}</span>
                             </div>
-                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{curr.label}</div>
+                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{currencyLabel(curr)}</div>
                           </div>
                           {value === curr.value && <Icons.Check className="text-primary h-5 w-5 flex-shrink-0" />}
                         </button>
@@ -311,13 +314,14 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                   )}
                   {worldCurrencies.map((currency) => (
                     <CommandItem
-                      value={currency.label}
+                      value={currency.value}
+                      keywords={[currency.label, currencyLabel(currency)]}
                       key={currency.value}
                       onSelect={() => {
                         handleSelect(currency.value);
                       }}
                     >
-                      {currency.label}
+                      {currencyLabel(currency)}
                       <Icons.Check
                         className={cn("ms-auto h-4 w-4", currency.value === value ? "opacity-100" : "opacity-0")}
                       />

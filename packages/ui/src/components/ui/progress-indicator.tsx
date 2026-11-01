@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog";
 import { Spinner } from "./spinner";
 import { cn } from "../../lib/utils";
@@ -20,11 +21,17 @@ export interface ProgressIndicatorProps {
 export function ProgressIndicator({
   isLoading = true,
   open,
-  title = "Processing",
-  description = "Please wait while we process your request. This may take a few moments.",
-  message = "Processing...",
+  title: titleProp,
+  description: descriptionProp,
+  message: messageProp,
   className,
 }: ProgressIndicatorProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t("ui:progress.title", "Processing");
+  const description =
+    descriptionProp ??
+    t("ui:progress.description", "Please wait while we process your request. This may take a few moments.");
+  const message = messageProp ?? t("ui:progress.message", "Processing...");
   const [elapsedTime, setElapsedTime] = useState(0);
 
   // Track elapsed time during import

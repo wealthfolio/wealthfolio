@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { PerformanceResult } from "@/lib/types";
-import { comparablePerformanceChartData } from "./performance-chart-series";
+import {
+  comparablePerformanceChartData,
+  earliestPerformanceStartDate,
+} from "./performance-chart-series";
 
 function result(
   id: string,
@@ -173,5 +176,39 @@ describe("comparablePerformanceChartData", () => {
     );
 
     expect(data.map((item) => item.id)).toEqual(["portfolio", "SPY"]);
+  });
+});
+
+describe("earliestPerformanceStartDate", () => {
+  it("returns undefined when there is no data", () => {
+    expect(earliestPerformanceStartDate(undefined)).toBeUndefined();
+    expect(earliestPerformanceStartDate([])).toBeUndefined();
+    expect(earliestPerformanceStartDate([null])).toBeUndefined();
+  });
+
+  it("prefers period.startDate and picks the earliest across items", () => {
+    const older = result("older", "timeWeighted", { twr: 0.1 }, [{ date: "2020-06-15", value: 0 }]);
+    // period.startDate is authoritative even when series starts later
+    older.period.startDate = "2019-03-04";
+    const newer = result("newer", "timeWeighted", { twr: 0.2 }, [{ date: "2023-01-02", value: 0 }]);
+    const date = earliestPerformanceStartDate([newer, older])!;
+    expect(date.getFullYear()).toBe(2019);
+    expect(date.getMonth()).toBe(2);
+    expect(date.getDate()).toBe(4);
+  });
+
+  it("falls back to the first series point without period.startDate", () => {
+    const item = result("item", "timeWeighted", { twr: 0 }, [{ date: "2021-11-30", value: 0 }]);
+    item.period.startDate = null;
+    const date = earliestPerformanceStartDate([item])!;
+    expect(date.getFullYear()).toBe(2021);
+    expect(date.getMonth()).toBe(10); // November, 0-based
+    expect(date.getDate()).toBe(30);
+  });
+
+  it("ignores unparseable dates", () => {
+    const item = result("item", "timeWeighted", { twr: 0 }, [{ date: "not-a-date", value: 0 }]);
+    item.period.startDate = undefined;
+    expect(earliestPerformanceStartDate([item])).toBeUndefined();
   });
 });

@@ -1,5 +1,6 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import type { TaxonomyAllocation } from "@/lib/types";
-import { PrivacyAmount, useNumberFormatting } from "@wealthfolio/ui";
+import { chartSliceColor, PrivacyAmount, useNumberFormatting } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
   Tooltip,
@@ -21,17 +22,6 @@ interface CompactAllocationStripProps {
   onSegmentClick?: (categoryId: string, categoryName: string) => void;
 }
 
-// Theme colors for Security Types
-const THEME_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-6)",
-  "var(--chart-7)",
-];
-
 // Risk colors - muted Flexoki tones that don't attract attention
 const RISK_COLORS: Record<string, string> = {
   low: "var(--color-green-150)",
@@ -50,10 +40,6 @@ const RISK_LABEL_KEYS: Record<string, string> = {
   high: "holdings:risk_high",
   unknown: "holdings:risk_none",
 };
-
-function normalizeRiskName(name: string): string {
-  return name.toLowerCase().trim();
-}
 
 export function CompactAllocationStrip({
   title,
@@ -76,13 +62,19 @@ export function CompactAllocationStrip({
       // Fixed order: Low → Medium → High → Unknown
       // Always include all slots to preserve mental model consistency
       const ordered = RISK_ORDER.map((riskLevel) => {
-        const found = cats.find((c) => normalizeRiskName(c.categoryName) === riskLevel);
+        const found = cats.find(
+          (c) => c.categoryId.toLowerCase().replaceAll("_", "") === riskLevel,
+        );
         const value = found?.value ?? 0;
         const percent = total > 0 ? (value / total) * 100 : 0;
         return {
           id: found?.categoryId ?? riskLevel,
-          name: found?.categoryName ?? riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1),
-          label: RISK_LABEL_KEYS[riskLevel] ? t(RISK_LABEL_KEYS[riskLevel]) : riskLevel,
+          name: found
+            ? getCategoryLabel(t, allocation.taxonomyId, found.categoryId, found.categoryName)
+            : t(RISK_LABEL_KEYS[riskLevel]),
+          label: found
+            ? getCategoryLabel(t, allocation.taxonomyId, found.categoryId, found.categoryName)
+            : t(RISK_LABEL_KEYS[riskLevel]),
           value,
           percent,
           color: RISK_COLORS[riskLevel] ?? RISK_COLORS.unknown,
@@ -97,8 +89,8 @@ export function CompactAllocationStrip({
     const sorted = cats
       .map((c) => ({
         id: c.categoryId,
-        name: c.categoryName,
-        label: c.categoryName,
+        name: getCategoryLabel(t, allocation.taxonomyId, c.categoryId, c.categoryName),
+        label: getCategoryLabel(t, allocation.taxonomyId, c.categoryId, c.categoryName),
         value: c.value,
         percent: (c.value / total) * 100,
         isEmpty: false,
@@ -109,7 +101,7 @@ export function CompactAllocationStrip({
     if (sorted.length <= maxCategories) {
       return sorted.map((c, i) => ({
         ...c,
-        color: THEME_COLORS[i % THEME_COLORS.length],
+        color: chartSliceColor(i),
       }));
     }
 
@@ -121,7 +113,7 @@ export function CompactAllocationStrip({
     return [
       ...top.map((c, i) => ({
         ...c,
-        color: THEME_COLORS[i % THEME_COLORS.length],
+        color: chartSliceColor(i),
       })),
       {
         id: "other",
@@ -129,7 +121,7 @@ export function CompactAllocationStrip({
         label: t("holdings:other"),
         value: otherValue,
         percent: otherPercent,
-        color: THEME_COLORS[THEME_COLORS.length - 1],
+        color: "var(--chart-stone)",
         isEmpty: false,
       },
     ];
@@ -151,7 +143,7 @@ export function CompactAllocationStrip({
   if (processedCategories.length === 0) {
     return (
       <Card className="p-3">
-        <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+        <p className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
           {title}
         </p>
         <p className="text-muted-foreground mt-2 text-xs">{t("holdings:no_data")}</p>
@@ -163,7 +155,7 @@ export function CompactAllocationStrip({
     <Card className="p-3">
       <TooltipProvider>
         {/* Title */}
-        <p className="text-muted-foreground mb-2 text-sm font-medium uppercase tracking-wider">
+        <p className="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
           {title}
         </p>
 
@@ -188,12 +180,23 @@ export function CompactAllocationStrip({
                         // 1px separator via box-shadow (no extra DOM)
                         boxShadow: isLast ? "none" : "inset -1px 0 0 var(--background)",
                       }}
-                      onClick={() => !isEmpty && onSegmentClick?.(category.id, category.name)}
+                      onClick={() =>
+                        !isEmpty &&
+                        onSegmentClick?.(
+                          category.id,
+                          allocation?.categories.find((row) => row.categoryId === category.id)
+                            ?.categoryName ?? category.name,
+                        )
+                      }
                       role={isEmpty ? undefined : "button"}
                       tabIndex={isEmpty ? -1 : 0}
                       onKeyDown={(e) => {
                         if (!isEmpty && (e.key === "Enter" || e.key === " ")) {
-                          onSegmentClick?.(category.id, category.name);
+                          onSegmentClick?.(
+                            category.id,
+                            allocation?.categories.find((row) => row.categoryId === category.id)
+                              ?.categoryName ?? category.name,
+                          );
                         }
                       }}
                     />
@@ -227,12 +230,23 @@ export function CompactAllocationStrip({
               <div
                 key={category.id}
                 className={`flex items-center gap-1.5 text-xs transition-opacity ${isEmpty ? "opacity-50" : "cursor-pointer hover:opacity-70"}`}
-                onClick={() => !isEmpty && onSegmentClick?.(category.id, category.name)}
+                onClick={() =>
+                  !isEmpty &&
+                  onSegmentClick?.(
+                    category.id,
+                    allocation?.categories.find((row) => row.categoryId === category.id)
+                      ?.categoryName ?? category.name,
+                  )
+                }
                 role={isEmpty ? undefined : "button"}
                 tabIndex={isEmpty ? -1 : 0}
                 onKeyDown={(e) => {
                   if (!isEmpty && (e.key === "Enter" || e.key === " ")) {
-                    onSegmentClick?.(category.id, category.name);
+                    onSegmentClick?.(
+                      category.id,
+                      allocation?.categories.find((row) => row.categoryId === category.id)
+                        ?.categoryName ?? category.name,
+                    );
                   }
                 }}
               >

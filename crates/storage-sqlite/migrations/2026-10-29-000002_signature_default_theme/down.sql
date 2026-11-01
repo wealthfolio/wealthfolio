@@ -1,0 +1,2 @@
+-- No-op: the stored rows hold the theme and font these profiles already showed,
+-- and their owners may have kept or changed them since.

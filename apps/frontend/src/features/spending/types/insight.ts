@@ -54,6 +54,8 @@ export interface Headline {
   income: number;
   /** Outflow set aside into the Savings taxonomy; excluded from `spent`. */
   saved: number;
+  /** Money brought back from savings; `netCashflow = income - spent - saved + fromSavings`. */
+  fromSavings?: number;
   netCashflow: number;
   /** Σ groups.budget + Σ groups.buffer. */
   budget: number;
@@ -122,6 +124,7 @@ export interface MonthBucket {
   spent: number;
   income: number;
   saved: number;
+  fromSavings?: number;
 }
 
 export interface SpendingInsight {

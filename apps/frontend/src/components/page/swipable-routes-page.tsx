@@ -45,7 +45,7 @@ export function SwipableRoutesPage({
 }: SwipableRoutesPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   const emblaApiRef = React.useRef<any>(null);
 
   const handleBackClick = React.useCallback(() => {
@@ -96,12 +96,12 @@ export function SwipableRoutesPage({
       navigate(fullPath, { replace: false });
 
       // Sync with SwipableView carousel
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      // oxlint-disable-next-line typescript/no-unsafe-assignment
       const api = emblaApiRef.current;
       if (api) {
         const targetIndex = routes.findIndex((r) => r.path === path);
         if (targetIndex !== -1) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          // oxlint-disable-next-line typescript/no-unsafe-call, typescript/no-unsafe-member-access
           api.scrollTo(targetIndex);
         }
       }
@@ -137,10 +137,10 @@ export function SwipableRoutesPage({
       return newSet;
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const api = emblaApiRef.current;
     if (api) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      // oxlint-disable-next-line typescript/no-unsafe-call, typescript/no-unsafe-member-access
       api.scrollTo(currentRouteIndex);
     }
   }, [currentRouteIndex]);
@@ -189,7 +189,7 @@ export function SwipableRoutesPage({
                   {isActive ? (
                     /* Current View Label */
                     <div
-                      className="bg-muted/80 text-foreground whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300"
+                      className="bg-muted/80 text-foreground rounded-full px-4 py-1.5 text-sm font-medium whitespace-nowrap shadow-sm backdrop-blur-sm transition-all duration-300"
                       role="status"
                       aria-live="polite"
                     >
@@ -200,7 +200,7 @@ export function SwipableRoutesPage({
                     <button
                       type="button"
                       onClick={() => handleNavigate(route.path)}
-                      className="focus-visible:ring-ring bg-foreground/20 hover:bg-foreground/40 size-2 flex-shrink-0 rounded-full transition-all duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      className="focus-visible:ring-ring bg-foreground/20 hover:bg-foreground/40 size-2 flex-shrink-0 rounded-full transition-all duration-300 hover:scale-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                       aria-label={`Go to ${route.label}`}
                     />
                   )}

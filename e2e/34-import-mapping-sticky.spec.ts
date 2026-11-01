@@ -109,31 +109,34 @@ test("mapping preview keeps its header and # column pinned while it scrolls", as
   expect(result.numberColumnOnTop).toBe(true);
 });
 
-test("keyboard focus doesn't leave a row's select under the pinned header", async ({ page }) => {
+test("keyboard focus keeps row controls below the pinned header", async ({ page }) => {
   test.setTimeout(120_000);
   const table = await openActivityPreview(page, buildUnknownTypeCsv());
   const selects = table.locator("tbody").getByRole("combobox");
   await expect(selects).toHaveCount(20);
 
-  // Shift+Tab up from the last row. A select above the visible rows is scrolled into view; it
-  // has to land below the pinned header, with room for its 4px focus outline.
+  // Shift+Tab up from the last row's select, through each row's select and include checkbox. A
+  // control above the visible rows is scrolled into view; it has to land below the pinned header,
+  // with room for its 4px focus outline.
   await selects.last().focus();
   const stops: { row: number; gapBelowHeader: number }[] = [];
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 40; i++) {
     if (i > 0) await page.keyboard.press("Shift+Tab");
     stops.push(
       await page.evaluate(() => {
-        const select = document.activeElement as HTMLElement;
-        const row = select.closest("tr") as HTMLTableRowElement;
-        const header = select.closest("table")!.querySelector("thead")!.getBoundingClientRect();
+        const control = document.activeElement as HTMLElement;
+        const row = control.closest("tr") as HTMLTableRowElement;
+        const header = control.closest("table")!.querySelector("thead")!.getBoundingClientRect();
         return {
           row: row.rowIndex,
-          gapBelowHeader: Math.round(select.getBoundingClientRect().top - header.bottom),
+          gapBelowHeader: Math.round(control.getBoundingClientRect().top - header.bottom),
         };
       }),
     );
   }
 
-  expect(stops.map((stop) => stop.row)).toEqual(Array.from({ length: 20 }, (_, i) => 20 - i));
+  expect(stops.map((stop) => stop.row)).toEqual(
+    Array.from({ length: 40 }, (_, i) => 20 - Math.floor(i / 2)),
+  );
   expect(stops.filter((stop) => stop.gapBelowHeader < 4)).toEqual([]);
 });

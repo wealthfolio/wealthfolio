@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Button, Icons } from "@wealthfolio/ui";
 import { reloadApplication } from "@/lib/reload-application";
 import { profileCommand, type ProfileState } from "./api";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface ProfileStartupRecoveryProps {
   error: string;
@@ -38,7 +40,7 @@ export function ProfileStartupRecovery({ error, onStartNew }: ProfileStartupReco
   return (
     <main className="bg-background text-foreground flex min-h-dvh items-center justify-center px-5 py-16">
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-8" />
-      <div className="bg-card text-card-foreground border-border w-full max-w-lg rounded-2xl border p-6 shadow-sm sm:p-8">
+      <div className={cn(cardSurfaceClassName, "w-full max-w-lg p-6 sm:p-8")}>
         <header className="space-y-4">
           <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-xl">
             <Icons.FolderOpen className="size-6" aria-hidden="true" />
@@ -106,11 +108,11 @@ export function ProfileStartupRecovery({ error, onStartNew }: ProfileStartupReco
           </p>
         )}
         <details className="border-border text-muted-foreground mt-6 border-t pt-4 text-xs">
-          <summary className="focus-visible:ring-ring cursor-pointer rounded-sm py-1 focus-visible:outline-none focus-visible:ring-2">
+          <summary className="focus-visible:ring-ring cursor-pointer rounded-sm py-1 focus-visible:ring-2 focus-visible:outline-none">
             {t("profiles.recoveryDetails")}
           </summary>
           <p className="mt-3 leading-relaxed">{t("profiles.registryRecoveryInstructions")}</p>
-          <pre className="bg-muted text-foreground mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg p-3 font-mono text-xs">
+          <pre className="bg-muted text-foreground mt-3 max-h-40 overflow-auto rounded-lg p-3 font-mono text-xs break-words whitespace-pre-wrap">
             {actionError ?? error}
           </pre>
         </details>

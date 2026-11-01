@@ -23,6 +23,7 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
       | "CREDIT_CARD"
       | "CRYPTOCURRENCY",
     group: account?.group ?? undefined,
+    accountNumber: account?.accountNumber ?? "",
     currency: account?.currency ?? settings?.baseCurrency ?? "USD",
     isDefault: account?.isDefault ?? false,
     isActive: account?.id ? account?.isActive : true,
@@ -35,9 +36,13 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
     <Dialog open={open} onOpenChange={onClose} useIsMobile={useIsMobileViewport}>
       <DialogContent
         data-testid="account-modal"
-        className="sm:max-w-230 max-h-[90vh] overflow-y-auto p-0"
+        className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-230"
       >
-        <AccountForm defaultValues={defaultValues} onSuccess={onClose} />
+        <AccountForm
+          defaultValues={defaultValues}
+          isSynced={!!account?.providerAccountId}
+          onSuccess={onClose}
+        />
       </DialogContent>
     </Dialog>
   );

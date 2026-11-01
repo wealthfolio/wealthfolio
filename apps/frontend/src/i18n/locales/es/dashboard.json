@@ -65,8 +65,8 @@
     "more_goals_one": "+{{count}} objetivo más",
     "more_goals_other": "+{{count}} objetivos más",
     "more_goals_many": "+{{count}} objetivos más",
-    "time_no_deadline": "SIN FECHA LÍMITE",
-    "time_due": "VENCE"
+    "time_no_deadline": "Sin fecha límite",
+    "time_due": "Vence"
   },
   "tabs": {
     "investments": "Inversiones",

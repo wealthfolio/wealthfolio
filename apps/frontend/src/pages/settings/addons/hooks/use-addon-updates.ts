@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -38,15 +39,17 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
 
       if (criticalUpdates.length > 0) {
         toast({
-          title: "🚨 Critical updates available",
-          description: `${criticalUpdates.length} addon${criticalUpdates.length > 1 ? "s have" : " has"} critical security updates available.`,
+          title: i18n.t("common:notifications.critical_updates_available"),
+          description: i18n.t("settings:messages.addonCriticalUpdates", {
+            count: criticalUpdates.length,
+          }),
           variant: "destructive",
         });
       } else if (hasUpdates) {
         const updateCount = results.filter((r) => r.updateInfo.updateAvailable).length;
         toast({
-          title: "📦 Updates available",
-          description: `${updateCount} addon${updateCount > 1 ? "s have" : " has"} updates available.`,
+          title: i18n.t("common:notifications.updates_available"),
+          description: i18n.t("settings:messages.addonUpdates", { count: updateCount }),
         });
       }
 
@@ -85,8 +88,8 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
       } catch (error) {
         console.error(`Error checking update for addon ${addonId}:`, error);
         toast({
-          title: "Update check failed",
-          description: `Failed to check updates for addon ${addonId}`,
+          title: i18n.t("common:notifications.update_check_failed"),
+          description: i18n.t("settings:messages.addonCheckFailed", { addon: addonId }),
           variant: "destructive",
         });
         throw error;
@@ -110,15 +113,17 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
 
       if (criticalUpdates.length > 0) {
         toast({
-          title: "🚨 Critical updates available",
-          description: `${criticalUpdates.length} addon${criticalUpdates.length > 1 ? "s have" : " has"} critical security updates available.`,
+          title: i18n.t("common:notifications.critical_updates_available"),
+          description: i18n.t("settings:messages.addonCriticalUpdates", {
+            count: criticalUpdates.length,
+          }),
           variant: "destructive",
         });
       } else if (hasUpdates) {
         const updateCount = results.filter((r) => r.updateInfo.updateAvailable).length;
         toast({
-          title: "📦 Updates available",
-          description: `${updateCount} addon${updateCount > 1 ? "s have" : " has"} updates available.`,
+          title: i18n.t("common:notifications.updates_available"),
+          description: i18n.t("settings:messages.addonUpdates", { count: updateCount }),
         });
       }
 
@@ -126,8 +131,8 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
     } catch (error) {
       console.error("Error checking all addon updates:", error);
       toast({
-        title: "Update check failed",
-        description: "Failed to check for addon updates. Please try again later.",
+        title: i18n.t("common:notifications.update_check_failed"),
+        description: i18n.t("common:notifications.addon_update_check_error"),
         variant: "destructive",
       });
       throw error;

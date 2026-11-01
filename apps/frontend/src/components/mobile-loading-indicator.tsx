@@ -8,7 +8,7 @@ export function MobileLoadingIndicator() {
   }
 
   return (
-    <div className="bg-primary/10 z-100 fixed inset-x-0 top-0 h-[3px] overflow-hidden">
+    <div className="bg-primary/10 fixed inset-x-0 top-0 z-100 h-[3px] overflow-hidden">
       {/* Smooth indeterminate progress strip */}
       <div
         className="bg-primary h-full w-2/5 rounded-full"

@@ -81,7 +81,7 @@ function PasteDialogImpl({
           <label className="flex cursor-pointer items-start gap-3">
             <RadioItem ref={expandRadioRef} name="expand-option" value="expand" defaultChecked />
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium leading-none">
+              <span className="text-sm leading-none font-medium">
                 {t("ui:dialog.createNewRows", "Create new rows")}
               </span>
               <span className="text-muted-foreground text-sm">
@@ -94,7 +94,7 @@ function PasteDialogImpl({
           <label className="flex cursor-pointer items-start gap-3">
             <RadioItem name="expand-option" value="no-expand" />
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium leading-none">
+              <span className="text-sm leading-none font-medium">
                 {t("ui:dialog.keepCurrentRows", "Keep current rows")}
               </span>
               <span className="text-muted-foreground text-sm">

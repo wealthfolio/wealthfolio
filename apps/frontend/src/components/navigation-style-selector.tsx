@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { NavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 import { Icons } from "@wealthfolio/ui";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { useTranslation } from "react-i18next";
 
 interface NavigationStyleSelectorProps {
@@ -12,7 +13,8 @@ interface NavigationStyleSelectorProps {
 
 // Presentational picker for the desktop navigation style (collapsed sidebar vs
 // floating bottom bar). Callers own the state (settings context vs onboarding
-// localStorage) and gate on large screens — this only renders the two cards.
+// localStorage) and gate on large screens — this only renders the two cards, each
+// with the current theme's card border, shadow and corners.
 export function NavigationStyleSelector({
   value,
   onChange,
@@ -29,10 +31,9 @@ export function NavigationStyleSelector({
         data-testid="nav-sidebar-button"
         onClick={() => onChange("sidebar")}
         className={cn(
-          "group relative overflow-hidden rounded-xl border-2 transition-all duration-200",
-          value === "sidebar"
-            ? "border-primary ring-primary/20 ring-2"
-            : "border-border hover:border-primary/50",
+          cardSurfaceClassName,
+          "group relative overflow-hidden transition-shadow duration-200",
+          value === "sidebar" ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
         )}
       >
         <div
@@ -69,7 +70,7 @@ export function NavigationStyleSelector({
         </div>
         {value === "sidebar" && (
           <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-            <Icons.Check className="h-3 w-3 text-white" />
+            <Icons.Check className="text-primary-foreground h-3 w-3" />
           </div>
         )}
       </button>
@@ -80,10 +81,9 @@ export function NavigationStyleSelector({
         data-testid="nav-launchbar-button"
         onClick={() => onChange("launchbar")}
         className={cn(
-          "group relative overflow-hidden rounded-xl border-2 transition-all duration-200",
-          value === "launchbar"
-            ? "border-primary ring-primary/20 ring-2"
-            : "border-border hover:border-primary/50",
+          cardSurfaceClassName,
+          "group relative overflow-hidden transition-shadow duration-200",
+          value === "launchbar" ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
         )}
       >
         <div
@@ -119,7 +119,7 @@ export function NavigationStyleSelector({
         </div>
         {value === "launchbar" && (
           <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-            <Icons.Check className="h-3 w-3 text-white" />
+            <Icons.Check className="text-primary-foreground h-3 w-3" />
           </div>
         )}
       </button>

@@ -1,4 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import enPerformance from "@/i18n/locales/en/performance.json";
+import zhPerformance from "@/i18n/locales/zh/performance.json";
+import enAccount from "@/i18n/locales/en/account.json";
+import zhAccount from "@/i18n/locales/zh/account.json";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MetricDisplayProps } from "@/components/metric-display";
@@ -7,13 +13,13 @@ import type { PerformanceResult } from "@/lib/types";
 import { PerformanceGrid } from "./performance-grid";
 
 vi.mock("@/components/metric-display", () => ({
-  HOLDINGS_MODE_MAX_DRAWDOWN_INFO: "holdings max drawdown",
-  HOLDINGS_MODE_VOLATILITY_INFO: "holdings volatility",
-  IRR_RETURN_INFO: "irr",
-  MAX_DRAWDOWN_INFO: "max drawdown",
-  TIME_WEIGHTED_RETURN_INFO: "twr",
-  VALUE_RETURN_INFO: "value return",
-  VOLATILITY_INFO: "volatility",
+  HOLDINGS_MODE_MAX_DRAWDOWN_INFO_KEY: "performance:metric_info.holdings_max_drawdown",
+  HOLDINGS_MODE_VOLATILITY_INFO_KEY: "performance:metric_info.holdings_volatility",
+  IRR_RETURN_INFO_KEY: "performance:metric_info.irr",
+  MAX_DRAWDOWN_INFO_KEY: "performance:metric_info.max_drawdown",
+  TIME_WEIGHTED_RETURN_INFO_KEY: "performance:metric_info.time_weighted_return",
+  VALUE_RETURN_INFO_KEY: "performance:metric_info.value_return",
+  VOLATILITY_INFO_KEY: "performance:metric_info.volatility",
   MetricDisplay: ({
     label,
     value,
@@ -79,6 +85,40 @@ function performanceResult(overrides: Partial<PerformanceResult> = {}): Performa
 }
 
 describe("PerformanceGrid", () => {
+  it("localizes holdings metric explanations without changing values or backend reasons", async () => {
+    const i18n = createInstance();
+    await i18n.use(initReactI18next).init({
+      lng: "zh",
+      fallbackLng: "en",
+      resources: {
+        en: { account: enAccount, performance: enPerformance },
+        zh: { account: zhAccount, performance: zhPerformance },
+      },
+    });
+    const performance = performanceResult({ risk: { volatility: 0.1, maxDrawdown: -0.2 } });
+    const original = structuredClone(performance);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PerformanceGrid performance={performance} isHoldingsMode />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId(`metric-${zhAccount.volatility}`)).toHaveTextContent(
+      zhPerformance.metric_info.holdings_volatility,
+    );
+    expect(screen.getByTestId(`metric-${zhAccount.volatility}`)).toHaveTextContent(":0.1:");
+    expect(screen.getByTestId(`metric-${zhAccount.max_drawdown}`)).toHaveTextContent(
+      zhPerformance.metric_info.holdings_max_drawdown,
+    );
+    expect(screen.getByTestId(`metric-${zhAccount.metric.value_return}`)).toHaveTextContent(
+      "Book basis is incomplete.",
+    );
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByTestId(`metric-${enAccount.volatility}`)).toHaveTextContent(
+      enPerformance.metric_info.holdings_volatility,
+    );
+    expect(performance).toEqual(original);
+  });
+
   it("does not show raw holdings value return when summary percent is unavailable", () => {
     render(<PerformanceGrid performance={performanceResult()} isHoldingsMode />);
 

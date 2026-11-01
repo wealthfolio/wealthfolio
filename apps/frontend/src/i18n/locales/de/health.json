@@ -192,7 +192,12 @@
     "to_market_data": "Marktdaten anzeigen",
     "to_general_settings": "Allgemeine Einstellungen öffnen",
     "to_connect": "Konten konfigurieren",
-    "review_transfers": "Überweisungen prüfen"
+    "review_transfers": "Überweisungen prüfen",
+    "rebuild_account_history": "Verlauf neu erstellen",
+    "add_price": "Preis hinzufügen",
+    "update_cost_basis": "Kostenbasis aktualisieren",
+    "review_transaction": "Transaktion prüfen",
+    "review_entry": "Eintrag prüfen"
   },
   "updatedAt": "Aktualisiert um {{time}}",
   "healthy": {

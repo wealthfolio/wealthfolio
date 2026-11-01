@@ -408,6 +408,40 @@ fn test_detect_addon_permissions_assets_and_market_data_sdk_categories() {
 }
 
 #[test]
+fn test_detect_addon_permissions_alternative_assets() {
+    let addon_files = vec![AddonFile {
+        name: "addon.js".to_string(),
+        content: r#"
+            export default async function enable(ctx) {
+                const holdings = await ctx.api.alternativeAssets.getAll();
+            }
+        "#
+        .to_string(),
+        is_main: true,
+    }];
+
+    let detected_permissions = detect_addon_permissions(&addon_files);
+    let alternative_assets_permission = detected_permissions
+        .iter()
+        .find(|permission| permission.category == "alternative-assets")
+        .expect("alternative-assets permissions should be detected");
+
+    assert!(
+        alternative_assets_permission
+            .functions
+            .iter()
+            .any(|function| function.name == "getAll"),
+        "getAll should be detected under alternative-assets"
+    );
+    assert!(
+        detected_permissions
+            .iter()
+            .all(|permission| permission.category != "accounts"),
+        "alternativeAssets.getAll should not be detected under accounts"
+    );
+}
+
+#[test]
 fn test_detect_addon_permissions_historical_exchange_rates() {
     let addon_files = vec![AddonFile {
         name: "addon.js".to_string(),
@@ -533,6 +567,38 @@ fn test_detect_addon_permissions_spending() {
         .functions
         .iter()
         .any(|function| function.name == "searchCashActivities"));
+}
+
+#[test]
+fn spending_metadata_writes_and_budgets_are_detected_under_explicit_high_risk_categories() {
+    let files=vec![AddonFile{name:"addon.js".into(),content:r#"
+        ctx.api.spending.getContext(); ctx.api.spending.getBudget(); ctx.api.spending.getEvents(); ctx.api.spending.getEventTypes();
+        ctx.api.spending.assignCategory('a','expense','c'); ctx.api.spending.unassignCategory('a','expense'); ctx.api.spending.setEvent('a',null);
+        ctx.api.spending.upsertBudgetTarget({});
+    "#.into(),is_main:true}];
+    let permissions = detect_addon_permissions(&files);
+    let functions = |category: &str| {
+        permissions
+            .iter()
+            .find(|p| p.category == category)
+            .unwrap()
+            .functions
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect::<std::collections::HashSet<_>>()
+    };
+    assert_eq!(
+        functions("spending"),
+        std::collections::HashSet::from(["getContext", "getBudget", "getEvents", "getEventTypes"])
+    );
+    assert_eq!(
+        functions("activities"),
+        std::collections::HashSet::from(["assignCategory", "unassignCategory", "setEvent"])
+    );
+    assert_eq!(
+        functions("budgets"),
+        std::collections::HashSet::from(["upsertBudgetTarget"])
+    );
 }
 
 #[test]

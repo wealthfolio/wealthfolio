@@ -13,6 +13,7 @@
   --segmented-radius: 9999px;
   --button-image: none;
   --button-shadow: 0 0 #0000;
+  --button-border: transparent;
   --button-weight: 500;
   --button-outline-bg: var(--input-bg);
   --button-outline-border: var(--input);
@@ -24,6 +25,15 @@
   --button-secondary-image: none;
   --button-secondary-shadow: 0 0 #0000;
   --button-secondary-hover-bg: color-mix(in oklab, var(--secondary) 80%, transparent);
+  --button-destructive-bg: var(--destructive-subtle);
+  --button-destructive-foreground: var(--destructive-subtle-foreground);
+  --button-destructive-border: transparent;
+  --button-destructive-shadow: 0 0 #0000;
+  --button-destructive-hover-bg: color-mix(
+    in oklab,
+    var(--destructive-subtle-border) 50%,
+    transparent
+  );
   --field-border: var(--input);
   --field-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --field-glow: 0 0 #0000;
@@ -82,16 +92,29 @@
   --input: hsl(var(--flexoki-ui));
   --input-bg: var(--background);
   --ring: hsl(var(--flexoki-tx-2));
-  --chart-1: #355c4c;
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 7% 70%);
-  --chart-7: hsl(55 10% 79%);
-  --chart-8: hsl(50 14% 83%);
-  --chart-9: hsl(51 21% 88%);
+  --chart-1: #659892;
+  --chart-2: #83925b;
+  --chart-3: #b99f64;
+  --chart-4: #bb7b5b;
+  --chart-5: #688daf;
+  --chart-6: #938dba;
+  --chart-7: #c07b9b;
+  --chart-8: #9f9d96;
+  --chart-9: #cecdc3;
   --chart-stone: #b1aa9a;
+  --series-1: #205ea6;
+  --series-2: #a02f6f;
+  --series-3: #24837b;
+  --series-4: #5e409d;
+  --series-5: #66800b;
+  --series-6: #ad8301;
+  --series-7: #bc5215;
+  --series-8: #af3029;
+  --spending-accent: hsl(155 32% 26%);
+  --spending-deep: #2a573f;
+  --spending-mid: #71a290;
+  --investments: var(--gain);
+  --net-worth: #ad8301;
   --sidebar: hsl(var(--flexoki-bg));
   --sidebar-foreground: hsl(var(--flexoki-tx));
   --sidebar-primary: hsl(var(--flexoki-tx));
@@ -125,6 +148,10 @@
   --info-subtle: var(--color-blue-50);
   --info-subtle-foreground: var(--color-blue-700);
   --info-subtle-border: var(--color-blue-200);
+  --loss-blue: var(--color-blue-600);
+  --loss-blue-subtle: var(--color-blue-50);
+  --loss-blue-subtle-foreground: var(--color-blue-700);
+  --loss-blue-subtle-border: var(--color-blue-200);
   --surface-highlight: rgb(255 255 255 / 0.35);
   --toast-bg: var(--popover);
   --toast-fg: var(--popover-foreground);
@@ -149,12 +176,17 @@
   --heatmap-accent: oklch(0.4 0.07 150);
   --allocation-over: var(--destructive);
   --allocation-under: var(--info);
-  --heatmap-positive-low: #cdd9bf;
-  --heatmap-positive-high: #355c4c;
-  --heatmap-negative-low: #e9b3a8;
-  --heatmap-negative-high: #d14e42;
-  --heatmap-label-dark: #1c2a24;
-  --heatmap-label-light: #f5f3ec;
+  --heatmap-positive-low: #e6ecd5;
+  --heatmap-positive-mid: #b8c496;
+  --heatmap-positive-high: #8a9c57;
+  --heatmap-negative-low: #fae2da;
+  --heatmap-negative-mid: #dca89d;
+  --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-mid: #9bb9df;
+  --heatmap-blue-high: #5b8ac4;
+  --heatmap-label-dark: #100f0f;
+  --heatmap-label-light: #fffcf0;
   --status-warn: oklch(0.66 0.11 60);
   --bar-stripe: rgba(255, 255, 255, 0.25);
   --chart-cursor: rgba(0, 0, 0, 0.04);
@@ -178,16 +210,38 @@
   --input: hsl(var(--flexoki-ui-2));
   --button-outline-bg: color-mix(in oklab, var(--input) 30%, transparent);
   --button-outline-hover-bg: color-mix(in oklab, var(--input) 50%, transparent);
-  --chart-1: hsl(156 28% 44%);
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 8% 60%);
-  --chart-7: hsl(55 10% 67%);
-  --chart-8: hsl(50 13% 72%);
-  --chart-9: hsl(51 18% 77%);
+  --chart-1: #5ea49c;
+  --chart-2: #899857;
+  --chart-3: #c5a556;
+  --chart-4: #c87c51;
+  --chart-5: #769ebb;
+  --chart-6: #a59cc4;
+  --chart-7: #d489a7;
+  --heatmap-positive-low: #edeecf;
+  --heatmap-positive-mid: #bec97e;
+  --heatmap-positive-high: #879a39;
+  --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-mid: #f89a8a;
+  --heatmap-negative-high: #d14d41;
+  --heatmap-blue-low: var(--color-blue-50);
+  --heatmap-blue-mid: var(--color-blue-200);
+  --heatmap-blue-high: var(--color-blue-400);
+  --chart-8: #9f9d96;
+  --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
+  --series-1: #4385be;
+  --series-2: #ce5d97;
+  --series-3: #3aa99f;
+  --series-4: #8b7ec8;
+  --series-5: #879a39;
+  --series-6: #d0a215;
+  --series-7: #da702c;
+  --series-8: #d14d41;
+  --spending-accent: hsl(156 28% 44%);
+  --spending-deep: hsl(156 28% 44%);
+  --spending-mid: #2a573f;
+  --investments: var(--gain);
+  --net-worth: #d0a215;
   --success-subtle: var(--color-green-950);
   --success-subtle-foreground: var(--color-green-200);
   --success-subtle-border: var(--color-green-800);
@@ -200,6 +254,10 @@
   --info-subtle: var(--color-blue-950);
   --info-subtle-foreground: var(--color-blue-200);
   --info-subtle-border: var(--color-blue-800);
+  --loss-blue: var(--color-blue-300);
+  --loss-blue-subtle: var(--color-blue-950);
+  --loss-blue-subtle-foreground: var(--color-blue-200);
+  --loss-blue-subtle-border: var(--color-blue-800);
   --surface-highlight: rgb(255 255 255 / 0.03);
   --toast-warning-bg: var(--color-orange-950);
   --toast-warning-fg: var(--color-orange-200);
@@ -216,4 +274,1884 @@
   --event-default: oklch(0.78 0.13 150);
   --event-today: oklch(0.85 0.16 90);
   --allocation-under: var(--info-subtle-foreground);
+}
+
+[data-theme-preview="classic"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 0.625rem;
+  --flexoki-bg: 48 100% 97%;
+  --flexoki-bg-2: 51 59% 95%;
+  --flexoki-ui: 51 21% 88%;
+  --flexoki-tx: 0 3% 6%;
+  --flexoki-tx-2: 50 3% 36%;
+  --flexoki-gr: 73 84% 26%;
+  --background: hsl(var(--flexoki-bg));
+  --foreground: hsl(var(--flexoki-tx));
+  --card: hsl(var(--flexoki-bg-2));
+  --primary: hsl(var(--flexoki-tx));
+  --muted: hsl(var(--flexoki-ui));
+  --muted-foreground: hsl(var(--flexoki-tx-2));
+  --success: hsl(var(--flexoki-gr));
+  --border: hsl(var(--flexoki-ui));
+  --chart-1: #659892;
+  --chart-2: #83925b;
+  --chart-3: #b99f64;
+  --chart-4: #bb7b5b;
+  --chart-5: #688daf;
+  --investments: var(--gain);
+  --sidebar: hsl(var(--flexoki-bg));
+  --sidebar-foreground: hsl(var(--flexoki-tx));
+  --sidebar-accent: hsl(var(--flexoki-ui));
+  --sidebar-border: hsl(var(--flexoki-ui));
+  --success-subtle: var(--color-green-50);
+  --destructive-subtle: var(--color-red-50);
+}
+
+.dark [data-theme-preview="classic"] {
+  --flexoki-bg: 0 3% 6%;
+  --flexoki-bg-2: 30 4% 11%;
+  --flexoki-ui: 30 3% 15%;
+  --flexoki-tx: 55 10% 79%;
+  --flexoki-tx-2: 43 3% 60.5%;
+  --flexoki-gr: 72 46% 41%;
+  --chart-1: #5ea49c;
+  --chart-2: #899857;
+  --chart-3: #c5a556;
+  --chart-4: #c87c51;
+  --chart-5: #769ebb;
+  --investments: var(--gain);
+  --success-subtle: var(--color-green-950);
+  --destructive-subtle: var(--color-red-950);
+}
+
+:root[data-theme="signature"] {
+  --radius: 1rem;
+  --button-radius: 9999px;
+  --control-radius: 1rem;
+  --control-height: 2.5rem;
+  --card-radius: var(--radius);
+  --card-border: transparent;
+  --card-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.05), 0 1px 2px rgb(18 18 18 / 0.03),
+    0 4px 12px rgb(18 18 18 / 0.025), 0 16px 36px -12px rgb(18 18 18 / 0.07);
+  --popup-radius: 1.25rem;
+  --dialog-radius: 1.75rem;
+  --badge-radius: 9999px;
+  --segmented-radius: 9999px;
+  --background: #f8f8f8;
+  --foreground: #121212;
+  --card: #fdfdfd;
+  --card-foreground: #121212;
+  --popover: #ffffff;
+  --popover-foreground: #121212;
+  --primary: #2a2a2a;
+  --primary-foreground: #ffffff;
+  --secondary: #e8e8e8;
+  --secondary-foreground: #1a1a1a;
+  --muted: #ececec;
+  --muted-foreground: #5c5c5c;
+  --accent: #ebebeb;
+  --accent-foreground: #121212;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --success: #357941;
+  --success-foreground: #ffffff;
+  --warning: #8a5a12;
+  --warning-foreground: #ffffff;
+  --success-subtle: #e8f2eb;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #bfd9c8;
+  --destructive-subtle: #fbe7e5;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #f2c3be;
+  --warning-subtle: #f8eedb;
+  --warning-subtle-foreground: var(--warning);
+  --warning-subtle-border: #ecd3a6;
+  --info: #5b3fc4;
+  --info-foreground: #ffffff;
+  --info-subtle: #ebe7fb;
+  --info-subtle-foreground: #4a2fa6;
+  --info-subtle-border: #d7cff6;
+  --border: #ececec;
+  --input: #e0e0e0;
+  --input-bg: #f6f6f6;
+  --ring: #6d50d8;
+  --chart-1: #4f6b92;
+  --chart-2: #b89a4c;
+  --chart-3: #8e7cb3;
+  --chart-4: #7b96c9;
+  --chart-5: #b74583;
+  --chart-6: #2f4f73;
+  --chart-7: #d2b98a;
+  --chart-8: #9c998e;
+  --chart-9: #b3a2cc;
+  --chart-stone: #cfccc6;
+  --series-1: var(--chart-1);
+  --series-2: #aa8c3e;
+  --series-3: var(--chart-3);
+  --series-4: #748ec1;
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: #a8604a;
+  --series-8: #939085;
+  --spending-accent: var(--chart-1);
+  --spending-deep: var(--chart-1);
+  --spending-mid: var(--chart-4);
+  --investments: var(--gain);
+  --net-worth: #aa8c3e;
+  --sidebar: #f8f8f8;
+  --sidebar-foreground: #262626;
+  --sidebar-primary: #2a2a2a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6e6e6;
+  --sidebar-accent-foreground: #121212;
+  --sidebar-border: #ececec;
+  --sidebar-ring: #6d50d8;
+  --toast-border: #ececec;
+  --heatmap-positive-low: #e5ece7;
+  --heatmap-positive-high: #98b3a2;
+  --heatmap-negative-low: #f5e3e0;
+  --heatmap-negative-high: #d19a92;
+  --heatmap-blue-low: #dfe9f5;
+  --heatmap-blue-high: #8dacd4;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #121212;
+  --heatmap-label-light: #ffffff;
+  --heatmap-accent: #357941;
+  --status-warn: #8a5a12;
+  --event-default: #3f3524;
+  --event-today: #b08a4a;
+  --button-weight: 600;
+  --button-border: color-mix(in srgb, var(--primary) 85%, white);
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 -1px 0 rgb(0 0 0 / 0.2),
+    0 1px 2px rgb(0 0 0 / 0.12), 0 6px 18px -8px rgb(0 0 0 / 0.4);
+  --button-outline-bg: var(--segmented-thumb);
+  --button-outline-border: rgb(16 15 15 / 0.07);
+  --button-outline-image: var(--segmented-thumb-image);
+  --button-outline-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 1px rgb(16 15 15 / 0.03),
+    0 2px 4px -2px rgb(16 15 15 / 0.08);
+  --button-outline-hover-bg: #ffffff;
+  --button-secondary-bg: var(--button-outline-bg);
+  --button-secondary-border: var(--button-outline-border);
+  --button-secondary-image: var(--button-outline-image);
+  --button-secondary-shadow: var(--button-outline-shadow);
+  --button-secondary-hover-bg: var(--button-outline-hover-bg);
+  --button-destructive-bg: var(--destructive);
+  --button-destructive-foreground: var(--destructive-foreground);
+  --button-destructive-border: color-mix(in srgb, var(--destructive) 85%, white);
+  --button-destructive-shadow: var(--button-shadow);
+  --button-destructive-hover-bg: color-mix(in oklab, var(--destructive) 90%, transparent);
+  --field-border: #e8e8e8;
+  --field-shadow: 0 0 #0000;
+  --switch-thumb: #ffffff;
+  --switch-thumb-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.05), 0 1px 2px rgb(18 18 18 / 0.1), 0 3px 8px rgb(18 18 18 / 0.12);
+  --segmented-thumb: var(--background);
+  --segmented-thumb-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 15 15 / 0.07),
+    0 2px 6px -2px rgb(16 15 15 / 0.14);
+  --overlay-border: transparent;
+  --overlay-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.06), 0 2px 6px rgb(18 18 18 / 0.03),
+    0 12px 28px rgb(18 18 18 / 0.06), 0 32px 64px -16px rgb(18 18 18 / 0.16);
+  --popup-shadow:
+    0 2px 6px rgb(18 18 18 / 0.03), 0 10px 24px rgb(18 18 18 / 0.07),
+    0 24px 48px -12px rgb(18 18 18 / 0.12);
+  --card-title-tracking: -0.02em;
+}
+
+:root[data-theme="signature"].dark {
+  --card-border: transparent;
+  --card-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.06), 0 -0.5px 0 rgb(255 255 255 / 0.08),
+    inset 0 18px 24px -18px rgb(255 255 255 / 0.045), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 16px 36px -12px rgb(0 0 0 / 0.55);
+  --background: #0f0f10;
+  --foreground: #f4f4f5;
+  --card: #1a1a1c;
+  --card-foreground: #f4f4f5;
+  --popover: #212123;
+  --popover-foreground: #f4f4f5;
+  --primary: #f5f5f5;
+  --primary-foreground: #0b0b0b;
+  --secondary: #28282b;
+  --secondary-foreground: #ededee;
+  --muted: #202022;
+  --muted-foreground: #a3a3a8;
+  --accent: #29292c;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f08a7e;
+  --destructive-foreground: #230a07;
+  --success: #86c09c;
+  --success-foreground: #08140d;
+  --warning: #e8b262;
+  --warning-foreground: #1a1203;
+  --success-subtle: #13241a;
+  --success-subtle-border: #2b4a37;
+  --destructive-subtle: #2c1513;
+  --destructive-subtle-border: #57281f;
+  --warning-subtle: #281d0b;
+  --warning-subtle-border: #4f3a16;
+  --info: #b3a3f7;
+  --info-foreground: #160e38;
+  --info-subtle: #221c3d;
+  --info-subtle-foreground: #d4caff;
+  --info-subtle-border: #3d3373;
+  --border: #262629;
+  --input: #3a3a3e;
+  --input-bg: #1f1f21;
+  --ring: #a996f5;
+  --chart-1: #8ea6cf;
+  --chart-2: #d4b66a;
+  --chart-3: #b2a3d9;
+  --chart-4: #a8bee8;
+  --chart-5: #db7fae;
+  --chart-6: #5f80b0;
+  --chart-7: #e8d3a6;
+  --chart-8: #a8a59b;
+  --chart-9: #cdbfe8;
+  --chart-stone: #5a5650;
+  --series-2: var(--chart-2);
+  --series-4: var(--chart-4);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --investments: var(--gain);
+  --net-worth: #d4b66a;
+  --sidebar: #0f0f10;
+  --sidebar-foreground: #d4d4d8;
+  --sidebar-primary: #f5f5f5;
+  --sidebar-primary-foreground: #0b0b0b;
+  --sidebar-accent: #202022;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #1c1c1e;
+  --sidebar-ring: #a996f5;
+  --toast-border: #36363a;
+  --heatmap-positive-low: #213a2c;
+  --heatmap-positive-high: #86bf9c;
+  --heatmap-negative-low: #44272a;
+  --heatmap-negative-high: #ec8a7e;
+  --heatmap-blue-low: #1a3344;
+  --heatmap-blue-high: #58b3ee;
+  --heatmap-label-dark: #121212;
+  --heatmap-label-light: #f4f4f5;
+  --heatmap-accent: #86c09c;
+  --status-warn: #e8b262;
+  --event-default: #b08a4a;
+  --event-today: #e6cf9f;
+  --button-border: color-mix(in srgb, var(--primary) 85%, black);
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    0 1px 2px rgb(0 0 0 / 0.5), 0 6px 18px -8px rgb(0 0 0 / 0.6);
+  --button-destructive-border: color-mix(in srgb, var(--destructive) 85%, black);
+  --button-outline-border: rgb(255 252 240 / 0.1);
+  --button-outline-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 8px -2px rgb(0 0 0 / 0.55);
+  --button-outline-hover-bg: #333337;
+  --field-border: #323236;
+  --switch-thumb: var(--background);
+  --segmented-thumb: #2c2c30;
+  --segmented-thumb-image: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0));
+  --segmented-thumb-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 252 240 / 0.1),
+    0 2px 8px -2px rgb(0 0 0 / 0.55);
+  --overlay-border: transparent;
+  --overlay-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.07), 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 12px 28px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+  --popup-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.06), 0 10px 24px rgb(0 0 0 / 0.4),
+    0 24px 48px -12px rgb(0 0 0 / 0.6);
+}
+
+[data-theme-preview="signature"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 1rem;
+  --background: #f8f8f8;
+  --foreground: #121212;
+  --card: #fdfdfd;
+  --primary: #2a2a2a;
+  --muted: #ececec;
+  --muted-foreground: #5c5c5c;
+  --success: #357941;
+  --border: #ececec;
+  --chart-1: #4f6b92;
+  --chart-2: #b89a4c;
+  --chart-3: #8e7cb3;
+  --chart-4: #7b96c9;
+  --chart-5: #b74583;
+  --investments: var(--gain);
+  --sidebar: #f8f8f8;
+  --sidebar-foreground: #262626;
+  --sidebar-accent: #e6e6e6;
+  --sidebar-border: #ececec;
+  --success-subtle: #e8f2eb;
+  --destructive-subtle: #fbe7e5;
+}
+
+.dark [data-theme-preview="signature"] {
+  --background: #0f0f10;
+  --foreground: #f4f4f5;
+  --card: #1a1a1c;
+  --primary: #f5f5f5;
+  --muted: #202022;
+  --muted-foreground: #a3a3a8;
+  --success: #86c09c;
+  --success-subtle: #13241a;
+  --destructive-subtle: #2c1513;
+  --border: #262629;
+  --chart-1: #8ea6cf;
+  --chart-2: #d4b66a;
+  --chart-3: #b2a3d9;
+  --chart-4: #a8bee8;
+  --chart-5: #db7fae;
+  --investments: var(--gain);
+  --sidebar: #0f0f10;
+  --sidebar-foreground: #d4d4d8;
+  --sidebar-accent: #202022;
+  --sidebar-border: #1c1c1e;
+}
+
+:root[data-theme="ember"] {
+  --radius: 1rem;
+  --button-radius: 0.875rem;
+  --control-radius: 0.875rem;
+  --control-height: 2.25rem;
+  --card-radius: 1rem;
+  --card-shadow: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --popup-radius: 0.875rem;
+  --dialog-radius: 1rem;
+  --badge-radius: 0.875rem;
+  --segmented-radius: 0.875rem;
+  --background: oklch(0.993 0 0);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9665 0.0067 97.3521);
+  --card-foreground: oklch(0.1908 0.002 106.5859);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2671 0.0196 98.939);
+  --primary: hsl(40 3% 20%);
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.9245 0.0138 92.9892);
+  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
+  --muted: oklch(0.9341 0.0153 90.239);
+  --muted-foreground: oklch(0.51 0.0078 97.4503);
+  --accent: oklch(0.9245 0.0138 92.9892);
+  --accent-foreground: oklch(0.2671 0.0196 98.939);
+  --destructive: #942822;
+  --destructive-foreground: #ffffff;
+  --success: #536907;
+  --success-foreground: #ffffff;
+  --warning: #74510a;
+  --warning-foreground: #ffffff;
+  --border: oklch(0.8847 0.0069 97.3627);
+  --input: oklch(0.7621 0.0156 98.3528);
+  --ring: hsl(43 3% 52%);
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+  --spending-accent: #43675d;
+  --spending-deep: #43675d;
+  --spending-mid: #8aa597;
+  --investments: #3d3a35;
+  --net-worth: #bc5215;
+  --sidebar: oklch(0.993 0 0);
+  --sidebar-foreground: oklch(0.359 0.0051 106.6524);
+  --sidebar-primary: hsl(40 3% 20%);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
+  --sidebar-accent-foreground: oklch(0.325 0 0);
+  --sidebar-border: oklch(0.9401 0 0);
+  --sidebar-ring: oklch(0.7731 0 0);
+  --toast-border: oklch(0.8847 0.0069 97.3627);
+  --heatmap-positive-low: #e6ecd5;
+  --heatmap-positive-high: #8a9c57;
+  --heatmap-negative-low: #fae2da;
+  --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-high: #5b8ac4;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #1b1a0c;
+  --heatmap-label-light: #fdf8ec;
+}
+
+:root[data-theme="ember"].dark {
+  --background: #262624;
+  --foreground: #f1efe9;
+  --card: #2e2d2a;
+  --card-foreground: #faf7f0;
+  --popover: #333230;
+  --popover-foreground: #e9e6df;
+  --primary: oklch(0.9 0.008 95);
+  --primary-foreground: #1c1b19;
+  --secondary: #3a352d;
+  --secondary-foreground: #d3c9b6;
+  --muted: #3a3833;
+  --muted-foreground: #b5aa96;
+  --accent: #33291d;
+  --accent-foreground: #f0d9b5;
+  --destructive: hsl(12 80% 66%);
+  --destructive-foreground: #1e0d0a;
+  --success: #a0af54;
+  --success-foreground: #12160a;
+  --warning: #e5c478;
+  --warning-foreground: #241c0a;
+  --border: #3a352d;
+  --input: #4a4136;
+  --input-bg: #2e2d2a;
+  --ring: hsl(24 40% 50%);
+  --chart-1: hsl(25 92% 72%);
+  --chart-2: hsl(24 81% 61%);
+  --chart-3: hsl(23 70% 51%);
+  --chart-4: hsl(23 73% 46%);
+  --chart-5: hsl(22 80% 41%);
+  --chart-6: hsl(22 82% 34%);
+  --chart-7: hsl(22 79% 25%);
+  --chart-8: hsl(22 75% 20%);
+  --chart-9: hsl(22 70% 15%);
+  --chart-stone: #a89c88;
+  --spending-accent: hsl(22 80% 46%);
+  --spending-deep: hsl(22 80% 46%);
+  --spending-mid: hsl(24 84% 62%);
+  --investments: #e8e4dc;
+  --net-worth: #da702c;
+  --sidebar: #211f1d;
+  --sidebar-foreground: #e8e0d0;
+  --sidebar-primary: oklch(0.9 0.008 95);
+  --sidebar-primary-foreground: #1c1b19;
+  --sidebar-accent: #33291d;
+  --sidebar-accent-foreground: #f0d9b5;
+  --sidebar-border: #3a352d;
+  --sidebar-ring: hsl(24 40% 50%);
+  --toast-border: #4a4136;
+  --fi-stream-1: hsl(25 92% 72%);
+  --fi-stream-2: hsl(24 84% 62%);
+  --fi-stream-3: hsl(23 78% 52%);
+  --fi-stream-4: hsl(22 80% 42%);
+  --fi-stream-5: hsl(22 78% 32%);
+  --heatmap-accent: #879a39;
+  --status-warn: oklch(0.75 0.16 60);
+  --event-default: hsl(24 84% 62%);
+  --event-today: hsl(25 92% 72%);
+  --heatmap-positive-low: #cdd597;
+  --heatmap-positive-high: #536907;
+  --heatmap-negative-low: #fdb2a2;
+  --heatmap-negative-high: #942822;
+  --heatmap-blue-low: #90d0fd;
+  --heatmap-blue-high: #015a86;
+  --heatmap-label-dark: #1b1a0c;
+  --heatmap-label-light: #fdf8ec;
+}
+
+[data-theme-preview="ember"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 1rem;
+  --background: oklch(0.993 0 0);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9665 0.0067 97.3521);
+  --primary: hsl(40 3% 20%);
+  --muted: oklch(0.9341 0.0153 90.239);
+  --muted-foreground: oklch(0.51 0.0078 97.4503);
+  --success: #536907;
+  --border: oklch(0.8847 0.0069 97.3627);
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --investments: #3d3a35;
+  --sidebar: oklch(0.993 0 0);
+  --sidebar-foreground: oklch(0.359 0.0051 106.6524);
+  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
+  --sidebar-border: oklch(0.9401 0 0);
+  --success-subtle: var(--color-green-50);
+  --destructive-subtle: var(--color-red-50);
+}
+
+.dark [data-theme-preview="ember"] {
+  --success-subtle: var(--color-green-950);
+  --destructive-subtle: var(--color-red-950);
+  --background: #262624;
+  --foreground: #f1efe9;
+  --card: #2e2d2a;
+  --primary: oklch(0.9 0.008 95);
+  --muted: #3a3833;
+  --muted-foreground: #b5aa96;
+  --success: #a0af54;
+  --border: #3a352d;
+  --chart-1: hsl(25 92% 72%);
+  --chart-2: hsl(24 81% 61%);
+  --chart-3: hsl(23 70% 51%);
+  --chart-4: hsl(23 73% 46%);
+  --chart-5: hsl(22 80% 41%);
+  --investments: #e8e4dc;
+  --sidebar: #211f1d;
+  --sidebar-foreground: #e8e0d0;
+  --sidebar-accent: #33291d;
+  --sidebar-border: #3a352d;
+}
+
+:root[data-theme="cupertino"] {
+  --radius: 1.125rem;
+  --button-radius: 9999px;
+  --control-radius: 0.875rem;
+  --control-height: 2.75rem;
+  --card-radius: 1.625rem;
+  --card-border: transparent;
+  --card-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 20px -10px rgb(0 0 0 / 0.1);
+  --popup-radius: 1.375rem;
+  --dialog-radius: 2.25rem;
+  --badge-radius: 9999px;
+  --segmented-radius: 9999px;
+  --font-sans:
+    "Rubik Arabic", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", "Inter Variable", system-ui, sans-serif;
+  --font-mono: "Rubik Arabic", ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --font-serif: "Rubik Arabic", "New York", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --background: #f2f2f7;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e9ee;
+  --secondary-foreground: #0060c0;
+  --muted: #e5e5ea;
+  --muted-foreground: #636366;
+  --accent: #e9e9ee;
+  --accent-foreground: #000000;
+  --destructive: #d70015;
+  --destructive-foreground: #ffffff;
+  --success: #1b7a33;
+  --success-foreground: #ffffff;
+  --warning: #c93400;
+  --warning-foreground: #ffffff;
+  --info: #0066cc;
+  --info-foreground: #ffffff;
+  --border: #dcdce1;
+  --input: #e3e3e8;
+  --input-bg: rgba(118, 118, 128, 0.12);
+  --ring: #0066cc;
+  --chart-1: #007aff;
+  --chart-2: #5856d6;
+  --chart-3: #30b0c7;
+  --chart-4: #ff9500;
+  --chart-5: #af52de;
+  --chart-6: #a2845e;
+  --chart-7: #ff2d55;
+  --chart-8: #00c7be;
+  --chart-9: #8e8e93;
+  --chart-stone: #8e8e93;
+  --chart-cursor: rgba(0, 0, 0, 0.04);
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: #0596ac;
+  --series-4: #c97502;
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: #00807a;
+  --spending-accent: #007aff;
+  --spending-deep: #0060c0;
+  --spending-mid: #5ac8fa;
+  --investments: var(--gain);
+  --net-worth: #c97502;
+  --bar-stripe: rgba(255, 255, 255, 0.3);
+  --sidebar: #ebebf0;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #0066cc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dfdfe4;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #dcdce1;
+  --sidebar-ring: #0066cc;
+  --success-subtle: #e8f6ec;
+  --success-subtle-foreground: #1b7a33;
+  --success-subtle-border: #bfe3c9;
+  --destructive-subtle: #fdecea;
+  --destructive-subtle-foreground: #b3000f;
+  --destructive-subtle-border: #f5c2bd;
+  --warning-subtle: #fff2df;
+  --warning-subtle-foreground: #9a4a00;
+  --warning-subtle-border: #f6d3a3;
+  --toast-warning-bg: var(--warning-subtle);
+  --toast-warning-fg: var(--warning-subtle-foreground);
+  --toast-warning-border: var(--warning-subtle-border);
+  --info-subtle: #e7f0fc;
+  --info-subtle-foreground: #0058b3;
+  --info-subtle-border: #bcd6f5;
+  --loss-blue: var(--info);
+  --loss-blue-subtle: var(--info-subtle);
+  --loss-blue-subtle-foreground: var(--info-subtle-foreground);
+  --loss-blue-subtle-border: var(--info-subtle-border);
+  --status-warn: #c93400;
+  --fi-stream-1: #007aff;
+  --fi-stream-2: #5856d6;
+  --fi-stream-3: #30b0c7;
+  --fi-stream-4: #af52de;
+  --fi-stream-5: #00c7be;
+  --heatmap-accent: #007aff;
+  --event-default: #007aff;
+  --event-today: #ff9500;
+  --liquid-glass-bg: rgba(250, 250, 252, 0.8);
+  --liquid-glass-border: rgba(0, 0, 0, 0.08);
+  --button-weight: 600;
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.1);
+  --button-outline-bg: var(--input-bg);
+  --button-outline-border: transparent;
+  --button-outline-shadow: 0 0 #0000;
+  --button-outline-hover-bg: rgb(118 118 128 / 0.2);
+  --field-border: transparent;
+  --switch-on: #34c759;
+  --switch-off: rgb(120 120 128 / 0.16);
+  --switch-width: 3.1875rem;
+  --switch-height: 1.9375rem;
+  --switch-thumb: #ffffff;
+  --switch-thumb-size: 1.6875rem;
+  --switch-thumb-shadow: 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
+  --segmented-thumb: #ffffff;
+  --segmented-thumb-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04), 0 3px 8px rgb(0 0 0 / 0.12), 0 3px 1px rgb(0 0 0 / 0.04);
+  --overlay-border: transparent;
+  --liquid-glass-blur: blur(24px) saturate(180%);
+  --liquid-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.75), inset 0 -0.5px 0 rgb(0 0 0 / 0.05),
+    0 0 0 0.5px rgb(0 0 0 / 0.1), 0 12px 32px -8px rgb(0 0 0 / 0.2);
+  --liquid-glass-sheen: none;
+  --liquid-glass-rim: inset 0 0 0 0.5px rgb(255 255 255 / 0.5);
+  --heatmap-positive-low: #eaf6ed;
+  --heatmap-positive-high: #6cbf83;
+  --heatmap-negative-low: #fdeceb;
+  --heatmap-negative-high: #ec7c74;
+  --heatmap-blue-low: #e9f1fd;
+  --heatmap-blue-high: #64a3f7;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #1c1c1e;
+  --heatmap-label-light: #ffffff;
+}
+
+:root[data-theme="cupertino"].dark {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #1c1c1e;
+  --card-foreground: #ffffff;
+  --popover: #2c2c2e;
+  --popover-foreground: #ffffff;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #409cff;
+  --muted: #2c2c2e;
+  --muted-foreground: #98989f;
+  --accent: #2c2c2e;
+  --accent-foreground: #ffffff;
+  --destructive: #ff453a;
+  --destructive-foreground: #000000;
+  --success: #30d158;
+  --success-foreground: #000000;
+  --warning: #ff9f0a;
+  --warning-foreground: #000000;
+  --info: #0a84ff;
+  --info-foreground: #000000;
+  --border: #38383a;
+  --input: #39393d;
+  --input-bg: rgba(118, 118, 128, 0.32);
+  --ring: #0a84ff;
+  --chart-1: #0a84ff;
+  --chart-2: #5e5ce6;
+  --chart-3: #40c8e0;
+  --chart-4: #ff9f0a;
+  --chart-5: #bf5af2;
+  --chart-6: #ac8e68;
+  --chart-7: #ff375f;
+  --chart-8: #63e6e2;
+  --chart-9: #8e8e93;
+  --chart-stone: #8e8e93;
+  --chart-cursor: rgba(255, 255, 255, 0.06);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-8: var(--chart-8);
+  --spending-accent: #0a84ff;
+  --spending-deep: #409cff;
+  --spending-mid: #64d2ff;
+  --investments: var(--gain);
+  --net-worth: #ff9f0a;
+  --bar-stripe: rgba(0, 0, 0, 0.25);
+  --sidebar: #161618;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2c2e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2c2c2e;
+  --sidebar-ring: #0a84ff;
+  --success-subtle: #0f2415;
+  --success-subtle-foreground: #30d158;
+  --success-subtle-border: #1d4a2a;
+  --destructive-subtle: #2c1210;
+  --destructive-subtle-foreground: #ff6961;
+  --destructive-subtle-border: #5c2320;
+  --warning-subtle: #2a1d08;
+  --warning-subtle-foreground: #ffb340;
+  --warning-subtle-border: #5a3d0d;
+  --info-subtle: #0b1f36;
+  --info-subtle-foreground: #409cff;
+  --info-subtle-border: #173e66;
+  --status-warn: #ff9f0a;
+  --fi-stream-1: #0a84ff;
+  --fi-stream-2: #5e5ce6;
+  --fi-stream-3: #40c8e0;
+  --fi-stream-4: #bf5af2;
+  --fi-stream-5: #63e6e2;
+  --heatmap-accent: #0a84ff;
+  --event-default: #0a84ff;
+  --event-today: #ff9f0a;
+  --liquid-glass-bg: rgba(28, 28, 30, 0.72);
+  --liquid-glass-border: rgba(255, 255, 255, 0.12);
+  --button-outline-hover-bg: rgb(118 118 128 / 0.42);
+  --switch-on: #30d158;
+  --switch-off: rgb(120 120 128 / 0.32);
+  --segmented-thumb: #636366;
+  --segmented-thumb-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
+  --sheet-bg: #1c1c1e;
+  --liquid-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -0.5px 0 rgb(0 0 0 / 0.4),
+    0 0 0 0.5px rgb(0 0 0 / 0.6), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --liquid-glass-rim: inset 0 0 0 0.5px rgb(255 255 255 / 0.14);
+  --heatmap-positive-low: #1e3325;
+  --heatmap-positive-high: #30d158;
+  --heatmap-negative-low: #3a1f1d;
+  --heatmap-negative-high: #ff453a;
+  --heatmap-blue-low: #19283c;
+  --heatmap-blue-high: #3a93fe;
+  --heatmap-label-dark: #1c1c1e;
+  --heatmap-label-light: #ffffff;
+}
+
+[data-theme-preview="cupertino"] {
+  --font-sans:
+    "Rubik Arabic", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", "Inter Variable", system-ui, sans-serif;
+  --font-serif: "Rubik Arabic", "New York", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: "Rubik Arabic", ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --radius: 1.125rem;
+  --background: #f2f2f7;
+  --foreground: #000000;
+  --card: #ffffff;
+  --primary: #0066cc;
+  --muted: #e5e5ea;
+  --muted-foreground: #636366;
+  --success: #1b7a33;
+  --border: #dcdce1;
+  --chart-1: #007aff;
+  --chart-2: #5856d6;
+  --chart-3: #30b0c7;
+  --chart-4: #ff9500;
+  --chart-5: #af52de;
+  --investments: var(--gain);
+  --sidebar: #ebebf0;
+  --sidebar-foreground: #000000;
+  --sidebar-accent: #dfdfe4;
+  --sidebar-border: #dcdce1;
+  --success-subtle: #e8f6ec;
+  --destructive-subtle: #fdecea;
+}
+
+.dark [data-theme-preview="cupertino"] {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #1c1c1e;
+  --primary: #0a84ff;
+  --muted: #2c2c2e;
+  --muted-foreground: #98989f;
+  --success: #30d158;
+  --border: #38383a;
+  --chart-1: #0a84ff;
+  --chart-2: #5e5ce6;
+  --chart-3: #40c8e0;
+  --chart-4: #ff9f0a;
+  --chart-5: #bf5af2;
+  --investments: var(--gain);
+  --sidebar: #161618;
+  --sidebar-foreground: #ffffff;
+  --sidebar-accent: #2c2c2e;
+  --sidebar-border: #2c2c2e;
+  --success-subtle: #0f2415;
+  --destructive-subtle: #2c1210;
+}
+
+:root[data-theme="newspaper"] {
+  --radius: 0rem;
+  --button-radius: 0rem;
+  --control-radius: 0rem;
+  --control-height: 2.5rem;
+  --card-radius: 0rem;
+  --card-shadow: 0 0 #0000;
+  --popup-radius: 0rem;
+  --dialog-radius: 0rem;
+  --badge-radius: 0rem;
+  --segmented-radius: 0rem;
+  --background: #f4f2ec;
+  --foreground: #171614;
+  --card: #fbfaf6;
+  --card-foreground: #171614;
+  --popover: #ffffff;
+  --popover-foreground: #171614;
+  --primary: #171614;
+  --primary-foreground: #f4f2ec;
+  --secondary: #e2dfd6;
+  --secondary-foreground: #35332d;
+  --muted: #eae7de;
+  --muted-foreground: #4f4c45;
+  --accent: #e2dfd6;
+  --accent-foreground: #171614;
+  --destructive: #8a1c15;
+  --destructive-foreground: #ffffff;
+  --success: #2f5233;
+  --success-foreground: #ffffff;
+  --warning: #63490a;
+  --warning-foreground: #ffffff;
+  --success-subtle: #e5e8e1;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #bec8bb;
+  --destructive-subtle: #f2e4de;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #e0bcb4;
+  --border: #ccc7ba;
+  --input: #b3ada0;
+  --input-bg: #fbfaf6;
+  --ring: #171614;
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+  --spending-accent: #35332d;
+  --spending-deep: #35332d;
+  --spending-mid: #857f70;
+  --investments: #35332d;
+  --net-worth: #35332d;
+  --sidebar: #edeae1;
+  --sidebar-foreground: #171614;
+  --sidebar-primary: #171614;
+  --sidebar-primary-foreground: #f4f2ec;
+  --sidebar-accent: #dcd8cd;
+  --sidebar-accent-foreground: #171614;
+  --sidebar-border: #ccc7ba;
+  --sidebar-ring: #171614;
+  --toast-border: #ccc7ba;
+  --fi-stream-1: #35332d;
+  --fi-stream-2: #4f4c45;
+  --fi-stream-3: #6b6659;
+  --fi-stream-4: #857f70;
+  --fi-stream-5: #9e9787;
+  --heatmap-accent: #35332d;
+  --status-warn: #63490a;
+  --event-default: #35332d;
+  --event-today: #8a1c15;
+  --card-title-size: 0.75rem;
+  --card-title-tracking: 0.09em;
+  --card-title-case: uppercase;
+  --heatmap-positive-low: #dfe3d8;
+  --heatmap-positive-high: #2f5233;
+  --heatmap-negative-low: #ebdcd6;
+  --heatmap-negative-high: #8a1c15;
+  --heatmap-blue-low: #d8e1ec;
+  --heatmap-blue-high: #004a93;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #171614;
+  --heatmap-label-light: #fbfaf6;
+}
+
+:root[data-theme="newspaper"].dark {
+  --background: #141310;
+  --foreground: #e8e4d9;
+  --card: #1c1b16;
+  --card-foreground: #e8e4d9;
+  --popover: #232019;
+  --popover-foreground: #e8e4d9;
+  --primary: #e8e4d9;
+  --primary-foreground: #141310;
+  --secondary: #302d25;
+  --secondary-foreground: #bdb8aa;
+  --muted: #232019;
+  --muted-foreground: #a8a397;
+  --accent: #2a2721;
+  --accent-foreground: #e8e4d9;
+  --destructive: #d8695c;
+  --destructive-foreground: #1a0f0d;
+  --success: #9dbb96;
+  --success-foreground: #12190f;
+  --warning: #d9b96b;
+  --warning-foreground: #241c0a;
+  --success-subtle: #152212;
+  --success-subtle-border: #33422f;
+  --destructive-subtle: #2d1815;
+  --destructive-subtle-foreground: #e47466;
+  --destructive-subtle-border: #602a24;
+  --border: #322f27;
+  --input: #3d3930;
+  --input-bg: #1c1b16;
+  --ring: #857f70;
+  --chart-1: hsl(50 8% 88%);
+  --chart-2: hsl(49 7% 78%);
+  --chart-3: hsl(51 6% 68%);
+  --chart-4: hsl(48 5% 58%);
+  --chart-5: hsl(46 4% 48%);
+  --chart-6: hsl(44 3% 38%);
+  --chart-7: hsl(42 3% 30%);
+  --chart-8: hsl(38 2% 24%);
+  --chart-9: hsl(35 2% 18%);
+  --chart-stone: hsl(44 3% 38%);
+  --spending-accent: #c4bfb1;
+  --spending-deep: #c4bfb1;
+  --spending-mid: #7d7768;
+  --investments: #c4bfb1;
+  --net-worth: #c4bfb1;
+  --sidebar: #100f0d;
+  --sidebar-foreground: #e8e4d9;
+  --sidebar-primary: #e8e4d9;
+  --sidebar-primary-foreground: #141310;
+  --sidebar-accent: #2a2721;
+  --sidebar-accent-foreground: #e8e4d9;
+  --sidebar-border: #322f27;
+  --sidebar-ring: #857f70;
+  --toast-border: #3d3930;
+  --fi-stream-1: #e8e4d9;
+  --fi-stream-2: #c4bfb1;
+  --fi-stream-3: #a09a8c;
+  --fi-stream-4: #7d7768;
+  --fi-stream-5: #5c5749;
+  --heatmap-accent: #e8e4d9;
+  --status-warn: #d9b96b;
+  --event-default: #c4bfb1;
+  --event-today: #d8695c;
+  --heatmap-positive-low: #273c29;
+  --heatmap-positive-high: #9dbb96;
+  --heatmap-negative-low: #4a2a28;
+  --heatmap-negative-high: #d8695c;
+  --heatmap-blue-low: #1b374a;
+  --heatmap-blue-high: #1a99dc;
+  --heatmap-label-dark: #141310;
+  --heatmap-label-light: #f4f2ec;
+}
+
+[data-theme-preview="newspaper"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 0rem;
+  --background: #f4f2ec;
+  --foreground: #171614;
+  --card: #fbfaf6;
+  --primary: #171614;
+  --muted: #eae7de;
+  --muted-foreground: #4f4c45;
+  --success: #2f5233;
+  --border: #ccc7ba;
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --investments: #35332d;
+  --sidebar: #edeae1;
+  --sidebar-foreground: #171614;
+  --sidebar-accent: #dcd8cd;
+  --sidebar-border: #ccc7ba;
+  --success-subtle: #e5e8e1;
+  --destructive-subtle: #f2e4de;
+}
+
+.dark [data-theme-preview="newspaper"] {
+  --background: #141310;
+  --foreground: #e8e4d9;
+  --card: #1c1b16;
+  --primary: #e8e4d9;
+  --muted: #232019;
+  --muted-foreground: #a8a397;
+  --success: #9dbb96;
+  --success-subtle: #152212;
+  --destructive-subtle: #2d1815;
+  --border: #322f27;
+  --chart-1: hsl(50 8% 88%);
+  --chart-2: hsl(49 7% 78%);
+  --chart-3: hsl(51 6% 68%);
+  --chart-4: hsl(48 5% 58%);
+  --chart-5: hsl(46 4% 48%);
+  --investments: #c4bfb1;
+  --sidebar: #100f0d;
+  --sidebar-foreground: #e8e4d9;
+  --sidebar-accent: #2a2721;
+  --sidebar-border: #322f27;
+}
+
+:root[data-theme="cyber"] {
+  --radius: 0.25rem;
+  --button-radius: 0.25rem;
+  --control-radius: 0.25rem;
+  --control-height: 2.5rem;
+  --card-radius: 0.25rem;
+  --card-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 4px 24px color-mix(in srgb, var(--primary) 8%, transparent);
+  --popup-radius: 0.25rem;
+  --dialog-radius: 0.25rem;
+  --badge-radius: 0.125rem;
+  --segmented-radius: 0.25rem;
+  --background: #f2f7f9;
+  --foreground: #0d2129;
+  --card: #ffffff;
+  --card-foreground: #0d2129;
+  --popover: #ffffff;
+  --popover-foreground: #0d2129;
+  --primary: #1c6c66;
+  --primary-foreground: #ffffff;
+  --secondary: #d9e8ec;
+  --secondary-foreground: #234c57;
+  --muted: #e3eef1;
+  --muted-foreground: #3d616c;
+  --accent: #d5eae8;
+  --accent-foreground: #12403c;
+  --destructive: #a3266b;
+  --destructive-foreground: #ffffff;
+  --success: #1c6c66;
+  --success-foreground: #ffffff;
+  --warning: #6f5206;
+  --warning-foreground: #ffffff;
+  --success-subtle: #e9f0ef;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #c1d4d2;
+  --destructive-subtle: #f8eaef;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #eac4d3;
+  --border: #c2d9de;
+  --input: #a4c3ca;
+  --input-bg: #ffffff;
+  --ring: #1c6c66;
+  --chart-1: #1c6c66;
+  --chart-2: #205ea6;
+  --chart-3: #735eb5;
+  --chart-4: #b74583;
+  --chart-5: #3aa99f;
+  --chart-6: #4385be;
+  --chart-7: #8b7ec8;
+  --chart-8: #ce5d97;
+  --chart-9: #6f9aa6;
+  --chart-stone: #6f9aa6;
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-5: #279b91;
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --spending-accent: #1c6c66;
+  --spending-deep: #1c6c66;
+  --spending-mid: #205ea6;
+  --investments: var(--gain);
+  --net-worth: #b74583;
+  --sidebar: #e9f3f5;
+  --sidebar-foreground: #0d2129;
+  --sidebar-primary: #1c6c66;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d5eae8;
+  --sidebar-accent-foreground: #12403c;
+  --sidebar-border: #c2d9de;
+  --sidebar-ring: #1c6c66;
+  --toast-border: #c2d9de;
+  --fi-stream-1: #1c6c66;
+  --fi-stream-2: #205ea6;
+  --fi-stream-3: #735eb5;
+  --fi-stream-4: #b74583;
+  --fi-stream-5: #3aa99f;
+  --heatmap-accent: #1c6c66;
+  --status-warn: #205ea6;
+  --event-default: #1c6c66;
+  --event-today: #b74583;
+  --button-shadow: 0 0 14px 1px color-mix(in srgb, var(--primary) 45%, transparent);
+  --heatmap-positive-low: #a2dece;
+  --heatmap-positive-high: #1c6c66;
+  --heatmap-negative-low: #f9b9cf;
+  --heatmap-negative-high: #87285e;
+  --heatmap-blue-low: #add1ff;
+  --heatmap-blue-high: #04519d;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #031614;
+  --heatmap-label-light: #f2f8f9;
+}
+
+:root[data-theme="cyber"].dark {
+  --background: #0b0f14;
+  --foreground: #d3e3e8;
+  --card: #111820;
+  --card-foreground: #d3e3e8;
+  --popover: #151d26;
+  --popover-foreground: #d3e3e8;
+  --primary: #5abdac;
+  --primary-foreground: #04100f;
+  --secondary: #1c2733;
+  --secondary-foreground: #9fc3cf;
+  --muted: #131b24;
+  --muted-foreground: #92adbb;
+  --accent: #17222d;
+  --accent-foreground: #87d3c3;
+  --destructive: #ce5d97;
+  --destructive-foreground: #1a0713;
+  --success: #5abdac;
+  --success-foreground: #04100f;
+  --warning: #d0a215;
+  --warning-foreground: #1a1403;
+  --success-subtle: #04201c;
+  --success-subtle-border: #0f473f;
+  --destructive-subtle: #27141d;
+  --destructive-subtle-foreground: #de6ba5;
+  --destructive-subtle-border: #5b2a43;
+  --border: #1f2c39;
+  --input: #2a3947;
+  --input-bg: #111820;
+  --ring: #3aa99f;
+  --chart-1: #5abdac;
+  --chart-2: #66a0c8;
+  --chart-3: #a699d0;
+  --chart-4: #ce5d97;
+  --chart-5: #87d3c3;
+  --chart-6: #4385be;
+  --chart-7: #8b7ec8;
+  --chart-8: #e0879f;
+  --chart-9: #7f9fae;
+  --chart-stone: #7f9fae;
+  --spending-accent: #3aa99f;
+  --spending-deep: #3aa99f;
+  --spending-mid: #66a0c8;
+  --investments: var(--gain);
+  --net-worth: #ce5d97;
+  --series-5: var(--chart-5);
+  --sidebar: #080c11;
+  --sidebar-foreground: #d3e3e8;
+  --sidebar-primary: #5abdac;
+  --sidebar-primary-foreground: #04100f;
+  --sidebar-accent: #17222d;
+  --sidebar-accent-foreground: #87d3c3;
+  --sidebar-border: #1f2c39;
+  --sidebar-ring: #3aa99f;
+  --toast-border: #2a3947;
+  --fi-stream-1: #5abdac;
+  --fi-stream-2: #66a0c8;
+  --fi-stream-3: #a699d0;
+  --fi-stream-4: #ce5d97;
+  --fi-stream-5: #87d3c3;
+  --heatmap-accent: #3aa99f;
+  --status-warn: #4385be;
+  --event-default: #3aa99f;
+  --event-today: #ce5d97;
+}
+
+[data-theme-preview="cyber"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 0.25rem;
+  --background: #f2f7f9;
+  --foreground: #0d2129;
+  --card: #ffffff;
+  --primary: #1c6c66;
+  --muted: #e3eef1;
+  --muted-foreground: #3d616c;
+  --success: #1c6c66;
+  --border: #c2d9de;
+  --chart-1: #1c6c66;
+  --chart-2: #205ea6;
+  --chart-3: #735eb5;
+  --chart-4: #b74583;
+  --chart-5: #3aa99f;
+  --investments: var(--gain);
+  --sidebar: #e9f3f5;
+  --sidebar-foreground: #0d2129;
+  --sidebar-accent: #d5eae8;
+  --sidebar-border: #c2d9de;
+  --success-subtle: #e9f0ef;
+  --destructive-subtle: #f8eaef;
+}
+
+.dark [data-theme-preview="cyber"] {
+  --background: #0b0f14;
+  --foreground: #d3e3e8;
+  --card: #111820;
+  --primary: #5abdac;
+  --muted: #131b24;
+  --muted-foreground: #92adbb;
+  --success: #5abdac;
+  --success-subtle: #04201c;
+  --destructive-subtle: #27141d;
+  --border: #1f2c39;
+  --chart-1: #5abdac;
+  --chart-2: #66a0c8;
+  --chart-3: #a699d0;
+  --chart-4: #ce5d97;
+  --chart-5: #87d3c3;
+  --investments: var(--gain);
+  --sidebar: #080c11;
+  --sidebar-foreground: #d3e3e8;
+  --sidebar-accent: #17222d;
+  --sidebar-border: #1f2c39;
+}
+
+:root[data-theme="terminal"] {
+  --radius: 0rem;
+  --button-radius: 0rem;
+  --control-radius: 0rem;
+  --control-height: 2.5rem;
+  --card-radius: 0rem;
+  --card-shadow: 0 0 #0000;
+  --popup-radius: 0rem;
+  --dialog-radius: 0rem;
+  --badge-radius: 0rem;
+  --segmented-radius: 0rem;
+  --background: #f4faf4;
+  --foreground: #12391d;
+  --card: #ffffff;
+  --card-foreground: #12391d;
+  --popover: #ffffff;
+  --popover-foreground: #12391d;
+  --primary: #176b32;
+  --primary-foreground: #ffffff;
+  --secondary: #dceede;
+  --secondary-foreground: #174c25;
+  --muted: #e8f2e8;
+  --muted-foreground: #4b6950;
+  --accent: #c9e8ce;
+  --accent-foreground: #12391d;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --success-subtle: #e8f0e9;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #c0d4c2;
+  --destructive-subtle: #fbeae8;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #f3c5bf;
+  --border: #a9c6af;
+  --input: #a9c6af;
+  --ring: #176b32;
+  --chart-1: #176b32;
+  --chart-2: #3d844b;
+  --chart-3: #245d30;
+  --chart-4: #568a60;
+  --chart-5: #317541;
+  --sidebar: #e8f2e8;
+  --sidebar-foreground: #12391d;
+  --sidebar-primary: #176b32;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c9e8ce;
+  --sidebar-accent-foreground: #12391d;
+  --sidebar-border: #a9c6af;
+  --sidebar-ring: #176b32;
+  --success: #176b32;
+  --success-foreground: #ffffff;
+  --chart-6: #46694b;
+  --chart-7: #638c69;
+  --chart-8: #3b7046;
+  --chart-9: #607c64;
+  --chart-stone: var(--chart-9);
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --spending-accent: var(--chart-1);
+  --spending-deep: var(--chart-3);
+  --spending-mid: var(--chart-2);
+  --investments: var(--gain);
+  --net-worth: #9a6700;
+  --fi-stream-1: var(--chart-1);
+  --fi-stream-2: var(--chart-2);
+  --fi-stream-3: var(--chart-3);
+  --fi-stream-4: var(--chart-4);
+  --fi-stream-5: var(--chart-5);
+  --heatmap-accent: var(--chart-1);
+  --event-default: var(--chart-2);
+  --event-today: var(--warning);
+  --field-shadow: 0 0 10px 1px rgb(23 107 50 / 0.06);
+  --field-glow: var(--field-shadow);
+  --overlay-shadow: 0 0 10px 1px rgb(23 107 50 / 0.12);
+  --popup-shadow: var(--overlay-shadow);
+  --heatmap-positive-low: #e0f0e2;
+  --heatmap-positive-high: #176b32;
+  --heatmap-negative-low: #f5dddd;
+  --heatmap-negative-high: #a82424;
+  --heatmap-blue-low: #d8e5f6;
+  --heatmap-blue-high: #015cb3;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #061809;
+  --heatmap-label-light: #f1fff2;
+  --allocation-under: var(--primary);
+}
+
+:root[data-theme="terminal"].dark {
+  --background: oklch(0 0 0);
+  --foreground: #7ee787;
+  --card: oklch(0.1149 0 0);
+  --card-foreground: #7ee787;
+  --popover: oklch(0 0 0);
+  --popover-foreground: #7ee787;
+  --primary: #7ee787;
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.3053 0.1039 142.4953);
+  --secondary-foreground: #7ee787;
+  --muted: oklch(0.1887 0.0642 142.4953);
+  --muted-foreground: #63b871;
+  --accent: #122c1a;
+  --accent-foreground: #7ee787;
+  --destructive: #f87171;
+  --destructive-foreground: #000000;
+  --success-subtle: #041907;
+  --success-subtle-border: #1b4824;
+  --destructive-subtle: #250a0a;
+  --destructive-subtle-border: #602a29;
+  --border: oklch(0.3053 0.1039 142.4953);
+  --input: #15341f;
+  --ring: #7ee787;
+  --chart-1: #7ee787;
+  --chart-2: #68d878;
+  --chart-3: #269f40;
+  --chart-4: #a4e5ab;
+  --chart-5: #4bbb59;
+  --sidebar: oklch(0.1149 0 0);
+  --sidebar-foreground: #7ee787;
+  --sidebar-primary: #7ee787;
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.3053 0.1039 142.4953);
+  --sidebar-accent-foreground: #7ee787;
+  --sidebar-border: oklch(0.3053 0.1039 142.4953);
+  --sidebar-ring: #7ee787;
+  --success: #63b871;
+  --success-foreground: #000000;
+  --chart-6: #16772c;
+  --chart-7: #83bc88;
+  --chart-8: #43824c;
+  --chart-9: #628768;
+  --chart-stone: var(--chart-9);
+  --investments: var(--gain);
+  --net-worth: #ffb000;
+  --fi-stream-1: var(--chart-1);
+  --fi-stream-2: var(--chart-2);
+  --fi-stream-3: var(--chart-3);
+  --fi-stream-4: var(--chart-4);
+  --fi-stream-5: var(--chart-5);
+  --heatmap-accent: var(--chart-1);
+  --event-default: var(--chart-2);
+  --event-today: var(--warning);
+  --field-shadow: 0 0 7px 0 rgb(126 231 135 / 0.12);
+  --overlay-shadow: 0 0 15px 2px rgb(126 231 135 / 0.4), 0 4px 6px 1px rgb(126 231 135 / 0.4);
+  --heatmap-positive-low: #092b10;
+  --heatmap-positive-high: #3fae59;
+  --heatmap-negative-low: #321010;
+  --heatmap-negative-high: #c83232;
+  --heatmap-blue-low: #001f32;
+  --heatmap-blue-high: #037ab3;
+  --heatmap-label-dark: #061809;
+  --heatmap-label-light: #f1fff2;
+}
+
+[data-theme-preview="terminal"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 0rem;
+  --background: #f4faf4;
+  --foreground: #12391d;
+  --card: #ffffff;
+  --primary: #176b32;
+  --muted: #e8f2e8;
+  --muted-foreground: #4b6950;
+  --success: #176b32;
+  --border: #a9c6af;
+  --chart-1: #176b32;
+  --chart-2: #3d844b;
+  --chart-3: #245d30;
+  --chart-4: #568a60;
+  --chart-5: #317541;
+  --investments: var(--gain);
+  --sidebar: #e8f2e8;
+  --sidebar-foreground: #12391d;
+  --sidebar-accent: #c9e8ce;
+  --sidebar-border: #a9c6af;
+  --success-subtle: #e8f0e9;
+  --destructive-subtle: #fbeae8;
+}
+
+.dark [data-theme-preview="terminal"] {
+  --background: oklch(0 0 0);
+  --foreground: #7ee787;
+  --card: oklch(0.1149 0 0);
+  --primary: #7ee787;
+  --muted: oklch(0.1887 0.0642 142.4953);
+  --muted-foreground: #63b871;
+  --success-subtle: #041907;
+  --destructive-subtle: #250a0a;
+  --border: oklch(0.3053 0.1039 142.4953);
+  --chart-1: #7ee787;
+  --chart-2: #68d878;
+  --chart-3: #269f40;
+  --chart-4: #a4e5ab;
+  --chart-5: #4bbb59;
+  --sidebar: oklch(0.1149 0 0);
+  --sidebar-foreground: #7ee787;
+  --sidebar-accent: oklch(0.3053 0.1039 142.4953);
+  --sidebar-border: oklch(0.3053 0.1039 142.4953);
+  --success: #63b871;
+  --investments: var(--gain);
+}
+
+:root[data-theme="poster"] {
+  --radius: 0.25rem;
+  --button-radius: 0.25rem;
+  --control-radius: 0.25rem;
+  --card-radius: var(--radius);
+  --card-border: #111111;
+  --card-shadow: 0 0 0 0.5px #111111, 3px 3px 0 0 #111111;
+  --popup-radius: 0.375rem;
+  --dialog-radius: 0.375rem;
+  --badge-radius: 0.25rem;
+  --segmented-radius: 0.375rem;
+  --background: #ece6ff;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #5b2cff;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #111111;
+  --muted: #d4c8ff;
+  --muted-foreground: #4a4a4a;
+  --accent: #e0d7ff;
+  --accent-foreground: #111111;
+  --destructive: #b92a25;
+  --destructive-foreground: #ffffff;
+  --success: #0e713d;
+  --success-foreground: #ffffff;
+  --warning: #9a4d00;
+  --warning-foreground: #ffffff;
+  --success-subtle: #e8f0ea;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #b9d3c3;
+  --destructive-subtle: #fbebe8;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #efc3be;
+  --warning-subtle: #f7ece1;
+  --warning-subtle-foreground: var(--warning);
+  --warning-subtle-border: #e3c4a6;
+  --loss-blue: #2350c8;
+  --loss-blue-subtle: #e9edfa;
+  --loss-blue-subtle-foreground: var(--loss-blue);
+  --loss-blue-subtle-border: #bdc9ef;
+  --border: #d8d0f2;
+  --input: #111111;
+  --input-bg: #ffffff;
+  --ring: #5b2cff;
+  --chart-1: #111111;
+  --chart-2: #5b2cff;
+  --chart-3: #00a396;
+  --chart-4: #b38f00;
+  --chart-5: #e8358b;
+  --chart-6: #2f86ff;
+  --chart-7: #7d7d7d;
+  --chart-8: #c4b5fd;
+  --chart-9: #d9d9d9;
+  --chart-stone: #bdb6d6;
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: #00786e;
+  --series-4: #806600;
+  --series-5: #d02a7a;
+  --series-6: #1f6fe0;
+  --series-7: #666666;
+  --series-8: #7a5cf0;
+  --spending-accent: #5b2cff;
+  --spending-deep: #5b2cff;
+  --spending-mid: #00a396;
+  --investments: #5b2cff;
+  --net-worth: #5b2cff;
+  --sidebar: #ece6ff;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #5b2cff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #111111;
+  --sidebar-ring: #5b2cff;
+  --toast-border: #111111;
+  --fi-stream-1: #5b2cff;
+  --fi-stream-2: #00a396;
+  --fi-stream-3: #b38f00;
+  --fi-stream-4: #e8358b;
+  --fi-stream-5: #2f86ff;
+  --heatmap-accent: #5b2cff;
+  --status-warn: #9a4d00;
+  --event-default: #111111;
+  --event-today: #5b2cff;
+  --heatmap-positive-low: #d7f1e1;
+  --heatmap-positive-high: #0e713d;
+  --heatmap-negative-low: #fde0dc;
+  --heatmap-negative-high: #b92a25;
+  --heatmap-blue-low: #dfe6ff;
+  --heatmap-blue-high: #2350c8;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #111111;
+  --heatmap-label-light: #ffffff;
+  --card-title-size: 0.8125rem;
+  --card-title-tracking: 0.08em;
+  --card-title-case: uppercase;
+  --button-weight: 700;
+  --button-border: #111111;
+  --button-shadow: 2px 2px 0 0 #111111;
+  --button-outline-bg: #ffffff;
+  --button-outline-border: #111111;
+  --button-outline-shadow: 0 0 #0000;
+  --button-outline-hover-bg: #eee8ff;
+  --button-secondary-bg: #ffffff;
+  --button-secondary-border: #111111;
+  --button-secondary-shadow: 0 0 #0000;
+  --button-secondary-hover-bg: #eee8ff;
+  --field-border: #111111;
+  --field-shadow: 0 0 #0000;
+  --switch-off: #b4a8e6;
+  --switch-thumb: #ffffff;
+  --switch-thumb-shadow: 0 0 0 1.5px #111111;
+  --segmented-thumb: #ffffff;
+  --segmented-thumb-shadow: inset 0 0 0 1.5px #111111, 2px 2px 0 0 #111111;
+  --overlay-border: #111111;
+  --overlay-shadow: 0 0 #0000;
+  --popup-shadow: 0 0 0 1.5px #111111;
+  --liquid-glass-bg: #ffffff;
+  --liquid-glass-border: #111111;
+  --liquid-glass-blur: none;
+  --liquid-glass-shadow: 0 0 #0000;
+  --liquid-glass-sheen: none;
+  --liquid-glass-rim: none;
+}
+
+:root[data-theme="poster"].dark {
+  --card-border: #f2f2f2;
+  --card-shadow: 0 0 0 0.5px #f2f2f2, 3px 3px 0 0 #5b45b8;
+  --background: #0f0f0f;
+  --foreground: #f2f2f2;
+  --card: #1b1b1b;
+  --card-foreground: #f2f2f2;
+  --popover: #1b1b1b;
+  --popover-foreground: #f2f2f2;
+  --primary: #9a7bff;
+  --primary-foreground: #111111;
+  --secondary: #1b1b1b;
+  --secondary-foreground: #f2f2f2;
+  --muted: #2a2a2a;
+  --muted-foreground: #b5b5b5;
+  --accent: #2a2440;
+  --accent-foreground: #f2f2f2;
+  --destructive: #ff7a70;
+  --destructive-foreground: #111111;
+  --success: #5fd38f;
+  --success-foreground: #111111;
+  --warning: #ffa14d;
+  --warning-foreground: #111111;
+  --success-subtle: #12301f;
+  --success-subtle-border: #2c6a45;
+  --destructive-subtle: #3a1a18;
+  --destructive-subtle-border: #7a3530;
+  --warning-subtle: #33200d;
+  --warning-subtle-border: #6e4419;
+  --loss-blue: #8fb4ff;
+  --loss-blue-subtle: #17243d;
+  --loss-blue-subtle-border: #34508a;
+  --border: #333333;
+  --input: #3a3a3a;
+  --input-bg: #1b1b1b;
+  --ring: #b9a3ff;
+  --chart-1: #f2f2f2;
+  --chart-2: #9a7bff;
+  --chart-3: #2fd3c4;
+  --chart-4: #ffd84d;
+  --chart-5: #ff7fbd;
+  --chart-6: #6aa8ff;
+  --chart-7: #9b9b9b;
+  --chart-8: #d4c6ff;
+  --chart-9: #5a5a5a;
+  --chart-stone: #5a5a5a;
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --spending-accent: #9a7bff;
+  --spending-deep: #9a7bff;
+  --spending-mid: #2fd3c4;
+  --investments: #9a7bff;
+  --net-worth: #9a7bff;
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #f2f2f2;
+  --sidebar-primary: #9a7bff;
+  --sidebar-primary-foreground: #111111;
+  --sidebar-accent: #1b1b1b;
+  --sidebar-accent-foreground: #f2f2f2;
+  --sidebar-border: #f2f2f2;
+  --sidebar-ring: #b9a3ff;
+  --toast-border: #f2f2f2;
+  --fi-stream-1: #9a7bff;
+  --fi-stream-2: #2fd3c4;
+  --fi-stream-3: #ffd84d;
+  --fi-stream-4: #ff7fbd;
+  --fi-stream-5: #6aa8ff;
+  --heatmap-accent: #9a7bff;
+  --status-warn: #ffa14d;
+  --event-default: #f2f2f2;
+  --event-today: #9a7bff;
+  --heatmap-positive-low: #1d3a28;
+  --heatmap-positive-high: #5fd38f;
+  --heatmap-negative-low: #3f1f1c;
+  --heatmap-negative-high: #ff7a70;
+  --heatmap-blue-low: #1c2a47;
+  --heatmap-blue-high: #8fb4ff;
+  --heatmap-label-dark: #111111;
+  --heatmap-label-light: #f2f2f2;
+  --button-border: #f2f2f2;
+  --button-shadow: 2px 2px 0 0 #5b45b8;
+  --button-outline-bg: #1b1b1b;
+  --button-outline-border: #f2f2f2;
+  --button-outline-shadow: 0 0 #0000;
+  --button-outline-hover-bg: #2a2440;
+  --button-secondary-bg: #1b1b1b;
+  --button-secondary-border: #f2f2f2;
+  --button-secondary-shadow: 0 0 #0000;
+  --button-secondary-hover-bg: #2a2440;
+  --field-border: #f2f2f2;
+  --field-shadow: 0 0 #0000;
+  --switch-thumb: #f2f2f2;
+  --switch-thumb-shadow: 0 0 0 1.5px #111111;
+  --segmented-thumb: #1b1b1b;
+  --segmented-thumb-shadow: inset 0 0 0 1.5px #f2f2f2, 2px 2px 0 0 #5b45b8;
+  --overlay-border: #f2f2f2;
+  --overlay-shadow: 0 0 #0000;
+  --popup-shadow: 0 0 0 1.5px #f2f2f2;
+  --liquid-glass-bg: #1b1b1b;
+  --liquid-glass-border: #f2f2f2;
+  --liquid-glass-shadow: 0 0 #0000;
+}
+
+[data-theme-preview="poster"] {
+  --font-sans: "Inter Variable", "Inter", "Rubik Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:
+    "Merriweather", "Rubik Arabic", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    "JetBrains Mono", "Rubik Arabic", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --radius: 0.25rem;
+  --background: #ece6ff;
+  --foreground: #111111;
+  --card: #ffffff;
+  --primary: #5b2cff;
+  --muted: #d4c8ff;
+  --muted-foreground: #4a4a4a;
+  --success: #0e713d;
+  --border: #d8d0f2;
+  --chart-1: #111111;
+  --chart-2: #5b2cff;
+  --chart-3: #00a396;
+  --chart-4: #b38f00;
+  --chart-5: #e8358b;
+  --investments: #5b2cff;
+  --sidebar: #ece6ff;
+  --sidebar-foreground: #111111;
+  --sidebar-accent: #ffffff;
+  --sidebar-border: #111111;
+  --success-subtle: #e8f0ea;
+  --destructive-subtle: #fbebe8;
+}
+
+.dark [data-theme-preview="poster"] {
+  --background: #0f0f0f;
+  --foreground: #f2f2f2;
+  --card: #1b1b1b;
+  --primary: #9a7bff;
+  --muted: #2a2a2a;
+  --muted-foreground: #b5b5b5;
+  --success: #5fd38f;
+  --success-subtle: #12301f;
+  --destructive-subtle: #3a1a18;
+  --border: #333333;
+  --chart-1: #f2f2f2;
+  --chart-2: #9a7bff;
+  --chart-3: #2fd3c4;
+  --chart-4: #ffd84d;
+  --chart-5: #ff7fbd;
+  --investments: #9a7bff;
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #f2f2f2;
+  --sidebar-accent: #1b1b1b;
+  --sidebar-border: #f2f2f2;
+}
+
+/* Element defaults: below every utility class. */
+@layer base {
+  :root[data-theme="signature"] body {
+    background-image: linear-gradient(180deg, #fafafa 0%, #f6f6f6 100%);
+    background-attachment: fixed;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :root[data-theme="signature"].dark body {
+    background-image: linear-gradient(180deg, #121213 0%, #0d0d0e 100%);
+  }
+
+  :root[data-theme="signature"] :is(h1, h2) {
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  :root[data-theme="signature"] h3 {
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  :root[data-theme="cupertino"] body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :root[data-theme="cupertino"] h1 {
+    font-weight: 700;
+    letter-spacing: normal;
+  }
+
+  :root[data-theme="cupertino"] h2 {
+    letter-spacing: normal;
+  }
+
+  :root[data-theme="newspaper"] h2 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.015em;
+  }
+
+  :root[data-theme="cyber"] [aria-current="page"] svg {
+    color: var(--primary);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 70%, transparent));
+  }
 }

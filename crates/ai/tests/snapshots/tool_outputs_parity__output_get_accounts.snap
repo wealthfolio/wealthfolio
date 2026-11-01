@@ -10,14 +10,18 @@ expression: result
         "currency": "USD",
         "id": "acc-1",
         "isActive": true,
-        "name": "Brokerage"
+        "isDefault": false,
+        "name": "Brokerage",
+        "trackingMode": "TRANSACTIONS"
       },
       {
         "accountType": "CASH",
         "currency": "EUR",
         "id": "acc-2",
         "isActive": true,
-        "name": "Savings"
+        "isDefault": false,
+        "name": "Savings",
+        "trackingMode": "TRANSACTIONS"
       }
     ],
     "count": 2

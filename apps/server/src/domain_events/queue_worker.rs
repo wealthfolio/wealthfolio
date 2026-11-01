@@ -5,7 +5,7 @@
 //! and broker sync.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
@@ -14,12 +14,7 @@ use wealthfolio_connect::{
     TokenLifecycleConfig, TokenLifecycleState,
 };
 use wealthfolio_core::{
-    assets::AssetServiceTrait,
-    events::DomainEvent,
-    goals::GoalServiceTrait,
-    portfolio::valuation::CurrentAccountValuationService,
-    secrets::SecretStore,
-    utils::time_utils::{parse_user_timezone_or_default, user_today},
+    assets::AssetServiceTrait, events::DomainEvent, goals::GoalServiceTrait, secrets::SecretStore,
 };
 
 use super::planner::{
@@ -45,15 +40,9 @@ pub struct QueueWorkerDeps {
     // we pass what we need for enqueue_portfolio_job (which spawns its own async task).
     // The shared.rs enqueue_portfolio_job needs Arc<AppState>, so we'll need to pass
     // a callback or restructure slightly. For now, we'll store what we need.
-    pub snapshot_service:
-        Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait + Send + Sync>,
-    pub quote_service: Arc<dyn wealthfolio_core::quotes::QuoteServiceTrait + Send + Sync>,
     pub portfolio_coordinator: Arc<wealthfolio_core::portfolio::coordinator::PortfolioCoordinator>,
-    pub account_service: Arc<wealthfolio_core::accounts::AccountService>,
     pub goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
     pub fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
-    pub base_currency: Arc<RwLock<String>>,
-    pub timezone: Arc<RwLock<String>>,
     /// Secret store for accessing credentials (e.g., refresh tokens for broker sync)
     pub secret_store: Arc<dyn SecretStore>,
     /// Shared token lifecycle state; must be the same instance used by API handlers.
@@ -127,25 +116,6 @@ pub async fn event_queue_worker(
         is_processing.store(true, Ordering::SeqCst);
         process_event_batch(&batch, deps.clone()).await;
         is_processing.store(false, Ordering::SeqCst);
-    }
-}
-
-fn read_setting(
-    deps: &QueueWorkerDeps,
-    lock: &RwLock<String>,
-    name: &'static str,
-) -> Option<String> {
-    match crate::main_lib::read_runtime_setting(lock, name) {
-        Ok(value) => Some(value),
-        Err(error) => {
-            tracing::error!("Background operation stopped: {error}");
-            deps.event_bus
-                .publish(crate::events::ServerEvent::with_payload(
-                    crate::events::PORTFOLIO_UPDATE_ERROR,
-                    serde_json::json!(error.to_string()),
-                ));
-            None
-        }
     }
 }
 
@@ -261,9 +231,6 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
         // Run the portfolio job directly (not spawned) so that is_processing
         // guard properly tracks completion and prevents concurrent jobs
         run_portfolio_job(deps.clone(), config).await;
-
-        // Keep goal cards current after valuation changes, matching the Tauri worker.
-        refresh_all_goal_summaries(deps.clone()).await;
     }
 
     // 2b. Auto-categorize newly-changed activities on opted-in spending accounts.
@@ -329,6 +296,7 @@ async fn run_portfolio_job(
     let observer = crate::api::shared::ServerJobObserver::with_parts(
         deps.event_bus.clone(),
         deps.health_service.clone(),
+        deps.goal_service.clone(),
     );
     if let Err(err) = deps
         .portfolio_coordinator
@@ -386,101 +354,6 @@ async fn spawn_auto_categorize_for_batch(events: &[DomainEvent], deps: Arc<Queue
             Err(e) => tracing::warn!("Auto-categorization failed: {}", e),
         }
     });
-}
-
-/// Refreshes cached summary fields for all active goals after valuation changes.
-async fn refresh_all_goal_summaries(deps: Arc<QueueWorkerDeps>) {
-    use rust_decimal::prelude::ToPrimitive;
-    use wealthfolio_core::accounts::AccountServiceTrait;
-
-    let goals = match deps.goal_service.get_goals() {
-        Ok(goals) => goals,
-        Err(err) => {
-            tracing::warn!("Failed to load goals for summary refresh: {}", err);
-            return;
-        }
-    };
-
-    let active_goals: Vec<_> = goals
-        .iter()
-        .filter(|goal| goal.status_lifecycle == "active")
-        .collect();
-
-    if active_goals.is_empty() {
-        return;
-    }
-
-    let accounts = match deps.account_service.get_active_non_archived_accounts() {
-        Ok(accounts) => accounts,
-        Err(err) => {
-            tracing::warn!("Failed to load accounts for goal summary refresh: {}", err);
-            return;
-        }
-    };
-    let account_ids: Vec<String> = accounts.into_iter().map(|account| account.id).collect();
-    let Some(base_currency) = read_setting(&deps, &deps.base_currency, "Base currency") else {
-        return;
-    };
-    let Some(timezone) = read_setting(&deps, &deps.timezone, "Timezone") else {
-        return;
-    };
-    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
-    let service = CurrentAccountValuationService::new(
-        deps.account_service.as_ref(),
-        deps.snapshot_service.as_ref(),
-        deps.asset_service.as_ref(),
-        deps.quote_service.as_ref(),
-        deps.fx_service.as_ref(),
-    );
-    let response = match service
-        .get_current_valuation_for_scope(
-            "all",
-            &account_ids,
-            &base_currency,
-            latest_snapshot_cutoff,
-            true,
-        )
-        .await
-    {
-        Ok(response) => response,
-        Err(err) => {
-            tracing::warn!(
-                "Failed to load current valuations for goal summary refresh: {}",
-                err
-            );
-            return;
-        }
-    };
-
-    let mut valuation_map = std::collections::HashMap::new();
-    for valuation in &response.accounts {
-        let Some(value_in_base) = valuation.total_value_base.to_f64() else {
-            tracing::warn!(
-                "Skipping goal summary refresh: invalid base valuation total for account {}",
-                valuation.account_id
-            );
-            return;
-        };
-        valuation_map.insert(valuation.account_id.clone(), value_in_base);
-    }
-
-    for goal in active_goals {
-        if let Err(err) = deps
-            .goal_service
-            .refresh_goal_summary(&goal.id, &valuation_map)
-            .await
-        {
-            tracing::debug!("Failed to refresh summary for goal {}: {}", goal.id, err);
-        }
-    }
-
-    tracing::debug!(
-        "Refreshed summaries for {} active goal(s)",
-        goals
-            .iter()
-            .filter(|goal| goal.status_lifecycle == "active")
-            .count()
-    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

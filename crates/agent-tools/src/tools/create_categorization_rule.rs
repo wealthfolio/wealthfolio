@@ -84,9 +84,8 @@ impl CreateCategorizationRule {
         args: CreateCategorizationRuleArgs,
     ) -> Result<CreateCategorizationRuleOutput, AgentToolError> {
         debug!(
-            "create_categorization_rule called: pattern_len={}, categoryKey={}",
-            args.pattern.chars().count(),
-            args.category_key
+            "create_categorization_rule called: pattern_len={}",
+            args.pattern.chars().count()
         );
 
         let pattern = args.pattern.trim().to_string();
@@ -119,7 +118,10 @@ impl CreateCategorizationRule {
 
         let mut key_lookup: HashMap<(String, String), (String, Vec<String>)> = HashMap::new();
         for entry in &taxonomies {
-            if entry.taxonomy.scope != "activity" {
+            if entry.taxonomy.scope != "activity"
+                || !wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
+                    .contains(&entry.taxonomy.id.as_str())
+            {
                 continue;
             }
             let cats_by_id: HashMap<&str, &_> = entry
@@ -156,16 +158,14 @@ impl CreateCategorizationRule {
         let Some((category_id, path_parts)) =
             key_lookup.get(&(taxonomy_id.clone(), category_key.clone()))
         else {
-            return Err(AgentToolError::ExecutionFailed(format!(
-                "Unknown taxonomyId/categoryKey \"{}\" / \"{}\". Pick both from `list_categorization_context.taxonomies`.",
-                taxonomy_id, category_key
-            )));
+            return Err(AgentToolError::ExecutionFailed(
+                "Unknown transaction category; select one from category discovery".into(),
+            ));
         };
 
         let match_type = match args.match_type.as_deref().map(str::trim) {
-            Some(s) if !s.is_empty() => RuleMatchType::try_parse(s).ok_or_else(|| {
-                AgentToolError::ExecutionFailed(format!("unsupported matchType: {s}"))
-            })?,
+            Some(s) if !s.is_empty() => RuleMatchType::try_parse(s)
+                .ok_or_else(|| AgentToolError::ExecutionFailed("Unsupported matchType".into()))?,
             None => RuleMatchType::Contains,
             Some(_) => RuleMatchType::Contains,
         };
@@ -193,6 +193,20 @@ impl CreateCategorizationRule {
             .filter(|id| !id.is_empty())
             .map(str::to_string);
         let account_name = if let Some(account_id) = account_id.as_deref() {
+            if !env
+                .cash_activity_service()
+                .spending_account_ids()
+                .await
+                .map_err(|_| {
+                    AgentToolError::ExecutionFailed("Unable to resolve Spending scope".into())
+                })?
+                .iter()
+                .any(|id| id == account_id)
+            {
+                return Err(AgentToolError::InvalidInput(
+                    "Rule account is outside effective Spending scope".into(),
+                ));
+            }
             let account = env
                 .account_service()
                 .get_account(account_id)
@@ -288,12 +302,7 @@ impl AgentTool for CreateCategorizationRule {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        // Reads the taxonomy tree to resolve/validate the category, so it
-        // requires classification:read alongside classification:suggest.
-        &[
-            AgentScope::ClassificationRead,
-            AgentScope::ClassificationSuggest,
-        ]
+        &[AgentScope::SpendingRead]
     }
 
     fn access_level(&self) -> AgentToolAccess {

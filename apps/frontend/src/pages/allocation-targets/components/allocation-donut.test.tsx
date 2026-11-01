@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DriftRow } from "@/lib/types";
 import { AllocationDonut } from "./allocation-donut";
-import { allocationTargetColor, buildAllocationTargetColorMap } from "./allocation-target-colors";
+import { buildAllocationTargetColorMap } from "./allocation-target-colors";
 
 function row(
   overrides: Partial<DriftRow> & Pick<DriftRow, "categoryId" | "categoryName">,
@@ -29,7 +29,7 @@ function row(
 }
 
 describe("AllocationDonut", () => {
-  it("uses canonical report row colors after filtering out target-only segments", () => {
+  it("colours segments by current size, as the Insights donuts do, after filtering out target-only rows", () => {
     const rows = [
       row({
         categoryId: "target-only",
@@ -54,6 +54,7 @@ describe("AllocationDonut", () => {
     const colorByCategory = buildAllocationTargetColorMap(rows);
     const { container } = render(
       <AllocationDonut
+        taxonomyId="custom"
         rows={rows}
         colorByCategory={colorByCategory}
         totalValue={100_000}
@@ -61,9 +62,14 @@ describe("AllocationDonut", () => {
       />,
     );
 
-    const segment = container.querySelector('[data-category-id="region-b"]');
-
-    expect(segment).toHaveAttribute("fill", allocationTargetColor("region-b", "Region B", 1));
-    expect(segment).not.toHaveAttribute("fill", allocationTargetColor("region-b", "Region B", 0));
+    // Region B is the largest held, though the report lists the target-only row first.
+    expect(container.querySelector('[data-category-id="region-b"]')).toHaveAttribute(
+      "fill",
+      "var(--chart-1)",
+    );
+    expect(container.querySelector('[data-category-id="region-c"]')).toHaveAttribute(
+      "fill",
+      "var(--chart-2)",
+    );
   });
 });

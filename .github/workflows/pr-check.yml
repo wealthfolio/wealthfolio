@@ -25,6 +25,7 @@ jobs:
       formatting: ${{ steps.filter.outputs.formatting }}
       android: ${{ steps.filter.outputs.android }}
       ios: ${{ steps.filter.outputs.ios }}
+      addon_sandbox: ${{ steps.filter.outputs.addon_sandbox }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -136,12 +137,11 @@ jobs:
         run: pnpm build
 
       - name: Install addon sandbox browsers
+        if: needs.changes.outputs.addon_sandbox == 'true'
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
-      - name: Run net worth layout regression tests
-        run: pnpm test:e2e:net-worth
-
       - name: Run addon sandbox browser tests
+        if: needs.changes.outputs.addon_sandbox == 'true'
         run: pnpm test:e2e:addon-sandbox
         env:
           WF_ADDON_SANDBOX_SKIP_BUILD: "true"

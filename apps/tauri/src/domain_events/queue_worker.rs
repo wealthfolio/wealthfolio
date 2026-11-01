@@ -8,13 +8,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use log::{debug, info, warn};
-use rust_decimal::prelude::ToPrimitive;
 use tauri::AppHandle;
 use tokio::sync::mpsc;
 use wealthfolio_core::events::DomainEvent;
 use wealthfolio_core::health::HealthServiceTrait;
-use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
-use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 #[cfg(feature = "connect-sync")]
 use super::planner::plan_broker_sync;
@@ -230,10 +227,6 @@ async fn process_event_batch(
             }
         }
         run_portfolio_job(app_handle, context, payload).await;
-
-        // 2b. Refresh all active goal summaries after portfolio valuations update.
-        // This keeps goal cards current without client-side polling.
-        refresh_all_goal_summaries(context).await;
     }
 
     // 3. Auto-categorize newly-changed activities on opted-in spending accounts.
@@ -338,103 +331,6 @@ async fn run_portfolio_job(
     payload: PortfolioRequestPayload,
 ) {
     crate::portfolio_jobs::run_portfolio_request(app_handle, context, payload).await;
-}
-
-/// Refreshes cached summary fields for all active goals.
-///
-/// Called after portfolio valuations are recalculated so that goal dashboard
-/// cards always reflect the latest account values without client-side polling.
-async fn refresh_all_goal_summaries(context: &Arc<ServiceContext>) {
-    let goals = match context.goal_service().get_goals() {
-        Ok(g) => g,
-        Err(e) => {
-            warn!("Failed to load goals for summary refresh: {}", e);
-            return;
-        }
-    };
-
-    let active_goals: Vec<_> = goals
-        .iter()
-        .filter(|g| g.status_lifecycle == "active")
-        .collect();
-
-    if active_goals.is_empty() {
-        return;
-    }
-
-    let accounts = match context.account_service().get_active_non_archived_accounts() {
-        Ok(a) => a,
-        Err(e) => {
-            warn!("Failed to load accounts for goal summary refresh: {}", e);
-            return;
-        }
-    };
-    let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let base_currency = context.get_base_currency();
-    let timezone = context.get_timezone();
-    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
-    let account_service = context.account_service();
-    let snapshot_service = context.snapshot_service();
-    let asset_service = context.asset_service();
-    let quote_service = context.quote_service();
-    let fx_service = context.fx_service();
-    let service = CurrentAccountValuationService::new(
-        account_service.as_ref(),
-        snapshot_service.as_ref(),
-        asset_service.as_ref(),
-        quote_service.as_ref(),
-        fx_service.as_ref(),
-    );
-    let response = match service
-        .get_current_valuation_for_scope(
-            "all",
-            &account_ids,
-            &base_currency,
-            latest_snapshot_cutoff,
-            true,
-        )
-        .await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            warn!(
-                "Failed to load current valuations for goal summary refresh: {}",
-                e
-            );
-            return;
-        }
-    };
-
-    let mut valuation_map = std::collections::HashMap::new();
-    for v in &response.accounts {
-        let Some(value_in_base) = v.total_value_base.to_f64() else {
-            warn!(
-                "Skipping goal summary refresh: invalid base valuation total for account {}",
-                v.account_id
-            );
-            return;
-        };
-        valuation_map.insert(v.account_id.clone(), value_in_base);
-    }
-
-    // Refresh each active goal
-    for goal in active_goals {
-        if let Err(e) = context
-            .goal_service()
-            .refresh_goal_summary(&goal.id, &valuation_map)
-            .await
-        {
-            debug!("Failed to refresh summary for goal {}: {}", goal.id, e);
-        }
-    }
-
-    debug!(
-        "Refreshed summaries for {} active goal(s)",
-        goals
-            .iter()
-            .filter(|g| g.status_lifecycle == "active")
-            .count()
-    );
 }
 
 #[cfg(test)]

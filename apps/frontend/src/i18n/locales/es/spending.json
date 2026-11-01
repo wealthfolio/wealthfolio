@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "Necesidades",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "Deseos",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "Ahorros",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "Donaciones",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "Personal",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "Otros"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "Viajes",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "Vacaciones",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "Negocios",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "Educación",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "Salud",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Ocasión especial",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Otros"
+  },
   "common": {
     "amount": "Importe",
     "min": "Mín.",
@@ -65,6 +82,11 @@
     "editTitle": "Editar regla",
     "addTitle": "Añadir regla",
     "editDescription": "Etiqueta automáticamente las actividades por patrón de nombre. Las reglas de mayor prioridad prevalecen cuando coinciden varias.",
+    "categoryCompatibilityHint": "Las categorías siguen el flujo de efectivo de la transacción. Las categorías de ahorro solo se aplican a transferencias vinculadas que salen de tus cuentas de gastos registradas.",
+    "runIncompatible": "Categorías incompatibles: {{count}}. Las categorías siguen el flujo de efectivo de la transacción. Las categorías de ahorro solo se aplican a transferencias vinculadas que salen de tus cuentas de gastos registradas.",
+    "runProtected": "Categorías o divisiones existentes conservadas: {{count}}.",
+    "runUnchanged": "Ya categorizadas como se solicitó: {{count}}.",
+    "runWithoutTarget": "Coincidencias sin categoría de destino: {{count}}.",
     "matchContains": "contiene",
     "matchStartsWith": "empieza por",
     "matchExact": "exacto",
@@ -177,6 +199,7 @@
     "income": "Ingresos",
     "spending": "Gastos",
     "saving": "Ahorro",
+    "netSaved": "Ahorro neto",
     "net": "Neto"
   },
   "insights": {
@@ -439,6 +462,7 @@
     "customSubtitle": "Transacciones en el período seleccionado"
   },
   "split": {
+    "staleTaxonomy": "Estas divisiones usan un tipo de categoría anterior. Ya no se aplican a esta transacción.",
     "title": "Dividir transacción",
     "transactionFallback": "Transacción",
     "remainingOf": "Restante de {{amount}}",
@@ -447,7 +471,12 @@
     "removeLine": "Quitar línea dividida {{number}}",
     "addLine": "Añadir línea",
     "distributeEvenly": "Distribuir uniformemente",
-    "clearSplit": "Borrar división"
+    "clearSplit": "Borrar división",
+    "replaceWithCategory": "Reemplazar divisiones por una categoría",
+    "replaceDescription_one": "¿Reemplazar {{count}} división por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_other": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_many": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "categoryProtected": "Las divisiones están protegidas. Edítelas o reemplácelas explícitamente en el editor de divisiones."
   },
   "hierarchy": {
     "noCategorizedSpending": "No hay gastos categorizados en este periodo.",
@@ -760,8 +789,6 @@
     "overspentBy": "Sobregastado en {{pct}}",
     "noIncome": "No hay ingresos en las cuentas seleccionadas para este periodo.",
     "spent": "Gastado",
-    "saved": "Ahorrado",
-    "setAside": "Reservado",
     "sortSpent": "gastado",
     "sortChange": "cambio",
     "sortName": "nombre",
@@ -809,6 +836,8 @@
       "total": "Total",
       "shortfall": "Déficit",
       "refunds": "Reembolsos netos",
+      "fromSavings": "Desde ahorros",
+      "toSavings": "A ahorros",
       "surplus": "Sobrante",
       "uncategorizedIncome": "Ingresos sin categorizar",
       "netSpending": "Gasto neto"
@@ -819,6 +848,7 @@
       "shortfall": "Gastos y ahorro por encima de lo que entró.",
       "refunds": "Categorías donde los reembolsos superaron el gasto.",
       "saved": "Transferido a cuentas de ahorro e inversión.",
+      "fromSavings": "Retirado de cuentas de ahorro e inversión.",
       "surplus": "Entró, pero no se gastó ni se reservó.",
       "uncategorized": "Gastos que aún no tienen categoría.",
       "net": "Lo que costó esta categoría después de los reembolsos.",
@@ -993,8 +1023,6 @@
     "uncategorizedReview": "Sin categorizar — revisar",
     "uncategorizedImprove": "Sin categorizar — revisa para mejorar el desglose",
     "plusMore": "+ {{count}} más",
-    "down": "Abajo",
-    "up": "Arriba",
     "aboutSame": "Aproximadamente igual que el periodo anterior",
     "fromPriorPeriod": "respecto al periodo anterior",
     "intervalMtd": "este mes",
@@ -1094,5 +1122,25 @@
     "overridesTitle_other": "Excepciones · {{count}}",
     "overridesTitle_many": "Excepciones · {{count}}",
     "sourceMonth": "Mes de origen"
+  },
+  "splitEditReview": {
+    "title": "Revisar la eliminación de divisiones",
+    "hiddenCategory": "Las categorías existentes se conservan y pueden aplicarse después de eliminar las divisiones.",
+    "confirm": "Guardar y eliminar divisiones",
+    "removed_one": "Este cambio eliminará {{count}} división.",
+    "removed_many": "Este cambio eliminará {{count}} divisiones.",
+    "removed_other": "Este cambio eliminará {{count}} divisiones."
+  },
+  "budgetErrors": {
+    "deleteGroup": "No se pudo eliminar el grupo de presupuesto.",
+    "copyPlan": "No se pudo copiar el plan."
+  },
+  "grid": {
+    "transferInForm": "Cambie el tipo de una transferencia en el formulario de transferencia con Editar.",
+    "noCategory": "Esta actividad no es gasto, ingreso ni ahorro, por lo que no lleva categoría.",
+    "saveTypeFirst": "Guarde primero el nuevo tipo o la nueva cuenta y luego elija una categoría.",
+    "saveCategoryFirst": "Guarde primero la categoría y luego cambie el tipo o la cuenta.",
+    "typeNotForAccount": "Este tipo no está disponible para esta cuenta.",
+    "amountRequired": "El importe es obligatorio."
   }
 }

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -41,6 +42,12 @@ import { SpendingBackLink } from "../components/spending-back-link";
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
+const DUPLICATE_CATEGORY_KEY_ERROR = "A category with this key already exists in the taxonomy";
+
+function isDuplicateCategoryKeyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return message.includes(DUPLICATE_CATEGORY_KEY_ERROR);
+}
 
 function buildTree(categories: TaxonomyCategory[]): CategoryNode[] {
   const byParent = new Map<string | null, CategoryNode[]>();
@@ -173,7 +180,11 @@ export default function SpendingCategoriesPage() {
         taxonomyId: category.taxonomyId,
         categoryId: category.id,
       });
-      toast.success(t("settings:spending.categories.deleted", { name: category.name }));
+      toast.success(
+        t("settings:spending.categories.deleted", {
+          name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+        }),
+      );
     } catch {
       toast.error(t("settings:spending.categories.delete_error"));
     }
@@ -229,20 +240,34 @@ export default function SpendingCategoriesPage() {
       }
     } else {
       const taxonomyId = parentCategory ? parentCategory.taxonomyId : activeTaxonomyId;
+      const categories =
+        taxonomyId === SPENDING_TAXONOMY
+          ? spending.data?.categories
+          : taxonomyId === INCOME_TAXONOMY
+            ? income.data?.categories
+            : savings.data?.categories;
+      const keys = new Set((categories ?? []).map((category) => category.key));
+      const baseKey = slugify(values.name) || `cat_${Date.now()}`;
+      let key = baseKey;
+      for (let suffix = 2; keys.has(key); suffix += 1) key = `${baseKey}_${suffix}`;
       try {
         await createCategory.mutateAsync({
           taxonomyId,
           parentId: parentCategory?.id ?? null,
           name: values.name,
-          key: slugify(values.name) || `cat_${Date.now()}`,
+          key,
           color: values.color ?? "#808080",
           sortOrder: 999,
           icon: values.icon ?? null,
         });
         toast.success(t("settings:spending.categories.created"));
         setVisibleModal(false);
-      } catch {
-        toast.error(t("settings:spending.categories.create_error"));
+      } catch (error) {
+        toast.error(
+          isDuplicateCategoryKeyError(error)
+            ? t("settings:spending.categories.duplicate_error")
+            : t("settings:spending.categories.create_error"),
+        );
       }
     }
   };
@@ -261,7 +286,7 @@ export default function SpendingCategoriesPage() {
           <CategoryItem
             key={category.id}
             category={category}
-            // eslint-disable-next-line react/no-children-prop
+            // oxlint-disable-next-line react/no-children-prop
             children={category.children}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}

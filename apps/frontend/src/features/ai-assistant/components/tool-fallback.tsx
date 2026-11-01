@@ -83,11 +83,11 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
       {/* Expandable debug details */}
       {expanded && (
         <div className="text-muted-foreground ms-5.5 mt-1.5 space-y-1.5 text-xs">
-          <pre className="bg-muted/50 max-h-40 overflow-auto whitespace-pre-wrap rounded p-2">
+          <pre className="bg-muted/50 max-h-40 overflow-auto rounded p-2 whitespace-pre-wrap">
             {argsText}
           </pre>
           {!isCancelled && resultData !== undefined && (
-            <pre className="bg-muted/50 max-h-40 overflow-auto whitespace-pre-wrap rounded p-2">
+            <pre className="bg-muted/50 max-h-40 overflow-auto rounded p-2 whitespace-pre-wrap">
               {typeof resultData === "string" ? resultData : JSON.stringify(resultData, null, 2)}
             </pre>
           )}

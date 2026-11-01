@@ -14,7 +14,12 @@
     "to_general_settings": "فتح الإعدادات العامة",
     "to_holdings": "عرض الحيازات",
     "to_market_data": "عرض بيانات السوق",
-    "to_taxonomies": "عرض التصنيفات"
+    "to_taxonomies": "عرض التصنيفات",
+    "rebuild_account_history": "إعادة بناء السجل",
+    "add_price": "إضافة سعر",
+    "update_cost_basis": "تحديث أساس التكلفة",
+    "review_transaction": "مراجعة المعاملة",
+    "review_entry": "مراجعة السجل"
   },
   "category": {
     "accounts": "الحسابات",

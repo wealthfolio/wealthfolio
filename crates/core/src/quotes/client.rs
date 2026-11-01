@@ -38,9 +38,9 @@ use crate::secrets::SecretStore;
 
 use wealthfolio_market_data::{
     mic_to_currency, mic_to_exchange_name, yahoo_equity_provider_symbol_to_canonical,
-    yahoo_exchange_to_mic, yahoo_suffix_to_mic, AlphaVantageProvider,
+    yahoo_exchange_to_mic, yahoo_suffix_to_mic, AlphaVantageProvider, AmfiProvider,
     AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, DividendEvent, ExchangeMap,
-    FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
+    FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider, MoexProvider,
     OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote, QuoteContext,
     QuoteIdentifiers, ResolverChain, SearchResult as MarketSearchResult, SplitEvent,
     UsTreasuryCalcProvider, YahooProvider,
@@ -237,11 +237,16 @@ impl MarketDataClient {
                 UsTreasuryCalcProvider::with_fixtures(fixture_dir)
                     .map_err(MarketDataClientError::from)?,
             ))),
+            DATA_SOURCE_MOEX => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_MOEX,
+            )))),
             DATA_SOURCE_MARKET_DATA_APP
             | DATA_SOURCE_ALPHA_VANTAGE
             | DATA_SOURCE_METAL_PRICE_API
             | DATA_SOURCE_FINNHUB
             | DATA_SOURCE_OPENFIGI
+            | DATA_SOURCE_AMFI
             | DATA_SOURCE_CUSTOM_SCRAPER => {
                 warn!(
                     "Provider {} is disabled because WEALTHFOLIO_E2E=1; add fixture support before using it in e2e",
@@ -321,6 +326,14 @@ impl MarketDataClient {
             DATA_SOURCE_BOERSE_FRANKFURT => {
                 // European bond pricing via Börse Frankfurt (no API key)
                 Ok(Some(Arc::new(BoerseFrankfurtProvider::new())))
+            }
+            DATA_SOURCE_AMFI => {
+                // Indian mutual fund NAVs from AMFI (no API key)
+                Ok(Some(Arc::new(AmfiProvider::new())))
+            }
+            DATA_SOURCE_MOEX => {
+                // Moscow Exchange shares, DRs and ETFs via the public ISS API (no API key)
+                Ok(Some(Arc::new(MoexProvider::new())))
             }
             _ => {
                 warn!("Unknown provider ID: {}", provider_id);
@@ -1093,6 +1106,38 @@ mod tests {
         assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XTSE"));
         assert_eq!(result.provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(result.provider_symbol.as_deref(), Some("SHOP.TO"));
+    }
+
+    #[test]
+    fn test_convert_search_result_keeps_amfi_scheme_off_exchanges() {
+        // As the AMFI provider returns a scheme: "AMFI" names the source and
+        // must not read as an exchange.
+        let provider_result = MarketSearchResult::new(
+            "122639",
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+            "AMFI",
+            "MUTUALFUND",
+        )
+        .with_currency("INR")
+        .with_data_source("AMFI");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "122639");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("122639"));
+        assert_eq!(result.exchange_mic, None);
+        assert_eq!(result.canonical_exchange_mic, None);
+        assert_eq!(result.exchange_name, None);
+        assert_eq!(result.provider_id.as_deref(), Some("AMFI"));
+        assert_eq!(result.data_source.as_deref(), Some("AMFI"));
+        assert_eq!(result.provider_symbol.as_deref(), Some("122639"));
+        assert_eq!(result.currency.as_deref(), Some("INR"));
+        assert_eq!(result.currency_source.as_deref(), Some("provider"));
+        assert_eq!(result.quote_type, "MUTUALFUND");
+        assert_eq!(
+            result.long_name,
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth"
+        );
     }
 
     #[test]

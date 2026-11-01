@@ -1,8 +1,9 @@
 //! Storage adapter for spending::activity_assignments — Diesel impl over the
 //! `activity_taxonomy_assignments` table.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use wealthfolio_spending::activity_splits::ActivitySplit;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -19,7 +20,8 @@ use crate::spending::deterministic_ids::activity_taxonomy_assignment_id;
 use wealthfolio_core::sync::SyncEntity;
 use wealthfolio_spending::activity_assignments::{
     ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
-    NewActivityTaxonomyAssignment,
+    CategoryAssignmentConflicts, NewActivityTaxonomyAssignment, SplitAssignmentConflict,
+    SplitAssignmentConflictReason,
 };
 
 #[derive(
@@ -139,6 +141,63 @@ fn clear_splits_for_activities_tx(
     }
 
     Ok(())
+}
+
+enum RuleDecision {
+    Eligible(bool),
+    Split,
+    Manual,
+    Existing,
+    Unchanged,
+}
+fn rule_decision(
+    conn: &mut SqliteConnection,
+    item: &NewActivityTaxonomyAssignment,
+    only_uncategorized: bool,
+) -> wealthfolio_core::Result<RuleDecision> {
+    if diesel::select(diesel::dsl::exists(
+        spending_activity_splits::table
+            .filter(spending_activity_splits::activity_id.eq(&item.activity_id)),
+    ))
+    .get_result::<bool>(conn)
+    .map_err(StorageError::from)?
+    {
+        return Ok(RuleDecision::Split);
+    }
+    let existing = activity_taxonomy_assignments::table
+        .filter(activity_taxonomy_assignments::activity_id.eq(&item.activity_id))
+        .filter(activity_taxonomy_assignments::taxonomy_id.eq(&item.taxonomy_id))
+        .load::<ActivityTaxonomyAssignmentDB>(conn)
+        .map_err(StorageError::from)?;
+    if existing
+        .iter()
+        .any(|a| a.source.eq_ignore_ascii_case("manual"))
+    {
+        return Ok(RuleDecision::Manual);
+    }
+    if only_uncategorized && !existing.is_empty() {
+        return Ok(RuleDecision::Existing);
+    }
+    if existing.len() == 1
+        && existing[0].category_id == item.category_id
+        && existing[0].weight == item.weight
+        && existing[0].source == item.source
+    {
+        return Ok(RuleDecision::Unchanged);
+    }
+    Ok(RuleDecision::Eligible(!existing.is_empty()))
+}
+fn count_rule_decision(
+    summary: &mut wealthfolio_spending::activity_assignments::RuleAssignmentResult,
+    decision: &RuleDecision,
+) {
+    match decision {
+        RuleDecision::Eligible(_) => summary.eligible += 1,
+        RuleDecision::Split => summary.protected_splits += 1,
+        RuleDecision::Manual => summary.protected_manual += 1,
+        RuleDecision::Existing => summary.skipped_existing += 1,
+        RuleDecision::Unchanged => summary.unchanged += 1,
+    }
 }
 
 #[async_trait]
@@ -315,6 +374,7 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
     async fn assign_many_single_select_clearing_splits(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
+        split_replacements: HashMap<String, Vec<ActivitySplit>>,
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
         if items.is_empty() {
             return Ok(Vec::new());
@@ -333,9 +393,40 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
             .collect::<Vec<_>>();
 
         let now = chrono::Utc::now().to_rfc3339();
-        let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
+        let outcome = self
             .writer
             .exec_tx(move |tx| {
+                // Check every row before changing assignments or emitting outbox entries.
+                // Splits may have changed since a native or MCP preview was shown.
+                let mut conflicts = Vec::new();
+                for activity_id in &activity_ids {
+                    let mut current: Vec<ActivitySplit> = spending_activity_splits::table
+                        .filter(spending_activity_splits::activity_id.eq(activity_id))
+                        .load::<ActivitySplitDB>(tx.conn())
+                        .map_err(StorageError::from)?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect();
+                    if let Some(expected) = split_replacements.get(activity_id) {
+                        let mut expected = expected.clone();
+                        current.sort_by(|a, b| a.id.cmp(&b.id));
+                        expected.sort_by(|a, b| a.id.cmp(&b.id));
+                        if current != expected {
+                            conflicts.push(SplitAssignmentConflict {
+                                activity_id: activity_id.clone(),
+                                reason: SplitAssignmentConflictReason::SplitStateChanged,
+                            });
+                        }
+                    } else if !current.is_empty() {
+                        conflicts.push(SplitAssignmentConflict {
+                            activity_id: activity_id.clone(),
+                            reason: SplitAssignmentConflictReason::ProtectedSplits,
+                        });
+                    }
+                }
+                if !conflicts.is_empty() {
+                    return Ok(Err(CategoryAssignmentConflicts { conflicts }));
+                }
                 clear_splits_for_activities_tx(tx, &activity_ids)?;
 
                 let mut out = Vec::with_capacity(items.len());
@@ -396,11 +487,12 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                     }
                     out.push(inserted);
                 }
-                Ok(out)
+                Ok(Ok(out))
             })
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
+        let inserted_dbs = outcome?;
         Ok(inserted_dbs
             .into_iter()
             .map(ActivityTaxonomyAssignment::from)
@@ -412,15 +504,45 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
         items: Vec<NewActivityTaxonomyAssignment>,
         only_uncategorized: bool,
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        Ok(self
+            .assign_rules_detailed(items, only_uncategorized)
+            .await?
+            .assignments)
+    }
+    async fn preview_rules(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<wealthfolio_spending::activity_assignments::RuleAssignmentResult> {
+        let mut conn = get_connection(&self.pool).map_err(|e| anyhow::anyhow!(e))?;
+        let mut result =
+            wealthfolio_spending::activity_assignments::RuleAssignmentResult::default();
+        for item in items {
+            let decision = rule_decision(&mut conn, &item, only_uncategorized)?;
+            count_rule_decision(&mut result, &decision);
+        }
+        Ok(result)
+    }
+    async fn assign_rules_detailed(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<wealthfolio_spending::activity_assignments::RuleAssignmentResult> {
         if items.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Default::default());
         }
         let now = chrono::Utc::now().to_rfc3339();
-        let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
+        let result = self
             .writer
             .exec_tx(move |tx| {
-                let mut out = Vec::with_capacity(items.len());
+                let mut result =
+                    wealthfolio_spending::activity_assignments::RuleAssignmentResult::default();
                 for item in items {
+                    let decision = rule_decision(tx.conn(), &item, only_uncategorized)?;
+                    count_rule_decision(&mut result, &decision);
+                    let RuleDecision::Eligible(had_existing) = decision else {
+                        continue;
+                    };
                     let NewActivityTaxonomyAssignment {
                         id,
                         activity_id,
@@ -429,24 +551,6 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                         weight,
                         source,
                     } = item;
-                    let existing: Vec<ActivityTaxonomyAssignmentDB> =
-                        activity_taxonomy_assignments::table
-                            .filter(activity_taxonomy_assignments::activity_id.eq(&activity_id))
-                            .filter(activity_taxonomy_assignments::taxonomy_id.eq(&taxonomy_id))
-                            .load::<ActivityTaxonomyAssignmentDB>(tx.conn())
-                            .map_err(StorageError::from)?;
-
-                    if existing
-                        .iter()
-                        .any(|row| row.source.eq_ignore_ascii_case("manual"))
-                    {
-                        continue;
-                    }
-                    if only_uncategorized && !existing.is_empty() {
-                        continue;
-                    }
-
-                    let had_existing = !existing.is_empty();
                     let id = id.unwrap_or_else(|| {
                         activity_taxonomy_assignment_id(&activity_id, &taxonomy_id)
                     });
@@ -485,17 +589,17 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                             tx.insert(&inserted)?;
                         }
                     }
-                    out.push(inserted);
+                    result
+                        .assignments
+                        .push(ActivityTaxonomyAssignment::from(inserted));
+                    result.changed += 1;
                 }
-                Ok(out)
+                Ok(result)
             })
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
-        Ok(inserted_dbs
-            .into_iter()
-            .map(ActivityTaxonomyAssignment::from)
-            .collect())
+        Ok(result)
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
@@ -559,29 +663,31 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{
         activities, activity_taxonomy_assignments, spending_activity_splits, sync_outbox,
     };
     use diesel::r2d2::{ConnectionManager, Pool};
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_assignments::{
         ActivityTaxonomyAssignmentRepositoryTrait, NewActivityTaxonomyAssignment,
     };
 
-    fn setup_db() -> (Arc<Pool<ConnectionManager<SqliteConnection>>>, WriteHandle) {
+    fn setup_db() -> (
+        Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        WriteHandle,
+        TestDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     fn insert_account_and_activity(conn: &mut SqliteConnection, id: &str, source_system: &str) {
@@ -640,8 +746,153 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rule_reruns_preserve_split_allocations_in_both_modes() {
+        for only_uncategorized in [true, false] {
+            let (pool, writer, _dir) = setup_db();
+            {
+                let mut conn = get_connection(&pool).expect("conn");
+                insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+                insert_split(&mut conn, "split-1", "split-activity");
+            }
+            let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+            let applied = repo
+                .assign_rule_many_single_select(
+                    vec![NewActivityTaxonomyAssignment {
+                        id: None,
+                        activity_id: "split-activity".to_string(),
+                        taxonomy_id: "spending_categories".to_string(),
+                        category_id: "cat_groceries".to_string(),
+                        weight: 10_000,
+                        source: "rule".to_string(),
+                    }],
+                    only_uncategorized,
+                )
+                .await
+                .expect("rerun rules");
+            assert!(applied.is_empty());
+            assert!(repo
+                .list_for_activity("split-activity")
+                .await
+                .unwrap()
+                .is_empty());
+            let mut conn = get_connection(&pool).expect("conn");
+            assert_eq!(
+                spending_activity_splits::table
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .unwrap(),
+                1
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn ordinary_bulk_assignment_rejects_split_rows_atomically() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        let items = ["ordinary", "split-activity"]
+            .map(|id| NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: id.to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            })
+            .to_vec();
+        assert!(repo
+            .assign_many_single_select_clearing_splits(items, HashMap::new())
+            .await
+            .is_err());
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        assert!(repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_split_content_rejects_the_whole_replacement() {
+        let (pool, writer, _dir) = setup_db();
+        let expected = {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            let expected = spending_activity_splits::table
+                .load::<ActivitySplitDB>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .map(ActivitySplit::from)
+                .collect::<Vec<_>>();
+            // Same ID and timestamps: comparing identifiers alone loses this edit.
+            diesel::update(spending_activity_splits::table.find("split-1"))
+                .set(spending_activity_splits::note.eq("Changed after review"))
+                .execute(&mut conn)
+                .unwrap();
+            expected
+        };
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        let items = ["ordinary", "split-activity"]
+            .map(|id| NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: id.to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            })
+            .to_vec();
+        let error = repo
+            .assign_many_single_select_clearing_splits(
+                items,
+                HashMap::from([("split-activity".to_string(), expected)]),
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("changed"));
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        assert!(repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .find("split-1")
+                .select(spending_activity_splits::note)
+                .first::<Option<String>>(&mut conn)
+                .unwrap(),
+            Some("Changed after review".to_string())
+        );
+        assert_eq!(
+            crate::schema::sync_outbox::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
     async fn assigning_category_clears_existing_splits_in_same_write() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "manual-activity", "MANUAL");
@@ -649,14 +900,26 @@ mod tests {
         }
 
         let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
-        repo.assign_many_single_select_clearing_splits(vec![NewActivityTaxonomyAssignment {
-            id: None,
-            activity_id: "manual-activity".to_string(),
-            taxonomy_id: "spending_categories".to_string(),
-            category_id: "cat_groceries".to_string(),
-            weight: 10_000,
-            source: "manual".to_string(),
-        }])
+        let expected = {
+            let mut conn = get_connection(&pool).expect("conn");
+            spending_activity_splits::table
+                .load::<ActivitySplitDB>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .map(ActivitySplit::from)
+                .collect::<Vec<_>>()
+        };
+        repo.assign_many_single_select_clearing_splits(
+            vec![NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: "manual-activity".to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            }],
+            HashMap::from([("manual-activity".to_string(), expected)]),
+        )
         .await
         .expect("assign category");
 
@@ -679,7 +942,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_activity_assignment_is_local_only_but_manual_assignment_still_syncs() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "broker-activity", "SNAPTRADE");

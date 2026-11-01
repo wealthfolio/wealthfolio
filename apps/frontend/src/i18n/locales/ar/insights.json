@@ -61,8 +61,9 @@
     "no_target_selected": "لم يتم تحديد هدف",
     "no_target_selected_description": "أنشئ توزيعًا مستهدفًا لمقارنة الأوزان الحالية بالأوزان المقصودة.",
     "rails": {
-      "add": "إضافة",
-      "all_in_range": "جميع الفئات ضمن النطاق المستهدف — لا حاجة لإعادة التوازن",
+      "above_target_by": "أعلى من الهدف بمقدار {{amount}}",
+      "all_in_range": "جميع الفئات ضمن نطاقها المستهدف.",
+      "below_target_by": "أدنى من الهدف بمقدار {{amount}}",
       "compare_weights": "قارن الأوزان الحالية بمحفظتك المرغوبة.",
       "current": "الحالي",
       "details": "التفاصيل",
@@ -76,11 +77,10 @@
       "outside_range_two": "عنصران خارج النطاق · أكبر فجوة {{gap}}",
       "outside_range_zero": "{{count}} عناصر خارج النطاق · أكبر فجوة {{gap}}",
       "set_target_allocation": "تحديد التوزيع المستهدف",
-      "suggested_moves": "التحركات المقترحة",
       "target": "الهدف",
       "target_allocation": "التوزيع المستهدف",
-      "tolerance": "هامش التفاوت {{tolerance}}",
-      "trim": "تقليص"
+      "target_differences": "الفروق عن الهدف",
+      "tolerance": "هامش التفاوت {{tolerance}}"
     },
     "rebalance": "إعادة التوازن",
     "set_target_allocation": "تحديد التوزيع المستهدف",

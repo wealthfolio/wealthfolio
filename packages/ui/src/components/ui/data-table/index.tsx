@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -90,6 +91,7 @@ export function DataTable<TData, TValue>({
   pinRowsToTop,
   card = true,
 }: DataTableProps<TData, TValue>) {
+  const { t } = useTranslation();
   const Frame = card ? Card : "div";
   const [rowSelection, setRowSelection] = React.useState({});
   const [storedColumnVisibility, setColumnVisibility] = storageKey
@@ -244,7 +246,7 @@ export function DataTable<TData, TValue>({
                 <TableCell colSpan={columns.length} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <Icons.FileText className="text-muted-foreground mb-2 h-10 w-10" />
-                    <p className="text-muted-foreground text-sm">No results found.</p>
+                    <p className="text-muted-foreground text-sm">{t("common:no_results_found", "No results found.")}</p>
                   </div>
                 </TableCell>
               </TableRow>

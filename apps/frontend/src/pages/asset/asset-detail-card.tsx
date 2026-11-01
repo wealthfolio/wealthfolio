@@ -64,7 +64,7 @@ interface AssetDetailProps {
 }
 
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wider">
+  <div className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
     {children}
   </div>
 );
@@ -114,7 +114,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
 
   const amountTone = (amount: number | null) => {
     if (amount == null || amount === 0) return "";
-    return amount < 0 ? "text-destructive" : "text-success";
+    return amount < 0 ? "text-loss" : "text-gain";
   };
 
   const positionRows = [
@@ -208,14 +208,16 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between pb-0">
-        <CardTitle className="flex w-full justify-between text-lg font-bold">
+        {/* When a long quantity and value don't fit side by side (larger text sizes), the
+            value wraps under the quantity, still at the end, instead of running into it. */}
+        <CardTitle className="flex w-full flex-wrap items-start justify-between gap-x-4 gap-y-2 text-lg font-bold">
           <div>
             <div>
               <QuantityDisplay value={numShares} isHidden={isBalanceHidden} />
             </div>
             <div className="text-muted-foreground text-sm font-normal">{quantityLabel}</div>
           </div>
-          <div>
+          <div className="ms-auto text-end">
             <div className="text-xl font-extrabold">
               <AmountDisplay value={marketValue} currency={currency} isHidden={isBalanceHidden} />
             </div>
@@ -244,9 +246,9 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
           <div className="space-y-2 text-sm">
             {performanceRows.map(
               ({ label, amount, currency: rowCurrency, percent, color }, idx) => (
-                <div key={idx} className="flex items-center justify-between">
+                <div key={idx} className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">{label}</span>
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                     {amount == null && percent == null ? (
                       <span className="text-muted-foreground">{t("asset:detailCard.na")}</span>
                     ) : (
@@ -306,7 +308,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                   <span className="text-muted-foreground text-xs">
                     {t("asset:detailCard.high")}
                   </span>
-                  <div className="text-success text-sm font-medium">
+                  <div className="text-gain text-sm font-medium">
                     <PriceDisplay
                       value={quote.high}
                       currency={quoteCurrency ?? currency}
@@ -316,7 +318,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-muted-foreground text-xs">{t("asset:detailCard.low")}</span>
-                  <div className="text-destructive text-sm font-medium">
+                  <div className="text-loss text-sm font-medium">
                     <PriceDisplay
                       value={quote.low}
                       currency={quoteCurrency ?? currency}

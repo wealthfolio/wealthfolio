@@ -24,6 +24,7 @@ import {
 } from "@wealthfolio/ui";
 
 import type { CategorizationRule, RuleAmountOp, RuleMatchType } from "../types/rule";
+import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 
 export interface RuleFormValues {
@@ -137,6 +138,7 @@ export interface RuleFormCategoryOption {
   taxonomyId: string;
   categoryId: string;
   color?: string | null;
+  icon?: string | null;
   parentName?: string | null;
 }
 
@@ -386,7 +388,7 @@ export function RuleForm({
                       <FormControl>
                         <button
                           type="button"
-                          className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                          className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
                           aria-label={
                             currentOption
                               ? t("spending:transactions.changeCategory", {
@@ -397,13 +399,12 @@ export function RuleForm({
                         >
                           {currentOption ? (
                             <span className="flex min-w-0 items-center gap-2">
-                              {currentOption.color && (
-                                <span
-                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                  style={{ backgroundColor: currentOption.color }}
-                                  aria-hidden="true"
-                                />
-                              )}
+                              <CategoryIconTile
+                                icon={currentOption.icon ?? null}
+                                color={currentOption.color ?? null}
+                                className="h-5 w-5"
+                                iconClassName="h-3 w-3"
+                              />
                               <span className="truncate">
                                 {currentOption.parentName ? `${currentOption.parentName} / ` : ""}
                                 {currentOption.label}
@@ -422,6 +423,7 @@ export function RuleForm({
                       </FormControl>
                     }
                   />
+                  <FormDescription>{t("spending:rules.categoryCompatibilityHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               );

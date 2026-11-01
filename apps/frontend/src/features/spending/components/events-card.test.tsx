@@ -2,7 +2,7 @@ import { render, screen } from "@/test/render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FOREST_THEME } from "../lib/theme";
+import { SPENDING_THEME } from "../lib/theme";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import type { EventSpendingSummary } from "../types/event";
 import { EventsCard } from "./events-card";
@@ -48,7 +48,7 @@ function renderEventsCard(periodStartDate: string, periodEndDate: string) {
         eventSummaryStartDate={periodStartDate}
         periodEndDate={periodEndDate}
         periodStartDate={periodStartDate}
-        theme={FOREST_THEME}
+        theme={SPENDING_THEME}
       />
     </MemoryRouter>,
   );

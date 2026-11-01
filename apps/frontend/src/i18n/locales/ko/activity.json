@@ -46,6 +46,8 @@
   "subtype_position_close": "포지션 청산",
   "subtype_return_of_capital": "자본 환급",
   "subtype_notional_distribution": "명목 분배",
+  "subtype_conversion_out": "전환 (출고)",
+  "subtype_conversion_in": "전환 (입고)",
   "type_buy_desc": "자산을 매수합니다. 보유 수량이 늘어나고 현금 잔액이 줄어듭니다.",
   "type_sell_desc": "자산을 매도합니다. 보유 수량이 줄어들고 현금 잔액이 늘어납니다.",
   "type_deposit_desc": "자금을 추가하여 계좌 잔액을 늘립니다.",
@@ -198,6 +200,7 @@
   "mobile_type_fee_desc": "계좌 또는 거래 수수료",
   "mobile_type_tax_desc": "세금 납부",
   "mobile_type_split_desc": "주식분할 조정",
+  "mobile_type_conversion_desc": "취득원가를 유지한 채 다른 펀드로 전환",
   "mobile_date_time": "날짜 및 시간",
   "mobile_fee_optional": "수수료(선택 사항)",
   "mobile_description_optional": "설명(선택 사항)",
@@ -314,7 +317,8 @@
   "delete_modal": {
     "title": "활동을 삭제하시겠습니까?",
     "description": "이 활동은 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
-    "linked_transfer_desc": "이 활동은 이체 쌍과 연결되어 있습니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    "linked_transfer_desc": "이 활동은 이체 쌍과 연결되어 있습니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "linked_conversion_desc": "이 활동은 전환의 한쪽입니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
   },
   "form_renderer": {
     "select_type": "계속하려면 위에서 활동 유형을 선택하세요",
@@ -331,6 +335,7 @@
     "count_other": "이 날짜에 기록된 활동 {{count}}건"
   },
   "picker": {
+    "conversion": "펀드 전환",
     "transfer": "이체",
     "split": "주식분할",
     "all_types_group": "모든 활동 유형",
@@ -461,6 +466,13 @@
     "within_days_other": "{{count}}일 이내"
   },
   "form": {
+    "section_conversion": "펀드 전환",
+    "section_conversion_from": "전환 전",
+    "section_conversion_to": "전환 후",
+    "conversion_hint": "한 펀드나 자산의 좌수가 다른 자산의 좌수로 바뀌고 취득원가는 그대로 유지됩니다(펀드 전환, 클래스·시리즈 변경, 펀드의 ETF 전환, 토큰 마이그레이션 등). 과세되는 교체라면 매도와 매수로 기록하세요.",
+    "button_add_conversion": "펀드 전환 추가",
+    "warn_converting_more_than_held": "{{converting}}좌를 전환하려고 하지만, 현재 이 계좌의 보유량은 {{available}}입니다.",
+    "err_conversion_same_asset": "전환 대상으로 다른 자산을 선택하세요.",
     "section_asset_account": "자산 및 계좌",
     "section_account": "계좌",
     "section_amount": "금액",
@@ -950,7 +962,15 @@
       "mapSymbol": "종목 코드 매핑",
       "missingAccount": "계좌 없음",
       "emptySymbol": "종목 코드 없음",
-      "accountAssignmentBlankRows_other": "모든 CSV 행을 계좌에 매핑하세요. {{count}}개 행이 아직 비어 있습니다. 업로드에서 기본 계좌를 선택하거나 계좌 열을 채워 주세요."
+      "accountAssignmentBlankRows_other": "모든 CSV 행을 계좌에 매핑하세요. {{count}}개 행이 아직 비어 있습니다. 업로드에서 기본 계좌를 선택하거나 계좌 열을 채워 주세요.",
+      "statusIncluded": "포함됨",
+      "skippedCount_one": "{{count}}행 건너뜀",
+      "skippedCount_other": "{{count}}행 건너뜀",
+      "allRowsSkipped": "모든 행을 건너뛰었습니다",
+      "allRowsSkippedDescription": "계속하려면 하나 이상의 행을 포함하세요.",
+      "includeRow": "{{line}}행 포함",
+      "includeAllRows": "모든 행 포함",
+      "includeMatchingRows": "일치하는 모든 행 포함"
     },
     "csvViewer": {
       "status": "상태",
@@ -1059,7 +1079,8 @@
       "statusValid": "유효함",
       "skipReason": "건너뜀",
       "willBeImportedTitle_other": "전체 {{all}}건 중 {{count}}건의 활동을 가져옵니다",
-      "activitiesCount_other": "활동 {{count}}건"
+      "activitiesCount_other": "활동 {{count}}건",
+      "backend_failed": "서버 검증에 실패했습니다. 가져오기 전에 다시 검증하세요."
     },
     "status": {
       "valid": "유효함",
@@ -1329,6 +1350,57 @@
       "cancel": "취소",
       "importing": "가져오는 중...",
       "issuesTitle_other": "활동 항목 {{count}}건에 문제가 있습니다."
+    },
+    "creditCard": {
+      "charge": "청구",
+      "payment": "결제",
+      "transfer": "잔액 이체 / 현금서비스",
+      "refund": "환불 / 입금",
+      "interest": "이자 청구"
     }
+  },
+  "validation": {
+    "account_is_required": "계좌를 선택해 주세요.",
+    "date_is_required": "날짜를 선택해 주세요.",
+    "symbol_is_required_for_this_activity_type": "종목 코드를 입력해 주세요.",
+    "received_quantity_is_required": "수령 수량은 필수입니다.",
+    "either_income_amount_or_fmv_per_unit_is_required": "수익 금액 또는 단위당 공정시장가치를 입력해 주세요.",
+    "fee_cannot_be_negative": "수수료는 음수가 될 수 없습니다.",
+    "tax_cannot_be_negative": "세금은 음수가 될 수 없습니다.",
+    "currency_is_required": "통화는 필수입니다.",
+    "symbol_is_required_for_trade_activities": "종목 코드를 입력해 주세요.",
+    "quantity_must_be_greater_than_0": "수량은 0보다 커야 합니다.",
+    "unit_price_must_be_greater_than_0": "가격은 0보다 커야 합니다.",
+    "symbol_is_required_for_drip_dividends": "종목 코드를 입력해 주세요.",
+    "quantity_is_required_for_drip_shares_received": "수령 수량은 필수입니다.",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "배당금 금액 또는 단위당 공정시장가치 중 하나를 입력하세요.",
+    "symbol_is_required_for_dividend_in_kind_activities": "종목 코드를 입력해 주세요.",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "수령 수량은 필수입니다.",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "배당금 금액 또는 단위당 공정시장가치 중 하나를 입력하세요.",
+    "amount_is_required_for_dividend_activities": "금액을 입력해 주세요.",
+    "symbol_is_required_for_staking_rewards": "보상 자산을 선택해 주세요.",
+    "quantity_is_required_for_staking_rewards_tokens_received": "수령 수량은 필수입니다.",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "이자 금액 또는 단위당 공정시장가치 중 하나를 입력하세요.",
+    "amount_is_required_for_interest_activities": "금액을 입력해 주세요.",
+    "symbol_is_required_for_split_activities": "종목 코드를 입력해 주세요.",
+    "amount_split_ratio_must_be_greater_than_0": "분할 비율은 0보다 커야 합니다.",
+    "amount_is_required_for_credit_activities": "금액을 입력해 주세요.",
+    "activity_type_is_required": "거래 유형을 선택하세요",
+    "date_not_recognized": "날짜를 인식할 수 없습니다",
+    "map_type": "계속하기 전에 CSV 거래 유형을 매핑하세요",
+    "credit_card_types": "신용카드 가져오기는 청구, 결제, 출금 이체, 환불, 수수료 및 이자만 지원합니다",
+    "fee_or_amount": "수수료 거래에는 수수료 또는 금액이 필요합니다",
+    "amount_or_fee": "세금 거래에는 금액 또는 수수료가 필요합니다",
+    "amount_or_quantity": "이체 거래에는 금액 또는 수량이 필요합니다",
+    "final_cash": "승인 전에 최종 현금 금액이 필요합니다",
+    "fx_non_negative": "환율은 음수일 수 없습니다",
+    "transfer_pair": "이체에는 양쪽 거래가 필요하며 같은 계좌일 경우 두 통화를 사용해야 합니다",
+    "more": " (추가 {{remaining}}개)",
+    "amount_is_required_for_deposit_withdrawal_activities": "금액을 입력해 주세요."
+  },
+  "validationFields": {
+    "external": "외부 이체",
+    "direction": "이체 방향",
+    "mode": "이체 모드"
   }
 }

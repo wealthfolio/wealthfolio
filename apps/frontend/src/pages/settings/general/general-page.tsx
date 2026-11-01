@@ -15,7 +15,7 @@ export default function GeneralSettingsPage() {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading={t("settings:general")}
+        heading={t("settings:nav.items.general")}
         text={t("settings:general_page_description")}
       />
       <Separator />

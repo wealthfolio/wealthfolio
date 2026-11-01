@@ -15,7 +15,7 @@ export function RawResponseViewer({ rawResponse, format, onPathClick }: RawRespo
     return <JsonTreeViewer rawResponse={rawResponse} onPathClick={onPathClick} />;
   }
   return (
-    <pre className="text-muted-foreground whitespace-pre-wrap break-all p-3 text-xs leading-relaxed">
+    <pre className="text-muted-foreground p-3 text-xs leading-relaxed break-all whitespace-pre-wrap">
       {rawResponse}
     </pre>
   );
@@ -44,7 +44,7 @@ function JsonTreeViewer({
 
   if (!parsed.ok) {
     return (
-      <pre className="text-muted-foreground whitespace-pre-wrap break-all p-3 text-xs leading-relaxed">
+      <pre className="text-muted-foreground p-3 text-xs leading-relaxed break-all whitespace-pre-wrap">
         {rawResponse}
       </pre>
     );

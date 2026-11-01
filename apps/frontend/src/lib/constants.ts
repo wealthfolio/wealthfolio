@@ -433,6 +433,11 @@ export const ACTIVITY_SUBTYPES = {
   // NOTIONAL_DISTRIBUTION: taxable distribution reinvested without new units; income
   // that raises the asset's cost basis, no unit or cash effect
   NOTIONAL_DISTRIBUTION: "NOTIONAL_DISTRIBUTION",
+  // CONVERSION_OUT / CONVERSION_IN: the two rows of a conversion (a fund switch
+  // or share-class conversion that keeps its cost), linked by sourceGroupId.
+  // Written together by the conversion form, never offered on their own.
+  CONVERSION_OUT: "CONVERSION_OUT",
+  CONVERSION_IN: "CONVERSION_IN",
 
   // BUY/SELL position intent subtypes
   // POSITION_OPEN: opens or extends a long/short position
@@ -502,6 +507,8 @@ export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
   [ACTIVITY_SUBTYPES.OPTION_EXPIRY]: "Option Expiry",
   [ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL]: "Return of Capital",
   [ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION]: "Notional Distribution",
+  [ACTIVITY_SUBTYPES.CONVERSION_OUT]: "Conversion Out",
+  [ACTIVITY_SUBTYPES.CONVERSION_IN]: "Conversion In",
   [ACTIVITY_SUBTYPES.POSITION_OPEN]: "Open Position",
   [ACTIVITY_SUBTYPES.POSITION_CLOSE]: "Close Position",
 };

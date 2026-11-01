@@ -1,3 +1,4 @@
+import { getCategoryPathLabel } from "@/lib/taxonomy-labels";
 import { updateToolResult } from "@/adapters";
 import { QuickCategorizePopover } from "@/features/spending/components/quick-categorize-popover";
 import { useBulkAssignCategories } from "@/features/spending/hooks/use-cash-activities";
@@ -31,12 +32,13 @@ import type {
   ProposeCategoryOption,
   ProposeCategoryProposal,
 } from "../../types";
+import { categoryPickerScope, unwrapSpendingResult } from "./spending-result-utils";
 import { createActivityAmountFormatter, formatActivityAmount, formatActivityDate } from "./shared";
 
-type CategorizationProposalsToolUIContentProps = ToolCallMessagePartProps<
-  ProposeCategoriesArgs,
-  ProposeCategoriesOutput
->;
+type CategorizationProposalsToolUIContentProps = Omit<
+  ToolCallMessagePartProps<ProposeCategoriesArgs, ProposeCategoriesOutput>,
+  "result"
+> & { result?: unknown };
 
 interface RowDraft {
   activityId: string;
@@ -84,11 +86,15 @@ function ProposalsLoadingState() {
   );
 }
 
-function CategorizationProposalsContentImpl({
-  result,
+export function CategorizationProposalsContentImpl({
+  result: rawResult,
   status,
   toolCallId,
 }: CategorizationProposalsToolUIContentProps) {
+  const result = useMemo(
+    () => unwrapSpendingResult<ProposeCategoriesOutput>(rawResult),
+    [rawResult],
+  );
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
 
@@ -206,6 +212,7 @@ function CategorizationProposalsContentImpl({
   };
 
   const updateRowCategory = (activityId: string, taxonomyId: string, categoryId: string) => {
+    if (rows.find((row) => row.activityId === activityId)?.taxonomyId !== taxonomyId) return;
     const cat = categoryPathMap.get(categoryId);
     setRows((prev) =>
       prev.map((r) =>
@@ -370,11 +377,21 @@ function CategorizationProposalsContentImpl({
                       className="h-2 w-2 rounded-full"
                       style={{ backgroundColor: row.categoryColor }}
                     />
-                    <span className="max-w-45 truncate">{row.categoryPath}</span>
+                    <span className="max-w-45 truncate">
+                      {getCategoryPathLabel(
+                        t,
+                        row.taxonomyId,
+                        row.categoryId,
+                        row.categoryPath,
+                        result.taxonomies?.find(
+                          (taxonomy) => taxonomy.taxonomyId === row.taxonomyId,
+                        )?.categories ?? [],
+                      )}
+                    </span>
                   </button>
                 }
                 selectedCategoryId={row.categoryId}
-                scope="both"
+                scope={categoryPickerScope(row.taxonomyId) ?? "expense"}
                 onSelect={(taxonomyId, categoryId) =>
                   updateRowCategory(row.activityId, taxonomyId, categoryId)
                 }
@@ -395,7 +412,7 @@ function CategorizationProposalsContentImpl({
 
           {visibleUnproposed.length > 0 && (
             <div className="mt-3 border-t pt-2">
-              <p className="text-muted-foreground text-2xs px-4 pb-1 uppercase tracking-wide">
+              <p className="text-muted-foreground text-2xs px-4 pb-1 tracking-wide uppercase">
                 {t("ai:categorization.needsManualChoice", { count: visibleUnproposed.length })}
               </p>
               {visibleUnproposed.map((row) => (
@@ -427,13 +444,15 @@ function CategorizationProposalsContentImpl({
                       <button
                         type="button"
                         className="text-muted-foreground hover:bg-muted/70 text-2xs inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5"
+                        disabled={!categoryPickerScope(row.allowedTaxonomyId)}
                       >
                         <Icons.Plus className="h-3 w-3" />
                         {t("ai:categorization.pickCategory")}
                       </button>
                     }
-                    scope="both"
+                    scope={categoryPickerScope(row.allowedTaxonomyId) ?? "expense"}
                     onSelect={(taxonomyId, categoryId) => {
+                      if (taxonomyId !== row.allowedTaxonomyId) return;
                       const cat = categoryPathMap.get(categoryId);
                       setPickedUnproposedIds((prev) => {
                         const next = new Set(prev);
@@ -471,7 +490,7 @@ function CategorizationProposalsContentImpl({
             <Alert variant="error">
               <Icons.AlertCircle className="h-4 w-4" />
               <AlertTitle>{t("ai:categorization.failedApplyTitle")}</AlertTitle>
-              <AlertDescription className="break-words text-xs">{submitError}</AlertDescription>
+              <AlertDescription className="text-xs break-words">{submitError}</AlertDescription>
             </Alert>
           </div>
         )}

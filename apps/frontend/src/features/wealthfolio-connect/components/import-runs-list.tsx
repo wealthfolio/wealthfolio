@@ -11,7 +11,7 @@ import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { BROKER_SYNC_RUN_FAILED_MESSAGE } from "../lib/broker-sync-messages";
+import { getBrokerSyncRunFailedMessage } from "../lib/broker-sync-messages";
 import type { ImportRun, ImportRunStatus } from "../types";
 
 interface ImportRunsListProps {
@@ -175,7 +175,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
             {/* Error */}
             {run.error && (
               <div className="bg-destructive-subtle rounded-md p-2">
-                <p className="text-destructive text-sm">{BROKER_SYNC_RUN_FAILED_MESSAGE}</p>
+                <p className="text-destructive text-sm">{getBrokerSyncRunFailedMessage()}</p>
               </div>
             )}
 

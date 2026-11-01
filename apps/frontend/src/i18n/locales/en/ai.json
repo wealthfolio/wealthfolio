@@ -22,7 +22,7 @@
   "empty": {
     "noProviderTitle": "No AI provider configured",
     "noProviderDescription": "Connect an AI provider to start chatting with your personal finance assistant. Your data stays private and secure.",
-    "configureProviders": "Configure AI Providers"
+    "configureProviders": "Configure AI providers"
   },
   "model": {
     "noModel": "No model",
@@ -420,7 +420,8 @@
     "monthlyAverage": "Monthly Average",
     "byType": "By Type",
     "monthlyIncome": "Monthly Income",
-    "sources": "Sources"
+    "sources": "Sources",
+    "yoyShort": "YoY"
   },
   "categorizationContext": {
     "loading": "Loading categorization context…",
@@ -555,8 +556,8 @@
       "historyDescription": "Portfolio value over time"
     },
     "default": "Default",
-    "apiKeyRequired": "API Key Required",
-    "apiKey": "API Key",
+    "apiKeyRequired": "API key required",
+    "apiKey": "API key",
     "getApiKey": "Get API key",
     "enterApiKey": "Enter API key",
     "hideApiKey": "Hide API key",
@@ -568,18 +569,18 @@
     "loading": "Loading...",
     "noModelsFound": "No models found.",
     "recommended": "Recommended",
-    "otherAvailable": "Other Available",
+    "otherAvailable": "Other available",
     "noModelsSelected": "No models selected. Click \"Add\" to add models.",
     "config": "Config",
     "tools": "Tools",
     "vision": "Vision",
     "thinking": "Thinking",
     "capabilitiesPreset": "Capabilities are preset for recommended models.",
-    "dataAccessTitle": "Data Access",
+    "dataAccessTitle": "Data access",
     "dataAccessSubtitle": "What data the AI can access",
     "aiDataSharing": "AI data sharing",
     "aiDataSharingDescription": "Enabled AI tools may share relevant portfolio data and attachments with your selected AI provider when used in chat.",
-    "advancedOptions": "Advanced Options",
+    "advancedOptions": "Advanced options",
     "customized": "Customized",
     "resetToDefaults": "Reset to defaults",
     "structuredOptions": "Structured options",
@@ -626,5 +627,29 @@
       "otherTitle": "Other",
       "otherBlurb": "Miscellaneous provider-specific options."
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "AI Providers settings",
+    "thisModel": "This model",
+    "selectedModel": "selected model",
+    "thinkingUnsupported": "**Thinking not supported**\n\n{{modelName}} doesn't support the thinking/reasoning feature.\n\nTry a different model that supports thinking, or check your {{settingsLink}}.",
+    "modelUnavailable": "**Model not available**\n\nThe model \"{{modelName}}\" could not be found. This usually means:\n- The model hasn't been downloaded yet\n- The model name is incorrect\n- The AI provider service isn't running\n\nPlease check your {{settingsLink}} to select a different model or verify your provider configuration.",
+    "connectionRefused": "**Cannot connect to AI provider**\n\nThe AI provider service doesn't appear to be running. Please:\n1. Start your local AI provider (e.g., Ollama)\n2. Verify the provider URL in {{settingsLink}}\n3. Try again",
+    "authentication": "**Authentication failed**\n\nYour API key appears to be invalid or missing. Please check your {{settingsLink}} and ensure your API key is correctly configured.",
+    "rateLimit": "**Rate limit exceeded**\n\nYou've made too many requests. Please wait a moment and try again.",
+    "timeout": "**Request timed out**\n\nThe AI provider took too long to respond. This could be due to:\n- A slow network connection\n- The provider being overloaded\n- A very complex request\n\nPlease try again or select a faster model in {{settingsLink}}.",
+    "provider": "**Provider error**\n\n{{error}}\n\nCheck your {{settingsLink}} if this persists.",
+    "unknown": "**Something went wrong**\n\n{{error}}\n\nIf this persists, please check your {{settingsLink}}."
+  },
+  "importSessionErrors": {
+    "missingCsv": "No CSV content available. The AI tool result may be incomplete.",
+    "emptyCsv": "The CSV file contains no data rows.",
+    "noActivities": "No activities could be extracted. The column mapping may be incorrect.",
+    "prepareFailed": "Failed to prepare CSV import.",
+    "revalidateFailed": "Failed to revalidate.",
+    "nothing": "Nothing to import.",
+    "allInvalid": "All activities have validation errors. Fix them and try again.",
+    "importFailed": "Failed to import activities.",
+    "reviewAndRetry": "Import failed. Review the errors and try again."
   }
 }

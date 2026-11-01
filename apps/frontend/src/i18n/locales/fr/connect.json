@@ -342,5 +342,13 @@
     "description": "Vous allez connecter un autre compte ou foyer. Les données locales de votre portefeuille seront conservées, mais les liens existants avec les courtiers et la configuration de synchronisation des appareils seront supprimés. Le nouveau compte pourra ajouter des données de courtage à ce profil. Configurez à nouveau la synchronisation des appareils lorsque vous le souhaitez. Utilisez un nouveau profil si vous préférez garder les données séparées.",
     "cancel": "Annuler",
     "confirm": "Changer de connexion"
+  },
+  "syncMessages": {
+    "runFailed": "Cette synchronisation n’a pas pu être terminée. Relancez-la ou gérez votre connexion au courtier.",
+    "runNeedsReview": "Certains éléments synchronisés doivent être vérifiés avant de poursuivre la synchronisation.",
+    "accountFailed": "Impossible de synchroniser ce compte de courtage. Relancez la synchronisation ou gérez votre connexion au courtier.",
+    "accountNeedsReview": "Certaines données du courtier doivent être vérifiées. Relancez la synchronisation ou gérez votre connexion au courtier.",
+    "holdingsSynced": "Les positions sont synchronisées, mais la synchronisation des activités nécessite votre attention. Relancez-la ou gérez votre connexion au courtier.",
+    "holdingsDeferred": "La synchronisation des positions nécessite votre attention. Relancez-la ou gérez votre connexion au courtier."
   }
 }

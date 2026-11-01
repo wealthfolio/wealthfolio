@@ -10,3 +10,7 @@ pub use model::{
     SpendingSummary, SubcategorySpending,
 };
 pub use service::AnalyticsService;
+
+pub mod traits;
+
+pub use traits::AnalyticsServiceTrait;

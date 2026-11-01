@@ -439,7 +439,7 @@ describe("useActivityForm", () => {
     });
   });
 
-  it("unlinks a valid grouped transfer before saving it as external", async () => {
+  it("includes paired unlink intent in the reviewed external edit", async () => {
     adapterMocks.getTransferPairForActivity.mockResolvedValue({
       transferOut: { id: "transfer-out-id" },
       transferIn: { id: "transfer-in-id" },
@@ -482,20 +482,15 @@ describe("useActivityForm", () => {
     });
 
     expect(adapterMocks.getTransferPairForActivity).toHaveBeenCalledWith("transfer-in-id");
-    expect(mutationMocks.unlinkMutateAsync).toHaveBeenCalledWith({
-      activityAId: "transfer-out-id",
-      activityBId: "transfer-in-id",
-    });
+    expect(mutationMocks.unlinkMutateAsync).not.toHaveBeenCalled();
     expect(mutationMocks.updateMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "transfer-in-id",
         accountId: "acc-cad",
         activityType: ActivityType.TRANSFER_IN,
         metadata: { flow: { is_external: true } },
+        unlinkTransferPairId: "transfer-out-id",
       }),
-    );
-    expect(mutationMocks.unlinkMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      mutationMocks.updateMutateAsync.mock.invocationCallOrder[0],
     );
   });
 
@@ -546,5 +541,150 @@ describe("useActivityForm", () => {
         metadata: { flow: { is_external: true } },
       }),
     );
+  });
+});
+describe("useActivityForm conversions", () => {
+  const conversion = {
+    accountId: "acc-usd",
+    activityDate: new Date("2026-02-03T00:00:00Z"),
+    fromAssetId: "FUNDA",
+    fromExistingAssetId: "asset-a",
+    fromQuantity: 25,
+    toAssetId: "FUNDB",
+    toExistingAssetId: "asset-b",
+    toQuantity: 40,
+    comment: "switch",
+  } as unknown as ActivityFormValues;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mutationMocks.saveMutateAsync.mockResolvedValue({ errors: [], created: [], updated: [] });
+  });
+
+  it("creates both rows of a conversion in one group", async () => {
+    const { result } = renderHook(() => useActivityForm({ accounts, selectedType: "CONVERSION" }));
+    await act(async () => {
+      await result.current.handleSubmit(conversion);
+    });
+
+    const [request] = mutationMocks.saveMutateAsync.mock.calls[0];
+    const [leaving, arriving] = request.creates;
+    expect(request.updates).toBeUndefined();
+    expect(leaving).toMatchObject({
+      accountId: "acc-usd",
+      activityType: ActivityType.ADJUSTMENT,
+      subtype: "CONVERSION_OUT",
+      quantity: 25,
+      currency: "USD",
+      comment: "switch",
+    });
+    expect(arriving).toMatchObject({
+      activityType: ActivityType.ADJUSTMENT,
+      subtype: "CONVERSION_IN",
+      quantity: 40,
+    });
+    // Existing assets go by id alone, so the backend never re-infers them.
+    expect(leaving.asset).toEqual({ id: "asset-a" });
+    expect(arriving.asset).toEqual({ id: "asset-b" });
+    expect(leaving.sourceGroupId).toBeTruthy();
+    expect(arriving.sourceGroupId).toBe(leaving.sourceGroupId);
+    expect(leaving.activityDate).toEqual(arriving.activityDate);
+  });
+
+  it.each([
+    ["CONVERSION_OUT", "row-out", "row-in"],
+    ["CONVERSION_IN", "row-in", "row-out"],
+  ])("edits both rows from the %s row", async (subtype, ownId, otherId) => {
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() =>
+      useActivityForm({
+        accounts,
+        selectedType: "CONVERSION",
+        onSuccess,
+        activity: {
+          id: ownId,
+          activityType: ActivityType.ADJUSTMENT,
+          subtype,
+          sourceGroupId: "conv-1",
+          counterpartActivityId: otherId,
+        },
+      }),
+    );
+    await act(async () => {
+      await result.current.handleSubmit(conversion);
+    });
+
+    const [request] = mutationMocks.saveMutateAsync.mock.calls[0];
+    expect(request.creates).toBeUndefined();
+    expect(request.updates).toEqual([
+      expect.objectContaining({ id: "row-out", subtype: "CONVERSION_OUT", quantity: 25 }),
+      expect.objectContaining({ id: "row-in", subtype: "CONVERSION_IN", quantity: 40 }),
+    ]);
+    // An unchanged asset is sent by id alone: a bond's symbol would read as equity.
+    expect(request.updates.map((row: { asset: unknown }) => row.asset)).toEqual([
+      { id: "asset-a" },
+      { id: "asset-b" },
+    ]);
+    expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["left as it opened", "2026-02-03T10:00:00Z", "2026-02-03T12:00:00Z", "2026-02-03T10:00:00Z"],
+    ["edited", "2026-02-05T09:00:00Z", "2026-02-05T09:00:00Z", "2026-02-05T09:00:00Z"],
+  ])("saves each row's time when the date is %s", async (_case, formDate, outTime, inTime) => {
+    const { result } = renderHook(() =>
+      useActivityForm({
+        accounts,
+        selectedType: "CONVERSION",
+        activity: {
+          id: "row-out",
+          activityType: ActivityType.ADJUSTMENT,
+          subtype: "CONVERSION_OUT",
+          sourceGroupId: "conv-1",
+          counterpartActivityId: "row-in",
+          // The leaving row at 12:00, the arriving row at 10:00: the pair
+          // folds at 10:00, the time the form opens on.
+          date: new Date("2026-02-03T12:00:00Z"),
+          counterpartDate: "2026-02-03T10:00:00Z",
+        },
+      }),
+    );
+    await act(async () => {
+      await result.current.handleSubmit({
+        ...conversion,
+        activityDate: new Date(formDate),
+      } as unknown as ActivityFormValues);
+    });
+
+    const [request] = mutationMocks.saveMutateAsync.mock.calls[0];
+    const times = request.updates.map((row: { activityDate: Date | string }) =>
+      new Date(row.activityDate).toISOString(),
+    );
+    expect(times).toEqual([new Date(outTime).toISOString(), new Date(inTime).toISOString()]);
+  });
+
+  it("sends a newly picked asset by its identity", async () => {
+    const { result } = renderHook(() => useActivityForm({ accounts, selectedType: "CONVERSION" }));
+    await act(async () => {
+      await result.current.handleSubmit({
+        ...conversion,
+        toAssetId: "NEWB",
+        toExistingAssetId: undefined,
+        toExchangeMic: "XNAS",
+        toSymbolQuoteCcy: "USD",
+        toSymbolInstrumentType: "EQUITY",
+        toQuoteMode: "MANUAL",
+      } as unknown as ActivityFormValues);
+    });
+
+    const [request] = mutationMocks.saveMutateAsync.mock.calls[0];
+    // A custom asset keeps the manual pricing it was created with.
+    expect(request.creates[1].asset).toEqual({
+      symbol: "NEWB",
+      exchangeMic: "XNAS",
+      quoteCcy: "USD",
+      instrumentType: "EQUITY",
+      quoteMode: "MANUAL",
+    });
   });
 });

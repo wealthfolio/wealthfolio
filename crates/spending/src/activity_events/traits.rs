@@ -11,6 +11,13 @@ use super::model::ActivityEvent;
 /// services that need to know which activities are tagged to which events.
 #[async_trait]
 pub trait ActivityEventsRepositoryTrait: Send + Sync {
+    async fn set_event_reviewed(
+        &self,
+        activity_id: &str,
+        expected: Option<String>,
+        event_id: Option<String>,
+    ) -> Result<()>;
+
     /// Returns activity_id → event_id for the requested activity ids.
     /// Untagged activities are absent from the map.
     async fn list_for_activities(&self, ids: &[String]) -> Result<HashMap<String, String>>;

@@ -14,6 +14,7 @@ import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -61,7 +62,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
     () => [
       { label: t("settings:agentAccess.audit_outcome_success"), value: "success" },
       { label: t("settings:agentAccess.audit_outcome_denied"), value: "denied" },
-      { label: t("settings:agentAccess.audit_outcome_error"), value: "error" },
+      { label: t("common:error"), value: "error" },
     ],
     [t],
   );
@@ -104,30 +105,28 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
   };
 
   return (
-    <Card className="rounded-lg">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-6 pb-4">
-        <div className="space-y-1">
-          <CardTitle className="text-base font-semibold tracking-tight">
-            {t("settings:agentAccess.audit_card_title")}
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {t("settings:agentAccess.audit_card_description")}
-          </CardDescription>
-        </div>
+    <Card>
+      <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+        <CardTitle role="heading" aria-level={2} className="text-lg">
+          {t("settings:agentAccess.audit_card_title")}
+        </CardTitle>
+        <CardDescription>{t("settings:agentAccess.audit_card_description")}</CardDescription>
         {logHasData && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={purgeMutation.isPending}
-            onClick={() => setPurgeOpen(true)}
-          >
-            <Icons.Trash2 className="h-3.5 w-3.5" />
-            {t("settings:agentAccess.audit_clear_log")}
-          </Button>
+          <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start max-sm:pt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={purgeMutation.isPending}
+              onClick={() => setPurgeOpen(true)}
+            >
+              <Icons.Trash2 className="h-3.5 w-3.5" />
+              {t("settings:agentAccess.audit_clear_log")}
+            </Button>
+          </CardAction>
         )}
       </CardHeader>
-      <CardContent className="space-y-3 p-6 pt-0">
+      <CardContent className="space-y-3">
         {disabledNotice && (
           <p className="text-muted-foreground bg-muted/50 flex items-center gap-2 rounded-md px-3 py-2 text-xs">
             <Icons.Info className="h-4 w-4 shrink-0" aria-hidden />
@@ -137,14 +136,14 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
 
         {(logHasData || hasFilters) && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-37.5 lg:w-62.5 relative">
+            <div className="relative w-37.5 lg:w-62.5">
               <Icons.Search className="text-muted-foreground pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2" />
               <input
                 type="text"
                 value={search}
                 onChange={(event) => onFilter(setSearch, event.target.value)}
                 placeholder={t("settings:agentAccess.audit_search_placeholder")}
-                className="shadow-inner-xs bg-muted/90 hover:bg-muted/80 placeholder:text-muted-foreground focus:ring-ring/50 h-8 w-full rounded-md pe-3 ps-8 text-sm outline-none transition-colors focus:ring-2"
+                className="shadow-inner-xs bg-muted/90 hover:bg-muted/80 placeholder:text-muted-foreground focus:ring-ring/50 h-8 w-full rounded-md ps-8 pe-3 text-sm transition-colors outline-none focus:ring-2"
               />
             </div>
             <FacetedFilter
@@ -171,7 +170,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
                   setPage(1);
                 }}
               >
-                {t("settings:agentAccess.audit_reset")}
+                {t("common:reset")}
               </Button>
             )}
           </div>
@@ -204,7 +203,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
                 <TableBody>
                   {items.map((entry) => (
                     <TableRow key={entry.id}>
-                      <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {formatting.formatDateTime(new Date(entry.createdAt), {
                           dateStyle: "medium",
                           timeStyle: "medium",

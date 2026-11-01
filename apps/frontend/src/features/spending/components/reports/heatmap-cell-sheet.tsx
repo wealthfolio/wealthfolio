@@ -145,7 +145,7 @@ export function HeatmapCellSheet({
           }}
         >
           <div
-            className="text-2xs font-semibold uppercase tracking-[0.14em]"
+            className="text-2xs font-semibold tracking-[0.14em] uppercase"
             style={{ color: "var(--heatmap-accent)" }}
           >
             {t("spending:heatmapSheet.eyebrow")}
@@ -220,7 +220,7 @@ export function HeatmapCellSheet({
               {grouped.map((group) => (
                 <section key={group.key}>
                   <header className="mb-2 flex items-baseline justify-between">
-                    <h3 className="text-foreground text-xs font-semibold uppercase tracking-wide">
+                    <h3 className="text-foreground text-xs font-semibold tracking-wide uppercase">
                       {group.label}
                     </h3>
                     <span className="text-muted-foreground/80 text-2xs tabular-nums">
@@ -248,7 +248,7 @@ export function HeatmapCellSheet({
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-foreground truncate text-sm font-medium leading-tight">
+                              <span className="text-foreground truncate text-sm leading-tight font-medium">
                                 {it.notes ?? (
                                   <span className="text-muted-foreground italic">
                                     {it.activityType.toLowerCase()}
@@ -256,7 +256,7 @@ export function HeatmapCellSheet({
                                 )}
                               </span>
                               {isOutlier && (
-                                <span className="text-2xs bg-warning-subtle text-warning-subtle-foreground rounded-full px-1.5 py-px font-semibold uppercase tracking-wide">
+                                <span className="text-2xs bg-warning-subtle text-warning-subtle-foreground rounded-full px-1.5 py-px font-semibold tracking-wide uppercase">
                                   {t("spending:heatmapSheet.outlier")}
                                 </span>
                               )}
@@ -280,7 +280,7 @@ export function HeatmapCellSheet({
                             {isOutflow ? "−" : "+"}
                             <PrivacyAmount value={safeAmt} currency={it.currency} />
                             {it.currency !== currency && (
-                              <span className="text-muted-foreground/70 text-2xs ms-1 uppercase tracking-wide">
+                              <span className="text-muted-foreground/70 text-2xs ms-1 tracking-wide uppercase">
                                 {it.currency}
                               </span>
                             )}
@@ -322,10 +322,10 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-muted-foreground/70 text-2xs font-semibold uppercase tracking-[0.12em]">
+      <div className="text-muted-foreground/70 text-2xs font-semibold tracking-[0.12em] uppercase">
         {label}
       </div>
-      <div className="text-foreground mt-1 text-base font-semibold tabular-nums tracking-tight">
+      <div className="text-foreground mt-1 text-base font-semibold tracking-tight tabular-nums">
         {value}
       </div>
       {hint && <div className="text-muted-foreground/70 text-2xs mt-0.5 truncate">{hint}</div>}

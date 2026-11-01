@@ -174,7 +174,7 @@ export function UpdateDialog() {
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto">
           {/* Header */}
-          <div className="relative px-6 pb-4 pt-6">
+          <div className="relative px-6 pt-6 pb-4">
             <button
               onClick={handleDismiss}
               className="bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground absolute end-4 top-4 rounded-full p-2 transition-all duration-200 hover:scale-105"
@@ -193,14 +193,14 @@ export function UpdateDialog() {
 
             {/* Title */}
             <div className="mb-3 space-y-3">
-              <h2 className="text-foreground text-balance text-2xl font-bold">
+              <h2 className="text-foreground text-2xl font-bold text-balance">
                 {t("common:component.new_update_available")}
               </h2>
             </div>
 
             {/* Description */}
             {updateInfo.notes && (
-              <p className="text-muted-foreground text-pretty text-sm leading-relaxed">
+              <p className="text-muted-foreground text-sm leading-relaxed text-pretty">
                 {updateInfo.notes}
               </p>
             )}
@@ -217,7 +217,10 @@ export function UpdateDialog() {
                         <img
                           src={screenshotUrl}
                           alt={t("common:component.screenshot_alt", { number: index + 1 })}
-                          className="object-cover"
+                          // Sized to the frame: at ≤1024px the global max-width: 100vw
+                          // otherwise sizes it to the window and the frame crops it.
+                          // Contain, so a slide that isn't 16:9 is never cropped either.
+                          className="h-full w-full object-contain"
                         />
                       </div>
                     </CarouselItem>
@@ -238,7 +241,7 @@ export function UpdateDialog() {
         <div className="border-border bg-secondary/30 flex shrink-0 flex-col gap-3 border-t px-6 py-4">
           {/* Something else installs updates here, so say how instead of offering to. */}
           {updateInfo.externalUpdateSource && (
-            <p className="text-muted-foreground text-pretty text-sm">
+            <p className="text-muted-foreground text-sm text-pretty">
               {externalUpdateMessage(updateInfo.externalUpdateSource, t)}
             </p>
           )}

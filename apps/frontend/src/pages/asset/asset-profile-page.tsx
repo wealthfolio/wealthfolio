@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { isExpiredOptionAsset } from "./asset-utils";
 import { createActivity, getAssetHoldings, getAssetLots, searchActivities } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
@@ -23,6 +24,7 @@ import ActivityTable from "@/pages/activity/components/activity-table/activity-t
 import ActivityTableMobile from "@/pages/activity/components/activity-table/activity-table-mobile";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
+import { isConversionActivity } from "@/pages/activity/utils/conversion-counterpart";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AnimatedToggleGroup,
@@ -71,6 +73,7 @@ import { QuoteHistoryDataGrid } from "./quote-history-data-grid";
 import { ResetProviderHistoryDialog } from "./reset-provider-history-dialog";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 // Alternative asset kinds that should use ValueHistoryDataGrid
 const ALTERNATIVE_ASSET_KINDS: AssetKind[] = [
@@ -394,7 +397,7 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: category.name,
+          categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
           categoryColor: category.color,
           taxonomyName: t("asset:profile.class"),
         });
@@ -410,7 +413,7 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: category.name === "Exchange Traded Fund (ETF)" ? "ETF" : category.name,
+          categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
           categoryColor: category.color,
           taxonomyName: t("asset:profile.type"),
         });
@@ -426,9 +429,11 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: t("asset:profile.risk", { name: category.name }),
+          categoryName: t("asset:profile.risk", {
+            name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+          }),
           categoryColor: category.color,
-          taxonomyName: "Risk",
+          taxonomyName: t("allocation:editor.riskCategory"),
         });
       }
     }
@@ -444,9 +449,9 @@ export const AssetProfilePage = () => {
         if (category) {
           badges.push({
             id: `industry-${category.id}`,
-            categoryName: category.name,
+            categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
             categoryColor: category.color,
-            taxonomyName: "Industry",
+            taxonomyName: t("allocation:editor.industry"),
           });
         }
       }
@@ -463,9 +468,9 @@ export const AssetProfilePage = () => {
         if (category) {
           badges.push({
             id: `region-${category.id}`,
-            categoryName: category.name,
+            categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
             categoryColor: category.color,
-            taxonomyName: "Region",
+            taxonomyName: t("allocation:editor.region"),
           });
         }
       }
@@ -630,6 +635,11 @@ export const AssetProfilePage = () => {
     items.push({ value: "quotes", label: t("asset:profile.quotes") });
     return items;
   }, [hasManualSnapshots, assetLots.length, t]);
+
+  const overviewSubTabIndex = Math.max(
+    0,
+    overviewSubTabs.findIndex((item) => item.value === overviewSubTab),
+  );
 
   const handleSubTabChange = useCallback(
     (next: OverviewSubTab) => {
@@ -896,7 +906,9 @@ export const AssetProfilePage = () => {
                 <Badge
                   key={badge.id}
                   variant="secondary"
-                  className="gap-1.5"
+                  // A long category name ends in an ellipsis rather than past the screen.
+                  className="max-w-full gap-1.5"
+                  title={badge.categoryName}
                   style={{
                     backgroundColor: `${badge.categoryColor}20`,
                     color: badge.categoryColor,
@@ -904,10 +916,10 @@ export const AssetProfilePage = () => {
                   }}
                 >
                   <span
-                    className="h-2 w-2 rounded-full"
+                    className="h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: badge.categoryColor }}
                   />
-                  {badge.categoryName}
+                  <span className="truncate">{badge.categoryName}</span>
                 </Badge>
               ))}
               <Button
@@ -1073,7 +1085,7 @@ export const AssetProfilePage = () => {
 
   const handleCopySymbol = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(displayedSymbol);
+      await copyText(displayedSymbol);
       setSymbolCopied(true);
       window.setTimeout(() => setSymbolCopied(false), 1500);
     } catch (error) {
@@ -1579,7 +1591,7 @@ export const AssetProfilePage = () => {
             {/* Provider names read in their own direction, so a clipped one keeps its start. */}
             <h1
               dir="auto"
-              className="truncate text-base font-semibold leading-tight md:text-lg rtl:text-right"
+              className="truncate text-base leading-tight font-semibold md:text-lg rtl:text-right"
             >
               {assetProfile?.name ?? holding?.instrument?.name ?? assetId ?? "-"}
             </h1>
@@ -1649,6 +1661,9 @@ export const AssetProfilePage = () => {
           isMobile ? (
             <SwipableView
               withMobileNavOffset
+              // Open on the tab the URL names, as the desktop toggle does.
+              initialIndex={activeTab === "history" ? 1 : 0}
+              selectedIndex={activeTab === "history" ? 1 : 0}
               items={[
                 {
                   name: t("asset:profile.overview"),
@@ -1747,6 +1762,9 @@ export const AssetProfilePage = () => {
             )}
             <SwipableView
               withMobileNavOffset
+              // Open on the sub-tab the URL names; Lots and Snapshots join once their data loads.
+              initialIndex={overviewSubTabIndex}
+              selectedIndex={overviewSubTabIndex}
               items={swipableTabs}
               displayToggle={true}
               onViewChange={(_index: number, name: string) => {
@@ -1849,6 +1867,7 @@ export const AssetProfilePage = () => {
         isOpen={showActivityDeleteAlert}
         isDeleting={isActivityDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
+        conversion={isConversionActivity(selectedActivity)}
         onConfirm={handleActivityDeleteConfirm}
         onCancel={handleActivityDeleteCancel}
       />

@@ -1,3 +1,5 @@
+import i18n from "i18next";
+import type { TFunction } from "i18next";
 /**
  * Chat runtime hook for @assistant-ui/react integration.
  *
@@ -89,8 +91,8 @@ function extractErrorMessage(error: string): string {
 /**
  * Format error messages with user-friendly copy and actionable guidance.
  */
-function formatErrorMessage(error: string): string {
-  const settingsLink = "[AI Providers settings](/settings/ai-providers)";
+export function formatErrorMessage(error: string, t: TFunction = i18n.t): string {
+  const settingsLink = `[${t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
 
   // First, extract the actual error message from nested formats
   const extractedError = extractErrorMessage(error);
@@ -98,20 +100,20 @@ function formatErrorMessage(error: string): string {
   // Model doesn't support thinking (Ollama)
   if (extractedError.includes("does not support thinking")) {
     const modelMatch = /"([^"]+)"/.exec(extractedError);
-    const modelName = modelMatch?.[1] || "This model";
-    return `**Thinking not supported**\n\n${modelName} doesn't support the thinking/reasoning feature.\n\nTry a different model that supports thinking, or check your ${settingsLink}.`;
+    const modelName = modelMatch?.[1] || t("ai:runtimeErrors.thisModel");
+    return t("ai:runtimeErrors.thinkingUnsupported", { settingsLink, modelName });
   }
 
   // Model not found errors
   if (extractedError.includes("not found") && extractedError.includes("model")) {
     const modelMatch = /model ['"]([^'"]+)['"]/i.exec(extractedError);
-    const modelName = modelMatch?.[1] || "selected model";
-    return `**Model not available**\n\nThe model "${modelName}" could not be found. This usually means:\n- The model hasn't been downloaded yet\n- The model name is incorrect\n- The AI provider service isn't running\n\nPlease check your ${settingsLink} to select a different model or verify your provider configuration.`;
+    const modelName = modelMatch?.[1] || t("ai:runtimeErrors.selectedModel");
+    return t("ai:runtimeErrors.modelUnavailable", { settingsLink, modelName });
   }
 
   // Connection refused / provider not running
   if (extractedError.includes("Connection refused") || extractedError.includes("ECONNREFUSED")) {
-    return `**Cannot connect to AI provider**\n\nThe AI provider service doesn't appear to be running. Please:\n1. Start your local AI provider (e.g., Ollama)\n2. Verify the provider URL in ${settingsLink}\n3. Try again`;
+    return t("ai:runtimeErrors.connectionRefused", { settingsLink });
   }
 
   // API key errors
@@ -120,17 +122,17 @@ function formatErrorMessage(error: string): string {
     extractedError.includes("unauthorized") ||
     extractedError.includes("API key")
   ) {
-    return `**Authentication failed**\n\nYour API key appears to be invalid or missing. Please check your ${settingsLink} and ensure your API key is correctly configured.`;
+    return t("ai:runtimeErrors.authentication", { settingsLink });
   }
 
   // Rate limit errors
   if (extractedError.includes("429") || extractedError.includes("rate limit")) {
-    return `**Rate limit exceeded**\n\nYou've made too many requests. Please wait a moment and try again.`;
+    return t("ai:runtimeErrors.rateLimit");
   }
 
   // Timeout errors
   if (extractedError.includes("timeout") || extractedError.includes("ETIMEDOUT")) {
-    return `**Request timed out**\n\nThe AI provider took too long to respond. This could be due to:\n- A slow network connection\n- The provider being overloaded\n- A very complex request\n\nPlease try again or select a faster model in ${settingsLink}.`;
+    return t("ai:runtimeErrors.timeout", { settingsLink });
   }
 
   // Generic provider error - use extracted message
@@ -139,11 +141,11 @@ function formatErrorMessage(error: string): string {
     error.includes("CompletionError") ||
     error.includes("HttpError")
   ) {
-    return `**Provider error**\n\n${extractedError}\n\nCheck your ${settingsLink} if this persists.`;
+    return t("ai:runtimeErrors.provider", { settingsLink, error: extractedError });
   }
 
   // Fallback for unknown errors
-  return `**Something went wrong**\n\n${extractedError}\n\nIf this persists, please check your ${settingsLink}.`;
+  return t("ai:runtimeErrors.unknown", { settingsLink, error: extractedError });
 }
 
 /**

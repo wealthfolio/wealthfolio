@@ -142,7 +142,7 @@ export function LiabilityOverview({
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2.5">
-      <span className="text-muted-foreground text-2xs uppercase tracking-[0.15em]">{label}</span>
+      <span className="text-muted-foreground text-2xs tracking-[0.15em] uppercase">{label}</span>
       <span className="text-foreground text-sm font-semibold tabular-nums">{value}</span>
     </div>
   );
@@ -302,24 +302,24 @@ function LiabilityCard({
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             {/* The title's link covers the card; the actions button sits above it. */}
-            <h3 className="truncate text-base font-semibold leading-tight">
+            <h3 className="truncate text-base leading-tight font-semibold">
               <Link
                 to={`/holdings/${encodeURIComponent(holding.id)}`}
-                className="focus-visible:ring-ring rounded-sm after:absolute after:inset-0 focus-visible:outline-none focus-visible:ring-2"
+                className="focus-visible:ring-ring rounded-sm after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
               >
                 {holding.name}
               </Link>
             </h3>
-            <p className="text-muted-foreground text-2xs mt-0.5 truncate uppercase tracking-[0.15em]">
+            <p className="text-muted-foreground text-2xs mt-0.5 truncate tracking-[0.15em] uppercase">
               {meta}
             </p>
           </div>
           {model.paidShare != null && (
             <div className="text-end">
-              <div className="text-success text-lg font-semibold tabular-nums leading-none">
+              <div className="text-success text-lg leading-none font-semibold tabular-nums">
                 {numbers.formatPercent(model.paidShare, { digits: 1 })}
               </div>
-              <div className="text-muted-foreground text-2xs mt-0.5 uppercase tracking-[0.15em]">
+              <div className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em] uppercase">
                 {t("holdings:liability_cards.paid_off")}
               </div>
             </div>

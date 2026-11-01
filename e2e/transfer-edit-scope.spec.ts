@@ -89,6 +89,11 @@ for (const mobile of [false, true]) {
       const notes = page.locator('textarea[name="comment"]');
       await expect(notes).toHaveValue(selected.notes!);
       await notes.fill("Corrected selected record");
+      const previewResponse = page.waitForResponse(
+        (res) =>
+          res.url().endsWith("/activities/transfer-pair/split-effects") &&
+          res.request().method() === "POST",
+      );
       const response = page.waitForResponse(
         (res) =>
           res.url().endsWith("/activities/transfer-pair") && res.request().method() === "POST",
@@ -102,6 +107,13 @@ for (const mobile of [false, true]) {
       expect(saved.ok(), await saved.text()).toBeTruthy();
       const request = saved.request().postDataJSON();
       expect(request.editedActivityId).toBe(selected.id);
+      const preview = await previewResponse;
+      expect(preview.ok(), await preview.text()).toBeTruthy();
+      expect(request.splitReview).toEqual(await preview.json());
+      expect(
+        request.splitReview.map((effect: { activityId: string }) => effect.activityId).sort(),
+      ).toEqual(records.map((record) => record.id).sort());
+
       const editedDate = new Date(request.activityDate).getTime();
       expect(editedDate).not.toBe(new Date(selected.activityDate).getTime());
       const stored = await page.request.get(`${api}/activities/${selected.id}/transfer-pair`);

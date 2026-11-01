@@ -20,6 +20,8 @@ pub struct CanonicalFacts {
     /// Posted activities in the total order (local date, timestamp, id).
     pub(crate) activities: Vec<Activity>,
     pub(crate) transfer_pairs: TransferPairs,
+    /// Conversion pairs by `source_group_id`, and the rows refused (rules R7.5).
+    pub(crate) conversions: Conversions,
     pub(crate) quotes: Vec<QuoteObservation>,
     pub(crate) fx_rates: Vec<FxObservation>,
     pub(crate) observed_snapshots: Vec<ObservedSnapshot>,
@@ -45,6 +47,10 @@ impl CanonicalFacts {
 
     pub fn transfer_pairs(&self) -> &TransferPairs {
         &self.transfer_pairs
+    }
+
+    pub fn conversions(&self) -> &Conversions {
+        &self.conversions
     }
 
     pub fn quotes(&self) -> &[QuoteObservation] {
@@ -167,7 +173,7 @@ impl ActivityKind {
     }
 }
 
-/// The 12 canonical subtypes (broker aliases collapse onto these).
+/// The 14 canonical subtypes (broker aliases collapse onto these).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Subtype {
@@ -187,6 +193,11 @@ pub enum Subtype {
     /// On an ADJUSTMENT: a taxable distribution reinvested without new
     /// units, which raises the asset's cost basis (rules R7.4).
     NotionalDistribution,
+    /// On an ADJUSTMENT: the asset and units that leave in a conversion
+    /// (rules R7.5).
+    ConversionOut,
+    /// On an ADJUSTMENT: the asset and units that arrive in a conversion.
+    ConversionIn,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -281,6 +292,58 @@ impl TransferPairs {
         self.group_by_activity
             .get(activity)
             .and_then(|group| self.by_group.get(group))
+    }
+}
+
+/// A conversion (rules R7.5): two posted rows of one account and day,
+/// folded as one event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConversionPair {
+    pub group_id: String,
+    /// The `CONVERSION_OUT` row.
+    pub out_activity: ActivityId,
+    /// The `CONVERSION_IN` row.
+    pub in_activity: ActivityId,
+    pub account: AccountId,
+}
+
+/// Resolved conversions, keyed by either row.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Conversions {
+    pairs: Vec<ConversionPair>,
+    pair_by_activity: BTreeMap<ActivityId, usize>,
+    /// Conversion rows rejected before the fold, with why.
+    rejected: BTreeMap<ActivityId, String>,
+}
+
+impl Conversions {
+    pub(crate) fn insert(&mut self, pair: ConversionPair) {
+        let index = self.pairs.len();
+        self.pair_by_activity
+            .insert(pair.out_activity.clone(), index);
+        self.pair_by_activity
+            .insert(pair.in_activity.clone(), index);
+        self.pairs.push(pair);
+    }
+
+    pub(crate) fn reject(&mut self, activity: ActivityId, reason: String) {
+        self.rejected.entry(activity).or_insert(reason);
+    }
+
+    /// Pairs in group order.
+    pub fn iter(&self) -> impl Iterator<Item = &ConversionPair> {
+        self.pairs.iter()
+    }
+
+    pub fn pair_for(&self, activity: &ActivityId) -> Option<&ConversionPair> {
+        self.pair_by_activity
+            .get(activity)
+            .and_then(|index| self.pairs.get(*index))
+    }
+
+    /// Why a conversion row is rejected before the fold, if it is.
+    pub fn rejection(&self, activity: &ActivityId) -> Option<&str> {
+        self.rejected.get(activity).map(String::as_str)
     }
 }
 

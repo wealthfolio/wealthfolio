@@ -564,7 +564,7 @@ export function ValueHistoryDataGrid({
                 return (
                   <div key={draft.id} className="bg-background w-full space-y-3 p-3">
                     <div>
-                      <span className="text-xs font-medium uppercase tracking-wide">
+                      <span className="text-xs font-medium tracking-wide uppercase">
                         {draft.isNew
                           ? isLiability
                             ? t("asset:valueToolbar.add_balance")

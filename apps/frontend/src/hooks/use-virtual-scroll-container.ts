@@ -89,7 +89,7 @@ export function useVirtualScrollContainer(): VirtualScrollContainer {
   // setters return `prev` unless the value really changed, and neither value is
   // affected by the re-render it would cause — the virtualizer resizes its own
   // container, which never moves the list's top edge or reparents it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // oxlint-disable-next-line react/exhaustive-deps
   useLayoutEffect(() => {
     if (!list) return;
 

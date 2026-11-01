@@ -12,6 +12,8 @@ export interface EligibleHoldingsSelection {
   eligibleAssetIds?: string[];
   hasEligibleHoldings: boolean;
   toggle: (assetId: string) => void;
+  /** Turns several securities on or off at once, as a category's own action does. */
+  setIncluded: (assetIds: readonly string[], included: boolean) => void;
   selectAll: () => void;
   clear: () => void;
 }
@@ -79,6 +81,19 @@ export function useEligibleHoldingsSelection(
     });
   }
 
+  function setIncluded(assetIds: readonly string[], included: boolean) {
+    setSelection((current) => {
+      const next = new Set(
+        current.contextKey === contextKey ? current.excludedAssetIds : EMPTY_EXCLUSIONS,
+      );
+      for (const assetId of assetIds) {
+        if (included) next.delete(assetId);
+        else next.add(assetId);
+      }
+      return { contextKey, excludedAssetIds: next };
+    });
+  }
+
   return {
     eligibleHoldings,
     excludedAssetIds,
@@ -86,6 +101,7 @@ export function useEligibleHoldingsSelection(
     eligibleAssetIds,
     hasEligibleHoldings: selectedAssetIds.length > 0,
     toggle,
+    setIncluded,
     selectAll: () => setSelection({ contextKey, excludedAssetIds: EMPTY_EXCLUSIONS }),
     clear: () => setSelection({ contextKey, excludedAssetIds: availableAssetIds }),
   };

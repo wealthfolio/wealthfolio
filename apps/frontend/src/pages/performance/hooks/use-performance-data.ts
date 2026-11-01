@@ -5,6 +5,8 @@ import { keepPreviousData, useQueries, type UseQueryResult } from "@tanstack/rea
 import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
+import { useTranslation } from "react-i18next";
+import { earliestPerformanceStartDate } from "../performance-chart-series";
 
 /** The first date of the earliest series among the loaded results. */
 function earliestSeriesDate(queries: UseQueryResult<PerformanceResult>[]): string | undefined {
@@ -42,6 +44,7 @@ export function useCalculatePerformanceHistory({
   trackingMode?: "HOLDINGS" | "TRANSACTIONS";
 }) {
   const formatting = useDateFormatting();
+  const { t } = useTranslation();
   // Filter out invalid items (defensive: handles stale localStorage data)
   const validItems = selectedItems.filter(
     (item) =>
@@ -156,13 +159,24 @@ export function useCalculatePerformanceHistory({
 
   const displayDateRange =
     dateRange === undefined
-      ? "All Time"
+      ? t("ui:interval.ALL")
       : displayStartDate && displayEndDate
         ? `${displayStartDate} - ${displayEndDate}`
-        : "Compare account performance over time";
+        : t("performance:compare_over_time");
+
+  // Bounded and placeholder results do not describe the selected items'
+  // inception. Derive this display-only anchor without fetching more history.
+  const allTimeFrom = isAllTime
+    ? earliestPerformanceStartDate(
+        performanceQueries.flatMap((query, index) =>
+          !isWaiting(index) && query.isSuccess && !query.isPlaceholderData ? [query.data] : [],
+        ),
+      )
+    : undefined;
 
   return {
     data: chartData,
+    allTimeFrom,
     isLoading,
     hasErrors,
     errorMessages,

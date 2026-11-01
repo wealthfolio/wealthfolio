@@ -147,7 +147,8 @@ impl InsightService {
         let target_account_ids: HashSet<String> = account_ids.iter().cloned().collect();
 
         // ── 3. Load reference data ────────────────────────────────────────────
-        let groups = self.budget_repo.list_groups().await?;
+        let groups =
+            crate::budget::service::effective_groups(self.budget_repo.list_groups().await?);
         let group_assignments = self.budget_repo.list_group_assignments().await?;
         let targets = self.budget_repo.list_targets().await?;
         let taxonomy = self.taxonomy_service.get_taxonomy(SPENDING_TAXONOMY)?;
@@ -388,6 +389,7 @@ impl InsightService {
         let total_spent = decimal_to_f64(current_agg.total_outflow);
         let total_income = decimal_to_f64(current_agg.total_income);
         let total_saved = decimal_to_f64(current_agg.total_saved);
+        let total_from_savings = decimal_to_f64(current_agg.total_from_savings);
         let prior_total_spent = decimal_to_f64(prior_agg.total_outflow);
         let total_budget: f64 = group_insights
             .iter()
@@ -471,7 +473,8 @@ impl InsightService {
             spent: total_spent,
             income: total_income,
             saved: total_saved,
-            net_cashflow: total_income - total_spent - total_saved,
+            from_savings: total_from_savings,
+            net_cashflow: total_income - total_spent - total_saved + total_from_savings,
             budget: total_budget,
             remaining: total_budget - total_spent,
             prior_spent: prior_total_spent,
@@ -506,6 +509,8 @@ impl InsightService {
             category_breakdown_rows(SAVINGS_TAXONOMY, &current_agg.savings_by_category);
 
         let insight = SpendingInsight {
+            calculation_quality: current_agg.calculation_quality,
+            prior_calculation_quality: prior_agg.calculation_quality,
             period,
             prior,
             currency: currency.to_string(),
@@ -535,6 +540,7 @@ impl InsightService {
 /// during aggregation.
 #[derive(Default)]
 struct SpendAggregate {
+    calculation_quality: crate::CalculationQuality,
     /// Consumption outflow (sum of spending_amount for non-saving outflows,
     /// converted to target currency). Excludes money routed to the Savings
     /// taxonomy — that lives in `total_saved`.
@@ -544,6 +550,10 @@ struct SpendAggregate {
     /// transfer-outs). Its own headline bucket, never part of `total_outflow`,
     /// so "Spending" stays consumption.
     total_saved: Decimal,
+    /// Money brought back from savings — `Σ savings_withdrawal_amount`
+    /// (cross-boundary transfer-ins). Offsets `total_saved` in the headline;
+    /// never categorized, so it has no breakdown.
+    total_from_savings: Decimal,
     /// Top-level spending category id → (spend, txn_count).
     spending_by_top: HashMap<String, (Decimal, u32)>,
     /// Income source category id → (income, txn_count). Includes a synthetic
@@ -612,25 +622,38 @@ fn aggregate_spend_with_splits(
             continue;
         };
         // Income-pattern buckets: classification alone decides spend vs income
-        // vs saving (a cross-boundary transfer-out → Saving). The three amounts
-        // never overlap, so "spent" excludes saving automatically.
+        // vs saving (a cross-boundary transfer-out → Saving, a cross-boundary
+        // transfer-in → FromSavings). The amounts never overlap, so "spent"
+        // excludes saving automatically.
         let classification = classify_activity_for_aggregation(a, account_type, transfer_groups);
         let amount = activity_abs_amount(a);
         let spending_native = classification.spending_amount(amount);
         let income_native = classification.income_amount(amount);
         let saving_native = classification.saving_amount(amount);
+        let from_savings_native = classification.savings_withdrawal_amount(amount);
         if spending_native == Decimal::ZERO
             && income_native == Decimal::ZERO
             && saving_native == Decimal::ZERO
+            && from_savings_native == Decimal::ZERO
         {
             continue;
         }
-        let income = crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
-        let saved = crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
+        let income_converted =
+            crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of);
+        let saving_converted =
+            crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of);
+        let from_savings_converted = crate::fx::convert(
+            fx,
+            from_savings_native,
+            &a.currency,
+            target_currency,
+            fx_as_of,
+        );
+        let income = income_converted.unwrap_or(Decimal::ZERO);
+        let saved = saving_converted.unwrap_or(Decimal::ZERO);
         agg.total_income += income;
         agg.total_saved += saved;
+        agg.total_from_savings += from_savings_converted.unwrap_or(Decimal::ZERO);
 
         if income != Decimal::ZERO {
             add_taxonomy_breakdown(
@@ -676,6 +699,13 @@ fn aggregate_spend_with_splits(
         let included_native = spending_native - excluded_native;
         let spending_converted =
             crate::fx::convert(fx, included_native, &a.currency, target_currency, fx_as_of);
+        if income_converted.is_none()
+            || saving_converted.is_none()
+            || from_savings_converted.is_none()
+            || spending_converted.is_none()
+        {
+            agg.calculation_quality.record_missing(&a.currency);
+        }
         let spending = spending_converted.unwrap_or(Decimal::ZERO);
         if spending == Decimal::ZERO {
             continue;
@@ -1025,9 +1055,12 @@ fn compute_by_month(
     target_currency: &str,
     fx_as_of: NaiveDate,
 ) -> Vec<MonthBucket> {
-    let mut map: HashMap<String, (Decimal, Decimal, Decimal)> = HashMap::new();
+    let mut map: HashMap<String, (Decimal, Decimal, Decimal, Decimal)> = HashMap::new();
     for m in months {
-        map.insert(m.clone(), (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
+        map.insert(
+            m.clone(),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+        );
     }
     for a in acts {
         let Some(account_type) = account_types.get(&a.account_id) else {
@@ -1038,9 +1071,11 @@ fn compute_by_month(
         let spending_native = classification.spending_amount(amount);
         let income_native = classification.income_amount(amount);
         let saving_native = classification.saving_amount(amount);
+        let from_savings_native = classification.savings_withdrawal_amount(amount);
         if spending_native == Decimal::ZERO
             && income_native == Decimal::ZERO
             && saving_native == Decimal::ZERO
+            && from_savings_native == Decimal::ZERO
         {
             continue;
         }
@@ -1062,24 +1097,36 @@ fn compute_by_month(
             .unwrap_or(Decimal::ZERO);
         let saved = crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of)
             .unwrap_or(Decimal::ZERO);
+        let from_savings = crate::fx::convert(
+            fx,
+            from_savings_native,
+            &a.currency,
+            target_currency,
+            fx_as_of,
+        )
+        .unwrap_or(Decimal::ZERO);
         let key = period_key_for_date_in_tz(a.activity_date, timezone);
-        let entry = map
-            .entry(key)
-            .or_insert((Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
+        let entry =
+            map.entry(key)
+                .or_insert((Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
         entry.0 += spending;
         entry.1 += income;
         entry.2 += saved;
+        entry.3 += from_savings;
     }
     // Signed values (see compute_by_day comment): reconciliation invariant
     // `Σ by_month.spent == headline.spent` requires no per-bucket clamping.
     let mut out: Vec<MonthBucket> = map
         .into_iter()
-        .map(|(month, (spent, income, saved))| MonthBucket {
-            month,
-            spent: decimal_to_f64(spent),
-            income: decimal_to_f64(income),
-            saved: decimal_to_f64(saved),
-        })
+        .map(
+            |(month, (spent, income, saved, from_savings))| MonthBucket {
+                month,
+                spent: decimal_to_f64(spent),
+                income: decimal_to_f64(income),
+                saved: decimal_to_f64(saved),
+                from_savings: decimal_to_f64(from_savings),
+            },
+        )
         .collect();
     out.sort_by(|a, b| a.month.cmp(&b.month));
     out
@@ -1582,6 +1629,8 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
         expected_spend_to_date: 0.0,
     };
     SpendingInsight {
+        calculation_quality: Default::default(),
+        prior_calculation_quality: Default::default(),
         period,
         prior,
         currency: currency.to_string(),
@@ -1591,6 +1640,7 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
             spent: 0.0,
             income: 0.0,
             saved: 0.0,
+            from_savings: 0.0,
             net_cashflow: 0.0,
             budget: 0.0,
             remaining: 0.0,
@@ -2732,6 +2782,137 @@ mod tests {
         assert_eq!(monthly[0].saved, 1000.0);
     }
 
+    fn flow_activity(
+        id: &str,
+        activity_type: &str,
+        amount: i64,
+        currency: &str,
+        date: DateTime<Utc>,
+    ) -> wealthfolio_core::activities::Activity {
+        wealthfolio_core::activities::Activity {
+            id: id.to_string(),
+            account_id: "acct".to_string(),
+            asset_id: None,
+            activity_type: activity_type.to_string(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: None,
+            status: wealthfolio_core::activities::ActivityStatus::Posted,
+            activity_date: date,
+            settlement_date: None,
+            quantity: None,
+            unit_price: None,
+            amount: Some(rust_decimal::Decimal::new(amount, 0)),
+            fee: None,
+            tax: None,
+            currency: currency.to_string(),
+            fx_rate: None,
+            notes: None,
+            metadata: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: date,
+            updated_at: date,
+        }
+    }
+
+    /// Same figures as the report's `summarize_adds_back_money_brought_back_from_savings`
+    /// test, so the insight headline and the report agree on them.
+    #[test]
+    fn aggregate_and_months_track_money_brought_back_from_savings() {
+        use rust_decimal::Decimal;
+        use wealthfolio_core::accounts::account_types;
+        use wealthfolio_core::activities::Activity;
+
+        let salary = flow_activity("salary", "DEPOSIT", 1000, "USD", dt(2026, 4, 10));
+        let rent = flow_activity("rent", "WITHDRAWAL", 1500, "USD", dt(2026, 4, 12));
+        let to_savings = Activity {
+            source_group_id: Some("g-out".to_string()),
+            ..flow_activity("to-savings", "TRANSFER_OUT", 200, "USD", dt(2026, 4, 20))
+        };
+        let back = Activity {
+            source_group_id: Some("g-in".to_string()),
+            ..flow_activity("back", "TRANSFER_IN", 900, "USD", dt(2026, 5, 3))
+        };
+        let acts: Vec<&Activity> = vec![&salary, &rent, &to_savings, &back];
+        let account_types: HashMap<String, String> = acts
+            .iter()
+            .map(|a| (a.account_id.clone(), account_types::CASH.to_string()))
+            .collect();
+        let transfer_groups = within_spending_transfer_groups(&acts);
+
+        let agg = aggregate_spend(
+            &acts,
+            &account_types,
+            &transfer_groups,
+            &HashMap::new(),
+            &HashMap::new(),
+            &ExclusionIndex::empty(),
+            &fx(),
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        );
+        assert_eq!(agg.total_income, Decimal::new(1000, 0));
+        assert_eq!(agg.total_outflow, Decimal::new(1500, 0));
+        assert_eq!(agg.total_saved, Decimal::new(200, 0));
+        assert_eq!(agg.total_from_savings, Decimal::new(900, 0));
+        // Never categorized, so it has no breakdown of its own and the savings
+        // breakdown still sums to `total_saved`.
+        let savings_rows: Decimal = agg.savings_by_category.values().map(|(v, _)| *v).sum();
+        assert_eq!(savings_rows, agg.total_saved);
+
+        let monthly = compute_by_month(
+            &acts,
+            &account_types,
+            &transfer_groups,
+            &HashMap::new(),
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
+            &["2026-04".to_string(), "2026-05".to_string()],
+            "UTC",
+            &fx(),
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        );
+        assert_eq!(monthly[0].saved, 200.0);
+        assert_eq!(monthly[0].from_savings, 0.0);
+        assert_eq!(monthly[1].saved, 0.0);
+        assert_eq!(monthly[1].from_savings, 900.0);
+    }
+
+    #[test]
+    fn aggregate_flags_money_brought_back_without_a_rate() {
+        use wealthfolio_core::accounts::account_types;
+        use wealthfolio_core::activities::Activity;
+
+        let back = Activity {
+            source_group_id: Some("g-in".to_string()),
+            ..flow_activity("back", "TRANSFER_IN", 100, "EUR", dt(2026, 5, 3))
+        };
+        let acts: Vec<&Activity> = vec![&back];
+        let account_types =
+            HashMap::from([(back.account_id.clone(), account_types::CASH.to_string())]);
+
+        let agg = aggregate_spend(
+            &acts,
+            &account_types,
+            &within_spending_transfer_groups(&acts),
+            &HashMap::new(),
+            &HashMap::new(),
+            &ExclusionIndex::empty(),
+            &failing_cross_currency_fx(),
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        );
+        assert_eq!(agg.total_from_savings, rust_decimal::Decimal::ZERO);
+        assert_eq!(agg.calculation_quality.missing_fx_transactions, 1);
+    }
+
     #[test]
     fn aggregate_excludes_native_outflow_when_fx_conversion_fails() {
         use rust_decimal::Decimal;
@@ -2787,5 +2968,13 @@ mod tests {
 
         assert_eq!(agg.total_outflow, Decimal::ZERO);
         assert!(agg.native_outflow_by_currency.is_empty());
+        assert_eq!(agg.calculation_quality.missing_fx_transactions, 1);
+        assert_eq!(
+            agg.calculation_quality
+                .missing_fx_currencies
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["EUR"]
+        );
     }
 }

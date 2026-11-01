@@ -13,6 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@wealthfolio/ui";
+import { currencyFractionDigits } from "@/lib/currency-decimals";
 import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
 
@@ -22,7 +23,7 @@ interface AmountInputProps<TFieldValues extends FieldValues = FieldValues> {
   labelHelpText?: string;
   placeholder?: string;
   "data-testid"?: string;
-  /** Maximum decimal places (default: 2 for currency) */
+  /** Maximum decimal places (default: the currency's minor unit, at least 2) */
   maxDecimalPlaces?: number;
   /** Currency code to display as adornment (e.g., "USD") */
   currency?: string;
@@ -45,7 +46,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
   labelHelpText,
   placeholder,
   "data-testid": dataTestId,
-  maxDecimalPlaces = 2,
+  maxDecimalPlaces,
   currency,
   onValueChange,
   onBlur,
@@ -54,6 +55,9 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
   const resolvedLabel = label ?? t("activity:form.label_amount");
   const testId = dataTestId ?? toInputTestId(String(name));
   const { control } = useFormContext<TFieldValues>();
+  // Never fewer than 2, so a zero-decimal currency such as JPY keeps
+  // accepting the decimals it always has.
+  const decimalPlaces = maxDecimalPlaces ?? Math.max(2, currencyFractionDigits(currency));
 
   return (
     <FormField
@@ -81,11 +85,11 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
             )}
           </div>
           {currency ? (
-            <InputGroup className="bg-input-bg h-input-height shadow-xs min-w-0 rounded-md">
+            <InputGroup className="bg-input-bg h-input-height min-w-0 rounded-md shadow-xs">
               <FormControl>
                 <MoneyInput
                   data-slot="input-group-control"
-                  className="aria-invalid:ring-0 min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:outline-none"
+                  className="min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:outline-none aria-invalid:ring-0"
                   ref={field.ref}
                   name={field.name}
                   value={field.value}
@@ -95,7 +99,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
                   }}
                   onBlur={onBlur}
                   placeholder={placeholder}
-                  maxDecimalPlaces={maxDecimalPlaces}
+                  maxDecimalPlaces={decimalPlaces}
                   aria-label={resolvedLabel}
                   data-testid={testId}
                 />
@@ -116,7 +120,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
                 }}
                 onBlur={onBlur}
                 placeholder={placeholder}
-                maxDecimalPlaces={maxDecimalPlaces}
+                maxDecimalPlaces={decimalPlaces}
                 aria-label={resolvedLabel}
                 data-testid={testId}
               />

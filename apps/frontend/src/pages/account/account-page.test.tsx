@@ -579,7 +579,7 @@ describe("AccountPage", () => {
 
     const markerQuery = mockUseQuery.mock.calls
       .map(([options]) => options as { queryKey: unknown[]; enabled?: boolean })
-      .filter((options) => options.queryKey[1] === "markerDates")
+      .filter((options) => options.queryKey[1] === "markerTypes")
       .at(-1);
     expect(markerQuery?.enabled).toBe(true);
   });

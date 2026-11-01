@@ -10,17 +10,17 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
 import {
-  ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
-  MAX_DRAWDOWN_INFO as maxDrawdownInfo,
+  ANNUALIZED_RETURN_INFO_KEY as annualizedReturnInfo,
+  MAX_DRAWDOWN_INFO_KEY as maxDrawdownInfo,
   MetricInfoPopoverBody,
   MetricLabelWithInfo,
   metricWarningItems,
-  MONEY_WEIGHTED_RETURN_INFO,
-  PRICE_RETURN_INFO,
-  SIMPLE_RETURN_INFO,
-  TIME_WEIGHTED_RETURN_INFO,
-  VALUE_RETURN_INFO,
-  VOLATILITY_INFO as volatilityInfo,
+  MONEY_WEIGHTED_RETURN_INFO_KEY,
+  PRICE_RETURN_INFO_KEY,
+  SIMPLE_RETURN_INFO_KEY,
+  TIME_WEIGHTED_RETURN_INFO_KEY,
+  VALUE_RETURN_INFO_KEY,
+  VOLATILITY_INFO_KEY as volatilityInfo,
 } from "@/components/metric-display";
 import { PerformanceChart } from "@/components/performance-chart";
 import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
@@ -111,6 +111,11 @@ function sortComparisonItems(items: TrackedItem[]): TrackedItem[] {
     // If same type, maintain original order
     return 0;
   });
+}
+
+/** Only the reserved all-portfolio item is synthetic; real account/portfolio names stay raw. */
+function performanceItemLabel(item: { id: string; name: string }, t: TFunction): string {
+  return item.id === PORTFOLIO_SCOPE_ID ? t("performance:all_portfolio") : item.name;
 }
 
 function chartMetricForResult(result: PerformanceResult): PerformanceMetric {
@@ -209,31 +214,31 @@ function metricPresentation(
       return {
         label: t("performance:metric.time_weighted_return"),
         mobileLabel: t("performance:metric.twr_short"),
-        infoText: TIME_WEIGHTED_RETURN_INFO,
+        infoText: t(TIME_WEIGHTED_RETURN_INFO_KEY),
       };
     case "irr":
       return {
         label: t("performance:metric.money_weighted_return"),
         mobileLabel: t("performance:metric.mwr_short"),
-        infoText: MONEY_WEIGHTED_RETURN_INFO,
+        infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
       };
     case "valueReturn":
       return {
         label: t("performance:metric.value_return"),
         mobileLabel: t("performance:metric.value_short"),
-        infoText: VALUE_RETURN_INFO,
+        infoText: t(VALUE_RETURN_INFO_KEY),
       };
     case "volatility":
       return {
         label: t("performance:metric.volatility"),
         mobileLabel: t("performance:metric.vol_short"),
-        infoText: volatilityInfo,
+        infoText: t(volatilityInfo),
       };
     case "drawdown":
       return {
         label: t("performance:metric.max_drawdown"),
         mobileLabel: t("performance:metric.drawdown_short"),
-        infoText: maxDrawdownInfo,
+        infoText: t(maxDrawdownInfo),
       };
   }
 }
@@ -359,6 +364,12 @@ function presentMoneyWeightedWarning(
   t: TFunction,
   formatting: Pick<FormattingApi, "formatDecimal">,
 ): string {
+  if (
+    text ===
+    "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked."
+  ) {
+    return t("performance:exclusion.holdings_not_mwr");
+  }
   return presentWarning(text, namesById, formatting)
     .replace(/\bXIRR\b/gi, t("performance:metric.annualized_mwr"))
     .replace(/\bIRR\b/g, "MWR");
@@ -628,8 +639,8 @@ const PLOTTED_ITEM_STATE: SelectedItemPlotState = { isPlotted: true };
 const PERFORMANCE_HIDDEN_DATE_RANGES = ["1D"] as const;
 
 function amountTone(value: number): string {
-  if (value < 0) return "text-destructive";
-  if (value > 0) return "text-success";
+  if (value < 0) return "text-loss";
+  if (value > 0) return "text-gain";
   return "text-muted-foreground";
 }
 
@@ -728,7 +739,7 @@ function AttributionDetailMetric({
   // A missing mixed-scope return series does not make attributed P&L incomplete.
   // Keep that warning with the return metric, alongside the existing IRR filter.
   const attributionWarnings = warnings.filter(
-    (warning) => !warning.startsWith("Return series unavailable for all-time mixed scopes"),
+    (warning) => !warning.startsWith("Return series unavailable for "),
   );
   const isPartial = result.summary?.quality === "partial" && attributionWarnings.length > 0;
 
@@ -881,14 +892,14 @@ function AttributionDetailMetric({
             </SheetClose>
           </div>
           <div className="pt-3">
-            <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.period_gain_loss_lower")}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <AttributionAmount
                 value={periodPnl}
                 currency={currency}
-                className="text-xl font-semibold leading-tight"
+                className="text-xl leading-tight font-semibold"
               />
               {isPartial && (
                 <Badge variant="warning-subtle">{t("performance:attribution.partial_data")}</Badge>
@@ -911,21 +922,21 @@ function AttributionDetailMetric({
             </div>
           )}
           <div className="py-3.5">
-            <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.performance_drivers")}
             </div>
             <AttributionRows rows={driverRows} currency={currency} />
           </div>
 
           <div className="py-3.5">
-            <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.cash_flows")}
             </div>
             <AttributionRows rows={flowRows} currency={currency} amountTone="neutral" />
           </div>
         </div>
         <div className="border-border bg-background flex items-center justify-between gap-4 border-t px-6 py-4">
-          <div className="text-xs font-medium uppercase tracking-wide">
+          <div className="text-xs font-medium tracking-wide uppercase">
             {t("performance:attribution.total_gain_loss")}
           </div>
           <AttributionAmount
@@ -966,7 +977,7 @@ function PerformanceContent({
       )}
 
       {!chartData?.length && !isLoading && !hasErrors && (
-        <Empty className="max-w-105 mx-auto flex items-center justify-center">
+        <Empty className="mx-auto flex max-w-105 items-center justify-center">
           <EmptyHeader>
             <EmptyMedia variant="icon">{<Icons.BarChart className="size-10" />}</EmptyMedia>
             <EmptyTitle>{t("performance:empty.title")}</EmptyTitle>
@@ -981,7 +992,7 @@ function PerformanceContent({
           <div className="animate-subtle-pulse absolute inset-0 border-2 border-transparent">
             <div className="animate-progress-border bg-primary absolute start-0 top-0 h-[2px] rtl:-scale-x-100"></div>
           </div>
-          <div className="absolute bottom-4 end-4">
+          <div className="absolute end-4 bottom-4">
             <div className="bg-background/80 rounded-md border px-3 py-1.5 shadow-sm backdrop-blur-sm">
               <p className="text-muted-foreground flex items-center text-xs font-medium">
                 <span className="bg-primary me-2 inline-block h-2 w-2 animate-pulse rounded-full"></span>
@@ -1035,6 +1046,7 @@ const SelectedItemBadge = ({
   color?: string;
 }) => {
   const { t } = useTranslation();
+  const label = performanceItemLabel(item, t);
   return (
     <Badge
       className={cn(
@@ -1071,7 +1083,7 @@ const SelectedItemBadge = ({
           style={isPlotted && color ? { backgroundColor: color } : undefined}
         />
         <span className="group-hover:text-foreground max-w-40 truncate text-xs font-medium transition-colors sm:text-sm">
-          {item.name}
+          {label}
         </span>
         {!isPlotted && (
           <span className="bg-background/70 text-muted-foreground text-2xs rounded px-1.5 py-0.5 font-medium">
@@ -1093,7 +1105,7 @@ const SelectedItemBadge = ({
           "focus-visible:ring-destructive/50 focus-visible:ring-2",
         )}
         onClick={onDelete}
-        aria-label={t("performance:remove_item", { name: item.name })}
+        aria-label={t("performance:remove_item", { name: label })}
       >
         <Icons.Close className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       </Button>
@@ -1225,6 +1237,7 @@ export default function PerformancePage() {
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
     data: performanceData,
+    allTimeFrom,
     isLoading: isLoadingPerformance,
     hasErrors,
     errorMessages,
@@ -1240,8 +1253,8 @@ export default function PerformancePage() {
     if (!targetId) return null;
     const found = performanceData.find((item) => item?.id === targetId);
     if (!found) return null;
-    const name =
-      selectedItems.find((item) => item.id === found.id)?.name ?? t("performance:unknown");
+    const selectedItem = selectedItems.find((item) => item.id === found.id);
+    const name = selectedItem ? performanceItemLabel(selectedItem, t) : t("performance:unknown");
     return {
       result: found,
       name,
@@ -1258,8 +1271,8 @@ export default function PerformancePage() {
       performanceData,
       selectedChartMetric,
       activeChartAnchorId ?? null,
-    );
-  }, [activeChartAnchorId, performanceData, selectedChartMetric]);
+    ).map((item) => ({ ...item, name: performanceItemLabel(item, t) }));
+  }, [activeChartAnchorId, performanceData, selectedChartMetric, t]);
 
   const chartColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1330,7 +1343,7 @@ export default function PerformancePage() {
         ? {
             label: t("performance:metric.price_return"),
             mobileLabel: t("performance:metric.price_short"),
-            infoText: PRICE_RETURN_INFO,
+            infoText: t(PRICE_RETURN_INFO_KEY),
           }
         : metricPresentation(selectedMetric, t);
     const selectedMetricValue = displayMetricValue(found, selectedMetric);
@@ -1381,22 +1394,22 @@ export default function PerformancePage() {
         ? [
             {
               label: moneyWeightedReturnLabel,
-              infoText: MONEY_WEIGHTED_RETURN_INFO,
+              infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
               warningText: moneyWeightedHelpWarnings,
             },
           ]
         : []),
       {
         label: t("performance:metric.annualized_return"),
-        infoText: annualizedReturnInfo,
+        infoText: t(annualizedReturnInfo),
       },
       {
         label: t("performance:metric.volatility"),
-        infoText: volatilityInfo,
+        infoText: t(volatilityInfo),
       },
       {
         label: t("performance:metric.max_drawdown"),
-        infoText: maxDrawdownInfo,
+        infoText: t(maxDrawdownInfo),
       },
       ...(periodPnl != null
         ? [
@@ -1544,6 +1557,7 @@ export default function PerformancePage() {
           value={dateRange}
           onChange={setDateRange}
           hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+          allTimeFrom={allTimeFrom}
         />
       </div>
 
@@ -1555,6 +1569,7 @@ export default function PerformancePage() {
             value={dateRange}
             onChange={setDateRange}
             hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+            allTimeFrom={allTimeFrom}
           />
         </div>
 
@@ -1763,7 +1778,7 @@ export default function PerformancePage() {
                                 label={
                                   selectedItemData?.mobileLabel ?? t("performance:metric.return")
                                 }
-                                infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                                infoText={selectedItemData?.infoText ?? t(SIMPLE_RETURN_INFO_KEY)}
                                 warningText={selectedItemData?.returnWarnings}
                                 boldTerms={selectedItemData?.warningTerms}
                                 value={selectedItemData?.selectedMetricValue ?? null}
@@ -1782,7 +1797,7 @@ export default function PerformancePage() {
                                     ? t("performance:metric.ann_twr_short")
                                     : t("performance:metric.annualized_short")
                                 }
-                                infoText={annualizedReturnInfo}
+                                infoText={t(annualizedReturnInfo)}
                                 value={selectedItemData?.annualizedReturn ?? null}
                                 align="left"
                                 valueClassName="text-base"
@@ -1794,7 +1809,7 @@ export default function PerformancePage() {
                               <div className="bg-muted/30 rounded-lg px-3 py-2">
                                 <HeaderMetric
                                   label={selectedItemData.moneyWeightedReturnMobileLabel}
-                                  infoText={MONEY_WEIGHTED_RETURN_INFO}
+                                  infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
                                   warningText={selectedItemData.moneyWeightedWarnings}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
@@ -1808,7 +1823,7 @@ export default function PerformancePage() {
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
                                 label={t("performance:metric.volatility")}
-                                infoText={volatilityInfo}
+                                infoText={t(volatilityInfo)}
                                 warningText={selectedItemData?.volatilityWarnings}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
@@ -1821,7 +1836,7 @@ export default function PerformancePage() {
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
                                 label={t("performance:metric.max_drawdown")}
-                                infoText={maxDrawdownInfo}
+                                infoText={t(maxDrawdownInfo)}
                                 value={selectedItemData?.maxDrawdown ?? null}
                                 align="left"
                                 valueClassName="text-base"
@@ -1846,7 +1861,7 @@ export default function PerformancePage() {
                         </CarouselContent>
                       </Carousel>
                     ) : (
-                      <div className="relative w-full overflow-x-auto pb-1 pe-8 2xl:w-auto 2xl:overflow-visible">
+                      <div className="relative w-full overflow-x-auto pe-8 pb-1 2xl:w-auto 2xl:overflow-visible">
                         {selectedItemData && (
                           <StripHelpPopover items={selectedItemData.helpItems} />
                         )}
@@ -1869,7 +1884,7 @@ export default function PerformancePage() {
                                 label={stripReturnLabel(selectedItemData?.label, t)}
                                 value={selectedItemData?.selectedMetricValue ?? null}
                                 reason={selectedItemData?.selectedMetricReason}
-                                infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                                infoText={selectedItemData?.infoText ?? t(SIMPLE_RETURN_INFO_KEY)}
                                 warningText={[
                                   ...(selectedItemData?.returnWarnings ?? []),
                                   ...(selectedItemData?.selectedMetricReason
@@ -1883,7 +1898,7 @@ export default function PerformancePage() {
                                   label={selectedItemData.moneyWeightedReturnLabel}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
-                                  infoText={MONEY_WEIGHTED_RETURN_INFO}
+                                  infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
                                   warningText={selectedItemData.moneyWeightedWarnings}
                                   boldTerms={selectedItemData.warningTerms}
                                 />
@@ -1891,7 +1906,7 @@ export default function PerformancePage() {
                               <StripMetric
                                 label={t("performance:metric.annualized_short")}
                                 value={selectedItemData?.annualizedReturn ?? null}
-                                infoText={annualizedReturnInfo}
+                                infoText={t(annualizedReturnInfo)}
                               />
                             </div>
                           </StripSection>
@@ -1902,14 +1917,14 @@ export default function PerformancePage() {
                                 label={t("performance:metric.volatility")}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
-                                infoText={volatilityInfo}
+                                infoText={t(volatilityInfo)}
                                 warningText={selectedItemData?.volatilityWarnings}
                                 boldTerms={selectedItemData?.warningTerms}
                               />
                               <StripMetric
                                 label={t("performance:metric.max_drawdown_short")}
                                 value={selectedItemData?.maxDrawdown ?? null}
-                                infoText={maxDrawdownInfo}
+                                infoText={t(maxDrawdownInfo)}
                               />
                             </div>
                           </StripSection>

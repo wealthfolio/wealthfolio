@@ -7,6 +7,7 @@ import { formatDateISO, parseLocalDate } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
 import { DashboardCard } from "@/components/dashboard-card";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
   GainAmount,
   GainPercent,
@@ -32,7 +33,6 @@ import { CategoryDetailSheet } from "./components/category-detail-sheet";
 import { NetWorthAttention } from "./components/net-worth-attention";
 import { MomentumCard } from "./components/momentum-card";
 import {
-  THEME_COLOR,
   THEME_COLOR_LIGHT,
   computeMomentum,
   computeVelocity,
@@ -41,6 +41,7 @@ import {
   investmentAllocation,
   isPlainPercent,
   parseHistory,
+  themeColorTint,
   toneClass,
   type ParsedNetWorth,
   type SelectedCategory,
@@ -200,7 +201,7 @@ export function NetWorthContent() {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-8">
         <div className="text-center">
-          <div className="text-destructive-subtle-foreground bg-current/15 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+          <div className="text-destructive-subtle-foreground mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-current/15">
             <Icons.AlertTriangle className="h-6 w-6" />
           </div>
           <p className="text-destructive text-lg font-medium">
@@ -215,10 +216,10 @@ export function NetWorthContent() {
   return (
     <div className="flex min-h-full flex-col">
       {/* Top section: Net Worth value */}
-      <div className="px-4 pb-1 pt-2 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-1 md:px-6 md:pb-2 lg:px-8">
         <div className="flex items-start gap-2">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Balance
                 isLoading={isLoading}
                 targetValue={parsedData?.netWorth ?? 0}
@@ -227,12 +228,13 @@ export function NetWorthContent() {
                 displayDecimal={false}
                 compact={isMobile}
               />
+              <PrivacyToggle variant="ghost" />
               {hasStaleValuations && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <div className="text-warning-subtle-foreground bg-current/15 flex h-8 w-8 items-center justify-center rounded-full" />
+                        <div className="text-warning-subtle-foreground flex h-8 w-8 items-center justify-center rounded-full bg-current/15" />
                       }
                     >
                       <Icons.AlertCircle className="h-4 w-4" />
@@ -310,7 +312,7 @@ export function NetWorthContent() {
       <div
         className="flex grow flex-col"
         style={{
-          backgroundImage: `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
+          backgroundImage: `linear-gradient(to top, ${themeColorTint(30)}, ${themeColorTint(15)} 50%, transparent 100%)`,
         }}
       >
         {/* Chart section */}
@@ -331,7 +333,7 @@ export function NetWorthContent() {
           )}
           {historyData && historyData.length > 0 && (
             <div className="flex w-full justify-center">
-              <div className="pointer-events-auto relative z-20 flex w-full min-w-0 max-w-screen-sm items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
+              <div className="pointer-events-auto relative z-20 flex w-full max-w-screen-sm min-w-0 items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
                 <IntervalSelector
                   className="w-auto"
                   onIntervalSelect={period.selectPreset}
@@ -351,7 +353,7 @@ export function NetWorthContent() {
         </div>
 
         {/* Content section */}
-        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-14 md:px-6 md:pb-6 md:pt-12 lg:px-10 lg:pb-8 lg:pt-14">
+        <div className="grow px-4 pt-14 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-12 md:pb-6 lg:px-10 lg:pt-14 lg:pb-8">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
             {/* Left column: Breakdown */}
             <div className="lg:col-span-2">

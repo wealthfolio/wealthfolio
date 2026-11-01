@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useAccounts } from "@/hooks/use-accounts";
 import type { DriftHoldingRow, DriftReport } from "@/lib/types";
@@ -21,6 +22,7 @@ import { formatPp } from "./drift-copy";
 
 interface HoldingsTableProps {
   report: DriftReport;
+  taxonomyId: string;
 }
 
 const EMPTY_DRIFT_ROWS: DriftHoldingRow[] = [];
@@ -107,7 +109,7 @@ function canNavigateToHolding(row: DriftHoldingRow): boolean {
   return !row.isCash && row.assetId.trim().length > 0;
 }
 
-export function HoldingsTable({ report }: HoldingsTableProps) {
+export function HoldingsTable({ report, taxonomyId }: HoldingsTableProps) {
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -132,7 +134,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
 
   return (
     <Card>
-      <CardHeader className="px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+      <CardHeader className="px-4 pt-4 pb-2 md:px-6 md:pt-6 md:pb-3">
         <CardTitle className="text-base">{t("allocation:holdings.title")}</CardTitle>
         <CardDescription>
           {isLoading ? (
@@ -197,7 +199,9 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         style={{ background: row.categoryColor }}
                       />
                     )}
-                    <span className="truncate">{row.categoryName}</span>
+                    <span className="truncate">
+                      {getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)}
+                    </span>
                   </div>
                   <span
                     className={cn(
@@ -216,8 +220,8 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-muted-foreground text-2xs border-b uppercase tracking-wider">
-                <th className="py-2.5 pe-3 ps-6 text-start font-medium">
+              <tr className="text-muted-foreground text-2xs border-b tracking-wider uppercase">
+                <th className="py-2.5 ps-6 pe-3 text-start font-medium">
                   {t("allocation:holdings.colHolding")}
                 </th>
                 <th className="py-2.5 pe-3 text-start font-medium">
@@ -236,7 +240,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                   {t("allocation:holdings.colDrift")}
                 </th>
                 {showAccountCol && (
-                  <th className="py-2.5 pe-6 ps-2 text-end font-medium">
+                  <th className="py-2.5 ps-2 pe-6 text-end font-medium">
                     {t("allocation:holdings.colAccount")}
                   </th>
                 )}
@@ -264,8 +268,8 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                       }
                     }}
                   >
-                    <td className="pe-3 ps-6">
-                      <div className="min-w-70 flex items-center gap-2">
+                    <td className="ps-6 pe-3">
+                      <div className="flex min-w-70 items-center gap-2">
                         <HoldingAvatar
                           isCash={row.isCash}
                           symbol={row.symbol}
@@ -293,10 +297,10 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         )}
                         <span className="min-w-0">
                           <span className="text-muted-foreground block truncate text-xs">
-                            {row.categoryName}
+                            {getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)}
                           </span>
                           {row.isUnknownCategory && (
-                            <span className="text-muted-foreground/80 text-2xs max-w-55 block truncate">
+                            <span className="text-muted-foreground/80 text-2xs block max-w-55 truncate">
                               {t("allocation:holdings.notMapped")}
                             </span>
                           )}
@@ -323,7 +327,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                       {row.driftBps != null ? formatPp(row.driftBps) : "—"}
                     </td>
                     {showAccountCol && (
-                      <td className="text-muted-foreground pe-6 ps-2 text-end">
+                      <td className="text-muted-foreground ps-2 pe-6 text-end">
                         {accountLabelForRow(row, accountMap, t)}
                       </td>
                     )}

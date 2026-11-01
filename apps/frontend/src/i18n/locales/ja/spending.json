@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "必要な支出",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "欲しいもの",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "貯蓄",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "寄付",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "個人",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "その他"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "旅行",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "休暇",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "ビジネス",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "教育",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "医療",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "特別な行事",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "その他"
+  },
   "common": {
     "amount": "金額",
     "min": "最小",
@@ -64,6 +81,11 @@
     "editTitle": "ルールを編集",
     "addTitle": "ルールを追加",
     "editDescription": "名前のパターンで取引に自動でタグ付けします。複数一致した場合は優先度の高いルールが適用されます。",
+    "categoryCompatibilityHint": "カテゴリは取引のキャッシュフローに従います。貯蓄カテゴリは、支出管理対象の口座から外部への紐付け済み振替にのみ適用されます。",
+    "runIncompatible": "分類できないカテゴリ：{{count}}。カテゴリは取引のキャッシュフローに従います。貯蓄カテゴリは、支出管理対象の口座から外部への紐付け済み振替にのみ適用されます。",
+    "runProtected": "既存のカテゴリまたは分割を維持：{{count}}。",
+    "runUnchanged": "指定どおりに分類済み：{{count}}。",
+    "runWithoutTarget": "分類先カテゴリのない一致：{{count}}。",
     "matchContains": "を含む",
     "matchStartsWith": "で始まる",
     "matchExact": "完全一致",
@@ -171,6 +193,7 @@
     "income": "収入",
     "spending": "支出",
     "saving": "貯蓄",
+    "netSaved": "純貯蓄",
     "net": "収支"
   },
   "insights": {
@@ -414,6 +437,7 @@
     "customSubtitle": "選択した期間の取引"
   },
   "split": {
+    "staleTaxonomy": "これらの分割には以前のカテゴリ種別が使われています。この取引には適用されなくなりました。",
     "title": "取引を分割",
     "transactionFallback": "取引",
     "remainingOf": "{{amount}}のうち残り",
@@ -422,7 +446,11 @@
     "removeLine": "分割明細{{number}}を削除",
     "addLine": "明細を追加",
     "distributeEvenly": "均等に配分",
-    "clearSplit": "分割をクリア"
+    "clearSplit": "分割をクリア",
+    "replaceWithCategory": "分割を1つのカテゴリに置換",
+    "replaceDescription_one": "{{count}}件の分割を{{category}}に置き換えますか？既存の分割は削除されます。",
+    "replaceDescription_other": "{{count}}件の分割を{{category}}に置き換えますか？既存の分割は削除されます。",
+    "categoryProtected": "分割は保護されています。分割エディタで編集するか、明示的に置き換えてください。"
   },
   "hierarchy": {
     "noCategorizedSpending": "この期間に分類済みの支出はありません。",
@@ -714,8 +742,6 @@
     "overspentBy": "{{pct}}の使いすぎ",
     "noIncome": "この期間、選択中の口座に収入はありません。",
     "spent": "支出",
-    "saved": "貯蓄",
-    "setAside": "積立",
     "sortSpent": "支出額",
     "sortChange": "変化",
     "sortName": "名前",
@@ -759,6 +785,8 @@
       "total": "合計",
       "shortfall": "不足",
       "refunds": "純返金",
+      "fromSavings": "貯蓄から",
+      "toSavings": "貯蓄へ",
       "surplus": "残り",
       "uncategorizedIncome": "未分類の収入",
       "netSpending": "純支出"
@@ -769,6 +797,7 @@
       "shortfall": "入金を超えた支出と貯蓄。",
       "refunds": "返金が支出を上回ったカテゴリ。",
       "saved": "貯蓄口座や投資口座へ移したお金。",
+      "fromSavings": "貯蓄口座や投資口座から戻したお金。",
       "surplus": "入金のうち、支出も積立もしていない分。",
       "uncategorized": "まだカテゴリがない支出。",
       "net": "返金後にこのカテゴリにかかった金額。",
@@ -933,8 +962,6 @@
     "uncategorizedReview": "未分類 — 要確認",
     "uncategorizedImprove": "未分類 — 確認すると内訳の精度が上がります",
     "plusMore": "+ 他{{count}}件",
-    "down": "減少",
-    "up": "増加",
     "aboutSame": "前期間とほぼ同水準",
     "fromPriorPeriod": "前期間から",
     "intervalMtd": "今月",
@@ -1026,5 +1053,23 @@
     "addSource_other": "収入源を追加({{count}}件利用可能)",
     "overridesTitle_other": "個別設定 · {{count}}",
     "sourceMonth": "コピー元の月"
+  },
+  "splitEditReview": {
+    "title": "分割の削除を確認",
+    "hiddenCategory": "既存のカテゴリ割り当ては保持され、分割の削除後に適用される場合があります。",
+    "confirm": "保存して分割を削除",
+    "removed_other": "この変更により {{count}} 件の分割が削除されます。"
+  },
+  "budgetErrors": {
+    "deleteGroup": "予算グループを削除できませんでした。",
+    "copyPlan": "計画をコピーできませんでした。"
+  },
+  "grid": {
+    "transferInForm": "振替のタイプは「編集」から振替フォームで変更してください。",
+    "noCategory": "この取引は支出・収入・貯蓄のいずれでもないため、カテゴリはありません。",
+    "saveTypeFirst": "先に新しいタイプまたは口座を保存してから、カテゴリを選択してください。",
+    "saveCategoryFirst": "先にカテゴリを保存してから、タイプまたは口座を変更してください。",
+    "typeNotForAccount": "このタイプはこの口座では使用できません。",
+    "amountRequired": "金額は必須です。"
   }
 }

@@ -2,6 +2,8 @@
 //! invalid base currency, changes neither the base currency nor its FX pairs,
 //! and one that fails to save keeps the old base currency.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use std::sync::Arc;
 
 use diesel::prelude::*;
@@ -17,11 +19,11 @@ struct Fixture {
     settings: SettingsService,
     pool: Arc<DbPool>,
     events: MockDomainEventSink,
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
 }
 
 async fn fixture() -> Fixture {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

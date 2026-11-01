@@ -23,8 +23,8 @@ use wealthfolio_core::accounts::{
     account_types, Account, AccountServiceTrait, NewAccount, TrackingMode,
 };
 use wealthfolio_core::activities::{
-    compute_idempotency_key, ActivityRepositoryTrait, ActivityServiceTrait, ActivityUpsert,
-    NewActivity, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
+    compute_idempotency_key, idempotency_activity_type, ActivityRepositoryTrait,
+    ActivityServiceTrait, ActivityUpsert, NewActivity, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
 };
 use wealthfolio_core::assets::{
     build_option_metadata, Asset, AssetServiceTrait, AssetSpec, InstrumentType, OptionSpec,
@@ -656,7 +656,11 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             // Compute idempotency key for content-based deduplication
             let idempotency_key = compute_idempotency_key(
                 &account_id,
-                &act.activity_type,
+                &idempotency_activity_type(
+                    &act.activity_type,
+                    act.subtype.as_deref(),
+                    act.source_group_id.as_deref(),
+                ),
                 &activity_datetime,
                 asset_id.as_deref(),
                 act.quantity,

@@ -73,7 +73,7 @@ describe("internal transfer currencies (real form)", () => {
       />,
     );
     await user.click(screen.getByRole("combobox", { name: "To Account" }));
-    await user.click(screen.getByRole("option", { name: /Account A/ }));
+    await user.click(await screen.findByRole("option", { name: /Account A/ }));
     expect(screen.getByRole("combobox", { name: "Source currency" })).toBeVisible();
     await user.click(screen.getByRole("combobox", { name: "Destination currency" }));
     await user.type(screen.getByPlaceholderText("Search currency..."), "EUR");

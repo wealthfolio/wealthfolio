@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ReactElement, ReactNode, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Button } from "../ui/button";
@@ -21,6 +22,7 @@ export const DeleteConfirm = ({
   button,
   isPending,
 }: DeleteConfirmProps) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   return (
     <Popover open={isOpen} onOpenChange={(open) => setIsOpen(open)}>
@@ -46,7 +48,7 @@ export const DeleteConfirm = ({
       <PopoverContent className="w-80" align="end">
         <div className="space-y-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">{deleteConfirmTitle}</h4>
+            <h4 className="leading-none font-medium">{deleteConfirmTitle}</h4>
             <p className="text-muted-foreground text-sm">{deleteConfirmMessage}</p>
           </div>
           <div className="flex justify-end gap-2">
@@ -58,16 +60,16 @@ export const DeleteConfirm = ({
                 handleCancel?.();
               }}
             >
-              Cancel
+              {t("common:cancel", "Cancel")}
             </Button>
             <Button variant="destructive" size="sm" disabled={isPending} onClick={handleDeleteConfirm}>
               {isPending ? (
                 <>
                   <Spinner className="me-2 h-4 w-4" />
-                  Deleting...
+                  {t("ui:dataGrid.deleting", "Deleting...")}
                 </>
               ) : (
-                "Delete"
+                t("common:delete", "Delete")
               )}
             </Button>
           </div>

@@ -6,7 +6,7 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{Path, Query},
+    extract::{DefaultBodyLimit, Path, Query},
     http::{header, StatusCode},
     response::Response,
     routing::{delete, get, post},
@@ -15,6 +15,7 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use wealthfolio_core::addons::{
     AddonManifest, AddonUpdateCheckResult, ExtractedAddon, InstalledAddon,
+    MAX_ADDON_ARCHIVE_COMPRESSED_SIZE,
 };
 
 #[derive(serde::Deserialize)]
@@ -367,10 +368,18 @@ fn decode_zip_data(
     }
 }
 
+/// The web app sends an add-on zip as base64 in a JSON body, a third larger
+/// than the zip, and axum's 2 MB default rejects zips over about 1.5 MiB. Fit
+/// the add-on service's own zip limit, plus room for the other JSON fields.
+const ADDON_ZIP_BODY_LIMIT: usize = MAX_ADDON_ARCHIVE_COMPRESSED_SIZE.div_ceil(3) * 4 + 1024 * 1024;
+
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/addons/installed", get(list_installed_addons_web))
-        .route("/addons/install-zip", post(install_addon_zip_web))
+        .route(
+            "/addons/install-zip",
+            post(install_addon_zip_web).layer(DefaultBodyLimit::max(ADDON_ZIP_BODY_LIMIT)),
+        )
         .route("/addons/toggle", post(toggle_addon_web))
         .route("/addons/{id}", delete(uninstall_addon_web))
         .route("/addons/runtime/{id}", get(load_addon_for_runtime_web))
@@ -382,7 +391,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             "/addons/enabled-on-startup",
             get(get_enabled_addons_on_startup_web),
         )
-        .route("/addons/extract", post(extract_addon_zip_web))
+        .route(
+            "/addons/extract",
+            post(extract_addon_zip_web).layer(DefaultBodyLimit::max(ADDON_ZIP_BODY_LIMIT)),
+        )
         .route(
             "/addons/store/listings",
             get(fetch_addon_store_listings_web),

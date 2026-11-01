@@ -22,7 +22,6 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  useAmountFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -56,6 +55,7 @@ import type {
   RetirementPlan,
   TaxProfile,
 } from "../types";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 const DEFAULT_INFLATION_SLIDER_MAX = 0.06;
 const DEFAULT_FEE_SLIDER_MAX = 0.03;
@@ -124,12 +124,12 @@ function SidebarMonthlyRow({
   amount: number;
   currency: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3 first:pt-1 last:pb-1">
       <div className="min-w-0">
-        <div className="text-foreground text-sm font-semibold leading-tight">{label}</div>
+        <div className="text-foreground text-sm leading-tight font-semibold">{label}</div>
         {meta && <div className="text-muted-foreground mt-0.5 text-xs leading-tight">{meta}</div>}
       </div>
       <div className="whitespace-nowrap tabular-nums">
@@ -144,11 +144,11 @@ function SidebarMonthlyRow({
 
 /** Sidebar totals row: uppercase tracked label on the left, amount + /mo on the right. */
 function SidebarTotalRow({ amount, currency }: { amount: number; currency: string }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3">
-      <span className="text-muted-foreground text-xs uppercase tracking-[0.15em]">
+      <span className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
         {t("common:total")}
       </span>
       <div className="whitespace-nowrap tabular-nums">
@@ -355,7 +355,7 @@ function SidebarCard({
       <CardHeader className="flex-row items-start justify-between pb-4">
         <div className="min-w-0">
           {kicker && (
-            <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+            <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
               {kicker}
             </div>
           )}
@@ -412,7 +412,7 @@ export function SidebarConfigurator({
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
 
   const { t } = useTranslation();
@@ -423,6 +423,11 @@ export function SidebarConfigurator({
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [expandedIncomeId, setExpandedIncomeId] = useState<string | null>(null);
   const moneyPrefix = amountFormatting.formatCurrencySymbol(currency);
+  // Savings goals plan their own monthly amounts; say so where the retirement
+  // contribution is entered, so the same money isn't counted twice.
+  const goalsMonthly = retirementOverview?.savingsGoalsMonthlyContribution ?? 0;
+  const goalsMonthlyAmount =
+    goalsMonthly > 0 ? amountFormatting.formatAmount(goalsMonthly, currency) : null;
 
   const update = useCallback((updater: (d: RetirementPlan) => RetirementPlan) => {
     setDraft((prev) => updater(prev));
@@ -616,7 +621,20 @@ export function SidebarConfigurator({
             >
               {draft.personal.planningHorizonAge}
             </ConfigRow>
-            <ConfigRow label={t("goals:sidebar.plan.monthly_contribution_until_retirement")}>
+            <ConfigRow
+              label={
+                <>
+                  {t("goals:sidebar.plan.monthly_contribution_until_retirement")}
+                  {goalsMonthlyAmount && (
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {t("goals:sidebar.plan.savings_goals_contribution", {
+                        amount: goalsMonthlyAmount,
+                      })}
+                    </span>
+                  )}
+                </>
+              }
+            >
               {amountFormatting.formatAmount(draft.investment.monthlyContribution, currency)}
             </ConfigRow>
           </div>
@@ -627,7 +645,7 @@ export function SidebarConfigurator({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">{t("goals:sidebar.plan.plan_type")}</p>
-                  <p className="text-muted-foreground max-w-65 mt-1 text-xs leading-snug">
+                  <p className="text-muted-foreground mt-1 max-w-65 text-xs leading-snug">
                     {t("goals:sidebar.plan.plan_type_help")}
                   </p>
                 </div>
@@ -655,7 +673,7 @@ export function SidebarConfigurator({
             <div className="py-4 first:pt-1 last:pb-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-foreground text-sm font-semibold leading-tight">
+                  <div className="text-foreground text-sm leading-tight font-semibold">
                     {t("goals:sidebar.plan.birth_month")}
                   </div>
                   <div className="text-muted-foreground mt-1 max-w-60 text-xs leading-tight">
@@ -728,7 +746,14 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={t("goals:sidebar.plan.monthly_contribution")}
-              hint={t("goals:sidebar.plan.monthly_contribution_hint")}
+              hint={
+                goalsMonthlyAmount
+                  ? `${t("goals:sidebar.plan.monthly_contribution_hint")} ${t(
+                      "goals:sidebar.plan.savings_goals_contribution_hint",
+                      { amount: goalsMonthlyAmount },
+                    )}`
+                  : t("goals:sidebar.plan.monthly_contribution_hint")
+              }
               kind="money"
               value={draft.investment.monthlyContribution}
               onChange={(v) => setInvestment("monthlyContribution", v)}
@@ -938,7 +963,7 @@ export function SidebarConfigurator({
                   </div>
 
                   {expanded && (
-                    <div className="space-y-4 border-t px-3 pb-3 pt-3">
+                    <div className="space-y-4 border-t px-3 pt-3 pb-3">
                       <Input
                         value={item.label}
                         onChange={(e) => updateExpenseItem(item.id, { label: e.target.value })}
@@ -1206,7 +1231,7 @@ export function SidebarConfigurator({
                   </div>
 
                   {expanded && (
-                    <div className="space-y-4 border-t px-3 pb-3 pt-3">
+                    <div className="space-y-4 border-t px-3 pt-3 pb-3">
                       <Input
                         value={s.label}
                         onChange={(e) => updateStream(s.id, { label: e.target.value })}
@@ -1284,6 +1309,7 @@ export function SidebarConfigurator({
                             />
                             <LeverRow
                               label={t("goals:sidebar.income.fund_return_before_payout")}
+                              hint={t("goals:sidebar.income.fund_return_hint")}
                               value={s.accumulationReturn ?? planAccumulationReturn(draft)}
                               onChange={(v) => updateStream(s.id, { accumulationReturn: v })}
                               min={MIN_RETIREMENT_RETURN}
@@ -1341,6 +1367,7 @@ export function SidebarConfigurator({
                             {s.payoutMode === "drawdown" && (
                               <LeverRow
                                 label={t("goals:sidebar.income.fund_return_during_payout")}
+                                hint={t("goals:sidebar.income.fund_return_hint")}
                                 value={payoutPhaseReturn(s, draft)}
                                 onChange={(v) => updateStream(s.id, { postPayoutReturn: v })}
                                 min={MIN_RETIREMENT_RETURN}
@@ -1528,6 +1555,7 @@ export function SidebarConfigurator({
           <div className="divide-border -my-1 divide-y">
             <LeverRow
               label={t("goals:sidebar.assumptions.return_before_retirement")}
+              hint={t("goals:sidebar.plan.return_before_hint")}
               value={draft.investment.preRetirementAnnualReturn}
               onChange={(v) => setInvestment("preRetirementAnnualReturn", v)}
               min={0}
@@ -1545,6 +1573,7 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={t("goals:sidebar.assumptions.return_during_retirement")}
+              hint={t("goals:sidebar.plan.return_during_hint")}
               value={draft.investment.retirementAnnualReturn}
               onChange={(v) => setInvestment("retirementAnnualReturn", v)}
               min={0}
@@ -1710,7 +1739,7 @@ export function SidebarConfigurator({
 
             {taxBucketBalances && taxBucketTotal > 0 && (
               <div className="border-t pt-3">
-                <p className="text-muted-foreground text-2xs mb-1.5 flex items-center gap-1 uppercase tracking-wider">
+                <p className="text-muted-foreground text-2xs mb-1.5 flex items-center gap-1 tracking-wider uppercase">
                   {t("goals:sidebar.taxes.account_buckets")}
                   <Tooltip>
                     <TooltipTrigger

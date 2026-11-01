@@ -1,42 +1,47 @@
 import type { CategoryAllocation, NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
 import type { FormattingApi } from "@wealthfolio/ui";
 
-// Goldish orange net-worth theme (matches the history chart). Reserved for the
-// chart/brand; value numbers use semantic green/red tones (orange == warning).
-export const THEME_COLOR = "hsl(38 75% 50%)";
-export const THEME_COLOR_LIGHT = "hsl(38 75% 50% / 0.12)";
+// The net-worth line: the theme's --net-worth colour (Classic's is gold), at 3:1
+// or more on the page and cards, and neither gain nor loss (value numbers use
+// green/red tones).
+export const THEME_COLOR = "var(--net-worth)";
+export const THEME_COLOR_LIGHT = "color-mix(in oklab, var(--net-worth) 12%, transparent)";
 
-/** Semantic text tone for a signed value: green gain, red loss, muted when flat. */
-export function toneClass(value: number): string {
-  if (Math.abs(value) < 0.005) return "text-muted-foreground/60";
-  return value > 0 ? "text-success" : "text-destructive";
+/** The net-worth colour at the given strength over transparent, for tints. */
+export function themeColorTint(percent: number): string {
+  return `color-mix(in oklab, ${THEME_COLOR} ${percent}%, transparent)`;
 }
 
-/** Semantic fill color for bars/meters: green for positive/zero, red for negative. */
+/** Text tone for a signed value: gain or loss, muted when flat. */
+export function toneClass(value: number): string {
+  if (Math.abs(value) < 0.005) return "text-muted-foreground/60";
+  return value > 0 ? "text-gain" : "text-loss";
+}
+
+/** Fill color for bars/meters: gain for positive/zero, loss for negative. */
 export function toneColor(value: number): string {
-  return value < -0.005 ? "var(--destructive)" : "var(--success)";
+  return value < -0.005 ? "var(--loss)" : "var(--gain)";
 }
 
 /** Softened semantic fill for chart bars/areas (dimmer than the text tone). */
 export function toneFill(value: number): string {
-  const base = value < -0.005 ? "var(--destructive)" : "var(--success)";
+  const base = value < -0.005 ? "var(--loss)" : "var(--gain)";
   return `color-mix(in srgb, ${base} 60%, transparent)`;
 }
 
 export const CARD_LABEL = "text-muted-foreground/70 text-xs font-semibold uppercase tracking-wide";
 
-// Muted, semantic category palette (tuned for the warm/cream theme). Used for
-// the composition bar, breakdown row dots, and the detail-sheet icons so they
-// stay consistent. Liabilities keep the semantic red.
-// NOTE: tuned for light mode — dark-mode variants would need theme-aware tokens.
+// Category colours from the theme's chart palette, in both modes. Used for the
+// composition bar, breakdown row dots, and the detail-sheet icons so they stay
+// consistent. Liabilities keep the semantic red.
 export const CATEGORY_CSS_COLORS: Record<string, string> = {
-  properties: "#4b4137", // warm dark taupe / charcoal
-  investments: "#6f7544", // muted olive green
-  cash: "#d8c98f", // pale cream / light gold
-  vehicles: "#6d7c86", // muted slate
-  otherAssets: "#928d83", // medium warm gray
-  preciousMetals: "#b8923a", // soft gold
-  collectibles: "#8a6b49", // muted brown
+  properties: "var(--chart-1)",
+  investments: "var(--chart-2)",
+  cash: "var(--chart-3)",
+  vehicles: "var(--chart-4)",
+  preciousMetals: "var(--chart-5)",
+  collectibles: "var(--chart-6)",
+  otherAssets: "var(--chart-stone)",
   liabilities: "var(--destructive)",
 };
 

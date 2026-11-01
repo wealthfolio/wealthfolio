@@ -1,7 +1,9 @@
 {
   "carousel": {
     "next": "الشريحة التالية",
-    "previous": "الشريحة السابقة"
+    "previous": "الشريحة السابقة",
+    "role": "عرض دوّار",
+    "slide": "شريحة"
   },
   "currency": {
     "more": "المزيد",
@@ -14,7 +16,15 @@
     "searchPrompt": "ابحث عن أي عملة أو اختر من الخيارات الشائعة أعلاه.",
     "selectDescription": "اختر عملة",
     "selectTitle": "اختيار العملة",
-    "useCustom": "استخدام \"{{value}}\" كعملة مخصصة"
+    "useCustom": "استخدام \"{{value}}\" كعملة مخصصة",
+    "units": {
+      "GBp": "بنس بريطاني",
+      "GBX": "بنس بريطاني",
+      "ILA": "أغورة إسرائيلية",
+      "USX": "سنت أمريكي",
+      "ZAc": "سنت جنوب أفريقي",
+      "KWF": "فلس كويتي"
+    }
   },
   "dataGrid": {
     "addRow": "إضافة صف",
@@ -75,7 +85,16 @@
     "variantNumber": "رقم",
     "variantSelect": "اختيار",
     "variantShortText": "نص قصير",
-    "variantUrl": "URL"
+    "variantUrl": "URL",
+    "copyFailed": "تعذّر النسخ إلى الحافظة",
+    "cutFailed": "تعذّر القص إلى الحافظة",
+    "pasteFailed": "تعذّر اللصق. يرجى المحاولة مجددًا.",
+    "cellsSkipped_zero": "لم يتم تخطي أي خلية بسبب بيانات غير صالحة",
+    "cellsSkipped_one": "تم تخطي لصق خلية واحدة بسبب بيانات غير صالحة",
+    "cellsSkipped_two": "تم تخطي لصق خليتين بسبب بيانات غير صالحة",
+    "cellsSkipped_few": "تم تخطي لصق {{count}} خلايا بسبب بيانات غير صالحة",
+    "cellsSkipped_many": "تم تخطي لصق {{count}} خلية بسبب بيانات غير صالحة",
+    "cellsSkipped_other": "تم تخطي لصق {{count}} خلية بسبب بيانات غير صالحة"
   },
   "dataTable": {
     "columns": "الأعمدة",
@@ -197,5 +216,27 @@
   "page": {
     "back": "رجوع"
   },
-  "remove": "إزالة {{label}}"
+  "remove": "إزالة {{label}}",
+  "actionConfirm": {
+    "pending": "جارٍ التنفيذ…"
+  },
+  "select": {
+    "placeholder": "اختر خيارًا"
+  },
+  "progress": {
+    "title": "معالجة",
+    "message": "جارٍ المعالجة…",
+    "description": "يرجى الانتظار أثناء معالجة طلبك. قد يستغرق ذلك بضع لحظات."
+  },
+  "navigation": {
+    "view": "العرض {{number}}",
+    "goTo": "انتقل إلى {{name}}"
+  },
+  "quoteImport": {
+    "noFile": "لم يتم اختيار ملف",
+    "validateFailed": "تعذّر التحقق من CSV",
+    "validateFirst": "لا توجد أسعار للاستيراد. يرجى التحقق من الملف أولًا.",
+    "noValid": "لا توجد أسعار صالحة للاستيراد. تحتوي جميع الأسعار على أخطاء تحقق.",
+    "importFailed": "تعذّر استيراد الأسعار"
+  }
 }

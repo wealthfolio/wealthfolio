@@ -95,6 +95,10 @@ export const ACTIVITY_SUBTYPES = {
   // Liability subtypes
   LIABILITY_INTEREST_ACCRUAL: 'LIABILITY_INTEREST_ACCRUAL',
   LIABILITY_PRINCIPAL_PAYMENT: 'LIABILITY_PRINCIPAL_PAYMENT',
+
+  // Adjustment subtypes: the two rows of an in-kind conversion
+  CONVERSION_OUT: 'CONVERSION_OUT',
+  CONVERSION_IN: 'CONVERSION_IN',
 } as const;
 
 export type ActivitySubtype = (typeof ACTIVITY_SUBTYPES)[keyof typeof ACTIVITY_SUBTYPES];
@@ -464,6 +468,12 @@ export interface ActivityImport {
    * `metadata.flow.is_external` because false is the default.
    */
   isExternal?: boolean;
+  /**
+   * Links the two rows of a conversion: ADJUSTMENT rows with subtype
+   * CONVERSION_OUT and CONVERSION_IN, imported together. Other rows ignore
+   * it; an import links a transfer's two legs itself.
+   */
+  sourceGroupId?: string;
   comment?: string;
 }
 
@@ -757,10 +767,19 @@ export interface SpendingReportRequest {
   accountIds?: string[];
 }
 
+/** Coverage of native FX conversion attempts, not source-data completeness. */
+export interface SpendingCalculationQuality {
+  missingFxTransactions: number;
+  missingFxCurrencies: string[];
+}
+
 export interface SpendingPeriodSummary {
+  calculationQuality?: SpendingCalculationQuality;
   income: number;
   outflow: number;
   saved: number;
+  /** Money brought back from savings; `net = income - outflow - saved + fromSavings`. */
+  fromSavings?: number;
   net: number;
   count: number;
 }
@@ -969,8 +988,17 @@ export interface QuoteUpdate {
 }
 
 export interface Settings {
+  /** Theme ID (palette and shape). Absent on hosts without themes. */
+  themeId?: string;
+  /**
+   * Gain and loss colours: 'green-up', 'red-up' or 'red-up-blue-down'; synced across
+   * the user's devices. Absent on older hosts, which show green up.
+   */
+  gainColors?: string;
   theme: string;
   font: string;
+  /** Text size name (small, default, large, extra-large). Absent on hosts without it. */
+  textSize?: string;
   baseCurrency: string;
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;
@@ -1437,4 +1465,243 @@ export interface SnapshotImportResult {
   snapshotsImported: number;
   snapshotsFailed: number;
   errors: string[];
+}
+
+// Spending budget and event configuration shared by the public host API.
+export type BudgetTargetType = 'category' | 'group_buffer';
+export type BudgetRolloverTargetType = 'category' | 'group';
+
+export interface BudgetGroup {
+  id: string;
+  name: string;
+  key: string;
+  color: string | null;
+  icon: string | null;
+  sortOrder: number;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewBudgetGroup {
+  id?: string;
+  name: string;
+  key?: string;
+  color?: string | null;
+  icon?: string | null;
+  sortOrder?: number;
+  isSystem?: boolean;
+}
+
+export interface UpdateBudgetGroup {
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+  sortOrder?: number;
+}
+
+export interface BudgetGroupAssignment {
+  id: string;
+  groupId: string;
+  taxonomyId: string;
+  categoryId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetTarget {
+  id: string;
+  periodKey: string;
+  targetType: BudgetTargetType;
+  taxonomyId: string | null;
+  categoryId: string | null;
+  groupId: string | null;
+  amount: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewBudgetTarget {
+  id?: string;
+  periodKey: string;
+  targetType: BudgetTargetType;
+  taxonomyId?: string | null;
+  categoryId?: string | null;
+  groupId?: string | null;
+  amount: string;
+}
+
+export interface BudgetRolloverSetting {
+  id: string;
+  targetType: BudgetRolloverTargetType;
+  taxonomyId: string | null;
+  categoryId: string | null;
+  groupId: string | null;
+  enabled: boolean;
+  startMonth: string;
+  startingBalance: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewBudgetRolloverSetting {
+  id?: string;
+  targetType: BudgetRolloverTargetType;
+  taxonomyId?: string | null;
+  categoryId?: string | null;
+  groupId?: string | null;
+  enabled?: boolean;
+  startMonth: string;
+  startingBalance: string;
+}
+
+export interface BudgetCategoryRow {
+  taxonomyId: string;
+  categoryId: string;
+  groupId: string | null;
+  parentId: string | null;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  target: number;
+  actual: number;
+  rolloverIn: number;
+  rolloverOut: number;
+  remaining: number;
+  overspent: boolean;
+  hasDefaultTarget: boolean;
+  hasMonthOverride: boolean;
+  rolloverEnabled: boolean;
+}
+
+export interface BudgetGroupRow {
+  group: BudgetGroup;
+  categoryTargetTotal: number;
+  buffer: number;
+  plannedTotal: number;
+  actual: number;
+  rolloverIn: number;
+  rolloverOut: number;
+  remaining: number;
+  overspent: boolean;
+  rolloverEnabled: boolean;
+  categories: BudgetCategoryRow[];
+}
+
+export interface BudgetTotals {
+  spendingPlanned: number;
+  spendingActual: number;
+  spendingRemaining: number;
+  incomePlanned: number;
+  incomeActual: number;
+  groupBuffer: number;
+  rolloverIn: number;
+  rolloverOut: number;
+  overspentCount: number;
+}
+
+export interface BudgetSnapshot {
+  state: {
+    groups: BudgetGroup[];
+    groupAssignments: BudgetGroupAssignment[];
+    targets: BudgetTarget[];
+    rolloverSettings: BudgetRolloverSetting[];
+  };
+  computed: {
+    /** Includes conversions for historical months needed by rollovers. */
+    calculationQuality?: SpendingCalculationQuality;
+    currency: string;
+    periodKey: string;
+    fxAsOf: string | null;
+    groupRows: BudgetGroupRow[];
+    ungroupedRows: BudgetCategoryRow[];
+    incomeRows: BudgetCategoryRow[];
+    totals: BudgetTotals;
+  };
+}
+
+export interface EventType {
+  id: string;
+  /** Stable slug for seeded types (Travel, Wedding, ...). User-created types
+   *  have this `null`. UIs can use it as an i18n lookup key. */
+  key?: string | null;
+  name: string;
+  color?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewEventType {
+  id?: string | null;
+  name: string;
+  color?: string | null;
+}
+
+export interface SpendingEvent {
+  id: string;
+  name: string;
+  description?: string | null;
+  eventTypeId: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewSpendingEvent {
+  id?: string | null;
+  name: string;
+  description?: string | null;
+  eventTypeId: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface UpdateSpendingEvent {
+  name?: string;
+  description?: string | null;
+  eventTypeId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+/** Event joined with its EventType.name for UI display. */
+export interface EventWithTypeName extends SpendingEvent {
+  eventTypeName: string;
+}
+
+export interface EventCategorySpending {
+  categoryId: string | null;
+  categoryName: string;
+  color: string | null;
+  amount: number;
+  transactionCount: number;
+}
+
+export interface EventSpendingSummary {
+  calculationQuality?: SpendingCalculationQuality;
+  eventId: string;
+  eventName: string;
+  eventTypeId: string;
+  eventTypeName: string;
+  eventTypeColor: string | null;
+  startDate: string;
+  endDate: string;
+  totalSpending: number;
+  transactionCount: number;
+  currency: string;
+  byCategory: Record<string, EventCategorySpending>;
+  dailySpending: Record<string, number>;
+}
+
+export interface EventSummariesRequest {
+  startDate?: string | null;
+  endDate?: string | null;
+  currency?: string | null;
+}
+
+export interface SpendingContext {
+  enabled: boolean;
+  accountIds: string[];
+  excludedCategoryIds: string[];
 }

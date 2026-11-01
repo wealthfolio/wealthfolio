@@ -1,0 +1,11 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "isStale": false,
+    "issues": [],
+    "overallSeverity": "INFO"
+  }
+}

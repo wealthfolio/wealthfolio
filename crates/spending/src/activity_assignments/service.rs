@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::activity_splits::ActivitySplit;
+
 use anyhow::Result;
 
 use super::model::{ActivityTaxonomyAssignment, NewActivityTaxonomyAssignment};
@@ -41,24 +43,7 @@ impl ActivityTaxonomyAssignmentService {
                 activity_id: activity_id.to_string(),
                 taxonomy_id: taxonomy_id.to_string(),
                 category_id: category_id.to_string(),
-            }])
-            .await?;
-        assigned
-            .pop()
-            .ok_or_else(|| anyhow::anyhow!("assignment write returned no row"))
-    }
-
-    pub async fn assign_single_clearing_splits(
-        &self,
-        activity_id: &str,
-        taxonomy_id: &str,
-        category_id: &str,
-    ) -> Result<ActivityTaxonomyAssignment> {
-        let mut assigned = self
-            .assign_many_single_select_clearing_splits(&[BulkCategoryAssignment {
-                activity_id: activity_id.to_string(),
-                taxonomy_id: taxonomy_id.to_string(),
-                category_id: category_id.to_string(),
+                expected_splits: None,
             }])
             .await?;
         assigned
@@ -123,7 +108,17 @@ impl ActivityTaxonomyAssignmentService {
             })
             .collect();
         self.repo
-            .assign_many_single_select_clearing_splits(news)
+            .assign_many_single_select_clearing_splits(
+                news,
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        item.expected_splits
+                            .as_ref()
+                            .map(|splits| (item.activity_id.clone(), splits.clone()))
+                    })
+                    .collect(),
+            )
             .await
     }
 
@@ -141,17 +136,21 @@ impl ActivityTaxonomyAssignmentService {
         self.repo.assign_many_single_select(items).await
     }
 
-    pub async fn bulk_apply_rule_assignments(
+    pub async fn apply_rules_detailed(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
         only_uncategorized: bool,
-    ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-        if items.is_empty() {
-            return Ok(Vec::new());
-        }
+    ) -> Result<super::RuleAssignmentResult> {
         self.repo
-            .assign_rule_many_single_select(items, only_uncategorized)
+            .assign_rules_detailed(items, only_uncategorized)
             .await
+    }
+    pub async fn preview_rules(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        self.repo.preview_rules(items, only_uncategorized).await
     }
 }
 
@@ -163,4 +162,8 @@ pub struct BulkCategoryAssignment {
     pub activity_id: String,
     pub taxonomy_id: String,
     pub category_id: String,
+    /// Present only after explicitly reviewing replacement of these split lines.
+    /// Compared in the writer transaction, including content and timestamps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_splits: Option<Vec<ActivitySplit>>,
 }

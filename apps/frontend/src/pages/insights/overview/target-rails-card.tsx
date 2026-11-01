@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { AllocationTarget, DriftReport, DriftRow } from "@/lib/types";
@@ -12,10 +13,10 @@ import {
   formatDriftBps,
   hasVisibleAllocation,
   isOutOfBand,
-  rebalanceMove,
 } from "@/pages/allocation-targets/components/drift-row-utils";
-import { Button, Card, Icons, Skeleton, useAmountFormatting } from "@wealthfolio/ui";
+import { Button, Card, Icons, Skeleton, useAmountFormatting, useDirection } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
+import { useLayoutEffect, useRef } from "react";
 import { formatCompact } from "./allocation-derivations";
 
 interface TargetRailsCardProps {
@@ -47,6 +48,13 @@ export function TargetRailsCard({
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
+  const direction = useDirection();
+  const selectorRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    // The selected pill moves first. Zero is the inline start in both LTR and RTL;
+    // scroll only the selector so the page and its swipe container stay put.
+    if (selectorRef.current) selectorRef.current.scrollLeft = 0;
+  }, [selectedTargetId, direction]);
   const selectedTarget = targets.find((target) => target.id === selectedTargetId) ?? null;
   const { data: taxonomy } = useTaxonomy(selectedTarget?.taxonomyId ?? null);
   const resolvedDriftReport = driftReport
@@ -93,8 +101,8 @@ export function TargetRailsCard({
     largestGapRow?.driftBps ?? resolvedDriftReport?.maxDriftBps ?? 0,
   );
 
-  // Suggested rebalance moves for the out-of-range categories, largest first.
-  const moves = rows
+  // How far each out-of-range category sits from its target, largest first.
+  const differences = rows
     .map((row, index) => ({
       row,
       color: allocationTargetColorForRow(row, colorByCategory, index),
@@ -108,7 +116,7 @@ export function TargetRailsCard({
     <Card className="flex flex-col gap-4 p-5 xl:h-full">
       {/* Header: title + Details (top-right) */}
       <div className="flex items-center justify-between gap-3">
-        <div className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.18em]">
+        <div className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
           {t("insights:insights.rails.target_allocation")}
         </div>
         {hasTarget && onViewDetails && (
@@ -126,12 +134,18 @@ export function TargetRailsCard({
 
       {/* Target selector — pill carousel */}
       {targets.length > 0 && (
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={selectorRef}
+          role="group"
+          aria-label={t("allocation:header.selectTarget")}
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {targets.map((p) => (
             <button
               key={p.id}
               type="button"
               onClick={() => onTargetChange(p.id)}
+              aria-pressed={p.id === selectedTargetId}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 p.id === selectedTargetId
@@ -163,7 +177,14 @@ export function TargetRailsCard({
                       className="h-2.5 w-2.5 shrink-0 rounded-sm"
                       style={{ background: color }}
                     />
-                    <span className="truncate">{row.categoryName}</span>
+                    <span className="truncate">
+                      {getCategoryLabel(
+                        t,
+                        selectedTarget?.taxonomyId ?? "",
+                        row.categoryId,
+                        row.categoryName,
+                      )}
+                    </span>
                   </span>
                   <span className="bg-muted relative h-2 rounded-full">
                     <span
@@ -183,52 +204,45 @@ export function TargetRailsCard({
             })}
           </div>
 
-          {/* Suggested moves — fills the remaining height */}
+          {/* Differences from target — fills the remaining height */}
           <div className="flex flex-col pt-5 xl:flex-1">
-            <div className="text-muted-foreground text-2xs mb-2 font-semibold uppercase tracking-wider">
-              {t("insights:insights.rails.suggested_moves")}
+            <div className="text-muted-foreground text-2xs mb-2 font-semibold tracking-wider uppercase">
+              {t("insights:insights.rails.target_differences")}
             </div>
-            {moves.length === 0 ? (
+            {differences.length === 0 ? (
               <div className="text-muted-foreground flex flex-col items-center justify-center gap-1.5 py-4 text-center xl:flex-1">
                 <Icons.CheckCircle className="text-success h-6 w-6" />
                 <span className="text-xs">{t("insights:insights.rails.all_in_range")}</span>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
-                {moves.slice(0, 6).map(({ row, color }) => {
-                  const move = rebalanceMove(row);
-                  const add = move.action === "Add";
-                  return (
-                    <div
-                      key={row.categoryId}
-                      className="flex items-center justify-between gap-2 text-xs"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-sm"
-                          style={{ background: color }}
-                        />
-                        <span className="text-muted-foreground">
-                          {add
-                            ? t("insights:insights.rails.add")
-                            : t("insights:insights.rails.trim")}
-                        </span>
-                        <span className="text-foreground truncate font-medium">
-                          {row.categoryName}
-                        </span>
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 font-bold tabular-nums",
-                          add ? "text-success" : "text-destructive",
+                {differences.slice(0, 6).map(({ row, color }) => (
+                  <div
+                    key={row.categoryId}
+                    className="flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: color }} />
+                      <span className="text-foreground truncate font-medium">
+                        {getCategoryLabel(
+                          t,
+                          selectedTarget?.taxonomyId ?? "",
+                          row.categoryId,
+                          row.categoryName,
                         )}
-                      >
-                        {add ? "+" : "−"}
-                        {money(move.amount)}
                       </span>
-                    </div>
-                  );
-                })}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 tabular-nums">
+                      {row.valueDelta > 0
+                        ? t("insights:insights.rails.above_target_by", {
+                            amount: money(row.valueDelta),
+                          })
+                        : t("insights:insights.rails.below_target_by", {
+                            amount: money(row.valueDelta),
+                          })}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -264,7 +278,7 @@ export function TargetRailsCard({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 py-1 text-center">
           <div className="bg-muted/25 w-full rounded-xl border p-4">
-            <div className="text-muted-foreground text-2xs mb-4 flex items-center justify-between font-semibold uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-4 flex items-center justify-between font-semibold tracking-wider uppercase">
               <span>{t("insights:insights.rails.current")}</span>
               <span>{t("insights:insights.rails.target")}</span>
             </div>

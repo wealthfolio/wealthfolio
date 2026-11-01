@@ -12,7 +12,6 @@
     "more": "더 보기"
   },
   "securities": {
-    "heading": "종목",
     "subtitle": "포트폴리오에 있는 종목을 조회하고 관리하세요.",
     "add_security": "종목 추가",
     "delete_title": "종목 삭제",
@@ -64,7 +63,7 @@
       "symbol_required": "심볼을 입력해주세요",
       "symbol_max": "심볼은 100자 이하여야 합니다",
       "name_required": "이름을 입력해주세요",
-      "name_max": "이름은 100자 이하여야 합니다",
+      "name_max": "이름은 200자 이하여야 합니다",
       "instrument_type_required": "상품 유형을 선택해주세요",
       "currency_required": "통화를 선택해주세요"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "예: SBER, AFLT",
+    "moex_symbol_hint": "접두사나 접미사 없이 MOEX 종목 코드를 입력하세요. 거래소는 Moscow Exchange (MISX)로 설정하세요.",
     "identity_conflict": "동일한 식별 정보를 가진 자산이 이미 있습니다. 변경 사항이 저장되지 않았습니다. 기존 자산을 사용하거나 다른 거래소를 선택하세요.",
     "general": "일반",
     "classification": "분류",
@@ -697,6 +698,18 @@
       "precious_metal": "귀금속",
       "liability": "부채",
       "other": "기타"
+    },
+    "validation": {
+      "name_is_required": "이름을 입력해야 합니다",
+      "quantity_must_be_greater_than_0": "수량은 0보다 커야 합니다.",
+      "purchase_price_must_be_greater_than_0": "구매 가격은 0보다 커야 합니다.",
+      "notes_must_be_less_than_1000_characters": "메모는 1000자(영문 기준) 미만이어야 합니다.",
+      "address_must_be_less_than_200_characters": "주소는 200자 미만이어야 합니다.",
+      "interest_rate_must_be_100_or_less": "이자율은 100 이하여야 합니다.",
+      "name_must_be_less_than_100_characters": "이름은 100자(영문 기준) 미만이어야 합니다.",
+      "interest_rate_must_be_0_or_greater": "이자율은 0 이상이어야 합니다.",
+      "description_must_be_less_than_200_characters": "설명은 200자(영문 기준) 미만이어야 합니다.",
+      "original_amount_must_be_greater_than_0": "원래 금액은 0보다 커야 합니다."
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "이 평가에 대한 참고사항 추가 (예: 감정 출처, 시장 상황)",
     "cancel": "취소",
     "update_value": "가치 업데이트",
-    "na": "N/A"
+    "na": "N/A",
+    "validation": {
+      "number": "가치는 숫자여야 합니다.",
+      "non_negative": "가치는 음수일 수 없습니다",
+      "notes": "메모는 500자를 초과할 수 없습니다"
+    }
   },
   "valueHistory": {
     "date": "날짜",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "납부액은 0보다 커야 합니다.",
     "payment_unavailable": "이 조건으로는 납부액을 계산할 수 없습니다. 금액, 이자율, 상환 기간을 확인하세요.",
     "fields_read_only": "대출 조건은 대출 상세에서만 변경할 수 있습니다."
+  },
+  "notifications": {
+    "profile_updated": "자산 정보를 업데이트했습니다.",
+    "quote_mode_updated": "자산 시세 모드를 업데이트했습니다.",
+    "profile_failed": "자산 정보를 업데이트하지 못했습니다.",
+    "quote_mode_failed": "시세 모드를 업데이트하지 못했습니다.",
+    "quote_added": "시세를 추가했습니다.",
+    "quote_updated": "시세를 업데이트했습니다.",
+    "quote_deleted": "시세를 삭제했습니다.",
+    "quote_save_failed": "시세를 저장하지 못했습니다.",
+    "quote_delete_failed": "시세를 삭제하지 못했습니다."
+  },
+  "noQuote": {
+    "manual": "시세 모드가 수동입니다",
+    "inactive": "자산이 비활성 상태입니다",
+    "matured": "채권이 만기되었습니다",
+    "expired": "옵션이 만료되었습니다",
+    "paused": "반복된 오류로 동기화가 일시 중지되었습니다",
+    "pending": "데이터 제공업체의 시세가 아직 동기화되지 않았습니다",
+    "no_data": "데이터 제공업체의 데이터가 아직 없습니다"
   }
 }

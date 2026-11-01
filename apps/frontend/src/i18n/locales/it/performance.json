@@ -55,6 +55,7 @@
     "holdings": "Modalità posizioni"
   },
   "exclusion": {
+    "holdings_not_mwr": "Il rendimento ponderato per il capitale (MWR) non è disponibile in modalità sole posizioni perché i flussi di cassa delle transazioni non vengono registrati.",
     "no_data": "I dati di performance non sono disponibili per questa selezione.",
     "no_series": "Nessuna serie del grafico disponibile per questo periodo.",
     "holdings_not_twr": "I conti in modalità posizioni usano il Rendimento da valore e non vengono rappresentati con il TWR.",
@@ -135,5 +136,19 @@
     "contributions_desc": "Liquidità aggiunta al conto",
     "distributions": "Distribuzioni",
     "distributions_desc": "Liquidità prelevata dal conto"
-  }
+  },
+  "metric_info": {
+    "time_weighted_return": "Il rendimento ponderato nel tempo (TWR) misura la performance dell’investimento eliminando l’effetto di versamenti e prelievi. Per periodi inferiori a un anno viene mostrato il rendimento del periodo selezionato; per periodi di almeno un anno viene mostrato annualizzato, se disponibile.",
+    "money_weighted_return": "Il rendimento ponderato per il capitale (MWR) misura la performance considerando importo e tempistica dei flussi di cassa esterni. È calcolato con IRR/XIRR; per periodi di almeno un anno, la visualizzazione standard è lo XIRR annualizzato.",
+    "irr": "Il tasso interno di rendimento (IRR) misura la performance ponderata per il capitale considerando importo e tempistica dei flussi di cassa esterni. Per periodi di almeno un anno, la visualizzazione standard è lo XIRR annualizzato.",
+    "simple_return": "Il rendimento semplice confronta il guadagno o la perdita totale con i versamenti netti. È cumulativo e non è ponderato nel tempo.",
+    "value_return": "Il rendimento del valore misura la variazione del valore del conto nel periodo selezionato quando non sono disponibili flussi di cassa a livello di transazione.",
+    "price_return": "Il rendimento del prezzo misura la variazione del prezzo del titolo selezionato nel periodo selezionato.",
+    "volatility": "La volatilità misura la dispersione dei rendimenti di un investimento. Una volatilità maggiore indica che il valore può cambiare notevolmente in poco tempo. È annualizzata a partire dai rendimenti di ogni giorno di calendario.",
+    "max_drawdown": "Il drawdown massimo rappresenta il maggiore calo percentuale dal picco a un minimo successivo del valore del portafoglio nel periodo indicato. Indica il rischio di ribasso.",
+    "annualized_return": "Il rendimento annualizzato è il tasso composto annuo medio del periodo selezionato. Non è il guadagno o la perdita totale cumulata.",
+    "holdings_volatility": "Volatilità delle variazioni del valore del conto. Si basa sulle valutazioni giornaliere senza rettifiche per versamenti o prelievi. Riflette l’entità delle oscillazioni del valore di mercato.",
+    "holdings_max_drawdown": "Maggiore calo del valore del conto dal picco al minimo. Si basa sulle valutazioni giornaliere senza rettifiche per versamenti o prelievi."
+  },
+  "compare_over_time": "Confronta l’andamento della performance dei conti"
 }

@@ -269,7 +269,20 @@
       "show": "Mostrar progreso"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "Una cartera contiene un enlace a una cuenta eliminada. Abre Ajustes > Carteras, edita la cartera y guarda.",
+    "fallback": "Se produjo un problema. Vuelve a intentarlo.",
+    "restoreRequired": "Debes restaurar la sincronización desde este dispositivo antes de conectar otro.",
+    "invalidCode": "Código no válido. Compruébalo y vuelve a intentarlo.",
+    "expired": "La sesión ha caducado. Empieza de nuevo.",
+    "cancelled": "Se canceló el emparejamiento.",
+    "network": "Error de red. Comprueba tu conexión.",
+    "timeout": "Se agotó el tiempo de conexión.",
+    "notFound": "No se encontró la sesión o ha caducado.",
+    "security": "Falló la verificación de seguridad.",
+    "technical": "No se pudo completar la sincronización. Vuelve a intentarlo. Si el problema persiste, revisa los registros de la aplicación.",
+    "namedPortfolioRepair": "La cartera «{{name}}» contiene un enlace a una cuenta eliminada. Abre Ajustes > Carteras, edita la cartera y guarda."
+  },
   "wizard": {
     "progressLabel": "Progreso de la configuración",
     "steps": {

@@ -10,6 +10,7 @@ import { reactInterpolation } from "@/i18n/interpolation";
 import enAccount from "@/i18n/locales/en/account.json";
 import enActivity from "@/i18n/locales/en/activity.json";
 import enCommon from "@/i18n/locales/en/common.json";
+import enTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import enDashboard from "@/i18n/locales/en/dashboard.json";
 import enGoals from "@/i18n/locales/en/goals.json";
 import enHoldings from "@/i18n/locales/en/holdings.json";
@@ -37,6 +38,7 @@ if (!i18n.isInitialized) {
     fallbackLng: "en",
     ns: [
       "common",
+      "taxonomies",
       "dashboard",
       "holdings",
       "activity",
@@ -63,6 +65,7 @@ if (!i18n.isInitialized) {
         account: enAccount,
         activity: enActivity,
         common: enCommon,
+        taxonomies: enTaxonomies,
         dashboard: enDashboard,
         goals: enGoals,
         holdings: enHoldings,

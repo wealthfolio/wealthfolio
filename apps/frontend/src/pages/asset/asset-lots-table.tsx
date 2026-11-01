@@ -23,9 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@wealthfolio/ui/components/ui/table";
+import { parseISO } from "date-fns";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 const ALLOCATION_COLORS = [
   "var(--color-chart-1)",
@@ -410,7 +412,7 @@ function KpiCell({
 }) {
   return (
     <div className={cn("bg-card flex flex-col gap-1.5 px-4 py-5 tabular-nums", className)}>
-      <span className="text-muted-foreground text-2xs uppercase tracking-[0.1em]">{label}</span>
+      <span className="text-muted-foreground text-2xs tracking-[0.1em] uppercase">{label}</span>
       {children}
     </div>
   );
@@ -507,7 +509,7 @@ function AccountLotGroup({
           />
           <span className="text-foreground truncate text-sm font-medium">{group.accountName}</span>
           {group.allSnapshot && (
-            <Badge variant="secondary" className="text-2xs ms-1 uppercase tracking-wider">
+            <Badge variant="secondary" className="text-2xs ms-1 tracking-wider uppercase">
               {t("asset:lots.from_snapshot")}
             </Badge>
           )}
@@ -520,7 +522,7 @@ function AccountLotGroup({
 
         <div className="text-muted-foreground flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.basis")}</span>
+            <span className="text-2xs tracking-wider uppercase">{t("asset:lots.basis")}</span>
             <PrivacyAmount
               value={group.costBasis}
               currency={currency}
@@ -529,7 +531,7 @@ function AccountLotGroup({
           </span>
           <span className="bg-border hidden h-3 w-px sm:block" aria-hidden />
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.value")}</span>
+            <span className="text-2xs tracking-wider uppercase">{t("asset:lots.value")}</span>
             <PrivacyAmount
               value={group.marketValue}
               currency={currency}
@@ -551,7 +553,7 @@ function AccountLotGroup({
 
       {expanded && (
         <div className="px-2 pb-2 md:px-3 md:pb-3">
-          <div className="bg-card overflow-hidden rounded-lg border">
+          <div className={cn(cardSurfaceClassName, "overflow-hidden")}>
             <div className="hidden overflow-x-auto md:block">
               <Table className="table-fixed">
                 <colgroup>
@@ -564,22 +566,22 @@ function AccountLotGroup({
                 </colgroup>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-2xs uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs tracking-[0.1em] uppercase">
                       {t("asset:lots.date")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.qty")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.unit_cost")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.cost_basis_col")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.market_value_col")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("holdings:gain_loss")}
                     </TableHead>
                   </TableRow>
@@ -630,7 +632,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
         <div className="text-muted-foreground text-2xs">
           {isSnapshot
             ? t("asset:lots.as_of_snapshot")
-            : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
+            : t("asset:lots.held", { period: formatHoldingPeriod(lot, t) })}
           {lot.isClosed &&
             lot.closeDate &&
             ` · ${t("asset:lots.closed", { date: formatDate(lot.closeDate, dateFormatting) })}`}
@@ -724,7 +726,7 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
           <div className="text-muted-foreground text-2xs">
             {isSnapshot
               ? t("asset:lots.as_of_snapshot")
-              : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
+              : t("asset:lots.held", { period: formatHoldingPeriod(lot, t) })}
             {lot.isClosed &&
               lot.closeDate &&
               ` · ${t("asset:lots.closed", { date: formatDate(lot.closeDate, dateFormatting) })}`}
@@ -788,19 +790,22 @@ function formatLotDate(lot: AssetLotView, formatting: FormattingApi) {
   return date ? formatDate(date, formatting) : "—";
 }
 
-function formatHoldingPeriod(acquisitionDate: string | null | undefined, t: TFunction): string {
-  if (!acquisitionDate) return "—";
-  const start = new Date(acquisitionDate);
+function formatHoldingPeriod(lot: AssetLotView, t: TFunction): string {
+  if (!lot.acquisitionDate) return "—";
+  const start = parseISO(lot.acquisitionDate);
   if (Number.isNaN(start.getTime())) return "—";
 
-  const now = new Date();
-  let years = now.getFullYear() - start.getFullYear();
-  let months = now.getMonth() - start.getMonth();
-  let days = now.getDate() - start.getDate();
+  // A sold lot's period ends on its sale date; open lots count to today. parseISO reads
+  // date-only strings as local calendar dates, so both ends land on the same day everywhere.
+  const closed = lot.isClosed && lot.closeDate ? parseISO(lot.closeDate) : null;
+  const end = closed && !Number.isNaN(closed.getTime()) ? closed : new Date();
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  let days = end.getDate() - start.getDate();
 
   if (days < 0) {
     months -= 1;
-    const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
     days += prevMonth.getDate();
   }
   if (months < 0) {

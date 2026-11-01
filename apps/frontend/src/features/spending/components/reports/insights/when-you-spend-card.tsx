@@ -14,8 +14,9 @@ import { useAmountFormatting } from "@wealthfolio/ui";
 
 import { getVisibleSpendingAmount } from "../../../lib/constants";
 import { createZonedDayHourFormatter, type ZonedDayHour } from "../../../lib/timezone";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
-const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
+const CARD_CLASS = "p-5";
 const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-normal uppercase tracking-[0.12em]";
 
 const DAY_NAME_KEYS = [
@@ -59,7 +60,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
 
   if (activities.length === 0) {
     return (
-      <div className={CARD_CLASS}>
+      <Card className={CARD_CLASS}>
         <header className="mb-3">
           <h3 className="text-foreground text-base font-semibold tracking-tight">
             {t("spending:whenYouSpend.title")}
@@ -79,12 +80,12 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
               : "spending:whenYouSpend.noActivity",
           )}
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h3 className="text-foreground text-base font-semibold tracking-tight">
@@ -158,7 +159,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
         )}
         <Legend />
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -229,7 +230,7 @@ function Row({
               key={i}
               type="button"
               onClick={() => onCellClick(weekdayIndex, startHour, Math.min(24, endHour + 1))}
-              className="aspect-square rounded-[3px] transition-all hover:scale-110 hover:ring-1 hover:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+              className="aspect-square rounded-[3px] transition-all hover:scale-110 hover:ring-1 hover:ring-[var(--ring)] focus-visible:ring-1 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
               style={{ backgroundColor: "var(--heatmap-accent)", opacity }}
               title={label}
               aria-label={label}

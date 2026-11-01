@@ -97,11 +97,11 @@ describe("localized financial components", () => {
       );
       const gain = container.firstElementChild?.firstElementChild;
       expect(gain?.textContent?.replace(/[\u00a0\u202f]/g, " ")).toBe(expected);
-      expect(gain).toHaveClass(value > 0 ? "text-success" : "text-destructive");
+      expect(gain).toHaveClass(value > 0 ? "text-gain" : "text-loss");
 
       await screen.findByTestId("animated-financial-value");
       expect(gain?.textContent?.replace(/[\u00a0\u202f]/g, " ")).toBe(expected);
-      expect(gain).toHaveClass(value > 0 ? "text-success" : "text-destructive");
+      expect(gain).toHaveClass(value > 0 ? "text-gain" : "text-loss");
     },
   );
 

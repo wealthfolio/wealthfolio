@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "上一張投影片",
-    "next": "下一張投影片"
+    "next": "下一張投影片",
+    "role": "輪播",
+    "slide": "投影片"
   },
   "currency": {
     "selectTitle": "選取幣別",
@@ -14,7 +16,15 @@
     "searchPrompt": "搜尋幣別，或從上方的常用選項選取。",
     "useCustom": "使用「{{value}}」作為自訂幣別",
     "noneFound": "找不到符合「{{query}}」的幣別。",
-    "noneFoundShort": "找不到幣別。"
+    "noneFoundShort": "找不到幣別。",
+    "units": {
+      "GBp": "英國便士",
+      "GBX": "英國便士",
+      "ILA": "以色列阿高洛",
+      "USX": "美分",
+      "ZAc": "南非分",
+      "KWF": "科威特費爾"
+    }
   },
   "dataGrid": {
     "label": "資料表",
@@ -75,7 +85,12 @@
     "clearSymbol": "清除代號",
     "currency": "幣別",
     "searchCurrency": "搜尋幣別…",
-    "noCurrencyFound": "找不到幣別。"
+    "noCurrencyFound": "找不到幣別。",
+    "copyFailed": "複製到剪貼簿失敗",
+    "cutFailed": "剪下至剪貼簿失敗",
+    "pasteFailed": "貼上失敗，請重試。",
+    "cellsSkipped_other": "因資料無效，已略過貼上 {{count}} 個儲存格",
+    "cellsSkipped_one": "因資料無效，已略過貼上 {{count}} 個儲存格"
   },
   "dataTable": {
     "noResults": "沒有結果",
@@ -197,5 +212,27 @@
   "page": {
     "back": "返回"
   },
-  "remove": "移除 {{label}}"
+  "remove": "移除 {{label}}",
+  "actionConfirm": {
+    "pending": "進行中…"
+  },
+  "select": {
+    "placeholder": "選擇選項"
+  },
+  "progress": {
+    "title": "處理中",
+    "message": "正在處理…",
+    "description": "正在處理您的請求，請稍候。可能需要一點時間。"
+  },
+  "navigation": {
+    "view": "檢視 {{number}}",
+    "goTo": "前往{{name}}"
+  },
+  "quoteImport": {
+    "noFile": "未選擇檔案",
+    "validateFailed": "CSV 驗證失敗",
+    "validateFirst": "沒有可匯入的報價，請先驗證檔案。",
+    "noValid": "沒有可匯入的有效報價，所有報價均存在驗證錯誤。",
+    "importFailed": "報價匯入失敗"
+  }
 }

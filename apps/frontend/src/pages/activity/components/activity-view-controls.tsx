@@ -19,6 +19,56 @@ import type { ActivityStatusFilter } from "../hooks/use-activity-search";
 
 export type ActivityViewMode = "table" | "datagrid";
 
+/** The list / edit-mode switch, shared by the Investments and Spending tabs. */
+export function ActivityViewModeToggle({
+  value,
+  onChange,
+  testId = "edit-mode-toggle",
+}: {
+  value: ActivityViewMode;
+  onChange: (mode: ActivityViewMode) => void;
+  /** Test id of the edit-mode option; both tabs can be mounted at once. */
+  testId?: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <AnimatedToggleGroup
+      value={value}
+      rounded="lg"
+      size="sm"
+      onValueChange={(next) => {
+        if (next === "datagrid" || next === "table") {
+          onChange(next);
+        }
+      }}
+      className="shrink-0"
+      items={[
+        {
+          value: "table",
+          label: (
+            <>
+              <Icons.Rows3 className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">{t("activity:view_mode")}</span>
+            </>
+          ),
+          title: t("activity:view_mode"),
+        },
+        {
+          value: "datagrid",
+          label: (
+            <>
+              <Icons.Grid3x3 className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">{t("activity:edit_mode")}</span>
+            </>
+          ),
+          title: t("activity:edit_mode"),
+          "data-testid": testId,
+        },
+      ]}
+    />
+  );
+}
+
 interface ActivityViewControlsProps {
   accounts: Account[];
   portfolios: PortfolioWithAccounts[];
@@ -136,8 +186,12 @@ export function ActivityViewControls({
   );
 
   const instrumentTypeOptions = useMemo(
-    () => INSTRUMENT_TYPE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label })),
-    [],
+    () =>
+      INSTRUMENT_TYPE_OPTIONS.map((opt) => ({
+        value: opt.value,
+        label: t(`asset:createSecurity.instrumentType.${opt.value.toLowerCase()}`),
+      })),
+    [t],
   );
 
   const statusOptions = useMemo(
@@ -242,40 +296,7 @@ export function ActivityViewControls({
             )}
           </span>
         )}
-        <AnimatedToggleGroup
-          value={viewMode}
-          rounded="lg"
-          size="sm"
-          onValueChange={(value) => {
-            if (value === "datagrid" || value === "table") {
-              onViewModeChange(value);
-            }
-          }}
-          className="shrink-0"
-          items={[
-            {
-              value: "table",
-              label: (
-                <>
-                  <Icons.Rows3 className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{t("activity:view_mode")}</span>
-                </>
-              ),
-              title: t("activity:view_mode"),
-            },
-            {
-              value: "datagrid",
-              label: (
-                <>
-                  <Icons.Grid3x3 className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{t("activity:edit_mode")}</span>
-                </>
-              ),
-              title: t("activity:edit_mode"),
-              "data-testid": "edit-mode-toggle",
-            },
-          ]}
-        />
+        <ActivityViewModeToggle value={viewMode} onChange={onViewModeChange} />
       </div>
     </div>
   );

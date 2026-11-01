@@ -56,7 +56,7 @@ impl Default for NewTaxonomy {
 }
 
 /// A category within a taxonomy (hierarchical via parent_id)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Category {
     pub id: String,
@@ -197,4 +197,34 @@ pub struct CategoryAssignmentJson {
     pub key: String,
     pub path: Vec<String>,
     pub weight: f64,
+}
+
+/// References that must be reviewed before deleting a category. Untouched seeded
+/// group links are automatic defaults; all other references preserve user data.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoryReferences {
+    pub children: usize,
+    pub asset_assignments: usize,
+    pub spending_assignments: usize,
+    pub splits: usize,
+    pub rules: usize,
+    pub budget_targets: usize,
+    pub budget_rollovers: usize,
+    pub budget_group_assignments: usize,
+    pub allocation_targets: usize,
+    pub automatic_budget_links: usize,
+}
+impl CategoryReferences {
+    pub fn blocking_count(&self) -> usize {
+        self.children
+            + self.asset_assignments
+            + self.spending_assignments
+            + self.splits
+            + self.rules
+            + self.budget_targets
+            + self.budget_rollovers
+            + self.budget_group_assignments
+            + self.allocation_targets
+    }
 }

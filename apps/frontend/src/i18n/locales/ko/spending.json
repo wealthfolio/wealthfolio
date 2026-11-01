@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "필수 지출",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "선택 지출",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "저축",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "기부",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "개인",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "기타"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "여행",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "휴가",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "업무",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "교육",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "의료",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "특별한 행사",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "기타"
+  },
   "common": {
     "amount": "금액",
     "min": "최소",
@@ -64,6 +81,11 @@
     "editTitle": "규칙 수정",
     "addTitle": "규칙 추가",
     "editDescription": "이름 패턴에 따라 활동에 자동으로 태그를 지정합니다. 여러 규칙이 일치하면 우선순위가 높은 규칙이 적용됩니다.",
+    "categoryCompatibilityHint": "카테고리는 거래의 현금 흐름에 따라 결정됩니다. 저축 카테고리는 지출 추적 계좌 밖으로 나가는 연결된 이체에만 적용됩니다.",
+    "runIncompatible": "호환되지 않는 카테고리: {{count}}. 카테고리는 거래의 현금 흐름에 따라 결정됩니다. 저축 카테고리는 지출 추적 계좌 밖으로 나가는 연결된 이체에만 적용됩니다.",
+    "runProtected": "기존 카테고리 또는 분할 유지: {{count}}.",
+    "runUnchanged": "요청한 대로 이미 분류됨: {{count}}.",
+    "runWithoutTarget": "대상 카테고리가 없는 일치 항목: {{count}}.",
     "matchContains": "포함",
     "matchStartsWith": "시작",
     "matchExact": "정확히 일치",
@@ -171,6 +193,7 @@
     "income": "수입",
     "spending": "지출",
     "saving": "저축",
+    "netSaved": "순저축",
     "net": "순액"
   },
   "insights": {
@@ -414,6 +437,7 @@
     "customSubtitle": "선택한 기간의 거래"
   },
   "split": {
+    "staleTaxonomy": "이 분할에는 이전 카테고리 유형이 사용됩니다. 더 이상 이 거래에 적용되지 않습니다.",
     "title": "거래 분할",
     "transactionFallback": "거래",
     "remainingOf": "{{amount}} 중 남은 금액",
@@ -422,7 +446,11 @@
     "removeLine": "분할 항목 {{number}} 삭제",
     "addLine": "항목 추가",
     "distributeEvenly": "균등 분배",
-    "clearSplit": "분할 지우기"
+    "clearSplit": "분할 지우기",
+    "replaceWithCategory": "분할을 하나의 카테고리로 대체",
+    "replaceDescription_one": "분할 {{count}}개를 {{category}}(으)로 대체할까요? 기존 분할이 삭제됩니다.",
+    "replaceDescription_other": "분할 {{count}}개를 {{category}}(으)로 대체할까요? 기존 분할이 삭제됩니다.",
+    "categoryProtected": "분할이 보호되어 있습니다. 분할 편집기에서 편집하거나 명시적으로 대체하세요."
   },
   "hierarchy": {
     "noCategorizedSpending": "이 기간에 분류된 지출이 없습니다.",
@@ -714,8 +742,6 @@
     "overspentBy": "{{pct}} 초과 지출",
     "noIncome": "이 기간에 선택한 계좌에 수입이 없습니다.",
     "spent": "지출",
-    "saved": "저축",
-    "setAside": "따로 모은 금액",
     "sortSpent": "지출액",
     "sortChange": "변동",
     "sortName": "이름",
@@ -759,6 +785,8 @@
       "total": "합계",
       "shortfall": "부족분",
       "refunds": "순 환불",
+      "fromSavings": "저축에서",
+      "toSavings": "저축으로",
       "surplus": "남은 금액",
       "uncategorizedIncome": "미분류 수입",
       "netSpending": "순 지출"
@@ -769,6 +797,7 @@
       "shortfall": "들어온 돈을 넘어선 지출과 저축입니다.",
       "refunds": "환불이 지출보다 많았던 카테고리입니다.",
       "saved": "저축 및 투자 계좌로 옮긴 금액입니다.",
+      "fromSavings": "저축 및 투자 계좌에서 다시 가져온 금액입니다.",
       "surplus": "들어왔지만 쓰거나 따로 모으지 않은 금액입니다.",
       "uncategorized": "아직 카테고리가 없는 지출입니다.",
       "net": "환불 후 이 카테고리에 든 금액입니다.",
@@ -933,8 +962,6 @@
     "uncategorizedReview": "미분류 — 검토",
     "uncategorizedImprove": "미분류 — 검토하여 분석 개선",
     "plusMore": "+ {{count}} 더보기",
-    "down": "감소",
-    "up": "증가",
     "aboutSame": "이전 기간과 비슷함",
     "fromPriorPeriod": "이전 기간 대비",
     "intervalMtd": "이번 달",
@@ -1026,5 +1053,23 @@
     "addSource_other": "수입원 추가 (사용 가능 {{count}}개)",
     "overridesTitle_other": "재정의 · {{count}}개",
     "sourceMonth": "원본 월"
+  },
+  "splitEditReview": {
+    "title": "분할 삭제 검토",
+    "removed_other": "이 변경으로 분할 배분 {{count}}개가 삭제됩니다.",
+    "hiddenCategory": "기존 카테고리 배분은 유지되며 분할 삭제 후 적용될 수 있습니다.",
+    "confirm": "저장하고 분할 삭제"
+  },
+  "budgetErrors": {
+    "deleteGroup": "예산 그룹을 삭제하지 못했습니다.",
+    "copyPlan": "계획을 복사하지 못했습니다."
+  },
+  "grid": {
+    "transferInForm": "이체 유형은 편집을 눌러 이체 양식에서 변경하세요.",
+    "noCategory": "이 거래는 지출, 수입, 저축 어디에도 속하지 않아 카테고리가 없습니다.",
+    "saveTypeFirst": "새 유형이나 계좌를 먼저 저장한 다음 카테고리를 선택하세요.",
+    "saveCategoryFirst": "카테고리를 먼저 저장한 다음 유형이나 계좌를 변경하세요.",
+    "typeNotForAccount": "이 유형은 이 계좌에서 사용할 수 없습니다.",
+    "amountRequired": "금액은 필수입니다."
   }
 }

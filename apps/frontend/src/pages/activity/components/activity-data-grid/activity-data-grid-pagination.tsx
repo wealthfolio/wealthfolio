@@ -141,10 +141,10 @@ export function ActivityDataGridPagination({
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder={`${currentPage}`}
-            className="w-12.5 h-7 text-center text-xs"
+            className="h-7 w-12.5 text-center text-xs"
             title={t("activity:datagrid.pagination.jump_hint", { count: pageCount })}
           />
-          <span className="text-muted-foreground whitespace-nowrap text-xs">
+          <span className="text-muted-foreground text-xs whitespace-nowrap">
             <span className="hidden sm:inline">{t("activity:datagrid.pagination.of")}</span>
             <span className="sm:hidden">/</span> {pageCount || 1}
           </span>

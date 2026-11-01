@@ -408,7 +408,8 @@
     "monthlyAverage": "월평균",
     "byType": "유형별",
     "monthlyIncome": "월별 소득",
-    "sources": "출처"
+    "sources": "출처",
+    "yoyShort": "전년 대비"
   },
   "categorizationContext": {
     "loading": "분류 컨텍스트를 불러오는 중…",
@@ -608,5 +609,29 @@
       "otherTitle": "기타",
       "otherBlurb": "기타 제공자별 옵션입니다."
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "AI 제공자 설정",
+    "thisModel": "이 모델",
+    "selectedModel": "선택한 모델",
+    "thinkingUnsupported": "**사고 모드를 지원하지 않음**\n\n{{modelName}}은(는) 사고 또는 추론 기능을 지원하지 않습니다.\n\n지원하는 다른 모델을 사용하거나 {{settingsLink}}을 확인하세요.",
+    "modelUnavailable": "**모델을 사용할 수 없음**\n\n“{{modelName}}” 모델을 찾을 수 없습니다. 가능한 원인:\n- 모델이 아직 다운로드되지 않음\n- 모델 이름이 잘못됨\n- AI 제공자 서비스가 실행 중이 아님\n\n{{settingsLink}}에서 다른 모델을 선택하거나 설정을 확인하세요.",
+    "connectionRefused": "**AI 제공자에 연결할 수 없음**\n\n서비스가 실행 중이 아닌 것 같습니다. 다음을 확인하세요.\n1. 로컬 AI 제공자(Ollama 등) 실행\n2. {{settingsLink}}에서 제공자 URL 확인\n3. 다시 시도",
+    "authentication": "**인증 실패**\n\nAPI 키가 없거나 유효하지 않은 것 같습니다. {{settingsLink}}에서 API 키가 올바르게 설정되어 있는지 확인하세요.",
+    "rateLimit": "**요청 한도 초과**\n\n요청이 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
+    "timeout": "**요청 시간 초과**\n\nAI 제공자가 응답하는 데 너무 오래 걸렸습니다. 느린 연결, 과부하 또는 복잡한 요청이 원인일 수 있습니다.\n\n다시 시도하거나 {{settingsLink}}에서 더 빠른 모델을 선택하세요.",
+    "provider": "**제공자 오류**\n\n{{error}}\n\n문제가 계속되면 {{settingsLink}}을 확인하세요.",
+    "unknown": "**문제가 발생했습니다**\n\n{{error}}\n\n문제가 계속되면 {{settingsLink}}을 확인하세요."
+  },
+  "importSessionErrors": {
+    "missingCsv": "사용 가능한 CSV 내용이 없습니다. AI 도구 결과가 불완전할 수 있습니다.",
+    "emptyCsv": "CSV 파일에 데이터 행이 없습니다.",
+    "noActivities": "활동을 추출할 수 없습니다. 열 매핑이 잘못되었을 수 있습니다.",
+    "prepareFailed": "CSV 가져오기를 준비하지 못했습니다.",
+    "revalidateFailed": "재검증에 실패했습니다.",
+    "nothing": "가져올 항목이 없습니다.",
+    "allInvalid": "모든 활동에 검증 오류가 있습니다. 수정 후 다시 시도하세요.",
+    "importFailed": "활동 가져오기에 실패했습니다.",
+    "reviewAndRetry": "가져오기에 실패했습니다. 오류를 확인하고 다시 시도하세요."
   }
 }

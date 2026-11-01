@@ -1,7 +1,9 @@
+import i18n from "i18next";
+import zhAsset from "@/i18n/locales/zh/asset.json";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Activity, type ReactNode } from "react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AlternativeAssetKind } from "@/lib/types";
 import { AlternativeAssetQuickAddModal } from "./alternative-asset-quick-add-modal";
 
@@ -426,3 +428,38 @@ it.each(["", "25", "0"])(
     expect(preview).not.toHaveBeenCalled();
   },
 );
+
+afterEach(async () => {
+  await i18n.changeLanguage("en");
+});
+
+it("localizes liability choices while submitting stable values and preserving the name", async () => {
+  i18n.addResourceBundle("zh", "asset", zhAsset, true, true);
+  await i18n.changeLanguage("zh");
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="My Custom Loan"
+    />,
+  );
+  const select = await screen.findByRole("combobox", {
+    name: zhAsset.quickAdd.select_liability_type_title,
+  });
+  expect(
+    screen.getByRole("option", { name: zhAsset.altContent.liabilityType.mortgage }),
+  ).toHaveValue("mortgage");
+  expect(
+    screen.getByRole("option", { name: zhAsset.altContent.liabilityType.auto_loan }),
+  ).toHaveValue("auto_loan");
+  fireEvent.change(select, { target: { value: "auto_loan" } });
+  fireEvent.click(screen.getByRole("switch", { name: zhAsset.loanActions.automatic_schedule }));
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "5000" } });
+  fireEvent.click(screen.getByRole("button", { name: zhAsset.quickAdd.add_liability }));
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "My Custom Loan", metadata: { sub_type: "auto_loan" } }),
+    ),
+  );
+});

@@ -8,7 +8,7 @@ export default function SettingsAppearancePage() {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading={t("settings:appearance")}
+        heading={t("settings:nav.items.appearance")}
         text={t("settings:appearance_description")}
       />
       <Separator />

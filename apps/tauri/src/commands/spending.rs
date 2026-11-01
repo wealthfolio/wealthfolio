@@ -19,8 +19,8 @@ use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
-    CategorizationRule, ImportPresetResult, NewCategorizationRule, RemovePresetResult,
-    RulePresetSummary, UpdateCategorizationRule,
+    CategorizationRule, CategorizationRunSummary, ImportPresetResult, NewCategorizationRule,
+    RemovePresetResult, RulePresetSummary, UpdateCategorizationRule,
 };
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
@@ -47,7 +47,7 @@ fn spawn_auto_categorize(context: Arc<ServiceContext>, account_ids: Vec<String>)
             .await
         {
             Ok(count) if count > 0 => {
-                info!("Auto-categorization wrote {} assignment(s)", count);
+                info!("Auto-categorization matched {} transaction(s)", count);
             }
             Ok(_) => {}
             Err(e) => warn!("Auto-categorization failed: {}", e),
@@ -386,6 +386,27 @@ pub async fn rerun_categorization_rules(
 }
 
 #[tauri::command]
+pub async fn rerun_categorization_rules_detailed(
+    only_uncategorized: bool,
+    state: ProfileAccess,
+) -> Result<CategorizationRunSummary, String> {
+    let context = state.context()?;
+    let settings = context
+        .spending_settings_service()
+        .get()
+        .await
+        .map_err(|e| format!("Failed to load spending settings: {}", e))?;
+    if !settings.enabled {
+        return Ok(CategorizationRunSummary::default());
+    }
+    context
+        .categorization_rules_service()
+        .rerun_detailed(&settings.account_ids, only_uncategorized)
+        .await
+        .map_err(|e| format!("Failed to re-run rules: {}", e))
+}
+
+#[tauri::command]
 pub async fn list_rule_presets(state: ProfileAccess) -> Result<Vec<RulePresetSummary>, String> {
     let context = state.context()?;
     if !spending_enabled(&context).await? {
@@ -567,6 +588,34 @@ pub async fn get_budget(
         .get(period_key, &base_currency, &timezone)
         .await
         .map_err(|e| format!("Failed to load budget: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_budget_readonly(
+    period_key: Option<String>,
+    state: ProfileAccess,
+) -> Result<BudgetSnapshot, String> {
+    let context = state.context()?;
+    context
+        .budget_service()
+        .get_readonly(
+            period_key,
+            &context.get_base_currency(),
+            &context.get_timezone(),
+        )
+        .await
+        .map_err(|_| "Failed to load budget snapshot".into())
+}
+#[tauri::command]
+pub async fn get_spending_context(
+    state: ProfileAccess,
+) -> Result<wealthfolio_spending::cash_activities::SpendingContext, String> {
+    state
+        .context()?
+        .cash_activity_service()
+        .context()
+        .await
+        .map_err(|_| "Failed to load Spending context".into())
 }
 
 #[tauri::command]

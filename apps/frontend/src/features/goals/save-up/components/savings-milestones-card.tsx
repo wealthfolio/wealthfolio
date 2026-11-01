@@ -77,7 +77,7 @@ export function SavingsMilestonesCard({
   return (
     <Card>
       <CardHeader>
-        <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+        <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
           {t("goals:milestones.kicker")}
         </div>
         <CardTitle className="text-md leading-none tracking-tight">
@@ -92,8 +92,8 @@ export function SavingsMilestonesCard({
             Above y=32: % label.
             Below y=32: amount + date.
           */}
-          <div className="h-27 relative mx-16">
-            <div className="bg-muted absolute end-0 start-0 top-8 h-[3px] -translate-y-1/2 rounded-full" />
+          <div className="relative mx-16 h-27">
+            <div className="bg-muted absolute start-0 end-0 top-8 h-[3px] -translate-y-1/2 rounded-full" />
             <div
               className="bg-success absolute start-0 top-8 h-[3px] -translate-y-1/2 rounded-full transition-[width] duration-500 ease-out"
               style={{ width: `${railFillPct}%` }}
@@ -103,7 +103,7 @@ export function SavingsMilestonesCard({
               return (
                 <div key={m.ratio}>
                   <div
-                    className={`text-2xs absolute top-0 -translate-x-1/2 whitespace-nowrap font-semibold uppercase tracking-wider rtl:translate-x-1/2 ${
+                    className={`text-2xs absolute top-0 -translate-x-1/2 font-semibold tracking-wider whitespace-nowrap uppercase rtl:translate-x-1/2 ${
                       m.reached ? "text-foreground" : "text-muted-foreground"
                     }`}
                     style={{ insetInlineStart: left }}
@@ -117,7 +117,7 @@ export function SavingsMilestonesCard({
                     <MilestoneDot milestone={m} />
                   </div>
                   <div
-                    className="top-13 absolute flex -translate-x-1/2 flex-col items-center whitespace-nowrap rtl:translate-x-1/2"
+                    className="absolute top-13 flex -translate-x-1/2 flex-col items-center whitespace-nowrap rtl:translate-x-1/2"
                     style={{ insetInlineStart: left }}
                   >
                     <span className="text-sm font-semibold tabular-nums">
@@ -140,7 +140,7 @@ export function SavingsMilestonesCard({
         {/* ── Mobile: vertical timeline ── */}
         <div className="md:hidden">
           <ol className="relative space-y-4">
-            <span className="bg-muted absolute bottom-2 start-[0.9375rem] top-2 w-[2px] -translate-x-1/2 rounded-full rtl:translate-x-1/2" />
+            <span className="bg-muted absolute start-[0.9375rem] top-2 bottom-2 w-[2px] -translate-x-1/2 rounded-full rtl:translate-x-1/2" />
             <span
               className="bg-success absolute start-[0.9375rem] top-2 w-[2px] -translate-x-1/2 rounded-full transition-[height] duration-500 ease-out rtl:translate-x-1/2"
               style={{ height: `calc((100% - 1rem) * ${railFillPct / 100})` }}
@@ -153,7 +153,7 @@ export function SavingsMilestonesCard({
                 <div className="min-w-0 flex-1 pt-0.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <span
-                      className={`text-xs font-semibold uppercase tracking-wider ${
+                      className={`text-xs font-semibold tracking-wider uppercase ${
                         m.reached ? "text-foreground" : "text-muted-foreground"
                       }`}
                     >

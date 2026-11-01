@@ -9,6 +9,7 @@ expression: result
     "summary": {
       "deterministicallyProposed": 0,
       "needsAiJudgement": 0,
+      "protectedSplits": 0,
       "total": 0
     },
     "taxonomies": [],

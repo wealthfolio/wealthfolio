@@ -3,7 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-import { calculateRebalancePlan as calculateTauriRebalancePlan } from "./tauri";
+import {
+  calculateAllocationWorksheet,
+  generateCalculatedAdjustments as generateTauriCalculatedAdjustments,
+} from "./tauri";
 import { COMMANDS, invoke } from "./web/core";
 
 const { platformInvokeMock } = vi.hoisted(() => ({
@@ -120,39 +123,114 @@ function collectNamedReexports(
   return { hasStar, names };
 }
 
-describe("rebalance eligibility transport", () => {
-  it("canonicalizes the Tauri shared request before web transport", async () => {
+describe("calculated worksheet transport", () => {
+  it("previews a position total without assigning an account in either runtime", async () => {
     const mock = stubFetch({});
     platformInvokeMock
       .mockReset()
-      .mockImplementation((command, payload) => invoke(command, payload));
-
-    await calculateTauriRebalancePlan("target-1", 100, { type: "all" }, "cash_flow_only", [
-      "asset-z",
-      "asset-a",
-      "asset-z",
+      .mockImplementation((command: string, payload?: Record<string, unknown>) =>
+        invoke(command, payload),
+      );
+    await calculateAllocationWorksheet(
+      "target-1",
+      { trackedCashToUse: 1000, externalContribution: {} },
+      [
+        {
+          lineId: "position:vti:preview",
+          assetId: "vti",
+          direction: "increase",
+          inputMode: "amount",
+          value: 1000,
+        },
+      ],
+      ["acc-1", "acc-2"],
+      { type: "all" },
+    );
+    const { body } = lastCall(mock);
+    const request = JSON.parse(body as string) as { lines: unknown[] };
+    expect(request.lines).toEqual([
+      {
+        lineId: "position:vti:preview",
+        assetId: "vti",
+        direction: "increase",
+        inputMode: "amount",
+        value: 1000,
+      },
     ]);
+  });
+  it("keeps an empty eligible selection instead of dropping it", async () => {
+    // §4.1: selecting no eligible security is a valid state. Dropping the empty
+    // list would silently turn it into "every recorded security".
+    const mock = stubFetch({});
+    platformInvokeMock
+      .mockReset()
+      .mockImplementation((command: string, payload?: Record<string, unknown>) =>
+        invoke(command, payload),
+      );
+
+    await generateTauriCalculatedAdjustments(
+      "target-1",
+      "rebalance",
+      "current_holding_proportions",
+      { trackedCashToUse: 0, externalContribution: {} },
+      ["acc-1"],
+      { type: "all" },
+      [],
+    );
 
     const { body } = lastCall(mock);
     const parsed = JSON.parse(body as string) as { eligibleAssetIds?: unknown };
-    expect(parsed.eligibleAssetIds).toEqual(["asset-a", "asset-z"]);
+    expect(parsed.eligibleAssetIds).toEqual([]);
   });
 
-  it("omits the allowlist when no restriction is supplied", async () => {
+  it("sends external cash keyed by the account it would arrive in", async () => {
     const mock = stubFetch({});
-    await invoke("calculate_rebalance_plan", {
-      targetId: "target-1",
-      availableCash: 100,
-      filter: { type: "all" },
-      scenarioMode: "cash_flow_only",
-    });
+    platformInvokeMock
+      .mockReset()
+      .mockImplementation((command: string, payload?: Record<string, unknown>) =>
+        invoke(command, payload),
+      );
 
-    const { body } = lastCall(mock);
-    expect(JSON.parse(body as string)).not.toHaveProperty("eligibleAssetIds");
+    await generateTauriCalculatedAdjustments(
+      "target-1",
+      "invest_cash",
+      "current_holding_proportions",
+      { trackedCashToUse: 250, externalContribution: { "acc-1": 1000, "acc-2": 500 } },
+      ["acc-1", "acc-2"],
+      { type: "all" },
+    );
+
+    const parsed = JSON.parse(lastCall(mock).body as string) as {
+      cash: unknown;
+      selectedAccountIds?: unknown;
+      eligibleAssetIds?: unknown;
+    };
+    expect(parsed.cash).toEqual({
+      trackedCashToUse: 250,
+      externalContribution: { "acc-1": 1000, "acc-2": 500 },
+    });
+    expect(parsed.selectedAccountIds).toEqual(["acc-1", "acc-2"]);
+    expect(parsed).not.toHaveProperty("eligibleAssetIds");
   });
 });
 
 describe("adapter command parity", () => {
+  it("routes detailed rule reruns without changing the numeric legacy response", async () => {
+    const summary = { matched: 1, changed: 0, incompatible: 1 };
+    const mock = stubFetch(summary);
+    expect(
+      await invoke("rerun_categorization_rules_detailed", { onlyUncategorized: false }),
+    ).toEqual(summary);
+    expect(lastCall(mock)).toEqual({
+      url: "/api/v1/spending/rules/rerun/detailed",
+      method: "POST",
+      body: JSON.stringify({ onlyUncategorized: false }),
+    });
+
+    stubFetch(1);
+    expect(await invoke("rerun_categorization_rules", { onlyUncategorized: true })).toBe(1);
+  });
+
   it("registers every command reachable from the web adapter", () => {
     const files = [
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/shared")),
@@ -636,5 +714,16 @@ describe("scope-based routing — performance filters", () => {
       endDate: "2026-01-31",
       profile: "summary",
     });
+  });
+});
+
+describe("agent token permission editing", () => {
+  it("uses PATCH with encoded ID and a scope-only request body", async () => {
+    const mock = stubFetch({ id: "key/1", scopes: ["holdings:read"] });
+    await invoke("update_agent_access_token_scopes", { id: "key/1", scopes: ["holdings:read"] });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/agent-access/tokens/key%2F1");
+    expect(method).toBe("PATCH");
+    expect(JSON.parse(body as string)).toEqual({ scopes: ["holdings:read"] });
   });
 });

@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import {
@@ -49,7 +50,7 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onSuccess: async (response) => {
       await invalidateQueries();
       toast({
-        title: "Asset created successfully",
+        title: i18n.t("common:notifications.asset_created_successfully"),
         variant: "success",
       });
       options.onCreateSuccess?.(response);
@@ -57,8 +58,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onError: (error) => {
       logger.error(`Error creating alternative asset: ${error}`);
       toast({
-        title: "Failed to create asset",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("common:notifications.failed_to_create_asset"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },
@@ -70,7 +71,7 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onSuccess: async () => {
       await invalidateQueries();
       toast({
-        title: "Valuation updated successfully",
+        title: i18n.t("common:notifications.valuation_updated_successfully"),
         variant: "success",
       });
       options.onUpdateSuccess?.();
@@ -78,8 +79,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onError: (error) => {
       logger.error(`Error updating valuation: ${error}`);
       toast({
-        title: "Failed to update valuation",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("common:notifications.failed_to_update_valuation"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },
@@ -90,7 +91,7 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onSuccess: async () => {
       await invalidateQueries();
       toast({
-        title: "Asset deleted successfully",
+        title: i18n.t("common:notifications.asset_deleted_successfully"),
         variant: "success",
       });
       options.onDeleteSuccess?.();
@@ -98,8 +99,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onError: (error) => {
       logger.error(`Error deleting alternative asset: ${error}`);
       toast({
-        title: "Failed to delete asset",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("common:notifications.failed_to_delete_asset"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },
@@ -116,15 +117,15 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onSuccess: async () => {
       await invalidateQueries();
       toast({
-        title: "Liability linked successfully",
+        title: i18n.t("common:notifications.liability_linked_successfully"),
         variant: "success",
       });
     },
     onError: (error) => {
       logger.error(`Error linking liability: ${error}`);
       toast({
-        title: "Failed to link liability",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("common:notifications.failed_to_link_liability"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },
@@ -135,15 +136,15 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
     onSuccess: async () => {
       await invalidateQueries();
       toast({
-        title: "Liability unlinked successfully",
+        title: i18n.t("common:notifications.liability_unlinked_successfully"),
         variant: "success",
       });
     },
     onError: (error) => {
       logger.error(`Error unlinking liability: ${error}`);
       toast({
-        title: "Failed to unlink liability",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("common:notifications.failed_to_unlink_liability"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },
@@ -172,8 +173,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
       // The details sheet explains a refused loan setup itself.
       if (isLoanRefusal(error)) return;
       toast({
-        title: "Failed to save details",
-        description: "Please try again or report an issue if the problem persists.",
+        title: i18n.t("asset:detailsSheet.save_failed"),
+        description: i18n.t("activity:import.errors.importErrorDescription"),
         variant: "destructive",
       });
     },

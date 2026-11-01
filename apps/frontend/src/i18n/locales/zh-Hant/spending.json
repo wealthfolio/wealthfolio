@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "必要支出",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "非必要支出",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "儲蓄",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "捐贈",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "個人",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "其他"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "旅行",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "假期",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "商務",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "教育",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "醫療",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "特殊場合",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "其他"
+  },
   "common": {
     "amount": "金額",
     "min": "最小",
@@ -64,6 +81,11 @@
     "editTitle": "編輯規則",
     "addTitle": "新增規則",
     "editDescription": "依名稱模式自動標記活動。多條規則同時符合時，會套用優先順序較高的規則。",
+    "categoryCompatibilityHint": "分類依據交易的現金流類型。儲蓄分類僅適用於已連結且轉出支出追蹤帳戶範圍的轉帳。",
+    "runIncompatible": "不相容的分類：{{count}}。分類依據交易的現金流類型。儲蓄分類僅適用於已連結且轉出支出追蹤帳戶範圍的轉帳。",
+    "runProtected": "保留現有分類或分攤：{{count}}。",
+    "runUnchanged": "已依要求分類：{{count}}。",
+    "runWithoutTarget": "無目標分類的符合項目：{{count}}。",
     "matchContains": "包含",
     "matchStartsWith": "開頭為",
     "matchExact": "完全符合",
@@ -172,6 +194,7 @@
     "income": "收入",
     "spending": "支出",
     "saving": "儲蓄",
+    "netSaved": "淨儲蓄",
     "net": "淨額"
   },
   "insights": {
@@ -420,6 +443,7 @@
     "customSubtitle": "所選期間的交易"
   },
   "split": {
+    "staleTaxonomy": "這些拆分使用先前的類別類型，已不再適用於此交易。",
     "title": "拆分交易",
     "transactionFallback": "交易",
     "remainingOf": "剩餘，共 {{amount}}",
@@ -428,7 +452,11 @@
     "removeLine": "移除拆分行 {{number}}",
     "addLine": "新增行",
     "distributeEvenly": "平均分配",
-    "clearSplit": "清除拆分"
+    "clearSplit": "清除拆分",
+    "replaceWithCategory": "將拆分取代為一個類別",
+    "replaceDescription_one": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "replaceDescription_other": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "categoryProtected": "拆分分配受到保護。請在拆分編輯器中編輯或明確取代。"
   },
   "hierarchy": {
     "noCategorizedSpending": "此週期內沒有已歸類的支出。",
@@ -721,8 +749,6 @@
     "overspentBy": "超支 {{pct}}",
     "noIncome": "此週期內所選帳戶沒有收入。",
     "spent": "已花費",
-    "saved": "已儲蓄",
-    "setAside": "預留",
     "sortSpent": "支出",
     "sortChange": "變化",
     "sortName": "名稱",
@@ -767,6 +793,8 @@
       "total": "總額",
       "shortfall": "缺口",
       "refunds": "淨退款",
+      "fromSavings": "來自儲蓄",
+      "toSavings": "轉入儲蓄",
       "surplus": "剩餘",
       "uncategorizedIncome": "未歸類收入",
       "netSpending": "淨支出"
@@ -777,6 +805,7 @@
       "shortfall": "超出流入的支出與儲蓄。",
       "refunds": "退款超過支出的類別。",
       "saved": "轉入儲蓄和投資帳戶的資金。",
+      "fromSavings": "從儲蓄和投資帳戶轉回的資金。",
       "surplus": "已流入但未支出或預留的資金。",
       "uncategorized": "尚未歸類的支出。",
       "net": "扣除退款後該類別的花費。",
@@ -941,8 +970,6 @@
     "uncategorizedReview": "未歸類：請檢查",
     "uncategorizedImprove": "未歸類：檢查後可讓明細更清楚",
     "plusMore": "+ {{count}} 筆",
-    "down": "下降",
-    "up": "上升",
     "aboutSame": "與上一週期基本持平",
     "fromPriorPeriod": "較上一週期",
     "intervalMtd": "本月",
@@ -1037,5 +1064,24 @@
     "addSource_one": "新增來源（{{count}} 個可用）",
     "overridesTitle_one": "覆寫 · {{count}}",
     "sourceMonth": "來源月份"
+  },
+  "splitEditReview": {
+    "title": "確認刪除拆分",
+    "hiddenCategory": "現有分類配置會保留，刪除拆分後可能會套用。",
+    "confirm": "儲存並刪除拆分",
+    "removed_one": "此變更將刪除 {{count}} 個拆分配置。",
+    "removed_other": "此變更將刪除 {{count}} 個拆分配置。"
+  },
+  "budgetErrors": {
+    "deleteGroup": "刪除預算群組失敗。",
+    "copyPlan": "複製計畫失敗。"
+  },
+  "grid": {
+    "transferInForm": "請透過「編輯」在轉帳表單中修改轉帳類型。",
+    "noCategory": "此活動既不屬於支出、收入，也不屬於儲蓄，因此沒有類別。",
+    "saveTypeFirst": "請先儲存新的類型或帳戶，再選擇類別。",
+    "saveCategoryFirst": "請先儲存類別，再修改類型或帳戶。",
+    "typeNotForAccount": "此帳戶不支援該類型。",
+    "amountRequired": "金額為必填欄位。"
   }
 }

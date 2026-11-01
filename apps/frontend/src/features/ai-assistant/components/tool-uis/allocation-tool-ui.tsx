@@ -1,3 +1,4 @@
+import { getTaxonomyLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
@@ -13,6 +14,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  chartSliceColor,
   useAmountFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -35,7 +37,6 @@ interface GetAssetAllocationArgs {
 interface AllocationDto {
   categoryId: string;
   categoryName: string;
-  color: string;
   value: number;
   percentage: number;
 }
@@ -108,7 +109,6 @@ function normalizeResult(
         (entry.category_name as string | undefined) ??
         (entry.category as string | undefined) ??
         "Unknown",
-      color: (entry.color as string | undefined) ?? `var(--chart-${(index % 5) + 1})`,
       value: Number(entry.value ?? 0),
       percentage: Number(entry.percentage ?? 0),
     }));
@@ -208,8 +208,13 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
     return sortedCategories.reduce((sum, c) => sum + c.value, 0);
   }, [sortedCategories]);
 
-  const taxonomyName = parsed?.taxonomyName ?? t("ai:allocation.defaultTitle");
-  const categoryName = parsed?.categoryName;
+  const taxonomyId = parsed?.taxonomyId ?? typedArgs?.taxonomyId ?? "";
+  const taxonomyName = parsed?.taxonomyName
+    ? getTaxonomyLabel(t, taxonomyId, parsed.taxonomyName)
+    : t("ai:allocation.defaultTitle");
+  const categoryName = parsed?.categoryName
+    ? getCategoryLabel(t, taxonomyId, typedArgs?.categoryId ?? "", parsed.categoryName)
+    : undefined;
   const isLoading = status?.type === "running";
   const isComplete = status?.type === "complete" || status?.type === "incomplete";
   const hasError = status?.type === "incomplete" && status.reason === "error";
@@ -380,7 +385,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                         className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
                         style={{
                           width: `${widthPercent}%`,
-                          backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
+                          backgroundColor: chartSliceColor(index),
                           minWidth: widthPercent >= 1 ? "4px" : undefined,
                         }}
                       />
@@ -395,7 +400,12 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                   <TooltipContent side="top" align="center">
                     <div className="text-center">
                       <span className="text-background/70 text-2xs uppercase">
-                        {category.categoryName}
+                        {getCategoryLabel(
+                          t,
+                          taxonomyId,
+                          category.categoryId,
+                          category.categoryName,
+                        )}
                       </span>
                       <div className="font-medium">{formatting.formatPercent(percent)}</div>
                       {!isBalanceHidden && (
@@ -424,10 +434,12 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                     <div
                       className="h-3 w-3 flex-shrink-0 rounded-sm"
                       style={{
-                        backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
+                        backgroundColor: chartSliceColor(index),
                       }}
                     />
-                    <span className="text-foreground truncate">{category.categoryName}</span>
+                    <span className="text-foreground truncate">
+                      {getCategoryLabel(t, taxonomyId, category.categoryId, category.categoryName)}
+                    </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-3 tabular-nums">
                     <span className="text-muted-foreground w-12 text-end">

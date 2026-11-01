@@ -64,12 +64,65 @@ fn validate_draft(rule: &NewCategorizationRule) -> Result<(), AgentToolError> {
             "rule.taxonomyId and rule.categoryId are required".to_string(),
         ));
     }
+    if !rule.taxonomy_id.as_deref().is_some_and(|id| {
+        wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&id)
+    }) {
+        return Err(AgentToolError::InvalidInput(
+            "Only Spending transaction taxonomies are allowed".to_string(),
+        ));
+    }
     // Drafts are user-created rules, never preset imports. Do not let an MCP
     // caller mark a new rule as owned by a bundled preset.
     if rule.preset_id.is_some() || rule.preset_rule_key.is_some() || rule.preset_version.is_some() {
         return Err(AgentToolError::InvalidInput(
             "preset provenance is not allowed on a rule draft".to_string(),
         ));
+    }
+    Ok(())
+}
+
+/// Validate target ownership and enrollment before touching a mutation service.
+pub(super) async fn validate_target(
+    env: &dyn AgentEnvironment,
+    rule: &NewCategorizationRule,
+) -> Result<(), AgentToolError> {
+    let taxonomy = rule
+        .taxonomy_id
+        .as_deref()
+        .ok_or_else(|| AgentToolError::InvalidInput("A transaction taxonomy is required".into()))?;
+    if !wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy) {
+        return Err(AgentToolError::InvalidInput(
+            "Only transaction category taxonomies are allowed".into(),
+        ));
+    }
+    let entry = env
+        .taxonomy_service()
+        .get_taxonomy(taxonomy)
+        .map_err(|_| AgentToolError::ExecutionFailed("Unable to resolve rule target".into()))?
+        .filter(|entry| entry.taxonomy.scope == "activity")
+        .ok_or_else(|| AgentToolError::InvalidInput("Transaction taxonomy unavailable".into()))?;
+    if !entry
+        .categories
+        .iter()
+        .any(|cat| Some(cat.id.as_str()) == rule.category_id.as_deref())
+    {
+        return Err(AgentToolError::InvalidInput(
+            "Rule category must belong to the chosen taxonomy".into(),
+        ));
+    }
+    if let Some(id) = &rule.account_id {
+        let accounts = env
+            .cash_activity_service()
+            .spending_account_ids()
+            .await
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed("Unable to resolve Spending scope".into())
+            })?;
+        if !accounts.contains(id) {
+            return Err(AgentToolError::InvalidInput(
+                "Rule account is outside effective Spending scope".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -123,10 +176,7 @@ impl AgentTool for CommitCategorizationRule {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[
-            AgentScope::ClassificationSuggest,
-            AgentScope::ClassificationWrite,
-        ]
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
     }
 
     fn access_level(&self) -> AgentToolAccess {
@@ -150,14 +200,21 @@ impl AgentTool for CommitCategorizationRule {
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: CommitCategorizationRuleArgs = serde_json::from_value(args)?;
+        let args: CommitCategorizationRuleArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput("Invalid categorization rule draft".to_string())
+        })?;
         validate_draft(&args.rule)?;
+        validate_target(env.as_ref(), &args.rule).await?;
 
         let created = env
             .categorization_rules_service()
             .create(args.rule)
             .await
-            .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed(
+                    "Rule could not be saved; refresh and review again".into(),
+                )
+            })?;
         Ok(AgentToolResult {
             content: serde_json::to_value(CommitCategorizationRuleOutput { created })?,
         })

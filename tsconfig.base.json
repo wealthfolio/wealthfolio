@@ -31,10 +31,10 @@
     "strictFunctionTypes": true,
     "strictBindCallApply": true,
     "strictPropertyInitialization": true,
-    "alwaysStrict": true,
+    // No "alwaysStrict": "strict" already turns it on for tsc, and Vite would pass it to esbuild,
+    // which puts "use strict" above "use client" and makes the build print sourcemap errors.
 
     // Path mapping (will be overridden in workspace configs)
-    "baseUrl": ".",
     "paths": {},
 
     // Enable composite builds for project references

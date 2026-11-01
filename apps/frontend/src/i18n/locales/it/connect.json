@@ -263,7 +263,7 @@
   "providers": {
     "continueWithGoogle": "Continua con Google",
     "continueWithApple": "Continua con Apple",
-    "continueWithEmail": "Continua con Email",
+    "continueWithEmail": "Continua con email",
     "lastUsed": "Usato l'ultima volta"
   },
   "subscription": {
@@ -342,5 +342,13 @@
     "description": "Stai collegando un altro account o nucleo familiare. I dati locali del portafoglio verranno conservati, ma i collegamenti esistenti ai broker e la configurazione della sincronizzazione dei dispositivi verranno rimossi. Il nuovo account potrà aggiungere dati dei broker a questo profilo. Configura nuovamente la sincronizzazione dei dispositivi quando vuoi. Usa un nuovo profilo se preferisci mantenere separati i dati.",
     "cancel": "Annulla",
     "confirm": "Cambia connessione"
+  },
+  "syncMessages": {
+    "runFailed": "Impossibile completare questa sincronizzazione. Riprova o gestisci la connessione al broker.",
+    "runNeedsReview": "Alcuni elementi sincronizzati richiedono una verifica prima di continuare.",
+    "accountFailed": "Impossibile sincronizzare questo conto del broker. Riprova o gestisci la connessione al broker.",
+    "accountNeedsReview": "Alcuni dati del broker richiedono una verifica. Riprova la sincronizzazione o gestisci la connessione al broker.",
+    "holdingsSynced": "Le posizioni sono sincronizzate, ma la sincronizzazione delle attività richiede attenzione. Riprova o gestisci la connessione al broker.",
+    "holdingsDeferred": "La sincronizzazione delle posizioni richiede attenzione. Riprova o gestisci la connessione al broker."
   }
 }

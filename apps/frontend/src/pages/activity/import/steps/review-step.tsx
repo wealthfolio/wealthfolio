@@ -277,6 +277,7 @@ export function ReviewStep() {
               ? {
                   status: validation.status,
                   errors: validation.errors,
+                  localErrorMessages: validation.localErrorMessages,
                   warnings: validation.warnings,
                   duplicateOfId: undefined,
                   duplicateOfLineNumber: undefined,
@@ -340,6 +341,7 @@ export function ReviewStep() {
               ? {
                   status: validation.status,
                   errors: validation.errors,
+                  localErrorMessages: validation.localErrorMessages,
                   warnings: validation.warnings,
                   duplicateOfId: undefined,
                   duplicateOfLineNumber: undefined,
@@ -422,7 +424,11 @@ export function ReviewStep() {
         <ImportAlert
           variant="destructive"
           title={t("activity:import.review.backendFailedTitle")}
-          description={state.validationError}
+          description={
+            typeof state.validationError === "string"
+              ? state.validationError
+              : t(state.validationError.key)
+          }
         />
       ) : isStale ? (
         <ImportAlert

@@ -1,6 +1,7 @@
 import { ActivityType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { useCallback, useState } from "react";
+import { attachConversionCounterpart, isConversionActivity } from "../utils/conversion-counterpart";
 import { attachTransferCounterpart, isLinkedInternalTransfer } from "../utils/transfer-counterpart";
 import { useActivityMutations } from "./use-activity-mutations";
 
@@ -15,6 +16,11 @@ export function useActivityActionDialogs() {
   const openForm = useCallback(async (activity?: ActivityDetails, activityType?: ActivityType) => {
     if (activity?.id && isLinkedInternalTransfer(activity)) {
       setSelectedActivity(await attachTransferCounterpart(activity));
+      setFormOpen(true);
+      return;
+    }
+    if (activity?.id && isConversionActivity(activity)) {
+      setSelectedActivity(await attachConversionCounterpart(activity));
       setFormOpen(true);
       return;
     }

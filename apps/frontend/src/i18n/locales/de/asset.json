@@ -12,7 +12,6 @@
     "more": "Mehr"
   },
   "securities": {
-    "heading": "Wertpapiere",
     "subtitle": "Durchsuchen und verwalten Sie die in Ihrem Portfolio verfügbaren Wertpapiere.",
     "add_security": "Wertpapier hinzufügen",
     "delete_title": "Wertpapier löschen",
@@ -64,7 +63,7 @@
       "symbol_required": "Symbol ist erforderlich",
       "symbol_max": "Symbol darf höchstens 100 Zeichen lang sein",
       "name_required": "Name ist erforderlich",
-      "name_max": "Name darf höchstens 100 Zeichen lang sein",
+      "name_max": "Name darf höchstens 200 Zeichen lang sein",
       "instrument_type_required": "Instrumententyp ist erforderlich",
       "currency_required": "Währung ist erforderlich"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "z. B. SBER, AFLT",
+    "moex_symbol_hint": "Verwenden Sie eine MOEX-Wertpapierkennung ohne Präfix oder Suffix. Wählen Sie Moscow Exchange (MISX) als Börse.",
     "identity_conflict": "Ein anderer Vermögenswert hat bereits diese Identität. Ihre Änderungen wurden nicht gespeichert. Verwenden Sie den vorhandenen Vermögenswert oder wählen Sie einen anderen Handelsplatz.",
     "general": "Allgemein",
     "classification": "Klassifizierung",
@@ -697,6 +698,18 @@
       "precious_metal": "Edelmetall",
       "liability": "Verbindlichkeit",
       "other": "Sonstiges"
+    },
+    "validation": {
+      "name_is_required": "Name ist erforderlich",
+      "quantity_must_be_greater_than_0": "Die Menge muss größer als 0 sein",
+      "purchase_price_must_be_greater_than_0": "Der Kaufpreis muss größer als 0 sein",
+      "notes_must_be_less_than_1000_characters": "Notizen müssen weniger als 1000 Zeichen lang sein",
+      "address_must_be_less_than_200_characters": "Die Adresse muss weniger als 200 Zeichen lang sein",
+      "interest_rate_must_be_100_or_less": "Der Zinssatz muss 100 oder weniger betragen",
+      "name_must_be_less_than_100_characters": "Der Name muss weniger als 100 Zeichen lang sein",
+      "interest_rate_must_be_0_or_greater": "Der Zinssatz muss 0 oder höher sein",
+      "description_must_be_less_than_200_characters": "Die Beschreibung muss weniger als 200 Zeichen lang sein",
+      "original_amount_must_be_greater_than_0": "Der ursprüngliche Betrag muss größer als 0 sein"
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "Fügen Sie Kontext zu dieser Bewertung hinzu (z. B. Gutachtenquelle, Marktbedingungen)",
     "cancel": "Abbrechen",
     "update_value": "Wert aktualisieren",
-    "na": "N/V"
+    "na": "N/V",
+    "validation": {
+      "number": "Der Wert muss eine Zahl sein.",
+      "non_negative": "Der Wert darf nicht negativ sein",
+      "notes": "Notizen dürfen höchstens 500 Zeichen enthalten"
+    }
   },
   "valueHistory": {
     "date": "Datum",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "Geben Sie eine Rate über null ein.",
     "payment_unavailable": "Für diese Konditionen lässt sich keine Rate berechnen. Prüfen Sie Betrag, Zinssatz und Tilgungsdauer.",
     "fields_read_only": "Darlehenskonditionen können nur in den Darlehensdetails geändert werden."
+  },
+  "notifications": {
+    "profile_updated": "Anlagenprofil aktualisiert.",
+    "quote_mode_updated": "Kursmodus der Anlage aktualisiert.",
+    "profile_failed": "Das Anlagenprofil konnte nicht aktualisiert werden.",
+    "quote_mode_failed": "Der Kursmodus konnte nicht aktualisiert werden.",
+    "quote_added": "Kurs hinzugefügt.",
+    "quote_updated": "Kurs aktualisiert.",
+    "quote_deleted": "Kurs gelöscht.",
+    "quote_save_failed": "Der Kurs konnte nicht gespeichert werden.",
+    "quote_delete_failed": "Der Kurs konnte nicht gelöscht werden."
+  },
+  "noQuote": {
+    "manual": "Der Kursmodus ist manuell",
+    "inactive": "Die Anlage ist inaktiv",
+    "matured": "Die Anleihe ist fällig geworden",
+    "expired": "Die Option ist abgelaufen",
+    "paused": "Synchronisierung nach wiederholten Fehlern pausiert",
+    "pending": "Noch kein Anbieterkurs synchronisiert",
+    "no_data": "Noch keine Daten vom Anbieter verfügbar"
   }
 }

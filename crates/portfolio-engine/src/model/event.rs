@@ -160,6 +160,19 @@ pub enum Action {
         #[serde(with = "crate::model::decimal_serde")]
         amount: Decimal,
     },
+    /// A conversion's two rows as one event (rules R7.5): relieves
+    /// `from_quantity` of `from_asset` at cost and opens those lots as
+    /// `to_quantity` of `to_asset`. The event is the `CONVERSION_OUT` row;
+    /// `arriving` is the `CONVERSION_IN` row, which owns the lots it opens.
+    Conversion {
+        from_asset: AssetId,
+        #[serde(with = "crate::model::decimal_serde")]
+        from_quantity: Decimal,
+        to_asset: AssetId,
+        #[serde(with = "crate::model::decimal_serde")]
+        to_quantity: Decimal,
+        arriving: ActivityId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -260,7 +260,20 @@
       "show": "显示进度"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "某个组合包含已删除账户的关联。请打开设置 > 组合，编辑该组合并保存。",
+    "fallback": "出现问题，请重试。",
+    "restoreRequired": "连接其他设备前，需要先从此设备恢复同步。",
+    "invalidCode": "代码无效，请检查后重试。",
+    "expired": "会话已过期，请重新开始。",
+    "cancelled": "配对已取消。",
+    "network": "网络错误，请检查连接。",
+    "timeout": "连接超时。",
+    "notFound": "会话不存在或已过期。",
+    "security": "安全验证失败。",
+    "technical": "同步未能完成，请重试。如问题持续，请检查应用日志。",
+    "namedPortfolioRepair": "组合“{{name}}”包含已删除账户的关联。请打开设置 > 组合，编辑该组合并保存。"
+  },
   "wizard": {
     "progressLabel": "设置进度",
     "steps": {

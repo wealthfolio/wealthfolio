@@ -269,7 +269,20 @@
       "show": "Mostrar progresso"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "Uma carteira contém um vínculo com uma conta excluída. Abra Configurações > Carteiras, edite a carteira e salve.",
+    "fallback": "Algo deu errado. Tente novamente.",
+    "restoreRequired": "A sincronização precisa ser restaurada a partir deste dispositivo antes de conectar outro.",
+    "invalidCode": "Código inválido. Confira e tente novamente.",
+    "expired": "A sessão expirou. Comece novamente.",
+    "cancelled": "O pareamento foi cancelado.",
+    "network": "Erro de rede. Verifique sua conexão.",
+    "timeout": "O tempo de conexão esgotou.",
+    "notFound": "Sessão não encontrada ou expirada.",
+    "security": "Falha na verificação de segurança.",
+    "technical": "Não foi possível concluir a sincronização. Tente novamente. Se o problema persistir, verifique os registros do aplicativo.",
+    "namedPortfolioRepair": "A carteira “{{name}}” contém um vínculo com uma conta excluída. Abra Configurações > Carteiras, edite a carteira e salve."
+  },
   "wizard": {
     "progressLabel": "Progresso da configuração",
     "steps": {

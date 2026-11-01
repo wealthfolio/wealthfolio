@@ -1,0 +1,185 @@
+/* @name Terminal */
+/* @font font-mono */
+/* @mode dark */
+:root {
+  --radius: 0rem;
+  /* Square corners, flat surfaces. */
+  --button-radius: 0rem;
+  --control-radius: 0rem;
+  --control-height: 2.5rem;
+  --card-radius: 0rem;
+  --card-shadow: 0 0 #0000;
+  --popup-radius: 0rem;
+  --dialog-radius: 0rem;
+  --badge-radius: 0rem;
+  --segmented-radius: 0rem;
+  --background: #f4faf4;
+  --foreground: #12391d;
+  --card: #ffffff;
+  --card-foreground: #12391d;
+  --popover: #ffffff;
+  --popover-foreground: #12391d;
+  --primary: #176b32;
+  --primary-foreground: #ffffff;
+  --secondary: #dceede;
+  --secondary-foreground: #174c25;
+  --muted: #e8f2e8;
+  --muted-foreground: #4b6950;
+  --accent: #c9e8ce;
+  --accent-foreground: #12391d;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  /* Badges, alerts and toasts on success or destructive: a tint of the phosphor
+     green and the red, so gain and loss badges match the gain and loss text. */
+  --success-subtle: #e8f0e9;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #c0d4c2;
+  --destructive-subtle: #fbeae8;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #f3c5bf;
+  --border: #a9c6af;
+  --input: #a9c6af;
+  --ring: #176b32;
+  --chart-1: #176b32;
+  --chart-2: #3d844b;
+  --chart-3: #245d30;
+  --chart-4: #568a60;
+  --chart-5: #317541;
+  --sidebar: #e8f2e8;
+  --sidebar-foreground: #12391d;
+  --sidebar-primary: #176b32;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c9e8ce;
+  --sidebar-accent-foreground: #12391d;
+  --sidebar-border: #a9c6af;
+  --sidebar-ring: #176b32;
+  --success: #176b32;
+  --success-foreground: #ffffff;
+  --chart-6: #46694b;
+  --chart-7: #638c69;
+  --chart-8: #3b7046;
+  --chart-9: #607c64;
+  --chart-stone: var(--chart-9);
+  /* Series (lines and markers) follow the chart colours, all 3:1 or more on the card. */
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  /* Spending in the phosphor greens; Net Worth in amber phosphor. */
+  --spending-accent: var(--chart-1);
+  --spending-deep: var(--chart-3);
+  --spending-mid: var(--chart-2);
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
+  --net-worth: #9a6700;
+  --fi-stream-1: var(--chart-1);
+  --fi-stream-2: var(--chart-2);
+  --fi-stream-3: var(--chart-3);
+  --fi-stream-4: var(--chart-4);
+  --fi-stream-5: var(--chart-5);
+  --heatmap-accent: var(--chart-1);
+  --event-default: var(--chart-2);
+  --event-today: var(--warning);
+  /* Phosphor glow: fields, popups and overlays emit a soft green halo instead
+     of casting a shadow, faint on paper and bright on the black screen. */
+  --field-shadow: 0 0 10px 1px rgb(23 107 50 / 0.06);
+  --field-glow: var(--field-shadow);
+  --overlay-shadow: 0 0 10px 1px rgb(23 107 50 / 0.12);
+  --popup-shadow: var(--overlay-shadow);
+  --heatmap-positive-low: #e0f0e2;
+  --heatmap-positive-high: #176b32;
+  --heatmap-negative-low: #f5dddd;
+  --heatmap-negative-high: #a82424;
+  /* Blue losses when the Gain and loss colours setting draws them in blue: the
+     negative ramp turned to Flexoki blue's hue in OKLCH, same lightness. */
+  --heatmap-blue-low: #d8e5f6;
+  --heatmap-blue-high: #015cb3;
+  /* Treemap middle stops halfway between low and high, so the ramp stays a straight
+     blend. Dark mode mixes its own low and high. */
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #061809;
+  --heatmap-label-light: #f1fff2;
+  /* Phosphor green for under target; over target stays red. */
+  --allocation-under: var(--primary);
+}
+
+.dark {
+  --background: oklch(0 0 0);
+  --foreground: #7ee787;
+  --card: oklch(0.1149 0 0);
+  --card-foreground: #7ee787;
+  --popover: oklch(0 0 0);
+  --popover-foreground: #7ee787;
+  --primary: #7ee787;
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.3053 0.1039 142.4953);
+  --secondary-foreground: #7ee787;
+  --muted: oklch(0.1887 0.0642 142.4953);
+  --muted-foreground: #63b871;
+  --accent: #122c1a;
+  --accent-foreground: #7ee787;
+  --destructive: #f87171;
+  --destructive-foreground: #000000;
+  /* On the black screen the tints sit at the lightness of the theme's muted surfaces. */
+  --success-subtle: #041907;
+  --success-subtle-border: #1b4824;
+  --destructive-subtle: #250a0a;
+  --destructive-subtle-border: #602a29;
+  --border: oklch(0.3053 0.1039 142.4953);
+  --input: #15341f;
+  --ring: #7ee787;
+  --chart-1: #7ee787;
+  --chart-2: #68d878;
+  --chart-3: #269f40;
+  --chart-4: #a4e5ab;
+  --chart-5: #4bbb59;
+  --sidebar: oklch(0.1149 0 0);
+  --sidebar-foreground: #7ee787;
+  --sidebar-primary: #7ee787;
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.3053 0.1039 142.4953);
+  --sidebar-accent-foreground: #7ee787;
+  --sidebar-border: oklch(0.3053 0.1039 142.4953);
+  --sidebar-ring: #7ee787;
+  --success: #63b871;
+  --success-foreground: #000000;
+  --chart-6: #16772c;
+  --chart-7: #83bc88;
+  --chart-8: #43824c;
+  --chart-9: #628768;
+  --chart-stone: var(--chart-9);
+  --investments: var(--gain);
+  --net-worth: #ffb000;
+  --fi-stream-1: var(--chart-1);
+  --fi-stream-2: var(--chart-2);
+  --fi-stream-3: var(--chart-3);
+  --fi-stream-4: var(--chart-4);
+  --fi-stream-5: var(--chart-5);
+  --heatmap-accent: var(--chart-1);
+  --event-default: var(--chart-2);
+  --event-today: var(--warning);
+  --field-shadow: 0 0 7px 0 rgb(126 231 135 / 0.12);
+  --overlay-shadow: 0 0 15px 2px rgb(126 231 135 / 0.4), 0 4px 6px 1px rgb(126 231 135 / 0.4);
+  --heatmap-positive-low: #092b10;
+  --heatmap-positive-high: #3fae59;
+  --heatmap-negative-low: #321010;
+  --heatmap-negative-high: #c83232;
+  --heatmap-blue-low: #001f32;
+  --heatmap-blue-high: #037ab3;
+  --heatmap-label-dark: #061809;
+  --heatmap-label-light: #f1fff2;
+}

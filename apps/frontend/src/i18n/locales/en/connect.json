@@ -57,7 +57,7 @@
     "signOut": "Sign out",
     "signOutTitle": "Sign out of Wealthfolio Connect?",
     "signOutMessage": "You'll need to sign in again to access your synced broker accounts. Your local data will not be affected.",
-    "signOutConfirm": "Sign Out",
+    "signOutConfirm": "Sign out",
     "signingOut": "Signing out..."
   },
   "accounts": {
@@ -81,8 +81,8 @@
     "title": "Broker connections",
     "manage": "Manage connections",
     "empty": "No broker connections yet",
-    "connectBroker": "Connect Broker",
-    "unknownBroker": "Unknown Broker",
+    "connectBroker": "Connect broker",
+    "unknownBroker": "Unknown broker",
     "unknown": "Unknown",
     "connected": "Connected",
     "disconnected": "Disconnected",
@@ -99,7 +99,7 @@
     "excludedCount_other": "{{count}} excluded"
   },
   "sync": {
-    "syncNow": "Sync Now",
+    "syncNow": "Sync now",
     "sync": "Sync",
     "syncAll": "Sync All",
     "syncingShort": "Syncing...",
@@ -225,10 +225,10 @@
     "syncing": "Syncing"
   },
   "serviceUnavailable": {
-    "title": "Service Temporarily Unavailable",
+    "title": "Service temporarily unavailable",
     "description": "We're having trouble connecting to Wealthfolio Connect. This is usually temporary and should resolve shortly.",
     "retrying": "Retrying...",
-    "tryAgain": "Try Again"
+    "tryAgain": "Try again"
   },
   "upgrade": {
     "title": "Upgrade to sync broker accounts",
@@ -241,7 +241,7 @@
   "providers": {
     "continueWithGoogle": "Continue with Google",
     "continueWithApple": "Continue with Apple",
-    "continueWithEmail": "Continue with Email",
+    "continueWithEmail": "Continue with email",
     "lastUsed": "Last used"
   },
   "subscription": {
@@ -249,27 +249,27 @@
     "syncPausedTooltip": "Sync paused — active subscription required",
     "syncPausedTitle": "Sync is paused",
     "syncPausedDescription": "An active subscription is required to sync. Your local data and pending changes are preserved.",
-    "comingSoon": "Coming Soon",
-    "getStarted": "Get Started",
+    "comingSoon": "Coming soon",
+    "getStarted": "Get started",
     "perMonthShort": "mo",
     "perYearShort": "yr",
     "savings": "Save {{percent}}% vs monthly",
-    "choosePlan": "Choose Your Plan",
+    "choosePlan": "Choose your plan",
     "choosePlanDescription": "Subscribe to unlock broker sync and cloud features.",
     "monthly": "Monthly",
     "yearly": "Yearly",
     "monthlyBilling": "Monthly billing",
     "yearlyBilling": "Yearly billing",
     "alreadySubscribed": "Already subscribed?",
-    "connectionIssueTitle": "Connection Issue",
+    "connectionIssueTitle": "Connection issue",
     "connectionIssueDescription": "We're having trouble connecting to your account. This can happen if your session has expired.",
-    "unableToLoadTitle": "Unable to Load Plans",
+    "unableToLoadTitle": "Unable to load plans",
     "unableToLoadDescription": "We couldn't retrieve subscription plans right now. This is usually a temporary issue.",
     "contactSupport": "Contact support",
     "emailCopied": "Email copied to clipboard",
     "reconnecting": "Reconnecting...",
     "reconnect": "Reconnect",
-    "refreshPage": "Refresh Page"
+    "refreshPage": "Refresh page"
   },
   "authCallback": {
     "processing": "Processing authentication...",
@@ -320,5 +320,13 @@
     "description": "You are connecting a different account or household. Your local portfolio data will stay, but its existing broker links and device sync setup will be removed. The new account can add broker data to this profile. Set up device sync again when you are ready. Use a new profile if you want to keep the data separate.",
     "cancel": "Cancel",
     "confirm": "Change connection"
+  },
+  "syncMessages": {
+    "runFailed": "This sync run couldn't be completed. Please retry sync or manage your broker connection.",
+    "runNeedsReview": "Some synced items need your review before sync can continue.",
+    "accountFailed": "We couldn't sync this broker account. Please retry sync or manage your broker connection.",
+    "accountNeedsReview": "Some broker data needs review. Please retry sync or manage your broker connection.",
+    "holdingsSynced": "Holdings synced, but activity sync needs attention. Please retry sync or manage your broker connection.",
+    "holdingsDeferred": "Holdings sync needs attention. Please retry sync or manage your broker connection."
   }
 }

@@ -1,16 +1,22 @@
-import { useAmountFormatting } from "@wealthfolio/ui";
-import { useMemo } from "react";
+import type { GoalHealth, GoalType } from "@/lib/types";
+import { useDateFormatting } from "@wealthfolio/ui";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import type { TFunction } from "i18next";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Area,
   AreaChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import type { GoalMilestone } from "../lib/goal-milestones";
 import type { ChartValueMode } from "./value-mode-toggle";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 export type PlannerMode = "fire" | "traditional";
 
@@ -39,6 +45,120 @@ export const CHART_COLORS = {
   foreground: "var(--foreground)",
   reference: "color-mix(in srgb, var(--muted-foreground) 58%, transparent)",
 };
+
+const MILESTONE_RADIUS = 11;
+// Keeps markers clear of the age labels under the axis.
+const MILESTONE_LIFT = 15;
+const MILESTONE_STACK = 26;
+
+// Same icons as the Create Goal templates.
+const MILESTONE_ICONS: Record<GoalType, typeof Icons.Home> = {
+  retirement: Icons.Target,
+  education: Icons.Briefcase,
+  home: Icons.Home,
+  car: Icons.Car,
+  wedding: Icons.Star,
+  custom_save_up: Icons.Wallet,
+};
+
+function milestoneColor(status: GoalHealth): string {
+  switch (status) {
+    case "on_track":
+      return "var(--success)";
+    case "at_risk":
+      return "var(--warning)";
+    case "off_track":
+      return "var(--destructive)";
+    default:
+      return CHART_COLORS.muted;
+  }
+}
+
+function milestoneStatusLabel(status: GoalHealth, t: TFunction): string | null {
+  switch (status) {
+    case "on_track":
+      return t("goals:dashboard.badge.on_track");
+    case "at_risk":
+      return t("goals:card.at_risk");
+    case "off_track":
+      return t("goals:card.off_track");
+    default:
+      return null;
+  }
+}
+
+interface ActiveMilestone {
+  milestone: GoalMilestone;
+  x: number;
+  y: number;
+}
+
+function GoalMilestoneMarker({
+  cx,
+  cy,
+  milestone,
+  label,
+  isActive,
+  onShow,
+  onHide,
+  onOpen,
+}: {
+  cx: number;
+  cy: number;
+  milestone: GoalMilestone;
+  label: string;
+  isActive: boolean;
+  onShow: (active: ActiveMilestone) => void;
+  onHide: () => void;
+  onOpen?: (goalId: string) => void;
+}) {
+  const color = milestoneColor(milestone.statusHealth);
+  const Icon = MILESTONE_ICONS[milestone.goalType] ?? Icons.Target;
+  const show = () => onShow({ milestone, x: cx, y: cy });
+  return (
+    <g
+      role={onOpen ? "link" : "img"}
+      tabIndex={0}
+      aria-label={label}
+      className={onOpen ? "cursor-pointer outline-none" : "outline-none"}
+      onMouseEnter={show}
+      onMouseLeave={onHide}
+      onFocus={show}
+      onBlur={onHide}
+      onClick={() => onOpen?.(milestone.id)}
+      onKeyDown={(event) => {
+        if (onOpen && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onOpen(milestone.id);
+        }
+      }}
+    >
+      {isActive && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={MILESTONE_RADIUS + 3}
+          fill="none"
+          stroke={color}
+          strokeOpacity={0.35}
+        />
+      )}
+      {/* Dashed: savings goals keep this money apart from the projection. */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={MILESTONE_RADIUS}
+        fill="var(--background)"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeDasharray="3 2"
+      />
+      <g transform={`translate(${cx - 6} ${cy - 6})`}>
+        <Icon size={12} color={color} />
+      </g>
+    </g>
+  );
+}
 
 interface RetirementAxisTickProps {
   x?: number | string;
@@ -118,13 +238,13 @@ function RetirementChartTooltip({
   projectedStroke,
 }: {
   active?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   payload?: any[];
   currency: string;
   valueMode: ChartValueMode;
   projectedStroke: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
@@ -227,7 +347,7 @@ function RetirementChartTooltip({
         </span>
         <span
           className={`text-xs font-semibold tabular-nums ${
-            point.netChange >= 0 ? "text-success" : "text-destructive"
+            point.netChange >= 0 ? "text-gain" : "text-loss"
           }`}
         >
           {point.netChange >= 0 ? "+" : "-"}
@@ -246,6 +366,8 @@ export function RetirementChart({
   valueMode,
   plannerMode,
   projectedIsOnTrack,
+  goalMilestones = [],
+  onOpenGoal,
 }: {
   data: ChartPoint[];
   currency: string;
@@ -254,9 +376,14 @@ export function RetirementChart({
   valueMode: ChartValueMode;
   plannerMode: PlannerMode;
   projectedIsOnTrack: boolean;
+  goalMilestones?: GoalMilestone[];
+  onOpenGoal?: (goalId: string) => void;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
+  const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
+  const [activeMilestone, setActiveMilestone] = useState<ActiveMilestone | null>(null);
+  const [chartWidth, setChartWidth] = useState(600);
   const retirementLabel = `Age ${retirementAge}`;
   const isFireMode = plannerMode === "fire";
   const eventLabel = isFireMode
@@ -304,6 +431,43 @@ export function RetirementChart({
     return data.map((point) => point.label).filter((label) => ticks.has(label));
   }, [data, retirementLabel]);
 
+  const placedMilestones = useMemo(() => {
+    // Markers closer than their own width move up a row. The plot spans the chart
+    // minus the Y axis (the side margins cancel out).
+    const yearWidth = Math.max(1, chartWidth - 48) / Math.max(1, data.length - 1);
+    const minGapYears = (2 * MILESTONE_RADIUS + 4) / yearWidth;
+    const rowLastAge: number[] = [];
+    return goalMilestones.flatMap((milestone) => {
+      const point = data.find((p) => p.age === milestone.age);
+      if (!point) return [];
+      let stack = rowLastAge.findIndex((age) => milestone.age - age >= minGapYears);
+      if (stack === -1) stack = rowLastAge.length;
+      rowLastAge[stack] = milestone.age;
+      const date = dateFormatting.formatCalendarDate(milestone.targetDate.slice(0, 10), {
+        month: "short",
+        year: "numeric",
+      });
+      const target =
+        milestone.targetAmount != null
+          ? t("goals:portfolio_chart.goal_milestone_target", {
+              amount: formatting.formatCompactAmount(milestone.targetAmount, currency),
+              date,
+            })
+          : date;
+      const status = milestoneStatusLabel(milestone.statusHealth, t);
+      const label = status
+        ? t("goals:portfolio_chart.goal_milestone_aria", { name: milestone.title, target, status })
+        : t("goals:portfolio_chart.goal_milestone_aria_no_status", {
+            name: milestone.title,
+            target,
+          });
+      return [{ milestone, point, stack, target, status, label }];
+    });
+  }, [chartWidth, currency, data, dateFormatting, formatting, goalMilestones, t]);
+  const activePlaced = activeMilestone
+    ? placedMilestones.find((placed) => placed.milestone.id === activeMilestone.milestone.id)
+    : undefined;
+
   if (data.length < 2) return null;
 
   const chartMaxValue = Math.max(
@@ -339,7 +503,7 @@ export function RetirementChart({
 
   return (
     <div className="relative">
-      <ResponsiveContainer width="100%" height={320}>
+      <ResponsiveContainer width="100%" height={320} onResize={(width) => setChartWidth(width)}>
         <AreaChart data={data} margin={{ top: 24, right: 12, left: -12, bottom: 38 }}>
           <defs>
             <linearGradient id="retirementPortfolio" x1="0" y1="0" x2="0" y2="1">
@@ -372,6 +536,7 @@ export function RetirementChart({
             domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.22)]}
           />
           <RTooltip
+            active={activeMilestone ? false : undefined}
             content={
               <RetirementChartTooltip
                 currency={currency}
@@ -430,6 +595,8 @@ export function RetirementChart({
             strokeWidth={1.5}
             fill="url(#retirementPortfolio)"
             fillOpacity={1}
+            // The hover dot can land on a goal marker; let the marker get the pointer.
+            activeDot={{ pointerEvents: "none" }}
             animationDuration={300}
             animationEasing="ease-out"
           />
@@ -499,8 +666,66 @@ export function RetirementChart({
                 />
               </>
             )}
+
+          {/* Savings goals at their target dates, drawn last so they sit on top */}
+          {placedMilestones.map(({ milestone, point }) => (
+            <ReferenceLine
+              key={`${milestone.id}-guide`}
+              segment={[
+                { x: point.label, y: 0 },
+                { x: point.label, y: point.portfolio },
+              ]}
+              stroke={milestoneColor(milestone.statusHealth)}
+              strokeOpacity={0.5}
+              strokeWidth={1}
+              strokeDasharray="2 3"
+            />
+          ))}
+          {placedMilestones.map(({ milestone, point, stack, label }) => (
+            <ReferenceDot
+              key={milestone.id}
+              x={point.label}
+              y={0}
+              ifOverflow="visible"
+              shape={(props: { cx?: number; cy?: number }) => (
+                <GoalMilestoneMarker
+                  cx={props.cx ?? 0}
+                  cy={(props.cy ?? 0) - MILESTONE_LIFT - stack * MILESTONE_STACK}
+                  milestone={milestone}
+                  label={label}
+                  isActive={activeMilestone?.milestone.id === milestone.id}
+                  onShow={setActiveMilestone}
+                  onHide={() => setActiveMilestone(null)}
+                  onOpen={onOpenGoal}
+                />
+              )}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
+      {activeMilestone && activePlaced && (
+        // SVG coordinates are physical, so this card is placed with physical left/top.
+        <div
+          className={`bg-popover pointer-events-none absolute z-10 w-max max-w-56 -translate-y-full rounded-md border p-2.5 text-xs shadow-md ${
+            activeMilestone.x < 112 ? "-translate-x-3" : "-translate-x-1/2"
+          }`}
+          style={{ left: activeMilestone.x, top: activeMilestone.y - MILESTONE_RADIUS - 6 }}
+        >
+          <p className="font-medium">{activeMilestone.milestone.title}</p>
+          <p className="text-muted-foreground tabular-nums">{activePlaced.target}</p>
+          {activePlaced.status && (
+            <p
+              className="font-medium"
+              style={{ color: milestoneColor(activeMilestone.milestone.statusHealth) }}
+            >
+              {activePlaced.status}
+            </p>
+          )}
+          <p className="text-muted-foreground mt-1">
+            {t("goals:portfolio_chart.goal_milestone_not_projected")}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

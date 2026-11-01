@@ -222,7 +222,12 @@
     "to_market_data": "Ver dados de mercado",
     "to_general_settings": "Abrir configurações gerais",
     "to_connect": "Configurar contas",
-    "review_transfers": "Revisar transferências"
+    "review_transfers": "Revisar transferências",
+    "rebuild_account_history": "Reconstruir histórico",
+    "add_price": "Adicionar preço",
+    "update_cost_basis": "Atualizar base de custo",
+    "review_transaction": "Revisar transação",
+    "review_entry": "Rever registo"
   },
   "updatedAt": "Atualizado {{time}}",
   "healthy": {

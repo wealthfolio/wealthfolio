@@ -17,10 +17,12 @@ import { TransferMatchDialog } from "../transfer-match-dialog";
 import { isSameAccountCashFxConversion, nonCashTransferAssetKey } from "../transfer-link-utils";
 import { ActivityDeleteModal } from "../activity-delete-modal";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
+import { isConversionActivity } from "../../utils/conversion-counterpart";
 import { buildSameAccountFxDuplicate } from "../../utils/duplicate-fx-transfer";
 import { ActivityDataGridPagination } from "./activity-data-grid-pagination";
 import { ActivityDataGridToolbar } from "./activity-data-grid-toolbar";
 import {
+  applyAutomaticFinalAmount,
   applyTransactionUpdate,
   createCurrencyResolver,
   createDraftTransaction,
@@ -162,6 +164,12 @@ export function ActivityDataGrid({
     return lookup;
   }, [dirtyTransactionIds, fallbackCurrency, localTransactions, resolveTransactionCurrency]);
 
+  const {
+    duplicateActivityMutation,
+    linkTransferActivitiesMutation,
+    unlinkTransferActivitiesMutation,
+  } = useActivityMutations();
+
   // Row operations
   const handleDuplicate = useCallback(
     async (activity: ActivityDetails) => {
@@ -176,37 +184,41 @@ export function ActivityDataGrid({
         toast({ title: t("activity:datagrid.save_edits_first"), variant: "destructive" });
         return;
       }
+      // A conversion is duplicated whole and saved at once, as the list's
+      // Duplicate does: its two rows are written together.
+      if (isConversionActivity(activity)) {
+        duplicateActivityMutation.mutate(activity);
+        return;
+      }
       const now = new Date();
       const source = toLocalTransaction(activity);
       try {
         const exchange = await buildSameAccountFxDuplicate(activity);
         if (exchange) {
-          const duplicates = exchange.map(
-            (leg): LocalTransaction => ({
-              ...source,
-              id: generateTempActivityId(),
-              idempotencyKey: leg.idempotencyKey,
-              sourceGroupId: leg.sourceGroupId,
-              activityType: leg.activityType,
-              date: leg.activityDate,
-              createdAt: now,
-              updatedAt: now,
-              isNew: true,
-              status: ActivityStatus.POSTED,
-              needsReview: false,
-              amount: leg.amount ?? null,
-              currency: leg.currency,
-              fee: leg.fee ?? null,
-              tax: leg.tax,
-              fxRate: leg.fxRate,
-              comment: leg.comment ?? undefined,
-              assetId: "",
-              assetSymbol: "CASH",
-              isExternal: false,
-              metadata: { flow: { is_external: false } },
-              _amountEdited: true,
-            }),
-          );
+          const duplicates = exchange.map((leg): LocalTransaction => ({
+            ...source,
+            id: generateTempActivityId(),
+            idempotencyKey: leg.idempotencyKey,
+            sourceGroupId: leg.sourceGroupId,
+            activityType: leg.activityType,
+            date: leg.activityDate,
+            createdAt: now,
+            updatedAt: now,
+            isNew: true,
+            status: ActivityStatus.POSTED,
+            needsReview: false,
+            amount: leg.amount ?? null,
+            currency: leg.currency,
+            fee: leg.fee ?? null,
+            tax: leg.tax,
+            fxRate: leg.fxRate,
+            comment: leg.comment ?? undefined,
+            assetId: "",
+            assetSymbol: "CASH",
+            isExternal: false,
+            metadata: { flow: { is_external: false } },
+            _amountEdited: true,
+          }));
           setLocalTransactions((prev) => [...duplicates, ...prev]);
           markDirtyBatch(duplicates.map((row) => row.id));
           return;
@@ -236,6 +248,7 @@ export function ActivityDataGrid({
       localTransactions,
       dirtyTransactionIds,
       pendingDeleteIds,
+      duplicateActivityMutation,
       t,
     ],
   );
@@ -339,7 +352,8 @@ export function ActivityDataGrid({
           const row = updated[rowIndex];
           dirtyId = row.id;
           const currency = provisionalCurrency ?? row.accountCurrency ?? fallbackCurrency;
-          updated[rowIndex] = {
+          // A pick sets the currency and instrument type the amount rounds by.
+          updated[rowIndex] = applyAutomaticFinalAmount({
             ...row,
             assetSymbol: canonicalSymbol,
             exchangeMic: canonicalExchangeMic,
@@ -355,7 +369,7 @@ export function ActivityDataGrid({
             pendingProviderId: result.providerId,
             pendingProviderSymbol: result.providerSymbol,
             _instrumentTypeFromPick: true,
-          };
+          });
         }
         return updated;
       });
@@ -411,7 +425,7 @@ export function ActivityDataGrid({
             didUpdate = true;
             updatedRowId = row.id;
             const updated = [...prev];
-            updated[index] = { ...row, ...changes };
+            updated[index] = applyAutomaticFinalAmount({ ...row, ...changes });
             return updated;
           });
 
@@ -445,7 +459,8 @@ export function ActivityDataGrid({
           const row = updated[rowIndex];
           dirtyId = row.id;
           const currency = result.currency ?? row.accountCurrency ?? fallbackCurrency;
-          updated[rowIndex] = {
+          // A pick sets the currency and instrument type the amount rounds by.
+          updated[rowIndex] = applyAutomaticFinalAmount({
             ...row,
             assetSymbol: canonicalSymbol,
             exchangeMic: canonicalExchangeMic,
@@ -460,7 +475,7 @@ export function ActivityDataGrid({
             pendingProviderId: result.providerId,
             pendingProviderSymbol: result.providerSymbol,
             _instrumentTypeFromPick: true,
-          };
+          });
         }
         return updated;
       });
@@ -489,6 +504,17 @@ export function ActivityDataGrid({
           title: t("activity:datagrid.save_edits_first"),
           description: t("activity:datagrid.edit_transfer_pair"),
         });
+        return;
+      }
+      // The form saves both rows of a conversion: grid edits to either would
+      // be sent again over what the form saved.
+      if (
+        isConversionActivity(activity) &&
+        localTransactions.some(
+          (row) => row.sourceGroupId === activity.sourceGroupId && dirtyTransactionIds.has(row.id),
+        )
+      ) {
+        toast({ title: t("activity:datagrid.save_edits_first") });
         return;
       }
       onEditActivity(activity);
@@ -655,8 +681,6 @@ export function ActivityDataGrid({
   );
 
   // Link state: validate that the 2-row selection is a valid TRANSFER_IN/TRANSFER_OUT pair
-  const { linkTransferActivitiesMutation, unlinkTransferActivitiesMutation } =
-    useActivityMutations();
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferDialogMode, setTransferDialogMode] = useState<"link" | "unlink">("link");
 
@@ -753,8 +777,13 @@ export function ActivityDataGrid({
     return { canUnlink: true, transferIn, transferOut } as const;
   }, [selectedRows, dirtyTransactionIds, t]);
 
+  // Two rows of a conversion share a group too, but are no transfer to unlink.
   const showUnlinkSelected = useMemo(
-    () => selectedRows.length === 2 && selectedRows.every((row) => !!row.original.sourceGroupId),
+    () =>
+      selectedRows.length === 2 &&
+      selectedRows.every(
+        (row) => !!row.original.sourceGroupId && !isConversionActivity(row.original),
+      ),
     [selectedRows],
   );
 
@@ -1024,6 +1053,7 @@ export function ActivityDataGrid({
       <ActivityDeleteModal
         isOpen={!!pendingDeleteActivity}
         linkedTransfer={true}
+        conversion={isConversionActivity(pendingDeleteActivity ?? undefined)}
         onConfirm={() => {
           if (pendingDeleteActivity) {
             executePairedDelete(pendingDeleteActivity);

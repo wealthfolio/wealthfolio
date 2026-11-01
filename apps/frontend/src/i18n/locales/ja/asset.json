@@ -12,7 +12,6 @@
     "more": "その他"
   },
   "securities": {
-    "heading": "銘柄",
     "subtitle": "ポートフォリオで利用できる銘柄を閲覧・管理します。",
     "add_security": "銘柄を追加",
     "delete_title": "銘柄を削除",
@@ -64,7 +63,7 @@
       "symbol_required": "銘柄コードは必須です",
       "symbol_max": "銘柄コードは100文字以内で入力してください",
       "name_required": "名称は必須です",
-      "name_max": "名称は100文字以内で入力してください",
+      "name_max": "名称は200文字以内で入力してください",
       "instrument_type_required": "商品タイプは必須です",
       "currency_required": "通貨は必須です"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "例: SBER, AFLT",
+    "moex_symbol_hint": "接頭辞や接尾辞のない MOEX 銘柄コードを使用してください。取引所は Moscow Exchange (MISX) に設定してください。",
     "identity_conflict": "同じ識別情報の資産がすでに存在します。変更は保存されませんでした。既存の資産を使用するか、別の取引所を選択してください。",
     "general": "基本情報",
     "classification": "分類",
@@ -697,6 +698,18 @@
       "precious_metal": "貴金属",
       "liability": "負債",
       "other": "その他"
+    },
+    "validation": {
+      "name_is_required": "名前は必須です",
+      "quantity_must_be_greater_than_0": "数量は 0 より大きくなければなりません",
+      "purchase_price_must_be_greater_than_0": "購入価格は0より大きくなければなりません",
+      "notes_must_be_less_than_1000_characters": "メモは 1000 文字未満にする必要があります",
+      "address_must_be_less_than_200_characters": "住所は 200 文字未満である必要があります",
+      "interest_rate_must_be_100_or_less": "金利は 100 以下でなければなりません",
+      "name_must_be_less_than_100_characters": "名前は 100 文字未満にする必要があります",
+      "interest_rate_must_be_0_or_greater": "金利は 0 以上である必要があります",
+      "description_must_be_less_than_200_characters": "説明は 200 文字未満にする必要があります",
+      "original_amount_must_be_greater_than_0": "元の金額は 0 より大きくなければなりません"
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "この評価額に関する補足(査定元、市況など)を入力",
     "cancel": "キャンセル",
     "update_value": "評価額を更新",
-    "na": "N/A"
+    "na": "N/A",
+    "validation": {
+      "number": "評価額は数値で入力してください。",
+      "non_negative": "評価額は負の値にできません",
+      "notes": "メモは500文字以内で入力してください"
+    }
   },
   "valueHistory": {
     "date": "日付",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "支払額にはゼロより大きい値を入力してください。",
     "payment_unavailable": "この条件では支払額を計算できません。金額、金利、返済期間を確認してください。",
     "fields_read_only": "ローンの条件はローンの詳細でのみ変更できます。"
+  },
+  "notifications": {
+    "profile_updated": "資産情報を更新しました。",
+    "quote_mode_updated": "資産の価格モードを更新しました。",
+    "profile_failed": "資産情報を更新できませんでした。",
+    "quote_mode_failed": "価格モードを更新できませんでした。",
+    "quote_added": "価格を追加しました。",
+    "quote_updated": "価格を更新しました。",
+    "quote_deleted": "価格を削除しました。",
+    "quote_save_failed": "価格を保存できませんでした。",
+    "quote_delete_failed": "価格を削除できませんでした。"
+  },
+  "noQuote": {
+    "manual": "価格モードは手動です",
+    "inactive": "資産は無効です",
+    "matured": "債券は満期を迎えました",
+    "expired": "オプションは満期を迎えました",
+    "paused": "エラーの繰り返しにより同期を一時停止しています",
+    "pending": "データ提供元の価格はまだ同期されていません",
+    "no_data": "データ提供元のデータはまだありません"
   }
 }

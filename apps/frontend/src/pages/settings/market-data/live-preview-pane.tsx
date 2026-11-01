@@ -26,6 +26,7 @@ import {
 } from "./template-placeholders";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 interface LivePreviewPaneProps {
   form: UseFormReturn<FormValues>;
@@ -53,7 +54,7 @@ const MAPPING_META: {
   },
   {
     field: "currencyPath",
-    labelKey: "settings:market_data_page.field_currency",
+    labelKey: "common:currency",
     color: "bg-amber-500",
     required: false,
   },
@@ -157,7 +158,7 @@ function StatusPill({
   const { t } = useTranslation();
   if (isFetching) {
     return (
-      <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs">
+      <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs whitespace-nowrap">
         <Spinner className="h-3 w-3" />
         {t("settings:market_data_page.fetching")}
       </span>
@@ -165,22 +166,22 @@ function StatusPill({
   }
   if (error || status?.ok === false) {
     return (
-      <span className="text-destructive-subtle-foreground bg-destructive-subtle inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent px-3 py-1 text-xs">
+      <span className="text-destructive-subtle-foreground bg-destructive-subtle inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 text-xs whitespace-nowrap">
         <span className="bg-destructive h-1.5 w-1.5 rounded-full" />
-        {t("settings:market_data_page.status_error")}
+        {t("common:error")}
       </span>
     );
   }
   if (status?.ok) {
     return (
-      <span className="text-success-subtle-foreground bg-success-subtle inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent px-3 py-1 text-xs">
+      <span className="text-success-subtle-foreground bg-success-subtle inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 text-xs whitespace-nowrap">
         <span className="bg-success h-1.5 w-1.5 rounded-full" />
         {t("settings:market_data_page.status_ok", { code: status.code })}
       </span>
     );
   }
   return (
-    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs">
+    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs whitespace-nowrap">
       <span className="bg-muted-foreground/40 h-1.5 w-1.5 rounded-full" />
       {t("settings:market_data_page.status_idle")}
     </span>
@@ -190,7 +191,7 @@ function StatusPill({
 function EmptyResponseState() {
   const { t } = useTranslation();
   return (
-    <div className="min-h-55 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center">
+    <div className="flex min-h-55 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center">
       <Icons.Target className="text-muted-foreground/40 h-6 w-6" />
       <div className="space-y-1">
         <p className="text-muted-foreground text-sm">
@@ -266,7 +267,7 @@ function HtmlTableResponse({
     <div className="space-y-3">
       {/* Table selector — shown always when html_table, as a legend + switcher */}
       <div className="flex flex-wrap items-center gap-1">
-        <span className="text-muted-foreground text-2xs me-1 font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs me-1 font-medium tracking-wide uppercase">
           {t("settings:market_data_page.table")}
         </span>
         {tables.map((tbl, i) => (
@@ -352,7 +353,7 @@ function CsvResponse({ raw, runtime }: { raw: string; runtime: SourceRuntime }) 
   const { headers, rows } = useMemo(() => parseCsv(raw), [raw]);
   if (headers.length === 0) {
     return (
-      <pre className="bg-background max-h-105 overflow-auto whitespace-pre-wrap rounded-lg border p-3 font-mono text-xs">
+      <pre className="bg-background max-h-105 overflow-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap">
         {raw.slice(0, 3000)}
       </pre>
     );
@@ -516,7 +517,7 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
   const handleCopy = async () => {
     if (disabled || !text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -555,7 +556,7 @@ function ExtractedRow({
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <span className={cn("h-2 w-2 shrink-0 rounded-sm", color)} />
-      <span className="text-muted-foreground w-16 shrink-0 text-xs font-medium uppercase tracking-wide">
+      <span className="text-muted-foreground w-16 shrink-0 text-xs font-medium tracking-wide uppercase">
         {label}
       </span>
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
@@ -581,7 +582,7 @@ function TestField({
 }) {
   return (
     <div className={cn("space-y-1", className)}>
-      <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+      <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
         {label}
       </Label>
       {children}
@@ -646,7 +647,7 @@ function FieldMappingRow({
           {t("settings:market_data_page.required")}
         </span>
       ) : (
-        <span className="text-muted-foreground text-2xs shrink-0 font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs shrink-0 font-medium tracking-wide uppercase">
           {t("settings:market_data_page.optional")}
         </span>
       )}
@@ -723,7 +724,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Request URL preview */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {t("settings:market_data_page.request_url_preview")}
           </Label>
           <span className="text-muted-foreground text-2xs">
@@ -743,7 +744,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Request body preview (POST only) */}
       {method === "POST" && (
         <section className="space-y-2">
-          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {t("settings:market_data_page.request_body_preview")}
           </Label>
           <div className="bg-background relative min-h-10 rounded-lg border px-3 py-2 pe-10">
@@ -835,7 +836,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Response */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {t("settings:market_data_page.response")} · {formatLabel}
           </Label>
           {runtime.detectedTables[0] && (
@@ -888,7 +889,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Extraction preview — verifies the current mapping against the response */}
       {runtime.testResult && (
         <section className="space-y-2">
-          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {t("settings:market_data_page.extracted")}
           </Label>
           {runtime.testResult.success ? (
@@ -998,7 +999,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Field mapping */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {isHistorical
               ? t("settings:market_data_page.field_mapping_historical")
               : t("settings:market_data_page.field_mapping_latest")}

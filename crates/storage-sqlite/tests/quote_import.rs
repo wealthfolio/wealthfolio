@@ -2,6 +2,8 @@
 //! the manual quotes the import saves, and the one recalculation event per
 //! saving batch.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use std::sync::Arc;
 
 use chrono::{Duration, NaiveDate, Utc};
@@ -46,14 +48,14 @@ struct Fixture {
     >,
     store: Arc<MarketDataRepository>,
     events: MockDomainEventSink,
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
 }
 
 const FUND: &str = "fund";
 const HOUSE: &str = "house";
 
 async fn fixture() -> Fixture {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

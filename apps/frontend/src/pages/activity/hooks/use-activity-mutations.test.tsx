@@ -398,3 +398,9 @@ describe("useActivityMutations", () => {
     );
   });
 });
+
+vi.mock("@/features/spending/components/activity-split-review-provider", () => ({
+  useActivitySplitReview: () => async (updates: unknown[]) => updates,
+  useInternalTransferPairSplitReview: () => async (request: unknown) => request,
+  isActivityEditCancelled: () => false,
+}));

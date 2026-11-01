@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // Library-specific settings
+    "rootDir": ".",
+    "types": ["react", "react-dom"],
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
@@ -11,7 +13,6 @@
     "noImplicitOverride": false, // Allow class components without override
 
     // Path mapping for UI package
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

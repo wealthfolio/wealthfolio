@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import type { DriftReport, DriftRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -22,9 +23,10 @@ import { isOutOfBand } from "./drift-row-utils";
 
 interface DriftDriversCardProps {
   report: DriftReport;
+  taxonomyId: string;
   statusDescription: string;
   bandLabel?: string | null;
-  onRebalanceClick?: () => void;
+  onWorksheetClick?: () => void;
 }
 
 function formatPercent(bps: number, decimals = 1): string {
@@ -69,21 +71,12 @@ function buildDriver(
   };
 }
 
-function markerTextColor(color: string): string {
-  const hex = color.replace("#", "");
-  if (hex.length !== 6) return "var(--background)";
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance > 0.58 ? "var(--foreground)" : "var(--background)";
-}
-
 export function DriftDriversCard({
   report,
+  taxonomyId,
   statusDescription,
   bandLabel,
-  onRebalanceClick,
+  onWorksheetClick,
 }: DriftDriversCardProps) {
   const amountFormatting = useAmountFormatting();
 
@@ -94,7 +87,7 @@ export function DriftDriversCard({
     .sort((a, b) => Math.abs(b.driftBps) - Math.abs(a.driftBps));
   const visibleRows = oobRows.slice(0, 3);
   const remainingRows = oobRows.slice(3);
-  const showRebalanceCta = Boolean(onRebalanceClick);
+  const showWorksheetCta = Boolean(onWorksheetClick);
 
   return (
     <Card className="flex h-full flex-col">
@@ -113,12 +106,20 @@ export function DriftDriversCard({
       <CardContent className="flex flex-1 flex-col">
         {oobRows.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            {t("allocation:drivers.noActionRequired", { status: statusDescription })}
+            {t("allocation:drivers.noneOutsideRange")}
           </p>
         ) : (
           <ul className="space-y-3">
             {visibleRows.map((row, index) => {
-              const driver = buildDriver(row, report.baseCurrency, t, amountFormatting);
+              const driver = buildDriver(
+                {
+                  ...row,
+                  categoryName: getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName),
+                },
+                report.baseCurrency,
+                t,
+                amountFormatting,
+              );
               const rowColor = allocationTargetColorForRow(row, colorByCategory, index);
               return (
                 <li key={row.categoryId} className="bg-muted/35 rounded-lg px-3.5 py-3">
@@ -126,14 +127,17 @@ export function DriftDriversCard({
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span
                         className="text-2xs flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full font-bold tabular-nums"
+                        // A tint of the category colour with its ring, so the
+                        // number reads in the foreground whatever the theme.
                         style={{
-                          backgroundColor: rowColor,
-                          color: markerTextColor(rowColor),
+                          backgroundColor: `color-mix(in oklab, ${rowColor} 22%, var(--card))`,
+                          boxShadow: `inset 0 0 0 1px ${rowColor}`,
+                          color: "var(--foreground)",
                         }}
                       >
                         {index + 1}
                       </span>
-                      <p className="text-foreground truncate text-sm font-semibold leading-snug">
+                      <p className="text-foreground truncate text-sm leading-snug font-semibold">
                         {driver.title}
                       </p>
                     </div>
@@ -160,17 +164,17 @@ export function DriftDriversCard({
                 <span className="px-1.5">·</span>
                 {remainingRows
                   .map((row) => {
-                    return `${row.categoryName} ${formatPp(row.driftBps)}`;
+                    return `${getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)} ${formatPp(row.driftBps)}`;
                   })
                   .join(" · ")}
               </li>
             )}
           </ul>
         )}
-        {showRebalanceCta && (
+        {showWorksheetCta && (
           <div className="mt-auto pt-4">
-            <Button size="sm" onClick={onRebalanceClick} className="w-fit">
-              {t("allocation:drivers.reviewRebalance")}
+            <Button size="sm" onClick={onWorksheetClick} className="w-fit">
+              {t("allocation:drivers.openWorksheet")}
             </Button>
           </div>
         )}

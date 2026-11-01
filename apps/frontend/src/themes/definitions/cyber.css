@@ -1,0 +1,200 @@
+/* @name Cyber */
+/* @mode dark */
+:root {
+  --radius: 0.25rem;
+  /* Tight corners; elevation reads as emission, a hairline in the accent hue
+     plus a soft bloom. */
+  --button-radius: 0.25rem;
+  --control-radius: 0.25rem;
+  --control-height: 2.5rem;
+  --card-radius: 0.25rem;
+  --card-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 4px 24px color-mix(in srgb, var(--primary) 8%, transparent);
+  --popup-radius: 0.25rem;
+  --dialog-radius: 0.25rem;
+  --badge-radius: 0.125rem;
+  --segmented-radius: 0.25rem;
+  --background: #f2f7f9;
+  --foreground: #0d2129;
+  --card: #ffffff;
+  --card-foreground: #0d2129;
+  --popover: #ffffff;
+  --popover-foreground: #0d2129;
+  --primary: #1c6c66;
+  --primary-foreground: #ffffff;
+  --secondary: #d9e8ec;
+  --secondary-foreground: #234c57;
+  --muted: #e3eef1;
+  --muted-foreground: #3d616c;
+  --accent: #d5eae8;
+  --accent-foreground: #12403c;
+  --destructive: #a3266b;
+  --destructive-foreground: #ffffff;
+  --success: #1c6c66;
+  --success-foreground: #ffffff;
+  --warning: #6f5206;
+  --warning-foreground: #ffffff;
+  /* Badges, alerts and toasts on success or destructive: a tint of the theme's teal
+     and magenta, so gain and loss badges match the gain and loss text beside them. */
+  --success-subtle: #e9f0ef;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #c1d4d2;
+  --destructive-subtle: #f8eaef;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #eac4d3;
+  --border: #c2d9de;
+  --input: #a4c3ca;
+  --input-bg: #ffffff;
+  --ring: #1c6c66;
+  /* Flexoki extended: cyan / blue / purple / magenta. */
+  --chart-1: #1c6c66;
+  --chart-2: #205ea6;
+  --chart-3: #735eb5;
+  --chart-4: #b74583;
+  --chart-5: #3aa99f;
+  --chart-6: #4385be;
+  --chart-7: #8b7ec8;
+  --chart-8: #ce5d97;
+  --chart-9: #6f9aa6;
+  --chart-stone: #6f9aa6;
+  /* Series (lines and markers) follow the chart colours; those under 3:1 on the
+     page or card are darkened to reach it, keeping their hue. */
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-5: #279b91;
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  /* Spending in teal and blue; Net Worth in the magenta of the chart palette. */
+  --spending-accent: #1c6c66;
+  --spending-deep: #1c6c66;
+  --spending-mid: #205ea6;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
+  --net-worth: #b74583;
+  --sidebar: #e9f3f5;
+  --sidebar-foreground: #0d2129;
+  --sidebar-primary: #1c6c66;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d5eae8;
+  --sidebar-accent-foreground: #12403c;
+  --sidebar-border: #c2d9de;
+  --sidebar-ring: #1c6c66;
+  --toast-border: #c2d9de;
+  --fi-stream-1: #1c6c66;
+  --fi-stream-2: #205ea6;
+  --fi-stream-3: #735eb5;
+  --fi-stream-4: #b74583;
+  --fi-stream-5: #3aa99f;
+  --heatmap-accent: #1c6c66;
+  --status-warn: #205ea6;
+  --event-default: #1c6c66;
+  --event-today: #b74583;
+  /* Primary buttons emit their accent. */
+  --button-shadow: 0 0 14px 1px color-mix(in srgb, var(--primary) 45%, transparent);
+  --heatmap-positive-low: #a2dece;
+  --heatmap-positive-high: #1c6c66;
+  --heatmap-negative-low: #f9b9cf;
+  --heatmap-negative-high: #87285e;
+  /* Blue losses when the Gain and loss colours setting draws them in blue: the
+     negative ramp turned to Flexoki blue's hue in OKLCH, same lightness. The ramps
+     serve both modes. */
+  --heatmap-blue-low: #add1ff;
+  --heatmap-blue-high: #04519d;
+  /* Treemap middle stops halfway between low and high, so the ramp stays a straight
+     blend. Dark mode mixes its own low and high. */
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  /* Dark enough that one of the two labels reads 4.1:1 on every tile (4.16:1 where
+     both are closest); #06201e left mid-tone tiles at 3.99:1. */
+  --heatmap-label-dark: #031614;
+  --heatmap-label-light: #f2f8f9;
+}
+
+/* After dark the grid lights up — this is the mode the theme was drawn for. */
+.dark {
+  --background: #0b0f14;
+  --foreground: #d3e3e8;
+  --card: #111820;
+  --card-foreground: #d3e3e8;
+  --popover: #151d26;
+  --popover-foreground: #d3e3e8;
+  --primary: #5abdac;
+  --primary-foreground: #04100f;
+  --secondary: #1c2733;
+  --secondary-foreground: #9fc3cf;
+  --muted: #131b24;
+  --muted-foreground: #92adbb;
+  --accent: #17222d;
+  --accent-foreground: #87d3c3;
+  --destructive: #ce5d97;
+  --destructive-foreground: #1a0713;
+  --success: #5abdac;
+  --success-foreground: #04100f;
+  --warning: #d0a215;
+  --warning-foreground: #1a1403;
+  /* Badge text in a lighter shade of the magenta, 5.6:1 on its tint where the
+     magenta reads 4.7:1, for the badges' light-weight figures. */
+  --success-subtle: #04201c;
+  --success-subtle-border: #0f473f;
+  --destructive-subtle: #27141d;
+  --destructive-subtle-foreground: #de6ba5;
+  --destructive-subtle-border: #5b2a43;
+  --border: #1f2c39;
+  --input: #2a3947;
+  --input-bg: #111820;
+  --ring: #3aa99f;
+  --chart-1: #5abdac;
+  --chart-2: #66a0c8;
+  --chart-3: #a699d0;
+  --chart-4: #ce5d97;
+  --chart-5: #87d3c3;
+  --chart-6: #4385be;
+  --chart-7: #8b7ec8;
+  --chart-8: #e0879f;
+  --chart-9: #7f9fae;
+  --chart-stone: #7f9fae;
+  --spending-accent: #3aa99f;
+  --spending-deep: #3aa99f;
+  --spending-mid: #66a0c8;
+  --investments: var(--gain);
+  --net-worth: #ce5d97;
+  /* In dark mode every chart colour reaches 3:1 as it is. */
+  --series-5: var(--chart-5);
+  --sidebar: #080c11;
+  --sidebar-foreground: #d3e3e8;
+  --sidebar-primary: #5abdac;
+  --sidebar-primary-foreground: #04100f;
+  --sidebar-accent: #17222d;
+  --sidebar-accent-foreground: #87d3c3;
+  --sidebar-border: #1f2c39;
+  --sidebar-ring: #3aa99f;
+  --toast-border: #2a3947;
+  --fi-stream-1: #5abdac;
+  --fi-stream-2: #66a0c8;
+  --fi-stream-3: #a699d0;
+  --fi-stream-4: #ce5d97;
+  --fi-stream-5: #87d3c3;
+  --heatmap-accent: #3aa99f;
+  --status-warn: #4385be;
+  --event-default: #3aa99f;
+  --event-today: #ce5d97;
+}
+
+/* The current page's navigation icon emits its accent. */
+:root [aria-current="page"] svg {
+  color: var(--primary);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 70%, transparent));
+}

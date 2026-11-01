@@ -64,8 +64,8 @@
     "create_first_goal": "Create your first goal",
     "more_goals_one": "+{{count}} more goal",
     "more_goals_other": "+{{count}} more goals",
-    "time_no_deadline": "NO DEADLINE",
-    "time_due": "DUE"
+    "time_no_deadline": "No deadline",
+    "time_due": "Due"
   },
   "tabs": {
     "investments": "Investments",

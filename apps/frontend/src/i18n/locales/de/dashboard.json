@@ -64,8 +64,8 @@
     "create_first_goal": "Erstes Ziel anlegen",
     "more_goals_one": "+{{count}} weiteres Ziel",
     "more_goals_other": "+{{count}} weitere Ziele",
-    "time_no_deadline": "KEINE FRIST",
-    "time_due": "FÄLLIG"
+    "time_no_deadline": "Keine Frist",
+    "time_due": "Fällig"
   },
   "tabs": {
     "investments": "Anlagen",

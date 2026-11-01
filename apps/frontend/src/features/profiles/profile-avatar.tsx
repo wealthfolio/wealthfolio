@@ -63,7 +63,7 @@ function AvatarArtwork({ id, className }: { id: string; className?: string }) {
             }}
           >
             <span className="profile-sculpture-eye block size-full overflow-hidden rounded-full">
-              <span className="profile-sculpture-pupil relative left-[28%] top-[21%] block h-[60%] w-[47%] rounded-full" />
+              <span className="profile-sculpture-pupil relative top-[21%] left-[28%] block h-[60%] w-[47%] rounded-full" />
             </span>
           </span>
         ))}
@@ -136,7 +136,7 @@ function AvatarArtwork({ id, className }: { id: string; className?: string }) {
             }}
           >
             <span className="profile-sculpture-eye block size-full overflow-hidden rounded-full">
-              <span className="profile-sculpture-pupil relative left-[28%] top-[21%] block h-[60%] w-[47%] rounded-full" />
+              <span className="profile-sculpture-pupil relative top-[21%] left-[28%] block h-[60%] w-[47%] rounded-full" />
             </span>
           </span>
         ))}
@@ -186,7 +186,7 @@ function AvatarArtwork({ id, className }: { id: string; className?: string }) {
               style={{ left: `${x}%`, top: `${y}%`, width: `${width}%`, height: `${height}%` }}
             >
               <span className="profile-sculpture-eye block size-full overflow-hidden rounded-full">
-                <span className="profile-sculpture-pupil relative left-[28%] top-[21%] block h-[60%] w-[47%] rounded-full" />
+                <span className="profile-sculpture-pupil relative top-[21%] left-[28%] block h-[60%] w-[47%] rounded-full" />
               </span>
             </span>
           ))}

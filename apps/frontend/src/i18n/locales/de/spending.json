@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "Notwendiges",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "Wünsche",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "Sparen",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "Spenden",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "Persönliches",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "Sonstiges"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "Reisen",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "Urlaub",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "Geschäftlich",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "Bildung",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "Medizinisch",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Besonderer Anlass",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Sonstiges"
+  },
   "common": {
     "amount": "Betrag",
     "min": "Min",
@@ -64,6 +81,11 @@
     "editTitle": "Regel bearbeiten",
     "addTitle": "Regel hinzufügen",
     "editDescription": "Aktivitäten automatisch nach Namensmuster kennzeichnen. Bei mehreren Treffern gewinnen Regeln mit höherer Priorität.",
+    "categoryCompatibilityHint": "Kategorien richten sich nach dem Geldfluss der Transaktion. Sparkategorien gelten nur für verknüpfte Überweisungen aus Ihren für Ausgaben erfassten Konten.",
+    "runIncompatible": "Unpassende Kategorien: {{count}}. Kategorien richten sich nach dem Geldfluss der Transaktion. Sparkategorien gelten nur für verknüpfte Überweisungen aus Ihren für Ausgaben erfassten Konten.",
+    "runProtected": "Bestehende Kategorien oder Aufteilungen beibehalten: {{count}}.",
+    "runUnchanged": "Bereits wie gewünscht kategorisiert: {{count}}.",
+    "runWithoutTarget": "Treffer ohne Zielkategorie: {{count}}.",
     "matchContains": "enthält",
     "matchStartsWith": "beginnt mit",
     "matchExact": "exakt",
@@ -172,6 +194,7 @@
     "income": "Einnahmen",
     "spending": "Ausgaben",
     "saving": "Sparen",
+    "netSaved": "Netto gespart",
     "net": "Netto"
   },
   "insights": {
@@ -420,6 +443,7 @@
     "customSubtitle": "Transaktionen im ausgewählten Zeitraum"
   },
   "split": {
+    "staleTaxonomy": "Diese Aufteilungen verwenden einen früheren Kategorietyp. Sie gelten nicht mehr für diese Transaktion.",
     "title": "Transaktion aufteilen",
     "transactionFallback": "Transaktion",
     "remainingOf": "Verbleibend von {{amount}}",
@@ -428,7 +452,11 @@
     "removeLine": "Aufteilungszeile {{number}} entfernen",
     "addLine": "Zeile hinzufügen",
     "distributeEvenly": "Gleichmäßig verteilen",
-    "clearSplit": "Aufteilung löschen"
+    "clearSplit": "Aufteilung löschen",
+    "replaceWithCategory": "Aufteilungen durch eine Kategorie ersetzen",
+    "replaceDescription_one": "{{count}} Aufteilung durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "replaceDescription_other": "{{count}} Aufteilungen durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "categoryProtected": "Aufteilungen sind geschützt. Bearbeiten oder ersetzen Sie sie ausdrücklich im Aufteilungseditor."
   },
   "hierarchy": {
     "noCategorizedSpending": "Keine kategorisierten Ausgaben in diesem Zeitraum.",
@@ -721,8 +749,6 @@
     "overspentBy": "Zu viel ausgegeben um {{pct}}",
     "noIncome": "Keine Einnahmen in den ausgewählten Konten für diesen Zeitraum.",
     "spent": "Ausgegeben",
-    "saved": "Gespart",
-    "setAside": "Zurückgelegt",
     "sortSpent": "ausgegeben",
     "sortChange": "Änderung",
     "sortName": "Name",
@@ -767,6 +793,8 @@
       "total": "Summe",
       "shortfall": "Fehlbetrag",
       "refunds": "Nettoerstattungen",
+      "fromSavings": "Aus Ersparnissen",
+      "toSavings": "In Ersparnisse",
       "surplus": "Übrig",
       "uncategorizedIncome": "Nicht kategorisierte Einnahmen",
       "netSpending": "Nettoausgaben"
@@ -777,6 +805,7 @@
       "shortfall": "Ausgaben und Sparen über die Eingänge hinaus.",
       "refunds": "Kategorien, in denen Erstattungen die Ausgaben überstiegen.",
       "saved": "Auf Spar- und Anlagekonten übertragen.",
+      "fromSavings": "Von Spar- und Anlagekonten zurückgeholt.",
       "surplus": "Eingegangen, aber weder ausgegeben noch zurückgelegt.",
       "uncategorized": "Ausgaben, die noch keine Kategorie haben.",
       "net": "Was diese Kategorie nach Erstattungen gekostet hat.",
@@ -941,8 +970,6 @@
     "uncategorizedReview": "Nicht kategorisiert — prüfen",
     "uncategorizedImprove": "Nicht kategorisiert — prüfen, um die Aufschlüsselung zu verbessern",
     "plusMore": "+ {{count}} weitere",
-    "down": "Runter",
-    "up": "Hoch",
     "aboutSame": "Etwa wie im vorherigen Zeitraum",
     "fromPriorPeriod": "gegenüber dem vorherigen Zeitraum",
     "intervalMtd": "diesen Monat",
@@ -1037,5 +1064,24 @@
     "overridesTitle_one": "Anpassung · {{count}}",
     "overridesTitle_other": "Anpassungen · {{count}}",
     "sourceMonth": "Quellmonat"
+  },
+  "splitEditReview": {
+    "title": "Entfernen der Aufteilungen prüfen",
+    "hiddenCategory": "Vorhandene Kategoriezuweisungen bleiben erhalten und können nach dem Entfernen der Aufteilungen gelten.",
+    "confirm": "Speichern und Aufteilungen entfernen",
+    "removed_one": "Diese Änderung entfernt {{count}} Aufteilung.",
+    "removed_other": "Diese Änderung entfernt {{count}} Aufteilungen."
+  },
+  "budgetErrors": {
+    "deleteGroup": "Budgetgruppe konnte nicht gelöscht werden.",
+    "copyPlan": "Plan konnte nicht kopiert werden."
+  },
+  "grid": {
+    "transferInForm": "Ändern Sie den Typ einer Überweisung über Bearbeiten im Überweisungsformular.",
+    "noCategory": "Diese Aktivität ist weder Ausgabe noch Einnahme noch Sparen und hat daher keine Kategorie.",
+    "saveTypeFirst": "Speichern Sie zuerst den neuen Typ oder das neue Konto und wählen Sie dann eine Kategorie.",
+    "saveCategoryFirst": "Speichern Sie zuerst die Kategorie und ändern Sie dann Typ oder Konto.",
+    "typeNotForAccount": "Dieser Typ ist für dieses Konto nicht verfügbar.",
+    "amountRequired": "Ein Betrag ist erforderlich."
   }
 }

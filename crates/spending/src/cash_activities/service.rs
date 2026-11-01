@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use wealthfolio_core::accounts::{
-    account_supports_purpose, AccountPurpose, AccountRepositoryTrait,
+    account_supports_purpose, account_types, AccountPurpose, AccountRepositoryTrait,
 };
 use wealthfolio_core::activities::{
     application_order, running_cash_balances, shows_running_cash_balance, Activity,
@@ -127,8 +127,23 @@ impl CashActivityService {
     /// Accounts opted in to spending tracking; empty when tracking is disabled.
     /// The same scope the rerun command passes to `rerun_all`.
     pub async fn spending_account_ids(&self) -> Result<Vec<String>> {
-        let s = self.settings.get().await?;
-        Ok(if s.enabled { s.account_ids } else { Vec::new() })
+        Ok(self.context().await?.account_ids)
+    }
+
+    /// Read availability and effective enrollment without exposing other accounts.
+    pub async fn context(&self) -> Result<super::model::SpendingContext> {
+        let settings = self.settings.get().await?;
+        let account_ids = if settings.enabled {
+            self.resolve_target_accounts(None, &settings.account_ids)?
+                .ids
+        } else {
+            Vec::new()
+        };
+        Ok(super::model::SpendingContext {
+            enabled: settings.enabled,
+            account_ids,
+            excluded_category_ids: settings.excluded_category_ids,
+        })
     }
 
     /// List cash activities matching the (legacy) filter, scoped to opted-in
@@ -468,6 +483,11 @@ impl CashActivityService {
             }
         }
 
+        if let Some(ids) = req.activity_ids.as_ref() {
+            let ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
+            activities.retain(|activity| ids.contains(activity.id.as_str()));
+        }
+
         if let Some(min) = req.min_amount {
             activities.retain(|a| {
                 a.amount
@@ -517,7 +537,7 @@ impl CashActivityService {
                 let asgs = by_activity.get(a.id.as_str());
                 let activity_splits = splits_by_activity.get(a.id.as_str());
                 let bucket = cash_flow_bucket_for(a, &account_types, &transfer_groups);
-                let expected_taxonomy = taxonomy_for_bucket(bucket);
+                let expected_taxonomy = bucket.taxonomy_id();
                 let has_category =
                     expected_taxonomy.map_or(bucket == CashFlowBucket::Neutral, |taxonomy_id| {
                         asgs.map(|v| v.iter().any(|asg| asg.taxonomy_id == taxonomy_id))
@@ -824,11 +844,15 @@ impl CashActivityService {
         taxonomy_id: &str,
         category_id: &str,
     ) -> Result<ActivityTaxonomyAssignment> {
-        self.ensure_activity_assignment_allowed(activity_id, taxonomy_id, true)
-            .await?;
-        self.assignments
-            .assign_single_clearing_splits(activity_id, taxonomy_id, category_id)
-            .await
+        self.bulk_assign_categories(&[BulkCategoryAssignment {
+            activity_id: activity_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits: None,
+        }])
+        .await?
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("assignment write returned no row"))
     }
 
     pub async fn unassign_category(&self, activity_id: &str, taxonomy_id: &str) -> Result<()> {
@@ -841,9 +865,36 @@ impl CashActivityService {
         &self,
         items: &[BulkCategoryAssignment],
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        let mut activity_ids = HashSet::new();
+        let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
         for item in items {
+            if !activity_ids.insert(&item.activity_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: "Category batch repeats an activity".to_string(),
+                }
+                .into());
+            }
             self.ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
                 .await?;
+            categories_by_taxonomy
+                .entry(item.taxonomy_id.clone())
+                .or_default()
+                .push(item.category_id.clone());
+        }
+        for (taxonomy_id, mut category_ids) in categories_by_taxonomy {
+            category_ids.sort();
+            category_ids.dedup();
+            if !self
+                .splits
+                .categories_belong_to_taxonomy(&taxonomy_id, &category_ids)
+                .await?
+            {
+                return Err(SpendingError::InvalidInput {
+                    message: "Category does not belong to the selected cash-flow taxonomy"
+                        .to_string(),
+                }
+                .into());
+            }
         }
         self.assignments
             .assign_many_single_select_clearing_splits(items)
@@ -860,6 +911,41 @@ impl CashActivityService {
         activity_id: &str,
         splits: Vec<NewActivitySplit>,
     ) -> Result<Vec<ActivitySplit>> {
+        let taxonomy = self.validate_splits(activity_id, &splits).await?;
+        self.splits
+            .replace_for_activity_clearing_assignment(activity_id, taxonomy, splits)
+            .await
+    }
+
+    pub async fn replace_splits_reviewed(
+        &self,
+        expected: crate::activity_splits::SplitReviewState,
+        splits: Vec<NewActivitySplit>,
+    ) -> Result<Vec<ActivitySplit>> {
+        let taxonomy = self.validate_splits(&expected.activity.id, &splits).await?;
+        self.splits
+            .replace_reviewed(expected, taxonomy, splits)
+            .await
+    }
+
+    pub async fn clear_allocations_reviewed(
+        &self,
+        expected: crate::activity_splits::SplitReviewState,
+        taxonomy_id: &str,
+    ) -> Result<()> {
+        self.ensure_activity_assignment_allowed(&expected.activity.id, taxonomy_id, false)
+            .await?;
+        self.splits
+            .replace_reviewed(expected, taxonomy_id, Vec::new())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn validate_splits(
+        &self,
+        activity_id: &str,
+        splits: &[NewActivitySplit],
+    ) -> Result<&'static str> {
         let (activity, expected_taxonomy) = self.ensure_activity_split_allowed(activity_id).await?;
         if splits.is_empty() {
             return Err(SpendingError::InvalidInput {
@@ -870,7 +956,7 @@ impl CashActivityService {
 
         let mut sum = Decimal::ZERO;
         let mut category_ids = Vec::with_capacity(splits.len());
-        for split in &splits {
+        for split in splits {
             if split.taxonomy_id != expected_taxonomy {
                 return Err(SpendingError::InvalidInput {
                     message: "Split line taxonomy must match the activity cash-flow bucket"
@@ -911,9 +997,7 @@ impl CashActivityService {
             .into());
         }
 
-        self.splits
-            .replace_for_activity_clearing_assignment(activity_id, expected_taxonomy, splits)
-            .await
+        Ok(expected_taxonomy)
     }
 
     pub async fn clear_splits(&self, activity_id: &str) -> Result<()> {
@@ -948,6 +1032,26 @@ impl CashActivityService {
             .set_activity_event_tag(activity_id, event_id)
             .await?;
         Ok(activity)
+    }
+
+    pub async fn set_event_reviewed(
+        &self,
+        activity_id: &str,
+        expected: Option<String>,
+        event_id: Option<String>,
+    ) -> Result<()> {
+        self.ensure_activity_in_spending_scope(activity_id).await?;
+        if let Some(id) = &event_id {
+            if self.events.get_event(id).await?.is_none() {
+                return Err(SpendingError::InvalidInput {
+                    message: "Spending event not found".into(),
+                }
+                .into());
+            }
+        }
+        self.activity_events
+            .set_event_reviewed(activity_id, expected, event_id)
+            .await
     }
 
     fn resolve_target_accounts(
@@ -1049,9 +1153,9 @@ impl CashActivityService {
             account_type,
             &transfer_groups,
         ));
-        let Some(expected_taxonomy) = taxonomy_for_bucket(bucket) else {
+        let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
-                message: "Neutral transfers cannot be categorized. Change or unlink the transfer if it should count as spending.".to_string(),
+                message: "Neutral activities cannot be categorized. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
             }
             .into());
         };
@@ -1097,9 +1201,9 @@ impl CashActivityService {
             account_type,
             &transfer_groups,
         ));
-        let Some(expected_taxonomy) = taxonomy_for_bucket(bucket) else {
+        let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
-                message: "Neutral transfers cannot be split. Change or unlink the transfer if it should count as spending.".to_string(),
+                message: "Neutral activities cannot be split. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
             }
             .into());
         };
@@ -1145,6 +1249,12 @@ impl CashActivityService {
             .into());
         }
 
+        if !is_visible_cash_activity(&activity, &account.account_type) {
+            return Err(SpendingError::InvalidInput {
+                message: "Activity is not an eligible Spending cash transaction".into(),
+            }
+            .into());
+        }
         Ok(activity)
     }
 }
@@ -1211,18 +1321,12 @@ fn cash_flow_bucket_from_classification(classification: SpendingClassification) 
             CashFlowBucket::Spending
         }
         SpendingClassification::Saving => CashFlowBucket::Saving,
-        SpendingClassification::InternalTransfer | SpendingClassification::Ignored => {
-            CashFlowBucket::Neutral
-        }
-    }
-}
-
-fn taxonomy_for_bucket(bucket: CashFlowBucket) -> Option<&'static str> {
-    match bucket {
-        CashFlowBucket::Spending => Some(SPENDING_TAXONOMY),
-        CashFlowBucket::Income => Some(INCOME_TAXONOMY),
-        CashFlowBucket::Saving => Some(SAVINGS_TAXONOMY),
-        CashFlowBucket::Neutral => None,
+        // Money brought back from savings offsets the saving total, but it takes
+        // no category: the report shows it as one "From savings" figure. As a
+        // neutral row it can't be categorized or split.
+        SpendingClassification::FromSavings
+        | SpendingClassification::InternalTransfer
+        | SpendingClassification::Ignored => CashFlowBucket::Neutral,
     }
 }
 
@@ -1280,6 +1384,12 @@ fn is_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
 }
 
 fn is_neutral_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
+    // Cash credits affect the balance even when their subtype gives them no
+    // income/spending classification. Keep them accessible in the ledger.
+    if account_type == account_types::CASH && activity.effective_type() == "CREDIT" {
+        return true;
+    }
+
     // Transfers on a spending account — card payments, balance transfers and
     // cash advances, savings moves to investing accounts, internal moves.
     // Always shown in the ledger (we never hide an account's transactions);
@@ -1779,6 +1889,7 @@ mod tests {
         async fn assign_many_single_select_clearing_splits(
             &self,
             _: Vec<NewActivityTaxonomyAssignment>,
+            _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
             unimplemented!()
         }
@@ -1815,6 +1926,15 @@ mod tests {
 
     #[async_trait]
     impl ActivitySplitRepositoryTrait for MockSplitRepo {
+        async fn replace_reviewed(
+            &self,
+            _: crate::activity_splits::SplitReviewState,
+            _: &str,
+            _: Vec<NewActivitySplit>,
+        ) -> Result<Vec<ActivitySplit>> {
+            unimplemented!("reviewed MCP path")
+        }
+
         async fn list_for_activity(&self, _: &str) -> Result<Vec<ActivitySplit>> {
             Ok(Vec::new())
         }
@@ -1884,6 +2004,15 @@ mod tests {
 
     #[async_trait]
     impl crate::activity_events::ActivityEventsRepositoryTrait for MockActivityEventsRepo {
+        async fn set_event_reviewed(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<String>,
+        ) -> Result<()> {
+            unimplemented!("reviewed tags")
+        }
+
         async fn list_for_activities(
             &self,
             _: &[String],
@@ -1940,6 +2069,13 @@ mod tests {
 
     #[async_trait]
     impl crate::events::EventsRepositoryTrait for MockEventsRepo {
+        async fn update_reviewed(&self, _: Event, _: crate::events::UpdateEvent) -> Result<Event> {
+            unimplemented!("reviewed events")
+        }
+        async fn delete_reviewed(&self, _: Event, _: usize) -> Result<()> {
+            unimplemented!("reviewed events")
+        }
+
         async fn list(&self) -> Result<Vec<Event>> {
             Ok(Vec::new())
         }
@@ -2240,6 +2376,28 @@ mod tests {
 
     #[async_trait]
     impl TaxonomyServiceTrait for MockTaxonomyService {
+        async fn update_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::Category> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+        async fn delete_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<usize> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+
+        fn get_category_references(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::CategoryReferences> {
+            unimplemented!("category references are not used by this fixture")
+        }
+
         fn get_taxonomies(&self) -> wealthfolio_core::Result<Vec<Taxonomy>> {
             unimplemented!()
         }
@@ -2963,6 +3121,166 @@ mod tests {
         assert_eq!(page.items[0].net_amount_base, Some(-120.0));
     }
 
+    fn dated_leg(
+        id: &str,
+        activity_type: &str,
+        amount: i64,
+        group: Option<&str>,
+        account_id: &str,
+        date: &str,
+    ) -> Activity {
+        Activity {
+            account_id: account_id.to_string(),
+            source_group_id: group.map(str::to_string),
+            activity_date: DateTime::parse_from_rfc3339(date).unwrap().into(),
+            ..cash_row(id, activity_type, amount, "USD")
+        }
+    }
+
+    /// Money moved to an account outside spending and brought back: the
+    /// outbound leg is saving, the inbound leg offsets it, and a transfer
+    /// with both legs inside spending stays neutral — across windows too.
+    #[tokio::test]
+    async fn monthly_report_offsets_saving_with_money_brought_back() {
+        let march = "2024-03-15T12:00:00Z";
+        let rows = vec![
+            dated_leg("salary", "DEPOSIT", 2000, None, "account-1", march),
+            dated_leg("rent", "WITHDRAWAL", 1400, None, "account-1", march),
+            // To savings this month, categorized, and its brokerage leg.
+            dated_leg(
+                "out-now",
+                "TRANSFER_OUT",
+                1000,
+                Some("g-now"),
+                "account-1",
+                march,
+            ),
+            dated_leg(
+                "out-now-b",
+                "TRANSFER_IN",
+                1000,
+                Some("g-now"),
+                "brokerage",
+                march,
+            ),
+            // Brought back this month from money saved last month.
+            dated_leg(
+                "out-prior",
+                "TRANSFER_OUT",
+                700,
+                Some("g-prior"),
+                "account-1",
+                "2024-02-20T12:00:00Z",
+            ),
+            dated_leg(
+                "back",
+                "TRANSFER_IN",
+                400,
+                Some("g-back"),
+                "account-1",
+                march,
+            ),
+            dated_leg(
+                "back-b",
+                "TRANSFER_OUT",
+                400,
+                Some("g-back"),
+                "brokerage",
+                march,
+            ),
+            // Both legs inside spending, split across the window boundary.
+            dated_leg(
+                "fx-out",
+                "TRANSFER_OUT",
+                300,
+                Some("g-internal"),
+                "account-1",
+                "2024-02-29T23:00:00Z",
+            ),
+            dated_leg(
+                "fx-in",
+                "TRANSFER_IN",
+                300,
+                Some("g-internal"),
+                "account-1",
+                "2024-03-01T01:00:00Z",
+            ),
+        ];
+        let (cash, assignments, _) = make_service_with_fx(rows, MockFx::none());
+        assignments
+            .assignments
+            .lock()
+            .unwrap()
+            .push(ActivityTaxonomyAssignment {
+                taxonomy_id: SAVINGS_TAXONOMY.to_string(),
+                ..spending_assignment("out-now", "retirement")
+            });
+        let analytics = crate::analytics::AnalyticsService::new(
+            cash.activity_repo.clone(),
+            cash.account_repo.clone(),
+            assignments,
+            cash.splits.clone(),
+            cash.settings.clone(),
+            cash.taxonomy_service.clone(),
+            cash.events.clone(),
+            cash.fx.clone(),
+            cash.activity_events.clone(),
+        );
+
+        let report = analytics
+            .monthly_report(
+                crate::analytics::ReportRequest {
+                    start_date: "2024-03-01T00:00:00Z".to_string(),
+                    end_date: "2024-03-31T23:59:59Z".to_string(),
+                    account_ids: None,
+                },
+                "UTC",
+                "USD",
+            )
+            .await
+            .unwrap();
+
+        let current = &report.current;
+        assert_eq!(current.income, 2000.0);
+        assert_eq!(current.outflow, 1400.0);
+        assert_eq!(current.saved, 1000.0);
+        assert_eq!(current.from_savings, 400.0);
+        // Equals the change in cash: +2000 − 1400 − 1000 + 400 (+300 moved
+        // within spending, which nets out with its other leg).
+        assert_eq!(current.net, 0.0);
+        assert_eq!(current.count, 4);
+        // The breakdown stays gross: only money moved to savings is in it.
+        let breakdown: f64 = report.savings_breakdown.iter().map(|row| row.amount).sum();
+        assert_eq!(breakdown, current.saved);
+        assert_eq!(report.savings_breakdown[0].category_id, "retirement");
+
+        assert_eq!(report.prior.saved, 700.0);
+        assert_eq!(report.prior.from_savings, 0.0);
+        assert_eq!(report.prior.net, -700.0);
+    }
+
+    #[tokio::test]
+    async fn money_brought_back_from_savings_stays_neutral_and_uncategorizable() {
+        let mut transfer = activity("TRANSFER_IN");
+        transfer.source_group_id = Some("group-1".to_string());
+        let (service, assignment_repo, _) = make_service(transfer);
+
+        let rows = service
+            .get_by_activity_ids(&["activity-1".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(rows[0].cash_flow_bucket, CashFlowBucket::Neutral);
+
+        let err = service
+            .assign_category("activity-1", SAVINGS_TAXONOMY, "retirement")
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Neutral activities cannot be categorized"));
+        assert!(assignment_repo.assignments.lock().unwrap().is_empty());
+    }
+
     #[tokio::test]
     async fn search_converts_each_row_into_the_base_currency() {
         let (service, _, _) = make_service_with_fx(
@@ -3177,6 +3495,122 @@ mod tests {
         assert!(!activity_date_in_range(&after_end, None, Some(&same_end)));
     }
 
+    #[tokio::test]
+    async fn cash_credits_without_reporting_subtypes_remain_visible() {
+        for subtype in [
+            None,
+            Some(""),
+            Some(" "),
+            Some("ADJUSTMENT"),
+            Some("refund"),
+        ] {
+            let mut credit = activity("CREDIT");
+            credit.subtype = subtype.map(str::to_string);
+            credit.metadata = Some(serde_json::json!({"flow": {"is_external": false}}));
+            let (service, _, _) = make_service(credit.clone());
+
+            let listed = service.list(CashActivityFilter::default()).await.unwrap();
+            assert_eq!(listed.len(), 1, "subtype {subtype:?}");
+            let searched = service
+                .search(
+                    CashActivitySearchRequest {
+                        activity_types: Some(vec!["CREDIT".to_string()]),
+                        include_cash_balances: true,
+                        limit: 50,
+                        ..Default::default()
+                    },
+                    None,
+                    "UTC",
+                )
+                .await
+                .unwrap();
+            assert_eq!(searched.total_count, 1);
+            assert_eq!(searched.items[0].cash_balance.as_deref(), Some("100"));
+            assert_eq!(searched.net.unwrap().by_currency[0].amount, 100.0);
+            let explicit = service
+                .get_by_activity_ids(std::slice::from_ref(&credit.id))
+                .await
+                .unwrap();
+            assert_eq!(explicit.len(), 1);
+            for row in listed.iter().chain(&searched.items).chain(&explicit) {
+                assert_eq!(row.cash_flow_bucket, CashFlowBucket::Neutral);
+                assert_eq!(row.net_amount, 100.0);
+                assert_eq!(row.visible_spending_amount, 0.0);
+                assert_eq!(row.activity.subtype, credit.subtype);
+                assert_eq!(row.activity.metadata, credit.metadata);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn neutral_cash_credits_follow_neutral_status_filters() {
+        let mut credit = activity("CREDIT");
+        credit.needs_review = true;
+        let (service, _, _) = make_service(credit);
+        for (status, expected_count) in [
+            (CashActivityStatusFilter::All, 1),
+            (CashActivityStatusFilter::Categorized, 1),
+            (CashActivityStatusFilter::Uncategorized, 0),
+            (CashActivityStatusFilter::NeedsReview, 1),
+        ] {
+            let response = service
+                .search(
+                    CashActivitySearchRequest {
+                        status,
+                        ..Default::default()
+                    },
+                    None,
+                    "UTC",
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.total_count, expected_count);
+        }
+    }
+
+    #[tokio::test]
+    async fn neutral_cash_credits_allow_cleanup_but_reject_new_allocations() {
+        let (service, assignments, splits) = make_service(activity("CREDIT"));
+        let error = service
+            .assign_category("activity-1", SPENDING_TAXONOMY, "groceries")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("cannot be categorized"));
+        let error = service
+            .replace_splits(
+                "activity-1",
+                vec![split("groceries", 100, SPENDING_TAXONOMY)],
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("cannot be split"));
+        assert!(splits.replaced.lock().unwrap().is_empty());
+
+        service
+            .unassign_category("activity-1", SPENDING_TAXONOMY)
+            .await
+            .unwrap();
+        assert_eq!(assignments.cleared.lock().unwrap().len(), 1);
+        service.clear_splits("activity-1").await.unwrap();
+        assert_eq!(splits.cleared.lock().unwrap().as_slice(), &["activity-1"]);
+        service.set_event("activity-1", None).await.unwrap();
+    }
+
+    #[test]
+    fn cash_credit_visibility_respects_type_overrides_and_account_scope() {
+        let mut overridden = activity("DEPOSIT");
+        overridden.activity_type_override = Some("CREDIT".to_string());
+        assert!(is_visible_cash_activity(&overridden, account_types::CASH));
+        assert!(!is_visible_cash_activity(
+            &overridden,
+            account_types::SECURITIES
+        ));
+
+        overridden.activity_type = "CREDIT".to_string();
+        overridden.activity_type_override = Some("BUY".to_string());
+        assert!(!is_visible_cash_activity(&overridden, account_types::CASH));
+    }
+
     #[test]
     fn credit_card_payment_is_visible_as_neutral_cash_activity() {
         let mut linked_payment = activity("TRANSFER_IN");
@@ -3306,7 +3740,7 @@ mod tests {
 
         assert!(err
             .to_string()
-            .contains("Neutral transfers cannot be split"));
+            .contains("Neutral activities cannot be split"));
         assert!(assignment_repo.cleared.lock().unwrap().is_empty());
         assert!(split_repo.replaced.lock().unwrap().is_empty());
     }

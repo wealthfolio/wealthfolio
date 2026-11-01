@@ -70,6 +70,8 @@ services:
       WF_OIDC_POST_LOGOUT_REDIRECT_URL: "${WF_OIDC_POST_LOGOUT_REDIRECT_URL:-}"
       # Set to "false" to force local-only logout even when the IdP supports RP-Initiated Logout.
       WF_OIDC_RP_LOGOUT: "${WF_OIDC_RP_LOGOUT:-}"
+      # PEM bundle of extra root CAs for an IdP behind a private CA; mount the file too.
+      WF_OIDC_CA_FILE: "${WF_OIDC_CA_FILE:-}"
 
       # ── AI Agent Access / MCP (optional) ────────────────────────────────
       # Requires Wealthfolio authentication via password or OIDC.

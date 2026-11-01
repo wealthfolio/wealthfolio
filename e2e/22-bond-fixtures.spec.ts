@@ -138,8 +138,8 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
   // through the real security dialog, then select the saved asset in the buy form.
   const note = securities[1];
   await gotoAppPath(page, "/settings/securities");
-  await page.getByRole("button", { name: "Add Security", exact: true }).click();
-  const securityDialog = page.getByRole("dialog", { name: "Add Security", exact: true });
+  await page.getByRole("button", { name: "Add security", exact: true }).click();
+  const securityDialog = page.getByRole("dialog", { name: "Add security", exact: true });
   await expect(securityDialog).toBeVisible();
   await securityDialog.getByLabel("Symbol", { exact: true }).fill(note.cusip);
   await securityDialog.getByLabel("Name", { exact: true }).fill("Fixture Treasury Note");
@@ -148,9 +148,9 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
   await securityDialog.getByRole("combobox", { name: "Currency", exact: true }).click();
   await page.getByPlaceholder("Search currency...").fill("USD");
   await page.getByRole("option", { name: /USD/ }).first().click();
-  await securityDialog.getByRole("combobox", { name: "Quote Mode", exact: true }).click();
+  await securityDialog.getByRole("combobox", { name: "Quote mode", exact: true }).click();
   await page.getByRole("option", { name: "Market (auto-sync)", exact: true }).click();
-  await securityDialog.getByRole("button", { name: "Create Security", exact: true }).click();
+  await securityDialog.getByRole("button", { name: "Create security", exact: true }).click();
   await expect(securityDialog).not.toBeVisible();
   await expect
     .poll(async () => (await getAssets()).find((asset) => asset.instrumentSymbol === note.isin)?.id)

@@ -1,7 +1,7 @@
 /**
  * Money flow — reshapes the reconciled spending insight into a Sankey graph:
  *
- *   income sources → total → budget groups · set aside · left over → categories
+ *   income · from savings → total → budget groups · to savings · left over → categories
  *
  * Pure projection of figures the backend already reconciles: nothing here
  * re-aggregates activities. A Sankey can only draw non-negative flows, so two
@@ -13,9 +13,15 @@
  *   "Shortfall" (deficit), so the total node always equals both sides and the
  *   surplus equals the headline net cashflow.
  *
- * With no income recorded there is nothing to balance against (spending-only
- * setups such as a lone credit card): the total becomes the root and the chart
- * shows where the gross spending went, without refunds or a shortfall.
+ * Savings show both ways: money brought back from savings is its own source,
+ * not netted against what went to savings. Unlike a refund, which cancels a
+ * purchase, a withdrawal doesn't undo a contribution — netting them would hide
+ * a drawdown behind contributions elsewhere. The headline nets them instead.
+ *
+ * With no income or money brought back from savings there is nothing to balance
+ * against (spending-only setups such as a lone credit card): the total becomes
+ * the root and the chart shows where the gross spending went, without refunds
+ * or a shortfall.
  *
  * Subcategories stay out of the overview. A category with subcategory activity
  * carries its composition instead, and `focusMoneyFlowGraph` zooms into it.
@@ -46,6 +52,7 @@ const SHORTFALL_COLOR = "var(--destructive)";
 
 export type MoneyFlowNodeKind =
   | "income"
+  | "from-savings"
   | "refunds"
   | "shortfall"
   | "total"
@@ -115,6 +122,8 @@ export interface MoneyFlowLink {
 
 export interface MoneyFlowTotals {
   income: number;
+  /** Money brought back from savings: a source beside income. */
+  fromSavings: number;
   /** Size of the total node: money in (with any shortfall) = money out (with any surplus). */
   total: number;
 }
@@ -131,6 +140,7 @@ export interface MoneyFlowLabels {
   total: string;
   shortfall: string;
   refunds: string;
+  fromSavings: string;
   saved: string;
   surplus: string;
   uncategorized: string;
@@ -138,11 +148,17 @@ export interface MoneyFlowLabels {
   more: (count: number) => string;
   direct: string;
   netSpending: string;
+  /** Optional display-only resolvers, applied after raw ordering and color selection. */
+  category?: (taxonomyId: string, categoryId: string, name: string) => string;
+  group?: (groupId: string, name: string) => string;
 }
 
 export interface MoneyFlowInput {
   incomeBreakdown: CategoryBreakdownRow[];
+  /** Gross money moved to savings, by savings category. */
   savingsBreakdown: CategoryBreakdownRow[];
+  /** Gross money brought back from savings; uncategorized, so one figure. */
+  fromSavings?: number;
   groupRows: BudgetGroupRow[];
   /** Net uncategorized spending; negative when refunds dominate. */
   uncategorizedSpent: number;
@@ -184,6 +200,7 @@ export function moneyFlowInputFromReport(
   return {
     incomeBreakdown: report.incomeBreakdown,
     savingsBreakdown: report.savingsBreakdown,
+    fromSavings: report.current.fromSavings ?? 0,
     groupRows: budget?.computed.groupRows ?? [],
     uncategorizedSpent:
       report.spendingBreakdown.find((row) => row.categoryId === UNCATEGORIZED_CATEGORY_ID)
@@ -220,7 +237,7 @@ export function buildMoneyFlowGraph(
     spendingMeta,
   );
 
-  const refundMembers: MoneyFlowMember[] = [];
+  const refundMembers: (MoneyFlowMember & { categoryId?: string })[] = [];
   const groups: (Entry & { categories: Entry[]; netRefunds: number })[] = [];
   for (const row of input.groupRows) {
     const groupColor = row.group.color || row.categories.find((c) => c.color)?.color;
@@ -242,7 +259,7 @@ export function buildMoneyFlowGraph(
           ),
         });
       } else if (c.actual < -EPSILON) {
-        refundMembers.push({ name: c.name, value: -c.actual });
+        refundMembers.push({ categoryId: c.categoryId, name: c.name, value: -c.actual });
         netRefunds -= c.actual;
       }
     }
@@ -263,16 +280,37 @@ export function buildMoneyFlowGraph(
     refundMembers.push({ name: labels.uncategorized, value: -input.uncategorizedSpent });
   }
   refundMembers.sort(byValueDesc);
+
+  // These entries are newly built presentation data, never query/cache records.
+  // Resolve names only after sorting so language changes cannot reorder equal flows.
+  const localizeEntries = (taxonomyId: string, entries: Entry[]) => {
+    for (const entry of entries) {
+      entry.name = labels.category?.(taxonomyId, entry.id, entry.name) ?? entry.name;
+      for (const child of entry.subcategories ?? []) {
+        if (child.id !== DIRECT_ROW_ID) {
+          child.name = labels.category?.(taxonomyId, child.id, child.name) ?? child.name;
+        }
+      }
+    }
+  };
+  localizeEntries("income_sources", income);
+  localizeEntries("savings_categories", savings);
+  for (const group of groups) {
+    group.name = labels.group?.(group.id, group.name) ?? group.name;
+    localizeEntries(SPENDING_TAXONOMY, group.categories);
+  }
   const uncategorized = input.uncategorizedSpent > EPSILON ? input.uncategorizedSpent : 0;
 
   const incomeTotal = sum(income);
-  const hasSources = incomeTotal > EPSILON;
+  const { fromSavings: broughtBack = 0 } = input;
+  const fromSavings = broughtBack > EPSILON ? broughtBack : 0;
+  const hasSources = incomeTotal + fromSavings > EPSILON;
   const refunds = hasSources ? sum(refundMembers) : 0;
   const saved = sum(savings);
   const outflow = sum(groups) + uncategorized + saved;
-  const inflow = incomeTotal + refunds;
+  const inflow = incomeTotal + fromSavings + refunds;
   if (inflow <= EPSILON && outflow <= EPSILON) {
-    return { nodes: [], links: [], totals: { income: 0, total: 0 } };
+    return { nodes: [], links: [], totals: { income: 0, fromSavings: 0, total: 0 } };
   }
 
   const net = hasSources ? inflow - outflow : 0;
@@ -305,6 +343,16 @@ export function buildMoneyFlowGraph(
         parentId: totalNode.id,
       });
     }
+    if (fromSavings > 0) {
+      nodes.push({
+        id: "from-savings",
+        kind: "from-savings",
+        name: labels.fromSavings,
+        value: fromSavings,
+        color: SAVINGS_ROW_COLOR,
+        column: 0,
+      });
+    }
     if (refunds > EPSILON) {
       nodes.push({
         id: "refunds",
@@ -313,7 +361,12 @@ export function buildMoneyFlowGraph(
         value: refunds,
         color: REFUNDS_COLOR,
         column: 0,
-        members: refundMembers,
+        members: refundMembers.map(({ categoryId, name, value }) => ({
+          name: categoryId
+            ? (labels.category?.(SPENDING_TAXONOMY, categoryId, name) ?? name)
+            : name,
+          value,
+        })),
       });
     }
     if (shortfall > 0) {
@@ -416,7 +469,7 @@ export function buildMoneyFlowGraph(
     }
   }
 
-  return { nodes, links, totals: { income: incomeTotal, total } };
+  return { nodes, links, totals: { income: incomeTotal, fromSavings, total } };
 }
 
 /**
@@ -462,11 +515,11 @@ export function isFocusable(node: MoneyFlowNode): boolean {
   );
 }
 
-/** Everything flowing into the total: every income source, net refunds, any shortfall. */
+/** Everything flowing into the total: income, money from savings, net refunds, any shortfall. */
 function focusMoneyIn(graph: MoneyFlowGraph, total: MoneyFlowNode): MoneyFlowGraph {
   const links = graph.links.filter((link) => link.target === total.id);
   const sources = graph.nodes.filter((node) => links.some((link) => link.source === node.id));
-  // Without income the total is the root: nothing flows in.
+  // Without income or money from savings the total is the root: nothing flows in.
   if (sources.length === 0) return { nodes: [], links: [], totals: graph.totals };
   return {
     nodes: [...sources.map((source) => ({ ...source, column: 0 })), { ...total, column: 1 }],
@@ -493,7 +546,8 @@ function focusSpendingCategory(
   const refundMembers = subcategories
     .filter((entry) => entry.value < -EPSILON)
     .map((entry) => ({ name: entry.name, value: -entry.value }))
-    .sort(byValueDesc);
+    // Equal amounts retain the builder's raw-name order, not translated-name order.
+    .sort((a, b) => b.value - a.value);
   const gross = sum(spent);
   const refunds = sum(refundMembers);
   const rootColumn = refunds > EPSILON ? 1 : 0;
@@ -648,7 +702,7 @@ function subcategoryEntries(
 
 /**
  * Savings keep the category each activity was assigned ("Retirement"): a lone
- * root such as "Savings" would only repeat its "Set aside" parent.
+ * root such as "Savings" would only repeat its "To savings" parent.
  */
 function toEntries(
   rows: CategoryBreakdownRow[],

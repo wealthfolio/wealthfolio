@@ -276,7 +276,7 @@ function GoalCard({
           ) : (
             <Icons.Target className="text-muted-foreground h-4 w-4 flex-shrink-0" />
           )}
-          <span className="text-sm font-medium leading-tight">
+          <span className="text-sm leading-tight font-medium">
             {goal.title || t("ai:goals.untitled")}
           </span>
         </div>

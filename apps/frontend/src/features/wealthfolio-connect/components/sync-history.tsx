@@ -10,7 +10,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useImportRunsInfinite } from "../hooks";
-import { BROKER_SYNC_RUN_FAILED_MESSAGE } from "../lib/broker-sync-messages";
+import { getBrokerSyncRunFailedMessage } from "../lib/broker-sync-messages";
 import type { ImportRun, ImportRunStatus } from "../types";
 
 function buildStatusConfig(t: TFunction): Record<
@@ -229,7 +229,7 @@ function SyncRunItem({ run }: { run: ImportRun }) {
       {/* Error message */}
       {run.error && (
         <div className="bg-destructive-subtle mt-2 rounded-md p-2">
-          <p className="text-destructive text-xs">{BROKER_SYNC_RUN_FAILED_MESSAGE}</p>
+          <p className="text-destructive text-xs">{getBrokerSyncRunFailedMessage()}</p>
         </div>
       )}
 

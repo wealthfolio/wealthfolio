@@ -19,6 +19,17 @@ import { ContributionLimitOperations } from "./contribution-limit-operations";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import { cn } from "@/lib/utils";
 
+/**
+ * The form's former default dates: noon UTC on 1 January and 31 December. At
+ * UTC+12 and beyond those fall on the next local day, so they show as saved.
+ */
+function hasFormerDefaultDates({ contributionYear, startDate, endDate }: ContributionLimit) {
+  return (
+    Date.parse(startDate ?? "") === Date.UTC(contributionYear, 0, 1, 12) &&
+    Date.parse(endDate ?? "") === Date.UTC(contributionYear, 11, 31, 12)
+  );
+}
+
 interface ContributionLimitItemProps {
   limit: ContributionLimit;
   accounts: Account[];
@@ -34,6 +45,10 @@ export function ContributionLimitItem({
 }: ContributionLimitItemProps) {
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
+  const formatLimitDate = hasFormerDefaultDates(limit)
+    ? (date: string, options?: Parameters<typeof dateFormatting.formatDate>[1]) =>
+        dateFormatting.formatCalendarDate(date.slice(0, 10), options)
+    : dateFormatting.formatDate;
 
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -141,12 +156,12 @@ export function ContributionLimitItem({
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <Icons.Calendar className="h-3 w-3 shrink-0" />
               <span>
-                {dateFormatting.formatCalendarDate(limit.startDate.slice(0, 10), {
+                {formatLimitDate(limit.startDate, {
                   month: "short",
                   day: "numeric",
                 })}{" "}
                 →{" "}
-                {dateFormatting.formatCalendarDate(limit.endDate.slice(0, 10), {
+                {formatLimitDate(limit.endDate, {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
@@ -180,8 +195,7 @@ export function ContributionLimitItem({
               <div className="text-muted-foreground flex items-center text-xs">
                 <Icons.Calendar className="me-1 h-3 w-3" />
                 <span>
-                  {dateFormatting.formatCalendarDate(limit.startDate.slice(0, 10))} →{" "}
-                  {dateFormatting.formatCalendarDate(limit.endDate.slice(0, 10))}
+                  {formatLimitDate(limit.startDate)} → {formatLimitDate(limit.endDate)}
                 </span>
                 {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 60 && (
                   <span

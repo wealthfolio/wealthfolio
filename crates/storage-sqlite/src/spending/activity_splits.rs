@@ -284,6 +284,48 @@ impl ActivitySplitRepositoryTrait for ActivitySplitRepository {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
+    async fn replace_reviewed(
+        &self,
+        expected: wealthfolio_spending::activity_splits::SplitReviewState,
+        taxonomy_id: &str,
+        splits: Vec<NewActivitySplit>,
+    ) -> Result<Vec<ActivitySplit>> {
+        let taxonomy_id = taxonomy_id.to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        self.writer.exec_tx(move |tx| {
+            let activity_id = &expected.activity.id;
+            let activity = crate::schema::activities::table.find(activity_id)
+                .first::<crate::activities::ActivityDB>(tx.conn()).map_err(StorageError::from)?;
+            let activity = wealthfolio_core::activities::Activity::from(activity);
+            let mut current_splits = spending_activity_splits::table.filter(spending_activity_splits::activity_id.eq(activity_id))
+                .load::<ActivitySplitDB>(tx.conn()).map_err(StorageError::from)?.into_iter().map(ActivitySplit::from).collect::<Vec<_>>();
+            let mut current_assignments = activity_taxonomy_assignments::table.filter(activity_taxonomy_assignments::activity_id.eq(activity_id))
+                .load::<ActivityTaxonomyAssignmentDB>(tx.conn()).map_err(StorageError::from)?.into_iter()
+                .map(wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment::from).collect::<Vec<_>>();
+            let mut expected_splits = expected.splits;
+            let mut expected_assignments = expected.assignments;
+            current_splits.sort_by(|a,b|a.id.cmp(&b.id));
+            expected_splits.sort_by(|a,b|a.id.cmp(&b.id));
+            current_assignments.sort_by(|a,b|a.id.cmp(&b.id));
+            expected_assignments.sort_by(|a,b|a.id.cmp(&b.id));
+            if serde_json::to_value(&activity)? != serde_json::to_value(&expected.activity)?
+                || current_splits != expected_splits
+                || serde_json::to_value(current_assignments)? != serde_json::to_value(expected_assignments)? {
+                return Err(wealthfolio_core::errors::ValidationError::InvalidInput("Transaction or allocations changed since review; refresh and review again".into()).into());
+            }
+            // Recheck category ownership after preview; a concurrent category
+            // deletion or move must not make an invalid allocation actionable.
+            let category_ids = splits.iter().map(|s|s.category_id.clone()).collect::<std::collections::HashSet<_>>();
+            let found = taxonomy_categories::table.filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
+                .filter(taxonomy_categories::id.eq_any(&category_ids)).count().get_result::<i64>(tx.conn()).map_err(StorageError::from)?;
+            if found as usize != category_ids.len() {
+                return Err(wealthfolio_core::errors::ValidationError::InvalidInput("Split categories changed since review".into()).into());
+            }
+            clear_assignment_for_taxonomy_tx(tx, activity_id, &taxonomy_id)?;
+            replace_splits_for_activity_tx(tx, activity_id, splits, &now)
+        }).await.map(|rows| rows.into_iter().map(ActivitySplit::from).collect()).map_err(|e|anyhow::anyhow!(e))
+    }
+
     async fn clear_for_activity(&self, activity_id: &str) -> Result<()> {
         let activity_id = activity_id.to_string();
         self.writer
@@ -317,26 +359,28 @@ impl ActivitySplitRepositoryTrait for ActivitySplitRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{activity_taxonomy_assignments, spending_activity_splits};
     use diesel::r2d2::{ConnectionManager, Pool};
     use rust_decimal::Decimal;
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_splits::{ActivitySplitRepositoryTrait, NewActivitySplit};
 
-    fn setup_db() -> (Arc<Pool<ConnectionManager<SqliteConnection>>>, WriteHandle) {
+    fn setup_db() -> (
+        Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        WriteHandle,
+        TestDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     fn insert_account_and_activity(conn: &mut SqliteConnection) {
@@ -378,7 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn replacing_splits_clears_existing_assignment_in_same_write() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn);
@@ -414,6 +458,82 @@ mod tests {
                 .get_result::<i64>(&mut conn)
                 .expect("count splits"),
             1
+        );
+    }
+    #[tokio::test]
+    async fn reviewed_split_commit_rejects_financial_assignment_and_same_id_split_changes() {
+        let (pool, writer, _dir) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn);
+            insert_assignment(&mut conn);
+        }
+        let repo = ActivitySplitRepository::new(pool.clone(), writer);
+        let snapshot = || {
+            let mut conn = get_connection(&pool).expect("conn");
+            wealthfolio_spending::activity_splits::SplitReviewState {
+                activity: crate::schema::activities::table
+                    .find("activity-1")
+                    .first::<crate::activities::ActivityDB>(&mut conn)
+                    .expect("activity")
+                    .into(),
+                assignments: activity_taxonomy_assignments::table
+                    .load::<ActivityTaxonomyAssignmentDB>(&mut conn)
+                    .expect("assignments")
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                splits: spending_activity_splits::table
+                    .load::<ActivitySplitDB>(&mut conn)
+                    .expect("splits")
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            }
+        };
+        let lines = || {
+            vec![NewActivitySplit {
+                taxonomy_id: "spending_categories".into(),
+                category_id: "cat_groceries".into(),
+                amount: Decimal::new(100, 0),
+                note: None,
+                sort_order: None,
+            }]
+        };
+        let financial = snapshot();
+        diesel::sql_query("UPDATE activities SET notes='changed' WHERE id='activity-1'")
+            .execute(&mut get_connection(&pool).expect("conn"))
+            .expect("edit");
+        assert!(repo
+            .replace_reviewed(financial, "spending_categories", lines())
+            .await
+            .is_err());
+        assert_eq!(snapshot().assignments.len(), 1);
+        let assignment = snapshot();
+        diesel::sql_query(
+            "UPDATE activity_taxonomy_assignments SET source='rule' WHERE id='assignment-1'",
+        )
+        .execute(&mut get_connection(&pool).expect("conn"))
+        .expect("edit assignment");
+        assert!(repo
+            .replace_reviewed(assignment, "spending_categories", lines())
+            .await
+            .is_err());
+        repo.replace_reviewed(snapshot(), "spending_categories", lines())
+            .await
+            .expect("reviewed replacement");
+        assert!(snapshot().assignments.is_empty());
+        let split = snapshot();
+        diesel::sql_query("UPDATE spending_activity_splits SET note='edited without new id'")
+            .execute(&mut get_connection(&pool).expect("conn"))
+            .expect("edit split");
+        assert!(repo
+            .replace_reviewed(split, "spending_categories", lines())
+            .await
+            .is_err());
+        assert_eq!(
+            snapshot().splits[0].note.as_deref(),
+            Some("edited without new id")
         );
     }
 }

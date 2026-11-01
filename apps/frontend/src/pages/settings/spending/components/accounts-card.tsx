@@ -5,6 +5,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useNameComparator } from "@/hooks/use-name-comparator";
 import type { Account } from "@/lib/types";
 import {
+  Badge,
   Card,
   CardContent,
   CardDescription,
@@ -20,7 +21,7 @@ import {
 } from "@/features/spending/hooks/use-spending-settings";
 import { isCreditCardAccountType, isSpendingAccountType } from "@/features/spending/lib/constants";
 import { AccountType } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { SettingsList, SettingsListMedia, SettingsListRow } from "@/components/settings-list";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 export function AccountsCard() {
@@ -70,91 +71,81 @@ export function AccountsCard() {
   };
 
   return (
-    <Card className="rounded-lg">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-6 pb-4">
-        <div className="min-w-0 space-y-1">
-          <CardTitle className="text-base font-semibold tracking-tight">
-            {t("settings:spending.accounts.title")}
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {t("settings:spending.accounts.description")}
-          </CardDescription>
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2} className="text-lg">
+          {t("settings:spending.accounts.title")}
+        </CardTitle>
+        <CardDescription>{t("settings:spending.accounts.description")}</CardDescription>
       </CardHeader>
-      <CardContent className="p-6 pt-0">
+      <CardContent>
         {spendingAccounts.length === 0 ? (
-          <div className="text-muted-foreground rounded-md border border-dashed py-8 text-center text-xs">
+          <p className="text-muted-foreground py-8 text-center text-sm">
             {t("settings:spending.accounts.empty")}
-          </div>
+          </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {spendingAccounts.map((account) => {
-              const tracked = accountIds.includes(account.id);
-              const isCredit = isCreditCardAccountType(account.accountType);
-              const typeLabel = isCredit
-                ? t("settings:spending.accounts.type_credit_card")
-                : t("settings:spending.accounts.type_cash");
-              const TypeIcon = isCredit ? Icons.CreditCard : Icons.Wallet;
-              return (
-                <div
-                  key={account.id}
-                  className={cn(
-                    "grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md border px-4 py-3.5 transition-colors",
-                    tracked
-                      ? "bg-muted/30 border-border"
-                      : "border-border border-dashed bg-transparent opacity-80",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-md border",
-                      tracked
-                        ? "bg-background border-border text-foreground"
-                        : "border-border/60 text-muted-foreground bg-transparent",
-                    )}
-                  >
-                    <TypeIcon size={18} weight="duotone" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-sm font-medium">{account.name}</span>
-                      {!account.isActive && (
-                        <span className="bg-muted text-muted-foreground text-2xs shrink-0 rounded px-1.5 py-0.5 font-medium uppercase tracking-wider">
-                          {t("settings:spending.accounts.inactive_badge")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground mt-0.5 text-xs">
-                      {typeLabel} · {account.currency}
-                      {account.group ? ` · ${account.group}` : ""}
-                      {!tracked && ` · ${t("settings:spending.accounts.not_tracked")}`}
-                    </div>
-                  </div>
-                  <Switch
-                    size="sm"
-                    checked={tracked}
-                    onCheckedChange={(next) => handleToggle(account.id, next)}
-                    disabled={mutation.isPending}
-                    aria-label={
-                      tracked
-                        ? t("settings:spending.accounts.stop_tracking_aria", { name: account.name })
-                        : t("settings:spending.accounts.track_aria", { name: account.name })
-                    }
-                    className="data-checked:bg-success data-unchecked:bg-muted-foreground/40"
-                  />
-                </div>
-              );
-            })}
+          <>
+            <SettingsList label={t("settings:spending.accounts.title")}>
+              {spendingAccounts.map((account) => {
+                const tracked = accountIds.includes(account.id);
+                const isCredit = isCreditCardAccountType(account.accountType);
+                const typeLabel = isCredit
+                  ? t("settings:spending.accounts.type_credit_card")
+                  : t("settings:spending.accounts.type_cash");
+                const TypeIcon = isCredit ? Icons.CreditCard : Icons.Wallet;
+                return (
+                  <li key={account.id}>
+                    <SettingsListRow
+                      inactive={!tracked}
+                      media={
+                        <SettingsListMedia>
+                          <TypeIcon weight="duotone" />
+                        </SettingsListMedia>
+                      }
+                      title={account.name}
+                      badges={
+                        !account.isActive && (
+                          <Badge variant="secondary">
+                            {t("settings:spending.accounts.inactive_badge")}
+                          </Badge>
+                        )
+                      }
+                      meta={
+                        <>
+                          {typeLabel} · {account.currency}
+                          {account.group ? ` · ${account.group}` : ""}
+                          {!tracked && ` · ${t("settings:spending.accounts.not_tracked")}`}
+                        </>
+                      }
+                      actions={
+                        <Switch
+                          checked={tracked}
+                          onCheckedChange={(next) => handleToggle(account.id, next)}
+                          disabled={mutation.isPending}
+                          aria-label={
+                            tracked
+                              ? t("settings:spending.accounts.stop_tracking_aria", {
+                                  name: account.name,
+                                })
+                              : t("settings:spending.accounts.track_aria", { name: account.name })
+                          }
+                        />
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </SettingsList>
 
             {hasMixedCashAndCredit && (
-              <Alert variant="warning" className="mt-3 p-2.5 text-xs">
+              <Alert variant="warning" className="mt-4 p-2.5 text-xs">
                 <Icons.AlertTriangle className="size-3.5" />
                 <AlertDescription className="leading-relaxed">
                   {t("settings:spending.accounts.mixed_warning")}
                 </AlertDescription>
               </Alert>
             )}
-          </div>
+          </>
         )}
       </CardContent>
     </Card>

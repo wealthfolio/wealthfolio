@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { createAccount, updateAccount, deleteAccount, logger } from "@/adapters";
@@ -26,10 +27,10 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     });
   };
 
-  const handleError = (action: string) => {
+  const handleError = (action: "creating" | "updating" | "deleting") => {
     toast({
-      title: `Uh oh! Something went wrong ${action} this account.`,
-      description: "Please try again or report an issue if the problem persists.",
+      title: i18n.t(`settings:messages.account.${action}Failed`),
+      description: i18n.t("activity:import.errors.importErrorDescription"),
       variant: "destructive",
     });
   };
@@ -37,7 +38,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
   const createAccountMutation = useMutation({
     mutationFn: createAccount,
     onSuccess: () => {
-      handleSuccess("Account created successfully.");
+      handleSuccess(i18n.t("settings:messages.account.created"));
       invalidateAccountDependentQueries();
     },
     onError: (e) => {

@@ -17,9 +17,17 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemSeparator,
+  ItemTitle,
+} from "@wealthfolio/ui/components/ui/item";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -40,7 +48,7 @@ interface HoldingRowProps {
   isHidden?: boolean;
   performanceMode: PerformanceMode;
   showName: boolean;
-  onClick?: () => void;
+  to: string;
 }
 
 function HoldingRow({
@@ -49,7 +57,7 @@ function HoldingRow({
   isHidden,
   performanceMode,
   showName,
-  onClick,
+  to,
 }: HoldingRowProps) {
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
@@ -86,71 +94,69 @@ function HoldingRow({
           : (holding.dayChange?.base ?? 0);
   const gainPercent = getBaseHoldingPerformancePercentForMode(holding, performanceMode);
 
+  // An Item link: its padding and rounded corners carry the hover, and the negative
+  // margin keeps the content on the card's padding.
   return (
-    <div
-      className="border-border hover:bg-muted/30 group flex cursor-pointer items-center justify-between gap-3 border-b py-3 transition-colors last:border-0"
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onClick?.()}
+    <Item
+      size="sm"
+      render={<Link to={to} />}
+      className="-mx-2 flex-nowrap gap-3 border-0 px-2 md:py-4"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <TickerAvatar
-          symbol={avatarSymbol}
-          exchangeMic={holding.instrument?.exchangeMic}
-          instrumentType={holding.instrument?.instrumentType}
-          assetId={holding.instrument?.id}
-          className="size-9 shrink-0"
-        />
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold">{title}</span>
-          <span className="text-muted-foreground truncate text-xs">{subtitle}</span>
-        </div>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
+      {/* Not in ItemMedia, which pins media to the top whenever a row has a description. */}
+      <TickerAvatar
+        symbol={avatarSymbol}
+        exchangeMic={holding.instrument?.exchangeMic}
+        instrumentType={holding.instrument?.instrumentType}
+        assetId={holding.instrument?.id}
+        className="size-8 shrink-0"
+      />
+      <ItemContent className="min-w-0 gap-0">
+        <ItemTitle className="block w-full truncate text-sm font-semibold md:text-base">
+          {title}
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none truncate text-xs text-nowrap md:text-sm">
+          {subtitle}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="shrink-0 flex-col items-end gap-1">
         <AmountDisplay
           value={marketValue}
           currency={baseCurrency}
           isHidden={isHidden}
-          className="text-sm font-semibold"
+          className="text-sm font-semibold md:text-base"
         />
         <div className="flex items-center gap-2">
           <GainAmount
             value={gainAmount}
             currency={baseCurrency}
             displayCurrency={false}
-            className="text-xs"
+            className="text-xs md:text-sm"
           />
+          {/* The badge variant draws light text; normal matches the amount beside it. */}
           <HoldingPerformancePercent
             value={gainPercent}
             variant="badge"
-            className="min-w-15 justify-center text-center text-xs"
+            className="min-w-15 justify-center text-center text-xs font-normal md:text-sm"
           />
         </div>
-      </div>
-    </div>
+      </ItemActions>
+    </Item>
   );
 }
 
 interface StackedAvatarsProps {
   holdings: Holding[];
   totalRemaining: number;
-  onClick?: () => void;
+  to: string;
 }
 
-function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsProps) {
+function StackedAvatars({ holdings, totalRemaining, to }: StackedAvatarsProps) {
   const { t } = useTranslation();
   const displayedHoldings = holdings.slice(0, MAX_STACKED_AVATARS);
   const extraCount = totalRemaining - displayedHoldings.length;
 
   return (
-    <div
-      className="hover:bg-muted/50 border-border flex cursor-pointer items-center gap-2 border-t py-3 transition-colors"
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onClick?.()}
-    >
+    <Item size="sm" render={<Link to={to} />} className="-mx-2 flex-nowrap gap-2 border-0 px-2">
       <div className="flex items-center">
         {displayedHoldings.map((holding, index) => {
           const symbol = holding.instrument?.symbol ?? holding.id;
@@ -179,7 +185,7 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
           : t("dashboard:holdings.more", { count: totalRemaining })}
       </span>
       <Icons.ChevronRight className="text-muted-foreground ms-auto h-3 w-3 rtl:rotate-180" />
-    </div>
+    </Item>
   );
 }
 
@@ -201,7 +207,7 @@ function TopHoldingsSkeleton() {
               <Skeleton className="h-3.5 w-24" />
               <div className="flex items-center gap-2">
                 <Skeleton className="h-3 w-16" />
-                <Skeleton className="w-15 h-5 rounded-md" />
+                <Skeleton className="h-5 w-15 rounded-md" />
               </div>
             </div>
           </div>
@@ -320,7 +326,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               align="end"
               className="border-border/50 bg-card min-w-50 rounded-2xl border p-2 shadow-lg backdrop-blur-xl"
             >
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_show")}
               </p>
               {(["daily", "unrealized", "pnl", "return"] as const).map((v) => (
@@ -351,7 +357,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                 </button>
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_sort_by")}
               </p>
               {(["value", "gain"] as const).map((v) => (
@@ -376,7 +382,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                 </button>
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_display")}
               </p>
               {(["symbol", "name"] as const).map((v) => (
@@ -414,26 +420,31 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
         </div>
       }
     >
-      {topHoldings.map((holding) => {
+      {topHoldings.map((holding, index) => {
         const assetId = holding.instrument?.id ?? holding.id;
         return (
-          <HoldingRow
-            key={holding.id}
-            holding={holding}
-            baseCurrency={baseCurrency}
-            isHidden={isBalanceHidden}
-            performanceMode={performanceMode}
-            showName={displayMode === "name"}
-            onClick={() => navigate(`/holdings/${encodeURIComponent(assetId)}`)}
-          />
+          <Fragment key={holding.id}>
+            {index > 0 && <ItemSeparator />}
+            <HoldingRow
+              holding={holding}
+              baseCurrency={baseCurrency}
+              isHidden={isBalanceHidden}
+              performanceMode={performanceMode}
+              showName={displayMode === "name"}
+              to={`/holdings/${encodeURIComponent(assetId)}`}
+            />
+          </Fragment>
         );
       })}
       {hasRemainingHoldings && (
-        <StackedAvatars
-          holdings={remainingHoldings}
-          totalRemaining={remainingHoldings.length}
-          onClick={() => navigate("/holdings")}
-        />
+        <>
+          <ItemSeparator />
+          <StackedAvatars
+            holdings={remainingHoldings}
+            totalRemaining={remainingHoldings.length}
+            to="/holdings"
+          />
+        </>
       )}
     </DashboardCard>
   );

@@ -412,7 +412,10 @@ Addons using the review fields or asset patch semantics must set
 
 #### `saveMany(request: ActivityBulkMutationRequest): Promise<ActivityBulkMutationResult>`
 
-Creates, updates, and deletes activities in one request.
+Creates, updates, and deletes activities in one request. Update payloads expose
+only the public SDK fields, including the legacy `notes` alias for `comment`.
+Native controls such as `unlinkTransferPairId` are not forwarded by `update` or
+`saveMany`. Use `activities.unlinkTransfer` with its explicit function grant.
 
 ```typescript
 const result = await ctx.api.activities.saveMany({
@@ -463,6 +466,42 @@ omitted, `TRANSFER_IN` and `TRANSFER_OUT` default to internal at the portfolio
 boundary. For `CREDIT`, omission keeps the subtype default (`BONUS` is external;
 other credit subtypes are internal).
 
+An in-kind conversion (a fund switch carried at cost, such as a Spanish
+_traspaso_) is two `ADJUSTMENT` rows that share a `sourceGroupId`: the units
+that leave (`CONVERSION_OUT`) and the units that arrive (`CONVERSION_IN`), in
+one account on one day, without price, amount or fee. Import both rows together;
+a conversion row without its other row fails the import. Other rows ignore
+`sourceGroupId`.
+
+```typescript
+const conversion: ActivityImport[] = [
+  {
+    accountId: "account-123",
+    activityType: "ADJUSTMENT",
+    subtype: "CONVERSION_OUT",
+    date: "2026-09-04",
+    symbol: "FUNDA",
+    quantity: 25,
+    currency: "EUR",
+    sourceGroupId: "switch-2026-09-04",
+    isValid: true,
+    isDraft: false,
+  },
+  {
+    accountId: "account-123",
+    activityType: "ADJUSTMENT",
+    subtype: "CONVERSION_IN",
+    date: "2026-09-04",
+    symbol: "FUNDB",
+    quantity: 40,
+    currency: "EUR",
+    sourceGroupId: "switch-2026-09-04",
+    isValid: true,
+    isDraft: false,
+  },
+];
+```
+
 #### `checkImport(activities: ActivityImport[]): Promise<ActivityImport[]>`
 
 Validates and normalizes activities without importing them.
@@ -492,6 +531,8 @@ const savedMapping = await ctx.api.activities.saveImportMapping(mapping);
 
 Get the linked transfer pair for a given activity. Returns `null` when the
 activity has no pair; rejects only on failure, such as an unknown activity id.
+For a conversion row it returns the conversion: `transferOut` is the
+`CONVERSION_OUT` row and `transferIn` the `CONVERSION_IN` row.
 
 ```typescript
 const pair = await ctx.api.activities.getTransferPair("activity-123");
@@ -851,15 +892,36 @@ applying to future matching imports, not just the activities that exist when
 it's created.
 
 The categorization methods require Wealthfolio 3.8 or newer. `getReport` and
-`searchCashActivities` require a Wealthfolio release that ships those methods
-(unreleased at the time of writing). Most methods use the medium-risk `spending`
-permission. Transaction-level `searchCashActivities` uses the high-risk
-`activities` permission because it returns transaction records. Declare only the
-methods your addon calls.
+`searchCashActivities` require Wealthfolio 3.9 or newer. Most methods use the
+medium-risk `spending` permission. Transaction-level `searchCashActivities` uses
+the high-risk `activities` permission because it returns transaction records.
+Declare only the methods your addon calls.
 
 `kind` selects which of Wealthfolio's three fixed activity-scope taxonomies a
 category or rule belongs to: `"expense"`, `"income"`, or `"saving"`. Asset
 classification taxonomies aren't reachable through this API.
+
+### Context, budget, events and explicit metadata writes
+
+The following methods require a release shipping the expanded Spending API.
+Declare each exact function; existing addon grants are never widened.
+
+| Method                                         | Permission category | Behavior                                                                                                |
+| ---------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `getContext()`                                 | medium `spending`   | Enabled state, effective opted-in account IDs and excluded category IDs                                 |
+| `getBudget(periodKey?)`                        | medium `spending`   | Pure native snapshot with groups, mappings, targets, rollovers and computed actuals; no default seeding |
+| `getEvents()` / `getEventTypes()`              | medium `spending`   | Existing event definitions/type metadata                                                                |
+| `assignCategory(activityId, kind, categoryId)` | high `activities`   | Native manual assignment; protects split rows and validates the cashflow taxonomy                       |
+| `unassignCategory(activityId, kind)`           | high `activities`   | Clear the selected single assignment; split rows require the explicit native split workflow             |
+| `setEvent(activityId, eventIdOrNull)`          | high `activities`   | Tag/untag an eligible opted-in cash transaction; dates may lie outside the event                        |
+| `upsertBudgetTarget(target, periodKey?)`       | high `budgets`      | Native target write and resulting snapshot; `target.periodKey` explicitly selects default or month      |
+
+Defaults affect every month that inherits them, including historical months;
+monthly overrides remain authoritative. Missing-FX conversions are omitted from
+native totals; additive `calculationQuality` reports affected transaction counts
+and currencies on report periods, event summaries and `budget.computed`. Budget
+coverage includes historical actuals read for rollovers. A zero count only
+describes conversion coverage, not source-data completeness.
 
 ### Methods
 
@@ -882,6 +944,9 @@ their cash-flow bucket, category assignments, splits, and effective spending
 amount. Filters supplied in `accountIds` are intersected with the configured
 Spending accounts. This method requires the high-risk
 `activities.searchCashActivities` permission.
+
+Split `amount` values are exact decimal strings. Wealthfolio 3.11.0 returned
+numbers; consumers should use explicit decimal arithmetic when totaling them.
 
 `netAmount` and `visibleSpendingAmount` use the activity's own `currency`.
 `netAmountBase`, when available, uses the response's `baseCurrency` with the

@@ -1,3 +1,5 @@
+pub use wealthfolio_core::goals::GOAL_SUMMARIES_UPDATED;
+
 use serde_json::Value;
 use tokio::sync::broadcast;
 

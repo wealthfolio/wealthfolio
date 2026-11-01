@@ -28,7 +28,7 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
     <div className="w-full">
       {/* Mobile: compact, scrollable rail with current title */}
       <div className="md:hidden">
-        <div className="max-w-85 mx-auto flex w-full items-center px-5 py-3">
+        <div className="mx-auto flex w-full max-w-85 items-center px-5 py-3">
           {steps.map((step, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = step.id === currentStep;

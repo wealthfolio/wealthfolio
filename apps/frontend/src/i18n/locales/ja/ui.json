@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "前のスライド",
-    "next": "次のスライド"
+    "next": "次のスライド",
+    "role": "カルーセル",
+    "slide": "スライド"
   },
   "currency": {
     "selectTitle": "通貨を選択",
@@ -14,7 +16,15 @@
     "searchPrompt": "任意の通貨を検索するか、上の候補から選択してください。",
     "useCustom": "「{{value}}」をカスタム通貨として使用",
     "noneFound": "「{{query}}」に一致する通貨が見つかりません。",
-    "noneFoundShort": "通貨が見つかりません。"
+    "noneFoundShort": "通貨が見つかりません。",
+    "units": {
+      "GBp": "英ペンス",
+      "GBX": "英ペンス",
+      "ILA": "イスラエルアゴラ",
+      "USX": "米セント",
+      "ZAc": "南アフリカセント",
+      "KWF": "クウェートフィルス"
+    }
   },
   "dataGrid": {
     "label": "データグリッド",
@@ -75,7 +85,11 @@
     "clearSymbol": "銘柄をクリア",
     "currency": "通貨",
     "searchCurrency": "通貨を検索...",
-    "noCurrencyFound": "通貨が見つかりません。"
+    "noCurrencyFound": "通貨が見つかりません。",
+    "copyFailed": "クリップボードへのコピーに失敗しました",
+    "cutFailed": "クリップボードへの切り取りに失敗しました",
+    "pasteFailed": "貼り付けに失敗しました。もう一度お試しください。",
+    "cellsSkipped_other": "無効なデータのため {{count}} セルの貼り付けをスキップしました"
   },
   "dataTable": {
     "noResults": "該当する結果がありません",
@@ -197,5 +211,27 @@
   "page": {
     "back": "戻る"
   },
-  "remove": "{{label}} を削除"
+  "remove": "{{label}} を削除",
+  "actionConfirm": {
+    "pending": "処理中…"
+  },
+  "select": {
+    "placeholder": "項目を選択"
+  },
+  "progress": {
+    "title": "処理中",
+    "message": "処理しています…",
+    "description": "リクエストを処理しています。しばらくお待ちください。"
+  },
+  "navigation": {
+    "view": "ビュー {{number}}",
+    "goTo": "{{name}}へ移動"
+  },
+  "quoteImport": {
+    "noFile": "ファイルが選択されていません",
+    "validateFailed": "CSV の検証に失敗しました",
+    "validateFirst": "インポートする価格がありません。先にファイルを検証してください。",
+    "noValid": "有効な価格がありません。すべての価格に検証エラーがあります。",
+    "importFailed": "価格のインポートに失敗しました"
+  }
 }

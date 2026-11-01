@@ -8,6 +8,9 @@ afterEach(() => {
   applyHostTheme({ cssVariables: {} });
   document.documentElement.className = "";
   document.documentElement.removeAttribute("style");
+  document.documentElement.removeAttribute("data-theme");
+  document.documentElement.removeAttribute("data-text-size");
+  document.documentElement.removeAttribute("data-gain-colors");
   document.body.className = "";
   document.body.removeAttribute("style");
 });
@@ -39,6 +42,33 @@ describe("addon sandbox theme bridge", () => {
       "--background": "black",
       "--foreground": "white",
     });
+  });
+
+  it("passes the host's theme ID to the addon document", () => {
+    document.documentElement.setAttribute("data-theme", "ember");
+    expect(collectAddonThemeSnapshot().themeId).toBe("ember");
+
+    document.documentElement.removeAttribute("data-theme");
+    applyHostTheme({ themeId: "signature", cssVariables: {} });
+    expect(document.documentElement.getAttribute("data-theme")).toBe("signature");
+  });
+
+  it("passes the host's text size to the addon document", () => {
+    document.documentElement.setAttribute("data-text-size", "extra-large");
+    expect(collectAddonThemeSnapshot().textSize).toBe("extra-large");
+
+    document.documentElement.removeAttribute("data-text-size");
+    applyHostTheme({ textSize: "large", cssVariables: {} });
+    expect(document.documentElement.getAttribute("data-text-size")).toBe("large");
+  });
+
+  it("passes the host's gain and loss colours to the addon document", () => {
+    document.documentElement.setAttribute("data-gain-colors", "red-up");
+    expect(collectAddonThemeSnapshot().gainColors).toBe("red-up");
+
+    document.documentElement.removeAttribute("data-gain-colors");
+    applyHostTheme({ gainColors: "red-up-blue-down", cssVariables: {} });
+    expect(document.documentElement.getAttribute("data-gain-colors")).toBe("red-up-blue-down");
   });
 
   it("applies host theme updates and removes stale host css variables", () => {

@@ -264,7 +264,20 @@
       "show": "Fortschritt anzeigen"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "Ein Portfolio verweist auf ein gelöschtes Konto. Öffnen Sie Einstellungen > Portfolios, bearbeiten und speichern Sie das Portfolio.",
+    "fallback": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+    "restoreRequired": "Die Synchronisierung muss auf diesem Gerät wiederhergestellt werden, bevor ein weiteres Gerät verbunden werden kann.",
+    "invalidCode": "Ungültiger Code. Prüfen Sie ihn und versuchen Sie es erneut.",
+    "expired": "Sitzung abgelaufen. Bitte beginnen Sie erneut.",
+    "cancelled": "Kopplung wurde abgebrochen.",
+    "network": "Netzwerkfehler. Prüfen Sie Ihre Verbindung.",
+    "timeout": "Zeitüberschreitung der Verbindung.",
+    "notFound": "Sitzung nicht gefunden oder abgelaufen.",
+    "security": "Sicherheitsprüfung fehlgeschlagen.",
+    "technical": "Die Synchronisierung konnte nicht abgeschlossen werden. Versuchen Sie es erneut. Prüfen Sie bei anhaltenden Problemen die App-Protokolle.",
+    "namedPortfolioRepair": "Das Portfolio „{{name}}“ verweist auf ein gelöschtes Konto. Öffnen Sie Einstellungen > Portfolios, bearbeiten und speichern Sie das Portfolio."
+  },
   "wizard": {
     "progressLabel": "Fortschritt der Einrichtung",
     "steps": {

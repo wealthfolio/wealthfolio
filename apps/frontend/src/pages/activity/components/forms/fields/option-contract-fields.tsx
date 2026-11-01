@@ -87,34 +87,34 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
     // Try to parse as OCC symbol — either from user paste or option search result
     const parsed = parseOccSymbol(upper);
     if (parsed) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(underlyingName, parsed.underlying as any, {
         shouldValidate: true,
         shouldDirty: true,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(strikePriceName, parsed.strikePrice as any, { shouldDirty: true });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(expirationDateName, parsed.expiration as any, { shouldDirty: true });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(optionTypeName, parsed.optionType as any, { shouldDirty: true });
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(underlyingName, upper as any, { shouldValidate: true, shouldDirty: true });
     }
 
     if (searchResult?.currency && currencyName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(currencyName, normalizeCurrency(searchResult.currency) as any);
     }
     if (searchResult?.exchangeMic && exchangeMicName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(exchangeMicName, searchResult.exchangeMic as any);
     }
 
     // Set initial quoteCcy from search result
     if (quoteCcyName && searchResult?.currency) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(quoteCcyName, searchResult.currency as any);
     }
 
@@ -149,7 +149,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
 
         const confirmedCurrency = resolved?.currency?.trim();
         if (confirmedCurrency && quoteCcyName) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // oxlint-disable-next-line typescript/no-explicit-any
           setValue(quoteCcyName, confirmedCurrency as any);
         }
 
@@ -157,7 +157,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
         if (needsCurrencyConfirmation.current && confirmedCurrency && currencyName) {
           const current = getValues(currencyName);
           if (current === provisionalCurrency.current) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             setValue(currencyName, confirmedCurrency as any, {
               shouldDirty: true,
               shouldValidate: true,
@@ -169,7 +169,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
         if (resolved?.price != null && unitPriceName) {
           const currentPrice = getValues(unitPriceName);
           if (!currentPrice) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             setValue(unitPriceName, resolved.price as any, { shouldDirty: true });
           }
         }
@@ -177,7 +177,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
       .catch(() => {
         // Ignore — provisional currency from search result is already set
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [underlying, strikePrice, expirationDate, optionType, isExpirationFocused]);
 
   return (
@@ -249,7 +249,8 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
                         {isSelected && (
                           <motion.div
                             layoutId={`option-type-indicator-${optionTypeId}`}
-                            className="bg-background absolute inset-0 -z-10 rounded-md shadow-sm"
+                            data-slot="segmented-thumb"
+                            className="absolute inset-0 -z-10 rounded-md bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow)"
                             initial={false}
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
@@ -326,7 +327,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
       {/* Contract Summary — confirms what the user is building */}
       {contractSummary && (
         <div className="bg-muted/50 border-border rounded-md border px-3 py-2">
-          <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
+          <span className="text-muted-foreground text-2xs font-medium tracking-wider uppercase">
             {t("activity:form.contract")}
           </span>
           <p className="text-sm font-medium tabular-nums">{contractSummary}</p>

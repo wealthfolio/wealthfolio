@@ -26,7 +26,7 @@
    *    for running/developing the Wealthflolio app and managing GUI display output.
    *
    * 4. **VS Code Setup**: Preconfigured VS Code extensions for Rust, Tauri,
-   *    Docker, ESLint, Prettier, and Git integration, making it a seamless
+   *    Docker, Oxlint, Oxfmt, ESLint, TypeScript 7, and Git integration, making it a seamless
    *    environment for development and debugging.
    *
    * 5. **Volumes**: Docker volumes are used to persist app data and build caches
@@ -140,7 +140,7 @@
 
   // Use 'postCreateCommand' to run commands after the container is created.
   "postCreateCommand": {
-    "DEPENDENCIES": "yes|pnpm install" // Install project dependencies using pnpm after the container setup
+    "DEPENDENCIES": "pnpm install --frozen-lockfile && pnpm build:types" // Install pinned dependencies and prepare workspace declarations
   },
 
   // Use 'postStartCommand' to run commands after the container is started.
@@ -162,8 +162,8 @@
         "rust-lang.rust-analyzer", // Rust language server for Rust development
         "tauri-apps.tauri-vscode", // Tauri framework support for building desktop apps
         "ms-azuretools.vscode-docker", // Docker integration for VS Code
-        "esbenp.prettier-vscode", // Prettier integration for code formatting
-        "rvest.vs-code-prettier-eslint", // Prettier + ESLint integration for code quality
+        "oxc.oxc-vscode", // Oxlint and Oxfmt integration
+        "typescriptteam.native-preview", // TypeScript 7 language server
         "dbaeumer.vscode-eslint", // ESLint integration for JavaScript/TypeScript
         "tamasfe.even-better-toml", // TOML syntax highlighting support
         "mhutchie.git-graph", // Git graph visualization to track repository changes

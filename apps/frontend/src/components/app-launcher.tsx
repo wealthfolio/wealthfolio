@@ -759,7 +759,7 @@ export function AppLauncher() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="bottom"
-          className="mx-auto flex h-[85vh] w-full max-w-screen-sm flex-col overflow-hidden rounded-t-3xl border-none px-0 pb-6 pt-4"
+          className="mx-auto flex h-[85vh] w-full max-w-screen-sm flex-col overflow-hidden rounded-t-3xl border-none px-0 pt-4 pb-6"
         >
           <SheetHeader className="px-6">
             <SheetTitle>{t("common:component.quick_launch")}</SheetTitle>

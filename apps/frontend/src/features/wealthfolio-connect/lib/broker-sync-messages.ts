@@ -1,33 +1,40 @@
+import i18n from "i18next";
 import type { SyncStatus } from "../types";
 
-export const BROKER_SYNC_RUN_FAILED_MESSAGE =
-  "This sync run couldn't be completed. Please retry sync or manage your broker connection.";
+export function getBrokerSyncRunFailedMessage(): string {
+  return i18n.t("connect:syncMessages.runFailed");
+}
 
-export const BROKER_SYNC_RUN_NEEDS_REVIEW_MESSAGE =
-  "Some synced items need your review before sync can continue.";
+export function getBrokerSyncRunNeedsReviewMessage(): string {
+  return i18n.t("connect:syncMessages.runNeedsReview");
+}
 
-const BROKER_SYNC_ACCOUNT_FAILED_MESSAGE =
-  "We couldn't sync this broker account. Please retry sync or manage your broker connection.";
+function getBrokerSyncAccountFailedMessage(): string {
+  return i18n.t("connect:syncMessages.accountFailed");
+}
 
-const BROKER_SYNC_ACCOUNT_NEEDS_REVIEW_MESSAGE =
-  "Some broker data needs review. Please retry sync or manage your broker connection.";
+function getBrokerSyncAccountNeedsReviewMessage(): string {
+  return i18n.t("connect:syncMessages.accountNeedsReview");
+}
 
-const HOLDINGS_SYNCED_ACTIVITY_ATTENTION_MESSAGE =
-  "Holdings synced, but activity sync needs attention. Please retry sync or manage your broker connection.";
+function getHoldingsSyncedActivityAttentionMessage(): string {
+  return i18n.t("connect:syncMessages.holdingsSynced");
+}
 
-const HOLDINGS_DEFERRED_ACTIVITY_ATTENTION_MESSAGE =
-  "Holdings sync needs attention. Please retry sync or manage your broker connection.";
+function getHoldingsDeferredActivityAttentionMessage(): string {
+  return i18n.t("connect:syncMessages.holdingsDeferred");
+}
 
 /** Explains a known partial failure; null when the error has no specific message. */
 export function getSpecificBrokerSyncIssueMessage(lastError?: string | null): string | null {
   const normalizedError = lastError?.toLowerCase() ?? "";
 
   if (normalizedError.startsWith("holdings synced")) {
-    return HOLDINGS_SYNCED_ACTIVITY_ATTENTION_MESSAGE;
+    return getHoldingsSyncedActivityAttentionMessage();
   }
 
   if (normalizedError.startsWith("holdings sync deferred")) {
-    return HOLDINGS_DEFERRED_ACTIVITY_ATTENTION_MESSAGE;
+    return getHoldingsDeferredActivityAttentionMessage();
   }
 
   return null;
@@ -40,7 +47,7 @@ export function getBrokerSyncIssueMessage(
   return (
     getSpecificBrokerSyncIssueMessage(lastError) ??
     (syncStatus === "FAILED"
-      ? BROKER_SYNC_ACCOUNT_FAILED_MESSAGE
-      : BROKER_SYNC_ACCOUNT_NEEDS_REVIEW_MESSAGE)
+      ? getBrokerSyncAccountFailedMessage()
+      : getBrokerSyncAccountNeedsReviewMessage())
   );
 }

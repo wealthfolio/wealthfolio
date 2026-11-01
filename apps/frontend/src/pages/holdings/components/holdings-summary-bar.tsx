@@ -81,7 +81,7 @@ function SummaryItem({
 }: SummaryItemProps) {
   return (
     <div className="flex flex-col items-center sm:items-start">
-      <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+      <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
         {label}
       </span>
       <AmountDisplay

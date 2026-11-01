@@ -14,6 +14,10 @@ pub(crate) enum SpendingClassification {
     /// Money moved out to investing/savings — its own bucket, parallel to
     /// `Income`. Excluded from `spending_amount`; surfaced via `saving_amount`.
     Saving,
+    /// Money brought back from investing/savings — the mirror of `Saving`, so
+    /// net saving is `saving − from_savings`. Excluded from income and spending;
+    /// surfaced via `savings_withdrawal_amount`.
+    FromSavings,
     InternalTransfer,
     Ignored,
 }
@@ -39,6 +43,15 @@ impl SpendingClassification {
     pub(crate) fn saving_amount(self, amount: Decimal) -> Decimal {
         match self {
             Self::Saving => amount,
+            _ => Decimal::ZERO,
+        }
+    }
+
+    /// Amount brought back from savings — mirrors `saving_amount`. Non-zero
+    /// only for `FromSavings`, so it never overlaps the other three amounts.
+    pub(crate) fn savings_withdrawal_amount(self, amount: Decimal) -> Decimal {
+        match self {
+            Self::FromSavings => amount,
             _ => Decimal::ZERO,
         }
     }
@@ -72,9 +85,11 @@ pub(crate) fn within_spending_transfer_groups(acts: &[&Activity]) -> HashSet<Str
 /// fully within the spending set. A linked transfer that *crosses out* of the
 /// spending world (counterpart is a non-spending/investing account → only one
 /// leg in the full spending context) classifies its `TRANSFER_OUT` leg, from a
-/// cash or card account, as `Saving` — its own bucket, like income. The inbound
-/// leg and all within-spending transfers stay neutral. Unlinked transfer-outs
-/// fall through to the plain classifier and can still be Spending.
+/// cash or card account, as `Saving` — its own bucket, like income — and its
+/// `TRANSFER_IN` leg, money coming back into a cash or card account, as
+/// `FromSavings`, so a round trip nets to zero saving. Within-spending
+/// transfers stay neutral. Unlinked transfers fall through to the plain
+/// classifier and can still be Spending or Income.
 pub(crate) fn classify_activity_for_aggregation(
     activity: &Activity,
     account_type: &str,
@@ -89,6 +104,9 @@ pub(crate) fn classify_activity_for_aggregation(
             return match (account_type, activity_type) {
                 (account_types::CASH | account_types::CREDIT_CARD, "TRANSFER_OUT") => {
                     SpendingClassification::Saving
+                }
+                (account_types::CASH | account_types::CREDIT_CARD, "TRANSFER_IN") => {
+                    SpendingClassification::FromSavings
                 }
                 _ => SpendingClassification::InternalTransfer,
             };
@@ -473,12 +491,80 @@ mod tests {
         assert_eq!(c.saving_amount(Decimal::new(100, 0)), Decimal::new(100, 0));
         assert_eq!(c.spending_amount(Decimal::new(100, 0)), Decimal::ZERO);
         assert_eq!(c.income_amount(Decimal::new(100, 0)), Decimal::ZERO);
-        // The inbound leg of a cross-boundary transfer stays neutral.
-        let inn = activity("TRANSFER_IN", Some("pair-y"));
-        let within_in = within_spending_transfer_groups(&[&inn]);
         assert_eq!(
-            classify_activity_for_aggregation(&inn, account_types::CASH, &within_in),
-            SpendingClassification::InternalTransfer
+            c.savings_withdrawal_amount(Decimal::new(100, 0)),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn cross_boundary_transfer_in_is_from_savings_not_income() {
+        // Investing → spending: only the IN leg is in the spending set, so it is
+        // money brought back from savings. It offsets saving, and is neither
+        // income nor a spending refund.
+        let inn = activity("TRANSFER_IN", Some("pair-y"));
+        let within = within_spending_transfer_groups(&[&inn]);
+        assert!(within.is_empty());
+        for account_type in [account_types::CASH, account_types::CREDIT_CARD] {
+            let c = classify_activity_for_aggregation(&inn, account_type, &within);
+            assert_eq!(c, SpendingClassification::FromSavings, "{account_type}");
+            assert_eq!(
+                c.savings_withdrawal_amount(Decimal::new(100, 0)),
+                Decimal::new(100, 0)
+            );
+            assert_eq!(c.saving_amount(Decimal::new(100, 0)), Decimal::ZERO);
+            assert_eq!(c.income_amount(Decimal::new(100, 0)), Decimal::ZERO);
+            assert_eq!(c.spending_amount(Decimal::new(100, 0)), Decimal::ZERO);
+        }
+    }
+
+    #[test]
+    fn cross_boundary_legs_on_non_spending_accounts_stay_neutral() {
+        // Only cash and card legs move spending totals; a leg on any other
+        // account type that reaches the classifier is neutral either way.
+        for activity_type in ["TRANSFER_IN", "TRANSFER_OUT"] {
+            let leg = activity(activity_type, Some("pair-securities"));
+            let within = within_spending_transfer_groups(&[&leg]);
+            assert_eq!(
+                classify_activity_for_aggregation(&leg, account_types::SECURITIES, &within),
+                SpendingClassification::InternalTransfer,
+                "{activity_type}"
+            );
+        }
+    }
+
+    #[test]
+    fn within_spending_transfer_in_stays_neutral() {
+        let out = activity("TRANSFER_OUT", Some("pair-in"));
+        let inn = activity("TRANSFER_IN", Some("pair-in"));
+        let within = within_spending_transfer_groups(&[&out, &inn]);
+        for account_type in [account_types::CASH, account_types::CREDIT_CARD] {
+            let c = classify_activity_for_aggregation(&inn, account_type, &within);
+            assert_eq!(
+                c,
+                SpendingClassification::InternalTransfer,
+                "{account_type}"
+            );
+            assert_eq!(
+                c.savings_withdrawal_amount(Decimal::new(100, 0)),
+                Decimal::ZERO
+            );
+        }
+    }
+
+    #[test]
+    fn unlinked_transfer_in_is_unchanged_by_from_savings() {
+        // Without a link nothing says where the money came from: a cash
+        // account's transfer in stays income, a card's stays a payment.
+        let inn = activity("TRANSFER_IN", None);
+        let none = HashSet::new();
+        assert_eq!(
+            classify_activity_for_aggregation(&inn, account_types::CASH, &none),
+            SpendingClassification::Income
+        );
+        assert_eq!(
+            classify_activity_for_aggregation(&inn, account_types::CREDIT_CARD, &none),
+            SpendingClassification::Ignored
         );
     }
 
@@ -570,5 +656,45 @@ mod tests {
             ),
             SpendingClassification::InternalTransfer
         );
+        // The plain classifier, which budgets, daily series and events use,
+        // has no transfer context: a linked transfer back in stays neutral.
+        assert_eq!(
+            classify_activity(
+                &activity("TRANSFER_IN", Some("pair-1")),
+                account_types::CASH
+            ),
+            SpendingClassification::InternalTransfer
+        );
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn classification_amounts_never_overlap(
+            variant in 0usize..7,
+            minor in 1i64..10_000_000,
+        ) {
+            let classification = [
+                SpendingClassification::Income,
+                SpendingClassification::Expense,
+                SpendingClassification::ExpenseRefund,
+                SpendingClassification::Saving,
+                SpendingClassification::FromSavings,
+                SpendingClassification::InternalTransfer,
+                SpendingClassification::Ignored,
+            ][variant];
+            let amount = Decimal::new(minor, 2);
+            let non_zero = [
+                classification.income_amount(amount),
+                classification.spending_amount(amount),
+                classification.saving_amount(amount),
+                classification.savings_withdrawal_amount(amount),
+            ]
+            .into_iter()
+            .filter(|value| !value.is_zero())
+            .count();
+            prop_assert!(non_zero <= 1, "{classification:?} fills {non_zero} buckets");
+        }
     }
 }

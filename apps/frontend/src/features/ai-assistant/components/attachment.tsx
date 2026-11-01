@@ -89,7 +89,7 @@ const AttachmentPreviewDialog: FC<{ children: ReactElement }> = ({ children }) =
         nativeButton={false}
         render={children}
       />
-      <DialogContent className="aui-attachment-preview-dialog-content [&>button]:bg-foreground/60 [&_svg]:text-background [&>button]:hover:[&_svg]:text-destructive [&>button]:ring-0! p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:p-1 [&>button]:opacity-100">
+      <DialogContent className="aui-attachment-preview-dialog-content [&>button]:bg-foreground/60 [&_svg]:text-background [&>button]:hover:[&_svg]:text-destructive p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:p-1 [&>button]:opacity-100 [&>button]:ring-0!">
         <DialogTitle className="aui-sr-only sr-only">
           {t("ai:attachment.imageAttachmentPreview")}
         </DialogTitle>
@@ -176,7 +176,7 @@ const ComposerFileAttachment: FC = () => {
 
   return (
     <div
-      className="aui-attachment-file-chip bg-muted/60 border-border/70 hover:bg-muted flex h-11 max-w-[18rem] cursor-pointer items-center gap-2 rounded-xl border py-1.5 pe-8 ps-2.5 text-start transition-colors"
+      className="aui-attachment-file-chip bg-muted/60 border-border/70 hover:bg-muted flex h-11 max-w-[18rem] cursor-pointer items-center gap-2 rounded-xl border py-1.5 ps-2.5 pe-8 text-start transition-colors"
       role="button"
       id="attachment-tile"
       aria-label={t("ai:attachment.fileAttachment", { name })}
@@ -187,7 +187,7 @@ const ComposerFileAttachment: FC = () => {
       <span className="aui-attachment-file-chip-name min-w-0 flex-1 truncate text-sm font-medium">
         {name}
       </span>
-      <span className="aui-attachment-file-chip-extension text-muted-foreground text-2xs shrink-0 font-semibold uppercase leading-none">
+      <span className="aui-attachment-file-chip-extension text-muted-foreground text-2xs shrink-0 leading-none font-semibold uppercase">
         {extension}
       </span>
     </div>
@@ -292,7 +292,7 @@ export const UserMessageAttachments: FC = () => {
 
 export const ComposerAttachments: FC = () => {
   return (
-    <div className="aui-composer-attachments mb-2 flex w-full flex-row items-center gap-2 overflow-x-auto px-1.5 pb-1 pt-0.5 empty:hidden">
+    <div className="aui-composer-attachments mb-2 flex w-full flex-row items-center gap-2 overflow-x-auto px-1.5 pt-0.5 pb-1 empty:hidden">
       <ComposerPrimitive.Attachments components={{ Attachment: AttachmentUI }} />
     </div>
   );

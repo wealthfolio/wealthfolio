@@ -55,6 +55,8 @@ pub enum SortDirection {
 pub struct CashActivitySearchRequest {
     /// Free-text search over notes (payee). Case-insensitive contains-match.
     pub search: Option<String>,
+    /// Explicit rows, still intersected with eligible Spending accounts and other filters.
+    pub activity_ids: Option<Vec<String>>,
     /// Restrict to these accounts (intersected with the spending account list).
     pub account_ids: Option<Vec<String>>,
     /// Restrict to specific activity_types. If None, defaults to CASH_ACTIVITY_TYPES.
@@ -102,6 +104,18 @@ pub enum CashFlowBucket {
     Income,
     Saving,
     Neutral,
+}
+
+impl CashFlowBucket {
+    /// Categories label the economic bucket; they cannot change it.
+    pub fn taxonomy_id(self) -> Option<&'static str> {
+        match self {
+            Self::Spending => Some("spending_categories"),
+            Self::Income => Some("income_sources"),
+            Self::Saving => Some("savings_categories"),
+            Self::Neutral => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,4 +245,65 @@ pub struct CashActivitySearchResponse {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_currency: Option<String>,
+}
+
+/// Effective Spending enrollment; reading it never enables or enrolls accounts.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpendingContext {
+    pub enabled: bool,
+    pub account_ids: Vec<String>,
+    pub excluded_category_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectiveCategoryAllocation {
+    pub taxonomy_id: String,
+    pub category_id: String,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub amount: rust_decimal::Decimal,
+}
+
+impl CashActivity {
+    /// Canonical allocations used by Spending calculations: matching splits win
+    /// over any legacy single assignment. Amounts are in the transaction currency.
+    pub fn effective_allocations(&self) -> Vec<EffectiveCategoryAllocation> {
+        let Some(taxonomy_id) = self.cash_flow_bucket.taxonomy_id() else {
+            return Vec::new();
+        };
+        let amount = crate::activity_classification::activity_abs_amount(&self.activity);
+        let bucket_amount =
+            if self.cash_flow_bucket == CashFlowBucket::Spending && self.net_amount > 0.0 {
+                -amount
+            } else {
+                amount
+            };
+        crate::activity_allocations::allocations_for_taxonomy(
+            &self.activity.id,
+            taxonomy_id,
+            bucket_amount,
+            &crate::activity_allocations::group_assignments(self.assignments.clone()),
+            &crate::activity_allocations::group_splits(self.splits.clone()),
+        )
+        .into_iter()
+        .map(|allocation| EffectiveCategoryAllocation {
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: allocation.category_id,
+            amount: allocation.amount,
+        })
+        .collect()
+    }
+
+    pub fn has_hidden_assignment(&self) -> bool {
+        self.cash_flow_bucket.taxonomy_id().is_some_and(|taxonomy| {
+            self.splits
+                .iter()
+                .any(|split| split.taxonomy_id == taxonomy)
+                && self
+                    .assignments
+                    .iter()
+                    .any(|assignment| assignment.taxonomy_id == taxonomy)
+        })
+    }
 }

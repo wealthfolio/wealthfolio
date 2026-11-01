@@ -226,3 +226,7 @@ export const listenBrokerSyncComplete = <T>(handler: EventCallback<T>): Promise<
 export const listenBrokerSyncError = <T>(handler: EventCallback<T>): Promise<UnlistenFn> => {
   return portfolioEventBridge.listen("broker:sync-error", handler);
 };
+
+export const listenGoalSummariesUpdated = <T>(handler: EventCallback<T>): Promise<UnlistenFn> => {
+  return portfolioEventBridge.listen("goal:summaries-updated", handler);
+};

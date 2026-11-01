@@ -14,9 +14,9 @@ import {
 } from "@wealthfolio/ui/components/ui/empty";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { FeatureStatusBanner } from "../feature-status-banner";
 import { SettingsHeader } from "../settings-header";
 import { AuditLogTable } from "./components/audit-log-table";
-import { McpHero } from "./components/mcp-hero";
 import { McpModuleCard } from "./components/mcp-module-card";
 import { McpServerCard } from "./components/mcp-server-card";
 import { PatTable } from "./components/pat-table";
@@ -79,19 +79,20 @@ function WebAgentAccess() {
         </Alert>
       )}
       {status && (
-        <McpHero
+        <FeatureStatusBanner
+          label={t("settings:agentAccess.hero_aria")}
           active={status.mcpEnabled}
-          title={
+          status={
             status.mcpEnabled
               ? t("settings:agentAccess.web_title_enabled")
               : t("settings:agentAccess.web_title_off")
           }
-          description={
+          headline={
             status.mcpEnabled
               ? t("settings:agentAccess.web_description_enabled", { endpoint: status.endpoint })
               : t("settings:agentAccess.web_description_off")
           }
-          hint={
+          note={
             status.mcpEnabled ? undefined : (
               <>
                 {t("settings:agentAccess.web_hint_prefix")}{" "}
@@ -123,7 +124,7 @@ export default function AgentAccessPage() {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading={t("settings:agentAccess.page_heading")}
+        heading={t("settings:nav.items.agent_access")}
         text={t("settings:agentAccess.page_text")}
       />
       <Separator />

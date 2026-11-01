@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import i18n from "i18next";
+import { useIsMutating, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   setSecret,
   deleteSecret,
@@ -16,9 +17,17 @@ export function useMarketDataProviderSettings() {
   });
 }
 
+const UPDATE_PROVIDER_SETTINGS_KEY = [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS, "update"];
+
+/** True while any provider settings save is pending, however many overlap. */
+export function useIsSavingProviderSettings() {
+  return useIsMutating({ mutationKey: UPDATE_PROVIDER_SETTINGS_KEY }) > 0;
+}
+
 export function useUpdateMarketDataProviderSettings() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: UPDATE_PROVIDER_SETTINGS_KEY,
     mutationFn: async (variables: { providerId: string; priority: number; enabled: boolean }) =>
       updateMarketDataProviderSettings(variables),
     onMutate: async (variables) => {
@@ -50,7 +59,7 @@ export function useUpdateMarketDataProviderSettings() {
         );
       }
       toast({
-        title: `Failed to update settings for provider ${variables.providerId}`,
+        title: i18n.t("settings:messages.providerUpdateFailed", { provider: variables.providerId }),
         description: error.message,
         variant: "destructive",
       });
@@ -71,7 +80,7 @@ export function useSetApiKey() {
     },
     onError: (error) => {
       toast({
-        title: "Failed to save API key",
+        title: i18n.t("common:notifications.failed_to_save_api_key"),
         description: error.message,
         variant: "destructive",
       });
@@ -88,7 +97,7 @@ export function useDeleteApiKey() {
     },
     onError: (error) => {
       toast({
-        title: "Failed to delete API key",
+        title: i18n.t("common:notifications.failed_to_delete_api_key"),
         description: error.message,
         variant: "destructive",
       });

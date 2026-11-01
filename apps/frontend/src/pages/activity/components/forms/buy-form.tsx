@@ -1,6 +1,7 @@
 import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION, QuoteMode } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { buildOccSymbol, isValidOptionExpiration } from "@/lib/occ-symbol";
 import { normalizeCurrency } from "@/lib/utils";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
@@ -372,6 +373,7 @@ export function BuyForm({
     tax: watch("tax"),
     isOption,
     contractMultiplier: optMultiplier,
+    currency,
   });
 
   const handleAssetTypeChange = (value: AssetType) => {
@@ -411,6 +413,7 @@ export function BuyForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
 
   const { holdings } = useHoldings({ type: "account", accountId });
@@ -567,7 +570,7 @@ export function BuyForm({
                     type="number"
                     {...form.register("contractMultiplier", { valueAsNumber: true })}
                     readOnly={isEditing}
-                    className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1"
+                    className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
                     aria-label={t("activity:form.contract_multiplier")}
                   />
                   <span>x</span>
@@ -583,11 +586,21 @@ export function BuyForm({
               name="unitPrice"
               label={priceLabel}
               data-testid="price-input"
-              maxDecimalPlaces={4}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               currency={currency}
             />
-            <AmountInput name="fee" label={t("activity:form.label_fee")} currency={currency} />
-            <AmountInput name="tax" label={t("activity:form.label_tax")} currency={currency} />
+            <AmountInput
+              name="fee"
+              label={t("activity:form.label_fee")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
+            <AmountInput
+              name="tax"
+              label={t("activity:form.label_tax")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
           </div>
 
           <TradeTotalInput
@@ -596,6 +609,7 @@ export function BuyForm({
             isCustom={isCustomAmount}
             onCustomChange={onCustomChange}
             currency={currency}
+            maxDecimalPlaces={moneyDecimals}
           />
 
           {isBuyWhileShortWithoutCover && (

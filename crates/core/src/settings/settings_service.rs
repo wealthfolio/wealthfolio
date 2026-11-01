@@ -2,7 +2,7 @@ use super::SettingsRepositoryTrait;
 use crate::errors::{DatabaseError, Error, Result};
 use crate::fx::currency::get_normalization_rule;
 use crate::fx::FxServiceTrait;
-use crate::settings::{Settings, SettingsUpdate};
+use crate::settings::{Settings, SettingsUpdate, GAIN_COLORS};
 use crate::utils::time_utils::canonicalize_timezone;
 use async_trait::async_trait;
 use log::{debug, error};
@@ -99,6 +99,51 @@ fn validate_formatting_region(region: &str) -> Result<()> {
     } else {
         Err(Error::InvalidConfigValue(format!(
             "Unsupported formatting region: {region}"
+        )))
+    }
+}
+
+fn validate_gain_colors(gain_colors: &str) -> Result<()> {
+    if GAIN_COLORS.contains(&gain_colors) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Unsupported gain and loss colours: {gain_colors}"
+        )))
+    }
+}
+
+/// Names the frontend defines, such as theme IDs (its definition file names) and
+/// text sizes: lowercase words joined by hyphens. The frontend shows its default
+/// for a name it doesn't know, so a name saved by a newer version survives an
+/// older one.
+fn is_frontend_name(name: &str) -> bool {
+    name.len() <= 48
+        && name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name.split('-').all(|word| {
+            !word.is_empty()
+                && word
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        })
+}
+
+fn validate_theme_id(theme_id: &str) -> Result<()> {
+    if is_frontend_name(theme_id) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Invalid theme ID: {theme_id}"
+        )))
+    }
+}
+
+fn validate_text_size(text_size: &str) -> Result<()> {
+    if is_frontend_name(text_size) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Invalid text size: {text_size}"
         )))
     }
 }
@@ -204,6 +249,15 @@ impl SettingsServiceTrait for SettingsService {
             normalized_settings.timezone = Some(canonicalize_timezone(timezone_raw)?);
         }
 
+        if let Some(ref theme_id) = normalized_settings.theme_id {
+            validate_theme_id(theme_id)?;
+        }
+        if let Some(ref text_size) = normalized_settings.text_size {
+            validate_text_size(text_size)?;
+        }
+        if let Some(ref gain_colors) = normalized_settings.gain_colors {
+            validate_gain_colors(gain_colors)?;
+        }
         if let Some(ref region) = normalized_settings.formatting_region {
             validate_formatting_region(region)?;
         }
@@ -315,8 +369,10 @@ impl SettingsService {
 mod tests {
     use super::{
         normalize_currency_formatting_regions, normalize_formatting_region, normalize_ui_language,
-        validate_currency_formatting_regions, validate_formatting_region, validate_ui_language,
+        validate_currency_formatting_regions, validate_formatting_region, validate_gain_colors,
+        validate_text_size, validate_theme_id, validate_ui_language,
     };
+    use crate::settings::Settings;
     use std::collections::BTreeMap;
 
     fn regions(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -324,6 +380,83 @@ mod tests {
             .iter()
             .map(|(currency, region)| (currency.to_string(), region.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn accepts_theme_file_names_and_rejects_anything_else() {
+        for id in ["classic", "ember", "high-contrast", "theme2", "a-1"] {
+            assert!(validate_theme_id(id).is_ok(), "{id}");
+        }
+        let too_long = "a".repeat(49);
+        for id in [
+            "",
+            "Classic",
+            "1st",
+            "-ember",
+            "ember-",
+            "two--hyphens",
+            "under_score",
+            "quote\"",
+            too_long.as_str(),
+        ] {
+            assert!(validate_theme_id(id).is_err(), "{id}");
+        }
+    }
+
+    #[test]
+    fn accepts_text_size_names_and_rejects_anything_else() {
+        for size in ["small", "default", "large", "extra-large"] {
+            assert!(validate_text_size(size).is_ok(), "{size}");
+        }
+        for size in ["", "Large", "130%", "1.3", "extra_large", "-large"] {
+            assert!(validate_text_size(size).is_err(), "{size}");
+        }
+    }
+
+    #[test]
+    fn accepts_the_three_gain_and_loss_colours_only() {
+        for value in ["green-up", "red-up", "red-up-blue-down"] {
+            assert!(validate_gain_colors(value).is_ok(), "{value}");
+        }
+        for value in ["", "Red-up", "blue-up", "red-up-green-down", "red-up "] {
+            assert!(validate_gain_colors(value).is_err(), "{value}");
+        }
+    }
+
+    #[test]
+    fn text_size_stays_unset_until_picked() {
+        let value = serde_json::to_value(Settings::default()).unwrap();
+        assert!(
+            value.get("textSize").is_none(),
+            "an unpicked size is left out"
+        );
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.text_size, None);
+    }
+
+    #[test]
+    fn settings_saved_before_gain_colors_read_as_green_up() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("gainColors");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.gain_colors, "green-up");
+    }
+
+    #[test]
+    fn settings_without_a_theme_read_as_signature() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("themeId");
+        value["theme"] = serde_json::json!("system");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.theme_id, "signature");
+        assert_eq!(settings.theme, "system");
+    }
+
+    #[test]
+    fn new_profiles_start_on_signature_with_its_font() {
+        let settings = Settings::default();
+        assert_eq!(settings.theme_id, "signature");
+        assert_eq!(settings.font, "font-sans");
     }
 
     #[test]

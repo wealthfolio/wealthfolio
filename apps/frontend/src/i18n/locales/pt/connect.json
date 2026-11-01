@@ -342,5 +342,13 @@
     "description": "Você está conectando outra conta ou grupo familiar. Os dados locais da sua carteira serão mantidos, mas os vínculos existentes com corretoras e a configuração de sincronização dos dispositivos serão removidos. A nova conta poderá adicionar dados de corretoras a este perfil. Configure novamente a sincronização dos dispositivos quando quiser. Use um novo perfil se preferir manter os dados separados.",
     "cancel": "Cancelar",
     "confirm": "Alterar conexão"
+  },
+  "syncMessages": {
+    "runFailed": "Não foi possível concluir esta sincronização. Tente novamente ou gerencie a conexão com sua corretora.",
+    "runNeedsReview": "Alguns itens sincronizados precisam de revisão antes que a sincronização continue.",
+    "accountFailed": "Não foi possível sincronizar esta conta da corretora. Tente novamente ou gerencie a conexão com sua corretora.",
+    "accountNeedsReview": "Alguns dados da corretora precisam de revisão. Tente sincronizar novamente ou gerencie a conexão com sua corretora.",
+    "holdingsSynced": "As posições foram sincronizadas, mas a sincronização das atividades precisa de atenção. Tente novamente ou gerencie a conexão com sua corretora.",
+    "holdingsDeferred": "A sincronização das posições precisa de atenção. Tente novamente ou gerencie a conexão com sua corretora."
   }
 }

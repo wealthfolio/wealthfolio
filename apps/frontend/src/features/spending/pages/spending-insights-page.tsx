@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { Navigate, useSearchParams } from "react-router-dom";
 
+import { useIsMobileViewport } from "@/hooks";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
@@ -10,18 +10,12 @@ import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 
-import {
-  Page,
-  PageContent,
-  PageHeader,
-  useAmountFormatting,
-  useDateFormatting,
-  useIsMobile,
-} from "@wealthfolio/ui";
+import { useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 
 import { CategoryTransactionsSheet } from "../components/reports/category-transactions-sheet";
 import { HeatmapCellSheet } from "../components/reports/heatmap-cell-sheet";
+import { localizeReportCategories } from "../components/reports/report-localization";
 import { StageNav, type InsightsStage } from "../components/reports/insights/stage-nav";
 import { WhatChangedStage } from "../components/reports/insights/what-changed-stage";
 import { WhenWhereStage } from "../components/reports/insights/when-where-stage";
@@ -147,14 +141,18 @@ function previousMonthMatchingRange(range: ReportsRange, timezone?: string | nul
  */
 const VALID_STAGES: InsightsStage[] = ["where", "changed", "when"];
 
-export default function SpendingInsightsPage() {
+interface SpendingInsightsPageProps {
+  onToolbarActionsChange?: (actions: ReactNode | null) => void;
+}
+
+export default function SpendingInsightsPage({
+  onToolbarActionsChange,
+}: SpendingInsightsPageProps) {
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const goBack = useBackNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobileViewport();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const appTimezone = settings?.timezone ?? undefined;
@@ -233,25 +231,34 @@ export default function SpendingInsightsPage() {
 
   // Picks live in the shared period and the persisted preference, never in the
   // URL, so back/forward cannot bring back an older period.
-  const selectPeriod = (next: ReportsPeriod) => {
-    setPersistedPeriod(next);
-    setSpendingInterval(next);
-    sharePeriod(next);
-    setPersistedMonth(null);
-  };
+  const selectPeriod = useCallback(
+    (next: ReportsPeriod) => {
+      setPersistedPeriod(next);
+      setSpendingInterval(next);
+      sharePeriod(next);
+      setPersistedMonth(null);
+    },
+    [setPersistedPeriod, setSpendingInterval, sharePeriod, setPersistedMonth],
+  );
 
-  const selectCustomMonth = (next: string | null) => {
-    setPersistedMonth(next);
-    if (next) setSharedPick({ kind: "month", monthKey: next });
-    else sharePeriod(period);
-  };
+  const selectCustomMonth = useCallback(
+    (next: string | null) => {
+      setPersistedMonth(next);
+      if (next) setSharedPick({ kind: "month", monthKey: next });
+      else sharePeriod(period);
+    },
+    [setPersistedMonth, setSharedPick, sharePeriod, period],
+  );
 
-  const selectCustomRange = (next: DateRange | undefined) => {
-    if (next && (!next.from || !next.to)) return;
-    setPersistedMonth(null);
-    if (next?.from && next.to) setSharedPick(rangePick({ from: next.from, to: next.to }));
-    else sharePeriod(period);
-  };
+  const selectCustomRange = useCallback(
+    (next: DateRange | undefined) => {
+      if (next && (!next.from || !next.to)) return;
+      setPersistedMonth(null);
+      if (next?.from && next.to) setSharedPick(rangePick({ from: next.from, to: next.to }));
+      else sharePeriod(period);
+    },
+    [setPersistedMonth, setSharedPick, sharePeriod, period],
+  );
 
   // ?stage=where|changed|when drives the page when present. A period named in
   // the URL (?period=, ?spendingMonth=, ?spendingFrom=&spendingTo=) is applied
@@ -286,7 +293,7 @@ export default function SpendingInsightsPage() {
       { replace: true },
     );
     // Runs only when the URL changes; the setters read the state it produced.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [searchParams]);
 
   const selectionKey = customRange
@@ -323,6 +330,10 @@ export default function SpendingInsightsPage() {
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
   const incomeTaxonomy = useTaxonomy(INCOME_TAXONOMY);
   const savingsTaxonomy = useTaxonomy(SAVINGS_TAXONOMY);
+  const displaySpendingCategories = useMemo(
+    () => localizeReportCategories(t, taxonomy.data?.categories ?? EMPTY_TAXONOMY),
+    [taxonomy.data?.categories, t],
+  );
   const { accounts = [] } = useAccounts({ filterActive: false });
 
   // ─── Single reconciled source of truth for the "Where I am" stage ─────────
@@ -393,7 +404,7 @@ export default function SpendingInsightsPage() {
   // other's aggregate would divide a partial-month total by a full month.
   const categorySheetInsight = stage === "changed" ? whatChangedInsight : insight;
   const taxonomyCategoriesForWhereIAm = useMemo(() => {
-    const base = taxonomy.data?.categories ?? [];
+    const base = taxonomy.data?.categories ?? EMPTY_TAXONOMY;
     if (!insight || insight.uncategorized.txnCount === 0) return base;
     // Synthetic top-level row so the breakdown table renders an
     // "Uncategorized" line. Matches the colors/shape of a regular category.
@@ -415,6 +426,10 @@ export default function SpendingInsightsPage() {
       },
     ];
   }, [insight, taxonomy.data?.categories, t]);
+  const displayComparisonCategories = useMemo(
+    () => localizeReportCategories(t, taxonomyCategoriesForWhereIAm),
+    [taxonomyCategoriesForWhereIAm, t],
+  );
 
   // Custom selections also scope the weekday × hour heatmap.
   const heatmapRequest = useMemo(() => {
@@ -521,6 +536,35 @@ export default function SpendingInsightsPage() {
     [appTimezone],
   );
 
+  const periodToggle = useMemo(
+    () => (
+      <SpendingPeriodSelector
+        value={customMonth || customRange ? null : period}
+        onValueChange={selectPeriod}
+        customMonth={customMonth}
+        customRange={customRange}
+        onCustomRangeChange={selectCustomRange}
+        maxMonth={maxPickerMonth}
+        onCustomMonthChange={selectCustomMonth}
+        appearance="header"
+      />
+    ),
+    [
+      customMonth,
+      customRange,
+      period,
+      selectPeriod,
+      selectCustomRange,
+      maxPickerMonth,
+      selectCustomMonth,
+    ],
+  );
+
+  useEffect(() => {
+    onToolbarActionsChange?.(isMobile ? null : periodToggle);
+    return () => onToolbarActionsChange?.(null);
+  }, [isMobile, onToolbarActionsChange, periodToggle]);
+
   // Gate the entire page when tracking is disabled — mirrors spending-budget-page.
   // Without this, disabling tracking from ModuleCard leaves Insights live and
   // continues rendering numbers the user explicitly opted out of seeing.
@@ -528,30 +572,12 @@ export default function SpendingInsightsPage() {
     return <Navigate to="/dashboard?tab=spending" replace />;
   }
 
-  const periodToggle = (
-    <SpendingPeriodSelector
-      value={customMonth || customRange ? null : period}
-      onValueChange={selectPeriod}
-      customMonth={customMonth}
-      customRange={customRange}
-      onCustomRangeChange={selectCustomRange}
-      maxMonth={maxPickerMonth}
-      onCustomMonthChange={selectCustomMonth}
-      className="w-[calc(100vw-6rem)] max-w-[calc(100vw-6rem)] sm:w-full sm:max-w-screen-md md:max-w-2xl"
-    />
-  );
-
   return (
-    <Page>
-      <PageHeader
-        heading={isMobile ? undefined : t("spending:insightsPage.heading")}
-        onBack={() => {
-          if (window.history.length > 1) goBack();
-          else navigate("/dashboard?tab=spending");
-        }}
-        actions={periodToggle}
-      />
-      <PageContent className="space-y-5">
+    <>
+      <div className="space-y-5">
+        {(isMobile || !onToolbarActionsChange) && (
+          <div className="flex justify-end">{periodToggle}</div>
+        )}
         {(customRange || customMonth) && (
           <p className="text-muted-foreground text-sm" data-testid="spending-selected-range">
             {customRange ? (
@@ -639,7 +665,7 @@ export default function SpendingInsightsPage() {
             currentReport={whatChangedProjection?.currentReport}
             priorReport={whatChangedProjection?.priorReport}
             months={whatChangedProjection?.months ?? []}
-            taxonomyCategories={taxonomyCategoriesForWhereIAm}
+            taxonomyCategories={displayComparisonCategories}
             currency={whatChangedInsight?.currency ?? insight?.currency ?? baseCurrency}
             isLoading={isWhatChangedLoading}
             onCategoryClick={handleCategoryClick}
@@ -664,7 +690,7 @@ export default function SpendingInsightsPage() {
             events={events}
             eventsErrored={eventsErrored}
             onRetryEvents={() => refetchEvents()}
-            taxonomyCategories={taxonomyCategories}
+            taxonomyCategories={displaySpendingCategories}
             currency={heatmapInsight?.currency ?? baseCurrency}
             timezone={appTimezone}
             rangeStart={eventsRange.start}
@@ -675,7 +701,7 @@ export default function SpendingInsightsPage() {
             onHeatmapCellClick={handleHeatmapCellClick}
           />
         )}
-      </PageContent>
+      </div>
 
       <CategoryTransactionsSheet
         open={!!activeCategory}
@@ -706,7 +732,7 @@ export default function SpendingInsightsPage() {
         timezone={appTimezone}
         currency={baseCurrency}
       />
-    </Page>
+    </>
   );
 }
 

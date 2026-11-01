@@ -51,7 +51,7 @@ export function OverallBudgetMeter({
 
   if (monthlyTarget <= 0) {
     return (
-      <div className="border-border bg-card shadow-xs rounded-xl border p-4 text-center md:p-5">
+      <div className="border-border bg-card rounded-xl border p-4 text-center shadow-xs md:p-5">
         <p className="text-muted-foreground text-sm">{t("spending:overallBudget.noTarget")}</p>
         <Link
           to="/settings/spending/setup"
@@ -77,7 +77,7 @@ export function OverallBudgetMeter({
         : "var(--success)";
 
   return (
-    <div className="border-border bg-card shadow-xs rounded-xl border p-4 md:p-5">
+    <div className="border-border bg-card rounded-xl border p-4 shadow-xs md:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <div>
           <h3 className="text-foreground text-sm font-semibold">

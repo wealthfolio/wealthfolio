@@ -268,6 +268,11 @@ export interface ActivityDetails {
   counterpartAmount?: string | null;
   counterpartCurrency?: string | null;
   counterpartFxRate?: string | null;
+  /** A conversion's other row: its asset and units (see conversion-counterpart). */
+  counterpartAssetId?: string | null;
+  counterpartAssetSymbol?: string | null;
+  counterpartQuantity?: string | null;
+  counterpartDate?: string | null;
   subRows?: ActivityDetails[];
   /**
    * The account's cash in `cashBalanceCurrency`, as `cashBalanceScope` says:
@@ -340,7 +345,16 @@ export interface ActivityCreate {
 /**
  * Payload for updating an EXISTING activity.
  */
+export interface ActivitySplitEffect {
+  activityId: string;
+  removedSplits: number;
+  hasRetainedCategoryAssignment: boolean;
+  fingerprint: string;
+}
+
 export interface ActivityUpdate {
+  unlinkTransferPairId?: string;
+  splitReview?: ActivitySplitEffect[];
   id: string;
   accountId: string;
   activityType: string;
@@ -388,6 +402,7 @@ export interface ActivityBulkMutationResult {
 }
 
 export interface InternalTransferPairRequest {
+  splitReview?: ActivitySplitEffect[];
   editedActivityId?: string;
   transferOutId?: string;
   transferInId?: string;
@@ -937,8 +952,16 @@ export interface Settings {
   insightsOverviewLayout?: Record<string, unknown> | null;
   /** Read-only restore state, absent on older backends. */
   restoreReconnectRequired?: boolean;
+  /** Theme ID (palette and shape); absent on older backends, which show Classic. */
+  themeId?: string;
+  /** Gain and loss colours (green-up, red-up, red-up-blue-down), synced across devices;
+   * absent on older backends, which show green up. */
+  gainColors?: string;
+  /** Appearance mode: light, dark or system. */
   theme: string;
   font: string;
+  /** Text size name; absent on older backends, which show the default size. */
+  textSize?: string;
   language: string;
   formattingRegion: string;
   /** Formatting regions for amounts in specific currencies, keyed by currency code. */
@@ -987,6 +1010,11 @@ export interface Goal {
   createdAt: string;
   updatedAt: string;
   summaryTargetAmount?: number;
+}
+
+/** Omission keeps the existing deadline; explicit null removes it. */
+export interface GoalUpdate extends Omit<Goal, "targetDate"> {
+  targetDate?: string | null;
 }
 
 export interface NewGoal {
@@ -2570,6 +2598,8 @@ export interface RetirementOverview {
   requiredCapitalAtGoalAge: number;
   leanRequiredCapitalAtGoalAge?: number | null;
   fatRequiredCapitalAtGoalAge?: number | null;
+  /** What active savings goals plan to add each month, from their own plans. */
+  savingsGoalsMonthlyContribution?: number;
   shortfallAtGoalAge: number;
   surplusAtGoalAge: number;
   fundedThroughAge: number | null;
@@ -2671,11 +2701,17 @@ export interface SaveUpPreviewInputDTO {
 }
 
 export interface SaveUpTrajectoryPointDTO {
+  /** YYYY-MM-DD: today, then each month-end, then the target date. */
   date: string;
   nominal: number;
   optimistic: number;
   pessimistic: number;
   target: number;
+  /**
+   * Balance needed on this date to still reach the target on time with the planned
+   * contribution. Not below zero, or below `nominal` when that is negative.
+   */
+  needed: number;
 }
 
 export interface SaveUpProjectionPointDTO extends SaveUpTrajectoryPointDTO {
@@ -2689,7 +2725,6 @@ export interface SaveUpProjectionPointDTO extends SaveUpTrajectoryPointDTO {
 export type TargetScopeType = "all" | "portfolio" | "account";
 export type TriggerType = "manual" | "threshold";
 export type RebalanceGoal = "nearest_band" | "exact_target";
-export type ScenarioMode = "cash_flow_only" | "sell_to_rebalance" | "hybrid";
 export type DriftStatus = "in_band" | "underweight" | "overweight" | "not_targeted";
 export type RebalanceTo = "nearest_band" | "exact_target";
 
@@ -2830,44 +2865,214 @@ export interface DriftHoldingsReport {
   rows: DriftHoldingRow[];
 }
 
-export type RebalanceWarningKind =
-  | "missing_quote"
-  | "no_buy_candidate"
-  | "tagged_cash"
-  | "unclassified_asset"
-  | "partial_classification"
-  | "constraint_skipped_sell"
-  | "turnover_cap_reached";
+// ── Calculated rebalancing worksheet ─────────────────────────────────────────
 
-export interface RebalanceWarning {
-  kind: RebalanceWarningKind;
-  categoryId: string;
-  message: string;
-}
+export type WorksheetMode = "invest_cash" | "rebalance";
+export type AllocationRule = "current_holding_proportions";
+export type WorksheetDirection = "increase" | "reduce";
+export type WorksheetInputMode = "amount" | "quantity";
+export type UnresolvedReason = "no_recorded_security" | "no_eligible_security" | "no_usable_price";
 
-export interface SuggestedManualTrade {
-  action: string;
+export interface UnresolvedCategoryAmount {
   categoryId: string;
   categoryName: string;
-  assetId?: string | null;
-  accountId?: string | null;
-  holdingId?: string | null;
-  symbol?: string | null;
-  name?: string | null;
-  quantity?: number | null;
-  estimatedPrice?: number | null;
-  estimatedAmount: number;
-  reason: string;
+  amount: number;
+  reason: UnresolvedReason;
 }
 
-export interface RebalancePlan {
-  targetId: string;
+export interface AdjustmentScaling {
+  /** The share of the category gaps the selected cash covers, when it covers less than all. */
+  cashFactor?: number | null;
+  reductionFactor?: number | null;
+  increaseFactor?: number | null;
+}
+
+export interface BelowOneUnitSecurity {
+  assetId: string;
+  symbol: string;
+  /** Signed amount it came to before the quantity was floored. */
+  amount: number;
+}
+
+export interface CalculatedAdjustment {
+  lineId: string;
+  direction: WorksheetDirection;
+  assetId: string;
+  symbol: string;
+  /** Null when several accounts could receive the increase and the user places it. */
+  accountId?: string | null;
+  /** Signed, in base currency. Negative for a reduction. */
+  amount: number;
+  quantity: number;
+  unitPrice: number;
+  isBelowMinimum: boolean;
+}
+
+export interface AccountFundingShortfall {
+  accountId: string;
+  required: number;
+  available: number;
+}
+
+export interface CalculatedAdjustments {
+  mode: WorksheetMode;
+  rule: AllocationRule;
+  adjustments: CalculatedAdjustment[];
+  unresolved: UnresolvedCategoryAmount[];
+  scaling: AdjustmentScaling;
+  remainingCash: number;
+  fundingShortfalls: AccountFundingShortfall[];
+  /** Securities sized below one whole unit. Absent from drafts saved before it existed. */
+  belowOneUnit?: BelowOneUnitSecurity[];
+}
+
+export interface WorksheetCashInput {
+  trackedCashToUse: number;
+  /** Hypothetical cash not recorded anywhere, keyed by the account it would arrive in. */
+  externalContribution: Record<string, number>;
+  /**
+   * Tracked cash each selected account may spend. When present it replaces
+   * `trackedCashToUse`: an account left out spends none, and each account's
+   * funding is checked against its own amount.
+   */
+  trackedCashByAccount?: Record<string, number>;
+}
+
+export interface AllocationWorksheetLineInput {
+  lineId: string;
+  direction: WorksheetDirection;
+  assetId: string;
+  /** Omitted for an indicative portfolio preview before account placement. */
+  accountId?: string;
+  inputMode: WorksheetInputMode;
+  value: number;
+}
+
+export type WorksheetWarningKind =
+  | "stale_quote"
+  | "stale_fx"
+  | "partial_classification"
+  | "unclassified_asset"
+  | "external_contribution"
+  | "below_minimum_line"
+  | "turnover_exceeded"
+  | "avoid_constraint"
+  | "insufficient_funding"
+  | "account_funding"
+  | "cash_unavailable"
+  | "below_one_unit";
+
+/** The figures a warning states. Amounts are in the planning currency. */
+export interface WorksheetWarningFacts {
+  amount?: number;
+  limit?: number;
+  unitPrice?: number;
+  shareBps?: number;
+  limitBps?: number;
+  accountId?: string;
+  /** The date a dated price or rate is from. */
+  asOf?: string;
+  reason?: string;
+}
+
+export interface WorksheetWarning {
+  id: string;
+  kind: WorksheetWarningKind;
+  lineId?: string | null;
+  /** The core's English wording; the worksheet words the facts itself. */
+  message: string;
+  facts?: WorksheetWarningFacts;
+  acknowledgementRequired: boolean;
+}
+
+export interface WorksheetPricingSource {
+  id: string;
+  sourceType: string;
+  value: number;
+  fromCurrency: string;
+  toCurrency: string;
+  timestamp: string;
+  isStale: boolean;
+}
+
+export interface WorksheetCategoryExposure {
+  categoryId: string;
+  categoryName: string;
+  weightBps: number;
+  valueDelta: number;
+  isUnclassified: boolean;
+}
+
+export interface AllocationWorksheetLineResult {
+  lineId: string;
+  direction: WorksheetDirection;
+  assetId: string;
+  accountId: string | null;
+  symbol: string;
+  name: string;
+  inputMode: WorksheetInputMode;
+  inputValue: number;
+  quantity: number;
+  unitPrice: number;
+  estimatedAmount: number;
+  contractMultiplier: number;
+  quoteSource: WorksheetPricingSource;
+  fxSource?: WorksheetPricingSource | null;
+  categoryExposures: WorksheetCategoryExposure[];
+}
+
+export interface WorksheetCategoryResult {
+  categoryId: string;
+  categoryName: string;
+  color: string;
+  targetBps: number;
+  currentValue: number;
+  projectedValue: number;
+  currentBps: number;
+  projectedBps: number;
+  currentDifferenceBps: number;
+  projectedDifferenceBps: number;
+  isCash: boolean;
+  isUnclassified: boolean;
+}
+
+export interface WorksheetSourceRecord {
+  sourceType: string;
+  id: string;
+  version: string;
+  details: string;
+}
+
+/** Where one account stands once the worksheet is applied. A negative `remaining` is funding the account needs. */
+export interface WorksheetAccountFunding {
+  accountId: string;
   availableCash: number;
-  cashUsed: number;
+  externalCash: number;
+  reductionProceeds: number;
+  increases: number;
+  remaining: number;
+}
+
+export interface AllocationWorksheetResult {
+  targetId: string;
+  targetName: string;
+  baseCurrency: string;
+  calculatedAt: string;
+  sourceFingerprint: string;
+  resolvedAccountIds: string[];
+  observedTrackedCash: number;
+  /** What each selected account records, before any amount set for it. */
+  recordedCashByAccount: Record<string, number>;
+  trackedCashToUse: number;
+  externalContribution: number;
+  increaseTotal: number;
+  reductionTotal: number;
   cashRemaining: number;
-  maxDriftBpsBefore: number;
-  maxDriftBpsAfter: number;
-  trades: SuggestedManualTrade[];
-  warnings: RebalanceWarning[];
-  afterBpsByCategory: Record<string, number>;
+  maxDifferenceBpsBefore: number;
+  maxDifferenceBpsAfter: number;
+  lines: AllocationWorksheetLineResult[];
+  categories: WorksheetCategoryResult[];
+  accountFunding: WorksheetAccountFunding[];
+  warnings: WorksheetWarning[];
+  sourceRecords: WorksheetSourceRecord[];
 }

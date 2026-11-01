@@ -9,8 +9,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use wealthfolio_core::taxonomies::{
-    AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
-    Taxonomy, TaxonomyRepositoryTrait, TaxonomyWithCategories,
+    AssetTaxonomyAssignment, Category, CategoryReferences, NewAssetTaxonomyAssignment, NewCategory,
+    NewTaxonomy, Taxonomy, TaxonomyRepositoryTrait, TaxonomyWithCategories,
+    TRANSACTION_CATEGORY_TAXONOMY_IDS,
 };
 use wealthfolio_core::Result;
 
@@ -31,9 +32,143 @@ pub struct TaxonomyRepository {
 }
 
 #[derive(QueryableByName)]
-struct CountRow {
+struct CategoryReferencesDB {
     #[diesel(sql_type = BigInt)]
-    count: i64,
+    children: i64,
+    #[diesel(sql_type = BigInt)]
+    asset_assignments: i64,
+    #[diesel(sql_type = BigInt)]
+    spending_assignments: i64,
+    #[diesel(sql_type = BigInt)]
+    splits: i64,
+    #[diesel(sql_type = BigInt)]
+    rules: i64,
+    #[diesel(sql_type = BigInt)]
+    budget_targets: i64,
+    #[diesel(sql_type = BigInt)]
+    budget_rollovers: i64,
+    #[diesel(sql_type = BigInt)]
+    budget_group_assignments: i64,
+    #[diesel(sql_type = BigInt)]
+    allocation_targets: i64,
+    #[diesel(sql_type = BigInt)]
+    automatic_budget_links: i64,
+}
+
+fn category_references(
+    conn: &mut SqliteConnection,
+    taxonomy_id: &str,
+    category_id: &str,
+) -> Result<CategoryReferences> {
+    let row = diesel::sql_query(
+        "SELECT
+            (SELECT COUNT(*) FROM taxonomy_categories WHERE taxonomy_id = ?1 AND parent_id = ?2) AS children,
+            (SELECT COUNT(*) FROM asset_taxonomy_assignments WHERE taxonomy_id = ?1 AND category_id = ?2) AS asset_assignments,
+            (SELECT COUNT(*) FROM activity_taxonomy_assignments WHERE taxonomy_id = ?1 AND category_id = ?2) AS spending_assignments,
+            (SELECT COUNT(*) FROM spending_activity_splits WHERE taxonomy_id = ?1 AND category_id = ?2) AS splits,
+            (SELECT COUNT(*) FROM spending_categorization_rules WHERE taxonomy_id = ?1 AND category_id = ?2) AS rules,
+            (SELECT COUNT(*) FROM budget_targets WHERE taxonomy_id = ?1 AND category_id = ?2) AS budget_targets,
+            (SELECT COUNT(*) FROM budget_rollover_settings WHERE taxonomy_id = ?1 AND category_id = ?2) AS budget_rollovers,
+            (SELECT COUNT(*) FROM budget_group_assignments WHERE taxonomy_id = ?1 AND category_id = ?2 AND (is_system = 0 OR updated_at != created_at)) AS budget_group_assignments,
+            (SELECT COUNT(*) FROM allocation_target_weights WHERE taxonomy_id = ?1 AND category_id = ?2) AS allocation_targets,
+            (SELECT COUNT(*) FROM budget_group_assignments WHERE taxonomy_id = ?1 AND category_id = ?2 AND is_system = 1 AND updated_at = created_at) AS automatic_budget_links"
+    ).bind::<Text,_>(taxonomy_id).bind::<Text,_>(category_id).get_result::<CategoryReferencesDB>(conn).map_err(StorageError::from)?;
+    Ok(CategoryReferences {
+        children: row.children.max(0) as usize,
+        asset_assignments: row.asset_assignments.max(0) as usize,
+        spending_assignments: row.spending_assignments.max(0) as usize,
+        splits: row.splits.max(0) as usize,
+        rules: row.rules.max(0) as usize,
+        budget_targets: row.budget_targets.max(0) as usize,
+        budget_rollovers: row.budget_rollovers.max(0) as usize,
+        budget_group_assignments: row.budget_group_assignments.max(0) as usize,
+        allocation_targets: row.allocation_targets.max(0) as usize,
+        automatic_budget_links: row.automatic_budget_links.max(0) as usize,
+    })
+}
+
+fn check_expected_category(
+    conn: &mut SqliteConnection,
+    taxonomy_id: &str,
+    category_id: &str,
+    expected: Option<&Category>,
+) -> Result<()> {
+    if let Some(expected) = expected {
+        let current = taxonomy_categories::table
+            .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+            .filter(taxonomy_categories::id.eq(category_id))
+            .first::<CategoryDB>(conn)
+            .optional()
+            .map_err(StorageError::from)?
+            .map(Category::from);
+        if current.as_ref() != Some(expected) {
+            return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                "Category changed since review; refresh and review again".to_string(),
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_transaction_category_tree(
+    conn: &mut SqliteConnection,
+    taxonomy_id: &str,
+    category_id: &str,
+    key: &str,
+    parent_id: Option<&str>,
+) -> Result<()> {
+    if !TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy_id) {
+        return Ok(());
+    }
+    // Legacy imports may contain duplicate keys. Cosmetic edits must not force
+    // an unrelated cleanup; only creation or a changed key can add a collision.
+    let stored_key = taxonomy_categories::table
+        .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+        .filter(taxonomy_categories::id.eq(category_id))
+        .select(taxonomy_categories::key)
+        .first::<String>(conn)
+        .optional()
+        .map_err(StorageError::from)?;
+    if stored_key.as_deref() != Some(key) {
+        let duplicate = diesel::select(diesel::dsl::exists(
+            taxonomy_categories::table
+                .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+                .filter(taxonomy_categories::key.eq(key))
+                .filter(taxonomy_categories::id.ne(category_id)),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(StorageError::from)?;
+        if duplicate {
+            return Err(wealthfolio_core::errors::DatabaseError::UniqueViolation(
+                "A category with this key already exists in the taxonomy".into(),
+            )
+            .into());
+        }
+    }
+    let mut visited = std::collections::HashSet::from([category_id.to_string()]);
+    let mut parent_id = parent_id.map(str::to_string);
+    while let Some(parent) = parent_id {
+        if !visited.insert(parent.clone()) {
+            return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                "Category hierarchy cannot contain a cycle".into(),
+            )
+            .into());
+        }
+        let row = taxonomy_categories::table
+            .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+            .filter(taxonomy_categories::id.eq(&parent))
+            .first::<CategoryDB>(conn)
+            .optional()
+            .map_err(StorageError::from)?
+            .ok_or_else(|| {
+                wealthfolio_core::errors::ValidationError::InvalidInput(
+                    "Parent must belong to the same taxonomy".into(),
+                )
+            })?;
+        parent_id = row.parent_id;
+    }
+    Ok(())
 }
 
 impl TaxonomyRepository {
@@ -43,10 +178,130 @@ impl TaxonomyRepository {
     ) -> Self {
         Self { pool, writer }
     }
+    async fn update_with_expectation(
+        &self,
+        category: Category,
+        expected: Option<Category>,
+    ) -> Result<Category> {
+        let taxonomy_id = category.taxonomy_id.clone();
+        let id = category.id.clone();
+        self.writer
+            .exec_projected(move |conn, projection| -> Result<Category> {
+                check_expected_category(conn, &taxonomy_id, &id, expected.as_ref())?;
+                validate_transaction_category_tree(
+                    conn,
+                    &taxonomy_id,
+                    &id,
+                    &category.key,
+                    category.parent_id.as_deref(),
+                )?;
+                let db = CategoryDB {
+                    id: category.id,
+                    taxonomy_id: category.taxonomy_id,
+                    parent_id: category.parent_id,
+                    name: category.name,
+                    key: category.key,
+                    color: category.color,
+                    description: category.description,
+                    sort_order: category.sort_order,
+                    created_at: category
+                        .created_at
+                        .format("%Y-%m-%dT%H:%M:%S%.fZ")
+                        .to_string(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                    icon: category.icon,
+                };
+
+                diesel::update(
+                    taxonomy_categories::table
+                        .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
+                        .filter(taxonomy_categories::id.eq(&id)),
+                )
+                .set(&db)
+                .execute(conn)
+                .map_err(StorageError::from)?;
+
+                let result = taxonomy_categories::table
+                    .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
+                    .filter(taxonomy_categories::id.eq(&id))
+                    .first::<CategoryDB>(conn)
+                    .map_err(StorageError::from)?;
+
+                // Emit taxonomy.update bundle (category modified)
+                sync::queue_custom_taxonomy_bundle(
+                    conn,
+                    projection,
+                    &taxonomy_id,
+                    wealthfolio_core::sync::SyncOperation::Update,
+                )
+                .map_err(StorageError::from)?;
+
+                Ok(Category::from(result))
+            })
+            .await
+    }
+
+    async fn delete_with_expectation(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+        expected: Option<Category>,
+    ) -> Result<usize> {
+        let taxonomy_id = taxonomy_id.to_string();
+        let category_id = category_id.to_string();
+        self.writer
+            .exec_projected(move |conn, projection| -> Result<usize> {
+                check_expected_category(conn, &taxonomy_id, &category_id, expected.as_ref())?;
+                // Recheck inside the existing writer transaction: read-side
+                // service checks cannot protect against a newly inserted reference.
+                let refs = category_references(conn, &taxonomy_id, &category_id)?;
+                if refs.blocking_count() > 0 {
+                    return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                        "Cannot delete category while user data still references it".to_string(),
+                    )
+                    .into());
+                }
+                // Untouched automatic group links have no user data/outbox and
+                // their existing FK cascade removes them atomically with the category.
+                // Check eligibility before the delete
+                let is_custom = sync::is_syncable_taxonomy(conn, &taxonomy_id);
+
+                let affected = diesel::delete(
+                    taxonomy_categories::table
+                        .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
+                        .filter(taxonomy_categories::id.eq(&category_id)),
+                )
+                .execute(conn)
+                .map_err(StorageError::from)?;
+
+                if affected > 0 && is_custom {
+                    // Emit taxonomy.update bundle (category removed)
+                    sync::queue_custom_taxonomy_bundle(
+                        conn,
+                        projection,
+                        &taxonomy_id,
+                        wealthfolio_core::sync::SyncOperation::Update,
+                    )
+                    .map_err(StorageError::from)?;
+                }
+
+                Ok(affected)
+            })
+            .await
+    }
 }
 
 #[async_trait]
 impl TaxonomyRepositoryTrait for TaxonomyRepository {
+    fn get_category_references(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<CategoryReferences> {
+        let mut conn = get_connection(&self.pool)?;
+        category_references(&mut conn, taxonomy_id, category_id)
+    }
+
     fn get_taxonomies(&self) -> Result<Vec<Taxonomy>> {
         let mut conn = get_connection(&self.pool)?;
         let results = taxonomies::table
@@ -181,29 +436,13 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
         taxonomy_id: &str,
         category_id: &str,
     ) -> Result<usize> {
-        let mut conn = get_connection(&self.pool)?;
-        let row = diesel::sql_query(
-            "SELECT (
-                (SELECT COUNT(*) FROM activity_taxonomy_assignments WHERE taxonomy_id = ? AND category_id = ?) +
-                (SELECT COUNT(*) FROM budget_group_assignments WHERE taxonomy_id = ? AND category_id = ?) +
-                (SELECT COUNT(*) FROM budget_targets WHERE taxonomy_id = ? AND category_id = ?) +
-                (SELECT COUNT(*) FROM budget_rollover_settings WHERE taxonomy_id = ? AND category_id = ?) +
-                (SELECT COUNT(*) FROM spending_categorization_rules WHERE taxonomy_id = ? AND category_id = ?)
-            ) AS count",
-        )
-        .bind::<Text, _>(taxonomy_id)
-        .bind::<Text, _>(category_id)
-        .bind::<Text, _>(taxonomy_id)
-        .bind::<Text, _>(category_id)
-        .bind::<Text, _>(taxonomy_id)
-        .bind::<Text, _>(category_id)
-        .bind::<Text, _>(taxonomy_id)
-        .bind::<Text, _>(category_id)
-        .bind::<Text, _>(taxonomy_id)
-        .bind::<Text, _>(category_id)
-        .get_result::<CountRow>(&mut conn)
-        .map_err(StorageError::from)?;
-        Ok(row.count.max(0) as usize)
+        let refs = self.get_category_references(taxonomy_id, category_id)?;
+        Ok(refs.spending_assignments
+            + refs.splits
+            + refs.rules
+            + refs.budget_targets
+            + refs.budget_rollovers
+            + refs.budget_group_assignments)
     }
 
     fn get_category_allocation_target_weight_count(
@@ -227,6 +466,13 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
                 let taxonomy_id = category.taxonomy_id.clone();
                 let mut db: NewCategoryDB = category.into();
                 db.id = Some(db.id.unwrap_or_else(|| Uuid::new_v4().to_string()));
+                validate_transaction_category_tree(
+                    conn,
+                    &taxonomy_id,
+                    db.id.as_deref().expect("category ID assigned above"),
+                    &db.key,
+                    db.parent_id.as_deref(),
+                )?;
 
                 let result = diesel::insert_into(taxonomy_categories::table)
                     .values(&db)
@@ -249,85 +495,23 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
     }
 
     async fn update_category(&self, category: Category) -> Result<Category> {
-        let taxonomy_id = category.taxonomy_id.clone();
-        let id = category.id.clone();
-        self.writer
-            .exec_projected(move |conn, projection| -> Result<Category> {
-                let db = CategoryDB {
-                    id: category.id,
-                    taxonomy_id: category.taxonomy_id,
-                    parent_id: category.parent_id,
-                    name: category.name,
-                    key: category.key,
-                    color: category.color,
-                    description: category.description,
-                    sort_order: category.sort_order,
-                    created_at: category
-                        .created_at
-                        .format("%Y-%m-%dT%H:%M:%S%.fZ")
-                        .to_string(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                    icon: category.icon,
-                };
-
-                diesel::update(
-                    taxonomy_categories::table
-                        .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
-                        .filter(taxonomy_categories::id.eq(&id)),
-                )
-                .set(&db)
-                .execute(conn)
-                .map_err(StorageError::from)?;
-
-                let result = taxonomy_categories::table
-                    .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
-                    .filter(taxonomy_categories::id.eq(&id))
-                    .first::<CategoryDB>(conn)
-                    .map_err(StorageError::from)?;
-
-                // Emit taxonomy.update bundle (category modified)
-                sync::queue_custom_taxonomy_bundle(
-                    conn,
-                    projection,
-                    &taxonomy_id,
-                    wealthfolio_core::sync::SyncOperation::Update,
-                )
-                .map_err(StorageError::from)?;
-
-                Ok(Category::from(result))
-            })
+        self.update_with_expectation(category, None).await
+    }
+    async fn update_category_reviewed(
+        &self,
+        expected: Category,
+        category: Category,
+    ) -> Result<Category> {
+        self.update_with_expectation(category, Some(expected)).await
+    }
+    async fn delete_category(&self, taxonomy_id: &str, category_id: &str) -> Result<usize> {
+        self.delete_with_expectation(taxonomy_id, category_id, None)
             .await
     }
-
-    async fn delete_category(&self, taxonomy_id: &str, category_id: &str) -> Result<usize> {
-        let taxonomy_id = taxonomy_id.to_string();
-        let category_id = category_id.to_string();
-        self.writer
-            .exec_projected(move |conn, projection| -> Result<usize> {
-                // Check eligibility before the delete
-                let is_custom = sync::is_syncable_taxonomy(conn, &taxonomy_id);
-
-                let affected = diesel::delete(
-                    taxonomy_categories::table
-                        .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
-                        .filter(taxonomy_categories::id.eq(&category_id)),
-                )
-                .execute(conn)
-                .map_err(StorageError::from)?;
-
-                if affected > 0 && is_custom {
-                    // Emit taxonomy.update bundle (category removed)
-                    sync::queue_custom_taxonomy_bundle(
-                        conn,
-                        projection,
-                        &taxonomy_id,
-                        wealthfolio_core::sync::SyncOperation::Update,
-                    )
-                    .map_err(StorageError::from)?;
-                }
-
-                Ok(affected)
-            })
+    async fn delete_category_reviewed(&self, expected: Category) -> Result<usize> {
+        let taxonomy_id = expected.taxonomy_id.clone();
+        let category_id = expected.id.clone();
+        self.delete_with_expectation(&taxonomy_id, &category_id, Some(expected))
             .await
     }
 
@@ -582,21 +766,17 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer};
-    use tempfile::tempdir;
+    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer, TestDir};
 
-    fn setup_repo() -> TaxonomyRepository {
+    fn setup_repo() -> (TaxonomyRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        TaxonomyRepository::new(pool, writer)
+        (TaxonomyRepository::new(pool, writer), dir)
     }
 
     async fn create(repo: &TaxonomyRepository, key: &str, parent_id: Option<String>) -> Category {
@@ -614,7 +794,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_category_moves_a_child_to_the_top_level() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let parent = create(&repo, "test_parent", None).await;
         let child = create(&repo, "test_child", Some(parent.id.clone())).await;
 

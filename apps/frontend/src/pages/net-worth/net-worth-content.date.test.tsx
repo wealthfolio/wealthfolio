@@ -27,6 +27,7 @@ vi.mock("@/components/dashboard-card", () => ({
   DashboardCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/pages/dashboard/balance", () => ({ default: () => <div /> }));
+vi.mock("@/components/privacy-toggle", () => ({ PrivacyToggle: () => null }));
 vi.mock("@/pages/holdings/components/allocation-detail-sheet", () => ({
   AllocationDetailSheet: () => null,
 }));

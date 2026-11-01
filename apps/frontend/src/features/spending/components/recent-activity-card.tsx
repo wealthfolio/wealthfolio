@@ -8,6 +8,7 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
 import { PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
+import { Item, ItemActions, ItemContent, ItemTitle } from "@wealthfolio/ui/components/ui/item";
 
 import { getActivityAssignments } from "../adapters/cash-activities";
 import {
@@ -139,7 +140,7 @@ export function RecentActivityCard({
             key={dateKey}
             className={cn("px-4 py-3 md:px-5", gi > 0 && "border-border/60 border-t")}
           >
-            <div className="text-muted-foreground/70 text-2xs font-semibold uppercase tracking-wide">
+            <div className="text-muted-foreground/70 text-2xs font-semibold tracking-wide uppercase">
               {dayLabel(dateKey)}
             </div>
             {items.map((a) => {
@@ -160,42 +161,51 @@ export function RecentActivityCard({
                 // it's flagged for review). Matches the clickable behavior
                 // of every neighboring spending widget (ranked bar rows,
                 // treemap cells, budget rings) so this row no longer feels
-                // like a dead row sandwiched between live ones.
-                <Link
+                // like a dead row sandwiched between live ones. An Item link: its
+                // padding and rounded corners carry the hover, and the negative
+                // margin keeps the payee under the date.
+                <Item
                   key={a.id}
-                  to={
-                    needsReview && !payee
-                      ? "/activities?tab=spending&status=uncategorized"
-                      : payee
-                        ? `/activities?tab=spending&q=${encodeURIComponent(payee)}`
-                        : "/activities?tab=spending"
+                  size="xs"
+                  render={
+                    <Link
+                      to={
+                        needsReview && !payee
+                          ? "/activities?tab=spending&status=uncategorized"
+                          : payee
+                            ? `/activities?tab=spending&q=${encodeURIComponent(payee)}`
+                            : "/activities?tab=spending"
+                      }
+                    />
                   }
-                  className="hover:bg-muted/40 flex items-center gap-2.5 rounded-md py-1.5 transition-colors"
+                  className="-mx-2 flex-nowrap border-0 px-2 py-1.5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-foreground/90 truncate text-xs font-medium">
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="text-foreground/90 block w-full truncate text-xs font-medium">
                       {payee || (
                         <span className="text-muted-foreground italic">
                           {t("spending:dashboard.noPayee")}
                         </span>
                       )}
+                    </ItemTitle>
+                  </ItemContent>
+                  <ItemActions className="shrink-0 gap-2.5">
+                    {badge ? (
+                      <CategoryBadge name={badge.name} color={badge.color} icon={badge.icon} />
+                    ) : needsReview ? (
+                      <ReviewPill label={t("spending:dashboard.uncategorized")} />
+                    ) : null}
+                    <div
+                      className={cn(
+                        "shrink-0 text-xs font-semibold tabular-nums",
+                        isOutflow ? "text-foreground" : "text-success",
+                      )}
+                    >
+                      {isOutflow ? "−" : "+"}
+                      <PrivacyAmount value={amount} currency={a.currency} />
                     </div>
-                  </div>
-                  {badge ? (
-                    <CategoryBadge name={badge.name} color={badge.color} icon={badge.icon} />
-                  ) : needsReview ? (
-                    <ReviewPill label={t("spending:dashboard.uncategorized")} />
-                  ) : null}
-                  <div
-                    className={cn(
-                      "shrink-0 text-xs font-semibold tabular-nums",
-                      isOutflow ? "text-foreground" : "text-success",
-                    )}
-                  >
-                    {isOutflow ? "−" : "+"}
-                    <PrivacyAmount value={amount} currency={a.currency} />
-                  </div>
-                </Link>
+                  </ItemActions>
+                </Item>
               );
             })}
           </div>

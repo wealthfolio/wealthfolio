@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { logger, deleteQuote, updateQuote } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
@@ -43,8 +44,8 @@ export const useQuoteMutations = (
 
   const handleError = (action: string) => {
     toast({
-      title: "Uh oh! Something went wrong.",
-      description: `There was a problem ${action}.`,
+      title: i18n.t("settings:settings_update_error_title"),
+      description: i18n.t(`asset:notifications.${action}`),
       variant: "destructive",
     });
   };
@@ -59,22 +60,24 @@ export const useQuoteMutations = (
       });
     },
     onSuccess: (_, quote) => {
-      handleSuccess(quote.id ? "Quote updated successfully." : "Quote added successfully.");
+      handleSuccess(
+        i18n.t(quote.id ? "asset:notifications.quote_updated" : "asset:notifications.quote_added"),
+      );
     },
     onError: (error) => {
       logger.error(`Error saving quote: ${error}`);
-      handleError("saving the quote");
+      handleError("quote_save_failed");
     },
   });
 
   const deleteQuoteMutation = useMutation({
     mutationFn: deleteQuote,
     onSuccess: () => {
-      handleSuccess("Quote deleted successfully.");
+      handleSuccess(i18n.t("asset:notifications.quote_deleted"));
     },
     onError: (error) => {
       logger.error(`Error deleting quote: ${error}`);
-      handleError("deleting the quote");
+      handleError("quote_delete_failed");
     },
   });
 

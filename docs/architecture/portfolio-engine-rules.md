@@ -408,6 +408,43 @@ How each moves cost:
   the pool's average). These single-account CAD examples illustrate average
   basis; a taxpayer's ACB may require pooling across accounts.
 
+**R7.5 Conversions.** A conversion exchanges units of one asset for units of
+another in the same account and keeps their cost: a fund switch carried at cost
+(Spain's _traspaso_), a share-class conversion, a fund merger. As with R7.4, the
+user or broker says the exchange kept the cost; the engine applies no tax rule.
+It is recorded as two ADJUSTMENT rows sharing a source group id: subtype
+`CONVERSION_OUT` names the asset and units that leave, `CONVERSION_IN` the asset
+and units that arrive.
+
+- The engine pairs the rows by their group id, trimmed: one row of each subtype
+  and nothing else in the group, both posted, in the same account on the same
+  business day, two different non-cash assets, units on both rows, no fee or
+  tax. Every conversion row of a group that fails this is rejected; it changes
+  nothing, and each is reported. Other rows of that group fold as they would
+  alone. Core applies the same rule to look up, edit, delete and validate a
+  conversion as a pair, and a table test keeps the two in agreement.
+- The engine applies a pair as one event, at the place of its first row in the
+  ledger, after that day's earlier activities and before its later ones. Both
+  rows apply or neither does: the pair is rejected, both rows reported, unless
+  the account holds at least the units that leave, long, does not hold the
+  arriving asset short, keeps both positions in one currency, records no split
+  of either asset that day, and at least 0.00000001 units leave and arrive
+  (fewer leaving could relieve nothing; fewer arriving would leave the arriving
+  position without its cost).
+- The units that leave are relieved by the account's method (R7.1), as a
+  transfer out relieves them: each removed lot's proceeds are its cost, so
+  nothing is realized (R2.4).
+- Each relieved lot opens a lot of the arriving asset, with r = units in ÷ units
+  out: its units after splits times r, no split history, and its price per unit
+  divided by the same factor; the last lot takes the rounding, so the new lots
+  hold exactly the units in. Its cost, charges, acquisition date, rates and book
+  costs are carried as they were. Like a lot a transfer delivered, it stays
+  apart from a WAC pool (R7.2), and its purchase charges count once, where they
+  were paid (R3.5).
+- No cash, net contribution or flow moves, at any scope. The two assets' market
+  values on the day differ only by gain, which shows as unrealized P&L.
+- Fixtures: NOM-CONV-01, EDGE-CONV-01 to EDGE-CONV-06.
+
 ## 8. Known limits
 
 - Holdings mode assumes trades and transfers happen at snapshot prices: a price
@@ -452,6 +489,14 @@ How each moves cost:
   not trim it (the addon SDK's `getEffectiveType` and `hasUserOverride`, broker
   sync's split check) reads a blank one as a type, or keeps the whitespace
   around another.
+- A conversion is applied only within one account, on one day, in one currency,
+  without a fee and on a day without a split of either asset (R7.5). Brokers
+  that settle a switch over several days (a _traspaso_ takes two or three) are
+  recorded on one day: units in transit are not valued (R4.2), so legs on two
+  days would read as a loss and a gain. A switch between brokers is a transfer,
+  then a conversion. A spin-off (the first asset stays and part of its cost
+  moves) and cash in lieu of fractional units (a separate SELL) are other
+  activities.
 - The §5 trigger accepts some JSON the job's reader rejects: a lone surrogate
   escape, a number beyond a double, nesting deeper than 128 levels. A change
   elsewhere in an account's meta that adds one leaves no marker, and the account

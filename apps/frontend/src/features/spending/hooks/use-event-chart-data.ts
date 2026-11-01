@@ -140,6 +140,7 @@ function avgSeries(series: number[]): number {
 function buildEventCategoryRows(
   event: EventSpendingSummary,
   taxonomyCategories: TaxonomyCategory[],
+  uncategorizedLabel: string,
 ): EventCategoryRow[] {
   const meta = new Map(taxonomyCategories.map((c) => [c.id, c]));
   const byTop = new Map<string, EventCategoryRow>();
@@ -147,7 +148,7 @@ function buildEventCategoryRows(
     const m = cat.categoryId ? meta.get(cat.categoryId) : undefined;
     const topId = m?.parentId ?? cat.categoryId ?? cat.categoryName;
     const top = (m?.parentId && meta.get(m.parentId)) || m;
-    const name = top?.name ?? cat.categoryName ?? "Uncategorized";
+    const name = cat.categoryId ? (top?.name ?? cat.categoryName) : uncategorizedLabel;
     const color = top?.color ?? cat.color ?? "#9CA3AF";
     const e = byTop.get(topId) ?? { id: topId, name, color, amount: 0 };
     e.amount += cat.amount;
@@ -175,6 +176,7 @@ export function useEventChartData(
   heatmapActivities: Activity[],
   accountTypeById: Map<string, string> | undefined,
   taxonomyCategories: TaxonomyCategory[],
+  uncategorizedLabel: string,
   dailySpendByDate?: Map<string, number>,
   baselinePeriod?: BaselinePeriod,
 ): EventChartData {
@@ -207,8 +209,8 @@ export function useEventChartData(
   const dailyDeltaPct = baseline > 0 ? Math.round((dailyDuring / baseline - 1) * 100) : 0;
 
   const categories = useMemo(
-    () => buildEventCategoryRows(event, taxonomyCategories),
-    [event, taxonomyCategories],
+    () => buildEventCategoryRows(event, taxonomyCategories, uncategorizedLabel),
+    [event, taxonomyCategories, uncategorizedLabel],
   );
   const categoriesTotal = useMemo(
     () => categories.reduce((sum, c) => sum + c.amount, 0),

@@ -264,7 +264,20 @@
       "show": "Show progress"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "A portfolio contains a deleted account link. Open Settings > Portfolios, edit the portfolio, then save.",
+    "fallback": "Something went wrong. Please try again.",
+    "restoreRequired": "Sync needs to be restored from this device before you can connect another device.",
+    "invalidCode": "Invalid code. Check and try again.",
+    "expired": "Session expired. Please start again.",
+    "cancelled": "Pairing was canceled.",
+    "network": "Network error. Check your connection.",
+    "timeout": "Connection timed out.",
+    "notFound": "Session not found or expired.",
+    "security": "Security verification failed.",
+    "technical": "Sync could not finish. Please try again. If this keeps happening, check the app logs.",
+    "namedPortfolioRepair": "Portfolio \"{{name}}\" contains a deleted account link. Open Settings > Portfolios, edit the portfolio, then save."
+  },
   "wizard": {
     "progressLabel": "Setup progress",
     "steps": {

@@ -231,3 +231,89 @@ fn lots_tied_on_their_ranking_go_in_the_order_they_opened_or_its_reverse() {
     assert_eq!(first("HIFO"), fifo);
     assert_ne!(first("LIFO"), fifo);
 }
+/// A conversion of a holding bought in many lots keeps its total cost, by
+/// every method (rules R7.5). Quicken's mutual fund conversion gives each new
+/// lot the holding's whole cost when it uses average cost; this pins that a
+/// conversion carries each lot's own cost, however many lots there are.
+#[test]
+fn a_conversion_of_many_lots_keeps_their_total_cost_by_every_method() {
+    // 15 purchases of fund-a, units 3 to 6 at prices 90 to 202.
+    let buys: Vec<(u32, Decimal, Decimal)> = (0..15)
+        .map(|i| (i, Decimal::from(3 + i % 4), Decimal::from(90 + 8 * i)))
+        .collect();
+    let total_units: Decimal = buys.iter().map(|(_, units, _)| units).sum();
+    let total_cost: Decimal = buys.iter().map(|(_, units, price)| units * price).sum();
+    let activities: String = buys
+        .iter()
+        .map(|(i, units, price)| {
+            format!(
+                "  - {{ id: buy-{i}, account: acc-1, type: BUY, date: 2025-01-{:02}T10:00:00Z, asset: fund-a, quantity: {units}, unit_price: {price}, amount: {}, fee: 0 }}\n",
+                i + 2,
+                units * price
+            )
+        })
+        .collect();
+    for (leaving, label) in [(total_units, "all"), (Decimal::from(20), "part")] {
+        for method in ["FIFO", "LIFO", "HIFO", "WAC"] {
+            let yaml = format!(
+                r#"
+id: INLINE-CB-CONV-MANY
+policy: {{ base_currency: USD, timezone: UTC, as_of: 2025-01-25 }}
+accounts:
+  - {{ id: acc-1, currency: USD, cost_basis_method: {method} }}
+assets:
+  - {{ id: fund-a, quote_ccy: USD }}
+  - {{ id: fund-b, quote_ccy: USD }}
+activities:
+  - {{ id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100000 }}
+{activities}  - {{ id: conv-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-20T10:00:00Z, asset: fund-a, quantity: {leaving}, source_group_id: g }}
+  - {{ id: conv-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-20T10:01:00Z, asset: fund-b, quantity: {arriving}, source_group_id: g }}
+quotes:
+  - {{ asset: fund-a, day: 2025-01-02, close: 100 }}
+  - {{ asset: fund-b, day: 2025-01-20, close: 200 }}
+"#,
+                arriving = leaving / Decimal::from(2),
+            );
+            let pipeline = inline(&yaml);
+            let case = format!("{method}, {label}");
+            assert!(
+                pipeline.bundle.rejected_activities().is_empty(),
+                "{case}: {:?}",
+                pipeline.bundle.rejected_activities()
+            );
+            let account = &pipeline.bundle.final_state.accounts[&AccountId::new("acc-1")];
+            let cost = |asset: &str| {
+                account
+                    .positions
+                    .get(&AssetId::new(asset))
+                    .map(|position| {
+                        position
+                            .lots
+                            .iter()
+                            .map(|lot| lot.cost_basis)
+                            .sum::<Decimal>()
+                    })
+                    .unwrap_or_default()
+            };
+            assert_eq!(
+                (cost("fund-a") + cost("fund-b")).round_dp(8),
+                total_cost,
+                "{case}: the cost is carried, not multiplied or lost"
+            );
+            assert_eq!(
+                position(&pipeline, "acc-1", "fund-b").quantity,
+                leaving / Decimal::from(2),
+                "{case}"
+            );
+            assert!(
+                pipeline
+                    .bundle
+                    .disposals
+                    .iter()
+                    .filter(|disposal| disposal.event.as_str() == "conv-out")
+                    .all(|disposal| disposal.realized_pnl.is_zero()),
+                "{case}: nothing is realized"
+            );
+        }
+    }
+}

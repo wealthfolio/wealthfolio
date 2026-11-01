@@ -13,31 +13,20 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-// Explanatory texts for info popovers
-export const TIME_WEIGHTED_RETURN_INFO =
-  "Time-weighted return (TWR) measures investment performance after removing the effect of deposits and withdrawals. Periods under one year are shown as selected-period returns; periods of one year or longer are shown annualized when available.";
-export const MONEY_WEIGHTED_RETURN_INFO =
-  "Money-weighted return (MWR) measures performance using the size and timing of external cash flows. It is calculated with IRR/XIRR; for periods of one year or longer, annualized XIRR is the standard display.";
-export const IRR_RETURN_INFO =
-  "Internal rate of return (IRR) measures money-weighted performance using the size and timing of external cash flows. For periods of one year or longer, annualized XIRR is the standard display.";
-export const SIMPLE_RETURN_INFO =
-  "Simple return compares total gain or loss with net contributions. It is cumulative and not time weighted.";
-export const VALUE_RETURN_INFO =
-  "Value return measures the change in account value over the selected period when transaction-level cash flows are not available.";
-export const PRICE_RETURN_INFO =
-  "Price return measures the selected symbol's price change over the selected period.";
-export const VOLATILITY_INFO =
-  "Volatility measures the dispersion of returns for a given investment. Higher volatility means the investment can change dramatically over a short period. It is annualized from calendar-daily returns.";
-export const MAX_DRAWDOWN_INFO =
-  "Maximum Drawdown represents the largest percentage decline from a peak to a subsequent trough in portfolio value during the specified period. It indicates downside risk.";
-export const ANNUALIZED_RETURN_INFO =
-  "Annualized return is the average yearly compounded rate for the selected period. It is not the cumulative total gain or loss.";
+// Stable translation keys for metric explanations; resolve in the rendering locale.
+export const TIME_WEIGHTED_RETURN_INFO_KEY = "performance:metric_info.time_weighted_return";
+export const MONEY_WEIGHTED_RETURN_INFO_KEY = "performance:metric_info.money_weighted_return";
+export const IRR_RETURN_INFO_KEY = "performance:metric_info.irr";
+export const SIMPLE_RETURN_INFO_KEY = "performance:metric_info.simple_return";
+export const VALUE_RETURN_INFO_KEY = "performance:metric_info.value_return";
+export const PRICE_RETURN_INFO_KEY = "performance:metric_info.price_return";
+export const VOLATILITY_INFO_KEY = "performance:metric_info.volatility";
+export const MAX_DRAWDOWN_INFO_KEY = "performance:metric_info.max_drawdown";
+export const ANNUALIZED_RETURN_INFO_KEY = "performance:metric_info.annualized_return";
 
 // Holdings mode specific info texts.
-export const HOLDINGS_MODE_VOLATILITY_INFO =
-  "Volatility of account value changes. Based on daily valuations without adjusting for deposits or withdrawals. Reflects how much the market value fluctuates.";
-export const HOLDINGS_MODE_MAX_DRAWDOWN_INFO =
-  "Largest peak-to-trough decline in account value. Based on daily valuations without adjusting for deposits or withdrawals.";
+export const HOLDINGS_MODE_VOLATILITY_INFO_KEY = "performance:metric_info.holdings_volatility";
+export const HOLDINGS_MODE_MAX_DRAWDOWN_INFO_KEY = "performance:metric_info.holdings_max_drawdown";
 
 export interface MetricDisplayProps {
   label: string;
@@ -76,7 +65,9 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
 
   const displayValue =
     value === undefined ? (
-      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>N/A</span>
+      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>
+        {t("performance:not_available")}
+      </span>
     ) : isPercentage && tone === "neutral" ? (
       <span className={cn("text-foreground text-base font-medium", valueClassName)}>
         {formatting.formatPercent(value)}
@@ -100,7 +91,8 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
   const labelContent = labelComponent ?? (
     <>
       <div className="text-muted-foreground flex w-full items-center justify-center text-xs">
-        <span className="text-center">{label}</span>
+        {/* A word wider than a narrow tile breaks rather than being cut off. */}
+        <span className="min-w-0 text-center wrap-break-word">{label}</span>
       </div>
       <Popover>
         <PopoverTrigger
@@ -167,7 +159,7 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
           to="/health"
           title={emptyReason}
           aria-label={t("common:component.open_health_center_for", { label })}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring text-2xs relative z-20 line-clamp-2 max-w-[11rem] rounded-sm text-center leading-tight underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring text-2xs relative z-20 line-clamp-2 max-w-[11rem] rounded-sm text-center leading-tight underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           {emptyReason}
         </Link>

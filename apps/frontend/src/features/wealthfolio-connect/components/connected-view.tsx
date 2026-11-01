@@ -76,7 +76,7 @@ function ServiceUnavailableCard({ onRetry, isRetrying }: ServiceUnavailableCardP
     <Card className={statusSurfaceVariants({ status: "warning" })}>
       <CardContent className="py-8">
         <div className="flex flex-col items-center justify-center text-center">
-          <div className="text-warning-subtle-foreground bg-current/15 mb-4 rounded-full p-4">
+          <div className="text-warning-subtle-foreground mb-4 rounded-full bg-current/15 p-4">
             <Icons.CloudOff className="h-8 w-8" />
           </div>
           <h3 className="text-foreground mb-2 text-base font-medium">
@@ -343,6 +343,7 @@ export function ConnectedView() {
     signOut,
     isLoading,
     isLoadingUserInfo,
+    isUserInfoRateLimited,
     error,
     clearError,
     refetchUserInfo,
@@ -354,7 +355,7 @@ export function ConnectedView() {
   const isConnected = !!session;
 
   // Check if there's a service unavailable error (failed to fetch user info)
-  const isServiceUnavailable = !!error && !isLoadingUserInfo && !userInfo;
+  const isServiceUnavailable = !!error && !userInfo;
 
   // Check if user has an active subscription
   const hasSubscription = isSubscriptionStatusActive(userInfo?.team?.subscription_status);
@@ -369,13 +370,12 @@ export function ConnectedView() {
   // Retry handler for service unavailable state
   const handleRetry = useCallback(async () => {
     setIsRetrying(true);
-    clearError();
     try {
       await refetchUserInfo();
     } finally {
       setIsRetrying(false);
     }
-  }, [clearError, refetchUserInfo]);
+  }, [refetchUserInfo]);
 
   // Sync accounts to local database
   // Sync runs in background, global event listener handles toasts and query invalidation
@@ -492,7 +492,10 @@ export function ConnectedView() {
 
       {/* Show Service Unavailable card when API is down */}
       {isServiceUnavailable && (
-        <ServiceUnavailableCard onRetry={handleRetry} isRetrying={isRetrying} />
+        <ServiceUnavailableCard
+          onRetry={handleRetry}
+          isRetrying={isRetrying || isLoadingUserInfo || isUserInfoRateLimited}
+        />
       )}
 
       {/* Show Subscription Plans if user has no active subscription (keep mounted during refresh) */}
@@ -506,7 +509,7 @@ export function ConnectedView() {
           <SubscriptionPlans
             enabled={isConnected && !hasSubscription}
             onRefresh={refetchUserInfo}
-            isRefreshing={isLoadingUserInfo}
+            isRefreshing={isLoadingUserInfo || isUserInfoRateLimited}
           />
         </>
       )}

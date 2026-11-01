@@ -1296,10 +1296,12 @@ pub struct HealthConfig {
     /// Hours after which a stale price triggers an Error (default: 72)
     pub price_stale_critical_hours: u32,
 
-    /// Hours after which a stale FX rate triggers a Warning (default: 24)
+    /// Hours of open FX market (weekend close excluded) after which a stale
+    /// FX rate triggers a Warning (default: 24)
     pub fx_stale_warning_hours: u32,
 
-    /// Hours after which a stale FX rate triggers an Error (default: 72)
+    /// Hours of open FX market (weekend close excluded) after which a stale
+    /// FX rate triggers an Error (default: 72)
     pub fx_stale_critical_hours: u32,
 
     /// MV percentage threshold for escalating to Critical (default: 0.30 = 30%)

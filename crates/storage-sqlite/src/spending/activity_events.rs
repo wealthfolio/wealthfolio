@@ -64,6 +64,81 @@ impl ActivityEventsRepository {
     pub fn new(pool: Arc<DbPool>, writer: WriteHandle) -> Self {
         Self { pool, writer }
     }
+    async fn set_with_expectation(
+        &self,
+        activity_id: &str,
+        event_id: Option<String>,
+        expected: Option<Option<String>>,
+    ) -> Result<()> {
+        let activity_id = activity_id.to_string();
+        self.writer
+            .exec_tx(move |tx| {
+                if let Some(expected) = expected {
+                    let current = spending_activity_events::table
+                        .filter(spending_activity_events::activity_id.eq(&activity_id))
+                        .select(spending_activity_events::event_id)
+                        .first::<String>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+                    if current != expected {
+                        return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                            "Event tag changed since review".into(),
+                        )
+                        .into());
+                    }
+                }
+                let now = chrono::Utc::now().to_rfc3339();
+                let should_sync = should_sync_activity_local_id_outbox(tx.conn(), &activity_id)?;
+                match &event_id {
+                    Some(eid) => {
+                        diesel::insert_into(spending_activity_events::table)
+                            .values((
+                                spending_activity_events::activity_id.eq(&activity_id),
+                                spending_activity_events::event_id.eq(eid),
+                                spending_activity_events::created_at.eq(&now),
+                                spending_activity_events::updated_at.eq(&now),
+                            ))
+                            .on_conflict(spending_activity_events::activity_id)
+                            .do_update()
+                            .set((
+                                spending_activity_events::event_id.eq(eid),
+                                spending_activity_events::updated_at.eq(&now),
+                            ))
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                        if should_sync {
+                            tx.update(&ActivityEventDB {
+                                activity_id: activity_id.clone(),
+                                event_id: eid.clone(),
+                                created_at: now.clone(),
+                                updated_at: now.clone(),
+                            })?;
+                        }
+                    }
+                    None => {
+                        // Only emit the sync tombstone when an actual row
+                        // was removed. Calling tx.delete unconditionally on
+                        // a no-op DELETE writes `last_op = Delete` in the
+                        // sync metadata for an entity the network never saw
+                        // — and a subsequent Create from another device
+                        // would then get rejected by LWW as resurrection.
+                        let removed = diesel::delete(
+                            spending_activity_events::table
+                                .filter(spending_activity_events::activity_id.eq(&activity_id)),
+                        )
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                        if removed > 0 && should_sync {
+                            tx.delete::<ActivityEventDB>(activity_id.clone());
+                        }
+                    }
+                }
+
+                Ok(())
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
 }
 
 #[async_trait]
@@ -122,60 +197,16 @@ impl ActivityEventsRepositoryTrait for ActivityEventsRepository {
         activity_id: &str,
         event_id: Option<String>,
     ) -> Result<()> {
-        let activity_id = activity_id.to_string();
-        self.writer
-            .exec_tx(move |tx| {
-                let now = chrono::Utc::now().to_rfc3339();
-                let should_sync = should_sync_activity_local_id_outbox(tx.conn(), &activity_id)?;
-                match &event_id {
-                    Some(eid) => {
-                        diesel::insert_into(spending_activity_events::table)
-                            .values((
-                                spending_activity_events::activity_id.eq(&activity_id),
-                                spending_activity_events::event_id.eq(eid),
-                                spending_activity_events::created_at.eq(&now),
-                                spending_activity_events::updated_at.eq(&now),
-                            ))
-                            .on_conflict(spending_activity_events::activity_id)
-                            .do_update()
-                            .set((
-                                spending_activity_events::event_id.eq(eid),
-                                spending_activity_events::updated_at.eq(&now),
-                            ))
-                            .execute(tx.conn())
-                            .map_err(StorageError::from)?;
-                        if should_sync {
-                            tx.update(&ActivityEventDB {
-                                activity_id: activity_id.clone(),
-                                event_id: eid.clone(),
-                                created_at: now.clone(),
-                                updated_at: now.clone(),
-                            })?;
-                        }
-                    }
-                    None => {
-                        // Only emit the sync tombstone when an actual row
-                        // was removed. Calling tx.delete unconditionally on
-                        // a no-op DELETE writes `last_op = Delete` in the
-                        // sync metadata for an entity the network never saw
-                        // — and a subsequent Create from another device
-                        // would then get rejected by LWW as resurrection.
-                        let removed = diesel::delete(
-                            spending_activity_events::table
-                                .filter(spending_activity_events::activity_id.eq(&activity_id)),
-                        )
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                        if removed > 0 && should_sync {
-                            tx.delete::<ActivityEventDB>(activity_id.clone());
-                        }
-                    }
-                }
-
-                Ok(())
-            })
+        self.set_with_expectation(activity_id, event_id, None).await
+    }
+    async fn set_event_reviewed(
+        &self,
+        activity_id: &str,
+        expected: Option<String>,
+        event_id: Option<String>,
+    ) -> Result<()> {
+        self.set_with_expectation(activity_id, event_id, Some(expected))
             .await
-            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn delete_by_event(&self, event_id: &str) -> Result<usize> {
@@ -221,26 +252,28 @@ impl ActivityEventsRepositoryTrait for ActivityEventsRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{activities, spending_activity_events, sync_outbox};
     use diesel::r2d2::{ConnectionManager, Pool};
     use diesel::sqlite::SqliteConnection;
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_events::ActivityEventsRepositoryTrait;
 
-    fn setup_db() -> (Arc<Pool<ConnectionManager<SqliteConnection>>>, WriteHandle) {
+    fn setup_db() -> (
+        Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        WriteHandle,
+        TestDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     fn insert_account_and_activity(conn: &mut SqliteConnection, id: &str, source_system: &str) {
@@ -314,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_activity_event_tag_is_local_only_but_manual_tag_still_syncs() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "broker-activity", "SNAPTRADE");
@@ -351,7 +384,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_for_events_returns_tags_for_requested_events_only() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "activity-a", "MANUAL");

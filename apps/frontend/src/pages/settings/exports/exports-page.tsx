@@ -11,7 +11,7 @@ const ExportSettingsPage = () => {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading={t("settings:export_full_title")}
+        heading={t("settings:nav.items.backup_export")}
         text={t("settings:export_description")}
       />
       <Separator />

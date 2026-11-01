@@ -55,6 +55,7 @@
     "holdings": "Holdings mode"
   },
   "exclusion": {
+    "holdings_not_mwr": "MWR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
     "no_data": "Performance data is not available for this selection.",
     "no_series": "No chart series is available for this period.",
     "holdings_not_twr": "Holdings-mode accounts use Value Return and are not plotted with TWR.",
@@ -134,5 +135,19 @@
     "contributions_desc": "Cash you added to the account",
     "distributions": "Distributions",
     "distributions_desc": "Cash withdrawn from the account"
-  }
+  },
+  "metric_info": {
+    "time_weighted_return": "Time-weighted return (TWR) measures investment performance after removing the effect of deposits and withdrawals. Periods under one year are shown as selected-period returns; periods of one year or longer are shown annualized when available.",
+    "money_weighted_return": "Money-weighted return (MWR) measures performance using the size and timing of external cash flows. It is calculated with IRR/XIRR; for periods of one year or longer, annualized XIRR is the standard display.",
+    "irr": "Internal rate of return (IRR) measures money-weighted performance using the size and timing of external cash flows. For periods of one year or longer, annualized XIRR is the standard display.",
+    "simple_return": "Simple return compares total gain or loss with net contributions. It is cumulative and not time weighted.",
+    "value_return": "Value return measures the change in account value over the selected period when transaction-level cash flows are not available.",
+    "price_return": "Price return measures the selected symbol's price change over the selected period.",
+    "volatility": "Volatility measures the dispersion of returns for a given investment. Higher volatility means the investment can change dramatically over a short period. It is annualized from calendar-daily returns.",
+    "max_drawdown": "Maximum Drawdown represents the largest percentage decline from a peak to a subsequent trough in portfolio value during the specified period. It indicates downside risk.",
+    "annualized_return": "Annualized return is the average yearly compounded rate for the selected period. It is not the cumulative total gain or loss.",
+    "holdings_volatility": "Volatility of account value changes. Based on daily valuations without adjusting for deposits or withdrawals. Reflects how much the market value fluctuates.",
+    "holdings_max_drawdown": "Largest peak-to-trough decline in account value. Based on daily valuations without adjusting for deposits or withdrawals."
+  },
+  "compare_over_time": "Compare account performance over time"
 }

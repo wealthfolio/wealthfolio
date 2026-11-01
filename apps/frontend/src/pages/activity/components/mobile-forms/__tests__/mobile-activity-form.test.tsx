@@ -1,3 +1,5 @@
+import { ActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
+import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { render, screen, waitFor } from "@/test/render";
@@ -80,6 +82,24 @@ vi.mock("../mobile-details-step", async () => {
     },
   };
 });
+
+// The sheet form records and edits a conversion; a stub shows what it got.
+vi.mock("../../activity-form", () => ({
+  ActivityForm: ({
+    activity,
+    hidePicker,
+  }: {
+    activity?: Partial<ActivityDetails>;
+    hidePicker?: boolean;
+  }) => (
+    <div
+      data-testid="sheet-form"
+      data-subtype={activity?.subtype}
+      data-account={activity?.accountId}
+      data-hide-picker={String(!!hidePicker)}
+    />
+  ),
+}));
 
 const noopMutation = { mutateAsync: vi.fn(), isPending: false };
 const savePairMutation = { mutateAsync: vi.fn(), isPending: false };
@@ -164,6 +184,44 @@ describe("MobileActivityForm reclassification", () => {
       expect(screen.getByTestId("details-step")).toHaveTextContent(activityType);
     },
   );
+});
+
+describe("MobileActivityForm conversions", () => {
+  it("hands a new conversion to the sheet form, which records both rows", async () => {
+    const user = userEvent.setup();
+    render(
+      <MobileActivityForm
+        accounts={accounts}
+        open
+        onClose={vi.fn()}
+        activity={{ accountId: "acc_1" }}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: /Conversion/i }));
+
+    const sheet = await screen.findByTestId("sheet-form");
+    expect(sheet).toHaveAttribute("data-subtype", "CONVERSION_OUT");
+    expect(sheet).toHaveAttribute("data-account", "acc_1");
+    expect(sheet).toHaveAttribute("data-hide-picker", "true");
+  });
+
+  it("edits a conversion row in the sheet form", () => {
+    renderForm({
+      ...activity(ActivityType.ADJUSTMENT),
+      subtype: "CONVERSION_IN",
+      sourceGroupId: "conv-1",
+    });
+
+    expect(screen.getByTestId("sheet-form")).toHaveAttribute("data-subtype", "CONVERSION_IN");
+  });
+
+  it("keeps a conversion, which is two rows, out of reclassifying one row", () => {
+    renderForm(activity(ActivityType.UNKNOWN));
+
+    expect(screen.getByText("Select Transaction Type")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Conversion/i })).not.toBeInTheDocument();
+  });
 });
 
 describe("mobile linked transfer edits", () => {
@@ -303,4 +361,26 @@ describe("a trade total typed on a phone screen left for another tab", () => {
       ),
     );
   });
+});
+
+it("keeps a mobile edit open without a failure toast when split review is cancelled", async () => {
+  const previousCalls = noopMutation.mutateAsync.mock.calls.length;
+  noopMutation.mutateAsync.mockRejectedValueOnce(new ActivityEditCancelled());
+  const errorToast = vi.spyOn(toast, "error");
+  const close = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <MobileActivityForm
+      accounts={accounts}
+      open
+      onClose={close}
+      activity={{ ...activity(ActivityType.DEPOSIT), amount: "100" }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Update Activity" }));
+  await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledTimes(previousCalls + 1));
+  expect(errorToast).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByTestId("details-step")).toBeInTheDocument();
+  errorToast.mockRestore();
 });

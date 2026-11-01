@@ -29,7 +29,7 @@ export function TableSkeleton({ rows = 5 }: TableSkeletonProps) {
 
 export function ChartSkeleton() {
   return (
-    <div className="h-50 flex w-full flex-col justify-end gap-1">
+    <div className="flex h-50 w-full flex-col justify-end gap-1">
       {/* Chart area shape */}
       <div className="relative flex h-full items-end gap-0.5">
         {/* Simulate area chart with varying heights */}
@@ -67,7 +67,7 @@ export function CardListSkeleton({ count = 3 }: CardListSkeletonProps) {
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className="bg-background/60 min-w-45 flex flex-col gap-2 rounded-lg border p-4"
+          className="bg-background/60 flex min-w-45 flex-col gap-2 rounded-lg border p-4"
         >
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-6 w-full" />

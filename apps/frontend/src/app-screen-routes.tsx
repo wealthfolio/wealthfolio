@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from "react";
-import { Navigate, Route, Routes, type Location } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, type Location } from "react-router-dom";
 
 import {
   getDynamicRoutes,
@@ -35,7 +35,6 @@ import MarketDataImportPage from "./pages/settings/market-data/market-data-impor
 import MarketDataSettingsPage from "./pages/settings/market-data/market-data-settings";
 import TaxonomiesPage from "./pages/settings/taxonomies/taxonomies-page";
 import ConnectSettingsPage from "./pages/settings/wealthfolio-connect/connect-settings-page";
-import SpendingInsightsPage from "./features/spending/pages/spending-insights-page";
 import SpendingBudgetPage from "./features/spending/pages/spending-budget-page";
 import SpendingSettingsPage from "./pages/settings/spending/spending-settings-page";
 import SpendingSettingsCategoriesPage from "./pages/settings/spending/categories/spending-categories-page";
@@ -46,6 +45,14 @@ import GoalsDashboardPage from "@/features/goals/pages/goals-dashboard-page";
 import GoalNewPage from "@/features/goals/pages/goal-new-page";
 import GoalDetailPage from "@/features/goals/pages/goal-detail-page";
 import GoalRetirementGuidePage from "@/features/goals/pages/goal-retirement-guide-page";
+
+// Old deep links carry stage/period/range params and a #cashflow anchor.
+function SpendingInsightsRedirect() {
+  const { search, hash } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set("tab", "spending");
+  return <Navigate to={{ pathname: "/insights", search: `?${params}`, hash }} replace />;
+}
 
 function useDynamicAddonRoutes() {
   const [dynamicRoutes, setDynamicRoutes] = useState<DynamicRouteEntry[]>(getDynamicRoutes);
@@ -98,7 +105,7 @@ export const AppScreenRoutes = memo(function AppScreenRoutes({ location }: AppSc
       <Route path="goals/new" element={<GoalNewPage />} />
       <Route path="goals/:goalId/guide" element={<GoalRetirementGuidePage />} />
       <Route path="goals/:goalId" element={<GoalDetailPage />} />
-      <Route path="spending/insights" element={<SpendingInsightsPage />} />
+      <Route path="spending/insights" element={<SpendingInsightsRedirect />} />
       <Route path="spending/budget" element={<SpendingBudgetPage />} />
       {/* Dynamic addon routes */}
       {dynamicRoutes.map(({ path, addonId, routeId }) => (

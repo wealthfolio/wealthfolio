@@ -12,7 +12,6 @@
     "more": "更多"
   },
   "securities": {
-    "heading": "有價證券",
     "subtitle": "瀏覽與管理你投資組合中可用的有價證券。",
     "add_security": "新增有價證券",
     "delete_title": "刪除有價證券",
@@ -64,7 +63,7 @@
       "symbol_required": "代號為必填",
       "symbol_max": "代號不得超過 100 個字元",
       "name_required": "名稱為必填",
-      "name_max": "名稱不得超過 100 個字元",
+      "name_max": "名稱不得超過 200 個字元",
       "instrument_type_required": "金融商品類型為必填",
       "currency_required": "幣別為必填"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "例如 SBER、AFLT",
+    "moex_symbol_hint": "請使用不帶前綴或後綴的 MOEX 證券代碼，並將交易所設為 Moscow Exchange (MISX)。",
     "identity_conflict": "已存在具有相同識別資訊的資產。變更未儲存。請使用現有資產或選擇其他交易所。",
     "general": "一般",
     "classification": "分類",
@@ -697,6 +698,18 @@
       "precious_metal": "貴金屬",
       "liability": "負債",
       "other": "其他"
+    },
+    "validation": {
+      "name_is_required": "名稱為必填欄位",
+      "quantity_must_be_greater_than_0": "數量必須大於0",
+      "purchase_price_must_be_greater_than_0": "購買價格必須大於0",
+      "notes_must_be_less_than_1000_characters": "注釋必須少於 1000 個字符",
+      "address_must_be_less_than_200_characters": "地址必須少於 200 個字符",
+      "interest_rate_must_be_100_or_less": "利率必須為 100 或更低",
+      "name_must_be_less_than_100_characters": "名稱必須少於 100 個字符",
+      "interest_rate_must_be_0_or_greater": "利率必須為 0 或更大",
+      "description_must_be_less_than_200_characters": "描述必須少於 200 個字符",
+      "original_amount_must_be_greater_than_0": "原始金額必須大於0"
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "新增此次估值的背景資訊（例如評估來源、市場狀況）",
     "cancel": "取消",
     "update_value": "更新價值",
-    "na": "不適用"
+    "na": "不適用",
+    "validation": {
+      "number": "價值必須為數字。",
+      "non_negative": "價值不能為負數",
+      "notes": "備註不得超過 500 個字元"
+    }
   },
   "valueHistory": {
     "date": "日期",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "請輸入大於零的還款額。",
     "payment_unavailable": "無法根據這些條件計算還款額。請檢查金額、利率和攤還期限。",
     "fields_read_only": "貸款條件只能在貸款詳情中變更。"
+  },
+  "notifications": {
+    "profile_updated": "資產資料已更新。",
+    "quote_mode_updated": "資產報價模式已更新。",
+    "profile_failed": "更新資產資料時發生問題。",
+    "quote_mode_failed": "更新資產報價模式時發生問題。",
+    "quote_added": "報價已新增。",
+    "quote_updated": "報價已更新。",
+    "quote_deleted": "報價已刪除。",
+    "quote_save_failed": "儲存報價時發生問題。",
+    "quote_delete_failed": "刪除報價時發生問題。"
+  },
+  "noQuote": {
+    "manual": "報價模式為手動",
+    "inactive": "資產未啟用",
+    "matured": "債券已到期",
+    "expired": "選擇權已到期",
+    "paused": "同步因多次錯誤而暫停",
+    "pending": "尚未同步資料來源報價",
+    "no_data": "資料來源尚未提供資料"
   }
 }

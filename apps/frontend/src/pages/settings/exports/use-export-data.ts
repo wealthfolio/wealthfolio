@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { exportDataFile, logger } from "@/adapters";
 import { ExportDataType, ExportedFileFormat } from "@/lib/types";
 import { useMutation } from "@tanstack/react-query";
@@ -14,14 +15,6 @@ interface FileExportResult {
 
 type ExportMutationResult = FileExportResult | null;
 
-const datasetLabels: Record<ExportDataType, string> = {
-  accounts: "accounts",
-  activities: "activities",
-  holdings: "holdings",
-  goals: "goals",
-  "portfolio-history": "portfolio history records",
-};
-
 export function useExportData() {
   const {
     mutateAsync: exportDataMutation,
@@ -33,8 +26,8 @@ export function useExportData() {
       const result = await exportDataFile(format, desiredData);
       if (result.status === "empty") {
         toast({
-          title: "Nothing to export.",
-          description: `No ${datasetLabels[desiredData]} available to export right now.`,
+          title: i18n.t("common:notifications.nothing_to_export"),
+          description: i18n.t(`settings:messages.export.empty.${desiredData}`),
         });
         return null;
       }
@@ -52,16 +45,16 @@ export function useExportData() {
       }
 
       toast({
-        title: "Export completed",
-        description: "File saved successfully. Check your download location.",
+        title: i18n.t("common:notifications.export_completed"),
+        description: i18n.t("common:notifications.file_saved_description"),
         variant: "success",
       });
     },
     onError: (e) => {
       logger.error(`Error while exporting: ${String(e)}`);
       toast({
-        title: "Export failed.",
-        description: e.message || "The export could not be completed.",
+        title: i18n.t("common:notifications.export_failed"),
+        description: e.message || i18n.t("common:notifications.export_failed"),
         variant: "destructive",
       });
     },

@@ -320,5 +320,13 @@
     "description": "Du verbindest ein anderes Konto oder einen anderen Haushalt. Deine lokalen Portfoliodaten bleiben erhalten, aber bestehende Broker-Verknüpfungen und die Einrichtung der Gerätesynchronisierung werden entfernt. Das neue Konto kann diesem Profil Broker-Daten hinzufügen. Richte die Gerätesynchronisierung erneut ein, sobald du bereit bist. Verwende ein neues Profil, wenn du die Daten getrennt halten möchtest.",
     "cancel": "Abbrechen",
     "confirm": "Verbindung ändern"
+  },
+  "syncMessages": {
+    "runFailed": "Dieser Synchronisierungslauf konnte nicht abgeschlossen werden. Wiederholen Sie die Synchronisierung oder verwalten Sie Ihre Broker-Verbindung.",
+    "runNeedsReview": "Einige synchronisierte Einträge müssen geprüft werden, bevor die Synchronisierung fortgesetzt werden kann.",
+    "accountFailed": "Dieses Broker-Konto konnte nicht synchronisiert werden. Wiederholen Sie die Synchronisierung oder verwalten Sie Ihre Broker-Verbindung.",
+    "accountNeedsReview": "Einige Broker-Daten müssen geprüft werden. Wiederholen Sie die Synchronisierung oder verwalten Sie Ihre Broker-Verbindung.",
+    "holdingsSynced": "Bestände wurden synchronisiert, aber die Aktivitätssynchronisierung erfordert Aufmerksamkeit. Wiederholen Sie die Synchronisierung oder verwalten Sie Ihre Broker-Verbindung.",
+    "holdingsDeferred": "Die Bestandssynchronisierung erfordert Aufmerksamkeit. Wiederholen Sie die Synchronisierung oder verwalten Sie Ihre Broker-Verbindung."
   }
 }

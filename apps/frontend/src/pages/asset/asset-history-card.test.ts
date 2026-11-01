@@ -76,6 +76,7 @@ describe("asset history marker helpers", () => {
     expect(activityMarkerTone(ActivityType.ADJUSTMENT)).toBe("secondary");
     expect(activityMarkerLabel(ActivityType.TRANSFER_OUT)).toBe("T");
     expect(activityMarkerTone(ActivityType.TRANSFER_OUT)).toBe("destructive");
+    expect(activityMarkerLabel(ActivityType.TAX)).toBe("TX");
   });
 
   it("rejects unrelated and cash-only activities", () => {

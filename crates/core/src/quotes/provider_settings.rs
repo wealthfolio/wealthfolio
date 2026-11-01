@@ -103,6 +103,16 @@ impl ProviderCapabilities {
                     "Profiles".to_string(),
                 ],
             }),
+            "MOEX" => Some(Self {
+                instruments: "Stocks • ETFs • Funds • DRs".to_string(),
+                coverage: "MISX".to_string(),
+                features: vec![
+                    "Real-time".to_string(),
+                    "Historical".to_string(),
+                    "Search".to_string(),
+                    "Profiles".to_string(),
+                ],
+            }),
             "OPENFIGI" => Some(Self {
                 instruments: "Bonds".to_string(),
                 coverage: "Global".to_string(),
@@ -115,6 +125,15 @@ impl ProviderCapabilities {
                     "Real-time".to_string(),
                     "Historical".to_string(),
                     "Profiles".to_string(),
+                    "No API key".to_string(),
+                ],
+            }),
+            "AMFI" => Some(Self {
+                instruments: "Mutual funds".to_string(),
+                coverage: "India".to_string(),
+                features: vec![
+                    "Historical".to_string(),
+                    "Search".to_string(),
                     "No API key".to_string(),
                 ],
             }),

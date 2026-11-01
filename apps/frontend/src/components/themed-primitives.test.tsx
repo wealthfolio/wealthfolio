@@ -6,8 +6,8 @@ import { CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
 // Themes restyle components only through the tokens these classes read
-// (src/themes/definitions/classic.css), never with rules. So a call site's own
-// class must replace the token class, and then no theme can override it.
+// (src/themes/definitions/classic.css); theme rules sit in @layer base. So a call
+// site's own class must replace the token class, and then no theme can override it.
 describe("a call site's classes replace the theme's component tokens", () => {
   it("keeps the addon store's white Details button white in every theme", () => {
     render(
@@ -22,6 +22,18 @@ describe("a call site's classes replace the theme's component tokens", () => {
     expect(classes).not.toContain("bg-(--button-secondary-bg)");
     expect(classes).not.toContain("hover:bg-(--button-secondary-hover-bg)");
     expect(classes).not.toContain("text-secondary-foreground");
+  });
+
+  it("keeps a destructive button's label colour when a call site sets a text size", () => {
+    render(
+      <Button variant="destructive" size="xs" className="rounded-md text-xs">
+        Delete
+      </Button>,
+    );
+    const classes = screen.getByRole("button", { name: "Delete" }).className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining(["text-xs", "text-(color:--button-destructive-foreground)"]),
+    );
   });
 
   it("keeps a field's own border colour", () => {

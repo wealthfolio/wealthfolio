@@ -168,8 +168,8 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
         <div className="relative flex-1">
           <Skeleton className="h-10 w-full" />
         </div>
-        <Skeleton className="sm:w-45 h-10 w-full" />
-        <Skeleton className="sm:w-45 h-10 w-full" />
+        <Skeleton className="h-10 w-full sm:w-45" />
+        <Skeleton className="h-10 w-full sm:w-45" />
         <Skeleton className="h-10 w-10" />
       </div>
 
@@ -240,7 +240,7 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
             if (value !== null) setSortBy(value as "popular" | "rating" | "recent" | "name");
           }}
         >
-          <SelectTrigger className="sm:w-45 w-full" aria-label={t("holdings:sort_by")}>
+          <SelectTrigger className="w-full sm:w-45" aria-label={t("holdings:sort_by")}>
             <SelectValue placeholder={t("settings:addon_store_sort_placeholder")} />
           </SelectTrigger>
           <SelectContent>
@@ -264,7 +264,7 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
             if (value !== null) setFilterBy(value as "all" | "uninstalled");
           }}
         >
-          <SelectTrigger className="sm:w-45 w-full" aria-label={t("common:filter")}>
+          <SelectTrigger className="w-full sm:w-45" aria-label={t("common:filter")}>
             <SelectValue placeholder={t("settings:addon_store_filter_placeholder")} />
           </SelectTrigger>
           <SelectContent>

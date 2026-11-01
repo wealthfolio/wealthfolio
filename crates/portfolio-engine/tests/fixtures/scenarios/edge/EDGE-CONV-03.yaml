@@ -1,0 +1,49 @@
+id: EDGE-CONV-03
+title: A partial conversion of split lots, then a second conversion the same day
+intent: >
+  Rules R7.5 and R7.2 (LIFO). fund-a splits 2 for 1 after the first purchase.
+  A conversion of 15 of the 25 units relieves the newest lot first, then half
+  of the split lot; each relieved slice opens in fund-b at r = 2 from its
+  units after the split, with no split history and its price per unit
+  divided by the split and the ratio. Later that day all 30 fund-b convert
+  into 15 fund-c (r = 0.5). Costs and purchase dates carry through both
+  conversions; nothing is realized.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-10
+accounts:
+  - id: acc-1
+    currency: USD
+    cost_basis_method: LIFO
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+  - { id: fund-c, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1000 }
+  - { id: split-1, account: acc-1, type: SPLIT, date: 2025-01-10T09:00:00Z, asset: fund-a, amount: 2 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-13T10:00:00Z, asset: fund-a, quantity: 5, unit_price: 60, amount: 300 }
+  - { id: ab-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T10:00:00Z, asset: fund-a, quantity: 15, source_group_id: g-ab }
+  - { id: ab-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T10:01:00Z, asset: fund-b, quantity: 30, source_group_id: g-ab }
+  - { id: bc-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T14:00:00Z, asset: fund-b, quantity: 30, source_group_id: g-bc }
+  - { id: bc-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T14:01:00Z, asset: fund-c, quantity: 15, source_group_id: g-bc }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 100 }
+  - { asset: fund-a, day: 2025-01-10, close: 50 }
+  - { asset: fund-a, day: 2025-02-03, close: 60 }
+  - { asset: fund-b, day: 2025-02-03, close: 30 }
+  - { asset: fund-c, day: 2025-02-03, close: 60 }
+expected_notes: >
+  Before: buy-1 10 units, ratio 2 (20 after the split), cost 1000, acquired
+  01-03; buy-2 5 units, cost 300, acquired 01-13. 25 units. ab-out (LIFO)
+  relieves buy-2 whole (5, cost 300), then 10 units after the split of buy-1
+  (5 as acquired, cost 500), realizing 0. fund-a keeps buy-1 5 as acquired
+  (10 after the split), cost 500. ab-in opens at r = 2: from buy-2, 10 units,
+  cost 300, 30 a unit, acquired 01-13; from buy-1, 20 units, cost 500, 25 a
+  unit (100 / 2 / 2), acquired 01-03, ratio 1. bc-out relieves both fund-b
+  lots (30 units, cost 800) and bc-in opens at r = 0.5: from the 01-13 lot 5
+  units, cost 300, 60 a unit; from the 01-03 lot 10 units, cost 500, 50 a
+  unit. fund-b holds 0, fund-c 15 at cost 800. Cash 3700, net contribution
+  5000, realized 0, no flow.

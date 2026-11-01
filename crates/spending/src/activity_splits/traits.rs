@@ -28,5 +28,12 @@ pub trait ActivitySplitRepositoryTrait: Send + Sync {
         splits: Vec<NewActivitySplit>,
     ) -> Result<Vec<ActivitySplit>>;
 
+    async fn replace_reviewed(
+        &self,
+        expected: super::SplitReviewState,
+        taxonomy_id: &str,
+        splits: Vec<NewActivitySplit>,
+    ) -> Result<Vec<ActivitySplit>>;
+
     async fn clear_for_activity(&self, activity_id: &str) -> Result<()>;
 }

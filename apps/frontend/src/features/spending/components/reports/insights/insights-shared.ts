@@ -1,7 +1,8 @@
 // Shared layout primitives used across the insights "when & where" stage cards
 // (events timeline, event detail panel, empty state, mobile calendar).
 
-export const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
+// Padding for the Card these stage cards sit on; the surface is the theme's card.
+export const CARD_CLASS = "p-5";
 
 export const LABEL_CLASS =
   "text-muted-foreground/70 text-2xs font-normal uppercase tracking-[0.12em]";

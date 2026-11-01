@@ -1,3 +1,4 @@
+import { omitLocalDraftErrors } from "../utils/draft-validation-messages";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -242,6 +243,10 @@ export function ConfirmStep() {
             return {
               ...draft,
               errors: { ...(draft.errors ?? {}), ...backendActivity.errors },
+              localErrorMessages: omitLocalDraftErrors(
+                draft.localErrorMessages,
+                Object.keys(backendActivity.errors),
+              ),
               status: "error" as DraftActivityStatus,
             };
           });
@@ -491,7 +496,7 @@ export function ConfirmStep() {
         {/* Activity type breakdown */}
         {Object.keys(summary.byType).length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
               {t("activity:import.confirm.byActivityType")}
             </h4>
             <div className="flex flex-wrap gap-2">
@@ -520,7 +525,7 @@ export function ConfirmStep() {
         {/* Skipped breakdown */}
         {Object.keys(summary.bySkipReason).length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
               {t("activity:import.confirm.skippedBreakdown")}
             </h4>
             <div className="flex flex-wrap gap-2">

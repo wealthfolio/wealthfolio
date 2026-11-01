@@ -264,7 +264,20 @@
       "show": "顯示進度"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "某個投資組合包含已刪除帳戶的連結。請開啟設定 > 投資組合，編輯該投資組合並儲存。",
+    "fallback": "發生問題，請重試。",
+    "restoreRequired": "連線至其他裝置前，需要先從此裝置還原同步。",
+    "invalidCode": "代碼無效，請檢查後重試。",
+    "expired": "工作階段已過期，請重新開始。",
+    "cancelled": "配對已取消。",
+    "network": "網路錯誤，請檢查連線。",
+    "timeout": "連線逾時。",
+    "notFound": "找不到工作階段或已過期。",
+    "security": "安全驗證失敗。",
+    "technical": "同步未能完成，請重試。若問題持續，請檢查應用程式記錄。",
+    "namedPortfolioRepair": "投資組合「{{name}}」包含已刪除帳戶的連結。請開啟設定 > 投資組合，編輯該投資組合並儲存。"
+  },
   "wizard": {
     "progressLabel": "設定進度",
     "steps": {

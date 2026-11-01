@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
-import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 import { resolveActivityCashMultiplier } from "./activity-final-amount";
+import { currencyMinorUnit } from "./currency-decimals";
 import {
   ACTIVITY_SUBTYPES,
   ActivityStatus,
@@ -114,7 +114,9 @@ export const isAssetIdentityRequired = (activityType: string, subtype?: string |
     return (
       canonical === ACTIVITY_SUBTYPES.OPTION_EXPIRY ||
       canonical === ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL ||
-      canonical === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION
+      canonical === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION ||
+      canonical === ACTIVITY_SUBTYPES.CONVERSION_OUT ||
+      canonical === ACTIVITY_SUBTYPES.CONVERSION_IN
     );
   }
   return isSymbolRequired(activityType) || isAssetBackedIncomeSubtype(activityType, subtype);
@@ -192,12 +194,37 @@ export const canonicalizeActivitySubtype = (
   if (
     knownSubtype === ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL ||
     knownSubtype === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION ||
-    knownSubtype === ACTIVITY_SUBTYPES.OPTION_EXPIRY
+    knownSubtype === ACTIVITY_SUBTYPES.OPTION_EXPIRY ||
+    knownSubtype === ACTIVITY_SUBTYPES.CONVERSION_OUT ||
+    knownSubtype === ACTIVITY_SUBTYPES.CONVERSION_IN
   ) {
     return knownSubtype;
   }
   return trimmedSubtype;
 };
+
+/**
+ * A row of an in-kind conversion (rules R7.5): units of one asset leave or
+ * arrive at cost, with no price and no cash, so lists show no amount for it.
+ */
+export const isConversionRow = (
+  activity: Pick<ActivityDetails, "activityType" | "subtype">,
+): boolean => {
+  const subtype = canonicalizeActivitySubtype(ActivityType.ADJUSTMENT, activity.subtype);
+  return (
+    activity.activityType === ActivityType.ADJUSTMENT &&
+    (subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT || subtype === ACTIVITY_SUBTYPES.CONVERSION_IN)
+  );
+};
+
+/** A list's label for a row: a conversion row names its direction. */
+export const localizeActivityRowLabel = (
+  t: TFunction,
+  activity: Pick<ActivityDetails, "activityType" | "subtype">,
+): string =>
+  isConversionRow(activity) && activity.subtype
+    ? localizeActivitySubtypeName(t, activity.subtype)
+    : localizeActivityTypeName(t, activity.activityType);
 
 /**
  * Determines if an activity is a cash transfer based on its type and identifiers.
@@ -424,87 +451,6 @@ function isProvenNegativeSell(activity: ActivityDetails, finalAmount: number): b
   if (expected >= 0) return false;
   const tolerance = Math.max(currencyMinorUnit(activity.currency), finalAmount * 1e-8);
   return Math.abs(Math.abs(expected) - finalAmount) <= tolerance;
-}
-
-/**
- * Crypto quote currencies priced at 8 fraction digits. Keep in lockstep with
- * the crypto arm of `currency_fraction_digits` in
- * crates/core/src/fx/currency.rs (dollar-pegged stablecoins deliberately keep
- * the two-decimal fiat default there and here).
- */
-const CRYPTO_QUOTE_CURRENCIES = new Set([
-  "BTC",
-  "ETH",
-  "XRP",
-  "LTC",
-  "BCH",
-  "ADA",
-  "DOT",
-  "LINK",
-  "XLM",
-  "DOGE",
-  "UNI",
-  "SOL",
-  "AVAX",
-  "MATIC",
-  "ATOM",
-  "ALGO",
-  "VET",
-  "FIL",
-  "TRX",
-  "ETC",
-  "XMR",
-  "AAVE",
-  "MKR",
-  "COMP",
-  "SNX",
-  "YFI",
-  "SUSHI",
-  "CRV",
-]);
-
-/**
- * One minor unit of the currency. Keep in lockstep with `currency_minor_unit`
- * in crates/core/src/fx/currency.rs, including minor-unit aliases. This is an
- * accounting tolerance, not display precision: Intl/CLDR can differ from core.
- */
-function currencyMinorUnit(currency: string | undefined): number {
-  if (!currency) return 0.01;
-  const upper = (getQuoteUnitCurrency(currency)?.major ?? currency).toUpperCase();
-  if (CRYPTO_QUOTE_CURRENCIES.has(upper)) return 1e-8;
-  switch (upper) {
-    case "BIF":
-    case "CLP":
-    case "DJF":
-    case "GNF":
-    case "ISK":
-    case "JPY":
-    case "KMF":
-    case "KRW":
-    case "PYG":
-    case "RWF":
-    case "UGX":
-    case "UYI":
-    case "VND":
-    case "VUV":
-    case "XAF":
-    case "XOF":
-    case "XPF":
-      return 1;
-    case "BHD":
-    case "IQD":
-    case "JOD":
-    case "KWD":
-    case "LYD":
-    case "OMR":
-    case "TND":
-      return 0.001;
-    case "CLF":
-    case "UYW":
-      return 0.0001;
-    default:
-      return 0.01;
-  }
 }
 
 /**

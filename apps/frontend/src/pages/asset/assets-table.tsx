@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { Badge, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
+import { Item } from "@wealthfolio/ui/components/ui/item";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
@@ -109,11 +110,14 @@ export function AssetsTable({
             : (asset.name ?? "—");
           const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
           return (
-            <button
-              type="button"
+            // An Item button: its padding and rounded corners carry the hover, and the
+            // negative margin keeps the logo on the cell's padding.
+            <Item
+              size="xs"
+              render={<button type="button" />}
               data-testid={`security-${asset.instrumentType}-${asset.displayCode}`}
               onClick={() => navigate(`/holdings/${encodeURIComponent(asset.id)}`)}
-              className="hover:bg-muted/60 focus-visible:ring-ring group flex w-full items-center gap-2.5 rounded-md py-1 text-start transition"
+              className="hover:bg-muted/60 group -mx-2 w-full flex-nowrap gap-2.5 border-0 px-2 py-1 text-start"
             >
               <TickerAvatar
                 symbol={avatarSymbol}
@@ -123,7 +127,7 @@ export function AssetsTable({
                 className="h-8 w-8 shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <div className="group-hover:text-primary flex items-center gap-1.5 font-semibold leading-tight transition-colors">
+                <div className="group-hover:text-primary flex items-center gap-1.5 leading-tight font-semibold transition-colors">
                   {displaySymbol}
                   {parsedOption ? (
                     <Badge variant="secondary" className="text-2xs">
@@ -135,7 +139,7 @@ export function AssetsTable({
                   {subtitle}
                 </div>
               </div>
-            </button>
+            </Item>
           );
         },
       },

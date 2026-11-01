@@ -285,7 +285,7 @@ function LinkedAssetBlock({
             <span className="bg-muted-foreground/30 flex-1 rounded-full" />
           </div>
           <div className="text-muted-foreground mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
-            <span className={cn(equity < 0 && "text-destructive")}>
+            <span className={cn(equity < 0 && "text-loss")}>
               {t("asset:loanOverview.equity_amount", { amount: moneyText(equity) })}
             </span>
             <span>
@@ -305,7 +305,7 @@ function EstimatedLabel({ hint }: { hint: string }) {
   const { t } = useTranslation();
   return (
     <>
-      <Badge variant="secondary" className="text-xs font-normal normal-case tracking-normal">
+      <Badge variant="secondary" className="text-xs font-normal tracking-normal normal-case">
         {t("asset:loanOverview.projected")}
       </Badge>
       <InfoTip text={hint} />
@@ -327,7 +327,7 @@ function OverviewCard({
   return (
     <Card className="flex flex-col" data-testid={testId} role="region" aria-label={title}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <h3 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+        <h3 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
           {title}
         </h3>
         {aside && <div className="flex items-center gap-1.5">{aside}</div>}
@@ -368,7 +368,7 @@ function Rows({ rows }: { rows: DetailRow[] }) {
         <div key={index}>
           <div className="flex items-start justify-between gap-4">
             <dt className="text-muted-foreground">{label}</dt>
-            <dd className="whitespace-nowrap text-end font-medium tabular-nums">{value}</dd>
+            <dd className="text-end font-medium whitespace-nowrap tabular-nums">{value}</dd>
           </div>
           {note && <dd className="text-end text-xs">{note}</dd>}
         </div>

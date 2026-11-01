@@ -194,7 +194,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
         onOpenChange={setRefreshConfirmOpen}
         onConfirm={handleRefreshQuotes}
       />
-      <Card className={`flex flex-col ${className}`}>
+      <Card className={`flex flex-col overflow-hidden ${className}`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-md">
             <HoverCard>
@@ -206,7 +206,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
                     isHidden={isBalanceHidden}
                   />
                 </p>
-                <p className={`text-sm ${ganAmount > 0 ? "text-success" : "text-destructive"}`}>
+                <p className={`text-sm ${ganAmount > 0 ? "text-gain" : "text-loss"}`}>
                   <AmountDisplay value={ganAmount} currency={currency} isHidden={isBalanceHidden} />{" "}
                   (
                   {percentage == null

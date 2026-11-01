@@ -12,7 +12,6 @@
     "more": "Más"
   },
   "securities": {
-    "heading": "Valores",
     "subtitle": "Explora y gestiona los valores disponibles en tu cartera.",
     "add_security": "Añadir valor",
     "delete_title": "Eliminar valor",
@@ -64,12 +63,12 @@
       "symbol_required": "El símbolo es obligatorio",
       "symbol_max": "El símbolo debe tener 100 caracteres o menos",
       "name_required": "El nombre es obligatorio",
-      "name_max": "El nombre debe tener 100 caracteres o menos",
+      "name_max": "El nombre debe tener 200 caracteres o menos",
       "instrument_type_required": "El tipo de instrumento es obligatorio",
       "currency_required": "La divisa es obligatoria"
     },
     "instrumentType": {
-      "equity": "Renta variable (Acción, ETF, Fondo)",
+      "equity": "Renta variable (acción, ETF, fondo)",
       "crypto": "Criptomoneda",
       "bond": "Bono",
       "option": "Opción",
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "p. ej. SBER, AFLT",
+    "moex_symbol_hint": "Utilice un código de valor de MOEX sin prefijo ni sufijo. Seleccione Moscow Exchange (MISX) como bolsa.",
     "identity_conflict": "Otro activo ya tiene esta identidad. Los cambios no se han guardado. Utiliza el activo existente o elige otra bolsa.",
     "general": "General",
     "classification": "Clasificación",
@@ -308,7 +309,7 @@
     "data_provider_sheet_description": "Selecciona el proveedor de datos para esta correspondencia de símbolo",
     "invalid_mappings_warning": "Algunas correspondencias de símbolo no se pudieron validar. Es posible que los precios no se actualicen para esas entradas.",
     "instrumentType": {
-      "equity": "Renta variable (Acción, ETF, Fondo)",
+      "equity": "Renta variable (acción, ETF, fondo)",
       "crypto": "Criptomoneda",
       "bond": "Bono",
       "option": "Opción",
@@ -701,6 +702,18 @@
       "precious_metal": "Metal precioso",
       "liability": "Pasivo",
       "other": "Otro"
+    },
+    "validation": {
+      "name_is_required": "El nombre es obligatorio",
+      "quantity_must_be_greater_than_0": "La cantidad debe ser mayor que 0",
+      "purchase_price_must_be_greater_than_0": "El precio de compra debe ser mayor que 0.",
+      "notes_must_be_less_than_1000_characters": "Las notas deben tener menos de 1000 caracteres.",
+      "address_must_be_less_than_200_characters": "La dirección debe tener menos de 200 caracteres.",
+      "interest_rate_must_be_100_or_less": "La tasa de interés debe ser 100 o menos.",
+      "name_must_be_less_than_100_characters": "El nombre debe tener menos de 100 caracteres.",
+      "interest_rate_must_be_0_or_greater": "La tasa de interés debe ser 0 o mayor.",
+      "description_must_be_less_than_200_characters": "La descripción debe tener menos de 200 caracteres.",
+      "original_amount_must_be_greater_than_0": "El importe original debe ser mayor que 0"
     }
   },
   "updateValuation": {
@@ -715,7 +728,12 @@
     "notes_placeholder": "Añade cualquier contexto sobre esta valoración (p. ej., fuente de la tasación, condiciones del mercado)",
     "cancel": "Cancelar",
     "update_value": "Actualizar valor",
-    "na": "N/D"
+    "na": "N/D",
+    "validation": {
+      "number": "El valor debe ser un número.",
+      "non_negative": "El valor no puede ser negativo",
+      "notes": "Las notas no deben superar los 500 caracteres"
+    }
   },
   "valueHistory": {
     "date": "Fecha",
@@ -1025,5 +1043,25 @@
     "payment_invalid": "Introduce un pago mayor que cero.",
     "payment_unavailable": "No se puede calcular un pago con estas condiciones. Revisa el importe, el tipo y la amortización.",
     "fields_read_only": "Las condiciones del préstamo solo se pueden cambiar en los detalles del préstamo."
+  },
+  "notifications": {
+    "profile_updated": "Perfil del activo actualizado.",
+    "quote_mode_updated": "Modo de cotización del activo actualizado.",
+    "profile_failed": "No se pudo actualizar el perfil del activo.",
+    "quote_mode_failed": "No se pudo actualizar el modo de cotización.",
+    "quote_added": "Cotización añadida.",
+    "quote_updated": "Cotización actualizada.",
+    "quote_deleted": "Cotización eliminada.",
+    "quote_save_failed": "No se pudo guardar la cotización.",
+    "quote_delete_failed": "No se pudo eliminar la cotización."
+  },
+  "noQuote": {
+    "manual": "El modo de cotización es manual",
+    "inactive": "El activo está inactivo",
+    "matured": "El bono ha vencido",
+    "expired": "La opción ha vencido",
+    "paused": "Sincronización pausada tras errores repetidos",
+    "pending": "Aún no se ha sincronizado ninguna cotización del proveedor",
+    "no_data": "Aún no hay datos disponibles del proveedor"
   }
 }

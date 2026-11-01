@@ -1,0 +1,46 @@
+id: EDGE-CONV-05
+title: A conversion in a foreign account keeps each lot's historical rates
+intent: >
+  Rules R7.5 and R3.3. A CAD account in a USD portfolio buys a USD fund at
+  two different CAD/USD rates, then converts it into another USD fund that is
+  worth more on the day. Each lot keeps its cost and the rate it was bought
+  at, so its book cost in CAD and USD does not move, and the conversion day's
+  difference in market value shows as unrealized gain, not as money in or a
+  realized gain.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-10
+accounts:
+  - id: acc-cad
+    currency: CAD
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-cad, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000, currency: USD }
+  - { id: buy-1, account: acc-cad, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1000, currency: USD }
+  - { id: buy-2, account: acc-cad, type: BUY, date: 2025-01-10T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 110, amount: 1100, currency: USD }
+  - { id: conv-out, account: acc-cad, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T10:00:00Z, asset: fund-a, quantity: 20, currency: USD, source_group_id: g1 }
+  - { id: conv-in, account: acc-cad, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T10:01:00Z, asset: fund-b, quantity: 10, currency: USD, source_group_id: g1 }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 100 }
+  - { asset: fund-a, day: 2025-01-10, close: 110 }
+  - { asset: fund-a, day: 2025-02-03, close: 110 }
+  - { asset: fund-b, day: 2025-02-03, close: 230 }
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-01-02, rate: 0.75 }
+  - { from: CAD, to: USD, day: 2025-01-10, rate: 0.70 }
+  - { from: CAD, to: USD, day: 2025-02-03, rate: 0.72 }
+expected_notes: >
+  The account holds USD cash: 5000 - 1000 - 1100 = 2900. buy-1 costs 1000
+  USD at 0.75 (1333.33 CAD), buy-2 1100 USD at 0.70 (1571.43 CAD), so book
+  cost is 2100 USD or 2904.76 CAD. On 02-03 fund-a is
+  worth 20 x 110 = 2200 USD, fund-b 10 x 230 = 2300 USD. The conversion
+  relieves both lots at cost (realized 0) and opens two fund-b lots of 5
+  units (r = 0.5): costs 1000 and 1100 USD, at their own rates 0.75 and 0.70,
+  acquired 01-03 and 01-10, so book cost stays 2100 USD (2904.76 CAD). Net
+  contribution and cash do not move; the 100 USD difference in market value
+  on 02-03 is unrealized gain. All time, unrealized P&L is 208.57 and the FX
+  effect -8.57: without the conversion the same history gives 108.57 and
+  -8.57, so the conversion adds exactly the 100.

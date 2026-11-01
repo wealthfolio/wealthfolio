@@ -100,7 +100,7 @@ const ThreadSearchInput: FC<ThreadSearchInputProps> = ({ value, onChange }) => {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={t("ai:threadList.searchThreadsLabel")}
-        className="bg-background h-8 pe-8 ps-8 text-sm shadow-none"
+        className="bg-background h-8 ps-8 pe-8 text-sm shadow-none"
       />
       {value && (
         <button

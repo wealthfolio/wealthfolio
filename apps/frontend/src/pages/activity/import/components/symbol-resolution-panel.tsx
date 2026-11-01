@@ -63,7 +63,7 @@ export function SymbolResolutionPanel({
     <div className={cn(statusSurfaceVariants({ status: "warning" }), "rounded-lg p-4")}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-warning-subtle-foreground bg-current/15 flex shrink-0 rounded-full p-1.5">
+          <span className="text-warning-subtle-foreground flex shrink-0 rounded-full bg-current/15 p-1.5">
             <Icons.AlertTriangle className="size-4" />
           </span>
           <h3 className="text-sm font-medium">
