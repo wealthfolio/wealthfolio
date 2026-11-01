@@ -327,7 +327,8 @@
   "operations": {
     "more_details": "자세히 보기",
     "unlink_transfer": "이체 연결 해제",
-    "link_transfer": "이체 연결..."
+    "link_transfer": "이체 연결...",
+    "convert_to_transfer": "이체로 변환..."
   },
   "date_sheet": {
     "title": "{{date}}의 활동",
@@ -463,7 +464,17 @@
     "error_load_suggestions": "제안된 일치 항목을 불러올 수 없습니다.",
     "error_load_pair": "연결된 이체 쌍을 불러올 수 없습니다.",
     "error_search": "활동을 검색할 수 없습니다.",
-    "within_days_other": "{{count}}일 이내"
+    "within_days_other": "{{count}}일 이내",
+    "convert_title": "이체로 변환",
+    "convert_desc": "이 활동을 계좌 간 이체로 변환합니다. 다른 계좌에서 일치하는 활동을 선택하거나 그곳에 새로 만드세요.",
+    "convert_no_matches": "7일 이내에 일치하는 활동이 없습니다.",
+    "convert_new": "다른 계좌에 생성",
+    "convert_removes_split": "이체로 변환하면 분할이 삭제됩니다.",
+    "convert_account": "다른 계좌",
+    "convert_amount": "{{currency}} 금액",
+    "convert_button": "이체로 변환",
+    "convert_success": "이체로 변환했습니다",
+    "convert_error": "이체로 변환하지 못했습니다"
   },
   "form": {
     "section_conversion": "펀드 전환",

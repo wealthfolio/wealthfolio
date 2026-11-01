@@ -1353,6 +1353,180 @@ async fn mcp_transfer_lookups_see_every_linked_pair() {
 }
 
 /// Runs the Health Center checks and counts the transfer legs they flag.
+#[tokio::test]
+async fn convert_to_transfer_pairs_a_withdrawal_with_another_account() {
+    let server = spawn_server(false, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let cash = |account: &serde_json::Value, activity_type: &str, amount: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": amount,
+                "comment": "e-Transfer: Me Savings"
+            }),
+        )
+    };
+    let withdrawal = cash(&chequing, "WITHDRAWAL", "100").await;
+    let deposit = cash(&savings, "DEPOSIT", "100").await;
+
+    let candidates = api_post(
+        &server,
+        &cookie,
+        "activities/transfer-match-candidates",
+        serde_json::json!({ "activityId": withdrawal["id"] }),
+    )
+    .await;
+    assert_eq!(
+        candidates[0]["activity"]["id"], deposit["id"],
+        "{candidates}"
+    );
+
+    let pair = api_post(
+        &server,
+        &cookie,
+        "activities/convert-to-transfer",
+        serde_json::json!({
+            "activityId": withdrawal["id"], "counterpartActivityId": deposit["id"]
+        }),
+    )
+    .await;
+    assert_eq!(pair["transferOut"]["id"], withdrawal["id"], "{pair}");
+    assert_eq!(
+        pair["transferOut"]["activityType"], "TRANSFER_OUT",
+        "{pair}"
+    );
+    assert_eq!(pair["transferIn"]["id"], deposit["id"], "{pair}");
+    assert_eq!(pair["transferIn"]["activityType"], "TRANSFER_IN", "{pair}");
+    assert!(pair["transferIn"]["sourceGroupId"].is_string(), "{pair}");
+    assert_eq!(
+        pair["transferIn"]["sourceGroupId"], pair["transferOut"]["sourceGroupId"],
+        "{pair}"
+    );
+
+    // Without a matching deposit, the other side is created in the chosen account.
+    let second = cash(&chequing, "WITHDRAWAL", "40").await;
+    let created = api_post(
+        &server,
+        &cookie,
+        "activities/convert-to-transfer",
+        serde_json::json!({ "activityId": second["id"], "counterpartAccountId": savings["id"] }),
+    )
+    .await;
+    assert_eq!(
+        created["transferIn"]["accountId"], savings["id"],
+        "{created}"
+    );
+    assert_eq!(created["transferIn"]["amount"], "40", "{created}");
+    assert_eq!(
+        created["transferIn"]["notes"], "e-Transfer: Me Savings",
+        "{created}"
+    );
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 0);
+}
+
+#[tokio::test]
+async fn convert_to_transfer_removes_splits_only_with_a_current_review() {
+    let server = spawn_server(false, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let chequing = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Chequing", "accountType": "CASH", "currency": "EUR",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    api_put(
+        &server,
+        &cookie,
+        "spending/settings",
+        serde_json::json!({ "enabled": true, "accountIds": [chequing["id"]] }),
+    )
+    .await;
+    let withdrawal = api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": chequing["id"], "activityType": "WITHDRAWAL",
+            "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": "20"
+        }),
+    )
+    .await;
+    api_put(
+        &server,
+        &cookie,
+        &format!(
+            "spending/activities/{}/splits",
+            withdrawal["id"].as_str().unwrap()
+        ),
+        serde_json::json!([
+            {"taxonomyId": "spending_categories", "categoryId": "cat_food", "amount": "12"},
+            {"taxonomyId": "spending_categories", "categoryId": "cat_groceries", "amount": "8"}
+        ]),
+    )
+    .await;
+    let request = serde_json::json!({ "activityId": withdrawal["id"], "counterpartAccountId": savings["id"] });
+
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/convert-to-transfer/split-effects",
+        request.clone(),
+    )
+    .await;
+    assert_eq!(review[0]["activityId"], withdrawal["id"], "{review}");
+    assert_eq!(review[0]["removedSplits"], 2, "{review}");
+
+    let mut stale = review.clone();
+    stale[0]["fingerprint"] = "stale".into();
+    let mut stale_request = request.clone();
+    stale_request["splitReview"] = stale;
+    let rejected = server
+        .client
+        .post(format!(
+            "{}/api/v1/activities/convert-to-transfer",
+            server.base
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&stale_request)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        !rejected.status().is_success(),
+        "a stale review must not convert"
+    );
+    assert_eq!(
+        category_splits(&server, &cookie, &withdrawal)
+            .await
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let mut reviewed = request;
+    reviewed["splitReview"] = review;
+    let pair = api_post(&server, &cookie, "activities/convert-to-transfer", reviewed).await;
+    assert_eq!(pair["transferOut"]["id"], withdrawal["id"], "{pair}");
+    assert!(category_splits(&server, &cookie, &withdrawal)
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
 async fn transfer_issue_legs(server: &TestServer, cookie: &str) -> u64 {
     let status = api_post(server, cookie, "health/check", serde_json::json!({})).await;
     status["issues"]

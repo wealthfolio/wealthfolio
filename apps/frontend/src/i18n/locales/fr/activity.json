@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Plus de détails",
     "unlink_transfer": "Dissocier le transfert",
-    "link_transfer": "Lier le transfert..."
+    "link_transfer": "Lier le transfert...",
+    "convert_to_transfer": "Convertir en virement..."
   },
   "date_sheet": {
     "title": "Activités du {{date}}",
@@ -471,7 +472,17 @@
     "error_search": "Impossible de rechercher les activités.",
     "within_days_one": "Dans un délai de {{count}} jour",
     "within_days_other": "Dans les {{count}} jours",
-    "within_days_many": "Dans les {{count}} jours"
+    "within_days_many": "Dans les {{count}} jours",
+    "convert_title": "Convertir en virement",
+    "convert_desc": "Transformez cette activité en virement entre vos comptes. Choisissez l'activité correspondante dans l'autre compte ou créez-la.",
+    "convert_no_matches": "Aucune activité correspondante dans les 7 jours.",
+    "convert_new": "La créer dans un autre compte",
+    "convert_removes_split": "La conversion en virement supprime la ventilation.",
+    "convert_account": "Autre compte",
+    "convert_amount": "Montant en {{currency}}",
+    "convert_button": "Convertir en virement",
+    "convert_success": "Converti en virement",
+    "convert_error": "Échec de la conversion en virement"
   },
   "form": {
     "section_conversion": "Arbitrage",

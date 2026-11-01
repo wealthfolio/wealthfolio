@@ -1,5 +1,14 @@
-import { reviewActivitiesSplitEffects, reviewInternalTransferPairSplitEffects } from "@/adapters";
-import type { ActivitySplitEffect, ActivityUpdate, InternalTransferPairRequest } from "@/lib/types";
+import {
+  reviewActivitiesSplitEffects,
+  reviewConvertToTransferSplitEffects,
+  reviewInternalTransferPairSplitEffects,
+} from "@/adapters";
+import type {
+  ActivitySplitEffect,
+  ActivityUpdate,
+  ConvertToTransferRequest,
+  InternalTransferPairRequest,
+} from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +41,12 @@ export const isActivityEditCancelled = (error: unknown) => error instanceof Acti
 
 type ReviewEdits = (updates: ActivityUpdate[]) => Promise<ActivityUpdate[]>;
 type ReviewPair = (request: InternalTransferPairRequest) => Promise<InternalTransferPairRequest>;
-const Context = createContext<{ reviewEdits: ReviewEdits; reviewPair: ReviewPair } | null>(null);
+type ReviewConversion = (request: ConvertToTransferRequest) => Promise<ConvertToTransferRequest>;
+const Context = createContext<{
+  reviewEdits: ReviewEdits;
+  reviewPair: ReviewPair;
+  reviewConversion: ReviewConversion;
+} | null>(null);
 
 export function useActivitySplitReview(): ReviewEdits {
   const review = useContext(Context);
@@ -51,6 +65,17 @@ export function useInternalTransferPairSplitReview(): ReviewPair {
     (request) => {
       if (!review) throw new Error("Activity split review provider is missing");
       return review.reviewPair(request);
+    },
+    [review],
+  );
+}
+
+export function useConvertToTransferSplitReview(): ReviewConversion {
+  const review = useContext(Context);
+  return useCallback(
+    (request) => {
+      if (!review) throw new Error("Activity split review provider is missing");
+      return review.reviewConversion(request);
     },
     [review],
   );
@@ -116,7 +141,18 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
     },
     [confirmEffects],
   );
-  const context = useMemo(() => ({ reviewEdits: review, reviewPair }), [review, reviewPair]);
+  const reviewConversion = useCallback<ReviewConversion>(
+    async (request) => {
+      const snapshots = await reviewConvertToTransferSplitEffects(request);
+      await confirmEffects(snapshots);
+      return { ...request, splitReview: snapshots };
+    },
+    [confirmEffects],
+  );
+  const context = useMemo(
+    () => ({ reviewEdits: review, reviewPair, reviewConversion }),
+    [review, reviewPair, reviewConversion],
+  );
 
   const finish = (approved: boolean) => {
     pending.current?.(approved);

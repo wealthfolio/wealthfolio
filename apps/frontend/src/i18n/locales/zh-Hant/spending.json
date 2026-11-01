@@ -188,7 +188,8 @@
     "unlinkTransfer": "取消連結轉帳",
     "linkTransfer": "連結轉帳……",
     "deleteConfirmMany_other": "確定要刪除 {{count}} 筆交易嗎？",
-    "deleteConfirmMany_one": "確定要刪除 {{count}} 筆交易嗎？"
+    "deleteConfirmMany_one": "確定要刪除 {{count}} 筆交易嗎？",
+    "convertToTransfer": "轉為轉帳..."
   },
   "cashFlow": {
     "income": "收入",

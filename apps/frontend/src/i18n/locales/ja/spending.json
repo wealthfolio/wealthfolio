@@ -187,7 +187,8 @@
     "duplicate": "複製",
     "unlinkTransfer": "振替のリンクを解除",
     "linkTransfer": "振替をリンク...",
-    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?"
+    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?",
+    "convertToTransfer": "振替に変換..."
   },
   "cashFlow": {
     "income": "収入",
