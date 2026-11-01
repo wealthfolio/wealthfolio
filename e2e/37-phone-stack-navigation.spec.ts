@@ -212,7 +212,7 @@ test("a link to a nested page opens with its parent pages under it", async ({ pa
 });
 
 /** An account holding one manual asset, once its holding is computed. */
-async function seedHolding(page: Page) {
+async function seedHolding(page: Page, { quantity = 10, unitPrice = 100 } = {}) {
   const runId = Date.now().toString(36);
   const account = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
     data: {
@@ -236,8 +236,8 @@ async function seedHolding(page: Page) {
       currency: "USD",
       fee: 0,
       needsReview: false,
-      quantity: 10,
-      unitPrice: 100,
+      quantity,
+      unitPrice,
       asset: {
         name: "Stack asset",
         symbol,
@@ -294,6 +294,58 @@ test("a holding opens over the Holdings list and back returns to it", async ({ p
   await expect.poll(() => pathOf(page)).toBe("/holdings");
   // The screen leaving slides out first.
   await expect.poll(async () => (await screens(page)).top).toBe(list);
+});
+
+test("a holding opened at a larger text size: no ring on its title, quantity and value apart", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { assetId, symbol } = await seedHolding(page, {
+    quantity: 1316.55607257,
+    unitPrice: 155.33,
+  });
+  const previous = (await (await page.request.get(`${BASE_URL}/api/v1/settings`)).json()) as {
+    textSize?: string;
+  };
+  try {
+    await page.request.put(`${BASE_URL}/api/v1/settings`, { data: { textSize: "large" } });
+    await gotoAppPath(page, "/holdings?swipe=app");
+    const holding = page.getByText(symbol, { exact: true }).locator("visible=true").first();
+    await expect(holding).toBeVisible({ timeout: 15_000 });
+    await holding.tap();
+    await expect.poll(() => pathOf(page)).toBe(`/holdings/${encodeURIComponent(assetId)}`);
+    await page.waitForTimeout(600);
+
+    // Focus moves to the holding's title for screen readers, without a focus ring around it.
+    expect(
+      await page.evaluate(() => {
+        const focused = document.activeElement;
+        return focused?.tagName === "H1"
+          ? getComputedStyle(focused).outlineStyle
+          : focused?.tagName;
+      }),
+    ).toBe("none");
+
+    const header = page
+      .locator('[data-slot="card-title"]')
+      .filter({ hasText: "1,316.55607257" })
+      .locator("visible=true")
+      .first();
+    await expect(header).toContainText("204,500.65");
+    const layout = await header.evaluate((title) => {
+      const [quantity, value] = [...title.children].map((child) => child.getBoundingClientRect());
+      const card = title.closest('[data-slot="card"]')!.getBoundingClientRect();
+      return {
+        apart: value.left >= quantity.right + 8 || value.top >= quantity.bottom,
+        inside: value.right <= card.right,
+      };
+    });
+    expect(layout).toEqual({ apart: true, inside: true });
+  } finally {
+    await page.request.put(`${BASE_URL}/api/v1/settings`, {
+      data: { textSize: previous.textSize ?? "default" },
+    });
+  }
 });
 
 test("a holding opened from an account keeps the Dashboard as the current tab", async ({
