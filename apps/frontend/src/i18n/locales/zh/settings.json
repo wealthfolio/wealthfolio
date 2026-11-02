@@ -105,6 +105,7 @@
   "limits_projected_badge": "预测",
   "limits_projected_description": "根据您 {{year}} 年的循环限额自动生成。添加它以自定义今年的金额。",
   "limits_projected_add_button": "添加今年",
+  "limits_projected_add_aria": "添加 {{year}} 年的 {{group}}",
   "limits_empty_title": "{{year}} 年没有供款限额！",
   "limits_empty_description": "您本年度没有任何供款限额。开始添加您的供款限额吧。",
   "limits_add_first": "添加供款限额",

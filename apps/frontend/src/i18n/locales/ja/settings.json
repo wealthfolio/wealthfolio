@@ -105,6 +105,7 @@
   "limits_projected_badge": "予測",
   "limits_projected_description": "{{year}}年の定期上限から自動生成されました。今年の金額を変更するには追加してください。",
   "limits_projected_add_button": "今年分を追加",
+  "limits_projected_add_aria": "{{year}}年の{{group}}を追加",
   "limits_empty_title": "{{year}}年の拠出上限がありません",
   "limits_empty_description": "今年の拠出上限がまだ登録されていません。拠出上限の登録から始めましょう。",
   "limits_add_first": "拠出上限を追加",

@@ -105,6 +105,7 @@
   "limits_projected_badge": "Projected",
   "limits_projected_description": "Auto-generated from your recurring {{year}} limit. Add it to customize this year's amount.",
   "limits_projected_add_button": "Add this year",
+  "limits_projected_add_aria": "Add {{group}} for {{year}}",
   "limits_empty_title": "No contribution limits for {{year}}!",
   "limits_empty_description": "You don't have any contribution limits for the current year. Start adding your contribution limits.",
   "limits_add_first": "Add a contribution limit",

@@ -95,6 +95,7 @@
   "limits_projected_badge": "Prognostiziert",
   "limits_projected_description": "Automatisch aus Ihrer wiederkehrenden Grenze für {{year}} erstellt. Fügen Sie sie hinzu, um den Betrag für dieses Jahr anzupassen.",
   "limits_projected_add_button": "Dieses Jahr hinzufügen",
+  "limits_projected_add_aria": "{{group}} für {{year}} hinzufügen",
   "limits_empty_title": "Keine Einzahlungsgrenzen für {{year}}!",
   "limits_empty_description": "Für das aktuelle Jahr sind keine Grenzen angelegt. Legen Sie Einzahlungsgrenzen an.",
   "limits_add_first": "Einzahlungsgrenze hinzufügen",

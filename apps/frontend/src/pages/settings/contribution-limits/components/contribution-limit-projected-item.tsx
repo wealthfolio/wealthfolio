@@ -35,7 +35,16 @@ export function ContributionLimitProjectedItem({
             })}
           </p>
         </div>
-        <Button variant="outline" size="sm" className="shrink-0" onClick={() => onAdd(limit)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => onAdd(limit)}
+          aria-label={t("settings:limits_projected_add_aria", {
+            group: limit.groupName,
+            year: limit.contributionYear,
+          })}
+        >
           <Icons.Plus className="me-2 h-4 w-4" />
           {t("settings:limits_projected_add_button")}
         </Button>

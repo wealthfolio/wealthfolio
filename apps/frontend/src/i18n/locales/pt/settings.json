@@ -105,6 +105,7 @@
   "limits_projected_badge": "Projetado",
   "limits_projected_description": "Gerado automaticamente a partir do seu limite recorrente de {{year}}. Adicione-o para personalizar o valor deste ano.",
   "limits_projected_add_button": "Adicionar este ano",
+  "limits_projected_add_aria": "Adicionar {{group}} para {{year}}",
   "limits_empty_title": "Nenhum limite de aporte para {{year}}!",
   "limits_empty_description": "Você não tem nenhum limite de aporte para o ano atual. Comece adicionando seus limites de aporte.",
   "limits_add_first": "Adicionar um limite de aporte",
