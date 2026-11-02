@@ -2,6 +2,7 @@ import { getContributionLimit } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { QueryKeys } from "@/lib/query-keys";
 import type { ContributionLimit } from "@/lib/types";
+import { resolveDisplayTimezone } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
@@ -14,6 +15,7 @@ import {
   EmptyTitle,
   EmptyDescription,
   EmptyContent,
+  useLocalizationSettings,
 } from "@wealthfolio/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,6 +36,7 @@ const SettingsContributionLimitPage = () => {
   const [showPreviousYears, setShowPreviousYears] = useState(false);
 
   const { accounts } = useAccounts({ filterActive: false });
+  const { timezone } = useLocalizationSettings();
 
   const { data: limits, isLoading } = useQuery<ContributionLimit[], Error>({
     queryKey: [QueryKeys.CONTRIBUTION_LIMITS],
@@ -72,7 +75,12 @@ const SettingsContributionLimitPage = () => {
   }
 
   const currentYear = new Date().getFullYear();
-  const projectedLimits = withProjectedRecurringLimits(limits ?? [], currentYear);
+  const projectedLimits = withProjectedRecurringLimits(
+    limits ?? [],
+    currentYear,
+    undefined,
+    resolveDisplayTimezone(timezone),
+  );
   const currentYearLimits = projectedLimits.filter(
     (limit) => limit.contributionYear === currentYear,
   );

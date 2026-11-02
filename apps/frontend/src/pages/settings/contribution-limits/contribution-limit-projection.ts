@@ -1,3 +1,4 @@
+import { fromAbsolute } from "@internationalized/date";
 import type { ContributionLimit } from "@/lib/types";
 
 export interface ProjectedContributionLimit extends ContributionLimit {
@@ -10,21 +11,31 @@ export interface ProjectedContributionLimit extends ContributionLimit {
 /** How many years past the reference year to project a recurring limit forward. */
 const FUTURE_PROJECTION_YEARS = 3;
 
-function shiftIsoYear(isoDate: string, year: number): string {
-  return isoDate.replace(/^\d{4}/, String(year));
+/**
+ * Moves a saved date by whole years on the calendar of `timezone`, keeping its
+ * time of day; 29 February moves to the 28th. Saved dates are instants, so
+ * their UTC year can differ from the day they fall on (local midnight on
+ * 1 January is still 31 December in UTC east of Greenwich).
+ */
+function addYears(isoDate: string, years: number, timezone: string): string {
+  const instant = Date.parse(isoDate);
+  if (Number.isNaN(instant)) return isoDate;
+  return fromAbsolute(instant, timezone).add({ years }).toDate().toISOString();
 }
 
 /**
  * Combines real limits with virtual, non-persisted projections for recurring
- * limits that don't yet have an explicit row for a given future year. The
- * most recent limit in a group (matched by groupName) that has
- * `isRecurring: true` is used as the template for every missing year between
- * itself and `referenceYear + yearsAhead`.
+ * limits that don't yet have an explicit row for a given year. Each missing
+ * year from `referenceYear` to `yearsAhead` past the latest limit uses the
+ * group's (matched by groupName) closest earlier limit as its template, when
+ * that limit has `isRecurring: true`. Dates move by the years between them in
+ * `timezone`, the timezone the saved dates are read in.
  */
 export function withProjectedRecurringLimits(
   limits: ContributionLimit[],
   referenceYear: number = new Date().getFullYear(),
   yearsAhead: number = FUTURE_PROJECTION_YEARS,
+  timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): ProjectedContributionLimit[] {
   const real: ProjectedContributionLimit[] = limits.map((limit) => ({
     ...limit,
@@ -41,32 +52,44 @@ export function withProjectedRecurringLimits(
   const projected: ProjectedContributionLimit[] = [];
 
   for (const groupLimits of byGroup.values()) {
-    const maxYear = Math.max(...groupLimits.map((limit) => limit.contributionYear));
-    const latestYearLimits = groupLimits.filter((limit) => limit.contributionYear === maxYear);
-    // Prefer a recurring row when several limits share the same group name and year
-    // (e.g. one per account) so recurrence isn't lost to arbitrary ordering.
-    const latest = latestYearLimits.find((limit) => limit.isRecurring) ?? latestYearLimits[0];
-    if (!latest?.isRecurring) continue;
+    const existingYears = [...new Set(groupLimits.map((limit) => limit.contributionYear))].sort(
+      (a, b) => a - b,
+    );
+    const lastProjectedYear = Math.max(referenceYear, ...existingYears) + yearsAhead;
 
-    const existingYears = new Set(groupLimits.map((limit) => limit.contributionYear));
-    const lastProjectedYear = Math.max(referenceYear, latest.contributionYear) + yearsAhead;
     // Only project forward from today — an old, unrenewed recurring limit
     // shouldn't backfill placeholders for years the user simply never visited.
-    const firstProjectedYear = Math.max(latest.contributionYear + 1, referenceYear);
+    for (let year = referenceYear; year <= lastProjectedYear; year++) {
+      if (existingYears.includes(year)) continue;
+      // A limit saved for a later year doesn't end the projections before it.
+      const earlierYears = existingYears.filter((existingYear) => existingYear < year);
+      if (earlierYears.length === 0) continue;
+      const templateYear = earlierYears[earlierYears.length - 1];
+      const templateYearLimits = groupLimits.filter(
+        (limit) => limit.contributionYear === templateYear,
+      );
+      // Prefer a recurring row when several limits share the same group name and year
+      // (e.g. one per account) so recurrence isn't lost to arbitrary ordering.
+      const template =
+        templateYearLimits.find((limit) => limit.isRecurring) ?? templateYearLimits[0];
+      if (!template?.isRecurring) continue;
 
-    for (let year = firstProjectedYear; year <= lastProjectedYear; year++) {
-      if (existingYears.has(year)) continue;
+      const yearsLater = year - template.contributionYear;
       projected.push({
-        ...latest,
-        id: `projected:${latest.id}:${year}`,
+        ...template,
+        id: `projected:${template.id}:${year}`,
         contributionYear: year,
-        startDate: latest.startDate ? shiftIsoYear(latest.startDate, year) : latest.startDate,
-        endDate: latest.endDate ? shiftIsoYear(latest.endDate, year) : latest.endDate,
+        startDate: template.startDate
+          ? addYears(template.startDate, yearsLater, timezone)
+          : template.startDate,
+        endDate: template.endDate
+          ? addYears(template.endDate, yearsLater, timezone)
+          : template.endDate,
         createdAt: undefined,
         updatedAt: undefined,
         isProjected: true,
-        sourceLimitId: latest.id,
-        sourceYear: latest.contributionYear,
+        sourceLimitId: template.id,
+        sourceYear: template.contributionYear,
       });
     }
   }

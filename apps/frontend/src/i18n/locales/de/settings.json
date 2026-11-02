@@ -125,7 +125,7 @@
   "limits_form_end_date_label": "Enddatum",
   "limits_form_date_description": "Standard: 1. Januar bis 31. Dezember des gewählten Jahres",
   "limits_form_recurring_label": "Wiederholt sich jährlich",
-  "limits_form_recurring_description": "Zeigt automatisch ein prognostiziertes Limit für zukünftige Jahre mit demselben Betrag an, bis Sie dieses Jahr hinzufügen oder bearbeiten.",
+  "limits_form_recurring_description": "Zeigt automatisch eine prognostizierte Grenze für zukünftige Jahre mit demselben Betrag an, bis Sie dieses Jahr hinzufügen oder bearbeiten.",
   "limits_form_updating": "Wird aktualisiert…",
   "limits_form_saving": "Wird gespeichert...",
   "limits_form_update_button": "Aktualisieren",
