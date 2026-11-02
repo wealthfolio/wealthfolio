@@ -203,6 +203,8 @@ struct DateEchoPerformanceService;
 
 #[async_trait::async_trait]
 impl PerformanceServiceTrait for DateEchoPerformanceService {
+    /// Return standard mock metrics with the requested dates echoed back, so
+    /// tests can verify the tool's service arguments rather than engine output.
     async fn calculate_performance_history(
         &self,
         item_type: &str,
