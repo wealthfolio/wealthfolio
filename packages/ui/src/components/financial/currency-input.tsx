@@ -257,6 +257,12 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     }
 
     const desktopCustomCurrencyValue = getCustomCurrencyValue(desktopSearchQuery);
+    // cmdk can't reorder items inside the ScrollArea, so Enter takes the first match in list
+    // order: list an exactly typed code before fuzzy matches such as USD for "EUR".
+    const typedCode = desktopSearchQuery.trim();
+    const desktopCurrencies = [...worldCurrencies].sort(
+      (a, b) => Number(b.value === typedCode) - Number(a.value === typedCode),
+    );
 
     return (
       <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -312,7 +318,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                       })}
                     </CommandItem>
                   )}
-                  {worldCurrencies.map((currency) => (
+                  {desktopCurrencies.map((currency) => (
                     <CommandItem
                       value={currency.value}
                       keywords={[currency.label, currencyLabel(currency)]}
