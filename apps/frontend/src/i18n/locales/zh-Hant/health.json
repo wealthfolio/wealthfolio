@@ -192,7 +192,12 @@
     "to_market_data": "查看市場資料",
     "to_general_settings": "開啟一般設定",
     "to_connect": "設定帳戶",
-    "review_transfers": "檢查轉帳"
+    "review_transfers": "檢查轉帳",
+    "rebuild_account_history": "重建歷史",
+    "add_price": "新增價格",
+    "update_cost_basis": "更新成本基礎",
+    "review_transaction": "檢查交易",
+    "review_entry": "查看紀錄"
   },
   "updatedAt": "更新於 {{time}}",
   "healthy": {

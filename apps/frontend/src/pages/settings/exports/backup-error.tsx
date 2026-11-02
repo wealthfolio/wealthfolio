@@ -23,7 +23,7 @@ export function BackupError({ error }: { error: BackupFailure }) {
             />
             {t("settings:recovery_details")}
           </summary>
-          <p className="mt-1.5 whitespace-pre-wrap break-words font-mono opacity-90">{details}</p>
+          <p className="mt-1.5 font-mono break-words whitespace-pre-wrap opacity-90">{details}</p>
         </details>
       )}
     </>

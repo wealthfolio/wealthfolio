@@ -37,6 +37,7 @@ export * from "./components/ui/input-group";
 export * from "./components/ui/label";
 export * from "./components/ui/page";
 export * from "./components/ui/popover";
+export * from "./components/ui/portal-scope";
 export * from "./components/ui/progress";
 export * from "./components/ui/progress-indicator";
 export * from "./components/ui/radio-group";

@@ -196,6 +196,165 @@ impl CategorizationRulesRepository {
     pub fn new(pool: Arc<DbPool>, writer: WriteHandle) -> Self {
         Self { pool, writer }
     }
+    async fn update_with_expectation(
+        &self,
+        id: &str,
+        patch: UpdateCategorizationRule,
+        expected: Option<CategorizationRule>,
+    ) -> Result<CategorizationRule> {
+        let id = id.to_string();
+        let amount_fields_changed = patch.amount_op.is_some()
+            || patch.amount_value.is_some()
+            || patch.amount_value2.is_some();
+        self.writer
+            .exec_tx(move |tx| {
+                let mut existing: CategorizationRuleDB = spending_categorization_rules::table
+                    .find(&id)
+                    .first::<CategorizationRuleDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                if expected
+                    .as_ref()
+                    .is_some_and(|expected| expected != &CategorizationRule::from(existing.clone()))
+                {
+                    return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                        "Rule changed since review".into(),
+                    )
+                    .into());
+                }
+                if let Some(v) = patch.name {
+                    existing.name = v;
+                }
+                if let Some(v) = patch.pattern {
+                    existing.pattern = v;
+                }
+                if let Some(v) = patch.match_type {
+                    existing.match_type = v.as_str().to_string();
+                }
+                if let Some(v) = patch.taxonomy_id {
+                    existing.taxonomy_id = v;
+                }
+                if let Some(v) = patch.category_id {
+                    existing.category_id = v;
+                }
+                if let Some(v) = patch.activity_type {
+                    existing.activity_type = v;
+                }
+                if let Some(v) = patch.amount_op {
+                    existing.amount_op = v.map(|op| op.as_str().to_string());
+                }
+                if let Some(v) = patch.amount_value {
+                    existing.amount_value = v.map(|d| d.to_string());
+                }
+                if let Some(v) = patch.amount_value2 {
+                    existing.amount_value2 = v.map(|d| d.to_string());
+                }
+                if let Some(v) = patch.priority {
+                    existing.priority = v;
+                }
+                if let Some(v) = patch.is_global {
+                    existing.is_global = if v { 1 } else { 0 };
+                }
+                if let Some(v) = patch.account_id {
+                    existing.account_id = v;
+                }
+                // If this rule came from a preset, mark it as user-modified so
+                // future preset updates can ask before overwriting.
+                if existing.preset_id.is_some() {
+                    existing.preset_modified = 1;
+                }
+                existing.updated_at = chrono::Utc::now().to_rfc3339();
+
+                diesel::update(spending_categorization_rules::table.find(&id))
+                    .set((
+                        spending_categorization_rules::name.eq(&existing.name),
+                        spending_categorization_rules::pattern.eq(&existing.pattern),
+                        spending_categorization_rules::match_type.eq(&existing.match_type),
+                        spending_categorization_rules::taxonomy_id.eq(&existing.taxonomy_id),
+                        spending_categorization_rules::category_id.eq(&existing.category_id),
+                        spending_categorization_rules::activity_type.eq(&existing.activity_type),
+                        spending_categorization_rules::amount_op.eq(&existing.amount_op),
+                        spending_categorization_rules::amount_value.eq(&existing.amount_value),
+                        spending_categorization_rules::amount_value2.eq(&existing.amount_value2),
+                        spending_categorization_rules::priority.eq(existing.priority),
+                        spending_categorization_rules::is_global.eq(existing.is_global),
+                        spending_categorization_rules::account_id.eq(&existing.account_id),
+                        spending_categorization_rules::preset_modified.eq(existing.preset_modified),
+                        spending_categorization_rules::updated_at.eq(&existing.updated_at),
+                    ))
+                    .execute(tx.conn())
+                    .map_err(StorageError::from)?;
+
+                if amount_fields_changed {
+                    tx.queue_outbox(outbox_request_with_explicit_amount_fields(
+                        &existing,
+                        SyncOperation::Update,
+                    )?);
+                } else {
+                    tx.update(&existing)?;
+                }
+                Ok(existing)
+            })
+            .await
+            .map(CategorizationRule::from)
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn delete_with_expectation(
+        &self,
+        id: &str,
+        expected: Option<CategorizationRule>,
+    ) -> Result<()> {
+        let id = id.to_string();
+        self.writer
+            .exec_tx(move |tx| {
+                let existing = spending_categorization_rules::table
+                    .find(&id)
+                    .first::<CategorizationRuleDB>(tx.conn())
+                    .optional()
+                    .map_err(StorageError::from)?;
+                if expected.as_ref().is_some_and(|expected| {
+                    existing.clone().map(CategorizationRule::from).as_ref() != Some(expected)
+                }) {
+                    return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                        "Rule changed since review".into(),
+                    )
+                    .into());
+                }
+                if let Some(existing) = existing {
+                    if let (Some(preset_id), Some(rule_key)) = (
+                        existing.preset_id.as_deref(),
+                        existing.preset_rule_key.as_deref(),
+                    ) {
+                        let now = chrono::Utc::now().to_rfc3339();
+                        let deletion = upsert_preset_rule_deletion(
+                            tx.conn(),
+                            preset_id,
+                            rule_key,
+                            &existing.id,
+                            &now,
+                        )?;
+                        tx.update(&deletion)?;
+                    }
+                    diesel::delete(spending_categorization_rules::table.find(&id))
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    tx.queue_outbox(OutboxWriteRequest::new(
+                        SyncEntity::SpendingCategorizationRule,
+                        id.clone(),
+                        SyncOperation::Delete,
+                        serde_json::json!({
+                            "id": id,
+                            "presetId": existing.preset_id,
+                            "presetRuleKey": existing.preset_rule_key,
+                            "presetDeleteKind": "rule",
+                        }),
+                    ));
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
 }
 
 fn new_rule_db(new_rule: NewCategorizationRule, now: &str) -> NewCategorizationRuleDB {
@@ -321,92 +480,15 @@ impl CategorizationRulesRepositoryTrait for CategorizationRulesRepository {
         id: &str,
         patch: UpdateCategorizationRule,
     ) -> Result<CategorizationRule> {
-        let id = id.to_string();
-        let amount_fields_changed = patch.amount_op.is_some()
-            || patch.amount_value.is_some()
-            || patch.amount_value2.is_some();
-        self.writer
-            .exec_tx(move |tx| {
-                let mut existing: CategorizationRuleDB = spending_categorization_rules::table
-                    .find(&id)
-                    .first::<CategorizationRuleDB>(tx.conn())
-                    .map_err(StorageError::from)?;
-                if let Some(v) = patch.name {
-                    existing.name = v;
-                }
-                if let Some(v) = patch.pattern {
-                    existing.pattern = v;
-                }
-                if let Some(v) = patch.match_type {
-                    existing.match_type = v.as_str().to_string();
-                }
-                if let Some(v) = patch.taxonomy_id {
-                    existing.taxonomy_id = v;
-                }
-                if let Some(v) = patch.category_id {
-                    existing.category_id = v;
-                }
-                if let Some(v) = patch.activity_type {
-                    existing.activity_type = v;
-                }
-                if let Some(v) = patch.amount_op {
-                    existing.amount_op = v.map(|op| op.as_str().to_string());
-                }
-                if let Some(v) = patch.amount_value {
-                    existing.amount_value = v.map(|d| d.to_string());
-                }
-                if let Some(v) = patch.amount_value2 {
-                    existing.amount_value2 = v.map(|d| d.to_string());
-                }
-                if let Some(v) = patch.priority {
-                    existing.priority = v;
-                }
-                if let Some(v) = patch.is_global {
-                    existing.is_global = if v { 1 } else { 0 };
-                }
-                if let Some(v) = patch.account_id {
-                    existing.account_id = v;
-                }
-                // If this rule came from a preset, mark it as user-modified so
-                // future preset updates can ask before overwriting.
-                if existing.preset_id.is_some() {
-                    existing.preset_modified = 1;
-                }
-                existing.updated_at = chrono::Utc::now().to_rfc3339();
-
-                diesel::update(spending_categorization_rules::table.find(&id))
-                    .set((
-                        spending_categorization_rules::name.eq(&existing.name),
-                        spending_categorization_rules::pattern.eq(&existing.pattern),
-                        spending_categorization_rules::match_type.eq(&existing.match_type),
-                        spending_categorization_rules::taxonomy_id.eq(&existing.taxonomy_id),
-                        spending_categorization_rules::category_id.eq(&existing.category_id),
-                        spending_categorization_rules::activity_type.eq(&existing.activity_type),
-                        spending_categorization_rules::amount_op.eq(&existing.amount_op),
-                        spending_categorization_rules::amount_value.eq(&existing.amount_value),
-                        spending_categorization_rules::amount_value2.eq(&existing.amount_value2),
-                        spending_categorization_rules::priority.eq(existing.priority),
-                        spending_categorization_rules::is_global.eq(existing.is_global),
-                        spending_categorization_rules::account_id.eq(&existing.account_id),
-                        spending_categorization_rules::preset_modified.eq(existing.preset_modified),
-                        spending_categorization_rules::updated_at.eq(&existing.updated_at),
-                    ))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-
-                if amount_fields_changed {
-                    tx.queue_outbox(outbox_request_with_explicit_amount_fields(
-                        &existing,
-                        SyncOperation::Update,
-                    )?);
-                } else {
-                    tx.update(&existing)?;
-                }
-                Ok(existing)
-            })
+        self.update_with_expectation(id, patch, None).await
+    }
+    async fn update_reviewed(
+        &self,
+        expected: CategorizationRule,
+        patch: UpdateCategorizationRule,
+    ) -> Result<CategorizationRule> {
+        self.update_with_expectation(&expected.id.clone(), patch, Some(expected))
             .await
-            .map(CategorizationRule::from)
-            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn upsert(&self, new_rule: NewCategorizationRule) -> Result<CategorizationRule> {
@@ -675,48 +757,11 @@ impl CategorizationRulesRepositoryTrait for CategorizationRulesRepository {
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
-        let id = id.to_string();
-        self.writer
-            .exec_tx(move |tx| {
-                let existing = spending_categorization_rules::table
-                    .find(&id)
-                    .first::<CategorizationRuleDB>(tx.conn())
-                    .optional()
-                    .map_err(StorageError::from)?;
-                if let Some(existing) = existing {
-                    if let (Some(preset_id), Some(rule_key)) = (
-                        existing.preset_id.as_deref(),
-                        existing.preset_rule_key.as_deref(),
-                    ) {
-                        let now = chrono::Utc::now().to_rfc3339();
-                        let deletion = upsert_preset_rule_deletion(
-                            tx.conn(),
-                            preset_id,
-                            rule_key,
-                            &existing.id,
-                            &now,
-                        )?;
-                        tx.update(&deletion)?;
-                    }
-                    diesel::delete(spending_categorization_rules::table.find(&id))
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                    tx.queue_outbox(OutboxWriteRequest::new(
-                        SyncEntity::SpendingCategorizationRule,
-                        id.clone(),
-                        SyncOperation::Delete,
-                        serde_json::json!({
-                            "id": id,
-                            "presetId": existing.preset_id,
-                            "presetRuleKey": existing.preset_rule_key,
-                            "presetDeleteKind": "rule",
-                        }),
-                    ));
-                }
-                Ok(())
-            })
+        self.delete_with_expectation(id, None).await
+    }
+    async fn delete_reviewed(&self, expected: CategorizationRule) -> Result<()> {
+        self.delete_with_expectation(&expected.id.clone(), Some(expected))
             .await
-            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn remove_preset(&self, preset_id: &str) -> Result<(usize, usize)> {
@@ -803,21 +848,19 @@ impl CategorizationRulesRepositoryTrait for CategorizationRulesRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{spending_preset_rule_deletions, sync_outbox};
-    use tempfile::tempdir;
 
-    fn setup_repo() -> CategorizationRulesRepository {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn setup_repo() -> (CategorizationRulesRepository, TestDir) {
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("writer");
-        CategorizationRulesRepository::new(pool, writer)
+        (CategorizationRulesRepository::new(pool, writer), dir)
     }
 
     fn preset_rule() -> NewCategorizationRule {
@@ -868,7 +911,7 @@ mod tests {
 
     #[tokio::test]
     async fn preset_rule_deletion_lifecycle_writes_sync_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create(preset_rule()).await.expect("create rule");
         repo.delete("rule-ca-groceries").await.expect("delete rule");
 
@@ -909,7 +952,7 @@ mod tests {
     async fn amount_condition_round_trips_and_updates() {
         use wealthfolio_spending::categorization_rules::RuleAmountOp;
 
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let mut new_rule = preset_rule();
         new_rule.id = Some("rule-amount".to_string());
         new_rule.preset_id = None;
@@ -992,7 +1035,7 @@ mod tests {
 
     #[tokio::test]
     async fn rule_without_amount_condition_omits_amount_fields_from_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let created = repo.create(preset_rule()).await.expect("create rule");
         assert_eq!(created.amount_op, None);
         assert_eq!(created.amount_value, None);
@@ -1019,7 +1062,7 @@ mod tests {
 
     #[tokio::test]
     async fn upsert_creates_then_updates_the_same_row_without_duplicating() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let rule_id = "addon:test-addon:abc123".to_string();
         let new_rule = |name: &str| NewCategorizationRule {
             id: Some(rule_id.clone()),

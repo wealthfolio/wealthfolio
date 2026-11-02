@@ -1,3 +1,4 @@
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import type { Goal } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, Input, Label } from "@wealthfolio/ui";
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useGoalMutations } from "../hooks/use-goals";
@@ -78,7 +79,7 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
   const [description, setDescription] = useState(goal.description ?? "");
   const [lifecycle, setLifecycle] = useState<Goal["statusLifecycle"]>(goal.statusLifecycle);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setTitle(goal.title);
     setDescription(goal.description ?? "");
@@ -89,24 +90,22 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
   const trimmedTitle = title.trim();
   const trimmedDescription = description.trim();
 
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!trimmedTitle) return;
 
-    updateMutation.mutate(
-      {
+    try {
+      await updateMutation.mutateAsync({
         ...goal,
         title: trimmedTitle,
         description: trimmedDescription || undefined,
         statusLifecycle: lifecycle,
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("goals:goal_saved"));
-          onClose();
-        },
-      },
-    );
+      });
+      toast.success(t("goals:goal_saved"));
+      onClose();
+    } catch {
+      // The mutation reports the error; the dialog stays open to try again.
+    }
   };
 
   return (
@@ -196,7 +195,7 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
                         >
                           <Icon className="h-4 w-4" />
                         </span>
-                        <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs font-medium tracking-wider uppercase">
                           {option.hint}
                         </span>
                       </span>

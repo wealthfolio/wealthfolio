@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
-import type { ReactNode } from "react";
+import { Activity, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Asset } from "@/lib/types";
@@ -33,6 +33,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   useQuery: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock("@/components/asset-logo/asset-logo-dialog", () => ({ AssetLogoDialog: () => null }));
 vi.mock("@/hooks/use-custom-providers", () => ({ useCustomProviders: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-market-data-providers", () => ({
   useMarketDataProviders: () => ({ data: [] }),
@@ -265,7 +266,7 @@ describe("AssetEditSheet automatic updates", () => {
     const { unmount } = render(
       <AssetEditSheet asset={buildAsset()} open onOpenChange={vi.fn()} defaultTab="market-data" />,
     );
-    expect(screen.getByRole("button", { name: "Automatic Updates" })).toHaveAccessibleDescription(
+    expect(screen.getByRole("button", { name: "Automatic updates" })).toHaveAccessibleDescription(
       "Prices sync automatically from market data providers.",
     );
     unmount();
@@ -278,8 +279,27 @@ describe("AssetEditSheet automatic updates", () => {
         defaultTab="market-data"
       />,
     );
-    expect(screen.getByRole("button", { name: "Automatic Updates" })).toHaveAccessibleDescription(
+    expect(screen.getByRole("button", { name: "Automatic updates" })).toHaveAccessibleDescription(
       "Automatic syncing is off. You manage prices manually.",
     );
+  });
+});
+
+describe("AssetEditSheet on a screen kept out of sight", () => {
+  beforeEach(() => mutateAsync.mockReset());
+
+  it("keeps an unsaved edit when the screen is shown again", () => {
+    const asset = buildAsset();
+    const view = (hidden: boolean) => (
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <AssetEditSheet asset={asset} open onOpenChange={vi.fn()} />
+      </Activity>
+    );
+    const { rerender } = render(view(false));
+    setInputValue(screen.getByTestId("asset-contract-multiplier"), "25");
+
+    rerender(view(true));
+    rerender(view(false));
+    expect(screen.getByTestId("asset-contract-multiplier")).toHaveValue("25");
   });
 });

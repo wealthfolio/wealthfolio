@@ -1,3 +1,4 @@
+import { AppScreenRoutes } from "@/app-screen-routes";
 import AppLauncher from "@/components/app-launcher";
 import { MobileLoadingIndicator } from "@/components/mobile-loading-indicator";
 import { UpdateDialog } from "@/components/update-dialog";
@@ -10,19 +11,34 @@ import { cn } from "@/lib/utils";
 import { MobileNavigationContainer } from "@/pages/layouts/mobile-navigation-container";
 import useGlobalEventListener from "@/use-global-event-listener";
 import { ApplicationShell, ErrorBoundary, PageScrollContainer } from "@wealthfolio/ui";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useNavigation } from "./navigation/app-navigation";
 import { AppSidebar } from "./navigation/app-sidebar";
 import { FloatingNavigationBar } from "./navigation/floating-navigation-bar";
 import { MobileNavBar } from "./navigation/mobile-navbar";
 import { NavigationModeProvider, useNavigationMode } from "./navigation/navigation-mode-context";
+import { MobileStackProvider } from "./mobile-stack/mobile-stack-provider";
+import { HOME_TAB, OUTSIDE_TAB_PREFIXES, stackTabsFor } from "./mobile-stack/stack-config";
 import { PageErrorBoundary } from "./page-error-boundary";
+import { getPageScrollKey } from "./page-scroll-key";
+
+interface MobileStackBoundaryProps {
+  enabled: boolean;
+  config: ComponentProps<typeof MobileStackProvider>["config"];
+  children: ReactNode;
+}
+
+/** Phone pages and the tab bar share one screen stack. */
+function MobileStackBoundary({ enabled, config, children }: MobileStackBoundaryProps) {
+  return enabled ? <MobileStackProvider config={config}>{children}</MobileStackProvider> : children;
+}
 
 const AppLayoutContent = () => {
   const { settings } = useSettingsContext();
   const location = useLocation();
   const navigation = useNavigation();
-  const { platform, isMobile, isMacOS, isTauri } = usePlatform();
+  const { platform, isMobile, isMacOS, isTauri, isAndroid } = usePlatform();
   const isMobileViewport = useIsMobileViewport();
   const isIPad =
     typeof window !== "undefined" &&
@@ -48,10 +64,23 @@ const AppLayoutContent = () => {
   const launchBarHeight =
     !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "3.5rem" : undefined;
   const isAppShellReady = !!settings?.onboardingCompleted;
-  const pageScrollKey =
-    location.pathname.startsWith("/addon/") || location.pathname.startsWith("/addons/")
-      ? "/addons"
-      : location.pathname;
+  const pageScrollKey = getPageScrollKey(location.pathname);
+  // Each tab-bar and menu destination is a tab with its own stack of screens;
+  // add-on pages are destinations too, but replace one another as before.
+  const tabsKey = [
+    ...[...navigation.primary, ...(navigation.secondary ?? [])].map((item) => item.href),
+    "/connect",
+  ].join("\n");
+  const addonsKey = (navigation.addons ?? []).map((item) => item.href).join("\n");
+  const stackConfig = useMemo(() => {
+    const tabHrefs = tabsKey.split("\n");
+    return {
+      tabs: stackTabsFor(tabHrefs),
+      topLevelPaths: ["/", ...tabHrefs, ...addonsKey.split("\n").filter(Boolean)],
+      homeTab: HOME_TAB,
+      outsidePrefixes: OUTSIDE_TAB_PREFIXES,
+    };
+  }, [tabsKey, addonsKey]);
 
   const areGlobalEventsReady = useGlobalEventListener();
   useActiveAppSyncTrigger({ enabled: isTauri, requireWindowFocusForInterval: !isMobile });
@@ -67,6 +96,7 @@ const AppLayoutContent = () => {
       <ApplicationShell
         className="app-shell h-screen overflow-x-hidden"
         data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
+        data-nav-style={shouldUseMobileNavigation && isAndroid ? "material" : undefined}
         style={{
           ...(launchBarHeight ? { ["--mobile-nav-ui-height" as string]: launchBarHeight } : {}),
           ...(titleBarNudge ? { ["--titlebar-nudge" as string]: titleBarNudge } : {}),
@@ -75,39 +105,41 @@ const AppLayoutContent = () => {
         {/* Mobile sync loading indicator */}
         {shouldUseMobileNavigation && <MobileLoadingIndicator />}
 
-        <div className="scan-hide-target">
-          {hasSidebar && <AppSidebar navigation={navigation} />}
-        </div>
+        <MobileStackBoundary enabled={shouldUseMobileNavigation} config={stackConfig}>
+          <div className="scan-hide-target">
+            {hasSidebar && <AppSidebar navigation={navigation} />}
+          </div>
 
-        <div
-          className={cn(
-            "relative flex min-h-0 w-full max-w-full flex-1 overflow-x-hidden",
-            shouldUseMobileNavigation ? "overscroll-contain" : undefined,
-          )}
-        >
-          <main className="relative flex min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
-            {hasWindowDragRegion && (
-              <div
-                data-tauri-drag-region="true"
-                className="draggable pointer-events-auto absolute inset-x-0 top-0 z-50 h-6 cursor-grab opacity-0"
-              ></div>
+          <div
+            className={cn(
+              "relative flex min-h-0 w-full max-w-full flex-1 overflow-x-hidden",
+              shouldUseMobileNavigation ? "overscroll-contain" : undefined,
             )}
-            {shouldUseMobileNavigation ? (
-              <MobileNavigationContainer key={pageScrollKey} />
-            ) : (
-              <PageScrollContainer
-                key={pageScrollKey}
-                withMobileNavOffset={shouldUseBottomNavigation}
-              >
-                <PageErrorBoundary>
-                  <Outlet />
-                </PageErrorBoundary>
-              </PageScrollContainer>
-            )}
-          </main>
-        </div>
+          >
+            <main className="relative flex min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
+              {hasWindowDragRegion && (
+                <div
+                  data-tauri-drag-region="true"
+                  className="draggable pointer-events-auto absolute inset-x-0 top-0 z-50 h-6 cursor-grab opacity-0"
+                ></div>
+              )}
+              {shouldUseMobileNavigation ? (
+                <MobileNavigationContainer />
+              ) : (
+                <PageScrollContainer
+                  key={pageScrollKey}
+                  withMobileNavOffset={shouldUseBottomNavigation}
+                >
+                  <PageErrorBoundary>
+                    <AppScreenRoutes />
+                  </PageErrorBoundary>
+                </PageScrollContainer>
+              )}
+            </main>
+          </div>
 
-        {shouldUseMobileNavigation && <MobileNavBar navigation={navigation} />}
+          {shouldUseMobileNavigation && <MobileNavBar navigation={navigation} />}
+        </MobileStackBoundary>
         {!shouldUseMobileNavigation && isLaunchBar && !isDesktopFocusMode && (
           <FloatingNavigationBar navigation={navigation} />
         )}

@@ -1,5 +1,13 @@
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, InstrumentType, QuoteMode } from "@/lib/constants";
+import {
+  ACTIVITY_SUBTYPES,
+  ActivityType,
+  DECIMAL_PRECISION,
+  InstrumentType,
+  QuoteMode,
+} from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -47,11 +55,13 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
         message: msg(t, "activity:form.err_select_account", "Please select an account."),
       }),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       amount: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          ),
         })
         .nonnegative({
           message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
@@ -62,10 +72,8 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
       existingAssetId: z.string().nullable().optional(),
       quantity: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_quantity_number",
-            "Quantity must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_quantity_number", "Quantity must be a number."),
           ),
         })
         .nonnegative()
@@ -73,21 +81,23 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
         .nullable(),
       unitPrice: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_price_number", "Price must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_price_number", "Price must be a number."),
+          ),
         })
         .nonnegative()
         .optional()
         .nullable(),
       comment: z.string().optional().nullable(),
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({
@@ -232,6 +242,7 @@ export function AdjustmentForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const isCashMode = adjustmentMode === "cash";
   const subtypeOptions = useMemo(() => {
     const currentSubtype = subtype?.trim();
@@ -308,6 +319,7 @@ export function AdjustmentForm({
               name="amount"
               label={t("activity:form.label_amount")}
               currency={currency}
+              maxDecimalPlaces={moneyDecimals}
             />
           ) : (
             <>
@@ -333,13 +345,14 @@ export function AdjustmentForm({
                   name="unitPrice"
                   label={t("activity:form.label_price")}
                   currency={currency}
-                  maxDecimalPlaces={4}
+                  maxDecimalPlaces={DECIMAL_PRECISION}
                 />
               </div>
               <AmountInput
                 name="amount"
                 label={t("activity:form.label_amount")}
                 currency={currency}
+                maxDecimalPlaces={moneyDecimals}
               />
             </>
           )}

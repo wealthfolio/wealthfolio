@@ -19,6 +19,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { SettingsHeader } from "../settings-header";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 export default function AboutSettingsPage() {
   const { t } = useTranslation();
@@ -53,7 +54,7 @@ export default function AboutSettingsPage() {
 
   const handleCopy = async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyText(value);
       toast({
         title: t("settings:about_copied"),
         description: t("settings:about_copied_description", { label }),
@@ -70,7 +71,10 @@ export default function AboutSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SettingsHeader heading={t("settings:about_title")} text={t("settings:about_description")} />
+      <SettingsHeader
+        heading={t("settings:nav.items.about")}
+        text={t("settings:about_description")}
+      />
       <Separator />
 
       <Card>
@@ -135,7 +139,7 @@ export default function AboutSettingsPage() {
 
               <div className="grid gap-4">
                 <div className="space-y-1">
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                  <p className="text-muted-foreground text-xs tracking-wide uppercase">
                     {t("settings:about_db_path")}
                   </p>
                   <div className="flex items-center gap-2">
@@ -154,7 +158,7 @@ export default function AboutSettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                  <p className="text-muted-foreground text-xs tracking-wide uppercase">
                     {t("settings:about_logs_directory")}
                   </p>
                   <div className="flex items-center gap-2">
@@ -183,7 +187,7 @@ export default function AboutSettingsPage() {
           <div className="space-y-4">
             <p className="text-muted-foreground text-sm">
               {t("settings:about_support_message")}{" "}
-              <span className="select-all font-mono font-semibold">support@wealthfolio.app</span>
+              <span className="font-mono font-semibold select-all">support@wealthfolio.app</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <ExternalLink

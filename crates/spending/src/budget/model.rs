@@ -31,11 +31,21 @@ pub struct NewBudgetGroup {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateBudgetGroup {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_string",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub color: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_string",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub icon: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
 }
 
@@ -49,6 +59,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn update_budget_group_roundtrip_preserves_omission_and_explicit_clear() {
+        for input in [
+            serde_json::json!({"name":"Renamed"}),
+            serde_json::json!({"sortOrder":7}),
+            serde_json::json!({"color":null,"icon":null}),
+        ] {
+            let patch: UpdateBudgetGroup = serde_json::from_value(input.clone()).expect("patch");
+            let serialized = serde_json::to_value(patch).expect("serialize");
+            assert_eq!(serialized, input);
+            let restored: UpdateBudgetGroup =
+                serde_json::from_value(serialized).expect("roundtrip");
+            assert_eq!(restored.color, input.get("color").map(|_| None));
+            assert_eq!(restored.icon, input.get("icon").map(|_| None));
+        }
+    }
 
     #[test]
     fn update_budget_group_preserves_explicit_null_nullable_fields() {
@@ -243,6 +270,8 @@ pub struct BudgetSnapshotState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BudgetSnapshotComputed {
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     pub currency: String,
     pub period_key: String,
     pub fx_as_of: Option<String>,
@@ -269,6 +298,7 @@ impl BudgetSnapshot {
                 rollover_settings: Vec::new(),
             },
             computed: BudgetSnapshotComputed {
+                calculation_quality: Default::default(),
                 currency,
                 period_key,
                 fx_as_of: None,
@@ -296,4 +326,58 @@ fn default_spending_taxonomy() -> String {
 
 fn default_enabled() -> bool {
     true
+}
+
+/// One explicitly reviewed operation. Each agent commit is atomic; independent
+/// operations remain separate reviews rather than a claimed whole-budget batch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum BudgetOperation {
+    SetTarget {
+        target: NewBudgetTarget,
+    },
+    RemoveTarget {
+        id: String,
+    },
+    CopyTargets {
+        source_period_key: String,
+        target_period_key: String,
+        overwrite: bool,
+    },
+    CreateGroup {
+        group: NewBudgetGroup,
+    },
+    UpdateGroup {
+        id: String,
+        changes: UpdateBudgetGroup,
+    },
+    DeleteGroup {
+        id: String,
+        reassign_to_group_id: String,
+    },
+    AssignCategory {
+        category_id: String,
+        group_id: String,
+    },
+    SetRollover {
+        setting: NewBudgetRolloverSetting,
+    },
+    RemoveRollover {
+        id: String,
+    },
+    ResetGroups,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BudgetReview {
+    pub expected: BudgetSnapshotState,
+    pub operation: BudgetOperation,
+    pub period_key: String,
+    pub currency: String,
 }

@@ -3,9 +3,35 @@
 //! Provider IDs are unreliable - they can change when providers reprocess history.
 //! This module computes stable fingerprints based on the activity's semantic content.
 
+use std::borrow::Cow;
+
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sha2::{Digest, Sha256};
+
+use crate::activities::{
+    NewActivity, ACTIVITY_SUBTYPE_CONVERSION_IN, ACTIVITY_SUBTYPE_CONVERSION_OUT,
+};
+
+/// The activity type a key hashes. A conversion row's direction and group
+/// join it: two rows of one day can otherwise match in every field (a fund's
+/// units arriving by one conversion and leaving by the next, or one fund
+/// converted into two others by the same units). The group keeps them apart;
+/// a file imported again with the same groups still matches. Any other row
+/// hashes its type alone, so the keys already stored stay valid.
+pub fn idempotency_activity_type<'a>(
+    activity_type: &'a str,
+    subtype: Option<&str>,
+    group: Option<&str>,
+) -> Cow<'a, str> {
+    match NewActivity::canonicalize_subtype(subtype).as_deref() {
+        Some(direction @ (ACTIVITY_SUBTYPE_CONVERSION_OUT | ACTIVITY_SUBTYPE_CONVERSION_IN)) => {
+            let group = group.map(str::trim).unwrap_or_default();
+            Cow::Owned(format!("{activity_type}/{direction}/{group}"))
+        }
+        _ => Cow::Borrowed(activity_type),
+    }
+}
 
 /// Computes a stable idempotency key for an activity.
 ///
@@ -112,7 +138,11 @@ fn normalize_description(s: &str) -> String {
 pub fn compute_activity_idempotency_key(activity: &crate::activities::Activity) -> String {
     compute_idempotency_key(
         &activity.account_id,
-        activity.effective_type(),
+        &idempotency_activity_type(
+            activity.effective_type(),
+            activity.subtype.as_deref(),
+            activity.source_group_id.as_deref(),
+        ),
         &activity.activity_date,
         activity.asset_id.as_deref(),
         activity.quantity,
@@ -137,6 +167,31 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use rust_decimal::prelude::FromStr;
+
+    #[test]
+    fn a_conversion_row_keys_its_direction_and_group_and_other_rows_keep_their_keys() {
+        assert_eq!(
+            idempotency_activity_type("ADJUSTMENT", None, Some("g")),
+            "ADJUSTMENT"
+        );
+        assert_eq!(
+            idempotency_activity_type("ADJUSTMENT", Some("RETURN_OF_CAPITAL"), Some("g")),
+            "ADJUSTMENT"
+        );
+        assert_eq!(
+            idempotency_activity_type("TRANSFER_IN", None, Some("g")),
+            "TRANSFER_IN"
+        );
+        assert_eq!(idempotency_activity_type("BUY", Some("DRIP"), None), "BUY");
+        let arriving = idempotency_activity_type("ADJUSTMENT", Some("conversion_in"), Some(" g1 "));
+        let leaving = idempotency_activity_type("ADJUSTMENT", Some("CONVERSION_OUT"), Some("g1"));
+        assert_eq!(arriving, "ADJUSTMENT/CONVERSION_IN/g1");
+        assert_ne!(arriving, leaving);
+        assert_ne!(
+            leaving,
+            idempotency_activity_type("ADJUSTMENT", Some("CONVERSION_OUT"), Some("g2"))
+        );
+    }
 
     #[test]
     fn test_compute_idempotency_key_basic() {

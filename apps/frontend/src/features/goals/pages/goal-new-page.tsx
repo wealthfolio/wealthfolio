@@ -1,3 +1,4 @@
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import type { Goal, GoalType, PlannerMode } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -21,7 +22,8 @@ import {
 } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateGoalFlow } from "../hooks/use-create-goal-flow";
@@ -34,6 +36,8 @@ import {
   inferBirthYearMonthFromAge,
   normalizeRetirementPlan,
 } from "@/features/goals/retirement-planner/lib/plan-adapter";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_RETIREMENT_CURRENT_AGE = 30;
 const DEFAULT_TRADITIONAL_RETIREMENT_AGE = 65;
@@ -59,7 +63,20 @@ function hasRetirementGoal(goals: Goal[]): boolean {
 export default function GoalNewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useBackNavigation("/goals");
   const createGoalFlow = useCreateGoalFlow();
+  // The new goal takes the form's place, so back from it returns to the list.
+  // Read from the saved result rather than the save's own callback: React Query
+  // skips that callback when the save ends while this screen is out of sight on
+  // a phone (another tab shown), and the form would come back ready to save again.
+  // Only a change of the result opens it, so it can't open twice.
+  const openCreatedGoal = useEffectEvent((goalId: string) =>
+    navigate(`/goals/${goalId}`, { replace: true }),
+  );
+  const createdGoalId = createGoalFlow.data?.goal.id;
+  useEffectOnChange(() => {
+    if (createdGoalId) void openCreatedGoal(createdGoalId);
+  }, [createdGoalId]);
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
@@ -211,17 +228,10 @@ export default function GoalNewPage() {
         }
       : undefined;
 
-    createGoalFlow.mutate(
-      {
-        goal: goalInput,
-        initialPlan,
-      },
-      {
-        onSuccess: ({ goal }) => {
-          navigate(`/goals/${goal.id}`);
-        },
-      },
-    );
+    createGoalFlow.mutate({
+      goal: goalInput,
+      initialPlan,
+    });
   };
 
   return (
@@ -229,7 +239,7 @@ export default function GoalNewPage() {
       <PageHeader
         heading={t("goals:new.create_goal")}
         text={t("goals:new.subtitle")}
-        onBack={() => navigate("/goals")}
+        onBack={goBack}
       />
       <PageContent>
         {!selectedType ? (
@@ -239,11 +249,13 @@ export default function GoalNewPage() {
               return (
                 <div
                   key={tmpl.type}
-                  className={`border-border/60 bg-card shadow-xs group overflow-hidden rounded-xl border transition-all ${
+                  className={cn(
+                    cardSurfaceClassName,
+                    "group overflow-hidden transition-all",
                     disabled
                       ? "cursor-not-allowed opacity-50"
-                      : "hover:border-border cursor-pointer hover:shadow-md"
-                  }`}
+                      : "hover:border-border cursor-pointer hover:shadow-md",
+                  )}
                   onClick={() => handleSelectType(tmpl.type)}
                 >
                   <div className="relative h-36 overflow-hidden sm:h-40">
@@ -260,7 +272,7 @@ export default function GoalNewPage() {
                       <div className="text-muted-foreground/25">{tmpl.icon}</div>
                     </div>
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 start-4">
+                    <div className="absolute start-4 bottom-3">
                       <p className="text-base font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
                         {tmpl.title}
                       </p>

@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "Personalize sua experiência",
-    "themeLabel": "Tema",
-    "fontLabel": "Fonte",
-    "themeLight": "Claro",
-    "themeDark": "Escuro",
-    "themeSystem": "Sistema",
-    "themeLightPreviewAlt": "Prévia do tema claro",
-    "themeDarkPreviewAlt": "Prévia do tema escuro",
-    "themeSystemPreviewAlt": "Prévia do tema do sistema",
-    "fontSample": "Invista com clareza.",
-    "fonts": {
-      "monoLabel": "Mono",
-      "monoDescription": "Técnica e precisa",
-      "sansLabel": "Sans",
-      "sansDescription": "Limpa e moderna",
-      "serifLabel": "Serif",
-      "serifDescription": "Clássica e elegante"
-    },
-    "navigationLabel": "Navegação"
+    "changeLater": "Você pode alterar isso a qualquer momento em Configurações."
   },
   "connect": {
     "optional": "Opcional",

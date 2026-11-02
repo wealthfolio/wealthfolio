@@ -269,7 +269,20 @@
       "show": "Afficher la progression"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "Un portefeuille contient un lien vers un compte supprimé. Ouvrez Paramètres > Portefeuilles, modifiez le portefeuille puis enregistrez.",
+    "fallback": "Un problème est survenu. Veuillez réessayer.",
+    "restoreRequired": "La synchronisation doit être restaurée depuis cet appareil avant de connecter un autre appareil.",
+    "invalidCode": "Code invalide. Vérifiez-le et réessayez.",
+    "expired": "Session expirée. Veuillez recommencer.",
+    "cancelled": "L’association a été annulée.",
+    "network": "Erreur réseau. Vérifiez votre connexion.",
+    "timeout": "Le délai de connexion est dépassé.",
+    "notFound": "Session introuvable ou expirée.",
+    "security": "La vérification de sécurité a échoué.",
+    "technical": "La synchronisation n’a pas pu se terminer. Réessayez. Si le problème persiste, consultez les journaux de l’application.",
+    "namedPortfolioRepair": "Le portefeuille « {{name}} » contient un lien vers un compte supprimé. Ouvrez Paramètres > Portefeuilles, modifiez le portefeuille puis enregistrez."
+  },
   "wizard": {
     "progressLabel": "Progression de la configuration",
     "steps": {

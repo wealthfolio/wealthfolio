@@ -148,3 +148,7 @@ export const copyBudgetTargets = async (
     throw e;
   }
 };
+
+/** Pure configuration/computed snapshot for integrations; never seeds groups. */
+export const getBudgetReadonly = (periodKey?: string): Promise<BudgetSnapshot> =>
+  invoke<BudgetSnapshot>("get_budget_readonly", { periodKey });

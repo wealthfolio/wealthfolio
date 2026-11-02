@@ -39,6 +39,9 @@ pub enum DiagnosticCode {
     InvalidSplitRatio,
     /// Activity was rejected by the projection (message says why).
     ActivityRejected,
+    /// A conversion row that does not form a valid pair (rules R7.5): its
+    /// event changes nothing, and the projection rejects it.
+    InvalidConversion,
     /// Sell or transfer-out against a missing/empty position: cash only.
     NoPositionToReduce,
     /// FX conversion unavailable; the value is carried unconverted or skipped.

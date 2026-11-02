@@ -7,6 +7,8 @@ import {
   isAssetBackedIncomeActivity,
   isAssetBackedIncomeSubtype,
   isAssetIdentityRequired,
+  isConversionRow,
+  localizeActivityRowLabel,
   needsImportAssetResolution,
   shouldResolveImportAsset,
   calculateActivityValue,
@@ -16,6 +18,7 @@ import {
   supportsPerformanceBoundary,
 } from "./activity-utils";
 import { ActivityDetails } from "./types";
+import type { TFunction } from "i18next";
 
 describe("Activity Utilities", () => {
   describe("isCashActivity", () => {
@@ -417,5 +420,38 @@ describe("Activity Utilities", () => {
       expect(formatSplitRatio(0)).toBe("0:1");
       expect(formatSplitRatio(-1)).toBe("0:1");
     });
+  });
+});
+
+describe("conversion rows", () => {
+  const conversion = (subtype: string | null, activityType: string = ActivityType.ADJUSTMENT) =>
+    ({ activityType, subtype: subtype ?? undefined }) as Pick<
+      ActivityDetails,
+      "activityType" | "subtype"
+    >;
+
+  it("are adjustments with a conversion subtype, in any accepted spelling", () => {
+    expect(isConversionRow(conversion(ACTIVITY_SUBTYPES.CONVERSION_OUT))).toBe(true);
+    expect(isConversionRow(conversion("conversion in"))).toBe(true);
+    expect(isConversionRow(conversion(ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL))).toBe(false);
+    expect(isConversionRow(conversion(null))).toBe(false);
+    expect(isConversionRow(conversion(ACTIVITY_SUBTYPES.CONVERSION_OUT, ActivityType.BUY))).toBe(
+      false,
+    );
+  });
+
+  it("name their direction in lists", () => {
+    const t = ((key: string, fallback?: string) => fallback ?? key) as unknown as TFunction;
+    expect(localizeActivityRowLabel(t, conversion(ACTIVITY_SUBTYPES.CONVERSION_IN))).toBe(
+      "Conversion In",
+    );
+    expect(localizeActivityRowLabel(t, conversion(null))).not.toBe("Conversion In");
+  });
+
+  it("need an asset, as core requires", () => {
+    expect(isAssetIdentityRequired(ActivityType.ADJUSTMENT, ACTIVITY_SUBTYPES.CONVERSION_OUT)).toBe(
+      true,
+    );
+    expect(isAssetIdentityRequired(ActivityType.ADJUSTMENT, "conversion-in")).toBe(true);
   });
 });

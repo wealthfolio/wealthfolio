@@ -1,24 +1,7 @@
 {
   "appearance": {
-    "fontLabel": "الخط",
-    "fontSample": "استثمر بوضوح.",
-    "fonts": {
-      "monoDescription": "تقني ودقيق",
-      "monoLabel": "أحادي المسافة",
-      "sansDescription": "أنيق وعصري",
-      "sansLabel": "بلا زوائد",
-      "serifDescription": "كلاسيكي وراقٍ",
-      "serifLabel": "بزوائد"
-    },
-    "navigationLabel": "التنقل",
     "subtitle": "خصّص تجربتك",
-    "themeDark": "داكن",
-    "themeDarkPreviewAlt": "معاينة السمة الداكنة",
-    "themeLabel": "السمة",
-    "themeLight": "فاتح",
-    "themeLightPreviewAlt": "معاينة السمة الفاتحة",
-    "themeSystem": "النظام",
-    "themeSystemPreviewAlt": "معاينة سمة النظام"
+    "changeLater": "يمكنك تغيير ذلك في أي وقت من الإعدادات."
   },
   "buttons": {
     "continue": "متابعة",

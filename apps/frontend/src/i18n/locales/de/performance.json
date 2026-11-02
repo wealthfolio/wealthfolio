@@ -55,6 +55,7 @@
     "holdings": "Bestandsmodus"
   },
   "exclusion": {
+    "holdings_not_mwr": "Die geldgewichtete Rendite (MWR) ist im reinen Bestandsmodus nicht verfügbar, da die Zahlungsströme der Transaktionen nicht erfasst werden.",
     "no_data": "Für diese Auswahl sind keine Performancedaten verfügbar.",
     "no_series": "Für diesen Zeitraum ist keine Diagrammreihe verfügbar.",
     "holdings_not_twr": "Konten im Bestandsmodus verwenden die Wertrendite und werden nicht mit dem TWR dargestellt.",
@@ -134,5 +135,19 @@
     "contributions_desc": "Zum Konto hinzugefügte Barmittel",
     "distributions": "Ausschüttungen",
     "distributions_desc": "Vom Konto abgehobene Barmittel"
-  }
+  },
+  "metric_info": {
+    "time_weighted_return": "Die zeitgewichtete Rendite (TWR) misst die Anlageentwicklung ohne den Einfluss von Ein- und Auszahlungen. Für Zeiträume unter einem Jahr wird die Rendite des gewählten Zeitraums angezeigt; ab einem Jahr wird sie, sofern verfügbar, annualisiert angezeigt.",
+    "money_weighted_return": "Die geldgewichtete Rendite (MWR) misst die Anlageentwicklung unter Berücksichtigung von Höhe und Zeitpunkt externer Zahlungsströme. Sie wird mit IRR/XIRR berechnet; für Zeiträume ab einem Jahr ist die annualisierte XIRR die Standarddarstellung.",
+    "irr": "Der interne Zinsfuß (IRR) misst die geldgewichtete Anlageentwicklung unter Berücksichtigung von Höhe und Zeitpunkt externer Zahlungsströme. Für Zeiträume ab einem Jahr ist die annualisierte XIRR die Standarddarstellung.",
+    "simple_return": "Die einfache Rendite vergleicht den gesamten Gewinn oder Verlust mit den Nettoeinzahlungen. Sie ist kumulativ und nicht zeitgewichtet.",
+    "value_return": "Die Wertrendite misst die Veränderung des Kontowerts im gewählten Zeitraum, wenn keine Zahlungsströme auf Transaktionsebene verfügbar sind.",
+    "price_return": "Die Kursrendite misst die Kursänderung des gewählten Wertpapiers im gewählten Zeitraum.",
+    "volatility": "Die Volatilität misst die Streuung der Renditen einer Anlage. Höhere Volatilität bedeutet, dass sich ihr Wert innerhalb kurzer Zeit stark verändern kann. Sie wird aus kalendertäglichen Renditen annualisiert.",
+    "max_drawdown": "Der maximale Rückgang bezeichnet den größten prozentualen Verlust vom Höchststand bis zu einem nachfolgenden Tiefststand des Portfoliowerts im angegebenen Zeitraum. Er zeigt das Abwärtsrisiko an.",
+    "annualized_return": "Die annualisierte Rendite ist die durchschnittliche jährliche Zinseszinsrate für den gewählten Zeitraum. Sie ist nicht der kumulierte Gesamtgewinn oder -verlust.",
+    "holdings_volatility": "Volatilität der Kontowertänderungen. Sie basiert auf täglichen Bewertungen ohne Bereinigung um Ein- oder Auszahlungen und zeigt, wie stark der Marktwert schwankt.",
+    "holdings_max_drawdown": "Größter Rückgang des Kontowerts vom Höchst- zum Tiefststand. Er basiert auf täglichen Bewertungen ohne Bereinigung um Ein- oder Auszahlungen."
+  },
+  "compare_over_time": "Kontoentwicklung im Zeitverlauf vergleichen"
 }

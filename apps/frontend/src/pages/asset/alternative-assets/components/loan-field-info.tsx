@@ -17,7 +17,7 @@ export function LoanFieldInfo({ label, children }: { label: string; children: Re
           <button
             type="button"
             aria-label={t("common:component.more_info_about", { label })}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -m-[0.3125rem] inline-flex size-6 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -m-[0.3125rem] inline-flex size-6 items-center justify-center rounded-sm focus-visible:ring-2 focus-visible:outline-none"
           />
         }
       >

@@ -74,6 +74,8 @@ const run = async () => {
     WEALTHFOLIO_E2E: "1",
     WEALTHFOLIO_FIXTURE_DIR: QUOTE_FIXTURE_DIR,
     WEALTHFOLIO_FIXTURE_AS_OF: process.env.WEALTHFOLIO_FIXTURE_AS_OF || "2026-05-12",
+    // dev:web keeps a shell value over .env.web; the agent access specs need MCP on.
+    WF_MCP_ENABLED: "true",
     RUST_LOG: process.env.WF_E2E_RUST_LOG || DEFAULT_RUST_LOG,
     VITE_DEV_PORT: devServerPort,
   });

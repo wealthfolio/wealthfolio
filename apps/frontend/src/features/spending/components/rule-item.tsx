@@ -152,7 +152,7 @@ export function RuleItem({
                     {preset.flag}
                   </span>
                 )}
-                <span className="font-medium uppercase tracking-wide">
+                <span className="font-medium tracking-wide uppercase">
                   {preset?.name ?? rule.presetId}
                 </span>
                 {rule.presetModified && (
@@ -194,7 +194,7 @@ export function RuleItem({
             <code
               className={
                 patternExpanded
-                  ? "text-2xs block whitespace-pre-wrap break-all font-mono"
+                  ? "text-2xs block font-mono break-all whitespace-pre-wrap"
                   : "text-2xs block truncate font-mono"
               }
             >
@@ -215,7 +215,7 @@ export function RuleItem({
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           {target && targetLabel ? (
             <span
-              className="bg-muted/60 max-w-50 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs"
+              className="bg-muted/60 inline-flex max-w-50 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs"
               title={targetLabel}
             >
               <span
@@ -241,7 +241,7 @@ export function RuleItem({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="data-popup-open:opacity-100 h-8 w-8 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                  className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
                   aria-label={t("spending:rules.ruleActions")}
                 />
               }

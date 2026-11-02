@@ -192,7 +192,12 @@
     "to_market_data": "시세 데이터 보기",
     "to_general_settings": "일반 설정 열기",
     "to_connect": "계좌 구성",
-    "review_transfers": "이체 검토"
+    "review_transfers": "이체 검토",
+    "rebuild_account_history": "내역 재구축",
+    "add_price": "가격 추가",
+    "update_cost_basis": "취득 원가 업데이트",
+    "review_transaction": "거래 검토",
+    "review_entry": "항목 검토"
   },
   "updatedAt": "{{time}} 업데이트됨",
   "healthy": {

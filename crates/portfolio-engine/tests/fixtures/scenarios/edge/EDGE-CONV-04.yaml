@@ -1,0 +1,45 @@
+id: EDGE-CONV-04
+title: A WAC account converts a pool slice into an asset it already holds
+intent: >
+  Rules R7.5 and R7.2 (WAC). fund-a's two purchases pool before the
+  conversion relieves half of them: the slice leaves at the average cost,
+  with half the pool's purchase fees, dated at the pool's earliest
+  acquisition. It opens in fund-b beside a lot the account bought there; like
+  a lot a transfer delivered it stays apart from the pool, and a later sale
+  takes the same share of every fund-b lot, so the cost it relieves is still
+  the average. The carried fees count once, where they were paid.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-03-05
+accounts:
+  - id: acc-1
+    currency: USD
+    cost_basis_method: WAC
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 10000 }
+  - { id: buy-a1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 10, amount: 102, fee: 2 }
+  - { id: buy-a2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 20, amount: 202, fee: 2 }
+  - { id: buy-b1, account: acc-1, type: BUY, date: 2025-01-07T10:00:00Z, asset: fund-b, quantity: 10, unit_price: 50, amount: 500 }
+  - { id: conv-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T10:00:00Z, asset: fund-a, quantity: 10, source_group_id: g1 }
+  - { id: conv-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T10:01:00Z, asset: fund-b, quantity: 4, source_group_id: g1 }
+  - { id: sell-b, account: acc-1, type: SELL, date: 2025-03-03T10:00:00Z, asset: fund-b, quantity: 7, unit_price: 60, amount: 420 }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 10 }
+  - { asset: fund-a, day: 2025-01-06, close: 20 }
+  - { asset: fund-a, day: 2025-02-03, close: 20 }
+  - { asset: fund-b, day: 2025-01-07, close: 50 }
+  - { asset: fund-b, day: 2025-02-03, close: 50 }
+  - { asset: fund-b, day: 2025-03-03, close: 60 }
+  - { asset: fund-b, day: 2025-03-05, close: 60 }
+expected_notes: >
+  fund-a pools before the conversion: 20 units, cost 304 (fees 4), average
+  15.2, earliest acquisition 01-03. conv-out relieves 10 at cost 152 (fees 2),
+  realizing 0; fund-a keeps 10 at 152. conv-in opens 4 fund-b (r = 0.4),
+  cost 152, fees 2, acquired 01-03, kept apart from buy-b1 (10, cost 500).
+  fund-b: 14 units, cost 652. sell-b (WAC) takes 7 / 14 of each fund-b lot:
+  cost 326 (250 + 76), proceeds 420, realized 94. Left: 7 fund-b, cost 326;
+  10 fund-a, cost 152. Cash 10000 - 102 - 202 - 500 + 420 = 9616.

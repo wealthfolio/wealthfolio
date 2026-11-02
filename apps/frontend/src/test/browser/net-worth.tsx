@@ -181,12 +181,12 @@ function Fixture() {
             <NetWorthChart
               data={(params.get("chart") ?? "").split(",").map((value, index) => ({
                 date: `2026-09-${10 + index}`,
-                netWorth: value,
-                totalAssets: "100000",
-                totalLiabilities: String(100000 - Number(value)),
-                portfolioValue: "100000",
-                alternativeAssetsValue: "0",
-                netContribution: "0",
+                netWorth: Number(value),
+                totalAssets: 100000,
+                totalLiabilities: 100000 - Number(value),
+                portfolioValue: 100000,
+                alternativeAssetsValue: 0,
+                netContribution: 0,
                 currency: "USD",
                 breakdown: {},
               }))}
@@ -253,27 +253,25 @@ function Fixture() {
         )}
         <section aria-label="Monthly pace card" style={{ padding: 16, maxWidth: 384 }}>
           <VelocityCard
-            velocity={
-              computeVelocity([
-                {
-                  ...history[0],
-                  netWorth: 10000,
-                  totalAssets: 10000,
-                  portfolioValue: 5000,
-                  alternativeAssetsValue: 5000,
-                  netContribution: 5000,
-                },
-                {
-                  ...history[0],
-                  date: "2020-07-01",
-                  netWorth: 11100,
-                  totalAssets: 11100,
-                  portfolioValue: 7300,
-                  alternativeAssetsValue: 3800,
-                  netContribution: 7000,
-                },
-              ])!
-            }
+            velocity={computeVelocity([
+              {
+                ...history[0],
+                netWorth: 10000,
+                totalAssets: 10000,
+                portfolioValue: 5000,
+                alternativeAssetsValue: 5000,
+                netContribution: 5000,
+              },
+              {
+                ...history[0],
+                date: "2020-07-01",
+                netWorth: 11100,
+                totalAssets: 11100,
+                portfolioValue: 7300,
+                alternativeAssetsValue: 3800,
+                netContribution: 7000,
+              },
+            ])!}
             currency="EUR"
             periodLabel="YTD"
           />

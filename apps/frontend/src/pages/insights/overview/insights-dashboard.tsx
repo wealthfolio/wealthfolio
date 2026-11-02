@@ -1,3 +1,4 @@
+import { profilePreferenceKey, readProfilePreference } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
@@ -41,9 +42,24 @@ import "react-grid-layout/css/styles.css";
 import "./insights-dashboard.css";
 
 const GRID_BREAKPOINTS = { desktop: 1100, tablet: 700, mobile: 0 };
+const HEIGHTS_KEY = "insights-widget-heights";
+
+type WidgetHeights = Partial<Record<LayoutBreakpoint, Partial<Record<WidgetId, number>>>>;
+
+// Opening with the last measured heights places every card where it ended up last time instead
+// of starting from the layout defaults; ResizeObserver still corrects stale entries.
+function readWidgetHeights(): WidgetHeights {
+  try {
+    return JSON.parse(readProfilePreference(HEIGHTS_KEY) ?? "{}") as WidgetHeights;
+  } catch {
+    return {};
+  }
+}
 
 interface InsightsDashboardProps {
   widgets: Record<WidgetId, ReactNode>;
+  // Skeletons are shorter than the loaded cards; measuring them would discard the cached heights.
+  loading?: boolean;
   onCustomizeActionChange?: (action: ReactNode | null) => void;
 }
 
@@ -81,7 +97,11 @@ function WidgetContent({
   );
 }
 
-export function InsightsDashboard({ widgets, onCustomizeActionChange }: InsightsDashboardProps) {
+export function InsightsDashboard({
+  widgets,
+  loading = false,
+  onCustomizeActionChange,
+}: InsightsDashboardProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const { settings, updateSettings, isLoading, isError } = useSettingsContext();
@@ -92,17 +112,24 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
   const [draft, setDraft] = useState<InsightsLayout | null>(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const { width, containerRef, mounted } = useContainerWidth();
+  // Without measuring first, the grid paints at the hook's 1280px default and then reflows.
+  const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const breakpoint = getBreakpointFromWidth<LayoutBreakpoint>(GRID_BREAKPOINTS, width);
-  const [heights, setHeights] = useState<
-    Partial<Record<LayoutBreakpoint, Partial<Record<WidgetId, number>>>>
-  >({});
+  const [heights, setHeights] = useState(readWidgetHeights);
+  useEffect(() => {
+    try {
+      localStorage.setItem(profilePreferenceKey(HEIGHTS_KEY), JSON.stringify(heights));
+    } catch {
+      // Storage can be unavailable; heights are re-measured on every visit anyway.
+    }
+  }, [heights]);
   const heightCallbacks = useMemo(
     () =>
       Object.fromEntries(
         WIDGET_IDS.map((id) => [
           id,
           (height: number) => {
+            if (loading) return;
             setHeights((prev) =>
               prev[breakpoint]?.[id] === height
                 ? prev
@@ -114,7 +141,7 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
           },
         ]),
       ) as Record<WidgetId, (height: number) => void>,
-    [breakpoint],
+    [breakpoint, loading],
   );
   const editing = draft !== null;
   const current = draft ?? saved;
@@ -333,7 +360,7 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
           side={isMobile ? "bottom" : "inline-end"}
           className={
             isMobile
-              ? "max-h-[85dvh] overflow-y-auto rounded-t-3xl pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
+              ? "max-h-[85dvh] overflow-y-auto rounded-t-3xl pb-[calc(var(--inset-bottom)+1.5rem)]"
               : "overflow-y-auto"
           }
         >
@@ -450,20 +477,22 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
                   minHeight={
                     SUMMARY_WIDGET_IDS.includes(id)
                       ? summaryHeight(id, breakpoint) || undefined
-                      : id === "targets" &&
-                          breakpoint === "desktop" &&
-                          !current.hiddenWidgets.includes("composition") &&
-                          current.layouts.desktop.find((item) => item.i === "targets")?.y ===
-                            current.layouts.desktop.find((item) => item.i === "composition")?.y
-                        ? heights.desktop?.composition
-                        : id === "concentration" &&
-                            breakpoint !== "mobile" &&
-                            !current.hiddenWidgets.includes("movers") &&
-                            current.layouts[breakpoint].find((item) => item.i === "concentration")
-                              ?.y ===
-                              current.layouts[breakpoint].find((item) => item.i === "movers")?.y
-                          ? heights[breakpoint]?.movers
-                          : undefined
+                      : loading
+                        ? heights[breakpoint]?.[id]
+                        : id === "targets" &&
+                            breakpoint === "desktop" &&
+                            !current.hiddenWidgets.includes("composition") &&
+                            current.layouts.desktop.find((item) => item.i === "targets")?.y ===
+                              current.layouts.desktop.find((item) => item.i === "composition")?.y
+                          ? heights.desktop?.composition
+                          : id === "concentration" &&
+                              breakpoint !== "mobile" &&
+                              !current.hiddenWidgets.includes("movers") &&
+                              current.layouts[breakpoint].find((item) => item.i === "concentration")
+                                ?.y ===
+                                current.layouts[breakpoint].find((item) => item.i === "movers")?.y
+                            ? heights[breakpoint]?.movers
+                            : undefined
                   }
                 >
                   {widgets[id]}

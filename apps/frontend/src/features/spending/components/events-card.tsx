@@ -263,7 +263,7 @@ export function EventsCard({
 
       {pick.mode === "upcoming" && eventSpent <= 0 ? (
         <div className="mt-3">
-          <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
+          <div className="text-foreground text-2xl font-bold tracking-tight tabular-nums">
             {t("spending:eventsCard.daysValue", { count: pick.days })}
           </div>
           <div className="text-muted-foreground/80 text-xs">
@@ -276,7 +276,7 @@ export function EventsCard({
       ) : eventSpent > 0 ? (
         <>
           <div className="mt-3">
-            <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
+            <div className="text-foreground text-2xl font-bold tracking-tight tabular-nums">
               <PrivacyAmount value={eventSpent} currency={currency} />
             </div>
             <div className="text-muted-foreground/80 text-xs">
@@ -331,7 +331,7 @@ export function EventsCard({
 
       {eventSpent > 0 && topCategories.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground/60 text-2xs font-semibold uppercase tracking-wide">
+          <span className="text-muted-foreground/60 text-2xs font-semibold tracking-wide uppercase">
             {t("spending:eventsCard.top")}
           </span>
           {topCategories.map((c) => {
@@ -371,7 +371,7 @@ export function EventsCard({
         </button>
       ) : (
         <Link
-          to="/spending/insights?stage=when"
+          to="/insights?tab=spending&stage=when"
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
           {pick.mode === "recent"

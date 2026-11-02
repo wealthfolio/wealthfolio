@@ -408,7 +408,8 @@
     "monthlyAverage": "月平均",
     "byType": "種類別",
     "monthlyIncome": "月次収入",
-    "sources": "収入源"
+    "sources": "収入源",
+    "yoyShort": "前年比"
   },
   "categorizationContext": {
     "loading": "分類コンテキストを読み込み中…",
@@ -608,5 +609,29 @@
       "otherTitle": "その他",
       "otherBlurb": "プロバイダー固有のその他のオプション。"
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "AI プロバイダー設定",
+    "thisModel": "このモデル",
+    "selectedModel": "選択したモデル",
+    "thinkingUnsupported": "**思考モードは非対応です**\n\n{{modelName}} は思考・推論機能に対応していません。\n\n対応する別のモデルを試すか、{{settingsLink}}を確認してください。",
+    "modelUnavailable": "**モデルを利用できません**\n\nモデル「{{modelName}}」が見つかりません。考えられる原因：\n- モデルが未ダウンロード\n- モデル名が正しくない\n- AI プロバイダーのサービスが停止中\n\n{{settingsLink}}で別のモデルを選択するか、設定を確認してください。",
+    "connectionRefused": "**AI プロバイダーに接続できません**\n\nサービスが起動していないようです。次を確認してください。\n1. ローカルの AI プロバイダー（Ollama など）を起動\n2. {{settingsLink}}でプロバイダーの URL を確認\n3. 再試行",
+    "authentication": "**認証に失敗しました**\n\nAPI キーが無効か未設定のようです。{{settingsLink}}で API キーが正しく設定されているか確認してください。",
+    "rateLimit": "**リクエスト制限を超えました**\n\nリクエストが多すぎます。しばらく待ってから再試行してください。",
+    "timeout": "**リクエストがタイムアウトしました**\n\nAI プロバイダーの応答が遅すぎます。低速な接続、過負荷、複雑なリクエストが原因の可能性があります。\n\n再試行するか、{{settingsLink}}で高速なモデルを選択してください。",
+    "provider": "**プロバイダーエラー**\n\n{{error}}\n\n問題が続く場合は{{settingsLink}}を確認してください。",
+    "unknown": "**問題が発生しました**\n\n{{error}}\n\n問題が続く場合は{{settingsLink}}を確認してください。"
+  },
+  "importSessionErrors": {
+    "missingCsv": "CSV の内容がありません。AI ツールの結果が不完全な可能性があります。",
+    "emptyCsv": "CSV ファイルにデータ行がありません。",
+    "noActivities": "取引を抽出できませんでした。列の対応付けが正しくない可能性があります。",
+    "prepareFailed": "CSV インポートを準備できませんでした。",
+    "revalidateFailed": "再検証に失敗しました。",
+    "nothing": "インポートする内容がありません。",
+    "allInvalid": "すべての取引に検証エラーがあります。修正して再試行してください。",
+    "importFailed": "取引のインポートに失敗しました。",
+    "reviewAndRetry": "インポートに失敗しました。エラーを確認して再試行してください。"
   }
 }

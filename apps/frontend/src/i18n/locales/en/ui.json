@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "Previous slide",
-    "next": "Next slide"
+    "next": "Next slide",
+    "role": "carousel",
+    "slide": "slide"
   },
   "currency": {
     "selectTitle": "Select Currency",
@@ -14,7 +16,15 @@
     "searchPrompt": "Search for any currency or select from popular options above.",
     "useCustom": "Use \"{{value}}\" as custom currency",
     "noneFound": "No currencies found for \"{{query}}\".",
-    "noneFoundShort": "No currency found."
+    "noneFoundShort": "No currency found.",
+    "units": {
+      "GBp": "British pence",
+      "GBX": "British pence",
+      "ILA": "Israeli agorot",
+      "USX": "US cents",
+      "ZAc": "South African cents",
+      "KWF": "Kuwaiti fils"
+    }
   },
   "dataGrid": {
     "label": "Data grid",
@@ -75,7 +85,12 @@
     "clearSymbol": "Clear symbol",
     "currency": "Currency",
     "searchCurrency": "Search currency...",
-    "noCurrencyFound": "No currency found."
+    "noCurrencyFound": "No currency found.",
+    "copyFailed": "Failed to copy to clipboard",
+    "cutFailed": "Failed to cut to clipboard",
+    "pasteFailed": "Failed to paste. Please try again.",
+    "cellsSkipped_one": "{{count}} cell skipped pasting for invalid data",
+    "cellsSkipped_other": "{{count}} cells skipped pasting for invalid data"
   },
   "dataTable": {
     "noResults": "No results",
@@ -197,5 +212,27 @@
   "page": {
     "back": "Back"
   },
-  "remove": "Remove {{label}}"
+  "remove": "Remove {{label}}",
+  "actionConfirm": {
+    "pending": "In progress..."
+  },
+  "select": {
+    "placeholder": "Select an option"
+  },
+  "progress": {
+    "title": "Processing",
+    "message": "Processing...",
+    "description": "Please wait while we process your request. This may take a few moments."
+  },
+  "navigation": {
+    "view": "View {{number}}",
+    "goTo": "Go to {{name}}"
+  },
+  "quoteImport": {
+    "noFile": "No file selected",
+    "validateFailed": "Failed to validate CSV",
+    "validateFirst": "No quotes to import. Please validate the file first.",
+    "noValid": "No valid quotes to import. All quotes have validation errors.",
+    "importFailed": "Failed to import quotes"
+  }
 }

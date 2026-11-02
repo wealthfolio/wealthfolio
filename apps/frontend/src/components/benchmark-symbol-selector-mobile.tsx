@@ -203,7 +203,7 @@ export function BenchmarkSymbolSelectorMobile({
         <Icons.TrendingUp className="h-4 w-4" />
         {!iconOnly && t("common:component.add_benchmark")}
       </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh] p-0">
+      <SheetContent side="bottom" className="mx-1 h-[85vh] rounded-t-4xl p-0">
         <SheetHeader className="border-border border-b px-6 py-4">
           <SheetTitle>{t("common:select_benchmark")}</SheetTitle>
           <SheetDescription>{t("common:choose_benchmark")}</SheetDescription>
@@ -219,7 +219,7 @@ export function BenchmarkSymbolSelectorMobile({
                 placeholder={t("common:search_benchmarks")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-10 w-full rounded-md border px-3 py-2 ps-9 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-10 w-full rounded-md border px-3 py-2 ps-9 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               />
             </div>
           </div>

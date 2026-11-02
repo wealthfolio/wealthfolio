@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{
@@ -11,13 +10,11 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use rust_decimal::prelude::ToPrimitive;
 use serde::Deserialize;
 use wealthfolio_core::{
-    accounts::AccountServiceTrait,
     goals::{
-        validate_retirement_plan, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, NewGoal,
-        SaveGoalPlan,
+        validate_retirement_plan, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
+        GoalUpdate, NewGoal, SaveGoalPlan,
     },
     planning::retirement::{normalize_retirement_plan_ages, RetirementPlan, RetirementTimingMode},
     planning::{compute_save_up_overview, validate_save_up_input, SaveUpInput, SaveUpOverview},
@@ -25,7 +22,6 @@ use wealthfolio_core::{
         self, DecisionSensitivityMap, DecisionSensitivityMatrix, MonteCarloResult,
         RetirementOverview, ScenarioResult, SorrScenario, StressTestResult,
     },
-    portfolio::valuation::CurrentAccountValuationService,
     utils::time_utils::{parse_user_timezone_or_default, user_today},
 };
 
@@ -61,24 +57,31 @@ async fn create_goal(
 
 async fn update_goal(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(mut goal): Json<Goal>,
+    Json(mut goal): Json<GoalUpdate>,
 ) -> ApiResult<Json<Goal>> {
-    goal.currency = Some(
+    goal.goal.currency = Some(
         state
             .base_currency
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone(),
     );
-    let g = state.goal_service.update_goal(goal).await?;
-    Ok(Json(g))
+    let goal = state.goal_service.update_goal(goal).await?;
+    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
+    Ok(Json(goal))
 }
 
 async fn delete_goal(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
-    let _ = state.goal_service.delete_goal(id).await?;
+    let goal = state.goal_service.get_goal(&id).ok();
+    let deleted = state.goal_service.delete_goal(id).await?;
+    // A deleted savings goal releases its shares, which changes what retirement
+    // counts; other clients refresh their goal caches from this event.
+    if let Some(goal) = goal.filter(|_| deleted > 0) {
+        emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -124,20 +127,34 @@ async fn save_goal_plan(
     Ok(Json(result))
 }
 
-async fn refresh_goal_summary_after_save(state: &Arc<AppState>, goal_id: &str) {
-    match build_valuation_map(state).await {
-        Ok(valuation_map) => {
-            if let Err(err) = state
-                .goal_service
-                .refresh_goal_summary(goal_id, &valuation_map)
-                .await
-            {
-                tracing::warn!("Failed to refresh goal summary after save for {goal_id}: {err}");
-            }
+async fn refresh_goal_summary_after_save(state: &Arc<AppState>, goal_id: &str) -> Option<Goal> {
+    match state.goal_service.refresh_goal_summary(goal_id).await {
+        Ok(goal) => {
+            emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
+            Some(goal)
         }
-        Err(err) => {
-            tracing::warn!("Failed to build valuation map after saving goal {goal_id}: {err}");
+        Err(error) => {
+            tracing::warn!(
+                "Failed to refresh goal summary after save for {goal_id} ({})",
+                wealthfolio_core::goals::summary_refresh_error_kind(&error)
+            );
+            None
         }
+    }
+}
+
+pub(crate) fn emit_goal_summaries_updated(
+    bus: &crate::events::EventBus,
+    goals: &[Goal],
+    inputs_changed: bool,
+) {
+    if let Some(payload) =
+        wealthfolio_core::goals::GoalSummariesUpdated::from_goals(goals, inputs_changed)
+    {
+        bus.publish(crate::events::ServerEvent::with_payload(
+            crate::events::GOAL_SUMMARIES_UPDATED,
+            serde_json::json!(payload),
+        ));
     }
 }
 
@@ -163,6 +180,7 @@ async fn delete_goal_plan(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
     let _ = state.goal_service.delete_goal_plan(&id).await?;
+    refresh_goal_summary_after_save(&state, &id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -170,85 +188,24 @@ async fn refresh_goal_summary(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Goal>> {
-    let valuation_map = build_valuation_map(&state).await?;
-    let goal = state
-        .goal_service
-        .refresh_goal_summary(&id, &valuation_map)
-        .await?;
+    let goal = state.goal_service.refresh_goal_summary(&id).await?;
+    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), false);
     Ok(Json(goal))
 }
 
 async fn refresh_all_goal_summaries(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Vec<Goal>>> {
-    let goals = state.goal_service.get_goals()?;
-    let valuation_map = build_valuation_map(&state).await?;
-    let mut refreshed = Vec::new();
-
-    for goal in goals.iter().filter(|g| g.status_lifecycle == "active") {
-        match state
-            .goal_service
-            .refresh_goal_summary(&goal.id, &valuation_map)
-            .await
-        {
-            Ok(updated) => refreshed.push(updated),
-            Err(err) => tracing::debug!("Failed to refresh goal {}: {}", goal.id, err),
-        }
-    }
-
-    Ok(Json(refreshed))
-}
-
-/// Build account_id → base-currency value map from latest valuations.
-async fn build_valuation_map(state: &AppState) -> ApiResult<HashMap<String, f64>> {
-    let accounts = state.account_service.get_active_non_archived_accounts()?;
-    let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let base_currency = state
-        .base_currency
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-    let timezone = state
-        .timezone
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
-    let service = CurrentAccountValuationService::new(
-        state.account_service.as_ref(),
-        state.snapshot_service.as_ref(),
-        state.asset_service.as_ref(),
-        state.quote_service.as_ref(),
-        state.fx_service.as_ref(),
-    );
-    let response = service
-        .get_current_valuation_for_scope(
-            "all",
-            &account_ids,
-            &base_currency,
-            latest_snapshot_cutoff,
-            true,
-        )
-        .await?;
-
-    let mut map = HashMap::new();
-    for v in &response.accounts {
-        let value_in_base = v.total_value_base.to_f64().ok_or_else(|| {
-            ApiError::Internal(format!(
-                "Invalid base valuation total for account {}",
-                v.account_id
-            ))
-        })?;
-        map.insert(v.account_id.clone(), value_in_base);
-    }
-    Ok(map)
+    let goals = state.goal_service.refresh_all_goal_summaries().await?;
+    emit_goal_summaries_updated(&state.event_bus, &goals, false);
+    Ok(Json(goals))
 }
 
 async fn get_retirement_overview(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<RetirementOverview>> {
-    let valuation_map = build_valuation_map(&state).await?;
+    let valuation_map = state.goal_service.current_valuation_map().await?;
     let overview = state
         .goal_service
         .compute_retirement_overview(&id, &valuation_map)
@@ -260,7 +217,7 @@ async fn get_save_up_overview(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<SaveUpOverview>> {
-    let valuation_map = build_valuation_map(&state).await?;
+    let valuation_map = state.goal_service.current_valuation_map().await?;
     let overview = state
         .goal_service
         .compute_save_up_overview(&id, &valuation_map)
@@ -352,7 +309,7 @@ async fn resolve_retirement_inputs(
     as_of: chrono::NaiveDate,
 ) -> ApiResult<(RetirementPlan, f64, RetirementTimingMode)> {
     if let Some(goal_id) = goal_id {
-        let valuation_map = build_valuation_map(state).await?;
+        let valuation_map = state.goal_service.current_valuation_map().await?;
         let prepared = state
             .goal_service
             .prepare_retirement_simulation_input(goal_id, &valuation_map)
@@ -536,7 +493,7 @@ async fn retirement_sequence_of_returns(
             .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let plan = if let Some(goal_id) = &req.goal_id {
-        let valuation_map = build_valuation_map(&state).await?;
+        let valuation_map = state.goal_service.current_valuation_map().await?;
         state
             .goal_service
             .prepare_retirement_simulation_input(goal_id, &valuation_map)

@@ -59,7 +59,7 @@ export function BackupRestoreForm() {
     return !Number.isNaN(date.getTime()) && (!newest || date > newest) ? date : newest;
   }, null);
   return (
-    <Card className="overflow-hidden rounded-2xl shadow-none">
+    <Card className="overflow-hidden">
       <CardHeader className="space-y-4 p-5 sm:p-6">
         <BackupCardHeader
           icon={<DatabaseIcon weight="duotone" aria-hidden />}
@@ -100,7 +100,7 @@ export function BackupRestoreForm() {
           action={
             <Button
               size="sm"
-              className="pointer-coarse:h-11 aria-busy:opacity-100"
+              className="aria-busy:opacity-100 pointer-coarse:h-11"
               disabled={busy}
               aria-busy={create.isPending}
               onClick={() => create.mutate()}
@@ -276,8 +276,14 @@ export function BackupRestoreForm() {
         pending={remove.isPending}
         pendingLabel={t("settings:backup_deleting")}
         onCancel={() => setDeleting(null)}
-        onConfirm={() => {
-          if (deleting) remove.mutate(deleting.filename, { onSettled: () => setDeleting(null) });
+        onConfirm={async () => {
+          if (!deleting) return;
+          try {
+            await remove.mutateAsync(deleting.filename);
+          } catch {
+            // The mutation reports the error; the dialog closes either way.
+          }
+          setDeleting(null);
         }}
       />
       {isWeb && (

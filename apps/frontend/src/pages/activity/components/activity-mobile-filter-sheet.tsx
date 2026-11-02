@@ -7,6 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityType, ActivityTypeNames, INSTRUMENT_TYPE_OPTIONS } from "@/lib/constants";
 import type { ActivityStatusFilter } from "../hooks/use-activity-search";
@@ -14,7 +15,7 @@ import { DateRangeFilter } from "@/features/spending/components/date-range-filte
 import { Account, AccountScope, PortfolioWithAccounts } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@wealthfolio/ui";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 
@@ -120,7 +121,7 @@ export const ActivityMobileFilterSheet = ({
   );
 
   // Sync local state when sheet opens
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       setLocalAccountScope(accountScope);
       setLocalActivityTypes(selectedActivityTypes);
@@ -165,7 +166,7 @@ export const ActivityMobileFilterSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[80vh] flex-col">
+      <SheetContent side="bottom" className="mx-1 flex h-[80vh] flex-col rounded-t-4xl">
         <SheetHeader className="text-start">
           <SheetTitle>{t("activity:filter_activities")}</SheetTitle>
         </SheetHeader>
@@ -267,7 +268,9 @@ export const ActivityMobileFilterSheet = ({
                       )
                     }
                   >
-                    <span>{option.label}</span>
+                    <span>
+                      {t(`asset:createSecurity.instrumentType.${option.value.toLowerCase()}`)}
+                    </span>
                   </FilterOptionRow>
                 ))}
               </ul>

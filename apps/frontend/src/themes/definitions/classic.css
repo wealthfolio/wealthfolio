@@ -34,6 +34,8 @@
      weight of filled buttons, and the outline and secondary surfaces. */
   --button-image: none;
   --button-shadow: 0 0 #0000;
+  /* The primary button's 1px border; its fill stops inside it. */
+  --button-border: transparent;
   --button-weight: 500;
   --button-outline-bg: var(--input-bg);
   --button-outline-border: var(--input);
@@ -45,6 +47,16 @@
   --button-secondary-image: none;
   --button-secondary-shadow: 0 0 #0000;
   --button-secondary-hover-bg: color-mix(in oklab, var(--secondary) 80%, transparent);
+  /* The destructive variant: a red tint, with no border or shadow. */
+  --button-destructive-bg: var(--destructive-subtle);
+  --button-destructive-foreground: var(--destructive-subtle-foreground);
+  --button-destructive-border: transparent;
+  --button-destructive-shadow: 0 0 #0000;
+  --button-destructive-hover-bg: color-mix(
+    in oklab,
+    var(--destructive-subtle-border) 50%,
+    transparent
+  );
   /* Fields: border, the text input's resting shadow, and a glow the select
      trigger and textarea add (none in Classic). */
   --field-border: var(--input);
@@ -120,17 +132,39 @@
      which forced-colors mode keeps; it needs 3:1 against the page and cards. */
   --ring: hsl(var(--flexoki-tx-2));
 
-  /* Charts (allocation palette: forest / sage / sand / clay / plum + stone) */
-  --chart-1: #355c4c;
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 7% 70%);
-  --chart-7: hsl(55 10% 79%);
-  --chart-8: hsl(50 14% 83%);
-  --chart-9: hsl(51 21% 88%);
+  /* Charts: Flexoki's hues, calmed. Cyan / green / yellow / orange from the 500s
+     lead and blue / purple / magenta from the 400s follow, each with 40% of its
+     chroma taken out (OKLCH) and lifted a little, so slices and markers stay
+     apart without competing with the heatmap; then base. No red: it reads as a
+     loss. */
+  --chart-1: #659892;
+  --chart-2: #83925b;
+  --chart-3: #b99f64;
+  --chart-4: #bb7b5b;
+  --chart-5: #688daf;
+  --chart-6: #938dba;
+  --chart-7: #c07b9b;
+  --chart-8: #9f9d96;
+  --chart-9: #cecdc3;
   --chart-stone: #b1aa9a;
+  /* Lines and markers compared side by side (performance comparisons, goal
+     funding, risk scenarios): distinct hues at 3:1 or more on the card, which
+     the area palette above can't give. Flexoki's accents, 600 on paper. */
+  --series-1: #205ea6;
+  --series-2: #a02f6f;
+  --series-3: #24837b;
+  --series-4: #5e409d;
+  --series-5: #66800b;
+  --series-6: #ad8301;
+  --series-7: #bc5215;
+  --series-8: #af3029;
+  /* Spending's main chart (forest) and the Net Worth line (gold, 3:1 on paper). */
+  --spending-accent: hsl(155 32% 26%);
+  --spending-deep: #2a573f;
+  --spending-mid: #71a290;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
+  --net-worth: #ad8301;
 
   /* Sidebar (full hsl colors) */
   --sidebar: hsl(var(--flexoki-bg));
@@ -173,6 +207,13 @@
   --info-subtle: var(--color-blue-50);
   --info-subtle-foreground: var(--color-blue-700);
   --info-subtle-border: var(--color-blue-200);
+  /* Losses when the Gain and loss colours setting draws them in blue (red up, blue
+     down): a true blue, text on the page and cards, with a subtle surface for
+     badges. Flexoki blue; themes keep it unless they set their own. */
+  --loss-blue: var(--color-blue-600);
+  --loss-blue-subtle: var(--color-blue-50);
+  --loss-blue-subtle-foreground: var(--color-blue-700);
+  --loss-blue-subtle-border: var(--color-blue-200);
   /* Light caught by the top edge of glass surfaces (status alerts); a theme
      can set it to transparent. */
   --surface-highlight: rgb(255 255 255 / 0.35);
@@ -213,15 +254,27 @@
   --allocation-over: var(--destructive);
   --allocation-under: var(--info);
 
-  /* Holdings treemap (composition-chart): gains lerp from positive-low to -high,
-     losses from negative-low to -high; labels are dark or light by tile
-     luminance. Dark mode draws the tiles at 0.45 over the card. */
-  --heatmap-positive-low: #cdd9bf;
-  --heatmap-positive-high: #355c4c;
-  --heatmap-negative-low: #e9b3a8;
-  --heatmap-negative-high: #d14e42;
-  --heatmap-label-dark: #1c2a24;
-  --heatmap-label-light: #f5f3ec;
+  /* Holdings treemap (composition-chart): gains blend from positive-low through
+     -mid to -high, losses from negative-low through -mid to -high, and each label
+     takes whichever of label-dark and label-light has more contrast. Dark mode
+     draws the tiles at 0.45 over the card. Soft sage and rose, so the treemap
+     tells gains from losses without dominating the page; the middle stop is the
+     midpoint, so each ramp is one straight blend. Labels in Flexoki's ink and
+     paper. A theme that sets low and high sets mid too, or it gets these. The blue
+     ramp draws losses when the Gain and loss colours setting shows them in blue: in
+     light mode the negative ramp turned to --loss-blue's hue in OKLCH, same lightness
+     and chroma; in dark mode Flexoki blue at 50/200/400, as the other two. */
+  --heatmap-positive-low: #e6ecd5;
+  --heatmap-positive-mid: #b8c496;
+  --heatmap-positive-high: #8a9c57;
+  --heatmap-negative-low: #fae2da;
+  --heatmap-negative-mid: #dca89d;
+  --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-mid: #9bb9df;
+  --heatmap-blue-high: #5b8ac4;
+  --heatmap-label-dark: #100f0f;
+  --heatmap-label-light: #fffcf0;
 
   /* Spending-module shared chart tokens. --status-warn is the "approaching
      budget" amber (was #C28B47); --bar-stripe is the diagonal-stripe overlay on
@@ -256,19 +309,44 @@
   --button-outline-bg: color-mix(in oklab, var(--input) 30%, transparent);
   --button-outline-hover-bg: color-mix(in oklab, var(--input) 50%, transparent);
 
-  /* Dark chart palette — same semantic hues as light (forest / sage / sand /
-     clay / plum + stone), tuned for the dark surface: forest is lifted for
-     contrast, the stones are pulled down so they stay calm instead of glaring. */
-  --chart-1: hsl(156 28% 44%);
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 8% 60%);
-  --chart-7: hsl(55 10% 67%);
-  --chart-8: hsl(50 13% 72%);
-  --chart-9: hsl(51 18% 77%);
+  /* Dark charts: the leading four from the 400s, the next three from the 300s,
+     with 28% of their chroma taken out. */
+  --chart-1: #5ea49c;
+  --chart-2: #899857;
+  --chart-3: #c5a556;
+  --chart-4: #c87c51;
+  --chart-5: #769ebb;
+  --chart-6: #a59cc4;
+  --chart-7: #d489a7;
+  /* The treemap at 0.45 over the dark card: the light sage and rose blur gains
+     into losses there, so dark takes Flexoki green and red at 50, 200 and 400. */
+  --heatmap-positive-low: #edeecf;
+  --heatmap-positive-mid: #bec97e;
+  --heatmap-positive-high: #879a39;
+  --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-mid: #f89a8a;
+  --heatmap-negative-high: #d14d41;
+  --heatmap-blue-low: var(--color-blue-50);
+  --heatmap-blue-mid: var(--color-blue-200);
+  --heatmap-blue-high: var(--color-blue-400);
+  --chart-8: #9f9d96;
+  --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
+  /* Series in Flexoki's 400 shades, as its dark theme uses them. */
+  --series-1: #4385be;
+  --series-2: #ce5d97;
+  --series-3: #3aa99f;
+  --series-4: #8b7ec8;
+  --series-5: #879a39;
+  --series-6: #d0a215;
+  --series-7: #da702c;
+  --series-8: #d14d41;
+  /* Spending lifted for the dark card, as chart-1 is; Net Worth in Flexoki's gold. */
+  --spending-accent: hsl(156 28% 44%);
+  --spending-deep: hsl(156 28% 44%);
+  --spending-mid: #2a573f;
+  --investments: var(--gain);
+  --net-worth: #d0a215;
 
   --success-subtle: var(--color-green-950);
   --success-subtle-foreground: var(--color-green-200);
@@ -282,6 +360,11 @@
   --info-subtle: var(--color-blue-950);
   --info-subtle-foreground: var(--color-blue-200);
   --info-subtle-border: var(--color-blue-800);
+  /* Blue 400 reads 4.1:1 on the dark card; 300 passes. */
+  --loss-blue: var(--color-blue-300);
+  --loss-blue-subtle: var(--color-blue-950);
+  --loss-blue-subtle-foreground: var(--color-blue-200);
+  --loss-blue-subtle-border: var(--color-blue-800);
   --surface-highlight: rgb(255 255 255 / 0.03);
 
   --toast-warning-bg: var(--color-orange-950);

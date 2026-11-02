@@ -4,15 +4,17 @@ import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { AlertFeedback, Page, PageContent, PageHeader } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useBackNavigation, useLeaveGuard } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 // Context
 import {
@@ -127,6 +129,10 @@ function useStepValidation(
 
         // Activity mode: existing validation logic
         if (!mapping) return false;
+        // Rows skipped in this step don't need their values mapped
+        const skippedRows = new Set(state.skippedRowIndexes);
+        const keptRows = parsedRows.filter((_, rowIndex) => !skippedRows.has(rowIndex));
+        if (keptRows.length === 0) return false;
         if (!state.accountId && !mapping.fieldMappings[ImportFormat.ACCOUNT]) {
           return false;
         }
@@ -139,7 +145,7 @@ function useStepValidation(
           }
 
           const validAccountIds = new Set((accounts ?? []).map((account) => account.id));
-          for (const row of parsedRows) {
+          for (const row of keptRows) {
             const rawAccount = row[accountHeaderIndex]?.trim();
             if (!rawAccount) {
               if (!state.accountId && !mapping.accountMappings?.[""]) {
@@ -172,7 +178,7 @@ function useStepValidation(
 
           if (atIndices.length > 0) {
             const uniqueValues = new Set<string>();
-            parsedRows.forEach((row) => {
+            keptRows.forEach((row) => {
               for (const idx of atIndices) {
                 const value = row[idx]?.trim();
                 if (value) {
@@ -221,7 +227,7 @@ function useStepValidation(
           if (symbolHeaderIndex !== -1) {
             const symbolsNeedingResolution = new Set<string>();
 
-            parsedRows.forEach((row) => {
+            keptRows.forEach((row) => {
               const symbol = row[symbolHeaderIndex]?.trim();
               if (!symbol) return;
 
@@ -305,6 +311,7 @@ function useStepValidation(
 function ImportWizardContent() {
   const { state, dispatch, validateDrafts, previewAssets } = useImportContext();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const { t } = useTranslation();
   const { isMobile } = usePlatform();
 
@@ -353,6 +360,14 @@ function ImportWizardContent() {
   );
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // Mid-import, Android's Back and tapping the tab again ask before discarding,
+  // as the page's own back and cancel buttons do; agreeing makes the leave they
+  // asked for.
+  const heldLeave = useRef<(() => void) | null>(null);
+  useLeaveGuard(state.step !== "upload" && state.step !== "result", (proceed) => {
+    heldLeave.current = proceed;
+    setShowCancelDialog(true);
+  });
   const [isNextLoading, setIsNextLoading] = useState(false);
 
   // Fetch accounts to determine tracking mode based on selected account
@@ -535,7 +550,7 @@ function ImportWizardContent() {
           state.accountId,
           validAccountIds,
           accountTypeById,
-          { importProfile },
+          { importProfile, skippedRowIndexes: state.skippedRowIndexes },
         );
         dispatch(setDraftActivities(drafts));
         dispatch({ type: "SET_ASSET_PREVIEW_ITEMS", payload: [] });
@@ -586,6 +601,7 @@ function ImportWizardContent() {
     state.mapping,
     state.accountId,
     state.parsedRows,
+    state.skippedRowIndexes,
     state.parseConfig,
     state.draftActivities,
     state.draftRevision,
@@ -605,16 +621,19 @@ function ImportWizardContent() {
   const handleCancelClick = useCallback(() => {
     // On first step or result step, just navigate back without confirmation
     if (state.step === "upload" || state.step === "result") {
-      navigate(-1);
+      goBack();
     } else {
       // Show confirmation dialog for other steps
+      heldLeave.current = null;
       setShowCancelDialog(true);
     }
-  }, [state.step, navigate]);
+  }, [state.step, goBack]);
 
   const handleConfirmCancel = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
+    const leave = heldLeave.current ?? goBack;
+    heldLeave.current = null;
+    leave();
+  }, [goBack]);
 
   // Get step-specific next button label
   const getNextLabel = useCallback(() => {
@@ -656,7 +675,7 @@ function ImportWizardContent() {
   if (selectedAccount && !isCsvImportAllowed) {
     return (
       <Page>
-        <PageHeader heading={pageTitle} onBack={() => navigate(-1)} />
+        <PageHeader heading={pageTitle} onBack={goBack} />
         <PageContent>
           <div className="mx-auto max-w-3xl space-y-4 py-6">
             <AlertFeedback variant="warning" title={t("activity:import.page.csvDisabledTitle")}>
@@ -699,7 +718,7 @@ function ImportWizardContent() {
 
       <PageContent withPadding={false}>
         <ErrorBoundary fallbackTitle={t("activity:import.page.somethingWentWrong")}>
-          <div className="px-2 pb-6 pt-2 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+          <div className="px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <Card className="flex max-h-[calc(100dvh-9rem)] w-full flex-col overflow-hidden">
               {/* Step indicator — hidden on result step */}
               {state.step !== "result" && (
@@ -709,7 +728,7 @@ function ImportWizardContent() {
               )}
 
               {/* Step content — scrollable */}
-              <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={state.step}
@@ -717,7 +736,11 @@ function ImportWizardContent() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3 }}
-                    className="p-3 sm:p-6"
+                    className={cn(
+                      "p-3 sm:p-6",
+                      // The mapping step fits its previews to the space left in the step area
+                      CurrentStepComponent === MappingStepUnified && "flex min-h-0 flex-1 flex-col",
+                    )}
                   >
                     <CurrentStepComponent />
                   </motion.div>

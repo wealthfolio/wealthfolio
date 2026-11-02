@@ -210,6 +210,15 @@ impl TaxonomyService {
 
 #[async_trait]
 impl TaxonomyServiceTrait for TaxonomyService {
+    fn get_category_references(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<super::CategoryReferences> {
+        self.repository
+            .get_category_references(taxonomy_id, category_id)
+    }
+
     fn get_taxonomies(&self) -> Result<Vec<Taxonomy>> {
         self.repository.get_taxonomies()
     }
@@ -245,6 +254,26 @@ impl TaxonomyServiceTrait for TaxonomyService {
 
     async fn create_category(&self, category: NewCategory) -> Result<Category> {
         self.repository.create_category(category).await
+    }
+
+    async fn update_category_reviewed(
+        &self,
+        expected: Category,
+        category: Category,
+    ) -> Result<Category> {
+        if expected.id != category.id || expected.taxonomy_id != category.taxonomy_id {
+            return Err(ValidationError::InvalidInput(
+                "Reviewed category identity cannot change".to_string(),
+            )
+            .into());
+        }
+        self.repository
+            .update_category_reviewed(expected, category)
+            .await
+    }
+
+    async fn delete_category_reviewed(&self, expected: Category) -> Result<usize> {
+        self.repository.delete_category_reviewed(expected).await
     }
 
     async fn update_category(&self, category: Category) -> Result<Category> {

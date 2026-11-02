@@ -19,11 +19,3 @@ export function hasVisibleAllocation(
 export function formatDriftBps(driftBps: number, decimals = 1): string {
   return formatPp(driftBps, decimals);
 }
-
-export function rebalanceMove(row: Pick<DriftRow, "valueDelta">) {
-  const amount = -row.valueDelta;
-  return {
-    action: amount >= 0 ? "Add" : "Trim",
-    amount,
-  };
-}

@@ -13,15 +13,15 @@ repositories. That approach creates correctness and maintainability issues:
 - web mode portfolio CRUD is not fully wired;
 - new portfolio rows do not participate in device sync;
 - portfolio membership is stored as JSON, so accounts cannot cascade through a  
-   foreign key and membership cannot be queried/indexed safely;
+  foreign key and membership cannot be queried/indexed safely;
 - single-account saved portfolios collapse into plain account IDs in the
   current  
-   selector design;
+  selector design;
 - Dashboard portfolio rows currently blur account grouping with analytical  
-   reporting scopes;
+  reporting scopes;
 - `accounts.group` should remain account organization metadata instead of
   being  
-   absorbed into portfolios.
+  absorbed into portfolios.
 
 The target model should separate real accounts, account grouping, and saved  
 portfolio reporting scopes.
@@ -43,7 +43,7 @@ In Wealthfolio:
 - `Account` is the ledger or custody boundary;
 - `Portfolio` should be a saved reporting scope over accounts;
 - asset-level grouping should stay with taxonomies/custom groups unless a  
-   separate asset collection feature is introduced.
+  separate asset collection feature is introduced.
 
 ## Target Design Principles
 
@@ -53,21 +53,21 @@ The target design should follow these principles:
 - store many-to-many membership in relational rows, not serialized JSON;
 - keep `accounts.group` as account organization metadata;
 - do not put dashboard placement or other presentation flags in the portfolio  
-   table;
+  table;
 - model saved portfolios separately from account groups;
 - pass typed filters through services instead of encoded strings;
 - resolve filters once at the service boundary and keep repositories focused
   on  
-   database access;
+  database access;
 - aggregate money in base currency for cross-account reports;
 - preserve decimal precision for financial values and avoid `REAL`/floating  
-   aggregation for stored decimal text;
+  aggregation for stored decimal text;
 - make sync idempotent with deterministic row IDs and parent-before-child
   apply  
-   ordering;
+  ordering;
 - allow future views, such as ad hoc account filters or optional asset
   filters,  
-   without changing repository contracts again.
+  without changing repository contracts again.
 
 ## Terminology
 
@@ -96,7 +96,7 @@ Rule:
 - an account belongs to zero or one account group;
 - keep the existing DB column for now to avoid an unnecessary migration;
 - if richer group metadata is needed later, add a dedicated  
-   `account_groups` table, not a portfolio concept.
+  `account_groups` table, not a portfolio concept.
 
 ### Portfolio
 
@@ -254,7 +254,7 @@ Owns portfolio CRUD, membership, and validation:
 
 - create/update/delete/list portfolios;
 - allow one or more accounts for `portfolio` unless product explicitly decides  
-   otherwise;
+  otherwise;
 - trim names and enforce case-insensitive uniqueness;
 - reject duplicate account IDs in the same request;
 - validate account IDs exist and define archived/inactive eligibility;
@@ -325,8 +325,8 @@ Implementation requirements:
 - resolve portfolio membership once per performance query;
 - load linked transfer legs for activities in the period;
 - treat missing or broken transfer pairs explicitly. Conservative default:  
-   classify the visible leg as external and emit a warning/health issue so the  
-   user can repair the pair.
+  classify the visible leg as external and emit a warning/health issue so the\
+  user can repair the pair.
 
 ## Currency Semantics
 
@@ -349,7 +349,7 @@ Target approach:
 - populate those columns during valuation calculation;
 - aggregate portfolio views from those base columns;
 - expose synthetic portfolio valuation in base currency with  
-   `fx_rate_to_base = 1`.
+  `fx_rate_to_base = 1`.
 
 Do not re-derive portfolio valuations from large holdings snapshots at query  
 time unless the base-value columns are not available yet. Snapshot-derived  
@@ -381,14 +381,14 @@ PR [#938](https://github.com/wealthfolio/wealthfolio/pull/938) currently treat
 a saved portfolio as a `MULTI:` account string:
 
 - latest holdings are synthesized by loading member account snapshots and  
-   reusing the `TOTAL` aggregation helper;
+  reusing the `TOTAL` aggregation helper;
 - historical performance is synthesized by summing rows from  
-   `daily_account_valuation`;
+  `daily_account_valuation`;
 - the summed historical valuation fields are account-currency fields, not base  
-   fields;
+  fields;
 - portfolio-relative linked transfers are not reclassified against the
   selected  
-   member set.
+  member set.
 
 That shape is useful as a prototype, but it should not become the target  
 calculation model.
@@ -405,11 +405,11 @@ portfolio by default.
 Rationale:
 
 - saved portfolios can overlap, so each account edit could fan out to many  
-   portfolio recalculations;
+  portfolio recalculations;
 - precomputing every portfolio multiplies storage by the number of saved  
-   portfolios;
+  portfolios;
 - portfolio membership edits would require rebuilding historical portfolio  
-   caches even when account data did not change;
+  caches even when account data did not change;
 - user portfolios are saved reporting filters, not ledger/custody boundaries;
 - sync should move user portfolio definitions, not derived calculation caches.
 
@@ -422,13 +422,13 @@ and quote-sync state.
 Target behavior by view:
 
 - latest holdings and allocations: resolve portfolio members, load latest  
-   account snapshots, and aggregate on read in base currency;
+  account snapshots, and aggregate on read in base currency;
 - income and activity: resolve portfolio members and query by account IDs;
 - performance: resolve portfolio members and build a synthetic base-currency  
-   valuation series on read from account-level valuation rows;
+  valuation series on read from account-level valuation rows;
 - Dashboard: keep the account list based on `accounts.group`; do not
   materialize  
-   user portfolio rows in the account-group hierarchy.
+  user portfolio rows in the account-group hierarchy.
 
 ### Portfolio History Chart Contract
 
@@ -439,10 +439,10 @@ where that series comes from:
 - account and `TOTAL` valuation history are persisted calculation artifacts;
 - saved portfolio valuation history is a read model derived from member
   account  
-   histories;
+  histories;
 - saved portfolio performance history is calculated from that derived
   valuation  
-   series.
+  series.
 
 For `AccountFilter::All`, keep using the existing `TOTAL` historical
 valuations.  
@@ -468,7 +468,7 @@ create invalidation, sync, and membership-history problems.
 Membership semantics for the MVP:
 
 - portfolio history uses the portfolio's current member account set across the  
-   selected historical range;
+  selected historical range;
 - changing membership changes the derived history immediately on the next query;
 - no historical membership timeline is implied.
 
@@ -520,16 +520,16 @@ both mixed-currency unsafe and precision unsafe.
 Current-code feasibility:
 
 - `total_value_base`, `cash_balance_base`, and `investment_market_value_base`  
-   can be derived from current rows
+  can be derived from current rows
   as `account_currency_value * fx_rate_to_base`;
 - `cost_basis_base` can be derived the same way under the current valuation  
-   semantics, because account snapshot cost basis is converted to account  
-   currency at the snapshot date;
+  semantics, because account snapshot cost basis is converted to account\
+  currency at the snapshot date;
 - `net_contribution_base` cannot be derived safely from  
-   `net_contribution * fx_rate_to_base`, because contribution base values are  
-   cumulative cash-flow amounts converted at the flow dates, not at the
+  `net_contribution * fx_rate_to_base`, because contribution base values are\
+  cumulative cash-flow amounts converted at the flow dates, not at the
   valuation  
-   date.
+  date.
 
 Therefore the correct target is to persist explicit base-currency valuation  
 columns during normal account and `TOTAL` valuation calculation, especially  
@@ -538,7 +538,7 @@ columns during normal account and `TOTAL` valuation calculation, especially
 Factor FX conversion at valuation-write time, not portfolio-read time:
 
 - keep `calculate_valuation` responsible for producing both account-currency  
-   and base-currency valuation fields;
+  and base-currency valuation fields;
 - reuse the FX rates already fetched for the account/date valuation pass;
 - populate base columns once when account valuations are recalculated;
 - make portfolio history reads a pure indexed load plus decimal aggregation.
@@ -579,7 +579,7 @@ Target behavior:
   PR [feat(portfolios): portfolio grouping support across income, activity, holdings, performance and dashboard #938](https://github.com/wealthfolio/wealthfolio/pull/938);
 - do not remove portfolio member accounts from their normal account groups;
 - avoid double-counting only in aggregate totals, not by hiding accounts from  
-   their account group.
+  their account group.
 
 If product later wants portfolio summaries on Dashboard, model that as a UI or  
 dashboard-preference layer, not as columns on `portfolios`.
@@ -610,8 +610,8 @@ Both portfolio tables must participate in device sync before release.
 Required work:
 
 - add `portfolios` and `portfolio_accounts` to sync table lists, with  
-   `portfolios` ordered before `portfolio_accounts`, and `portfolio_accounts`  
-   ordered after both `accounts` and `portfolios`;
+  `portfolios` ordered before `portfolio_accounts`, and `portfolio_accounts`\
+  ordered after both `accounts` and `portfolios`;
 - add sync entities for portfolios and portfolio memberships;
 - implement `SyncOutboxModel` for both DB models;
 - use `writer.exec_tx` and `tx.insert` / `tx.update` / `tx.delete`;
@@ -727,7 +727,7 @@ do not break page load.
 - JSON `portfolios.account_ids` values migrate into `portfolio_accounts`;
 - duplicate account IDs in a legacy JSON row produce one membership;
 - stale account IDs are skipped or surfaced according to the chosen migration  
-   policy;
+  policy;
 - migration is idempotent and does not create duplicate memberships when re-run;
 - `accounts.group` remains on accounts and is not converted into portfolios.
 
@@ -737,11 +737,11 @@ do not break page load.
 - portfolio allows many-to-many membership;
 - invalid account IDs are rejected;
 - duplicate account IDs in create/update are rejected or deduplicated before  
-   persistence;
+  persistence;
 - names are trimmed and case-insensitive duplicates are rejected;
 - single-account portfolio behavior is explicitly tested according to the
   final  
-   product decision;
+  product decision;
 - deleting a portfolio deletes memberships;
 - hard-deleting an account cascades through `portfolio_accounts`.
 
@@ -760,23 +760,23 @@ do not break page load.
 - member-to-non-member transfers are external;
 - non-member-to-member transfers are external;
 - orphaned linked transfer legs are classified consistently and surfaced for  
-   repair.
+  repair.
 - user portfolio performance is derived from account-level valuations on read,  
-   not precomputed for every saved portfolio by default.
+  not precomputed for every saved portfolio by default.
 - user portfolio performance returns the daily `returns[]` series needed by
   the  
-   Performance chart.
+  Performance chart.
 
 ### Portfolio History
 
 - portfolio valuation history is derived on read from member account valuation  
-   history;
+  history;
 - querying portfolio history does not write `daily_account_valuation` rows for  
-   the portfolio ID;
+  the portfolio ID;
 - `AccountFilter::All` uses the existing virtual `TOTAL` history cache;
 - changing portfolio membership changes derived historical chart output
   without  
-   recalculating account snapshots or account valuations;
+  recalculating account snapshots or account valuations;
 - the MVP applies the current member set across the selected historical range.
 
 ### Holdings And Allocations
@@ -784,17 +784,17 @@ do not break page load.
 - mixed-currency holdings aggregate by asset using base-currency values;
 - mixed-currency allocation categories sum base-currency values;
 - portfolio allocation totals do not exceed expected percentages because of  
-   currency mixing or duplicate parent/child taxonomy assignments.
+  currency mixing or duplicate parent/child taxonomy assignments.
 - latest portfolio holdings are synthesized from member account snapshots and
   do  
-   not require persisted portfolio snapshots.
+  not require persisted portfolio snapshots.
 
 ### Dashboard
 
 - portfolios are not inserted into the grouped account list;
 - saved portfolio rows do not remove accounts from their account groups;
 - overlapping saved portfolios do not imply a portfolio total is part of  
-   account-group net worth.
+  account-group net worth.
 
 ### Web Mode
 
@@ -1015,7 +1015,7 @@ scopes:
 - do not add Dashboard/presentation flags to the `portfolios` table;
 - service APIs use typed `AccountFilter`, not `MULTI:` strings;
 - repositories receive resolved account ID slices and do not parse frontend  
-   selection syntax.
+  selection syntax.
 
 This keeps account groups and portfolio reporting scopes distinct without  
 forcing exclusive account groups into the same model as overlapping portfolios.

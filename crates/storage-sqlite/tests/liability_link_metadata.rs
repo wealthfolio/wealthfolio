@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;
@@ -34,7 +36,7 @@ impl SecretStore for NoSecrets {
 
 #[tokio::test]
 async fn property_link_lifecycle_preserves_persisted_mortgage() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

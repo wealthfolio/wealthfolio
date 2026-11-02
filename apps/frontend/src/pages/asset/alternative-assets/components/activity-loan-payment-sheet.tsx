@@ -1,9 +1,10 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, MoneyInput, ResponsiveSelect, Spinner } from "@wealthfolio/ui";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Sheet, SheetDescription, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { linkLoanPayment } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAlternativeHoldings } from "@/hooks/use-alternative-assets";
@@ -72,7 +73,7 @@ export function ActivityLoanPaymentSheet({
     { type: "link" }
   > | null>(null);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setLoanId(linkedTo ?? "");
     setTarget("instalment");
@@ -80,7 +81,9 @@ export function ActivityLoanPaymentSheet({
     setError(null);
   }, [open, linkedTo]);
   // The replace prompt answers the link it was shown for, not a changed one.
-  useEffect(() => setDuplicate(null), [open, loanId, target, escrow]);
+  useEffectOnChange(() => {
+    setDuplicate(null);
+  }, [open, loanId, target, escrow]);
 
   const change = async (link: Parameters<typeof linkLoanPayment>[1]) => {
     setBusy(true);

@@ -421,12 +421,11 @@ impl ValuationRepositoryTrait for ValuationRepository {
 mod tests {
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use tempfile::tempdir;
     use wealthfolio_core::portfolio::economic_events::BasisStatus;
     use wealthfolio_core::portfolio::valuation::{ExternalFlowSource, ValuationStatus};
 
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
 
     fn date(day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2025, 1, day).expect("valid test date")
@@ -465,7 +464,7 @@ mod tests {
     #[tokio::test]
     async fn daily_cash_balances_read_as_whole_valuations_do() {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();
@@ -520,7 +519,7 @@ mod tests {
     #[tokio::test]
     async fn negative_balance_reports_the_first_day_cash_or_value_is_negative() {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

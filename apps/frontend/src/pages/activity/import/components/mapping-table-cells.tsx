@@ -67,7 +67,7 @@ export function MappingHeaderCell({
 
   return (
     <div>
-      <div className="flex items-center gap-2 pb-0 pt-2">
+      <div className="flex items-center gap-2 pt-2 pb-0">
         <span className="font-bold">
           {field}
           {isRequired && !isMapped && <span className="text-warning ms-1">*</span>}
@@ -270,7 +270,7 @@ function AccountIdDisplayCell({
         {sourceLabel}
       </span>
       <span className="text-muted-foreground shrink-0">→</span>
-      <div className="min-w-45 ms-auto">
+      <div className="ms-auto min-w-45">
         <AccountSelector
           selectedAccount={selectedAccount}
           setSelectedAccount={(account) => {
@@ -325,7 +325,7 @@ function SymbolDisplayCell({
           {csvSymbol || "-"}
         </span>
         <span className="text-muted-foreground shrink-0">→</span>
-        <div className="min-w-45 ms-auto">
+        <div className="ms-auto min-w-45">
           <TickerSearchInput
             defaultValue={mappedSymbol || ""}
             placeholder={t("activity:import.mapping.mapSymbol")}

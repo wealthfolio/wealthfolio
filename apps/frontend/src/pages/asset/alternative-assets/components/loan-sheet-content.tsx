@@ -13,7 +13,7 @@ export function LoanSheetContent({ className, ...props }: ComponentProps<typeof 
       className={cn(
         "flex w-full flex-col gap-0 overflow-hidden",
         isMobile
-          ? "rounded-t-4xl max-h-[90dvh] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+          ? "rounded-t-4xl max-h-[90dvh] pb-[max(1.5rem,var(--inset-bottom))]"
           : "sm:max-w-[39.0625rem]",
         className,
       )}

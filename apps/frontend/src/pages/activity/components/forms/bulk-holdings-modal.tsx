@@ -1,3 +1,4 @@
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { ActivityType, QuoteMode } from "@/lib/constants";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -14,13 +15,13 @@ import {
   Form,
 } from "@wealthfolio/ui";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { FormProvider, useForm, type Resolver, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { BulkHoldingsForm } from "./bulk-holdings-form";
-import { bulkHoldingsFormSchema } from "./schemas";
+import { bulkHoldingsFormSchema, createActivitySchemas } from "./schemas";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
@@ -44,8 +45,10 @@ export const BulkHoldingsModal = ({
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
+  const schema = useMemo(() => createActivitySchemas(t).bulkHoldingsForm, [t]);
+
   const form = useForm<BulkHoldingsFormValues>({
-    resolver: zodResolver(bulkHoldingsFormSchema) as Resolver<BulkHoldingsFormValues>,
+    resolver: zodResolver(schema) as Resolver<BulkHoldingsFormValues>,
     mode: "onSubmit",
     defaultValues: {
       accountId: "",
@@ -73,7 +76,7 @@ export const BulkHoldingsModal = ({
     ) || false;
 
   // Reset form when modal is closed and handle initial focus
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) {
       form.reset();
       return;
@@ -85,16 +88,14 @@ export const BulkHoldingsModal = ({
     } else if (!form.getValues("currency")) {
       form.setValue("currency", baseCurrency, { shouldValidate: false });
     }
-
-    // When modal opens, focus the account field with proper timing (only if no default)
-    const timeoutId = setTimeout(() => {
-      if (!defaultAccount) {
-        form.setFocus("accountId");
-      }
-    }, 150);
-
-    return () => clearTimeout(timeoutId);
   }, [open, baseCurrency, defaultAccount, form]);
+
+  // When modal opens, focus the account field with proper timing (only if no default)
+  useEffect(() => {
+    if (!open || defaultAccount) return;
+    const timeoutId = setTimeout(() => form.setFocus("accountId"), 150);
+    return () => clearTimeout(timeoutId);
+  }, [open, defaultAccount, form]);
 
   // Account change handler
   const handleAccountChange = useCallback(

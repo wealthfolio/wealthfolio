@@ -322,9 +322,13 @@ function headerIsBlockedForField(header: string, field: ImportFormat): boolean {
   return normalized.includes("market value") || compact.includes("marketvalue");
 }
 
+function headerMatchesCanonicalField(header: string, field: ImportFormat): boolean {
+  return header.trim().toLowerCase() === field.toLowerCase();
+}
+
 /**
  * Initialize column mapping by matching CSV headers to ImportFormat fields.
- * Uses tiered matching: exact → word-boundary contains → substring contains.
+ * Uses tiered matching: canonical name → exact alias → word-boundary contains → substring contains.
  */
 export function initializeColumnMapping(
   headerRow: string[],
@@ -335,7 +339,19 @@ export function initializeColumnMapping(
 
   const fields = profile.visibleMappingFields;
 
-  // Pass 1: Exact match (normalized alias === normalized header)
+  // Pass 1: Reserve canonical field names before considering any aliases.
+  for (const field of fields) {
+    const match = headerRow.find(
+      (header) => !usedHeaders.has(header) && headerMatchesCanonicalField(header, field),
+    );
+
+    if (match) {
+      initialMapping[field] = match;
+      usedHeaders.add(match);
+    }
+  }
+
+  // Pass 2: Exact alias match (normalized alias === normalized header)
   for (const field of fields) {
     if (initialMapping[field]) continue;
     const aliases = aliasesForField(field, profile);
@@ -353,7 +369,7 @@ export function initializeColumnMapping(
     }
   }
 
-  // Pass 2: Word-boundary contains (catches "Trade Date (UTC)" → alias "trade date")
+  // Pass 3: Word-boundary contains (catches "Trade Date (UTC)" → alias "trade date")
   for (const field of fields) {
     if (initialMapping[field]) continue;
     const aliases = aliasesForField(field, profile);
@@ -378,7 +394,7 @@ export function initializeColumnMapping(
     }
   }
 
-  // Pass 3: Substring contains for aliases ≥ 4 chars (catches "transactiondate_utc")
+  // Pass 4: Substring contains for aliases ≥ 4 chars (catches "transactiondate_utc")
   for (const field of fields) {
     if (initialMapping[field]) continue;
     const aliases = aliasesForField(field, profile);
@@ -420,7 +436,12 @@ export function computeFieldMappings(
     if (header) result[field] = header;
   }
 
-  if (isTransactionImportProfile(profile)) {
+  // Canonical amount columns are authoritative, even when a row's cell is empty.
+  const amountHeader = autoDetected[ImportFormat.AMOUNT];
+  if (
+    isTransactionImportProfile(profile) &&
+    (!amountHeader || !headerMatchesCanonicalField(amountHeader, ImportFormat.AMOUNT))
+  ) {
     const amountAliases = aliasesForField(ImportFormat.AMOUNT, profile);
     const amountHeaders = headers.filter(
       (header) =>

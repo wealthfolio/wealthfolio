@@ -6,7 +6,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use wealthfolio_spending::activity_assignments::{
-    ActivityTaxonomyAssignment, BulkCategoryAssignment,
+    ActivityTaxonomyAssignment, BulkCategoryAssignment, CategoryAssignmentConflicts,
 };
 
 use crate::env::AgentEnvironment;
@@ -53,6 +53,18 @@ fn parse_args(args: serde_json::Value) -> Result<CommitTransactionCategoriesArgs
                 "activityId, taxonomyId and categoryId cannot be blank".to_string(),
             ));
         }
+        if let Some(splits) = &item.expected_splits {
+            let mut ids = HashSet::new();
+            if splits.len() > MAX_LIMIT
+                || splits.iter().any(|split| {
+                    split.activity_id != item.activity_id
+                        || split.id.trim().is_empty()
+                        || !ids.insert(&split.id)
+                })
+            {
+                return Err(AgentToolError::InvalidInput("expectedSplits must contain at most 100 distinct current split rows for the same activity".to_string()));
+            }
+        }
         if !pairs.insert((&item.activity_id, &item.taxonomy_id)) {
             return Err(AgentToolError::InvalidInput(
                 "assignments cannot repeat an activityId/taxonomyId pair".to_string(),
@@ -76,10 +88,13 @@ impl AgentTool for CommitTransactionCategories {
          MUTATES data — call only after the user confirms the categories. Pass 1–100 \
          assignments with activityId, taxonomyId and categoryId from the reviewed proposals. \
          The whole batch is atomic. Each assignment replaces the current category for its \
-         activity/taxonomy pair and clears splits for that activity, matching native Apply. \
+         activity/taxonomy pair. Split transactions are protected: without explicit reviewed \
+         replacement intent the ENTIRE batch is rejected. To intentionally replace splits, \
+         include expectedSplits with the full current split rows from Spending search. \
+         The writer compares IDs, amounts, categories, notes, order and timestamps atomically. \
          Financial activity fields are unchanged. Repeating a payload keeps one assignment \
          per pair, but a delayed commit or retry can overwrite intervening category edits \
-         or clear new splits; there is no draft-version check."
+         on non-split rows. Splits created or changed since review cause a conflict."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -96,7 +111,18 @@ impl AgentTool for CommitTransactionCategories {
                         "properties": {
                             "activityId": { "type": "string", "minLength": 1 },
                             "taxonomyId": { "type": "string", "minLength": 1 },
-                            "categoryId": { "type": "string", "minLength": 1 }
+                            "categoryId": { "type": "string", "minLength": 1 },
+                            "expectedSplits": {
+                                "type": "array", "maxItems": 100,
+                                "description": "Only for explicitly reviewed replacement of existing splits. Copy the full current split rows; changed state rejects the entire batch.",
+                                "items": { "type": "object", "properties": {
+                                    "id": { "type": "string" }, "activityId": { "type": "string" },
+                                    "taxonomyId": { "type": "string" }, "categoryId": { "type": "string" },
+                                    "amount": { "type": "string" }, "note": { "type": ["string", "null"] },
+                                    "sortOrder": { "type": "integer" },
+                                    "createdAt": { "type": "string" }, "updatedAt": { "type": "string" }
+                                }, "required": ["id", "activityId", "taxonomyId", "categoryId", "amount", "note", "sortOrder", "createdAt", "updatedAt"] }
+                            }
                         },
                         "required": ["activityId", "taxonomyId", "categoryId"]
                     }
@@ -107,10 +133,7 @@ impl AgentTool for CommitTransactionCategories {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[
-            AgentScope::ClassificationSuggest,
-            AgentScope::ClassificationWrite,
-        ]
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
     }
 
     fn access_level(&self) -> AgentToolAccess {
@@ -135,11 +158,24 @@ impl AgentTool for CommitTransactionCategories {
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
         let args = parse_args(args)?;
-        let assignments = env
+        let assignments = match env
             .cash_activity_service()
             .bulk_assign_categories(&args.assignments)
             .await
-            .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+        {
+            Ok(assignments) => assignments,
+            Err(error) => {
+                if let Some(conflicts) = error.downcast_ref::<CategoryAssignmentConflicts>() {
+                    return Ok(AgentToolResult {
+                        content: serde_json::json!({
+                            "draftStatus": "conflict", "assignmentCount": 0, "conflicts": conflicts.conflicts,
+                            "message": "No categories or splits were changed. Review the affected transactions and explicitly confirm a corrected batch."
+                        }),
+                    });
+                }
+                return Err(AgentToolError::ExecutionFailed(error.to_string()));
+            }
+        };
         Ok(AgentToolResult {
             content: serde_json::to_value(CommitTransactionCategoriesOutput {
                 draft_status: "applied".to_string(),

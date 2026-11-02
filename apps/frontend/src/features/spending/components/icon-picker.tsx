@@ -34,7 +34,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
           compact ? (
             <button
               type="button"
-              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-8 w-9 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-8 w-9 items-center justify-center rounded-md border transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               style={accent ? { color: accent } : undefined}
               aria-label={
                 value
@@ -47,7 +47,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
           ) : (
             <button
               type="button"
-              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               <CategoryIcon icon={value ?? null} className="h-4 w-4 shrink-0" />
               <span

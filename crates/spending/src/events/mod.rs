@@ -8,3 +8,5 @@ pub mod traits;
 pub use model::{Event, EventType, EventWithTypeName, NewEvent, NewEventType, UpdateEvent};
 pub use service::EventsService;
 pub use traits::{EventTypesRepositoryTrait, EventsRepositoryTrait};
+
+pub use traits::EventsServiceTrait;

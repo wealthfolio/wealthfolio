@@ -114,7 +114,7 @@ export function QuoteHistoryToolbar({
             {t("asset:quoteToolbar.manual")}
           </Label>
         </div>
-        <PopoverContent className="sm:w-90 w-80 p-4" align="end" anchor={trackingRef}>
+        <PopoverContent className="w-80 p-4 sm:w-90" align="end" anchor={trackingRef}>
           <div className="space-y-4">
             <h4 className="font-medium">{t("asset:quoteToolbar.change_tracking_mode")}</h4>
             {isManualDataSource ? (

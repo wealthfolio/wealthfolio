@@ -13,7 +13,7 @@ interface ValueWidgetProps {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+    <div className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
       {children}
     </div>
   );
