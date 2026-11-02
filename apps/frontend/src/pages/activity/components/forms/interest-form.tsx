@@ -1,5 +1,10 @@
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION } from "@/lib/constants";
+import {
+  ACTIVITY_SUBTYPES,
+  ActivityType,
+  DECIMAL_PRECISION,
+  isLiabilityAccountType,
+} from "@/lib/constants";
 import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -293,6 +298,9 @@ export function InterestForm({
   );
   const accountCurrency = selectedAccount?.currency;
   const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
+  // Credit-card interest is a charge, not cash received.
+  const isReceivedInterest =
+    !isStakingReward && !isLiabilityAccountType(selectedAccount?.accountType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -381,9 +389,11 @@ export function InterestForm({
               label={
                 isStakingReward
                   ? t("activity:form.label_interest_amount")
-                  : t("activity:form.received_amount")
+                  : isReceivedInterest
+                    ? t("activity:form.received_amount")
+                    : t("activity:form.label_amount")
               }
-              labelHelpText={isStakingReward ? undefined : t("activity:form.help_total_credit")}
+              labelHelpText={isReceivedInterest ? t("activity:form.help_total_credit") : undefined}
               currency={currency}
               onValueChange={() => {
                 amountWasEdited.current = true;
