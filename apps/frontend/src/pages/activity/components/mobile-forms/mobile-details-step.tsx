@@ -386,10 +386,14 @@ export function MobileDetailsStep({
 
   const selectedAccount = filteredAccounts.find((acc) => acc.value === accountId);
   // Cash income asks for the amount received; credit-card interest is a charge.
+  // Cards are blocked for new entries, so look the account up unfiltered.
   const isReceivedIncome =
     isIncomeActivity &&
     !isAssetBackedIncome &&
-    !(isInterestActivity && isLiabilityAccountType(selectedAccount?.accountType));
+    !(
+      isInterestActivity &&
+      isLiabilityAccountType(accounts.find((acc) => acc.value === accountId)?.accountType)
+    );
   const destinationAccount = filteredAccounts.find((acc) => acc.value === toAccountId);
   const accountCurrency = selectedAccount?.currency;
   const effectiveSourceCurrency = sourceCurrency || accountCurrency || currency;
