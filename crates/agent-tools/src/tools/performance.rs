@@ -211,6 +211,8 @@ impl AgentTool for GetPerformance {
         AgentToolAccess::Read
     }
 
+    /// Resolve the reporting window in the profile timezone before delegating
+    /// to performance services. A settings-read failure aborts the request.
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,

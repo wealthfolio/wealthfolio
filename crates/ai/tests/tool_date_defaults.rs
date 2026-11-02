@@ -277,6 +277,8 @@ impl PerformanceServiceTrait for DateEchoPerformanceService {
     }
 }
 
+/// Check service date arguments and unsupported-account responses across all
+/// periods, using fixed UTC offsets independently of the production parser.
 async fn check_performance_defaults(timezone: &str, utc_offset_hours: i64) {
     let (mut env, settings) = fixture(timezone, false);
     let services = Arc::get_mut(&mut env).unwrap();
@@ -371,6 +373,7 @@ async fn performance_defaults_keep_utc_fallback() {
     check_performance_defaults("not/a/timezone", 0).await;
 }
 
+/// Settings errors reach both entry points; scope denial reads no settings.
 #[tokio::test]
 async fn performance_settings_errors_reach_assistant_and_mcp() {
     let (env, settings) = fixture("UTC", true);
