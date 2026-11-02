@@ -25,5 +25,6 @@ describe("ContributionLimitProjectedItem", () => {
     );
 
     expect(screen.getByText("2028")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add TFSA for 2028" })).toBeInTheDocument();
   });
 });

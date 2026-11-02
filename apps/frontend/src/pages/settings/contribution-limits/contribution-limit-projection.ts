@@ -23,11 +23,21 @@ function addYears(isoDate: string, years: number, timezone: string): string {
   return fromAbsolute(instant, timezone).add({ years }).toDate().toISOString();
 }
 
+/** Account IDs as a stable key, so the same accounts in another order match. */
+function accountScope(limit: ContributionLimit): string {
+  return (limit.accountIds ?? "")
+    .split(",")
+    .map((accountId) => accountId.trim())
+    .filter(Boolean)
+    .sort()
+    .join(",");
+}
+
 /**
  * Combines real limits with virtual, non-persisted projections for recurring
  * limits that don't yet have an explicit row for a given year. Each missing
  * year from `referenceYear` to `yearsAhead` past the latest limit uses the
- * group's (matched by groupName) closest earlier limit as its template, when
+ * group's (matched by groupName and accounts) closest earlier limit as its template, when
  * that limit has `isRecurring: true`. Dates move by the years between them in
  * `timezone`, the timezone the saved dates are read in.
  */
@@ -42,11 +52,14 @@ export function withProjectedRecurringLimits(
     isProjected: false,
   }));
 
+  // Limits with the same name but different accounts (e.g. one per spouse)
+  // recur independently, so each name and account set is its own group.
   const byGroup = new Map<string, ContributionLimit[]>();
   for (const limit of limits) {
-    const group = byGroup.get(limit.groupName) ?? [];
+    const key = JSON.stringify([limit.groupName, accountScope(limit)]);
+    const group = byGroup.get(key) ?? [];
     group.push(limit);
-    byGroup.set(limit.groupName, group);
+    byGroup.set(key, group);
   }
 
   const projected: ProjectedContributionLimit[] = [];
@@ -68,8 +81,8 @@ export function withProjectedRecurringLimits(
       const templateYearLimits = groupLimits.filter(
         (limit) => limit.contributionYear === templateYear,
       );
-      // Prefer a recurring row when several limits share the same group name and year
-      // (e.g. one per account) so recurrence isn't lost to arbitrary ordering.
+      // Prefer a recurring row when several limits share the same group and year
+      // so recurrence isn't lost to arbitrary ordering.
       const template =
         templateYearLimits.find((limit) => limit.isRecurring) ?? templateYearLimits[0];
       if (!template?.isRecurring) continue;

@@ -105,6 +105,7 @@
   "limits_projected_badge": "예상",
   "limits_projected_description": "{{year}}년 반복 한도에서 자동 생성되었습니다. 이 연도의 금액을 변경하려면 추가하세요.",
   "limits_projected_add_button": "이 연도 추가",
+  "limits_projected_add_aria": "{{year}}년 {{group}} 추가",
   "limits_empty_title": "{{year}}년 납입 한도가 없습니다!",
   "limits_empty_description": "올해에 대한 납입 한도가 없습니다. 납입 한도를 추가해 보세요.",
   "limits_add_first": "납입 한도 추가",

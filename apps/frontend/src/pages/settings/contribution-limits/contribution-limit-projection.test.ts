@@ -116,4 +116,32 @@ describe("withProjectedRecurringLimits", () => {
     ]);
     expect(years.map(({ contributionYear }) => contributionYear)).toEqual([2027]);
   });
+
+  it("projects same-named limits for different accounts separately", () => {
+    const projections = withProjectedRecurringLimits(
+      [
+        limit({ id: "spouseA2026", accountIds: "a" }),
+        limit({ id: "spouseB2026", accountIds: "b" }),
+        // Only spouse A has saved 2027; spouse B's 2027 still projects.
+        limit({ id: "spouseA2027", accountIds: "a", contributionYear: 2027 }),
+      ],
+      2026,
+      1,
+      "UTC",
+    ).filter((projection) => projection.isProjected);
+    expect(
+      projections.map(({ sourceLimitId, contributionYear }) => [sourceLimitId, contributionYear]),
+    ).toEqual([
+      ["spouseA2027", 2028],
+      ["spouseB2026", 2027],
+    ]);
+  });
+
+  it("matches the same accounts listed in another order", () => {
+    const years = projectedYears([
+      limit({ id: "limit2026", accountIds: "a,b" }),
+      limit({ id: "limit2027", accountIds: "b, a", contributionYear: 2027, isRecurring: false }),
+    ]);
+    expect(years).toEqual([]);
+  });
 });

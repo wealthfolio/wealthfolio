@@ -4,6 +4,7 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { ContributionLimit } from "@/lib/types";
 import { resolveDisplayTimezone } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { today } from "@internationalized/date";
 import {
   Button,
   Icons,
@@ -74,12 +75,13 @@ const SettingsContributionLimitPage = () => {
     );
   }
 
-  const currentYear = new Date().getFullYear();
+  const displayTimezone = resolveDisplayTimezone(timezone);
+  const currentYear = today(displayTimezone).year;
   const projectedLimits = withProjectedRecurringLimits(
     limits ?? [],
     currentYear,
     undefined,
-    resolveDisplayTimezone(timezone),
+    displayTimezone,
   );
   const currentYearLimits = projectedLimits.filter(
     (limit) => limit.contributionYear === currentYear,
