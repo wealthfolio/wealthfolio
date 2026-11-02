@@ -6,6 +6,7 @@
 
 pub mod accounts;
 pub mod activities;
+pub mod activity_deletions;
 pub mod activity_import;
 pub mod activity_updates;
 pub mod allocation;
@@ -13,6 +14,7 @@ pub mod asset_classification;
 pub mod asset_taxonomies;
 pub mod cash_balances;
 pub mod categorization_context;
+pub mod categorization_rules;
 pub mod commit_activity;
 pub mod commit_asset_classification;
 pub mod commit_categorization_rule;
@@ -30,6 +32,13 @@ pub mod propose_categories;
 pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
+pub mod spending_budgets;
+pub mod spending_events;
+pub mod spending_import_metadata;
+pub mod spending_reads;
+pub mod spending_rule_management;
+pub mod spending_splits;
+pub mod transaction_categories;
 pub mod transfer_links;
 pub mod valuation;
 
@@ -113,6 +122,13 @@ pub use commit_transaction_categories::{
     CommitTransactionCategories, CommitTransactionCategoriesArgs, CommitTransactionCategoriesOutput,
 };
 
+// MCP-only categorization rule tools.
+pub use categorization_rules::{
+    CategorizationRuleDto, ListCategorizationRules, ListCategorizationRulesArgs,
+    ListCategorizationRulesOutput, RerunCategorizationRules, RerunCategorizationRulesArgs,
+    RerunCategorizationRulesOutput,
+};
+
 // MCP-only transfer linking tools.
 pub use transfer_links::{
     FindTransferMatches, FindTransferMatchesArgs, FindTransferMatchesOutput,
@@ -132,6 +148,19 @@ pub use activity_updates::{
     ActivityUpdateError, ActivityUpdatePreviewRow, ActivityUpdatePreviewSummary,
     CommitActivityUpdates, CommitActivityUpdatesOutput, FieldChange, PrepareActivityUpdates,
     PrepareActivityUpdatesOutput, StoredChange, UpdatedActivity,
+};
+
+pub use transaction_categories::{
+    CommitTransactionCategory, CommitTransactionCategoryArgs, ListTransactionCategories,
+    ListTransactionCategoriesArgs, PrepareTransactionCategory, PrepareTransactionCategoryArgs,
+    TransactionCategoryDraft,
+};
+
+// MCP-only activity deletion tools (preview, then delete).
+pub use activity_deletions::{
+    ActivityDeletionError, ActivityDeletionPreviewRow, ActivityDeletionPreviewSummary,
+    CommitActivityDeletions, CommitActivityDeletionsOutput, DeletedActivity,
+    PrepareActivityDeletions, PrepareActivityDeletionsOutput,
 };
 
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
@@ -194,6 +223,22 @@ pub fn commit_tools() -> Vec<Arc<dyn AgentTool>> {
     ]
 }
 
+/// The MCP-only categorization rule tools: list the saved rules, then re-apply
+/// them to the spending accounts. Not exposed to the in-app assistant, whose
+/// categorization flow applies rules through list_categorization_context.
+pub fn categorization_rule_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(ListCategorizationRules),
+        Arc::new(RerunCategorizationRules),
+        Arc::new(categorization_rules::PreviewCategorizationRules),
+        Arc::new(spending_rule_management::PrepareCategorizationRuleChange),
+        Arc::new(spending_rule_management::CommitCategorizationRuleChange),
+        Arc::new(spending_rule_management::ListCategorizationPresets),
+        Arc::new(spending_rule_management::PrepareCategorizationPreset),
+        Arc::new(spending_rule_management::CommitCategorizationPreset),
+    ]
+}
+
 /// The MCP-only CSV import tools: fetch an account's mapping, preview rows
 /// (validate + duplicate detection), and import through the real pipeline.
 /// Not exposed to the in-app assistant (which has its own `import_csv` flow).
@@ -223,19 +268,93 @@ pub fn quote_import_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![Arc::new(PrepareQuoteImport), Arc::new(CommitQuoteImport)]
 }
 
-/// The MCP-only activity update tools: preview corrections to existing
-/// activities, then apply them in place. Not exposed to the in-app assistant,
-/// which has no confirmation step for them; users edit in the activity grid.
+/// The MCP-only activity update tools: preview corrections (or a void) to
+/// existing activities, then apply them in place; and preview deletions, then
+/// delete. Not exposed to the in-app assistant, which has no confirmation step
+/// for them; users edit and delete in the activity grid.
 pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(PrepareActivityUpdates),
         Arc::new(CommitActivityUpdates),
+        Arc::new(PrepareActivityDeletions),
+        Arc::new(CommitActivityDeletions),
     ]
+}
+
+/// Spending reads and reviewed workflows remain MCP-only until assistant review
+/// renderers support them. Every tool declares its own read/write scopes.
+pub fn spending_access_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(spending_reads::GetSpendingContext),
+        Arc::new(spending_reads::SearchSpendingTransactions),
+        Arc::new(spending_reads::GetBudget),
+        Arc::new(spending_reads::ListSpendingEvents),
+        Arc::new(spending_reads::GetSpendingReport),
+        Arc::new(spending_reads::GetSpendingInsight),
+        Arc::new(spending_reads::GetEventSpendingSummaries),
+        Arc::new(spending_splits::PrepareSpendingSplits),
+        Arc::new(spending_splits::CommitSpendingSplits),
+        Arc::new(spending_splits::PrepareSpendingAllocationClear),
+        Arc::new(spending_splits::CommitSpendingAllocationClear),
+        Arc::new(spending_budgets::PrepareBudgetChange),
+        Arc::new(spending_budgets::CommitBudgetChange),
+        Arc::new(spending_events::PrepareSpendingEvent),
+        Arc::new(spending_events::CommitSpendingEvent),
+        Arc::new(spending_events::PrepareSpendingEventTag),
+        Arc::new(spending_events::CommitSpendingEventTag),
+        Arc::new(spending_import_metadata::PrepareSpendingImportMetadata),
+    ]
+}
+
+/// MCP-only category discovery and creation; the assistant has no category
+/// creation confirmation widget.
+pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(ListTransactionCategories),
+        Arc::new(PrepareTransactionCategory),
+        Arc::new(CommitTransactionCategory),
+        Arc::new(transaction_categories::PrepareTransactionCategoryChange),
+        Arc::new(transaction_categories::CommitTransactionCategoryChange),
+    ]
+}
+
+/// Nullable destructive choices must be explicit: missing is not an instruction
+/// to delete or clear, even when a client bypasses JSON Schema validation.
+pub(crate) fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    <Option<T> as serde::Deserialize>::deserialize(deserializer)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spending_workflow_audits_omit_private_payloads_even_when_malformed() {
+        let mut tools = spending_access_tools();
+        tools.extend(categorization_rule_tools());
+        tools.extend(transaction_category_tools());
+        tools.extend([
+            Arc::new(categorization_context::ListCategorizationContext) as Arc<dyn AgentTool>,
+            Arc::new(propose_categories::ProposeCategories),
+            Arc::new(activities::SearchActivities),
+        ]);
+        let args = serde_json::json!({"query":"private-financial-detail","symbol":"private-financial-detail","notes":"private-financial-detail","pattern":"private-financial-detail",
+            "aiProposals":[{"reason":"private-financial-detail"}],"unexpected-private-financial-detail":"private-financial-detail"});
+        for tool in tools {
+            assert!(
+                !tool
+                    .sanitize_args_for_audit(&args)
+                    .to_string()
+                    .contains("private-financial-detail"),
+                "{}",
+                tool.name()
+            );
+        }
+    }
 
     /// The catalog order is LLM-visible (tool listing) and mirrors the
     /// read tools' historical relative order — append-only.

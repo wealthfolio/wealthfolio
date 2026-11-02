@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 
 import { Button } from "./button";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./input-group";
@@ -82,8 +83,9 @@ function ComboboxContent({
   ...props
 }: ComboboxPrimitive.Popup.Props &
   Pick<ComboboxPrimitive.Positioner.Props, "side" | "align" | "sideOffset" | "alignOffset" | "anchor">) {
+  const scopeProps = usePortalScopeProps();
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxPrimitive.Portal {...scopeProps}>
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

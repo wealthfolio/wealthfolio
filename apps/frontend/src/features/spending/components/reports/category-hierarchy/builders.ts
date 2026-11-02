@@ -175,10 +175,12 @@ export function buildGroupWeights({
   tree,
   groupRows,
   budgetRows,
+  otherLabel = "Other",
 }: {
   tree: NodeRow[];
   groupRows: BudgetGroupRow[];
   budgetRows: BudgetCategoryRow[];
+  otherLabel?: string;
 }): GroupNode[] {
   // categoryId → groupId, drawn from the per-category budget rows so group
   // assignments stay in sync with what the budget settings page shows.
@@ -214,7 +216,7 @@ export function buildGroupWeights({
     if (!b) {
       b = {
         id: targetId,
-        name: "Other",
+        name: otherLabel,
         color: null,
         icon: null,
         spent: 0,

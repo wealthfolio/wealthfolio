@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "自訂使用體驗",
-    "themeLabel": "主題",
-    "fontLabel": "字型",
-    "themeLight": "淺色",
-    "themeDark": "深色",
-    "themeSystem": "跟隨系統",
-    "themeLightPreviewAlt": "淺色主題預覽",
-    "themeDarkPreviewAlt": "深色主題預覽",
-    "themeSystemPreviewAlt": "系統主題預覽",
-    "fontSample": "清楚掌握投資。",
-    "fonts": {
-      "monoLabel": "等寬",
-      "monoDescription": "俐落精準的技術感",
-      "sansLabel": "無襯線",
-      "sansDescription": "簡潔現代",
-      "serifLabel": "襯線",
-      "serifDescription": "經典優雅"
-    },
-    "navigationLabel": "導覽"
+    "changeLater": "隨時可在設定中變更。"
   },
   "connect": {
     "optional": "選用",

@@ -33,7 +33,7 @@ function formatValidationStatus(status: ImportValidationStatus, t: TFunction): s
     case "warning":
       return t("settings:market_data_page.status_warning");
     case "error":
-      return t("settings:market_data_page.status_error_label");
+      return t("common:error");
     default:
       return status;
   }
@@ -85,7 +85,7 @@ export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTablePro
                 <TableHead>{t("settings:market_data_page.field_close")}</TableHead>
                 <TableHead>{t("settings:market_data_page.field_volume")}</TableHead>
                 <TableHead>{t("common:currency")}</TableHead>
-                <TableHead>{t("settings:market_data_page.field_status")}</TableHead>
+                <TableHead>{t("common:status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

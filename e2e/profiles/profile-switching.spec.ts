@@ -12,6 +12,8 @@ async function settings(context: BrowserContext, scope: string, theme: string, f
   const result = await context.request.put("/api/v1/settings", {
     headers: { "x-wf-profile-scope": scope },
     data: {
+      baseCurrency: "USD",
+      timezone: "UTC",
       onboardingCompleted: true,
       theme,
       font,
@@ -21,6 +23,7 @@ async function settings(context: BrowserContext, scope: string, theme: string, f
     },
   });
   expect(result.ok()).toBeTruthy();
+  expect(await result.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
 }
 async function ready(page: Page, name: string) {
   await expect(page.locator(".app-shell").first()).toBeVisible();

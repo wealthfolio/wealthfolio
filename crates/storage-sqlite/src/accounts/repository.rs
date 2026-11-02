@@ -10,7 +10,9 @@ use crate::schema::accounts;
 use crate::schema::accounts::dsl::*;
 
 use super::model::AccountDB;
-use wealthfolio_core::accounts::{Account, AccountRepositoryTrait, AccountUpdate, NewAccount};
+use wealthfolio_core::accounts::{
+    normalize_account_number, Account, AccountRepositoryTrait, AccountUpdate, NewAccount,
+};
 use wealthfolio_core::errors::Result;
 
 /// Repository for managing account data in the database
@@ -40,6 +42,13 @@ impl AccountRepositoryTrait for AccountRepository {
             .exec_tx(move |tx| {
                 let mut account_db: AccountDB = new_account.into();
                 account_db.id = uuid::Uuid::new_v4().to_string();
+                // A broker-synced account keeps the number its broker sends.
+                if account_db.provider_account_id.is_none() {
+                    account_db.account_number = match account_db.account_number.take() {
+                        Some(entered) => normalize_account_number(&entered)?,
+                        None => None,
+                    };
+                }
                 account_db.ensure_default_accounting_meta()?;
 
                 diesel::insert_into(accounts::table)
@@ -82,7 +91,19 @@ impl AccountRepositoryTrait for AccountRepository {
                 account_db.provider_account_id = existing.provider_account_id;
                 account_db.platform_id = existing.platform_id;
                 account_db.provider = existing.provider;
-                account_db.account_number = existing.account_number;
+                // A manual account takes a changed number (blank clears it).
+                // A broker-synced account keeps its broker's number. An update
+                // without a number, or with the stored one unchanged (Archive
+                // and Hide send the whole account back), keeps it as stored.
+                account_db.account_number = match account_db.account_number.take() {
+                    Some(entered)
+                        if account_db.provider_account_id.is_none()
+                            && existing.account_number.as_deref() != Some(entered.as_str()) =>
+                    {
+                        normalize_account_number(&entered)?
+                    }
+                    _ => existing.account_number,
+                };
                 if account_db.meta.is_none() {
                     account_db.meta = existing.meta;
                 }
@@ -178,9 +199,8 @@ impl AccountRepositoryTrait for AccountRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use crate::schema::accounts::dsl as accounts_dsl;
-    use tempfile::tempdir;
     use wealthfolio_core::accounts::{
         CostBasisMethod, CostBasisProfile, LotSelectionStrategy, PoolingScope, TrackingMode,
     };
@@ -188,10 +208,10 @@ mod tests {
     async fn setup() -> (
         AccountRepository,
         Arc<Pool<r2d2::ConnectionManager<SqliteConnection>>>,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();
@@ -217,6 +237,36 @@ mod tests {
             is_archived: false,
             tracking_mode: TrackingMode::Transactions,
         }
+    }
+
+    fn update_with_number(account: &Account, number: Option<&str>) -> AccountUpdate {
+        AccountUpdate {
+            id: Some(account.id.clone()),
+            name: account.name.clone(),
+            account_type: account.account_type.clone(),
+            group: account.group.clone(),
+            is_default: account.is_default,
+            is_active: account.is_active,
+            platform_id: account.platform_id.clone(),
+            account_number: number.map(str::to_string),
+            meta: account.meta.clone(),
+            provider: account.provider.clone(),
+            provider_account_id: account.provider_account_id.clone(),
+            is_archived: None,
+            tracking_mode: None,
+        }
+    }
+
+    fn stored_account_number(
+        pool: &Arc<Pool<r2d2::ConnectionManager<SqliteConnection>>>,
+        account_id: &str,
+    ) -> Option<String> {
+        let mut conn = get_connection(pool).unwrap();
+        accounts_dsl::accounts
+            .find(account_id)
+            .select(accounts_dsl::account_number)
+            .first::<Option<String>>(&mut conn)
+            .unwrap()
     }
 
     fn insert_account_without_settings(
@@ -261,6 +311,158 @@ mod tests {
         assert_eq!(
             meta_json["accounting"]["costBasisMethod"],
             serde_json::json!("FIFO")
+        );
+    }
+
+    #[tokio::test]
+    async fn manual_account_number_is_trimmed_on_create() {
+        let (repo, pool, _dir) = setup().await;
+        let mut input = new_account("Checking");
+        input.account_number = Some("  DE89 3704 0044 0532 0130 00 ".to_string());
+        let account = repo.create(input).await.unwrap();
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some("DE89 3704 0044 0532 0130 00")
+        );
+
+        let mut blank = new_account("Blank");
+        blank.account_number = Some("   ".to_string());
+        let blank = repo.create(blank).await.unwrap();
+        assert_eq!(stored_account_number(&pool, &blank.id), None);
+    }
+
+    #[tokio::test]
+    async fn update_without_account_number_keeps_the_stored_one() {
+        let (repo, pool, _dir) = setup().await;
+        let mut input = new_account("Checking");
+        input.account_number = Some("NL91ABNA0417164300".to_string());
+        let account = repo.create(input).await.unwrap();
+
+        let updated = repo
+            .update(update_with_number(&account, None))
+            .await
+            .unwrap();
+        assert_eq!(
+            updated.account_number.as_deref(),
+            Some("NL91ABNA0417164300")
+        );
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some("NL91ABNA0417164300")
+        );
+    }
+
+    #[tokio::test]
+    async fn update_saves_the_trimmed_account_number() {
+        let (repo, pool, _dir) = setup().await;
+        let account = repo.create(new_account("Checking")).await.unwrap();
+
+        let updated = repo
+            .update(update_with_number(&account, Some("  ••4100 ")))
+            .await
+            .unwrap();
+        assert_eq!(updated.account_number.as_deref(), Some("••4100"));
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some("••4100")
+        );
+    }
+
+    #[tokio::test]
+    async fn blank_account_number_clears_the_stored_one() {
+        let (repo, pool, _dir) = setup().await;
+        let mut input = new_account("Checking");
+        input.account_number = Some("NL91ABNA0417164300".to_string());
+        let account = repo.create(input).await.unwrap();
+
+        let updated = repo
+            .update(update_with_number(&account, Some("  ")))
+            .await
+            .unwrap();
+        assert_eq!(updated.account_number, None);
+        assert_eq!(stored_account_number(&pool, &account.id), None);
+    }
+
+    #[tokio::test]
+    async fn synced_account_keeps_its_broker_number() {
+        let (repo, pool, _dir) = setup().await;
+        let mut input = new_account("Brokerage");
+        input.provider = Some("SNAPTRADE".to_string());
+        input.provider_account_id = Some("broker-acc-1".to_string());
+        input.account_number = Some(" BRK-0001 ".to_string());
+        let account = repo.create(input).await.unwrap();
+        // Create leaves the broker's value as sent.
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(" BRK-0001 ")
+        );
+
+        let too_long = "9".repeat(80);
+        for sent in ["NEW-NUMBER", "", too_long.as_str()] {
+            let updated = repo
+                .update(update_with_number(&account, Some(sent)))
+                .await
+                .unwrap();
+            assert_eq!(updated.account_number.as_deref(), Some(" BRK-0001 "));
+        }
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(" BRK-0001 ")
+        );
+    }
+
+    #[tokio::test]
+    async fn too_long_manual_account_number_is_rejected() {
+        let (repo, pool, _dir) = setup().await;
+        let too_long = "9".repeat(65);
+
+        let mut input = new_account("Too long");
+        input.account_number = Some(too_long.clone());
+        assert!(repo.create(input).await.is_err());
+
+        let mut input = new_account("Checking");
+        input.account_number = Some("1234".to_string());
+        let account = repo.create(input).await.unwrap();
+        assert!(repo
+            .update(update_with_number(&account, Some(&too_long)))
+            .await
+            .is_err());
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some("1234")
+        );
+    }
+
+    #[tokio::test]
+    async fn unchanged_legacy_number_does_not_block_a_status_update() {
+        let (repo, pool, _dir) = setup().await;
+        let account = repo.create(new_account("Checking")).await.unwrap();
+        // Before the cap, the API and add-ons could store any length.
+        let legacy = "9".repeat(80);
+        diesel::update(accounts_dsl::accounts.find(&account.id))
+            .set(accounts_dsl::account_number.eq(&legacy))
+            .execute(&mut get_connection(&pool).unwrap())
+            .unwrap();
+
+        // Archive and Hide send the whole account back, number unchanged.
+        let mut archive = update_with_number(&account, Some(&legacy));
+        archive.is_archived = Some(true);
+        let archived = repo.update(archive).await.unwrap();
+        assert!(archived.is_archived);
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(legacy.as_str())
+        );
+
+        // A changed number still has to fit.
+        let changed = "8".repeat(80);
+        assert!(repo
+            .update(update_with_number(&account, Some(&changed)))
+            .await
+            .is_err());
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(legacy.as_str())
         );
     }
 

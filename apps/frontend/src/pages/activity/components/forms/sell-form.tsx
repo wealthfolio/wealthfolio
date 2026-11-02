@@ -1,8 +1,10 @@
 import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION, QuoteMode } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { buildOccSymbol, isValidOptionExpiration } from "@/lib/occ-symbol";
 import { normalizeCurrency } from "@/lib/utils";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNumberFormatting, Spinner } from "@wealthfolio/ui";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
@@ -62,15 +64,12 @@ export const createSellFormSchema = (t?: TFunction) =>
       assetId: z.string().default(""),
       existingAssetId: z.string().nullable().optional(),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       quantity: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_quantity", "Please enter a quantity."),
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_quantity_number",
-            "Quantity must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_quantity_number", "Quantity must be a number."),
           ),
         })
         .positive({
@@ -78,16 +77,22 @@ export const createSellFormSchema = (t?: TFunction) =>
         }),
       unitPrice: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_price", "Please enter a price."),
-          invalid_type_error: msg(t, "activity:form.err_price_number", "Price must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_price_number", "Price must be a number."),
+          ),
         })
         .positive({
           message: msg(t, "activity:form.err_price_gt_zero", "Price must be greater than 0."),
         }),
-      amount: z.coerce.number().min(0).optional(),
+      amount: z.coerce
+        .number()
+        .min(0, {
+          message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
+        })
+        .optional(),
       fee: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_fee_number", "Fee must be a number."),
+          error: invalidTypeError(msg(t, "activity:form.err_fee_number", "Fee must be a number.")),
         })
         .min(0, {
           message: msg(t, "activity:form.err_fee_non_negative", "Fee must be non-negative."),
@@ -95,7 +100,7 @@ export const createSellFormSchema = (t?: TFunction) =>
         .default(0),
       tax: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_tax_number", "Tax must be a number."),
+          error: invalidTypeError(msg(t, "activity:form.err_tax_number", "Tax must be a number.")),
         })
         .min(0, {
           message: msg(t, "activity:form.err_tax_non_negative", "Tax must be non-negative."),
@@ -104,15 +109,15 @@ export const createSellFormSchema = (t?: TFunction) =>
       comment: z.string().optional().nullable(),
       subtype: z.string().optional().nullable(),
       // Advanced options
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({
@@ -129,10 +134,32 @@ export const createSellFormSchema = (t?: TFunction) =>
       assetMetadata: assetMetadataSchema,
       // Option-specific fields
       underlyingSymbol: z.string().optional(),
-      strikePrice: z.coerce.number().positive().optional(),
+      strikePrice: z.coerce
+        .number()
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_strike_gt_zero",
+            "Strike price must be greater than 0.",
+          ),
+        })
+        .optional(),
       expirationDate: z.string().optional(),
       optionType: z.enum(["CALL", "PUT"]).optional(),
-      contractMultiplier: z.coerce.number().positive().default(100).optional(),
+      contractMultiplier: z.coerce
+        .number({
+          error: invalidTypeError(
+            msg(t, "activity:form.err_multiplier_number", "Contract multiplier must be a number."),
+          ),
+        })
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_multiplier_gt_zero",
+            "Contract multiplier must be greater than 0.",
+          ),
+        })
+        .optional(),
     })
     .superRefine((data, ctx) => {
       // Options build their symbol at submit time; stocks/bonds require it upfront
@@ -347,6 +374,7 @@ export function SellForm({
       tax: watch("tax"),
       isOption,
       contractMultiplier: optMultiplier,
+      currency,
     });
 
   const handleAssetTypeChange = (value: AssetType) => {
@@ -387,6 +415,7 @@ export function SellForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
 
   // Fetch holdings for the selected account to check available quantity
@@ -609,7 +638,7 @@ export function SellForm({
                     type="number"
                     {...form.register("contractMultiplier", { valueAsNumber: true })}
                     readOnly={isEditing}
-                    className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1"
+                    className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
                     aria-label={t("activity:form.contract_multiplier")}
                   />
                   <span>x</span>
@@ -632,11 +661,21 @@ export function SellForm({
               name="unitPrice"
               label={priceLabel}
               data-testid="price-input"
-              maxDecimalPlaces={4}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               currency={currency}
             />
-            <AmountInput name="fee" label={t("activity:form.label_fee")} currency={currency} />
-            <AmountInput name="tax" label={t("activity:form.label_tax")} currency={currency} />
+            <AmountInput
+              name="fee"
+              label={t("activity:form.label_fee")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
+            <AmountInput
+              name="tax"
+              label={t("activity:form.label_tax")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
           </div>
 
           <TradeTotalInput
@@ -646,6 +685,7 @@ export function SellForm({
             onCustomChange={onCustomChange}
             currency={currency}
             isDebit={isDebit}
+            maxDecimalPlaces={moneyDecimals}
           />
 
           {/* Warning for selling more than holdings */}

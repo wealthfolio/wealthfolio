@@ -31,7 +31,7 @@ function CalendarHeader() {
       <Button
         slot="previous"
         aria-label={t("ui:datePicker.previousMonth", "Previous month")}
-        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-solid focus-visible:outline-ring flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-ring flex size-9 items-center justify-center rounded-md transition-[color,box-shadow] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
       >
         <Icons.ChevronLeft size={16} />
       </Button>
@@ -39,7 +39,7 @@ function CalendarHeader() {
       <Button
         slot="next"
         aria-label={t("ui:datePicker.nextMonth", "Next month")}
-        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-solid focus-visible:outline-ring flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-ring flex size-9 items-center justify-center rounded-md transition-[color,box-shadow] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
       >
         <Icons.ChevronRight size={16} />
       </Button>

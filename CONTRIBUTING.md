@@ -42,7 +42,20 @@ By submitting a pull request, you confirm you have read and agree to
 
 ### Development Setup
 
-See the [README](README.md#getting-started) for detailed setup instructions.
+See the [README](README.md#getting-started) for detailed setup instructions. The
+[frontend tooling guide](docs/frontend-tooling.md) covers the pinned Node and
+pnpm versions, editor extensions, and updating an existing checkout.
+
+For frontend changes, run:
+
+```bash
+pnpm check
+pnpm test:scripts
+pnpm --filter frontend exec vitest run
+```
+
+`pnpm check` checks generated themes, formatting, lint, and types. Tests and
+builds run separately; see the tooling guide for the web and Tauri build checks.
 
 ### Optional Git Hooks
 
@@ -58,8 +71,9 @@ in once per clone.
 ### Code Style
 
 - **Rust**: Follow standard Rust conventions, use `cargo fmt` and `cargo clippy`
-- **TypeScript/React**: Follow the existing code style, ESLint and Prettier are
-  configured
+- **TypeScript/React**: Use Oxfmt for formatting and typed Oxlint plus the
+  retained ESLint checks for linting. Run `pnpm format` or `pnpm lint:fix` to
+  apply fixes.
 - **Commits**: Write clear, concise commit messages
 
 ## Code of Conduct

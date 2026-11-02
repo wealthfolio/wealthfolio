@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import commonCopy from "@/i18n/locales/en/common.json";
 import copy from "@/i18n/locales/en/settings.json";
 import { NativeDatabaseGate } from "./native-database-gate";
 const mocks = vi.hoisted(() => ({
@@ -108,7 +109,7 @@ it("discards a preview on Back and clears password state", async () => {
   fireEvent.click(await screen.findByRole("button", { name: copy.recovery_choose_file }));
   await screen.findByText("backup.wfbackup");
   fireEvent.click(screen.getByRole("button", { name: copy.recovery_inspect }));
-  fireEvent.click(await screen.findByRole("button", { name: copy.recovery_back }));
+  fireEvent.click(await screen.findByRole("button", { name: commonCopy.back }));
   await waitFor(() => expect(mocks.discard).toHaveBeenCalledWith("validated"));
   expect(screen.getByLabelText(copy.recovery_password)).toHaveValue("");
   expect(mocks.recover).not.toHaveBeenCalled();

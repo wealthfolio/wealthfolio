@@ -110,7 +110,8 @@
     monospace;
 
   /* Type scale. 11px is the floor, and every step is rem so text follows the
-     root font size. Steps outside the scale (text-4xl and up) don't exist. */
+     root font size. Steps outside the scale (text-4xl and up) don't exist;
+     text-display is the one larger step, for the page's hero figure. */
   --text-*: initial;
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: calc(1 / 0.6875);
@@ -128,6 +129,11 @@
   --text-2xl--line-height: calc(2 / 1.5);
   --text-3xl: 1.875rem;
   --text-3xl--line-height: calc(2.25 / 1.875);
+  /* Display: the hero figure, meant for regular weight. Phones use a smaller value
+     (below). */
+  --text-display: 2rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
 
   /* Disable default colors to prevent their use; feel free to re-enable as needed. */
   --color-amber-50: #fef3c7;
@@ -324,6 +330,15 @@
   --color-info-subtle: var(--info-subtle);
   --color-info-subtle-foreground: var(--info-subtle-foreground);
   --color-info-subtle-border: var(--info-subtle-border);
+  --color-gain: var(--gain);
+  --color-gain-subtle: var(--gain-subtle);
+  --color-gain-subtle-foreground: var(--gain-subtle-foreground);
+  --color-gain-subtle-border: var(--gain-subtle-border);
+  --color-loss: var(--loss);
+  --color-loss-subtle: var(--loss-subtle);
+  --color-loss-subtle-foreground: var(--loss-subtle-foreground);
+  --color-loss-subtle-border: var(--loss-subtle-border);
+  --color-loss-blue: var(--loss-blue);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-bg: var(--input-bg);
@@ -454,7 +469,9 @@
 
   --inset-top: env(safe-area-inset-top, 0px);
   --inset-right: env(safe-area-inset-right, 0px);
-  --inset-bottom: env(safe-area-inset-bottom, 0px);
+  /* The Android app's WebView reports no bottom safe area, so the app sends the
+     navigation bar's height (use-android-system-bars.ts). Use this, not env(). */
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-navigation-bar-inset, 0px));
   --inset-left: env(safe-area-inset-left, 0px);
 
   --mobile-nav-ui-height: 4rem; /* nav bar height */
@@ -469,10 +486,85 @@
   --connect-brand: #9ca88a;
 }
 
+/* Gains and losses of a price or value (holdings, performance, accounts, net worth,
+   the holdings treemap), in the theme's success and destructive colours. The Gain and
+   loss colours setting sets data-gain-colors on <html> for markets where red means up:
+   red-up swaps the two, red-up-blue-down draws losses in the theme's --loss-blue.
+   Errors, confirmations and other statuses keep success and destructive. */
+:root {
+  --gain: var(--success);
+  --gain-subtle: var(--success-subtle);
+  --gain-subtle-foreground: var(--success-subtle-foreground);
+  --gain-subtle-border: var(--success-subtle-border);
+  --loss: var(--destructive);
+  --loss-subtle: var(--destructive-subtle);
+  --loss-subtle-foreground: var(--destructive-subtle-foreground);
+  --loss-subtle-border: var(--destructive-subtle-border);
+  --heatmap-gain-low: var(--heatmap-positive-low);
+  --heatmap-gain-mid: var(--heatmap-positive-mid);
+  --heatmap-gain-high: var(--heatmap-positive-high);
+  --heatmap-loss-low: var(--heatmap-negative-low);
+  --heatmap-loss-mid: var(--heatmap-negative-mid);
+  --heatmap-loss-high: var(--heatmap-negative-high);
+}
+
+:root[data-gain-colors="red-up"],
+:root[data-gain-colors="red-up-blue-down"] {
+  --gain: var(--destructive);
+  --gain-subtle: var(--destructive-subtle);
+  --gain-subtle-foreground: var(--destructive-subtle-foreground);
+  --gain-subtle-border: var(--destructive-subtle-border);
+  --heatmap-gain-low: var(--heatmap-negative-low);
+  --heatmap-gain-mid: var(--heatmap-negative-mid);
+  --heatmap-gain-high: var(--heatmap-negative-high);
+}
+
+:root[data-gain-colors="red-up"] {
+  --loss: var(--success);
+  --loss-subtle: var(--success-subtle);
+  --loss-subtle-foreground: var(--success-subtle-foreground);
+  --loss-subtle-border: var(--success-subtle-border);
+  --heatmap-loss-low: var(--heatmap-positive-low);
+  --heatmap-loss-mid: var(--heatmap-positive-mid);
+  --heatmap-loss-high: var(--heatmap-positive-high);
+}
+
+:root[data-gain-colors="red-up-blue-down"] {
+  --loss: var(--loss-blue);
+  --loss-subtle: var(--loss-blue-subtle);
+  --loss-subtle-foreground: var(--loss-blue-subtle-foreground);
+  --loss-subtle-border: var(--loss-blue-subtle-border);
+  --heatmap-loss-low: var(--heatmap-blue-low);
+  --heatmap-loss-mid: var(--heatmap-blue-mid);
+  --heatmap-loss-high: var(--heatmap-blue-high);
+}
+
 @media (pointer: coarse) {
   :root {
     --control-size: max(var(--control-height), 2.75rem);
   }
+}
+
+/* The display step below md: 1.875rem, and never wider than 10.5vw (34px at 320px),
+   so a hero figure and the privacy toggle beside it stay on one line at every Text
+   size. */
+@media (width < 48rem) {
+  :root {
+    --text-display: min(1.875rem, 10.5vw);
+  }
+}
+
+/* Text size (Settings → Appearance, src/themes/text-size.ts): scales the root font
+   size, so everything in rem grows together. Media queries keep their widths, as
+   their rem is the browser's default size. A name not listed here shows the default. */
+:root[data-text-size="small"] {
+  font-size: 87.5%;
+}
+:root[data-text-size="large"] {
+  font-size: 115%;
+}
+:root[data-text-size="extra-large"] {
+  font-size: 130%;
 }
 
 @layer base {
@@ -492,13 +584,21 @@
     cursor: pointer;
   }
 
+  /* The phone stack focuses a pushed screen's heading (or the screen) so screen readers
+     start there. It isn't a control, so it shows no focus ring; WebKit drew one, cut to a
+     line under a truncated title. */
+  [data-stack-screen] h1[tabindex="-1"]:focus,
+  [data-stack-screen][tabindex="-1"]:focus {
+    outline: none;
+  }
+
   /* Safe area support for notched devices */
   @supports (padding: max(0px)) {
     .pt-safe {
       padding-top: max(env(safe-area-inset-top), 0.75rem);
     }
     .pb-safe {
-      padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
+      padding-bottom: max(var(--inset-bottom), 1.5rem);
     }
   }
   /*
@@ -628,6 +728,21 @@ body.qr-scan-active > .qr-overlay {
   }
 }
 
+/* Android's Material navigation bar sits flush with the bottom edge: content clears its
+   height plus the gesture area, without the floating bar's gap. */
+.app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+  --mobile-nav-ui-height: 5rem;
+  --mobile-nav-bottom-offset: var(--inset-bottom);
+  --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+}
+
+@media (orientation: landscape) {
+  .app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+    --mobile-nav-ui-height: 3.5rem;
+    --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+  }
+}
+
 /* Mobile optimizations for native feel */
 @layer utilities {
   .scroll-touch {
@@ -674,7 +789,7 @@ body.qr-scan-active > .qr-overlay {
 
   /* Safe area support for iOS */
   .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--inset-bottom);
   }
 
   .safe-area-inset-top {
@@ -814,9 +929,36 @@ body.qr-scan-active > .qr-overlay {
     overflow-x: visible;
   }
 
+  /* Settings lists and the feature banner put a switch or button at the very edge of
+     an unpadded row, so clipping that row would cut off the control's focus ring and
+     its enlarged touch area. Their rows wrap their text instead of overflowing. */
+  .settings-list .flex,
+  .settings-list .grid,
+  .feature-status-banner .flex,
+  .feature-status-banner .grid {
+    overflow-x: visible;
+  }
+
   .aui-thread-viewport {
     overflow-x: auto;
   }
+
+  /* The theme picker keeps its own overflow: clipping its grid would cut off each
+     card's selected ring and focus outline at the edges, and the miniatures' rows,
+     made scroll containers, would each become a Tab stop. revert-layer restores the
+     utilities' value. Onboarding's page must not be a scroll container of its own,
+     or its footer has nothing to stick to. */
+  .theme-picker,
+  .theme-picker :is(.flex, .grid),
+  .onboarding-page {
+    overflow-x: revert-layer;
+  }
+}
+
+/* Onboarding's footer sticks to the bottom of the view the page scrolls in: keep a
+   control that takes focus clear of it. */
+:has(> .onboarding-page) {
+  scroll-padding-bottom: 8rem;
 }
 
 number-flow-react::part(left),

@@ -27,7 +27,7 @@ import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { translateIssueText } from "../translate-issue";
+import { translateHealthAction, translateIssueText } from "../translate-issue";
 
 interface IssueDetailSheetProps {
   issue: HealthIssue | null;
@@ -442,7 +442,7 @@ function FixActionButton({
 
   return (
     <ActionConfirm
-      confirmTitle={action.label}
+      confirmTitle={translateHealthAction(t, action)}
       confirmMessage={
         <span className="block max-h-72 overflow-y-auto whitespace-pre-line">{action.confirm}</span>
       }
@@ -515,7 +515,7 @@ export function IssueDetailSheet({
           <div className="space-y-6 pe-4">
             {!hasDiagnostics && issue.affectedItems && issue.affectedItems.length > 0 && (
               <div className="space-y-3">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.affectedItems", { count: issue.affectedItems.length })}
                 </h4>
                 <div className="rounded-md border p-1">
@@ -557,7 +557,7 @@ export function IssueDetailSheet({
               !issue.affectedItems &&
               !isGroupedPrice && (
                 <div className="space-y-3">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                     {t("health:detail.impact")}
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
@@ -707,7 +707,7 @@ export function IssueDetailSheet({
                                 className={buttonVariants({ variant: "outline", size: "sm" })}
                               >
                                 <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
-                                {action.label}
+                                {translateHealthAction(t, action)}
                               </Link>
                             ) : (
                               <FixActionButton
@@ -730,7 +730,7 @@ export function IssueDetailSheet({
                                 ) : (
                                   <Icons.Wand2 className="me-2 h-4 w-4" />
                                 )}
-                                {action.label}
+                                {translateHealthAction(t, action)}
                               </FixActionButton>
                             ),
                           )}
@@ -744,7 +744,7 @@ export function IssueDetailSheet({
 
             {shouldRenderDetails && detailItems.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.details")}
                 </h4>
                 <div className="space-y-2">
@@ -806,7 +806,7 @@ export function IssueDetailSheet({
 
             {!isGroupedPrice && (
               <div className="space-y-2 border-t pt-6">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.aboutThisIssue")}
                 </h4>
                 <p className="text-muted-foreground text-sm">
@@ -830,7 +830,7 @@ export function IssueDetailSheet({
               ) : (
                 <Icons.Wand2 className="me-2 h-4 w-4" />
               )}
-              {issue.fixAction.label}
+              {translateHealthAction(t, issue.fixAction)}
             </FixActionButton>
           )}
 
@@ -840,7 +840,7 @@ export function IssueDetailSheet({
               className={cn(buttonVariants({ variant: "outline" }), "w-full")}
             >
               <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
-              {issue.navigateAction.label}
+              {translateHealthAction(t, issue.navigateAction)}
             </Link>
           )}
 

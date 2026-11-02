@@ -64,14 +64,39 @@ export function BackupImportDialog({
   const previewId = useRef<string | null>(initialPreview?.id ?? null);
   // StrictMode remounts once in development, so a caller's preview is discarded on close only.
   const callerPreviewId = useRef(initialPreview?.id);
-  useEffect(
-    () => () => {
-      operation.current?.abort();
-      if (previewId.current && previewId.current !== callerPreviewId.current)
-        void discardDatabaseBackupImport(previewId.current).catch(() => undefined);
-    },
-    [],
-  );
+  // The title as last shown; React lets go of `stepHeading` when the dialog hides or unmounts.
+  const shownTitle = useRef<HTMLHeadingElement | null>(null);
+  const hiddenWatch = useRef<MutationObserver | null>(null);
+  useEffect(() => {
+    hiddenWatch.current?.disconnect();
+    hiddenWatch.current = null;
+    const callerId = callerPreviewId.current;
+    return () => {
+      const release = () => {
+        operation.current?.abort();
+        if (previewId.current && previewId.current !== callerId)
+          void discardDatabaseBackupImport(previewId.current).catch(() => undefined);
+      };
+      // A phone screen kept under another one (a hidden <Activity>) runs this
+      // cleanup too, but keeps its nodes in the page: the preview stays on
+      // screen there, to restore once the screen is shown again. An unmounted
+      // dialog's nodes are gone by the time this runs.
+      const title = shownTitle.current;
+      if (!title?.isConnected) {
+        release();
+        return;
+      }
+      // A hidden screen that is dropped without being shown again runs no
+      // cleanup; its nodes leaving the page is the only sign.
+      const watch = new MutationObserver(() => {
+        if (title.isConnected) return;
+        watch.disconnect();
+        release();
+      });
+      watch.observe(document.body, { childList: true, subtree: true });
+      hiddenWatch.current = watch;
+    };
+  }, []);
   useEffect(() => {
     if (scrollBody.current) scrollBody.current.scrollTop = 0;
     if (preview) stepHeading.current?.focus();
@@ -188,8 +213,15 @@ export function BackupImportDialog({
         mobileClassName="h-[min(42rem,85dvh)]"
         showCloseButton={pending !== "restore"}
       >
-        <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pb-4 pt-6 text-start"}>
-          <DialogTitle ref={stepHeading} tabIndex={-1} className="pe-8 outline-none">
+        <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pt-6 pb-4 text-start"}>
+          <DialogTitle
+            ref={(node) => {
+              stepHeading.current = node;
+              if (node) shownTitle.current = node;
+            }}
+            tabIndex={-1}
+            className="pe-8 outline-none"
+          >
             {t(
               restored
                 ? "settings:backup_restored_title"
@@ -212,7 +244,7 @@ export function BackupImportDialog({
               initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="text-success-subtle-foreground bg-current/15 flex size-20 items-center justify-center rounded-full"
+              className="text-success-subtle-foreground flex size-20 items-center justify-center rounded-full bg-current/15"
             >
               <Icons.CheckCircle className="size-10" aria-hidden />
             </motion.div>
@@ -254,7 +286,7 @@ export function BackupImportDialog({
                         ].map(({ label, value }) => (
                           <div key={label} className="flex flex-col gap-0.5 px-4">
                             <dt className="text-muted-foreground text-xs">{label}</dt>
-                            <dd className="order-first text-xl font-semibold tabular-nums tracking-tight">
+                            <dd className="order-first text-xl font-semibold tracking-tight tabular-nums">
                               {value.toLocaleString(i18n.resolvedLanguage)}
                             </dd>
                           </div>
@@ -314,7 +346,7 @@ export function BackupImportDialog({
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            className="pointer-coarse:size-11 shrink-0"
+                            className="shrink-0 pointer-coarse:size-11"
                             disabled={pending !== null}
                             onClick={() => void choose()}
                             aria-label={t("settings:recovery_change_file")}
@@ -385,7 +417,7 @@ export function BackupImportDialog({
                 {error && <BackupAlert error={error} />}
               </motion.div>
             </div>
-            <DialogFooter className="bg-background shrink-0 border-t px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:pb-6">
+            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-[max(1.5rem,var(--inset-bottom))] sm:pb-6">
               <Button
                 type="button"
                 variant="ghost"

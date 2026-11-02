@@ -185,7 +185,7 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
           <Icons.Briefcase className="h-4 w-4" />
           {!iconOnly && t("common:component.add_account")}
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
+        <SheetContent side="bottom" className="mx-1 h-[80vh] rounded-t-4xl p-0">
           <SheetHeader className="border-border border-b px-6 py-4">
             <SheetTitle>{t("common:component.select_account")}</SheetTitle>
             <SheetDescription>{t("common:component.choose_account_comparison")}</SheetDescription>

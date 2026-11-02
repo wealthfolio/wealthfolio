@@ -269,6 +269,16 @@ pub const ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL: &str = "RETURN_OF_CAPITAL";
 /// the asset's cost basis by its amount, with no unit or cash effect.
 pub const ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION: &str = "NOTIONAL_DISTRIBUTION";
 
+/// Conversion out: on an ADJUSTMENT, the asset and units that leave in a
+/// conversion (a fund switch or share-class conversion that keeps its cost).
+/// Paired by `source_group_id` with a `CONVERSION_IN` row in the same account
+/// on the same day; the arriving units take over the leaving units' lots.
+pub const ACTIVITY_SUBTYPE_CONVERSION_OUT: &str = "CONVERSION_OUT";
+
+/// Conversion in: on an ADJUSTMENT, the asset and units that arrive in a
+/// conversion, paired with a `CONVERSION_OUT` row.
+pub const ACTIVITY_SUBTYPE_CONVERSION_IN: &str = "CONVERSION_IN";
+
 /// Position-opening trade intent.
 /// Examples: buy-to-open for long options, sell-to-open for short options.
 pub const ACTIVITY_SUBTYPE_POSITION_OPEN: &str = "POSITION_OPEN";

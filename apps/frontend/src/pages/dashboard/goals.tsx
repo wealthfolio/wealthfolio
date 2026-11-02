@@ -9,8 +9,18 @@ import type { Goal } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { cn, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemSeparator,
+  ItemTitle,
+} from "@wealthfolio/ui/components/ui/item";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import type { TFunction } from "i18next";
+import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -133,7 +143,7 @@ export function SavingGoals() {
 
   return (
     <DashboardCard title={t("common:goals")} action={<ViewAllLink />}>
-      {visibleGoals.map((goal) => {
+      {visibleGoals.map((goal, index) => {
         const progress = goal.summaryProgress ?? 0;
         const pct = Math.max(0, Math.min(1, progress));
         const currentValue = goal.summaryCurrentValue ?? 0;
@@ -152,17 +162,22 @@ export function SavingGoals() {
             ? amountFormatting.formatCompactAmount(target, currency)
             : "—";
 
+        // An Item link: its padding and rounded corners carry the hover, and the negative
+        // margin keeps the content on the card's padding.
         return (
-          <Link
-            key={goal.id}
-            to={`/goals/${goal.id}`}
-            className="border-border hover:bg-muted/30 group block border-b py-3 transition-colors last:border-0"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
+          <Fragment key={goal.id}>
+            {index > 0 && <ItemSeparator />}
+            <Item
+              size="sm"
+              render={<Link to={`/goals/${goal.id}`} />}
+              className="-mx-2 items-start gap-x-4 gap-y-2.5 border-0 px-2"
+            >
+              <ItemContent className="min-w-0 gap-0.5">
                 {/* Title row with status dot */}
-                <div className="flex items-center gap-2">
-                  <h3 className="truncate text-sm font-semibold leading-tight">{goal.title}</h3>
+                <ItemTitle className="w-full min-w-0 gap-2">
+                  <h3 className="truncate text-sm leading-tight font-semibold md:text-base">
+                    {goal.title}
+                  </h3>
                   <span
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -172,33 +187,33 @@ export function SavingGoals() {
                   {progress >= 1 ? (
                     <Icons.CheckCircle className="text-success h-3.5 w-3.5 shrink-0" />
                   ) : null}
-                </div>
+                </ItemTitle>
 
                 {/* Amounts directly under title */}
-                <div className="text-muted-foreground text-2xs mt-0.5 tabular-nums">
+                <ItemDescription className="line-clamp-none text-xs tabular-nums md:text-sm">
                   {currentDisplay} / {targetDisplay}
-                </div>
-              </div>
+                </ItemDescription>
+              </ItemContent>
 
               {/* Right: big % + time */}
-              <div className="shrink-0 text-end">
-                <div className="text-base font-semibold tabular-nums leading-none">
+              <ItemActions className="shrink-0 flex-col items-end gap-1 text-end">
+                <div className="text-base leading-none font-semibold tabular-nums">
                   {pctDisplay}
                 </div>
-                <div className="text-muted-foreground text-2xs mt-1 tracking-[0.1em]">
-                  {timeStr}
-                </div>
-              </div>
-            </div>
+                <div className="text-muted-foreground text-xs md:text-sm">{timeStr}</div>
+              </ItemActions>
 
-            {/* Full-width progress bar at row bottom */}
-            <div className="bg-muted/60 relative mt-2.5 h-1.5 w-full overflow-hidden rounded-full">
-              <div
-                className="bg-success h-full rounded-full transition-all"
-                style={{ width: `${pct * 100}%` }}
-              />
-            </div>
-          </Link>
+              {/* Full-width progress bar at row bottom */}
+              <ItemFooter>
+                <div className="bg-muted/60 relative h-1.5 w-full overflow-hidden rounded-full">
+                  <div
+                    className="bg-success h-full rounded-full transition-all"
+                    style={{ width: `${pct * 100}%` }}
+                  />
+                </div>
+              </ItemFooter>
+            </Item>
+          </Fragment>
         );
       })}
       {hiddenGoalsCount > 0 && (

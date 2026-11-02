@@ -66,7 +66,7 @@ export function QuoteImportHelpPopover() {
                 <p className="font-semibold">
                   {t("settings:market_data_page.required_csv_format")}
                 </p>
-                <pre className="bg-muted mt-2 select-all overflow-x-auto rounded-md p-3 text-xs leading-relaxed">
+                <pre className="bg-muted mt-2 overflow-x-auto rounded-md p-3 text-xs leading-relaxed select-all">
                   <span className="text-muted-foreground">
                     {t("settings:quote_help_format_comment_1")}
                   </span>

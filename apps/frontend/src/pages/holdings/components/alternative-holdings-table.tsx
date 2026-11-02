@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Button } from "@wealthfolio/ui/components/ui/button";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import {
@@ -36,6 +37,11 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import {
+  HOLDINGS_TABLE_DENSITY,
+  PERCENT_BADGE,
+  ROW_ACTIONS_TRIGGER,
+} from "./holdings-table-styles";
 
 interface AlternativeHoldingsTableProps {
   holdings: AlternativeAssetHolding[];
@@ -114,11 +120,11 @@ export function AlternativeHoldingsTable({
                   : undefined
               }
             >
-              <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
-                <AssetKindIcon kind={holding.kind} size={20} />
+              <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                <AssetKindIcon kind={holding.kind} size={16} />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">{holding.name}</span>
+                <span className="text-sm font-semibold">{holding.name}</span>
                 <span className="text-muted-foreground text-xs">{kindDisplay}</span>
               </div>
             </div>
@@ -191,7 +197,8 @@ export function AlternativeHoldingsTable({
               <GainPercent
                 value={gainPct}
                 animated={false}
-                className="text-xs"
+                variant="badge"
+                className={PERCENT_BADGE}
                 invertColor={isLiability}
               />
             </div>
@@ -237,10 +244,11 @@ export function AlternativeHoldingsTable({
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
-                    <button
-                      type="button"
-                      className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       aria-label={t("holdings:open_actions")}
+                      className={ROW_ACTIONS_TRIGGER}
                     />
                   }
                 >
@@ -315,12 +323,14 @@ export function AlternativeHoldingsTable({
 
   return (
     <>
-      <DataTable
-        data={holdings}
-        columns={columns}
-        searchBy="name"
-        defaultSorting={[{ id: "marketValue", desc: true }]}
-      />
+      <div className={HOLDINGS_TABLE_DENSITY}>
+        <DataTable
+          data={holdings}
+          columns={columns}
+          searchBy="name"
+          defaultSorting={[{ id: "marketValue", desc: true }]}
+        />
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

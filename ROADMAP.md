@@ -3,15 +3,15 @@
 ## Vision
 
 To help individuals build their wealth by providing a safe, privacy-focused and
-easy-to-use tool to track their investments and goals.
+easy-to-use tool to track their investments, net worth, spending and goals.
 
 ## Strategy
 
-1. Build a polished application that focuses on the essentials
-2. Underdo the competition by offering a simpler, more focused alternative
-3. Fight feature creep and resist creating a bloated app
-4. Avoid complexity at all costs
-5. Provide clear insights on how your portfolio is performing against your goals
+1. Build a polished application that does the essentials well
+2. Simple by default: advanced features are opt-in and stay out of the way
+3. Go deeper on what people already track before adding new areas
+4. Fight feature creep: every feature has to earn its place
+5. Provide clear insights on how your wealth is tracking against your goals
 
 ## What We Believe In
 
@@ -38,54 +38,66 @@ easy-to-use tool to track their investments and goals.
 ### Phase 2: Core Features (Completed)
 
 - [x] Data export (CSV, SQLite, JSON)
-- [x] Multiple market data providers (Yahoo Finance, Alpha Vantage, MarketData)
+- [x] Multiple market data providers (Yahoo Finance, Alpha Vantage,
+      MarketData.app, Finnhub, Börse Frankfurt, AMFI, Metal Price API)
 - [x] Stock split handling
 - [x] Enhanced portfolio history calculation
 - [x] Cross-platform builds (Windows, macOS, Linux)
 - [x] Advanced CSV import with field mapping
 - [x] Addons system for extending functionality
 
-### Phase 3: Multi-Platform (Current - v3.0)
+### Phase 3: Multi-Platform (Completed)
 
 - [x] Self-hosted web app with Docker support
 - [x] REST API server (Axum)
-- [x] Mobile app (iOS via Tauri)
+- [x] Mobile apps (iOS and Android via Tauri)
 - [x] Wealthfolio Connect: Device sync with end-to-end encryption (E2EE)
 - [x] Wealthfolio Connect: broker data sync service
+- [x] Wealthfolio Connect: encrypted cloud backups
 
-**Wealthfolio Connect** is an optional paid subscription to sustain development:
-
-### Phase 4: Investment and Wealth Tracking
+### Phase 4: Investment and Wealth Tracking (Completed)
 
 - [x] Liabilities and debt tracking
+- [x] Loans and mortgages with amortization schedules
 - [x] Alternative assets (real estate, vehicles, collectibles)
 - [x] Options trading support
-- [ ] Track short positions
-- [ ] Margin accounts
+- [x] Track short positions (stocks, ETFs and options)
+- [x] Cost basis methods per account (FIFO, weighted average, LIFO, HIFO)
 
-### Phase 5: Smart Tools
+### Phase 5: Smart Tools (Completed)
 
-- [x] AI assistant addon (local LLMs via Ollama/LM Studio, or BYOK for
-      OpenAI/Anthropic)
+- [x] AI assistant (local models via Ollama or an OpenAI-compatible server such
+      as LM Studio, or your own key for OpenAI, Anthropic, Google Gemini, Groq
+      or OpenRouter)
 - [x] Save-up goals simulation
 - [x] Retirement/FIRE simulator
 
-### Phase 6: Ecosystem
+### Phase 6: Ecosystem (Completed)
 
 - [x] Addons catalog/marketplace for community addons
 - [x] Custom Market Data providers
 
-### Phase 7: Budgeting and Spend Tracking
+### Phase 7: Budgeting and Spend Tracking (Completed)
 
-- [ ] Budgeting and Spend tracking Module
+- [x] Budgeting and spend tracking (categories, rules, budgets, events and
+      insights)
 
-### Phase 8: Platform Expansion
+### Phase 8: Platform Expansion (Completed)
 
-- [ ] MCP and CLI for agents
-- [ ] Create and manage multiple portfolios
-- [ ] Portfolio Allocation and Rebalancing
-- [ ] Android Mobile app
-- [ ] SSO in self-hosted version
+- [x] MCP server for AI agents (AI Agent Access)
+- [x] Create and manage multiple portfolios
+- [x] Portfolio Allocation and Rebalancing
+- [x] Android Mobile app
+- [x] SSO in self-hosted version (OpenID Connect)
+- [x] Separate profiles with app lock
+- [x] Optional database encryption and password-protected backups
+- [x] 11 languages, including right-to-left Arabic
+
+### Up Next
+
+- [ ] CLI for agents
+- [ ] Margin accounts
+- [ ] Cross-account cost basis (ACB) and specific-lot selection
 
 ### Always Doing
 

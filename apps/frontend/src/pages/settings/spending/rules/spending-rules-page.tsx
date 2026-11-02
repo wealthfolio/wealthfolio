@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
@@ -109,11 +110,12 @@ export default function SpendingRulesPage() {
           const parent = c.parentId ? byId.get(c.parentId) : null;
           return {
             value: `${taxonomyId}:${c.id}`,
-            label: c.name,
+            label: getCategoryLabel(t, taxonomyId, c.id, c.name),
             taxonomyId,
             categoryId: c.id,
             color: c.color,
-            parentName: parent?.name ?? null,
+            icon: c.icon ?? null,
+            parentName: parent ? getCategoryLabel(t, taxonomyId, parent.id, parent.name) : null,
           } satisfies RuleFormCategoryOption;
         });
     };
@@ -133,7 +135,7 @@ export default function SpendingRulesPage() {
       meta[o.categoryId] ??= entry;
     });
     return { categoryOptions: opts, categoryMeta: meta };
-  }, [spending.data?.categories, income.data?.categories, savings.data?.categories]);
+  }, [spending.data?.categories, income.data?.categories, savings.data?.categories, t]);
 
   const presetMeta = useMemo<Record<string, RulePresetMeta>>(() => {
     const meta: Record<string, RulePresetMeta> = {};
@@ -181,11 +183,11 @@ export default function SpendingRulesPage() {
     remove.mutate(rule.id);
   };
 
-  const handleSave = (values: RuleFormValues) => {
+  const handleSave = async (values: RuleFormValues) => {
     const { amountOp, amountValue, amountValue2 } = ruleAmountPayload(values);
-    if (selectedRule) {
-      update.mutate(
-        {
+    try {
+      if (selectedRule) {
+        await update.mutateAsync({
           id: selectedRule.id,
           patch: {
             name: values.name,
@@ -203,14 +205,9 @@ export default function SpendingRulesPage() {
             isGlobal: values.accountId === null,
             accountId: values.accountId,
           },
-        },
-        {
-          onSuccess: () => setVisibleModal(false),
-        },
-      );
-    } else {
-      create.mutate(
-        {
+        });
+      } else {
+        await create.mutateAsync({
           name: values.name,
           pattern: values.pattern,
           matchType: values.matchType,
@@ -223,11 +220,11 @@ export default function SpendingRulesPage() {
           priority: values.priority,
           isGlobal: values.accountId === null,
           accountId: values.accountId,
-        },
-        {
-          onSuccess: () => setVisibleModal(false),
-        },
-      );
+        });
+      }
+      setVisibleModal(false);
+    } catch {
+      // The mutation reports the error; the modal stays open to try again.
     }
   };
 

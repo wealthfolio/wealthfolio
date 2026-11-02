@@ -177,6 +177,9 @@ function useViewportBelow(breakpoint: number) {
       setMatches(window.innerWidth < breakpoint);
     };
 
+    // A screen kept hidden (React <Activity>) misses resizes, such as a
+    // rotation, until it is shown again and listens again: measure now.
+    checkViewport();
     window.addEventListener("resize", checkViewport);
     return () => window.removeEventListener("resize", checkViewport);
   }, [breakpoint]);

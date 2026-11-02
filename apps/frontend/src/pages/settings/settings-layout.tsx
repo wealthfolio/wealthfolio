@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useIsCompactTableViewport, usePlatform } from "@/hooks/use-platform";
 import { SidebarNav } from "./sidebar-nav";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function SettingsLayout() {
   const { t } = useTranslation();
@@ -161,17 +163,17 @@ export default function SettingsLayout() {
         {/* Mobile Settings List View (carded list with dividers) */}
         <div className="scan-hide-target w-full max-w-full overflow-x-hidden">
           <div className="bg-background/95 supports-backdrop-filter:bg-background/60 pt-safe sticky top-0 z-10 border-b backdrop-blur">
-            <div className="min-h-15 flex items-center justify-center px-4">
+            <div className="flex min-h-15 items-center justify-center px-4">
               <h1 className="text-lg font-semibold">{t("settings:title")}</h1>
             </div>
           </div>
           <div className="space-y-6 p-3 pb-[var(--mobile-nav-total-offset)]">
             {sections.map((section) => (
               <div key={section.title} className="space-y-3">
-                <div className="text-muted-foreground px-2 text-xs font-semibold uppercase tracking-widest">
+                <div className="text-muted-foreground px-2 text-xs font-semibold tracking-widest uppercase">
                   {section.title}
                 </div>
-                <div className="divide-border bg-card divide-y overflow-hidden rounded-2xl border shadow-sm">
+                <div className={cn(cardSurfaceClassName, "divide-border divide-y overflow-hidden")}>
                   {section.items.map((item) => (
                     <button
                       key={item.href}
@@ -225,7 +227,7 @@ export default function SettingsLayout() {
               <div className="space-y-6">
                 {sections.map((section) => (
                   <div key={section.title} className="space-y-2">
-                    <div className="text-muted-foreground ps-2 text-sm font-light uppercase tracking-widest">
+                    <div className="text-muted-foreground ps-2 text-sm font-light tracking-widest uppercase">
                       {section.title}
                     </div>
                     <SidebarNav items={section.items} />

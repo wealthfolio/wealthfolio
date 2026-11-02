@@ -69,21 +69,8 @@ mod desktop {
 
     /// Sets up the application menu and its event handler.
     pub fn setup_menu(handle: &AppHandle, menu_bar_visible: bool) {
-        // macOS always keeps the menu: without it, Cmd+C, Cmd+V, Cmd+Z and
-        // Cmd+Q stop working, so the setting only applies on other platforms.
-        if menu_bar_visible || cfg!(target_os = "macos") {
-            match menu::create_menu(handle) {
-                Ok(menu) => {
-                    if let Err(e) = handle.set_menu(menu) {
-                        error!("Failed to set menu: {}", e);
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to create menu: {}", e);
-                }
-            }
-        } else if let Err(e) = handle.remove_menu() {
-            error!("Failed to remove menu: {}", e);
+        if let Err(e) = menu::set_menu_visibility(handle, menu_bar_visible) {
+            error!("Failed to apply menu visibility: {}", e);
         }
 
         handle.on_menu_event(move |app, event| {
@@ -311,6 +298,8 @@ pub fn run() {
             commands::activity::search_activities,
             commands::activity::create_activity,
             commands::activity::update_activity,
+            commands::activity::review_activity_split_effects,
+            commands::activity::review_internal_transfer_pair_split_effects,
             commands::activity::save_activities,
             commands::activity::delete_activity,
             commands::activity::get_transfer_pair_for_activity,
@@ -358,6 +347,7 @@ pub fn run() {
             commands::spending::upsert_categorization_rule,
             commands::spending::delete_categorization_rule,
             commands::spending::rerun_categorization_rules,
+            commands::spending::rerun_categorization_rules_detailed,
             commands::spending::list_rule_presets,
             commands::spending::import_rule_preset,
             commands::spending::remove_rule_preset,
@@ -370,6 +360,8 @@ pub fn run() {
             commands::spending::update_event,
             commands::spending::delete_event,
             commands::spending::get_budget,
+            commands::spending::get_budget_readonly,
+            commands::spending::get_spending_context,
             commands::spending::upsert_budget_target,
             commands::spending::delete_budget_target,
             commands::spending::upsert_budget_rollover_setting,
@@ -575,6 +567,7 @@ pub fn run() {
             commands::mcp::mcp_list_tokens,
             commands::mcp::mcp_create_token,
             commands::mcp::mcp_delete_token,
+            commands::mcp::mcp_update_token_scopes,
             // Addon commands
             commands::addon::extract_addon_zip,
             commands::addon::install_addon_zip,
@@ -761,7 +754,8 @@ pub fn run() {
             commands::allocation_targets::list_target_constraints,
             commands::allocation_targets::save_target_constraints,
             commands::allocation_targets::get_allocation_target_drift,
-            commands::allocation_targets::calculate_rebalance_plan,
+            commands::allocation_targets::generate_calculated_adjustments,
+            commands::allocation_targets::calculate_allocation_worksheet,
             // RetirementPlan-based FIRE commands
             commands::fire::calculate_retirement_projection,
             commands::fire::run_retirement_decision_sensitivity_map,

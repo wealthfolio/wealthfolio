@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "이전 슬라이드",
-    "next": "다음 슬라이드"
+    "next": "다음 슬라이드",
+    "role": "캐러셀",
+    "slide": "슬라이드"
   },
   "currency": {
     "selectTitle": "통화 선택",
@@ -14,7 +16,15 @@
     "searchPrompt": "원하는 통화를 검색하거나 위의 인기 옵션에서 선택하세요.",
     "useCustom": "\"{{value}}\"을(를) 커스텀 통화로 사용",
     "noneFound": "\"{{query}}\"에 대한 통화를 찾을 수 없습니다.",
-    "noneFoundShort": "통화를 찾을 수 없습니다."
+    "noneFoundShort": "통화를 찾을 수 없습니다.",
+    "units": {
+      "GBp": "영국 펜스",
+      "GBX": "영국 펜스",
+      "ILA": "이스라엘 아고라",
+      "USX": "미국 센트",
+      "ZAc": "남아프리카 센트",
+      "KWF": "쿠웨이트 필스"
+    }
   },
   "dataGrid": {
     "label": "데이터 그리드",
@@ -75,7 +85,11 @@
     "clearSymbol": "심볼 지우기",
     "currency": "통화",
     "searchCurrency": "통화 검색...",
-    "noCurrencyFound": "통화를 찾을 수 없습니다."
+    "noCurrencyFound": "통화를 찾을 수 없습니다.",
+    "copyFailed": "클립보드에 복사하지 못했습니다",
+    "cutFailed": "클립보드로 잘라내지 못했습니다",
+    "pasteFailed": "붙여넣지 못했습니다. 다시 시도해 주세요.",
+    "cellsSkipped_other": "잘못된 데이터로 인해 셀 {{count}}개의 붙여넣기를 건너뛰었습니다"
   },
   "dataTable": {
     "noResults": "결과 없음",
@@ -197,5 +211,27 @@
   "page": {
     "back": "뒤로"
   },
-  "remove": "{{label}} 제거"
+  "remove": "{{label}} 제거",
+  "actionConfirm": {
+    "pending": "진행 중…"
+  },
+  "select": {
+    "placeholder": "옵션 선택"
+  },
+  "progress": {
+    "title": "처리 중",
+    "message": "처리 중…",
+    "description": "요청을 처리하는 동안 기다려 주세요. 잠시 시간이 걸릴 수 있습니다."
+  },
+  "navigation": {
+    "view": "보기 {{number}}",
+    "goTo": "{{name}}(으)로 이동"
+  },
+  "quoteImport": {
+    "noFile": "선택한 파일이 없습니다",
+    "validateFailed": "CSV 검증에 실패했습니다",
+    "validateFirst": "가져올 시세가 없습니다. 먼저 파일을 검증해 주세요.",
+    "noValid": "가져올 유효한 시세가 없습니다. 모든 시세에 검증 오류가 있습니다.",
+    "importFailed": "시세를 가져오지 못했습니다"
+  }
 }

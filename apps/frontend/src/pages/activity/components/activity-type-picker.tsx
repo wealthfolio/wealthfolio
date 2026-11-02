@@ -21,6 +21,7 @@ export type PrimaryActivityType =
   | typeof CanonicalActivityType.DIVIDEND
   | "TRANSFER";
 export type SecondaryActivityType =
+  | "CONVERSION"
   | typeof CanonicalActivityType.SPLIT
   | typeof CanonicalActivityType.FEE
   | typeof CanonicalActivityType.INTEREST
@@ -55,6 +56,7 @@ const PRIMARY_ACTIVITY_TYPES: ActivityTypeConfig<PrimaryActivityType>[] = [
 ];
 
 const SECONDARY_ACTIVITY_TYPES: ActivityTypeConfig<SecondaryActivityType>[] = [
+  { value: "CONVERSION", labelKey: "activity:picker.conversion", icon: "RefreshCw" },
   { value: CanonicalActivityType.SPLIT, labelKey: "activity:picker.split", icon: "Split" },
   { value: CanonicalActivityType.FEE, labelKey: "activity:type_fee", icon: "Receipt" },
   { value: CanonicalActivityType.INTEREST, labelKey: "activity:type_interest", icon: "Percent" },
@@ -309,8 +311,12 @@ export function ActivityTypePicker({
     setViewMode((prev) => (prev === "carousel" ? "grid" : "carousel"));
   }, []);
 
+  // Reclassifying edits one stored row; a conversion is two rows.
   const availableTypes: ActivityTypeConfig<ActivityType>[] = includeReclassificationTypes
-    ? [...ALL_ACTIVITY_TYPES, ...RECLASSIFICATION_ACTIVITY_TYPES]
+    ? [
+        ...ALL_ACTIVITY_TYPES.filter((type) => type.value !== "CONVERSION"),
+        ...RECLASSIFICATION_ACTIVITY_TYPES,
+      ]
     : ALL_ACTIVITY_TYPES;
 
   // Filter types if allowedTypes is provided

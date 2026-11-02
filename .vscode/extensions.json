@@ -3,6 +3,9 @@
     "tauri-apps.tauri-vscode",
     "rust-lang.rust-analyzer",
     "bradlc.vscode-tailwindcss",
-    "yoavbls.pretty-ts-errors"
+    "yoavbls.pretty-ts-errors",
+    "oxc.oxc-vscode",
+    "dbaeumer.vscode-eslint",
+    "typescriptteam.native-preview"
   ]
 }

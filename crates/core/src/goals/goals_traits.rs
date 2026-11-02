@@ -3,7 +3,7 @@
 use crate::errors::Result;
 use crate::goals::goals_model::{
     AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, GoalSummaryUpdate,
-    NewGoal, PreparedRetirementSimulationInput, SaveGoalPlan,
+    GoalUpdate, NewGoal, PreparedRetirementSimulationInput, SaveGoalPlan,
 };
 use crate::planning::SaveUpOverview;
 use crate::portfolio::fire::RetirementOverview;
@@ -51,7 +51,7 @@ pub trait GoalServiceTrait: Send + Sync {
     fn get_goals(&self) -> Result<Vec<Goal>>;
     fn get_goal(&self, goal_id: &str) -> Result<Goal>;
     async fn create_goal(&self, new_goal: NewGoal) -> Result<Goal>;
-    async fn update_goal(&self, updated_goal_data: Goal) -> Result<Goal>;
+    async fn update_goal(&self, updated_goal_data: GoalUpdate) -> Result<Goal>;
     async fn delete_goal(&self, goal_id_to_delete: String) -> Result<usize>;
 
     // Funding
@@ -68,11 +68,9 @@ pub trait GoalServiceTrait: Send + Sync {
     async fn delete_goal_plan(&self, goal_id: &str) -> Result<usize>;
 
     // Summary
-    async fn refresh_goal_summary(
-        &self,
-        goal_id: &str,
-        valuations: &AccountValuationMap,
-    ) -> Result<Goal>;
+    async fn current_valuation_map(&self) -> Result<AccountValuationMap>;
+    async fn refresh_goal_summary(&self, goal_id: &str) -> Result<Goal>;
+    async fn refresh_all_goal_summaries(&self) -> Result<Vec<Goal>>;
 
     // Retirement overview
     async fn compute_retirement_overview(

@@ -148,11 +148,10 @@ impl AddonStorageRepositoryTrait for AddonStorageRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
-    use tempfile::tempdir;
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
 
-    async fn setup() -> (AddonStorageRepository, tempfile::TempDir) {
-        let dir = tempdir().unwrap();
+    async fn setup() -> (AddonStorageRepository, TestDir) {
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

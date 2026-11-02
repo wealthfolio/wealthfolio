@@ -1,0 +1,582 @@
+/**
+ * Back-stack rules for the phone layout.
+ *
+ * Browser history stays the source of truth: every move in the app is still a
+ * history entry, so the back button, Android's system Back and the browser all
+ * agree. This model only decides which screen each entry shows, so the screens
+ * under the top one can stay mounted and come back as the user left them.
+ *
+ * A tab owns a stack of screens. Opening something from a screen pushes onto
+ * that screen's tab; a top-level destination (a tab-bar or menu entry) leaves
+ * the tab, which keeps its stack for when the user returns.
+ */
+
+export type NavigationAction = "PUSH" | "POP" | "REPLACE";
+
+export interface StackLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+  state: unknown;
+  key: string;
+}
+
+export interface StackScreen {
+  id: string;
+  tab: string;
+  location: StackLocation;
+}
+
+export interface StackTab {
+  id: string;
+  /**
+   * Path of the tab's first screen. Paths under it nest: each path between the
+   * root and a page is a page of its own (`/settings/spending` for
+   * `/settings/spending/rules`), which a deep link opens under the page.
+   */
+  rootPath: string;
+  /** Other paths that show the tab's first screen, such as `/` for the dashboard. */
+  aliases?: readonly string[];
+}
+
+export interface StackConfig {
+  tabs: readonly StackTab[];
+  /** Destinations that leave the current tab instead of stacking on it. */
+  topLevelPaths: readonly string[];
+  /**
+   * Path prefixes that stay outside every tab whatever the navigation lists,
+   * such as add-on pages, whose menu entries load after the app starts.
+   */
+  outsidePrefixes?: readonly string[];
+  /**
+   * Tab a link straight to a page outside every tab opens in, on top of the
+   * tab's first screen, so back has somewhere to go.
+   */
+  homeTab?: string;
+}
+
+interface HistoryEntry {
+  /** Tab the entry belongs to; null for a page shown outside the stacks. */
+  tab: string | null;
+  screenId: string | null;
+  /** Position in history, relative to the first entry this session saw. */
+  index: number;
+}
+
+export interface StackState {
+  stacks: Record<string, StackScreen[]>;
+  /** Tab on screen; null while a page outside the stacks is shown. */
+  activeTab: string | null;
+  entries: Record<string, HistoryEntry>;
+  index: number;
+  currentKey: string;
+  nextId: number;
+  /** Tabs shown, most recent first: only the latest few stay mounted. */
+  recentTabs: readonly string[];
+}
+
+/**
+ * What the app meant by the navigation it is about to make, when the location
+ * alone cannot tell: switching to a tab shows that tab's top screen, and a back
+ * step that has no history entry to return to replaces the current one.
+ */
+export type StackIntent = { type: "openTab"; tab: string } | { type: "popTo"; screenId: string };
+
+export interface NavigationEvent {
+  action: NavigationAction;
+  location: StackLocation;
+  intent?: StackIntent | null;
+  /**
+   * Position of the entry in the browser's history, when known. Without it
+   * the model counts pushes, which misses navigations that land in the same
+   * render and starts over after a reload.
+   */
+  index?: number | null;
+}
+
+export interface BackTarget {
+  screen: StackScreen;
+  /**
+   * Going back in history reaches the screen: the previous entry shows it, or
+   * the previous entry is one this session never saw (from before a reload),
+   * in which case history decides and the stack follows it.
+   */
+  viaHistory: boolean;
+}
+
+export type StackTransition =
+  | { kind: "push"; from: StackScreen; to: StackScreen }
+  | { kind: "pop"; from: StackScreen; to: StackScreen; exiting: StackScreen[] }
+  | null;
+
+function normalizePath(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+function tabWithRoot(config: StackConfig, pathname: string): StackTab | undefined {
+  const path = normalizePath(pathname);
+  return config.tabs.find((tab) => tab.rootPath === path || tab.aliases?.includes(path));
+}
+
+function tabOwning(config: StackConfig, pathname: string): StackTab | undefined {
+  const path = normalizePath(pathname);
+  return (
+    tabWithRoot(config, path) ?? config.tabs.find((tab) => path.startsWith(`${tab.rootPath}/`))
+  );
+}
+
+/** The state with its active tab first in the recent tabs. */
+function withRecentTab(state: StackState): StackState {
+  const tab = state.activeTab;
+  if (tab === null || state.recentTabs[0] === tab) return state;
+  return { ...state, recentTabs: [tab, ...state.recentTabs.filter((other) => other !== tab)] };
+}
+
+function isTopLevel(config: StackConfig, pathname: string): boolean {
+  const path = normalizePath(pathname);
+  return (
+    config.topLevelPaths.includes(path) ||
+    (config.outsidePrefixes ?? []).some((prefix) => path.startsWith(prefix))
+  );
+}
+
+function makeScreen(state: StackState, tab: string, location: StackLocation) {
+  const screen: StackScreen = { id: `${tab}:${state.nextId}`, tab, location };
+  return { screen, nextId: state.nextId + 1 };
+}
+
+function findScreen(state: StackState, screenId: string) {
+  for (const [tab, screens] of Object.entries(state.stacks)) {
+    const position = screens.findIndex((screen) => screen.id === screenId);
+    if (position !== -1) return { tab, position };
+  }
+  return null;
+}
+
+/** Stack of `tab` cut down to the screen at `position`, which shows `location`. */
+function truncateTo(
+  stacks: StackState["stacks"],
+  tab: string,
+  position: number,
+  location: StackLocation,
+) {
+  const screens = stacks[tab].slice(0, position + 1);
+  screens[position] = { ...screens[position], location };
+  return { ...stacks, [tab]: screens };
+}
+
+/**
+ * Pages a link straight to a deeper screen opens under it, so back walks up one
+ * level at a time: each path between the tab's root and the link, root first.
+ * `/settings/spending/rules` opens `/settings` and `/settings/spending`.
+ */
+function parentLocations(tab: StackTab, location: StackLocation): StackLocation[] {
+  const path = normalizePath(location.pathname);
+  if (path === tab.rootPath || tab.aliases?.includes(path)) return [];
+  const segments = path.slice(tab.rootPath.length + 1).split("/");
+  return segments.slice(0, -1).reduce<StackLocation[]>(
+    (parents, _, position) => [
+      ...parents,
+      {
+        pathname: [tab.rootPath, ...segments.slice(0, position + 1)].join("/"),
+        search: "",
+        hash: "",
+        state: null,
+        key: `${location.key}:parent-${position + 1}`,
+      },
+    ],
+    [rootLocationOf(tab, location)],
+  );
+}
+
+/** The tab's first screen, opened under `location`. */
+function rootLocationOf(tab: StackTab, location: StackLocation): StackLocation {
+  return {
+    pathname: tab.rootPath,
+    search: "",
+    hash: "",
+    state: null,
+    key: `${location.key}:parent-0`,
+  };
+}
+
+function sameUrl(a: StackLocation, b: StackLocation): boolean {
+  return (
+    normalizePath(a.pathname) === normalizePath(b.pathname) &&
+    a.search === b.search &&
+    a.hash === b.hash
+  );
+}
+
+/** Records the entry at `key`; any other entry at its position is gone from history. */
+function withEntry(entries: StackState["entries"], key: string, entry: HistoryEntry) {
+  const kept = Object.entries(entries).filter(([, other]) => other.index !== entry.index);
+  return { ...Object.fromEntries(kept), [key]: entry };
+}
+
+/** Removes a screen from its tab, except the tab's first screen, which always stays. */
+function removeScreen(state: StackState, screenId: string): StackState {
+  const found = findScreen(state, screenId);
+  if (!found || found.position === 0) return state;
+  const screens = state.stacks[found.tab].filter((screen) => screen.id !== screenId);
+  return { ...state, stacks: { ...state.stacks, [found.tab]: screens } };
+}
+
+/**
+ * Going back closes the screen being left, as on a phone, unless history goes
+ * back to that screen or to one under it in the same tab.
+ */
+function closeTopWhenLeft(state: StackState, destinationScreenId: string | null): StackState {
+  const top = topScreen(state);
+  if (!top || top.id === destinationScreenId) return state;
+  const screens = state.stacks[top.tab] ?? [];
+  if (screens.some((screen) => screen.id === destinationScreenId)) return state;
+  return removeScreen(state, top.id);
+}
+
+/** Builds the stack for a location reached without history this session knows. */
+export function coldStart(
+  config: StackConfig,
+  location: StackLocation,
+  previous?: StackState,
+  index = 0,
+): StackState {
+  const base: StackState = {
+    stacks: previous?.stacks ?? {},
+    activeTab: null,
+    entries: previous?.entries ?? {},
+    index,
+    currentKey: location.key,
+    nextId: previous?.nextId ?? 0,
+    recentTabs: previous?.recentTabs ?? [],
+  };
+  // A page outside every tab, opened directly, opens on top of the home tab.
+  const owner = tabOwning(config, location.pathname);
+  const tab =
+    owner ??
+    (isTopLevel(config, location.pathname)
+      ? undefined
+      : config.tabs.find((candidate) => candidate.id === config.homeTab));
+  if (!tab) {
+    return {
+      ...base,
+      entries: withEntry(base.entries, location.key, { tab: null, screenId: null, index }),
+    };
+  }
+
+  let state = base;
+  const screens: StackScreen[] = [];
+  const parents = owner ? parentLocations(tab, location) : [rootLocationOf(tab, location)];
+  for (const parent of parents) {
+    const made = makeScreen(state, tab.id, parent);
+    screens.push(made.screen);
+    state = { ...state, nextId: made.nextId };
+  }
+  const top = makeScreen(state, tab.id, location);
+  screens.push(top.screen);
+  return withRecentTab({
+    ...state,
+    nextId: top.nextId,
+    stacks: { ...state.stacks, [tab.id]: screens },
+    activeTab: tab.id,
+    entries: withEntry(state.entries, location.key, {
+      tab: tab.id,
+      screenId: top.screen.id,
+      index,
+    }),
+  });
+}
+
+/**
+ * The tab's stack with `location` opened on top again after its screen was
+ * closed. A page under the tab's root gets back the pages above it in the path
+ * (kept where they still are, opened again where they were closed), so back
+ * walks up through them as it did before.
+ */
+function reopenOnTop(
+  state: StackState,
+  tabId: string,
+  location: StackLocation,
+  config: StackConfig,
+) {
+  const screens = state.stacks[tabId] ?? [];
+  const tab = config.tabs.find((candidate) => candidate.id === tabId);
+  const parents = tab ? parentLocations(tab, location) : [];
+  const nested = tab !== undefined && tabOwning(config, location.pathname)?.id === tabId;
+  if (!nested || parents.length === 0 || screens.length === 0) {
+    const { screen, nextId } = makeScreen(state, tabId, location);
+    return { screens: [...screens, screen], screen, nextId };
+  }
+  // The tab's first screen always stays; the pages between it and the location
+  // are kept while they still match, from the top down, and opened again after.
+  let next = state;
+  const rebuilt = screens.slice(0, 1);
+  let matching = true;
+  for (const parent of parents.slice(1)) {
+    const existing = screens[rebuilt.length];
+    if (matching && existing && sameUrl(existing.location, parent)) {
+      rebuilt.push(existing);
+      continue;
+    }
+    matching = false;
+    const made = makeScreen(next, tabId, parent);
+    rebuilt.push(made.screen);
+    next = { ...next, nextId: made.nextId };
+  }
+  const made = makeScreen(next, tabId, location);
+  return { screens: [...rebuilt, made.screen], screen: made.screen, nextId: made.nextId };
+}
+
+function goToKnownEntry(
+  state: StackState,
+  location: StackLocation,
+  entry: HistoryEntry,
+  index: number,
+  config: StackConfig,
+) {
+  const moved = { ...state, index, currentKey: location.key };
+  if (entry.tab === null || entry.screenId === null) {
+    return { ...moved, activeTab: null };
+  }
+
+  const found = findScreen(state, entry.screenId);
+  if (found) {
+    return {
+      ...moved,
+      activeTab: found.tab,
+      stacks: truncateTo(state.stacks, found.tab, found.position, location),
+    };
+  }
+
+  // History reached a screen that was closed: open it again on top of its tab.
+  const { screens, screen, nextId } = reopenOnTop(state, entry.tab, location, config);
+  return {
+    ...moved,
+    nextId,
+    activeTab: entry.tab,
+    stacks: { ...state.stacks, [entry.tab]: screens },
+    entries: withEntry(state.entries, location.key, { ...entry, screenId: screen.id, index }),
+  };
+}
+
+/** Where a new history entry lands: which tab, and which screen. */
+function placeNewEntry(state: StackState, event: NavigationEvent, config: StackConfig) {
+  const { action, location, intent } = event;
+
+  if (intent?.type === "popTo") {
+    const found = findScreen(state, intent.screenId);
+    if (found) {
+      return {
+        ...state,
+        activeTab: found.tab,
+        stacks: truncateTo(state.stacks, found.tab, found.position, location),
+        placed: { tab: found.tab, screenId: intent.screenId },
+      };
+    }
+  }
+
+  const openedTab =
+    intent?.type === "openTab"
+      ? config.tabs.find((tab) => tab.id === intent.tab)
+      : tabWithRoot(config, location.pathname);
+  if (openedTab) {
+    const screens = state.stacks[openedTab.id] ?? [];
+    // A tab switch shows the tab as it was left; going to the tab's root path
+    // (or tapping the tab it is already on) returns it to its first screen.
+    const keep = intent?.type === "openTab" ? screens.length - 1 : 0;
+    if (screens.length > 0) {
+      return {
+        ...state,
+        activeTab: openedTab.id,
+        stacks: truncateTo(state.stacks, openedTab.id, keep, location),
+        placed: { tab: openedTab.id, screenId: screens[keep].id },
+      };
+    }
+    const { screen, nextId } = makeScreen(state, openedTab.id, location);
+    return {
+      ...state,
+      nextId,
+      activeTab: openedTab.id,
+      stacks: { ...state.stacks, [openedTab.id]: [screen] },
+      placed: { tab: openedTab.id, screenId: screen.id },
+    };
+  }
+
+  if (state.activeTab === null || isTopLevel(config, location.pathname)) {
+    return { ...state, activeTab: null, placed: { tab: null, screenId: null } };
+  }
+
+  const tab = state.activeTab;
+  const screens = state.stacks[tab];
+  if (action === "REPLACE") {
+    // A redirect up to the page underneath (a `<Navigate replace>` to the
+    // parent) returns to that page rather than showing it twice.
+    const top = screens.length - 1;
+    const below = screens[top - 1];
+    const keep = below && sameUrl(below.location, location) ? top - 1 : top;
+    return {
+      ...state,
+      stacks: truncateTo(state.stacks, tab, keep, location),
+      placed: { tab, screenId: screens[keep].id },
+    };
+  }
+  const { screen, nextId } = makeScreen(state, tab, location);
+  return {
+    ...state,
+    nextId,
+    stacks: { ...state.stacks, [tab]: [...screens, screen] },
+    placed: { tab, screenId: screen.id },
+  };
+}
+
+/** History moved to an existing entry: back, forward, or a jump. */
+function applyPop(state: StackState, event: NavigationEvent, config: StackConfig): StackState {
+  const { location } = event;
+  const known = state.entries[location.key];
+  const index = event.index ?? known?.index ?? null;
+
+  if (index === null) {
+    // Nowhere to place the entry: start over from it.
+    return coldStart(config, location, { ...state, entries: {} });
+  }
+  const goingBack = index < state.index;
+
+  if (known) {
+    const base = goingBack ? closeTopWhenLeft(state, known.screenId) : state;
+    return goToKnownEntry(base, location, known, index, config);
+  }
+
+  // An entry this session never saw: from before a reload, or a navigation
+  // that landed in the same render as a later one. Going back to the URL of
+  // the screen underneath means that screen.
+  const screens = state.activeTab ? (state.stacks[state.activeTab] ?? []) : [];
+  const below = screens[screens.length - 2];
+  if (goingBack && state.activeTab && below && sameUrl(below.location, location)) {
+    return {
+      ...state,
+      index,
+      currentKey: location.key,
+      stacks: truncateTo(state.stacks, state.activeTab, screens.length - 2, location),
+      entries: withEntry(state.entries, location.key, {
+        tab: state.activeTab,
+        screenId: below.id,
+        index,
+      }),
+    };
+  }
+
+  const base = goingBack ? closeTopWhenLeft(state, null) : state;
+  if (Object.keys(base.stacks).length === 0) {
+    return coldStart(config, location, base, index);
+  }
+  // Otherwise place it as if it were opened from the screen on top.
+  const { placed, ...next } = placeNewEntry(base, { action: "PUSH", location }, config);
+  return {
+    ...next,
+    index,
+    currentKey: location.key,
+    entries: withEntry(base.entries, location.key, { ...placed, index }),
+  };
+}
+
+/** Applies one router navigation to the stacks. */
+export function applyNavigation(
+  state: StackState,
+  event: NavigationEvent,
+  config: StackConfig,
+): StackState {
+  return withRecentTab(applyRouterNavigation(state, event, config));
+}
+
+function applyRouterNavigation(
+  state: StackState,
+  event: NavigationEvent,
+  config: StackConfig,
+): StackState {
+  const { action, location } = event;
+  if (action === "POP") return applyPop(state, event, config);
+
+  const index = event.index ?? (action === "PUSH" ? state.index + 1 : state.index);
+  // A push drops the entries from its position on, as the browser does; a
+  // replace drops the entry it overwrites.
+  const entries = Object.fromEntries(
+    Object.entries(state.entries).filter(([key, entry]) =>
+      action === "PUSH" ? entry.index < index : key !== state.currentKey && entry.index !== index,
+    ),
+  );
+
+  const replaced = action === "REPLACE" ? topScreen(state) : null;
+  const { placed, ...next } = placeNewEntry(state, event, config);
+  const result: StackState = {
+    ...next,
+    index,
+    currentKey: location.key,
+    entries: { ...entries, [location.key]: { ...placed, index } },
+  };
+  // A redirect away from the screen on top (a `<Navigate replace>` to another
+  // tab's page) overwrote that screen's only entry, so the screen is gone. A
+  // tab switch made in place (Android's app) leaves the tab it came from as is.
+  const leftTab = event.intent?.type === "openTab";
+  return replaced && placed.screenId !== replaced.id && !leftTab
+    ? removeScreen(result, replaced.id)
+    : result;
+}
+
+export function topScreen(state: StackState): StackScreen | null {
+  if (state.activeTab === null) return null;
+  const screens = state.stacks[state.activeTab] ?? [];
+  return screens[screens.length - 1] ?? null;
+}
+
+/** The screen a back step returns to, or null when the tab is at its root. */
+export function getBackTarget(state: StackState): BackTarget | null {
+  if (state.activeTab === null) return null;
+  const screens = state.stacks[state.activeTab] ?? [];
+  if (screens.length < 2) return null;
+
+  const screen = screens[screens.length - 2];
+  const previousEntry = Object.values(state.entries).find(
+    (entry) => entry.index === state.index - 1,
+  );
+  const viaHistory = previousEntry ? previousEntry.screenId === screen.id : state.index > 0;
+  return { screen, viaHistory };
+}
+
+/**
+ * How many history entries back the tab's first screen is, when every entry
+ * since then shows a screen still in the tab's stack. Null when history went
+ * elsewhere in between (another tab, an entry replaced by a back step), where
+ * returning to the first screen takes a new entry instead.
+ */
+export function stepsBackToTabRoot(state: StackState, tabId: string): number | null {
+  const screens = state.stacks[tabId] ?? [];
+  if (state.activeTab !== tabId || screens.length < 2) return null;
+  const ids = new Set(screens.map((screen) => screen.id));
+  const byIndex = new Map(Object.values(state.entries).map((entry) => [entry.index, entry]));
+  for (let index = state.index; byIndex.has(index); index--) {
+    const entry = byIndex.get(index)!;
+    if (entry.tab !== tabId || entry.screenId === null || !ids.has(entry.screenId)) return null;
+    if (entry.screenId === screens[0].id) return state.index - index;
+  }
+  return null;
+}
+
+/** How the screen on top changed between two states. */
+export function describeTransition(previous: StackState, next: StackState): StackTransition {
+  if (previous.activeTab === null || previous.activeTab !== next.activeTab) return null;
+
+  const before = previous.stacks[previous.activeTab] ?? [];
+  const after = next.stacks[next.activeTab] ?? [];
+  const from = before[before.length - 1];
+  const to = after[after.length - 1];
+  if (!from || !to || from.id === to.id) return null;
+
+  const toPosition = before.findIndex((screen) => screen.id === to.id);
+  if (toPosition !== -1) {
+    return { kind: "pop", from, to, exiting: before.slice(toPosition + 1) };
+  }
+  if (after.some((screen) => screen.id === from.id)) {
+    return { kind: "push", from, to };
+  }
+  return null;
+}

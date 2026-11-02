@@ -1055,8 +1055,7 @@ pub(crate) fn filter_and_normalize_lots(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
-    use tempfile::tempdir;
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
 
     fn dec(value: &str) -> Decimal {
         value.parse::<Decimal>().unwrap()
@@ -1065,10 +1064,10 @@ mod tests {
     async fn setup() -> (
         LotsRepository,
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();
@@ -1560,7 +1559,7 @@ mod tests {
         use wealthfolio_core::portfolio::snapshot::{SnapshotService, SnapshotServiceTrait};
 
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

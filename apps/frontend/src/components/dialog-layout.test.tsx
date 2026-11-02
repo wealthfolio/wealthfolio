@@ -71,7 +71,7 @@ describe("dialog overflow containment", () => {
 
     expect(screen.getByRole("alertdialog")).toHaveClass(
       "[&>*]:min-w-0",
-      "max-h-[calc(100dvh-env(safe-area-inset-bottom,0px)-2rem)]",
+      "max-h-[calc(100dvh-var(--inset-bottom,env(safe-area-inset-bottom,0px))-2rem)]",
       "overflow-y-auto",
     );
     expect(screen.getByTestId("alert-dialog-footer")).toHaveClass(

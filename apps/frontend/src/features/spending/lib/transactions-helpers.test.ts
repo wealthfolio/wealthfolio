@@ -495,3 +495,27 @@ describe("netSummary", () => {
     expect(summary.converted).toEqual({ currency: "USD", amount: -140 });
   });
 });
+
+it("keeps old-taxonomy splits visible for explicit repair after a bucket change", () => {
+  const row = toRowVM(
+    cashActivity({
+      cashFlowBucket: "spending",
+      splits: [
+        {
+          id: "old",
+          activityId: "activity-1",
+          taxonomyId: "income_sources",
+          categoryId: "interest",
+          amount: "100",
+          note: null,
+          sortOrder: 0,
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    }),
+    new Map(),
+  );
+  expect(row.splitCount).toBe(1);
+  expect(row.category).toBeNull();
+});

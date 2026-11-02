@@ -1,5 +1,7 @@
 import { useSettings } from "@/hooks/use-settings";
 import { ActivityType } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -33,12 +35,13 @@ export const createFeeFormSchema = (t?: TFunction) =>
       .string()
       .min(1, { message: msg(t, "activity:form.err_select_account", "Please select an account.") }),
     activityDate: z.date({
-      required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+      error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
     }),
     amount: z.coerce
       .number({
-        required_error: msg(t, "activity:form.err_enter_amount", "Please enter an amount."),
-        invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+        error: invalidTypeError(
+          msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+        ),
       })
       .min(0, {
         message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
@@ -46,11 +49,20 @@ export const createFeeFormSchema = (t?: TFunction) =>
     comment: z.string().optional().nullable(),
     // Advanced options
     currency: z
-      .string()
+      .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
-    // Only carry an explicit reset; otherwise retain the stored rate on updates.
-    fxRate: z.null().optional(),
+    fxRate: z.coerce
+      .number({
+        error: invalidTypeError(
+          msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
+        ),
+      })
+      .positive({
+        message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
+      })
+      .optional()
+      .nullable(),
   });
 
 // Zod schema for FeeForm validation (English messages; used by tests).
@@ -113,9 +125,15 @@ export function FeeForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
-    await onSubmit(data);
+    // An untouched numeric default may be less precise than the stored decimal.
+    // Currency changes explicitly mark rate resets dirty in useActivityCurrency.
+    await onSubmit({
+      ...data,
+      fxRate: isEditing && !form.getFieldState("fxRate").isDirty ? undefined : data.fxRate,
+    });
   });
 
   return (
@@ -127,14 +145,20 @@ export function FeeForm({
         </FormSection>
 
         <FormSection title={t("activity:form.section_amount")}>
-          <AmountInput name="amount" label={t("activity:form.label_amount")} currency={currency} />
+          <AmountInput
+            name="amount"
+            label={t("activity:form.label_amount")}
+            currency={currency}
+            maxDecimalPlaces={moneyDecimals}
+          />
         </FormSection>
 
-        {/* Advanced options (currency, subtype) and notes, collapsed by default */}
+        {/* Advanced options (currency, FX rate, subtype) and notes, collapsed by default */}
         <AdvancedOptionsSection
           title={t("activity:form.section_advanced_notes")}
           dashed
           currencyName="currency"
+          fxRateName="fxRate"
           subtypeName="subtype"
           activityType={ActivityType.FEE}
           accountCurrency={accountCurrency}

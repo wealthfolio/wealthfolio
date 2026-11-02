@@ -41,6 +41,13 @@ export function setParsedData(headers: string[], rows: string[][]): ImportAction
 }
 
 /**
+ * Set which parsed rows (by index) are left out of the import in the mapping step.
+ */
+export function setSkippedRows(rowIndexes: number[]): ImportAction {
+  return { type: "SET_SKIPPED_ROWS", payload: rowIndexes };
+}
+
+/**
  * Set the import mapping configuration.
  */
 export function setMapping(mapping: ImportMappingData): ImportAction {

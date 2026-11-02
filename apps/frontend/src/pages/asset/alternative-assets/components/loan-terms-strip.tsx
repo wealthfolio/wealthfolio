@@ -153,7 +153,7 @@ export function LoanTermsStrip({
           {showToday && (
             <div
               data-testid="loan-term-today"
-              className="absolute bottom-0 top-0 w-px"
+              className="absolute top-0 bottom-0 w-px"
               style={{ insetInlineStart: `${todayPosition}%` }}
             >
               <Tooltip>
@@ -182,8 +182,8 @@ export function LoanTermsStrip({
                   })}
                 </TooltipContent>
               </Tooltip>
-              <span className="bg-success absolute bottom-0 start-0 h-4 w-px -translate-x-1/2 rtl:translate-x-1/2" />
-              <span className="border-background bg-success absolute -bottom-0.5 start-0 size-3 -translate-x-1/2 rounded-full border-2 rtl:translate-x-1/2" />
+              <span className="bg-success absolute start-0 bottom-0 h-4 w-px -translate-x-1/2 rtl:translate-x-1/2" />
+              <span className="border-background bg-success absolute start-0 -bottom-0.5 size-3 -translate-x-1/2 rounded-full border-2 rtl:translate-x-1/2" />
             </div>
           )}
         </div>
@@ -253,7 +253,7 @@ export function LoanTermsStrip({
                     render={
                       <button
                         type="button"
-                        className="focus-visible:ring-ring rounded-sm focus-visible:outline-none focus-visible:ring-2"
+                        className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
                         aria-label={t("asset:loanOverview.forecast_hint")}
                       />
                     }

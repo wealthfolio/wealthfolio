@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use wealthfolio_core::activities::{CashBalanceScope, Sort};
+use wealthfolio_core::activities::{ActivityStatus, CashBalanceScope, Sort};
 
 use crate::constants::{DEFAULT_PAGE_SIZE, MAX_ACTIVITIES_ROWS};
 use crate::env::AgentEnvironment;
@@ -17,12 +17,15 @@ pub struct SearchActivitiesArgs {
     pub account_id: Option<String>,
     /// Activity type filter (e.g., "BUY", "SELL", "DIVIDEND").
     pub activity_type: Option<String>,
-    /// Symbol/asset keyword filter.
+    /// Text search across transaction notes and asset identity; legacy symbol alias.
+    #[serde(alias = "query")]
     pub symbol: Option<String>,
     /// Start date filter in YYYY-MM-DD format (optional).
     pub date_from: Option<String>,
     /// End date filter in YYYY-MM-DD format (optional).
     pub date_to: Option<String>,
+    /// Only activities that do (true) or do not (false) need review.
+    pub needs_review: Option<bool>,
     /// Page number (1-based, default: 1).
     pub page: Option<i64>,
     /// Number of results per page (default: 50, max: 200).
@@ -36,16 +39,37 @@ pub struct ActivityDto {
     pub id: String,
     pub date: String,
     pub activity_type: String,
+    /// The subtype, such as DRIP or CONVERSION_OUT, when the activity has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
+    #[serde(default)]
+    pub status: ActivityStatus,
     pub symbol: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrument_type: Option<String>,
     pub quantity: Option<f64>,
     pub unit_price: Option<f64>,
     pub amount: Option<f64>,
     pub fee: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tax: Option<f64>,
     pub fx_rate: Option<f64>,
     pub currency: String,
     pub account_id: String,
     pub account_name: Option<String>,
     pub notes: Option<String>,
+    #[serde(default)]
+    pub needs_review: bool,
+    /// Where the activity came from: MANUAL, CSV, or a sync provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_system: Option<String>,
+    /// True when the user edited a synced activity.
+    #[serde(default)]
+    pub is_user_modified: bool,
     /// The cash of the activity's account in `cash_balance_currency`, as
     /// `cash_balance_scope` says: after this activity (`ROW`) or at the end of
     /// its day (`DAY`). Absent for holdings-tracked accounts.
@@ -82,7 +106,7 @@ impl AgentTool for SearchActivities {
     }
 
     fn description(&self) -> &'static str {
-        "Search and get investment activities (transactions) such as buys, sells, dividends, deposits, and withdrawals. Supports filtering, date ranges, and pagination. Returns paginated results with totalPages so you can request more pages if needed. Activities carry cashBalance, the account's cash in cashBalanceCurrency: with cashBalanceScope ROW (cash and credit-card accounts), the cash right after that activity, useful for reconciling against a bank statement; with DAY (other accounts), the cash at the end of the activity's day in the account currency, the same on every activity of that day. Absent for holdings-tracked accounts and for days whose value could not be computed (such as cash in a currency with no exchange rate): treat it as unknown, not zero."
+        "Search and get investment activities (transactions) such as buys, sells, dividends, deposits, and withdrawals. Supports filtering, date ranges, and pagination. Returns paginated results with totalPages so you can request more pages if needed. Activities carry cashBalance, the account's cash in cashBalanceCurrency: with cashBalanceScope ROW (cash and credit-card accounts), the cash right after that activity, useful for reconciling against a bank statement; with DAY (other accounts), the cash at the end of the activity's day in the account currency, the same on every activity of that day. Absent for holdings-tracked accounts and for days whose value could not be computed (such as cash in a currency with no exchange rate): treat it as unknown, not zero. Two ADJUSTMENT activities with subtypes CONVERSION_OUT and CONVERSION_IN on one day are one in-kind conversion: the units of one asset become units of another at their cost, with no sale, gain or cash."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -96,11 +120,15 @@ impl AgentTool for SearchActivities {
                 "activityType": {
                     "type": "string",
                     "description": "Filter by activity type",
-                    "enum": ["BUY", "SELL", "DIVIDEND", "DEPOSIT", "WITHDRAWAL", "TRANSFER_IN", "TRANSFER_OUT", "INTEREST", "FEE", "SPLIT", "TAX"]
+                    "enum": ["BUY", "SELL", "DIVIDEND", "DEPOSIT", "WITHDRAWAL", "TRANSFER_IN", "TRANSFER_OUT", "INTEREST", "FEE", "SPLIT", "TAX", "CREDIT", "ADJUSTMENT"]
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search transaction notes, ticker and asset name. Use query or the legacy symbol alias, not both."
                 },
                 "symbol": {
                     "type": "string",
-                    "description": "Filter by symbol or asset keyword"
+                    "description": "Compatibility alias for query; searches notes and asset identity, not just tickers."
                 },
                 "dateFrom": {
                     "type": "string",
@@ -109,6 +137,10 @@ impl AgentTool for SearchActivities {
                 "dateTo": {
                     "type": "string",
                     "description": "End date filter in YYYY-MM-DD format (optional)"
+                },
+                "needsReview": {
+                    "type": "boolean",
+                    "description": "Only activities flagged for review (true) or not flagged (false)"
                 },
                 "page": {
                     "type": "integer",
@@ -133,6 +165,10 @@ impl AgentTool for SearchActivities {
         AgentToolAccess::Read
     }
 
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"activitySearch":"[redacted]"})
+    }
+
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
@@ -140,7 +176,11 @@ impl AgentTool for SearchActivities {
     ) -> Result<AgentToolResult, AgentToolError> {
         use chrono::NaiveDate;
 
-        let args: SearchActivitiesArgs = serde_json::from_value(args)?;
+        let args: SearchActivitiesArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid activity search arguments; see the input schema".into(),
+            )
+        })?;
 
         // Pagination: external tool API is 1-based, backend search uses 0-based page index
         let page = args.page.unwrap_or(1).max(1);
@@ -221,7 +261,7 @@ impl AgentTool for SearchActivities {
                 activity_types,
                 symbol_keyword,
                 Some(sort),
-                None, // needs_review_filter
+                args.needs_review,
                 date_from,
                 date_to,
                 None, // instrument_type_filter
@@ -244,6 +284,7 @@ impl AgentTool for SearchActivities {
                 let quantity = a.quantity.as_ref().and_then(|v| v.parse::<f64>().ok());
                 let unit_price = a.unit_price.as_ref().and_then(|v| v.parse::<f64>().ok());
                 let fee = a.fee.as_ref().and_then(|v| v.parse::<f64>().ok());
+                let tax = a.tax.as_ref().and_then(|v| v.parse::<f64>().ok());
                 let fx_rate = a.fx_rate.as_ref().and_then(|v| v.parse::<f64>().ok());
                 let amount = a.amount.as_ref().and_then(|s| s.parse::<f64>().ok());
                 let cash_balance = a.cash_balance.as_ref().and_then(|s| s.parse::<f64>().ok());
@@ -252,20 +293,29 @@ impl AgentTool for SearchActivities {
                     id: a.id,
                     date: a.date.clone(),
                     activity_type: a.activity_type,
+                    subtype: a.subtype.filter(|subtype| !subtype.trim().is_empty()),
+                    status: a.status,
                     symbol: if a.asset_symbol.is_empty() {
                         None
                     } else {
                         Some(a.asset_symbol)
                     },
+                    asset_id: Some(a.asset_id).filter(|id| !id.is_empty()),
+                    asset_name: a.asset_name,
+                    instrument_type: a.instrument_type,
                     quantity,
                     unit_price,
                     amount,
                     fee,
+                    tax,
                     fx_rate,
                     currency: a.currency,
                     account_id: a.account_id.clone(),
                     account_name: Some(a.account_name),
                     notes: a.comment,
+                    needs_review: a.needs_review,
+                    source_system: a.source_system,
+                    is_user_modified: a.is_user_modified,
                     cash_balance,
                     cash_balance_currency: a.cash_balance_currency,
                     cash_balance_scope: a.cash_balance_scope,
@@ -297,5 +347,25 @@ impl AgentTool for SearchActivities {
         Ok(AgentToolResult {
             content: serde_json::to_value(output)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod query_alias_tests {
+    use super::*;
+    #[test]
+    fn query_and_legacy_symbol_reach_the_same_native_text_filter() {
+        for field in ["query", "symbol"] {
+            let args: SearchActivitiesArgs =
+                serde_json::from_value(serde_json::json!({field:"Coffee"})).unwrap();
+            assert_eq!(args.symbol.as_deref(), Some("Coffee"));
+            assert!(SearchActivities.input_schema()["properties"]
+                .get(field)
+                .is_some());
+        }
+        assert!(serde_json::from_value::<SearchActivitiesArgs>(
+            serde_json::json!({"query":"a","symbol":"b"})
+        )
+        .is_err());
     }
 }

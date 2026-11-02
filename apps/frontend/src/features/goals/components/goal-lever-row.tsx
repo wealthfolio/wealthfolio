@@ -116,7 +116,7 @@ export function GoalLeverRow({
     <div className="py-4 first:pt-1 last:pb-1">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div id={labelId} className="text-foreground text-sm font-semibold leading-tight">
+          <div id={labelId} className="text-foreground text-sm leading-tight font-semibold">
             {label}
           </div>
           {hint && <div className="text-muted-foreground mt-1 text-xs leading-tight">{hint}</div>}
@@ -153,7 +153,7 @@ export function GoalLeverRow({
                   event.currentTarget.blur();
                 }
               }}
-              className="text-foreground dark:bg-input/0 h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-end text-sm tabular-nums shadow-none outline-none ring-0 focus-visible:outline-none"
+              className="text-foreground dark:bg-input/0 h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-end text-sm tabular-nums shadow-none ring-0 outline-none focus-visible:outline-none"
             />
           ) : (
             <input

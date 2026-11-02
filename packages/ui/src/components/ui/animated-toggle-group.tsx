@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion } from "motion/react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 const animatedToggleVariants = cva("relative inline-flex items-center scrollbar-hide overflow-x-auto touch-pan-x", {
   variants: {
@@ -69,6 +69,21 @@ interface ToggleGroupItem<T extends string = string> {
   "data-testid"?: string;
 }
 
+/** Where the thumb sits: over the selected button, in the group's coordinates. */
+interface ThumbBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function sameBox(a: ThumbBox | null, b: ThumbBox | null) {
+  return (
+    a === b ||
+    (a !== null && b !== null && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height)
+  );
+}
+
 interface AnimatedToggleGroupProps<T extends string = string> extends VariantProps<typeof animatedToggleVariants> {
   items: ToggleGroupItem<T>[];
   defaultValue?: T;
@@ -91,10 +106,39 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
     "aria-label": ariaLabel,
   } = props;
   const [internalValue, setInternalValue] = useState<T | undefined>(defaultValue ?? items[0]?.value);
-  const uniqueId = useId();
+  const groupRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [thumb, setThumb] = useState<ThumbBox | null>(null);
 
   const isControlled = controlledValue !== undefined;
   const selected = isControlled ? controlledValue : internalValue;
+
+  // One thumb slides to the selected button, measured once the update is in the
+  // page. A thumb per button, handed over with `layoutId`, was measured while
+  // React was still swapping the content the group controls; Safari clamped the
+  // page's scroll to that half-updated, shorter layout and kept it there.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const button = selected == null ? undefined : buttonRefs.current.get(selected);
+      const next = button
+        ? {
+            left: button.offsetLeft,
+            top: button.offsetTop,
+            width: button.offsetWidth,
+            height: button.offsetHeight,
+          }
+        : null;
+      setThumb((current) => (sameBox(current, next) ? current : next));
+    };
+    measure();
+    const group = groupRef.current;
+    if (!group || typeof ResizeObserver === "undefined") return;
+    // Labels and the group change size with fonts, the window and the locale.
+    const observer = new ResizeObserver(measure);
+    observer.observe(group);
+    for (const button of buttonRefs.current.values()) observer.observe(button);
+    return () => observer.disconnect();
+  }, [items, selected]);
 
   const handleSelect = (value: T) => {
     if (!isControlled) {
@@ -116,13 +160,36 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
 
   return (
     <div
+      ref={groupRef}
       role="group"
       aria-label={ariaLabel}
       className={cn(animatedToggleVariants({ variant, size, rounded }), className)}
     >
+      {/* Physical left on purpose: the offsets it moves by are measured from the left. */}
+      {thumb && (
+        <motion.div
+          data-slot="segmented-thumb"
+          aria-hidden
+          className={cn(
+            "bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) pointer-events-none absolute left-0 top-0",
+            roundedClass,
+          )}
+          initial={false}
+          animate={{ x: thumb.left, y: thumb.top, width: thumb.width, height: thumb.height }}
+          transition={{
+            type: "spring",
+            stiffness: 400,
+            damping: 30,
+          }}
+        />
+      )}
       {items.map((item) => (
         <button
           key={item.value}
+          ref={(node) => {
+            if (node) buttonRefs.current.set(item.value, node);
+            else buttonRefs.current.delete(item.value);
+          }}
           onClick={() => handleSelect(item.value)}
           title={item.title}
           aria-label={item["aria-label"]}
@@ -134,22 +201,6 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
           )}
           type="button"
         >
-          {selected === item.value && (
-            <motion.div
-              data-slot="segmented-thumb"
-              layoutId={`toggle-indicator-${uniqueId}`}
-              className={cn(
-                "bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) absolute inset-0 -z-10",
-                roundedClass,
-              )}
-              initial={false}
-              transition={{
-                type: "spring",
-                stiffness: 400,
-                damping: 30,
-              }}
-            />
-          )}
           {item.label}
         </button>
       ))}

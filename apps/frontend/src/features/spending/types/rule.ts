@@ -1,5 +1,18 @@
 export type RuleMatchType = "contains" | "starts_with" | "exact" | "regex";
 
+/** Decisions from the existing rule writer, including matches that could not be applied. */
+export interface CategorizationRunSummary {
+  matched: number;
+  eligible: number;
+  changed: number;
+  protectedSplits: number;
+  protectedManual: number;
+  skippedExisting: number;
+  unchanged: number;
+  incompatible: number;
+  withoutTarget: number;
+}
+
 /** Amount condition operator. Compares against the activity's unsigned amount. */
 export type RuleAmountOp = "eq" | "gt" | "gte" | "lt" | "lte" | "between";
 

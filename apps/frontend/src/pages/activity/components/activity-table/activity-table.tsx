@@ -7,6 +7,7 @@ import {
   isAssetBackedIncomeActivity,
   isCashActivity,
   isCashTransfer,
+  isConversionRow,
   isFeeActivity,
   isIncomeActivity,
   isSecuritiesTransfer,
@@ -274,7 +275,7 @@ export const ActivityTable = ({
             : null;
 
           const content = (
-            <div className="max-w-55 flex items-center gap-2">
+            <div className="flex max-w-55 items-center gap-2">
               <TickerAvatar
                 symbol={avatarSymbol}
                 exchangeMic={row.original.exchangeMic}
@@ -346,7 +347,7 @@ export const ActivityTable = ({
               omitSeconds: true,
             });
             return (
-              <span className="text-muted-foreground ms-2 whitespace-nowrap text-xs tabular-nums">
+              <span className="text-muted-foreground ms-2 text-xs whitespace-nowrap tabular-nums">
                 {time}
               </span>
             );
@@ -377,10 +378,10 @@ export const ActivityTable = ({
               : undefined;
 
           return (
-            <div className="flex min-w-0 max-w-40 flex-col items-start gap-1 text-sm">
+            <div className="flex max-w-40 min-w-0 flex-col items-start gap-1 text-sm">
               <ActivityTypeBadge
                 type={activityType as ActivityType}
-                className="whitespace-nowrap text-xs font-normal"
+                className="text-xs font-normal whitespace-nowrap"
               />
               {subtypeLabel && (
                 <span className="text-muted-foreground max-w-full truncate text-xs font-light">
@@ -447,7 +448,7 @@ export const ActivityTable = ({
           }
 
           return (
-            <div className="whitespace-nowrap pe-4 text-end tabular-nums">
+            <div className="pe-4 text-end whitespace-nowrap tabular-nums">
               {isBalanceHidden
                 ? "••••"
                 : typeof quantity === "number"
@@ -488,12 +489,12 @@ export const ActivityTable = ({
             row.original.assetId,
           );
 
-          if (activityType === "FEE") {
+          if (activityType === "FEE" || isConversionRow(row.original)) {
             return <div className="pe-4 text-end">-</div>;
           }
           if (activityType === "SPLIT") {
             return (
-              <div className="whitespace-nowrap text-end tabular-nums">
+              <div className="text-end whitespace-nowrap tabular-nums">
                 {formatSplitRatio(Number(amount))}
               </div>
             );
@@ -506,7 +507,7 @@ export const ActivityTable = ({
             (isIncomeActivity(activityType) && !isAssetBackedIncome)
           ) {
             return (
-              <div className="whitespace-nowrap text-end tabular-nums">
+              <div className="text-end whitespace-nowrap tabular-nums">
                 <AmountDisplay
                   value={Number(amount)}
                   currency={currency}
@@ -517,7 +518,7 @@ export const ActivityTable = ({
           }
 
           return (
-            <div className="whitespace-nowrap text-end tabular-nums">
+            <div className="text-end whitespace-nowrap tabular-nums">
               <PriceDisplay value={unitPrice} currency={currency} isHidden={isBalanceHidden} />
             </div>
           );
@@ -548,7 +549,7 @@ export const ActivityTable = ({
               : row.original.accountCurrency || "USD";
 
           return (
-            <div className="whitespace-nowrap text-end tabular-nums">
+            <div className="text-end whitespace-nowrap tabular-nums">
               {activityType === "SPLIT" ? (
                 "-"
               ) : (
@@ -583,7 +584,7 @@ export const ActivityTable = ({
               : row.original.accountCurrency || "USD";
 
           return (
-            <div className="whitespace-nowrap text-end tabular-nums">
+            <div className="text-end whitespace-nowrap tabular-nums">
               {activityType === "SPLIT" ? (
                 "-"
               ) : (
@@ -613,13 +614,13 @@ export const ActivityTable = ({
           const activityType = activity.activityType;
           const currency = activity.currency || activity.accountCurrency || "USD";
 
-          if (activityType === "SPLIT") {
+          if (activityType === "SPLIT" || isConversionRow(activity)) {
             return <div className="pe-4 text-end">-</div>;
           }
 
           const displayValue = calculateActivityValue(activity);
           return (
-            <div className="whitespace-nowrap pe-4 text-end font-medium tabular-nums">
+            <div className="pe-4 text-end font-medium whitespace-nowrap tabular-nums">
               <AmountDisplay value={displayValue} currency={currency} isHidden={isBalanceHidden} />
             </div>
           );
@@ -648,7 +649,7 @@ export const ActivityTable = ({
                   return <div className="pe-4 text-end">-</div>;
                 }
                 return (
-                  <div className="whitespace-nowrap pe-4 text-end tabular-nums">
+                  <div className="pe-4 text-end whitespace-nowrap tabular-nums">
                     <AmountDisplay
                       value={Number(cashBalance)}
                       currency={cashBalanceCurrency}
@@ -675,7 +676,7 @@ export const ActivityTable = ({
           const accountName = row.getValue("account");
           const accountCurrency = row.getValue("accountCurrency");
           return (
-            <div className="min-w-37.5 ms-2 flex flex-col">
+            <div className="ms-2 flex min-w-37.5 flex-col">
               <span>
                 <bdi>{String(accountName)}</bdi>
               </span>

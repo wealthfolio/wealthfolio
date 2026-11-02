@@ -57,6 +57,7 @@ export function normalizeLocaleCode(language: string): string {
 // Translation namespaces (one JSON file per namespace per locale).
 export const NAMESPACES = [
   "common",
+  "taxonomies",
   "dashboard",
   "holdings",
   "activity",

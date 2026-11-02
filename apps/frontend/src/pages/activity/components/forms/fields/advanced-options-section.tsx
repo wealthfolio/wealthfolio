@@ -168,7 +168,7 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
           className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-4 pb-2 pt-2">
+      <CollapsibleContent className="space-y-4 pt-2 pb-2">
         {hasAdvancedFields && (
           <div
             className={

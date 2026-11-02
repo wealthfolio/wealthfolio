@@ -6,22 +6,13 @@ import type {
   Holding,
 } from "@/lib/types";
 import { namedChildren } from "@/lib/allocation-children";
-import type { FormattingApi } from "@wealthfolio/ui";
-
-/** Cycling palette built from the theme chart tokens (retargeted to the allocation palette). */
-export const CHART_PALETTE = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-stone)",
-] as const;
+import { chartSliceColor, type FormattingApi } from "@wealthfolio/ui";
 
 export const OTHER_COLOR = "var(--chart-stone)";
 
+/** The donut's colour for the item at `index`, so a row matches its slice. */
 export function paletteColor(index: number): string {
-  return CHART_PALETTE[index % CHART_PALETTE.length];
+  return chartSliceColor(index);
 }
 
 /** A single row in a Portfolio Explorer lens (bar segment + list row). */

@@ -5,7 +5,11 @@ expression: snapshot
 {
   "name": "get_health_status",
   "parameters": {
-    "properties": {},
+    "properties": {
+      "refresh": {
+        "type": "boolean"
+      }
+    },
     "required": [],
     "type": "object"
   }
