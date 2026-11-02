@@ -10,6 +10,7 @@ import {
   CommandList,
   DatePickerInput,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -960,15 +961,17 @@ export function MobileDetailsStep({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-base leading-none font-medium">
-                        {activityType === ActivityType.DIVIDEND
-                          ? t("activity:field_dividend_amount")
-                          : activityType === ActivityType.INTEREST
-                            ? t("activity:field_interest_amount")
-                            : isTaxActivity
-                              ? t("activity:field_tax_amount")
-                              : isCreditActivity
-                                ? t("activity:mobile_form.credit_amount")
-                                : t("activity:form.label_amount")}
+                        {isIncomeActivity && !isAssetBackedIncome
+                          ? t("activity:form.received_amount")
+                          : activityType === ActivityType.DIVIDEND
+                            ? t("activity:field_dividend_amount")
+                            : activityType === ActivityType.INTEREST
+                              ? t("activity:field_interest_amount")
+                              : isTaxActivity
+                                ? t("activity:field_tax_amount")
+                                : isCreditActivity
+                                  ? t("activity:mobile_form.credit_amount")
+                                  : t("activity:form.label_amount")}
                       </FormLabel>
                       <FormControl>
                         <MoneyInput
@@ -979,6 +982,11 @@ export function MobileDetailsStep({
                           }}
                         />
                       </FormControl>
+                      {isIncomeActivity && !isAssetBackedIncome && (
+                        <FormDescription className="text-xs">
+                          {t("activity:form.help_total_credit")}
+                        </FormDescription>
+                      )}
                       {isBuyOrSell &&
                         amountWasEdited.current &&
                         calculatedTradeAmount !== undefined && (

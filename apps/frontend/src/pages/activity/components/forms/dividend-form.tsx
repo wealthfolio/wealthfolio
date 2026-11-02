@@ -407,8 +407,9 @@ export function DividendForm({
               label={
                 isAssetBacked
                   ? t("activity:form.label_dividend_amount")
-                  : t("activity:form.label_amount")
+                  : t("activity:form.received_amount")
               }
+              labelHelpText={isAssetBacked ? undefined : t("activity:form.help_total_credit")}
               currency={currency}
               onValueChange={() => {
                 amountWasEdited.current = true;
