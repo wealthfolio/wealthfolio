@@ -1,3 +1,4 @@
+import { FormattingProvider } from "@wealthfolio/ui";
 import { renderHook } from "@/test/render";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -37,4 +38,12 @@ describe("useLoanFormat duration", () => {
     await i18n.changeLanguage("ar");
     expect(durationOf(months)).toBe(expected);
   });
+});
+
+it("formats loan rates using the region independently of the interface language", () => {
+  const { result } = renderHook(() => useLoanFormat("USD"), {
+    wrapper: ({ children }) => <FormattingProvider locale="ES">{children}</FormattingProvider>,
+  });
+  expect(result.current.rate(5.25)).toMatch(/5,25\s%/);
+  expect(result.current.rate(5)).toMatch(/5\s%/);
 });

@@ -960,7 +960,7 @@
     "noRulesSet": "لم يتم تعيين قواعد تصنيف.",
     "noSpendingInPeriod": "لا يوجد إنفاق في هذه الفترة",
     "openSpendingSettings": "فتح إعدادات الإنفاق ←",
-    "pctAbove": "أعلى بنسبة {{pct}}%",
+    "pctAbove": "أعلى بنسبة {{pct}}",
     "plusMore": "+ {{count}} أخرى",
     "plusMore_few": "+ {{count}} أخرى",
     "plusMore_many": "+ {{count}} أخرى",

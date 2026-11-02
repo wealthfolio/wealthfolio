@@ -15,6 +15,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  stripBidiControls,
   useDateFormatting,
   useNumberFormatting,
   type FormattingApi,
@@ -273,15 +274,27 @@ function validateEditedPreview(
   );
 }
 
-function basisPointsToPercentInput(weightBasisPoints: number): string {
+function basisPointsToPercentInput(
+  weightBasisPoints: number,
+  formatting: Pick<FormattingApi, "formatDecimal">,
+): string {
   const percent = weightBasisPoints / 100;
-  return Number.isInteger(percent) ? String(percent) : percent.toFixed(2);
+  return stripBidiControls(
+    formatting.formatDecimal(percent, {
+      minimumFractionDigits: Number.isInteger(percent) ? 0 : 2,
+      maximumFractionDigits: 2,
+      useGrouping: false,
+    }),
+  );
 }
 
-function percentInputToBasisPoints(value: string): number | null {
+function percentInputToBasisPoints(
+  value: string,
+  formatting: Pick<FormattingApi, "parseNumber">,
+): number | null {
   if (value.trim() === "") return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
+  const parsed = formatting.parseNumber(value);
+  if (parsed === undefined) return null;
   return Math.min(10000, Math.max(0, Math.round(parsed * 100)));
 }
 
@@ -456,22 +469,27 @@ function ClassificationComparisonTable({
                     type="text"
                     value={
                       draftPercentValues[row.categoryId] ??
-                      basisPointsToPercentInput(row.newWeightBasisPoints)
+                      basisPointsToPercentInput(row.newWeightBasisPoints, formatting)
                     }
                     onBlur={(event) => {
-                      const basisPoints = percentInputToBasisPoints(event.currentTarget.value);
+                      const basisPoints = percentInputToBasisPoints(
+                        event.currentTarget.value,
+                        formatting,
+                      );
                       onDraftPercentValueChange(
                         row.categoryId,
-                        basisPointsToPercentInput(basisPoints ?? row.newWeightBasisPoints),
+                        basisPointsToPercentInput(
+                          basisPoints ?? row.newWeightBasisPoints,
+                          formatting,
+                        ),
                       );
                     }}
                     onChange={(event) => {
-                      const nextValue = event.currentTarget.value.replace(/,/g, "");
-                      if (!/^\d*\.?\d*$/.test(nextValue)) return;
+                      const nextValue = stripBidiControls(event.currentTarget.value);
 
                       onDraftPercentValueChange(row.categoryId, nextValue);
 
-                      const basisPoints = percentInputToBasisPoints(nextValue);
+                      const basisPoints = percentInputToBasisPoints(nextValue, formatting);
                       if (basisPoints === null) return;
                       onNewWeightChange(row, basisPoints);
                     }}
@@ -503,7 +521,7 @@ function ClassificationComparisonTable({
 function formatExistingAllocation(
   rows: AssetClassificationAssignmentPreview[],
   t: TFunction,
-  formatting: Pick<FormattingApi, "formatDecimal">,
+  formatting: Pick<FormattingApi, "formatPercent">,
 ) {
   if (rows.length === 0) return t("ai:assetClassification.noExistingAllocation");
 

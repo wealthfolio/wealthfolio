@@ -934,7 +934,7 @@
     "stageWhenLabel": "When & where",
     "stageWhenSub": "When you spend & spending events",
     "spendingAbovePrefix": "Spending is",
-    "pctAbove": "{{pct}}% above",
+    "pctAbove": "{{pct}} above",
     "thePriorPeriod": "the prior period.",
     "moreThan": "{{more}} more than {{prior}}",
     "uncategorizedCount_one": "{{count}} uncategorized transaction",

@@ -1,3 +1,4 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,7 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Input } from "@wealthfolio/ui/components/ui/input";
-import { Icons, Spinner } from "@wealthfolio/ui";
+import { Icons, Spinner, stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
 import {
   useTaxonomy,
@@ -89,15 +90,19 @@ function flattenTree(nodes: CategoryNode[]): CategoryNode[] {
   return result;
 }
 
-function parseWeightInput(value: string): number | null {
-  const num = parseFloat(value.replace("%", ""));
-  if (isNaN(num) || num < 0 || num > 100) return null;
+function parseWeightInput(value: string, formatting: NumberFormatting): number | null {
+  const num = formatting.parseNumber(
+    stripBidiControls(value)
+      .trim()
+      .replace(/^[%٪]|[%٪]$/u, ""),
+  );
+  if (num === undefined || num < 0 || num > 100) return null;
   return Math.round(num * 100);
 }
 
-function basisPointsToPercent(bp: number): string {
+function basisPointsToPercent(bp: number, formatting: NumberFormatting): string {
   const pct = bp / 100;
-  return pct % 1 === 0 ? String(pct) : pct.toFixed(1);
+  return formatting.formatDecimal(pct, { maximumFractionDigits: 1, useGrouping: false });
 }
 
 export function MultiSelectTaxonomy({
@@ -107,6 +112,7 @@ export function MultiSelectTaxonomy({
   disabled = false,
 }: MultiSelectTaxonomyProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const compareNames = useNameComparator();
   const [open, setOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<PendingCategory | null>(null);
@@ -159,7 +165,7 @@ export function MultiSelectTaxonomy({
   const handleConfirmCategory = async () => {
     if (!pendingCategory || isPending) return;
 
-    const weight = parseWeightInput(pendingCategory.weight);
+    const weight = parseWeightInput(pendingCategory.weight, numbers);
     if (weight === null) {
       setPendingCategory({ ...pendingCategory, weight: "100" });
       return;
@@ -190,7 +196,7 @@ export function MultiSelectTaxonomy({
   };
 
   const handleWeightBlur = async (assignment: AssetTaxonomyAssignment) => {
-    const newWeight = parseWeightInput(editingValue);
+    const newWeight = parseWeightInput(editingValue, numbers);
     if (newWeight !== null && newWeight !== assignment.weight) {
       await assignMutation.mutateAsync({
         assetId,
@@ -206,7 +212,7 @@ export function MultiSelectTaxonomy({
 
   const startEditing = (assignment: AssetTaxonomyAssignment) => {
     setEditingId(assignment.id);
-    setEditingValue(basisPointsToPercent(assignment.weight));
+    setEditingValue(basisPointsToPercent(assignment.weight, numbers));
   };
 
   const assignedCategories = useMemo(() => {
@@ -439,7 +445,9 @@ export function MultiSelectTaxonomy({
                       disabled && "cursor-not-allowed opacity-50",
                     )}
                   >
-                    {basisPointsToPercent(assignment.weight)}%
+                    {numbers.formatPercent(assignment.weight / 10000, {
+                      digits: Number.isInteger(assignment.weight / 100) ? 0 : 1,
+                    })}
                   </button>
                 )}
               </div>
@@ -477,7 +485,9 @@ export function MultiSelectTaxonomy({
                       : "text-warning",
                 )}
               >
-                {totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)}%
+                {numbers.formatPercent(totalWeight / 100, {
+                  digits: Number.isInteger(totalWeight) ? 0 : 1,
+                })}
               </div>
               <div className="w-7" />
             </div>

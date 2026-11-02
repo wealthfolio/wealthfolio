@@ -926,7 +926,7 @@
     "stageWhenLabel": "何时与何地",
     "stageWhenSub": "何时消费及支出事件",
     "spendingAbovePrefix": "支出",
-    "pctAbove": "高出 {{pct}}%",
+    "pctAbove": "高出 {{pct}}",
     "thePriorPeriod": "较上一周期。",
     "moreThan": "比 {{prior}} 多 {{more}}",
     "uncategorizedCount_one": "{{count}} 笔未归类交易",

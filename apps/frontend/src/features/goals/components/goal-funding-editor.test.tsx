@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { FormattingProvider } from "@wealthfolio/ui";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
+import { FormattingProvider, stripBidiControls } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalFundingEditor } from "./goal-funding-editor";
@@ -34,14 +36,16 @@ vi.mock("../hooks/use-goal-detail", () => ({
   useGoalPlanMutations: () => data.mutations,
 }));
 
-function renderEditor() {
+function renderEditor(editing = false, locale = "en-US", direction: "ltr" | "rtl" = "ltr") {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <FormattingProvider locale="en-US">
-        <TooltipProvider>
-          <GoalFundingEditor goalId="house" goalType="home" />
-        </TooltipProvider>
-      </FormattingProvider>
+      <DirectionProvider direction={direction}>
+        <FormattingProvider locale={locale}>
+          <TooltipProvider>
+            <GoalFundingEditor goalId="house" goalType="home" editing={editing || undefined} />
+          </TooltipProvider>
+        </FormattingProvider>
+      </DirectionProvider>
     </QueryClientProvider>,
   );
 }
@@ -64,4 +68,26 @@ describe("GoalFundingEditor amounts", () => {
     expect(screen.getByText("20%")).toBeInTheDocument();
     expect(screen.queryByText("$20K")).not.toBeInTheDocument();
   });
+});
+
+it("edits goal funding with decimal commas without changing the numeric share", () => {
+  renderEditor(false, "ES");
+  fireEvent.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  const input = screen.getByRole("textbox");
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "33,3" } });
+  fireEvent.blur(input);
+  expect(input).toHaveValue("33,3");
+  expect(screen.getByText("66,7 % left")).toBeInTheDocument();
+});
+
+it("edits an existing share in place in RTL without retaining direction markers", async () => {
+  const user = userEvent.setup();
+  renderEditor(false, "ES", "rtl");
+  await user.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  const input = screen.getByRole("textbox");
+  await user.click(input);
+  await user.keyboard("{End}{Backspace}1{Tab}");
+  expect(input).toHaveValue("21");
+  expect(screen.getByText((text) => stripBidiControls(text) === "79 % left")).toBeInTheDocument();
 });

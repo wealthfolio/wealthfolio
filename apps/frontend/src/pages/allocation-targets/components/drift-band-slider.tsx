@@ -1,4 +1,4 @@
-import { AnimatedToggleGroup } from "@wealthfolio/ui";
+import { AnimatedToggleGroup, useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 
 import type { BandType } from "@/lib/types";
@@ -32,6 +32,7 @@ export function DriftBandSlider({
   className,
 }: DriftBandSliderProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const isHybrid = bandType === "hybrid";
   const floorPct = ((driftBandPct - MIN_DRIFT_BAND) / (MAX_DRIFT_BAND - MIN_DRIFT_BAND)) * 100;
   const relativePct =
@@ -73,7 +74,9 @@ export function DriftBandSlider({
               {t("allocation:band.relativeFactor")}
             </span>
             <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
-              {t("allocation:band.percentOfTarget", { value: relativeFactorPct })}
+              {t("allocation:band.percentOfTarget", {
+                value: numbers.formatPercent(relativeFactorPct / 100, { digits: 0 }),
+              })}
             </span>
           </div>
           <input
@@ -101,7 +104,7 @@ export function DriftBandSlider({
             {isHybrid ? t("allocation:band.absoluteFloor") : t("allocation:band.bandWidth")}
           </span>
           <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
-            ±{driftBandPct.toFixed(1)}%
+            ±{numbers.formatPercent(driftBandPct / 100, { digits: 1 })}
           </span>
         </div>
         <input
