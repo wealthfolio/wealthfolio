@@ -381,8 +381,9 @@ export function InterestForm({
               label={
                 isStakingReward
                   ? t("activity:form.label_interest_amount")
-                  : t("activity:form.label_amount")
+                  : t("activity:form.received_amount")
               }
+              labelHelpText={isStakingReward ? undefined : t("activity:form.help_total_credit")}
               currency={currency}
               onValueChange={() => {
                 amountWasEdited.current = true;
