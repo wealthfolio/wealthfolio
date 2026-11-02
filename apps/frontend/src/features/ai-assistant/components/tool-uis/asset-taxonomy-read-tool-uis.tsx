@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -188,12 +189,12 @@ function ListAssetTaxonomiesContentImpl({
           {totalCategoryCount > returnedCategoryCount
             ? t("ai:assetTaxonomy.loadedCategoriesTotal", {
                 count: returnedCategoryCount,
-                taxonomy: focusedTaxonomy.name,
+                taxonomy: getTaxonomyLabel(t, focusedTaxonomy.taxonomyId, focusedTaxonomy.name),
                 total: totalCategoryCount,
               })
             : t("ai:assetTaxonomy.loadedCategories", {
                 count: returnedCategoryCount,
-                taxonomy: focusedTaxonomy.name,
+                taxonomy: getTaxonomyLabel(t, focusedTaxonomy.taxonomyId, focusedTaxonomy.name),
               })}
         </span>
       ) : (

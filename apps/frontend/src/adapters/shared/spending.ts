@@ -2,6 +2,7 @@
 import type { SpendCategory, SpendCategoryKind } from "@wealthfolio/addon-sdk";
 import type {
   CategorizationRule,
+  CategorizationRunSummary,
   NewCategorizationRule,
   UpdateCategorizationRule,
 } from "@/features/spending/types/rule";
@@ -97,6 +98,19 @@ export const deleteCategorizationRule = async (id: string): Promise<void> => {
 export const rerunCategorizationRules = async (onlyUncategorized: boolean): Promise<number> => {
   try {
     return await invoke<number>("rerun_categorization_rules", { onlyUncategorized });
+  } catch (e) {
+    logger.error("Error re-running categorization rules.");
+    throw e;
+  }
+};
+
+export const rerunCategorizationRulesDetailed = async (
+  onlyUncategorized: boolean,
+): Promise<CategorizationRunSummary> => {
+  try {
+    return await invoke<CategorizationRunSummary>("rerun_categorization_rules_detailed", {
+      onlyUncategorized,
+    });
   } catch (e) {
     logger.error("Error re-running categorization rules.");
     throw e;

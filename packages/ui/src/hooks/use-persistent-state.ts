@@ -70,6 +70,22 @@ export function usePersistentState<T>(
 
   // Listen for changes from other instances (same page) and cross-tab storage events
   useEffect(() => {
+    // A screen kept hidden (React <Activity>) drops these listeners and adds
+    // them back when it is shown again: read storage first, so a change another
+    // screen made in between shows here too.
+    try {
+      const storedValue =
+        window.localStorage.getItem(key) ??
+        (fallbackKey ? window.localStorage.getItem(fallbackKey) : null);
+      if (storedValue !== null && storedValue !== JSON.stringify(current.current)) {
+        const value = JSON.parse(storedValue, dateReviver) as T;
+        current.current = value;
+        setState(() => value);
+      }
+    } catch (error) {
+      console.error(`Error reading from localStorage for key "${key}":`, error);
+    }
+
     // Handle custom event from same page
     const handleCustomEvent = (event: Event) => {
       const customEvent = event as CustomEvent<PersistentStateChangeDetail>;
@@ -100,7 +116,7 @@ export function usePersistentState<T>(
       window.removeEventListener(PERSISTENT_STATE_CHANGE_EVENT, handleCustomEvent);
       window.removeEventListener("storage", handleStorageEvent);
     };
-  }, [key]);
+  }, [key, fallbackKey]);
 
   return [state, setStateAndBroadcast];
 }

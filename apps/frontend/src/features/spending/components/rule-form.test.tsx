@@ -76,6 +76,21 @@ it("offers Savings categories when editing a categorization rule", async () => {
   await user.click(screen.getByRole("button", { name: "Select category" }));
   await user.type(screen.getByPlaceholderText("Search categories..."), "Investment Contributions");
   expect(screen.getByText("Investment Contributions")).toBeInTheDocument();
+  expect(screen.getByText(/Categories follow the transaction's cash flow/)).toBeInTheDocument();
+});
+
+describe("rule form priority validation", () => {
+  it("asks for a whole number of 0 or more", () => {
+    for (const priority of [-1, 1.5]) {
+      const result = schema.safeParse({ ...baseValues, priority });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.message)).toContain(
+          "spending:rules.priorityInvalid",
+        );
+      }
+    }
+  });
 });
 
 describe("rule form amount validation", () => {

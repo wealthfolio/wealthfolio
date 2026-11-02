@@ -1,11 +1,12 @@
 //! Performance tool - fetch portfolio performance metrics using PerformanceService.
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wealthfolio_core::accounts::{account_supports_portfolio_scope, AccountPurpose};
 use wealthfolio_core::portfolio::performance::PerformanceResult as CorePerformanceResult;
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -210,6 +211,8 @@ impl AgentTool for GetPerformance {
         AgentToolAccess::Read
     }
 
+    /// Resolve the reporting window in the profile timezone before delegating
+    /// to performance services. A settings-read failure aborts the request.
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
@@ -221,7 +224,11 @@ impl AgentTool for GetPerformance {
         let period = args.period.to_uppercase();
 
         // Calculate date range
-        let end_date = Local::now().date_naive();
+        let settings = env
+            .settings_service()
+            .get_settings()
+            .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+        let end_date = user_today(parse_user_timezone_or_default(&settings.timezone));
         let start_date = period_to_start_date(&period, end_date);
 
         let metrics = if let Some(account_id) = account_id {

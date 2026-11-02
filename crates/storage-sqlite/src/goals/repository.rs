@@ -25,9 +25,30 @@ fn validate_goal_funding_capacity(
     goal_id: &str,
     rules: &[GoalFundingRuleInput],
 ) -> Result<()> {
+    for rule in rules {
+        if !rule.share_percent.is_finite() || !(0.0..=100.0).contains(&rule.share_percent) {
+            return Err(ValidationError::InvalidInput(
+                "share_percent must be between 0 and 100".to_string(),
+            )
+            .into());
+        }
+    }
+
+    // The retirement plan's shares only limit what it counts (core caps them to
+    // what savings goals leave free), so they neither take nor need capacity.
+    let goal_type = goals::table
+        .find(goal_id)
+        .select(goals::goal_type)
+        .first::<String>(conn)
+        .map_err(StorageError::from)?;
+    if goal_type == "retirement" {
+        return Ok(());
+    }
+
     let participating = goals_allocation::table
         .inner_join(goals::table.on(goals::id.eq(goals_allocation::goal_id)))
         .filter(goals::status_lifecycle.eq("active"))
+        .filter(goals::goal_type.ne("retirement"))
         .filter(goals_allocation::goal_id.ne(goal_id))
         .select(GoalsAllocationDB::as_select())
         .load::<GoalsAllocationDB>(conn)
@@ -39,13 +60,6 @@ fn validate_goal_funding_capacity(
     }
 
     for rule in rules {
-        if !rule.share_percent.is_finite() || !(0.0..=100.0).contains(&rule.share_percent) {
-            return Err(ValidationError::InvalidInput(
-                "share_percent must be between 0 and 100".to_string(),
-            )
-            .into());
-        }
-
         let used_elsewhere = account_totals.get(&rule.account_id).copied().unwrap_or(0.0);
         let combined = used_elsewhere + rule.share_percent;
         if combined > 100.0 {
@@ -186,27 +200,6 @@ impl GoalRepositoryTrait for GoalRepository {
     async fn update_goal(&self, goal_update: Goal) -> Result<Goal> {
         let goal_id_owned = goal_update.id.clone();
         let next_status_lifecycle = goal_update.status_lifecycle.clone();
-        let goal_db = GoalDB {
-            id: goal_update.id,
-            goal_type: goal_update.goal_type,
-            title: goal_update.title,
-            description: goal_update.description,
-            target_amount: goal_update.target_amount.unwrap_or(0.0),
-            status_lifecycle: goal_update.status_lifecycle,
-            status_health: goal_update.status_health,
-            priority: goal_update.priority,
-            cover_image_key: goal_update.cover_image_key,
-            currency: goal_update.currency,
-            start_date: goal_update.start_date,
-            target_date: goal_update.target_date,
-            summary_current_value: goal_update.summary_current_value,
-            summary_progress: goal_update.summary_progress,
-            projected_completion_date: goal_update.projected_completion_date,
-            projected_value_at_target_date: goal_update.projected_value_at_target_date,
-            created_at: goal_update.created_at,
-            updated_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-            summary_target_amount: goal_update.summary_target_amount,
-        };
 
         self.writer
             .exec_tx(move |tx| -> Result<Goal> {
@@ -222,7 +215,29 @@ impl GoalRepositoryTrait for GoalRepository {
                 }
 
                 diesel::update(goals::table.find(goal_id_owned.clone()))
-                    .set(&goal_db)
+                    // Ordinary edits cannot overwrite a newer computed summary.
+                    .set((
+                        goals::title.eq(goal_update.title),
+                        goal_update
+                            .description
+                            .map(|value| goals::description.eq(Some(value))),
+                        goals::target_amount.eq(goal_update.target_amount.unwrap_or(0.0)),
+                        goals::status_lifecycle.eq(goal_update.status_lifecycle),
+                        goals::priority.eq(goal_update.priority),
+                        goal_update
+                            .cover_image_key
+                            .map(|value| goals::cover_image_key.eq(Some(value))),
+                        goal_update
+                            .currency
+                            .map(|value| goals::currency.eq(Some(value))),
+                        goal_update
+                            .start_date
+                            .map(|value| goals::start_date.eq(Some(value))),
+                        // Core resolved omission vs explicit null before persisting.
+                        goals::target_date.eq(goal_update.target_date),
+                        goals::updated_at
+                            .eq(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+                    ))
                     .execute(tx.conn())
                     .map_err(StorageError::from)?;
                 let result_db = goals::table
@@ -440,5 +455,92 @@ impl GoalRepositoryTrait for GoalRepository {
                 Ok(())
             })
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
+    use diesel::sql_query;
+    use diesel::sql_types::Text;
+
+    fn setup() -> (GoalRepository, TestDir) {
+        std::env::set_var("CONNECT_API_URL", "http://test.local");
+        let dir = TestDir::new();
+        let db_path = dir.path().join("test.db").to_string_lossy().to_string();
+        run_migrations(&db_path).unwrap();
+        let pool = create_pool(&db_path).unwrap();
+        let writer = spawn_writer((*pool).clone()).unwrap();
+        let mut conn = get_connection(&pool).unwrap();
+        sql_query(
+            "INSERT INTO accounts (
+                id, name, account_type, currency, is_default, is_active, created_at, updated_at,
+                is_archived, tracking_mode
+             ) VALUES (?, 'Brokerage', 'SECURITIES', 'USD', 0, 1, CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP, 0, 'TRANSACTIONS')",
+        )
+        .bind::<Text, _>("acct-1")
+        .execute(&mut conn)
+        .unwrap();
+        (GoalRepository::new(pool, writer), dir)
+    }
+
+    fn new_goal(id: &str, goal_type: &str) -> NewGoal {
+        NewGoal {
+            id: Some(id.into()),
+            goal_type: goal_type.into(),
+            title: id.into(),
+            description: None,
+            target_amount: None,
+            status_lifecycle: Some("active".into()),
+            status_health: None,
+            priority: None,
+            cover_image_key: None,
+            currency: Some("USD".into()),
+            start_date: None,
+            target_date: None,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    fn share(percent: f64) -> Vec<GoalFundingRuleInput> {
+        vec![GoalFundingRuleInput {
+            account_id: "acct-1".into(),
+            share_percent: percent,
+            tax_bucket: None,
+        }]
+    }
+
+    #[tokio::test]
+    async fn capacity_counts_only_savings_goal_shares() {
+        let (repo, _dir) = setup();
+        let house = repo
+            .insert_goal_with_funding(new_goal("house", "home"), share(30.0))
+            .await
+            .unwrap();
+        let fire = repo
+            .insert_goal_with_funding(new_goal("fire", "retirement"), share(100.0))
+            .await
+            .expect("retirement counts up to 100% next to a savings goal");
+        let car = repo.insert_new_goal(new_goal("car", "car")).await.unwrap();
+
+        repo.save_goal_funding(&house.id, share(40.0))
+            .await
+            .expect("retirement's share does not reserve the account");
+        let err = repo
+            .save_goal_funding(&car.id, share(70.0))
+            .await
+            .expect_err("savings goals together cannot pass 100%");
+        assert!(err.to_string().contains("overallocated"));
+        repo.save_goal_funding(&fire.id, share(100.0))
+            .await
+            .expect("retirement needs no free capacity");
+        let err = repo
+            .save_goal_funding(&fire.id, share(101.0))
+            .await
+            .expect_err("retirement shares stay within 0-100%");
+        assert!(err.to_string().contains("between 0 and 100"));
     }
 }

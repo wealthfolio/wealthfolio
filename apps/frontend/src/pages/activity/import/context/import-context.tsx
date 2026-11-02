@@ -1,3 +1,5 @@
+import type { LocalDraftErrorMessages } from "../utils/draft-validation-messages";
+import enActivity from "@/i18n/locales/en/activity.json";
 import {
   createContext,
   useCallback,
@@ -86,6 +88,7 @@ export interface DraftActivity {
   // Validation state
   status: DraftActivityStatus;
   errors: Record<string, string[]>;
+  localErrorMessages?: LocalDraftErrorMessages;
   warnings: Record<string, string[]>;
   skipReason?: string;
   duplicateOfId?: string;
@@ -116,6 +119,8 @@ export interface ImportResult {
   errorMessage?: string;
 }
 
+type ImportValidationError = string | { key: "activity:import.review.backend_failed" };
+
 export interface ImportState {
   step: ImportStep;
   stepOrder: ImportStep[];
@@ -123,6 +128,8 @@ export interface ImportState {
   parseConfig: ParseConfig;
   headers: string[];
   parsedRows: string[][];
+  // Indexes into parsedRows left out of this import in Mapping; not part of the template
+  skippedRowIndexes: number[];
   mapping: ImportMappingData | null;
   draftActivities: DraftActivity[];
   assetPreviewItems: ImportAssetPreviewItem[];
@@ -135,7 +142,7 @@ export interface ImportState {
   accountId: string;
   holdingsCheckPassed: boolean;
   isValidating: boolean;
-  validationError: string | null;
+  validationError: ImportValidationError | null;
   draftRevision: number;
   lastValidatedRevision: number | null;
   isPreviewingAssets: boolean;
@@ -166,6 +173,7 @@ const INITIAL_STATE: ImportState = {
   parseConfig: defaultParseConfig,
   headers: [],
   parsedRows: [],
+  skippedRowIndexes: [],
   mapping: null,
   draftActivities: [],
   assetPreviewItems: [],
@@ -194,6 +202,7 @@ export type ImportAction =
   | { type: "SET_ACCOUNT_ID"; payload: string }
   | { type: "SET_PARSE_CONFIG"; payload: Partial<ParseConfig> }
   | { type: "SET_PARSED_DATA"; payload: { headers: string[]; rows: string[][] } }
+  | { type: "SET_SKIPPED_ROWS"; payload: number[] }
   | { type: "SET_MAPPING"; payload: ImportMappingData }
   | { type: "SET_DRAFT_ACTIVITIES"; payload: DraftActivity[] }
   | { type: "SET_VALIDATED_DRAFT_ACTIVITIES"; payload: DraftActivity[] }
@@ -223,7 +232,7 @@ export type ImportAction =
   | { type: "NEXT_STEP" }
   | { type: "PREV_STEP" }
   | { type: "SET_IS_VALIDATING"; payload: boolean }
-  | { type: "SET_VALIDATION_ERROR"; payload: string | null }
+  | { type: "SET_VALIDATION_ERROR"; payload: ImportValidationError | null }
   | { type: "MARK_VALIDATED"; payload: number }
   | { type: "SET_IS_PREVIEWING_ASSETS"; payload: boolean }
   | { type: "SET_ASSET_PREVIEW_ERROR"; payload: string | null }
@@ -313,7 +322,12 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
         ...state,
         headers: action.payload.headers,
         parsedRows: action.payload.rows,
+        // A new parse can renumber rows, so skips from the old rows no longer apply
+        skippedRowIndexes: [],
       };
+
+    case "SET_SKIPPED_ROWS":
+      return { ...state, skippedRowIndexes: action.payload };
 
     case "SET_MAPPING":
       return { ...state, mapping: action.payload };
@@ -625,11 +639,25 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
                 backendWarnings[key] = Array.isArray(value) ? value : [String(value)];
               }
             }
-            if (!backendResult.isValid && Object.keys(backendErrors).length === 0) {
-              backendErrors.general = ["Validation failed"];
+            const usesGeneralFallback =
+              !backendResult.isValid && Object.keys(backendErrors).length === 0;
+            if (usesGeneralFallback) {
+              backendErrors.general = [enActivity.validation_failed];
             }
 
             const mergedErrors = mergeIssueMaps(draft.errors || {}, backendErrors);
+            let localErrorMessages = draft.localErrorMessages;
+            if (
+              usesGeneralFallback &&
+              !draft.errors?.general?.includes(enActivity.validation_failed)
+            ) {
+              const generalMessages = [...(draft.localErrorMessages?.general ?? [])];
+              generalMessages[mergedErrors.general.length - 1] = {
+                key: "activity:validation_failed",
+                originalMessage: enActivity.validation_failed,
+              };
+              localErrorMessages = { ...draft.localErrorMessages, general: generalMessages };
+            }
             const retainedWarnings = { ...(draft.warnings || {}) };
             delete retainedWarnings._duplicate;
             const mergedWarnings = mergeIssueMaps(retainedWarnings, backendWarnings);
@@ -658,6 +686,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
               ...draft,
               assetId: backendResult.assetId,
               errors: mergedErrors,
+              localErrorMessages,
               warnings: mergedWarnings,
               duplicateOfId: backendResult.duplicateOfId,
               duplicateOfLineNumber: backendResult.duplicateOfLineNumber,
@@ -694,7 +723,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
         if (run === validationRunRef.current && draftRevisionRef.current <= requestedRevision) {
           dispatch({
             type: "SET_VALIDATION_ERROR",
-            payload: "Backend validation failed. Retry validation before importing.",
+            payload: { key: "activity:import.review.backend_failed" },
           });
         }
         return { ok: false, hasErrors: false };

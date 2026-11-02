@@ -192,7 +192,12 @@
     "to_market_data": "市場データを表示",
     "to_general_settings": "一般設定を開く",
     "to_connect": "口座を設定",
-    "review_transfers": "振替を確認"
+    "review_transfers": "振替を確認",
+    "rebuild_account_history": "履歴を再構築",
+    "add_price": "価格を追加",
+    "update_cost_basis": "取得原価を更新",
+    "review_transaction": "取引を確認",
+    "review_entry": "記録を確認"
   },
   "updatedAt": "{{time}}に更新",
   "healthy": {

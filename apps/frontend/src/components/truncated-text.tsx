@@ -44,7 +44,7 @@ export function TruncatedText({ text, className, ...props }: TruncatedTextProps)
       <TooltipContent
         side="bottom"
         align="start"
-        className="max-w-md whitespace-pre-wrap break-words"
+        className="max-w-md break-words whitespace-pre-wrap"
       >
         {text.length > TRUNCATED_TEXT_TOOLTIP_MAX_CHARS
           ? `${text.slice(0, TRUNCATED_TEXT_TOOLTIP_MAX_CHARS)}…`

@@ -1,5 +1,6 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -23,6 +24,7 @@ import { MultiSelectTaxonomy } from "@/components/classification/multi-select-ta
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 
 import { ParsedAsset } from "./asset-utils";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 const assetFormSchema = z.object({
   symbol: z.string().min(1),
@@ -74,7 +76,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
     defaultValues,
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     form.reset(defaultValues);
   }, [asset, form]);
 
@@ -158,7 +160,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
                 key={tax.id}
                 taxonomyId={tax.id}
                 assetId={asset.id}
-                label={tax.name}
+                label={getTaxonomyLabel(t, tax.id, tax.name)}
               />
             ))}
 
@@ -168,7 +170,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
                 key={tax.id}
                 taxonomyId={tax.id}
                 assetId={asset.id}
-                label={tax.name}
+                label={getTaxonomyLabel(t, tax.id, tax.name)}
               />
             ))}
           </div>

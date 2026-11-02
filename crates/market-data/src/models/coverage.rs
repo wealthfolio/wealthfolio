@@ -31,6 +31,13 @@ fn slice_contains(list: &[&'static str], value: &str) -> bool {
 }
 
 impl Coverage {
+    /// Whether only listed exchanges are covered and a bare ticker never is.
+    /// General search providers rarely index such a venue's listings, so the
+    /// registry searches these providers alongside them, not as a fallback.
+    pub const fn is_exchange_scoped(&self) -> bool {
+        self.equity_mic_allow.is_some() && !self.allow_unknown_mic
+    }
+
     /// Check if this coverage supports the given instrument.
     pub fn supports(&self, inst: &InstrumentId) -> bool {
         match inst {
@@ -137,6 +144,17 @@ impl Coverage {
             equity_mic_allow: Some(&["XETR", "XFRA"]),
             equity_mic_deny: None,
             allow_unknown_mic: true,
+            metal_quote_ccy_allow: None,
+        }
+    }
+
+    /// Moscow Exchange stock market only, strict mode.
+    /// Rejects mic=None: a bare ticker is not proof of a MOEX listing.
+    pub const fn moex() -> Self {
+        Self {
+            equity_mic_allow: Some(&["MISX"]),
+            equity_mic_deny: None,
+            allow_unknown_mic: false,
             metal_quote_ccy_allow: None,
         }
     }
@@ -257,6 +275,28 @@ mod tests {
             mic: Some(Cow::Borrowed("XNAS")),
         };
         assert!(!coverage.supports(&inst));
+    }
+
+    #[test]
+    fn test_moex_accepts_only_misx() {
+        let coverage = Coverage::moex();
+        let misx = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: Some(Cow::Borrowed("MISX")),
+        };
+        let xpar = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: Some(Cow::Borrowed("XPAR")),
+        };
+        let bare = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: None,
+        };
+        assert!(coverage.supports(&misx));
+        assert!(!coverage.supports(&xpar));
+        assert!(!coverage.supports(&bare));
+        assert!(coverage.is_exchange_scoped());
+        assert!(!Coverage::global_best_effort().is_exchange_scoped());
     }
 
     #[test]

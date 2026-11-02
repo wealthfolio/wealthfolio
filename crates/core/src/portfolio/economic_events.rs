@@ -340,6 +340,23 @@ impl ActivityEconomicsResolver {
         (gross > Decimal::ZERO).then_some(gross)
     }
 
+    /// Signed cash effect of a BUY or SELL from its trade value (quantity ×
+    /// price × multiplier) and charges; its magnitude is what the `amount`
+    /// column stores.
+    pub(crate) fn trade_cash_effect_from_gross(
+        activity_type: &str,
+        gross: Decimal,
+        fee: Option<Decimal>,
+        tax: Option<Decimal>,
+    ) -> Option<Decimal> {
+        Self::cash_effect_from_trade_gross(
+            activity_type,
+            gross,
+            fee.unwrap_or(Decimal::ZERO),
+            tax.unwrap_or(Decimal::ZERO),
+        )
+    }
+
     fn cash_effect_from_trade_gross(
         activity_type: &str,
         gross: Decimal,

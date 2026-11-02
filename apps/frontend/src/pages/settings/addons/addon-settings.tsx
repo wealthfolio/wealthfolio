@@ -3,6 +3,8 @@ import { useAddonNavigationPins } from "@/pages/layouts/navigation/addon-navigat
 import { PermissionDialog } from "@/pages/settings/addons/components/addon-permission-dialog";
 import { AddonStoreBrowser } from "@/pages/settings/addons/components/addon-store-browser";
 import { AddonUpdateCard } from "@/pages/settings/addons/components/addon-update-card";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 import { RatingDialog } from "@/pages/settings/addons/components/rating-dialog";
 import {
   Badge,
@@ -138,7 +140,7 @@ export default function AddonSettingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <SettingsHeader
-          heading={t("settings:addons_full_title")}
+          heading={t("settings:nav.items.addons")}
           text={t("settings:addons_description")}
         />
 
@@ -364,11 +366,12 @@ export default function AddonSettingsPage() {
                   return (
                     <div
                       key={addon.metadata.id}
-                      className={`group rounded-lg border p-4 transition-all duration-200 sm:p-6 ${
+                      className={cn(
+                        "group p-4 transition-all duration-200 sm:p-6",
                         addon.metadata.enabled
-                          ? "bg-card hover:bg-accent/30 hover:shadow-md"
-                          : "bg-muted/30 border-dashed opacity-75 hover:opacity-90"
-                      }`}
+                          ? cn(cardSurfaceClassName, "hover:bg-accent/30")
+                          : "bg-muted/30 rounded-(--card-radius) border border-dashed opacity-75 hover:opacity-90",
+                      )}
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 flex-1 space-y-2 sm:space-y-3">

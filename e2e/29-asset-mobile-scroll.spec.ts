@@ -58,7 +58,8 @@ test("mobile asset sections preserve the page scroll position", async ({ page })
     timeout: 15_000,
   });
 
-  const scrollContainer = page.locator("[data-page-scroll-container]");
+  // The phone keeps the Holdings list mounted, hidden, under the asset screen.
+  const scrollContainer = page.locator("[data-page-scroll-container]:visible");
   await expect(page.getByText("Book value", { exact: true })).toBeVisible();
   await scrollContainer.evaluate((element) => {
     element.scrollTo({ top: element.scrollHeight, behavior: "instant" });

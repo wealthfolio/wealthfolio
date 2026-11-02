@@ -27,6 +27,7 @@ vi.mock("@/components/dashboard-card", () => ({
   DashboardCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/pages/dashboard/balance", () => ({ default: () => <div /> }));
+vi.mock("@/components/privacy-toggle", () => ({ PrivacyToggle: () => null }));
 vi.mock("@/pages/holdings/components/allocation-detail-sheet", () => ({
   AllocationDetailSheet: () => null,
 }));
@@ -40,6 +41,9 @@ vi.mock("./components/velocity-card", () => ({
   ),
 }));
 vi.mock("./net-worth-chart", () => ({ NetWorthChart: () => null }));
+vi.mock("@/features/spending/components/spending-date-picker", () => ({
+  SpendingDatePicker: () => null,
+}));
 vi.mock("@wealthfolio/ui", async () => {
   const { getInitialIntervalData } =
     await import("@wealthfolio/ui/components/financial/interval-selector");
@@ -68,6 +72,7 @@ vi.mock("@wealthfolio/ui", async () => {
         new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value),
     }),
     usePersistentState: () => useState(intervalMocks.period),
+    useDateFormatting: () => ({ formatCalendarDate: () => "" }),
   };
 });
 vi.mock("@wealthfolio/ui/components/ui/icons", () => ({
@@ -107,9 +112,9 @@ describe("NetWorthContent current-date queries", () => {
     intervalMocks.period = "ALL";
     queryMocks.useNetWorth.mockReturnValue({
       data: {
-        netWorth: "100",
-        assets: { total: "100", breakdown: [] },
-        liabilities: { total: "0", breakdown: [] },
+        netWorth: 100,
+        assets: { total: 100, breakdown: [] },
+        liabilities: { total: 0, breakdown: [] },
         currency: "USD",
         staleAssets: [],
       },
@@ -158,7 +163,7 @@ describe("NetWorthContent current-date queries", () => {
 
   it("uses the configured day when a new period is selected", () => {
     queryMocks.useNetWorthHistory.mockReturnValue({
-      data: [{ date: "2026-09-15", netWorth: "100" }],
+      data: [{ date: "2026-09-15", netWorth: 100 }],
       isLoading: false,
     });
     vi.setSystemTime(new Date("2026-09-15T16:30:00Z"));
@@ -204,7 +209,7 @@ describe("NetWorthContent current-date queries", () => {
       queryMocks.useNetWorthHistory.mockReturnValue({
         data: series.map((netWorth, index) => ({
           date: `2026-09-${10 + index}`,
-          netWorth: String(netWorth),
+          netWorth,
         })),
         isLoading: false,
       });
@@ -221,7 +226,7 @@ describe("NetWorthContent current-date queries", () => {
       queryMocks.useNetWorthHistory.mockReturnValue({
         data: series.map((netWorth, index) => ({
           date: `2026-09-${10 + index}`,
-          netWorth: String(netWorth),
+          netWorth,
         })),
         isLoading: false,
       });
@@ -240,8 +245,8 @@ describe("NetWorthContent current-date queries", () => {
       intervalMocks.period = "1M";
       queryMocks.useNetWorthHistory.mockImplementation(({ startDate }) => ({
         data: [
-          { date: startDate === "2026-08-15" ? startDate : start, netWorth: "100" },
-          { date: "2026-09-15", netWorth: "110" },
+          { date: startDate === "2026-08-15" ? startDate : start, netWorth: 100 },
+          { date: "2026-09-15", netWorth: 110 },
         ],
         isLoading: false,
       }));

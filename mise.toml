@@ -1,0 +1,5 @@
+# Lets mise use the Node and pnpm versions already set in .node-version and
+# package.json#packageManager. Rust is left out: rustup already reads
+# rust-toolchain.toml. Nothing changes for people who don't use mise.
+[settings]
+idiomatic_version_file_enable_tools = ["node", "pnpm"]

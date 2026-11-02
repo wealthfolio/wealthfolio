@@ -42,7 +42,7 @@ export function ProfileAvatarPicker({
       <div
         role="group"
         aria-label={t("profiles.avatarGroup", { style: labels[style] })}
-        className="grid w-full grid-cols-4 gap-3 !overflow-visible pb-8 pt-4 sm:grid-cols-8 sm:gap-2"
+        className="grid w-full grid-cols-4 gap-3 !overflow-visible pt-4 pb-8 sm:grid-cols-8 sm:gap-2"
       >
         {group.avatars.map((id) => (
           <button

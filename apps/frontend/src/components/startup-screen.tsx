@@ -57,7 +57,7 @@ export function StartupScreen({ profile, message, error, children }: StartupScre
           role="status"
           className={
             error
-              ? "text-balance break-words text-lg font-semibold"
+              ? "text-lg font-semibold text-balance break-words"
               : "profile-loading-status sr-only"
           }
         >
@@ -66,7 +66,7 @@ export function StartupScreen({ profile, message, error, children }: StartupScre
         {error && (
           <p
             role="alert"
-            className="text-muted-foreground text-pretty break-words text-sm leading-relaxed"
+            className="text-muted-foreground text-sm leading-relaxed text-pretty break-words"
           >
             {error}
           </p>

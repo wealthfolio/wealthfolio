@@ -28,7 +28,7 @@ export function FormSection({
     <Card className={className}>
       <CardContent className={cn("space-y-4 p-4", contentClassName)}>
         <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <h3 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+          <h3 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
             {title}
           </h3>
           {action ? <div className="shrink-0">{action}</div> : null}

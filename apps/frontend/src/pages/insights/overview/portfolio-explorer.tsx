@@ -1,3 +1,5 @@
+import { localizeAllocation } from "@/lib/taxonomy-labels";
+import type { TFunction } from "i18next";
 import { useAccountsSimplePerformance } from "@/hooks/use-accounts-simple-performance";
 import type {
   Account,
@@ -8,8 +10,14 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, CardTitle, Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  fallbackPalette,
+  getTreemapPaletteSnapshot,
+  readableLabelColors,
+  subscribeToTreemapTheme,
+} from "@/pages/holdings/components/treemap-palette";
 import {
   accountTreeWeights,
   buildBreakdownTree,
@@ -73,6 +81,21 @@ function collapseWeights(
 }
 
 function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
+  // Each label takes the theme's dark or light label colour, whichever reads better on
+  // its segment, as the treemap's tiles do; both follow the theme and mode.
+  const palette = useSyncExternalStore(
+    subscribeToTreemapTheme,
+    getTreemapPaletteSnapshot,
+    () => fallbackPalette,
+  );
+  const labelColors = useMemo(
+    () =>
+      readableLabelColors(
+        nodes.map((node) => node.color),
+        palette,
+      ),
+    [nodes, palette],
+  );
   return (
     <div className="bg-muted flex h-6 w-full overflow-hidden rounded-lg">
       {nodes.map((node, index) => (
@@ -87,7 +110,12 @@ function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
           title={`${node.name} · ${node.percentage.toFixed(1)}%`}
         >
           {node.percentage >= 8 && (
-            <span className="text-2xs truncate font-bold text-white/95">{node.name}</span>
+            <span
+              className="text-2xs truncate font-bold text-white/95"
+              style={{ color: labelColors[index] }}
+            >
+              {node.name}
+            </span>
           )}
         </div>
       ))}
@@ -100,13 +128,18 @@ function taxonomyLens(
   label: string,
   unit: string,
   allocation: TaxonomyAllocation | undefined,
-  residualName: (categoryName: string) => string,
+  t: TFunction,
 ): Lens {
+  const displayAllocation = allocation ? localizeAllocation(t, allocation) : undefined;
   return {
     key,
     label,
     unit,
-    nodes: buildBreakdownTree(allocation?.categories, sumOfCategories(allocation), residualName),
+    nodes: buildBreakdownTree(
+      displayAllocation?.categories,
+      sumOfCategories(allocation),
+      (categoryName) => t("common:allocation_other_in_category", { category: categoryName }),
+    ),
     allocation,
   };
 }
@@ -147,15 +180,13 @@ export function PortfolioExplorer({
   const accountValues = accountValuations ?? performance;
 
   const lenses = useMemo<Lens[]>(() => {
-    const residualName = (categoryName: string) =>
-      t("common:allocation_other_in_category", { category: categoryName });
     const list: Lens[] = [
       taxonomyLens(
         "allocation",
         t("insights:insights.explorer.lens_allocation"),
         t("insights:insights.explorer.unit_categories"),
         allocations?.assetClasses,
-        residualName,
+        t,
       ),
       accountsLens(
         t("insights:insights.explorer.lens_accounts"),
@@ -167,28 +198,28 @@ export function PortfolioExplorer({
         t("insights:insights.explorer.lens_sectors"),
         t("insights:insights.explorer.unit_sectors"),
         allocations?.sectors,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "regions",
         t("insights:insights.explorer.lens_regions"),
         t("insights:insights.explorer.unit_regions"),
         allocations?.regions,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "risk",
         t("insights:insights.explorer.lens_risk"),
         t("insights:insights.explorer.unit_levels"),
         allocations?.riskCategory,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "security",
         t("insights:insights.explorer.lens_security"),
         t("insights:insights.explorer.unit_types"),
         allocations?.securityTypes,
-        residualName,
+        t,
       ),
       {
         key: "currency",
@@ -206,7 +237,7 @@ export function PortfolioExplorer({
             taxonomy.taxonomyName,
             t("insights:insights.explorer.unit_groups"),
             taxonomy,
-            residualName,
+            t,
           ),
         );
       }
@@ -327,7 +358,7 @@ export function PortfolioExplorer({
       <Card className="overflow-hidden p-0">
         {/* Title and lens tabs */}
         <div className="bg-muted/30 flex flex-wrap items-center gap-1 border-b px-6 py-2.5">
-          <CardTitle className="text-muted-foreground me-5 flex shrink-0 items-center gap-4 py-2 text-sm font-medium uppercase tracking-wider">
+          <CardTitle className="text-muted-foreground me-5 flex shrink-0 items-center gap-4 py-2 text-sm font-medium tracking-wider uppercase">
             {t("insights:insights.explorer.breakdown")}
             <Icons.ChevronRight className="h-4 w-4 opacity-40 rtl:rotate-180" aria-hidden="true" />
           </CardTitle>
@@ -358,8 +389,8 @@ export function PortfolioExplorer({
             </span>
           </div>
           <SegmentedBar nodes={barWeights} />
-          <div className="mb-1 mt-4 flex items-baseline justify-between">
-            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+          <div className="mt-4 mb-1 flex items-baseline justify-between">
+            <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
               {collapsible && !showAll
                 ? t("insights:insights.explorer.top_units", { unit: active.unit })
                 : active.label}

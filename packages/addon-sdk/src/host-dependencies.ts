@@ -1,7 +1,7 @@
 export const HOST_DEPENDENCIES = {
   '@tanstack/react-query': '^5.90.0',
-  '@wealthfolio/addon-sdk': '^3.11.0',
-  '@wealthfolio/ui': '^3.11.0',
+  '@wealthfolio/addon-sdk': '^3.12.0',
+  '@wealthfolio/ui': '^3.12.0',
   'date-fns': '^4.1.0',
   'lucide-react': '^0.561.0',
   react: '^19.2.0',

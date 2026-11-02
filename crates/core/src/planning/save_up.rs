@@ -1,9 +1,18 @@
 //! Save-Up goal projection engine.
 //!
-//! Daily compounding for growth using actual calendar day counts,
-//! monthly contributions at end of month, annualReturn as decimal (0.07 = 7%).
+//! One simulation drives every output, so the health status, projected value,
+//! required contribution, completion date and chart always agree.
+//!
+//! - The expected return is an effective annual rate (0.05 = 5% a year), the
+//!   meaning the retirement planner gives it. `d` days grow the balance by
+//!   `(1 + r)^(d / 365)`.
+//! - The monthly contribution lands at each calendar month-end after `as_of`,
+//!   up to and including the target date. Money saved by `as_of` is already in
+//!   the current value.
+//! - The simulation records the balance at each month-end and on the target
+//!   date.
 
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{Result, ValidationError};
@@ -13,6 +22,16 @@ const MAX_SAVE_UP_MONTHLY_CONTRIBUTION: f64 = 1_000_000_000.0;
 const MIN_SAVE_UP_ANNUAL_RETURN: f64 = -0.20;
 const MAX_SAVE_UP_ANNUAL_RETURN: f64 = 0.50;
 const MAX_SAVE_UP_HORIZON_MONTHS: i32 = 1200;
+/// Expected return for a goal without a saved plan. The save-up editor shows the same default.
+pub const DEFAULT_SAVE_UP_ANNUAL_RETURN: f64 = 0.05;
+/// The chart's optimistic and pessimistic scenarios sit this far from the expected return.
+const SCENARIO_RETURN_SPREAD: f64 = 0.02;
+/// How far ahead the completion date search looks for a goal without a target date.
+const UNDATED_COMPLETION_SEARCH_MONTHS: i32 = 600;
+/// The shortest completion date search for a goal with a target date.
+const MIN_DATED_COMPLETION_SEARCH_MONTHS: i32 = 120;
+/// Most whole-unit steps used to correct float rounding in the required contribution.
+const REQUIRED_MONTHLY_CORRECTION_STEPS: u32 = 4;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -47,12 +66,16 @@ pub struct SaveUpOverview {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveUpTrajectoryPoint {
-    /// YYYY-MM
+    /// YYYY-MM-DD: `as_of`, then each month-end, then the target date.
     pub date: String,
     pub nominal: f64,
     pub optimistic: f64,
     pub pessimistic: f64,
     pub target: f64,
+    /// Balance needed on this date to still reach the target by the target date
+    /// with the planned monthly contribution. Not below zero, or below `nominal`
+    /// when that is negative, so `nominal >= needed` exactly when on track.
+    pub needed: f64,
 }
 
 // ---------------------------------------------------------------------------
@@ -73,11 +96,6 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     let next_first =
         NaiveDate::from_ymd_opt(next_year, next_month, 1).expect("the next month is 1-12");
     (next_first - this_first).num_days() as u32
-}
-
-/// Difference in calendar days between two dates (b - a).
-fn days_between(a: NaiveDate, b: NaiveDate) -> i64 {
-    (b - a).num_days()
 }
 
 /// Parse an ISO date string (YYYY-MM-DD) to NaiveDate.
@@ -150,200 +168,211 @@ pub fn validate_save_up_input(input: &SaveUpInput, as_of: chrono::NaiveDate) -> 
     Ok(())
 }
 
-/// Advance a NaiveDate by one month (same day, clamped).
-fn advance_month(d: NaiveDate) -> NaiveDate {
-    let (y, m) = if d.month() == 12 {
-        (d.year() + 1, 1)
+/// Last day of a month.
+fn month_end(year: i32, month: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, days_in_month(year, month))
+        .expect("days_in_month is the month's length")
+}
+
+/// The first month-end after `date`.
+fn next_month_end(date: NaiveDate) -> NaiveDate {
+    let end = month_end(date.year(), date.month());
+    if end > date {
+        return end;
+    }
+    let (year, month) = if date.month() == 12 {
+        (date.year() + 1, 1)
     } else {
-        (d.year(), d.month() + 1)
+        (date.year(), date.month() + 1)
     };
-    let max_day = days_in_month(y, m);
-    let day = d.day().min(max_day);
-    NaiveDate::from_ymd_opt(y, m, day).expect("day is clamped to the month's length")
+    month_end(year, month)
 }
 
 // ---------------------------------------------------------------------------
-// Core math
+// Simulation
 // ---------------------------------------------------------------------------
 
-/// Future value with daily compounding and monthly end-of-month contributions.
-/// Uses actual calendar day counts per month.
-pub fn future_value(
-    principal: f64,
+/// A date the simulation records: a month-end, the target date, or both.
+#[derive(Debug, Clone, Copy)]
+struct Checkpoint {
+    date: NaiveDate,
+    /// The monthly contribution lands on this date.
+    contributes: bool,
+}
+
+/// Month-ends after `start` up to `until`, plus `target_date` when it falls in that range.
+fn checkpoints(
+    start: NaiveDate,
+    until: NaiveDate,
+    target_date: Option<NaiveDate>,
+) -> Vec<Checkpoint> {
+    let mut pending_target = target_date.filter(|date| *date > start && *date <= until);
+    let mut points = Vec::new();
+    let mut month_end = next_month_end(start);
+    while month_end <= until {
+        if let Some(date) = pending_target.filter(|date| *date <= month_end) {
+            if date < month_end {
+                points.push(Checkpoint {
+                    date,
+                    contributes: false,
+                });
+            }
+            pending_target = None;
+        }
+        points.push(Checkpoint {
+            date: month_end,
+            contributes: true,
+        });
+        month_end = next_month_end(month_end);
+    }
+    if let Some(date) = pending_target {
+        points.push(Checkpoint {
+            date,
+            contributes: false,
+        });
+    }
+    points
+}
+
+/// Growth over `days` at an effective annual rate.
+fn growth(annual_rate: f64, days: i64) -> f64 {
+    (1.0 + annual_rate).powf(days as f64 / 365.0)
+}
+
+/// Balance at each checkpoint, starting from `current` on `start`.
+fn simulate(
+    current: f64,
     monthly_contribution: f64,
     annual_rate: f64,
-    start_date: NaiveDate,
-    end_date: NaiveDate,
-) -> f64 {
-    if end_date <= start_date {
-        return principal;
-    }
-
-    let daily_rate = annual_rate / 365.0;
-    let mut balance = principal;
-    let mut cursor = start_date;
-
-    while cursor < end_date {
-        // End of current month (last day)
-        let dim = days_in_month(cursor.year(), cursor.month());
-        let month_end = NaiveDate::from_ymd_opt(cursor.year(), cursor.month(), dim)
-            .expect("dim is the length of cursor's month");
-        let period_end = if month_end < end_date {
-            month_end
-        } else {
-            end_date
-        };
-
-        let days = days_between(cursor, period_end);
-        if days > 0 {
-            balance *= (1.0 + daily_rate).powi(days as i32);
-        }
-
-        // Add contribution at end of month (only if we reached month end, not early endDate)
-        if period_end == month_end && period_end < end_date {
-            balance += monthly_contribution;
-        }
-
-        // Move cursor to day after period_end
-        cursor = period_end + chrono::Duration::days(1);
-    }
-
-    balance
+    start: NaiveDate,
+    points: &[Checkpoint],
+) -> Vec<f64> {
+    let mut balance = current;
+    let mut previous = start;
+    points
+        .iter()
+        .map(|point| {
+            balance *= growth(annual_rate, (point.date - previous).num_days());
+            if point.contributes {
+                balance += monthly_contribution;
+            }
+            previous = point.date;
+            balance
+        })
+        .collect()
 }
 
-/// Bisection solver: find monthly contribution needed so future_value >= target.
-pub fn solve_required_monthly(
+/// Smallest whole monthly contribution that reaches `target` by the last
+/// checkpoint. With no month-end before then, the shortfall as one amount.
+fn required_monthly(
     current: f64,
     target: f64,
     annual_rate: f64,
-    start_date: NaiveDate,
-    end_date: NaiveDate,
+    start: NaiveDate,
+    points: &[Checkpoint],
 ) -> f64 {
-    if end_date <= start_date {
-        return (target - current).max(0.0);
-    }
-    if current >= target {
+    let final_balance = |monthly: f64| {
+        simulate(current, monthly, annual_rate, start, points)
+            .last()
+            .copied()
+            .unwrap_or(current)
+    };
+    let without = final_balance(0.0);
+    if without >= target {
         return 0.0;
     }
-
-    let mut lo = 0.0_f64;
-    let mut hi = target;
-
-    for _ in 0..50 {
-        let mid = (lo + hi) / 2.0;
-        let fv = future_value(current, mid, annual_rate, start_date, end_date);
-        if fv < target {
-            lo = mid;
+    // The final balance grows linearly with the contribution. Simulate one unit
+    // on its own: subtracting two large balances would lose its precision.
+    let per_unit = simulate(0.0, 1.0, annual_rate, start, points)
+        .last()
+        .copied()
+        .unwrap_or(0.0);
+    if per_unit <= 0.0 {
+        return (target - without).ceil();
+    }
+    let mut monthly = ((target - without) / per_unit).ceil().max(0.0);
+    // Float rounding can leave the estimate a unit off this simulation's result.
+    for _ in 0..REQUIRED_MONTHLY_CORRECTION_STEPS {
+        if final_balance(monthly) < target {
+            monthly += 1.0;
+        } else if monthly >= 1.0 && final_balance(monthly - 1.0) >= target {
+            monthly -= 1.0;
         } else {
-            hi = mid;
+            break;
         }
     }
-
-    ((lo + hi) / 2.0).ceil()
+    monthly
 }
 
-/// Month-by-month iteration to find when balance first reaches target.
-/// Returns `None` if target is never reached within `max_months`.
-pub fn find_completion_date(
-    current: f64,
+/// Balance needed on `start` and at each checkpoint to still reach `target` at
+/// the last checkpoint with the planned contribution. Negative when the
+/// contributions alone more than cover the target.
+fn needed_path(
     target: f64,
     monthly_contribution: f64,
     annual_rate: f64,
-    start_date: NaiveDate,
-    max_months: i32,
-) -> Option<NaiveDate> {
-    if current >= target {
-        return Some(start_date);
+    start: NaiveDate,
+    points: &[Checkpoint],
+) -> Vec<f64> {
+    let mut needed = vec![target; points.len() + 1];
+    let mut next = target;
+    for (i, point) in points.iter().enumerate().rev() {
+        let previous = if i == 0 { start } else { points[i - 1].date };
+        let before_contribution = if point.contributes {
+            next - monthly_contribution
+        } else {
+            next
+        };
+        next = before_contribution / growth(annual_rate, (point.date - previous).num_days());
+        needed[i] = next;
     }
-    if monthly_contribution <= 0.0 && annual_rate <= 0.0 {
-        return None;
-    }
-
-    let daily_rate = annual_rate / 365.0;
-    let mut balance = current;
-    let mut cursor = start_date;
-
-    for _ in 1..=max_months {
-        let days = days_in_month(cursor.year(), cursor.month());
-        balance *= (1.0 + daily_rate).powi(days as i32);
-        balance += monthly_contribution;
-        cursor = advance_month(cursor);
-        if balance >= target {
-            return Some(cursor);
-        }
-    }
-
-    None
+    needed
 }
 
-/// Generate monthly trajectory points with 3 scenarios.
-pub fn generate_projection_series(
+/// Chart points: `as_of`, then each checkpoint through the target date.
+fn trajectory(
     input: &SaveUpInput,
-    months: i32,
-    as_of: chrono::NaiveDate,
+    as_of: NaiveDate,
+    points: &[Checkpoint],
 ) -> Vec<SaveUpTrajectoryPoint> {
-    if months <= 0 {
+    if points.is_empty() {
         return vec![];
     }
+    let rate = input.expected_annual_return;
+    let path = |annual_rate: f64| {
+        let mut balances = vec![input.current_value];
+        balances.extend(simulate(
+            input.current_value,
+            input.monthly_contribution,
+            annual_rate,
+            as_of,
+            points,
+        ));
+        balances
+    };
+    let nominal = path(rate);
+    let optimistic = path(rate + SCENARIO_RETURN_SPREAD);
+    let pessimistic = path((rate - SCENARIO_RETURN_SPREAD).max(0.0));
+    let needed = needed_path(
+        input.target_amount,
+        input.monthly_contribution,
+        rate,
+        as_of,
+        points,
+    );
 
-    let rates = [
-        (
-            "pessimistic",
-            (input.expected_annual_return - 0.02).max(0.0),
-        ),
-        ("nominal", input.expected_annual_return),
-        ("optimistic", input.expected_annual_return + 0.02),
-    ];
-
-    let start = as_of;
-
-    // We collect into an ordered vec of (label, nominal, optimistic, pessimistic).
-    // First build per-scenario vectors, then merge.
-    let mut labels: Vec<String> = Vec::with_capacity((months + 1) as usize);
-    let mut nominal_vals: Vec<f64> = Vec::with_capacity((months + 1) as usize);
-    let mut optimistic_vals: Vec<f64> = Vec::with_capacity((months + 1) as usize);
-    let mut pessimistic_vals: Vec<f64> = Vec::with_capacity((months + 1) as usize);
-
-    for &(scenario_key, rate) in &rates {
-        let daily_rate = rate / 365.0;
-        let mut balance = input.current_value;
-        let mut cursor = start;
-
-        for m in 0..=months {
-            let label = format!("{}-{:02}", cursor.year(), cursor.month());
-
-            match scenario_key {
-                "nominal" => {
-                    labels.push(label);
-                    nominal_vals.push(balance);
-                }
-                "optimistic" => {
-                    optimistic_vals.push(balance);
-                }
-                "pessimistic" => {
-                    pessimistic_vals.push(balance);
-                }
-                _ => unreachable!(),
-            }
-
-            if m < months {
-                let days = days_in_month(cursor.year(), cursor.month());
-                balance *= (1.0 + daily_rate).powi(days as i32);
-                balance += input.monthly_contribution;
-                cursor = advance_month(cursor);
-            }
-        }
-    }
-
-    labels
-        .into_iter()
+    std::iter::once(as_of)
+        .chain(points.iter().map(|point| point.date))
         .enumerate()
         .map(|(i, date)| SaveUpTrajectoryPoint {
-            date,
-            nominal: nominal_vals[i],
-            optimistic: optimistic_vals[i],
-            pessimistic: pessimistic_vals[i],
+            date: date.format("%Y-%m-%d").to_string(),
+            nominal: nominal[i],
+            optimistic: optimistic[i],
+            pessimistic: pessimistic[i],
             target: input.target_amount,
+            // Plot no lower than zero, or than the projection when it is below
+            // zero. The projection still sits above the line exactly when on track.
+            needed: needed[i].max(nominal[i].min(0.0)),
         })
         .collect()
 }
@@ -354,9 +383,8 @@ pub fn generate_projection_series(
 
 /// Compute the full save-up overview from inputs.
 pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -> SaveUpOverview {
-    let now = as_of;
-
     let target_date = input.target_date.as_deref().and_then(parse_date);
+    let rate = input.expected_annual_return;
 
     let progress = if input.target_amount > 0.0 {
         (input.current_value / input.target_amount).clamp(0.0, 1.0)
@@ -364,22 +392,41 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
         0.0
     };
 
-    // If no target date, many projections are not applicable.
-    let (projected_value, required_monthly, health, trajectory) = if let Some(td) = target_date {
-        let projected = future_value(
-            input.current_value,
-            input.monthly_contribution,
-            input.expected_annual_return,
-            now,
-            td,
-        );
+    // Simulate through the target date and far enough past it to find the completion date.
+    let search_months = match target_date {
+        Some(td) => (months_between(as_of, td) * 3).clamp(
+            MIN_DATED_COMPLETION_SEARCH_MONTHS,
+            MAX_SAVE_UP_HORIZON_MONTHS,
+        ),
+        None => UNDATED_COMPLETION_SEARCH_MONTHS,
+    };
+    let until = as_of
+        .checked_add_months(Months::new(search_months as u32))
+        .unwrap_or(as_of);
+    let until = target_date.map_or(until, |td| until.max(td));
+    let points = checkpoints(as_of, until, target_date);
+    let path = simulate(
+        input.current_value,
+        input.monthly_contribution,
+        rate,
+        as_of,
+        &points,
+    );
 
-        let required = solve_required_monthly(
+    let (projected_value, required_monthly, health, trajectory) = if let Some(td) = target_date {
+        let through_target = points.partition_point(|point| point.date <= td);
+        let to_target = &points[..through_target];
+        let projected = path[..through_target]
+            .last()
+            .copied()
+            .unwrap_or(input.current_value);
+
+        let required = required_monthly(
             input.current_value,
             input.target_amount,
-            input.expected_annual_return,
-            now,
-            td,
+            rate,
+            as_of,
+            to_target,
         );
 
         let h = if input.target_amount <= 0.0 {
@@ -392,36 +439,34 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
             "off_track".to_string()
         };
 
-        let months = months_between(now, td).min(MAX_SAVE_UP_HORIZON_MONTHS);
-        let traj = generate_projection_series(input, months, as_of);
-
-        (projected, required, h, traj)
+        (projected, required, h, trajectory(input, as_of, to_target))
     } else {
         // No target date
         (0.0, 0.0, "not_applicable".to_string(), vec![])
     };
 
     // Completion date: search regardless of target date
-    let projected_completion_date = if input.target_amount > 0.0 {
-        let search_months = if let Some(td) = target_date {
-            let m = months_between(now, td);
-            (m * 3).clamp(120, MAX_SAVE_UP_HORIZON_MONTHS)
-        } else {
-            600 // 50 years
-        };
-
-        find_completion_date(
-            input.current_value,
-            input.target_amount,
-            input.monthly_contribution,
-            input.expected_annual_return,
-            now,
-            search_months,
-        )
-        .map(|d| d.format("%Y-%m-%d").to_string())
-    } else {
+    let projected_completion_date = if input.target_amount <= 0.0 {
         None
-    };
+    } else if input.current_value >= input.target_amount {
+        Some(as_of)
+    } else if let Some(td) = target_date.filter(|_| projected_value < input.target_amount) {
+        // A negative return can reach the target and then fall below it by the
+        // target date. Count completion only after the missed date, as health does.
+        points
+            .iter()
+            .zip(&path)
+            .filter(|(point, _)| point.date > td)
+            .find(|(_, balance)| **balance >= input.target_amount)
+            .map(|(point, _)| point.date)
+    } else {
+        points
+            .iter()
+            .zip(&path)
+            .find(|(_, balance)| **balance >= input.target_amount)
+            .map(|(point, _)| point.date)
+    }
+    .map(|d| d.format("%Y-%m-%d").to_string());
 
     SaveUpOverview {
         current_value: input.current_value,
@@ -441,29 +486,33 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn overview_uses_the_supplied_date_for_growth_and_trajectory() {
-        let input = SaveUpInput {
-            current_value: 1000.0,
-            target_amount: 2000.0,
-            target_date: Some("2027-01-01".to_string()),
-            monthly_contribution: 100.0,
-            expected_annual_return: 0.10,
-        };
-        let december =
-            compute_save_up_overview(&input, NaiveDate::from_ymd_opt(2025, 12, 31).unwrap());
-        let january =
-            compute_save_up_overview(&input, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
-        assert_eq!(december.trajectory[0].date, "2025-12");
-        assert_eq!(january.trajectory[0].date, "2026-01");
-        assert!(december.projected_value_at_target_date > january.projected_value_at_target_date);
-    }
+    use super::*;
+    use proptest::prelude::*;
 
     const AS_OF: chrono::NaiveDate = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-    use super::*;
 
     fn date(y: i32, m: u32, d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn input(
+        current_value: f64,
+        target_amount: f64,
+        target_date: Option<&str>,
+        monthly_contribution: f64,
+        expected_annual_return: f64,
+    ) -> SaveUpInput {
+        SaveUpInput {
+            current_value,
+            target_amount,
+            target_date: target_date.map(str::to_string),
+            monthly_contribution,
+            expected_annual_return,
+        }
+    }
+
+    fn final_point(overview: &SaveUpOverview) -> &SaveUpTrajectoryPoint {
+        overview.trajectory.last().expect("dated goal has a chart")
     }
 
     #[test]
@@ -475,95 +524,238 @@ mod tests {
     }
 
     #[test]
-    fn test_future_value_no_time() {
-        let fv = future_value(1000.0, 100.0, 0.07, date(2024, 6, 1), date(2024, 6, 1));
-        assert_eq!(fv, 1000.0);
+    fn overview_uses_the_supplied_date_for_growth_and_trajectory() {
+        let input = input(1000.0, 2000.0, Some("2027-01-01"), 100.0, 0.10);
+        let december = compute_save_up_overview(&input, date(2025, 12, 31));
+        let january = compute_save_up_overview(&input, date(2026, 1, 1));
+        assert_eq!(december.trajectory[0].date, "2025-12-31");
+        assert_eq!(january.trajectory[0].date, "2026-01-01");
+        assert!(december.projected_value_at_target_date > january.projected_value_at_target_date);
     }
 
     #[test]
-    fn test_future_value_end_before_start() {
-        let fv = future_value(1000.0, 100.0, 0.07, date(2025, 1, 1), date(2024, 1, 1));
-        assert_eq!(fv, 1000.0);
+    fn expected_return_is_an_effective_annual_rate() {
+        let overview = compute_save_up_overview(
+            &input(10_000.0, 20_000.0, Some("2027-01-01"), 0.0, 0.05),
+            AS_OF,
+        );
+        assert!((overview.projected_value_at_target_date - 10_500.0).abs() < 1e-6);
+        assert_eq!(
+            final_point(&overview).nominal,
+            overview.projected_value_at_target_date
+        );
+    }
+
+    // The example from wealthfolio/wealthfolio#2204: status, chart and completion date disagreed.
+    #[test]
+    fn status_agrees_with_chart_and_completion_date() {
+        let overview = compute_save_up_overview(
+            &input(10_000.0, 10_510.0, Some("2027-01-01"), 0.0, 0.05),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "at_risk");
+        assert_eq!(final_point(&overview).date, "2027-01-01");
+        assert_eq!(
+            final_point(&overview).nominal,
+            overview.projected_value_at_target_date
+        );
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2027-01-31")
+        );
+        assert_eq!(overview.required_monthly_contribution, 1.0);
+
+        let with_required = compute_save_up_overview(
+            &input(10_000.0, 10_510.0, Some("2027-01-01"), 1.0, 0.05),
+            AS_OF,
+        );
+        assert_eq!(with_required.health, "on_track");
+        assert_eq!(
+            with_required.projected_completion_date.as_deref(),
+            Some("2026-12-31")
+        );
     }
 
     #[test]
-    fn test_future_value_one_year() {
-        let fv = future_value(10000.0, 500.0, 0.07, date(2024, 1, 1), date(2025, 1, 1));
-        // With daily compounding at 7% on 10k + 500/mo contributions, should be ~17k
-        assert!(fv > 16000.0 && fv < 18000.0, "fv was {}", fv);
+    fn contributions_land_at_month_ends_after_today() {
+        // Today is a month-end: its contribution is already in the current value.
+        let overview = compute_save_up_overview(
+            &input(0.0, 100.0, Some("2026-02-01"), 100.0, 0.0),
+            date(2026, 1, 31),
+        );
+        assert_eq!(overview.projected_value_at_target_date, 0.0);
+        assert_eq!(overview.health, "off_track");
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2026-02-28")
+        );
+        // No month-end before the target date, so the shortfall is due as one amount.
+        assert_eq!(overview.required_monthly_contribution, 100.0);
+
+        // A contribution on the target date counts.
+        let overview = compute_save_up_overview(
+            &input(0.0, 300.0, Some("2026-03-31"), 100.0, 0.0),
+            date(2026, 1, 15),
+        );
+        assert_eq!(overview.projected_value_at_target_date, 300.0);
+        assert_eq!(overview.health, "on_track");
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2026-03-31")
+        );
     }
 
     #[test]
-    fn test_future_value_zero_rate() {
-        let fv = future_value(1000.0, 100.0, 0.0, date(2024, 1, 1), date(2025, 1, 1));
-        // 1000 + 12 * 100 = 2200 (but last contribution may not happen depending on month boundary)
-        assert!(fv > 2100.0 && fv < 2300.0, "fv was {}", fv);
+    fn completion_dates_stay_on_month_ends() {
+        let overview =
+            compute_save_up_overview(&input(0.0, 1_000.0, None, 100.0, 0.0), date(2026, 1, 31));
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2026-11-30")
+        );
     }
 
     #[test]
-    fn test_solve_required_monthly_already_met() {
-        let req =
-            solve_required_monthly(50000.0, 10000.0, 0.07, date(2024, 1, 1), date(2030, 1, 1));
-        assert_eq!(req, 0.0);
+    fn trajectory_points_are_today_month_ends_and_target_date() {
+        let overview = compute_save_up_overview(
+            &input(0.0, 1_000.0, Some("2026-04-10"), 100.0, 0.0),
+            date(2026, 1, 15),
+        );
+        let dates: Vec<&str> = overview
+            .trajectory
+            .iter()
+            .map(|p| p.date.as_str())
+            .collect();
+        assert_eq!(
+            dates,
+            [
+                "2026-01-15",
+                "2026-01-31",
+                "2026-02-28",
+                "2026-03-31",
+                "2026-04-10"
+            ]
+        );
+        let nominal: Vec<f64> = overview.trajectory.iter().map(|p| p.nominal).collect();
+        assert_eq!(nominal, [0.0, 100.0, 200.0, 300.0, 300.0]);
     }
 
     #[test]
-    fn test_solve_required_monthly_basic() {
-        let req = solve_required_monthly(0.0, 100000.0, 0.07, date(2024, 1, 1), date(2034, 1, 1));
-        // Need ~573/mo at 7% for 10 years to reach 100k
-        assert!(req > 500.0 && req < 700.0, "req was {}", req);
+    fn needed_path_ends_at_target_and_matches_status() {
+        let on_track = compute_save_up_overview(
+            &input(5_000.0, 10_000.0, Some("2028-01-01"), 300.0, 0.06),
+            AS_OF,
+        );
+        assert_eq!(on_track.health, "on_track");
+        assert_eq!(final_point(&on_track).needed, 10_000.0);
+        assert!(on_track.trajectory.iter().all(|p| p.nominal >= p.needed));
+
+        let behind = compute_save_up_overview(
+            &input(5_000.0, 20_000.0, Some("2028-01-01"), 300.0, 0.06),
+            AS_OF,
+        );
+        assert_eq!(behind.health, "off_track");
+        assert!(behind.trajectory.iter().all(|p| p.nominal < p.needed));
     }
 
     #[test]
-    fn test_find_completion_already_met() {
-        let d = find_completion_date(50000.0, 10000.0, 100.0, 0.07, date(2024, 1, 1), 120);
-        assert_eq!(d, Some(date(2024, 1, 1)));
-    }
-
-    #[test]
-    fn test_find_completion_never() {
-        let d = find_completion_date(0.0, 1_000_000.0, 0.0, 0.0, date(2024, 1, 1), 120);
-        assert_eq!(d, None);
-    }
-
-    #[test]
-    fn test_find_completion_basic() {
-        let d = find_completion_date(10000.0, 50000.0, 500.0, 0.07, date(2024, 1, 1), 600);
-        assert!(d.is_some());
-        let completion = d.unwrap();
-        // ~5.5 years roughly
+    fn required_monthly_contribution_is_the_smallest_whole_amount() {
+        // Ten years at 7% to reach 100k.
+        let base = input(0.0, 100_000.0, Some("2036-01-01"), 0.0, 0.07);
+        let required = compute_save_up_overview(&base, AS_OF).required_monthly_contribution;
         assert!(
-            completion.year() >= 2029 && completion.year() <= 2031,
-            "completion was {}",
-            completion
+            required > 500.0 && required < 700.0,
+            "required was {required}"
+        );
+        let with = |monthly: f64| {
+            compute_save_up_overview(
+                &SaveUpInput {
+                    monthly_contribution: monthly,
+                    ..base.clone()
+                },
+                AS_OF,
+            )
+            .health
+        };
+        assert_eq!(with(required), "on_track");
+        assert_ne!(with(required - 1.0), "on_track");
+    }
+
+    #[test]
+    fn required_monthly_contribution_holds_for_large_balances() {
+        let base = input(
+            10_000_000_000.0,
+            11_000_000_000.0,
+            Some("2026-03-31"),
+            0.0,
+            0.05,
+        );
+        let required = compute_save_up_overview(&base, AS_OF).required_monthly_contribution;
+        let health_with = |monthly: f64| {
+            compute_save_up_overview(
+                &SaveUpInput {
+                    monthly_contribution: monthly,
+                    ..base.clone()
+                },
+                AS_OF,
+            )
+            .health
+        };
+        assert_eq!(health_with(required), "on_track", "required was {required}");
+        assert_ne!(health_with(required - 1.0), "on_track");
+    }
+
+    #[test]
+    fn needed_line_matches_status_for_a_negative_balance() {
+        let overview = compute_save_up_overview(
+            &input(-1_000.0, 1_000.0, Some("2026-03-31"), 1_000.0, 0.0),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "on_track");
+        assert!(overview.trajectory.iter().all(|p| p.nominal >= p.needed));
+    }
+
+    // save-up-projection-card.test.tsx draws these points.
+    #[test]
+    fn partial_month_target_keeps_an_at_risk_goal_below_the_needed_line() {
+        let overview = compute_save_up_overview(
+            &input(0.0, 3_001.0, Some("2026-04-01"), 1_000.0, 0.0),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "at_risk");
+        let points: Vec<(&str, f64, f64)> = overview
+            .trajectory
+            .iter()
+            .map(|p| (p.date.as_str(), p.nominal, p.needed))
+            .collect();
+        assert_eq!(
+            points,
+            [
+                ("2026-01-01", 0.0, 1.0),
+                ("2026-01-31", 1_000.0, 1_001.0),
+                ("2026-02-28", 2_000.0, 2_001.0),
+                ("2026-03-31", 3_000.0, 3_001.0),
+                ("2026-04-01", 3_000.0, 3_001.0),
+            ]
         );
     }
 
     #[test]
     fn test_compute_overview_on_track() {
-        let input = SaveUpInput {
-            current_value: 80000.0,
-            target_amount: 100000.0,
-            target_date: Some("2030-01-01".to_string()),
-            monthly_contribution: 500.0,
-            expected_annual_return: 0.07,
-        };
-        let overview = compute_save_up_overview(&input, AS_OF);
+        let overview = compute_save_up_overview(
+            &input(80_000.0, 100_000.0, Some("2030-01-01"), 500.0, 0.07),
+            AS_OF,
+        );
         assert_eq!(overview.health, "on_track");
         assert!(overview.projected_value_at_target_date > 100000.0);
         assert!(overview.progress > 0.79 && overview.progress < 0.81);
+        assert_eq!(overview.required_monthly_contribution, 0.0);
     }
 
     #[test]
     fn test_compute_overview_no_target_date() {
-        let input = SaveUpInput {
-            current_value: 5000.0,
-            target_amount: 50000.0,
-            target_date: None,
-            monthly_contribution: 200.0,
-            expected_annual_return: 0.05,
-        };
-        let overview = compute_save_up_overview(&input, AS_OF);
+        let overview =
+            compute_save_up_overview(&input(5_000.0, 50_000.0, None, 200.0, 0.05), AS_OF);
         assert_eq!(overview.health, "not_applicable");
         assert_eq!(overview.projected_value_at_target_date, 0.0);
         assert!(overview.trajectory.is_empty());
@@ -573,16 +765,55 @@ mod tests {
 
     #[test]
     fn test_compute_overview_zero_target() {
-        let input = SaveUpInput {
-            current_value: 1000.0,
-            target_amount: 0.0,
-            target_date: Some("2030-01-01".to_string()),
-            monthly_contribution: 100.0,
-            expected_annual_return: 0.07,
-        };
-        let overview = compute_save_up_overview(&input, AS_OF);
+        let overview =
+            compute_save_up_overview(&input(1_000.0, 0.0, Some("2030-01-01"), 100.0, 0.07), AS_OF);
         assert_eq!(overview.health, "not_applicable");
         assert_eq!(overview.progress, 0.0);
+        assert_eq!(overview.projected_completion_date, None);
+    }
+
+    #[test]
+    fn completion_is_today_when_already_met_and_none_when_never_reached() {
+        let met = compute_save_up_overview(&input(50_000.0, 10_000.0, None, 100.0, 0.07), AS_OF);
+        assert_eq!(met.projected_completion_date.as_deref(), Some("2026-01-01"));
+        let never = compute_save_up_overview(&input(0.0, 1_000_000.0, None, 0.0, 0.0), AS_OF);
+        assert_eq!(never.projected_completion_date, None);
+    }
+
+    #[test]
+    fn negative_return_completion_comes_after_a_missed_target_date() {
+        // The January contribution reaches the target, then -20% shrinks it below by mid-February.
+        let overview = compute_save_up_overview(
+            &input(0.0, 1_000.0, Some("2026-02-15"), 1_000.0, -0.20),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "at_risk");
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2026-02-28")
+        );
+
+        // A goal reached today stays complete today, even if the balance is projected to shrink.
+        let reached = compute_save_up_overview(
+            &input(1_000.0, 1_000.0, Some("2026-06-30"), 0.0, -0.20),
+            AS_OF,
+        );
+        assert_eq!(
+            reached.projected_completion_date.as_deref(),
+            Some("2026-01-01")
+        );
+    }
+
+    #[test]
+    fn past_target_date_uses_the_current_value() {
+        let overview = compute_save_up_overview(
+            &input(400.0, 1_000.0, Some("2025-06-01"), 100.0, 0.05),
+            AS_OF,
+        );
+        assert_eq!(overview.projected_value_at_target_date, 400.0);
+        assert_eq!(overview.required_monthly_contribution, 600.0);
+        assert_eq!(overview.health, "off_track");
+        assert!(overview.trajectory.is_empty());
     }
 
     #[test]
@@ -592,13 +823,7 @@ mod tests {
             .unwrap()
             .format("%Y-%m-%d")
             .to_string();
-        let input = SaveUpInput {
-            current_value: 1000.0,
-            target_amount: 50_000.0,
-            target_date: Some(target_date),
-            monthly_contribution: 100.0,
-            expected_annual_return: 0.07,
-        };
+        let input = input(1000.0, 50_000.0, Some(&target_date), 100.0, 0.07);
 
         assert!(validate_save_up_input(&input, AS_OF)
             .expect_err("distant target dates should be rejected")
@@ -608,48 +833,90 @@ mod tests {
 
     #[test]
     fn validate_save_up_input_rejects_invalid_amounts_and_returns() {
-        let input = SaveUpInput {
-            current_value: 1000.0,
-            target_amount: f64::INFINITY,
-            target_date: Some("2030-01-01".to_string()),
-            monthly_contribution: 100.0,
-            expected_annual_return: 0.07,
-        };
-        assert!(validate_save_up_input(&input, AS_OF)
+        let input_with_infinite_target =
+            input(1000.0, f64::INFINITY, Some("2030-01-01"), 100.0, 0.07);
+        assert!(validate_save_up_input(&input_with_infinite_target, AS_OF)
             .expect_err("non-finite target should be rejected")
             .to_string()
             .contains("Target amount"));
 
-        let input = SaveUpInput {
-            current_value: 1000.0,
-            target_amount: 50_000.0,
-            target_date: Some("2030-01-01".to_string()),
-            monthly_contribution: 100.0,
-            expected_annual_return: 2.0,
-        };
-        assert!(validate_save_up_input(&input, AS_OF)
+        let input_with_large_return = input(1000.0, 50_000.0, Some("2030-01-01"), 100.0, 2.0);
+        assert!(validate_save_up_input(&input_with_large_return, AS_OF)
             .expect_err("unbounded returns should be rejected")
             .to_string()
             .contains("Expected annual return"));
     }
 
     #[test]
-    fn test_trajectory_length() {
-        let input = SaveUpInput {
-            current_value: 10000.0,
-            target_amount: 50000.0,
-            target_date: Some("2027-06-01".to_string()),
-            monthly_contribution: 500.0,
-            expected_annual_return: 0.07,
-        };
-        let overview = compute_save_up_overview(&input, AS_OF);
-        // Trajectory should have roughly (months between now and target + 1) points
+    fn test_trajectory_scenarios() {
+        let overview = compute_save_up_overview(
+            &input(10_000.0, 50_000.0, Some("2027-06-01"), 500.0, 0.07),
+            AS_OF,
+        );
         assert!(!overview.trajectory.is_empty());
-        // All points should have the target line
         for pt in &overview.trajectory {
             assert_eq!(pt.target, 50000.0);
             assert!(pt.optimistic >= pt.nominal);
             assert!(pt.nominal >= pt.pessimistic);
+        }
+    }
+
+    proptest! {
+        // Status, chart, completion date, required contribution and needed path read one path.
+        #[test]
+        fn every_output_agrees_with_the_status(
+            start_offset in 0i64..730,
+            horizon_days in 1i64..3650,
+            // Negative balances happen (overdrawn accounts); large ones test float precision.
+            current in prop_oneof![-1_000_000.0f64..1_000_000.0, -1e9f64..1e11],
+            target in prop_oneof![1.0f64..2_000_000.0, 1.0f64..2e11],
+            monthly in prop_oneof![0.0f64..10_000.0, 0.0f64..1e9],
+            rate in -0.2f64..0.5,
+        ) {
+            let as_of = AS_OF + chrono::Duration::days(start_offset);
+            let target_date = as_of + chrono::Duration::days(horizon_days);
+            let td = target_date.format("%Y-%m-%d").to_string();
+            let goal = input(current, target, Some(&td), monthly, rate);
+            let overview = compute_save_up_overview(&goal, as_of);
+
+            if current >= target {
+                // Already reached: complete today, whatever the projection does next.
+                let today = as_of.format("%Y-%m-%d").to_string();
+                prop_assert_eq!(overview.projected_completion_date.as_deref(), Some(today.as_str()));
+            } else {
+                let done_on_time = overview
+                    .projected_completion_date
+                    .as_deref()
+                    .and_then(parse_date)
+                    .is_some_and(|completion| completion <= target_date);
+                prop_assert_eq!(overview.health == "on_track", done_on_time);
+            }
+
+            let last = final_point(&overview);
+            prop_assert_eq!(last.date.as_str(), td.as_str());
+            prop_assert_eq!(last.nominal, overview.projected_value_at_target_date);
+            prop_assert_eq!(last.needed, target);
+
+            let gap = overview.projected_value_at_target_date - target;
+            if gap.abs() > 1e-9 * overview.projected_value_at_target_date.abs().max(target) {
+                for point in &overview.trajectory {
+                    prop_assert_eq!(point.nominal >= point.needed, gap > 0.0);
+                }
+            }
+
+            let required = overview.required_monthly_contribution;
+            let health_with = |monthly: f64| compute_save_up_overview(
+                &SaveUpInput { monthly_contribution: monthly, ..goal.clone() },
+                as_of,
+            )
+            .health;
+            let has_contribution_date = next_month_end(as_of) <= target_date;
+            if has_contribution_date {
+                prop_assert_eq!(health_with(required), "on_track");
+                if required >= 1.0 {
+                    prop_assert_ne!(health_with(required - 1.0), "on_track");
+                }
+            }
         }
     }
 }

@@ -300,6 +300,10 @@ pub struct RetirementOverview {
     pub lean_required_capital_at_goal_age: Option<f64>,
     #[serde(default)]
     pub fat_required_capital_at_goal_age: Option<f64>,
+    /// What active savings goals plan to add each month, from their own plans.
+    /// Shown beside the retirement contribution so the same money isn't entered twice.
+    #[serde(default)]
+    pub savings_goals_monthly_contribution: f64,
     pub shortfall_at_goal_age: f64,
     pub surplus_at_goal_age: f64,
     pub funded_through_age: Option<u32>,
@@ -823,21 +827,6 @@ pub fn compute_retirement_overview_with_mode(
     };
     let effective_fi_age = fi_age.or(suggested_age);
     let eventually_reaches_fi = effective_fi_age.is_some();
-    let has_retirement_gap = failure_age.is_some() || spending_shortfall_age.is_some();
-
-    let status = if !required_capital_reachable || net_target_today.is_none() {
-        "off_track"
-    } else if has_retirement_gap {
-        "at_risk"
-    } else if current_portfolio >= net_target_today_value {
-        "achieved"
-    } else if funded_at_goal_age {
-        "on_track"
-    } else if effective_fi_age.is_some_and(|a| a <= plan.personal.target_retirement_age + 3) {
-        "at_risk"
-    } else {
-        "off_track"
-    };
     let success_status = if !required_capital_reachable {
         "shortfall"
     } else if failure_age.is_some() {
@@ -848,6 +837,31 @@ pub fn compute_retirement_overview_with_mode(
         "overfunded"
     } else {
         "on_track"
+    };
+
+    // Match readiness across detail views and persisted goal summaries.
+    // Warnings take precedence over FI reached; traditional retirement isn't a FIRE milestone.
+    let status = if !required_capital_reachable
+        || net_target_today.is_none()
+        || failure_age.is_some()
+    {
+        "off_track"
+    } else if spending_shortfall_age.is_some() || !projection.income_stream_exhaustion.is_empty() {
+        "at_risk"
+    } else if matches!(mode, RetirementTimingMode::Traditional) {
+        if success_status == "shortfall" {
+            "at_risk"
+        } else {
+            "on_track"
+        }
+    } else if net_target_today_value > 0.0 && current_portfolio >= net_target_today_value {
+        "achieved"
+    } else if effective_fi_age.is_some_and(|age| age <= plan.personal.target_retirement_age) {
+        "on_track"
+    } else if effective_fi_age.is_some_and(|age| age <= plan.personal.target_retirement_age + 3) {
+        "at_risk"
+    } else {
+        "off_track"
     };
 
     let progress = if net_target_today_value > 0.0 {
@@ -897,6 +911,7 @@ pub fn compute_retirement_overview_with_mode(
         required_capital_at_goal_age: required_capital_value,
         lean_required_capital_at_goal_age: None,
         fat_required_capital_at_goal_age: None,
+        savings_goals_monthly_contribution: 0.0,
         shortfall_at_goal_age: shortfall,
         surplus_at_goal_age: surplus,
         funded_through_age,
@@ -1326,5 +1341,40 @@ mod tests {
             fire_point.planned_expenses,
             Some(fire_point.annual_expenses)
         );
+    }
+    #[test]
+    fn readiness_status_preserves_warnings_before_achieved() {
+        let plan = base_plan();
+        let fire = compute_retirement_overview(&plan, 5_000_000.0, "fire", AS_OF);
+        assert_eq!(fire.status, "achieved");
+        let traditional = compute_retirement_overview(&plan, 5_000_000.0, "traditional", AS_OF);
+        assert_eq!(traditional.status, "on_track");
+        let mut depleted_plan = plan.clone();
+        depleted_plan.investment.monthly_contribution = 0.0;
+        depleted_plan.expenses.items[0].monthly_amount = 20_000.0;
+        let depleted = compute_retirement_overview(&depleted_plan, 0.0, "traditional", AS_OF);
+        assert!(depleted.failure_age.is_some());
+        assert_eq!(depleted.status, "off_track");
+        let mut funded = plan;
+        funded.income_streams.push(RetirementIncomeStream {
+            id: "fund".into(),
+            label: "Drawdown".into(),
+            stream_type: StreamKind::DefinedContribution,
+            start_age: 55,
+            adjust_for_inflation: false,
+            annual_growth_rate: None,
+            monthly_amount: None,
+            linked_account_id: None,
+            current_value: Some(10_000.0),
+            monthly_contribution: Some(0.0),
+            accumulation_return: Some(0.0),
+            payout_rate: Some(0.25),
+            payout_mode: Some(PayoutMode::Drawdown),
+            post_payout_return: Some(0.0),
+        });
+        let warning = compute_retirement_overview(&funded, 5_000_000.0, "fire", AS_OF);
+        assert!(warning.failure_age.is_none());
+        assert!(!warning.income_stream_exhaustion.is_empty());
+        assert_eq!(warning.status, "at_risk");
     }
 }

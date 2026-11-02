@@ -20,6 +20,7 @@ import { EventsCalendarCard } from "./events-calendar-card";
 import { EventsTimelineCard } from "./events-timeline-card";
 import { CARD_CLASS } from "./insights-shared";
 import { WhenYouSpendCard } from "./when-you-spend-card";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 export interface WhenWhereStageProps {
   /** Selected custom range, or the last 12 weeks for preset periods. */
@@ -157,8 +158,8 @@ export function WhenWhereStage({
 function EventsErrorCard({ onRetry }: { onRetry?: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className={CARD_CLASS}>
-      <p className="text-foreground text-base font-semibold leading-snug">
+    <Card className={CARD_CLASS}>
+      <p className="text-foreground text-base leading-snug font-semibold">
         {t("spending:whenWhere.errorTitle")}
       </p>
       <p className="text-muted-foreground/80 mt-2 text-sm">{t("spending:whenWhere.errorBody")}</p>
@@ -167,7 +168,7 @@ function EventsErrorCard({ onRetry }: { onRetry?: () => void }) {
           {t("common:retry")}
         </Button>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -175,8 +176,8 @@ function EmptyEventsCard({ rangeStart, rangeEnd }: { rangeStart: Date; rangeEnd:
   const { t } = useTranslation();
   const { openEventDialog } = useEventDialog();
   return (
-    <div className={CARD_CLASS}>
-      <p className="text-foreground text-base font-semibold leading-snug">
+    <Card className={CARD_CLASS}>
+      <p className="text-foreground text-base leading-snug font-semibold">
         {t("spending:whenWhere.emptyTitle")}
       </p>
       <p className="text-muted-foreground/80 mt-2 text-sm">{t("spending:whenWhere.emptyBody")}</p>
@@ -193,6 +194,6 @@ function EmptyEventsCard({ rangeStart, rangeEnd }: { rangeStart: Date; rangeEnd:
         {t("spending:events.createEvent")}
         <Icons.ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
       </Button>
-    </div>
+    </Card>
   );
 }

@@ -137,7 +137,7 @@ export function VelocityCard({
 
       {drivers.length > 0 && (
         <>
-          <p className={`${CARD_LABEL} mb-3 mt-5`}>
+          <p className={`${CARD_LABEL} mt-5 mb-3`}>
             {t("insights:networth.velocity.drivers_of_change")}
           </p>
           {drivers.length === 1 ? (

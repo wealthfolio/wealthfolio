@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use wealthfolio_core::accounts::TrackingMode;
 
 use crate::constants::MAX_ACCOUNTS;
 use crate::env::AgentEnvironment;
@@ -28,6 +29,15 @@ pub struct AccountDto {
     pub account_type: String,
     pub currency: String,
     pub is_active: bool,
+    /// TRANSACTIONS: holdings come from activities. HOLDINGS: holdings are
+    /// entered directly, so activities do not drive them. NOT_SET: undecided.
+    pub tracking_mode: TrackingMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    pub is_default: bool,
+    /// Sync provider for broker-connected accounts; absent for manual ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 /// Output envelope for accounts tool.
@@ -52,7 +62,7 @@ impl AgentTool for GetAccounts {
     }
 
     fn description(&self) -> &'static str {
-        "Get the list of active investment accounts. Returns account id, name, type, and currency for each account."
+        "Get the list of active investment accounts. Returns account id, name, type, currency, tracking mode, group, and sync provider for each account."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -99,6 +109,10 @@ impl AgentTool for GetAccounts {
                 account_type: a.account_type,
                 currency: a.currency,
                 is_active: a.is_active,
+                tracking_mode: a.tracking_mode,
+                group: a.group,
+                is_default: a.is_default,
+                provider: a.provider,
             })
             .collect();
 

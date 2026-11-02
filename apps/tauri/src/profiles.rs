@@ -175,6 +175,26 @@ impl NativeProfiles {
             .flatten()
     }
 
+    #[cfg(all(desktop, any(not(target_os = "macos"), test)))]
+    fn apply_profile_menu(&self, set_visibility: impl FnOnce(bool) -> Result<(), tauri::Error>) {
+        // Desktop setup owns the initial menu and its event handlers. Only
+        // subsequent profile activations need to reapply the saved visibility.
+        if self.starting.load(Ordering::SeqCst) {
+            return;
+        }
+        let Some(context) = self.try_context() else {
+            return;
+        };
+        match context.settings_service().get_settings() {
+            Ok(settings) => {
+                if let Err(error) = set_visibility(settings.menu_bar_visible) {
+                    log::warn!("Failed to apply profile menu visibility: {error}");
+                }
+            }
+            Err(error) => log::warn!("Failed to load profile menu visibility: {error}"),
+        }
+    }
+
     /// Capture the original grant before checking context identity. A queued
     /// event keeps this scope even if a switch happens immediately afterward.
     pub fn event_scope(&self, context: &ServiceContext) -> Option<Uuid> {
@@ -307,6 +327,8 @@ impl NativeProfiles {
             .issue(NATIVE_OWNER, id, protected, runtime.generation())
             .map_err(|e| e.to_string())?;
         runtime.backup_scheduler.wake();
+        #[cfg(all(desktop, not(target_os = "macos")))]
+        self.apply_profile_menu(|visible| crate::menu::set_menu_visibility(handle, visible));
         // Run this for every activated profile, including one opened from the
         // chooser after startup. Issue its scope first so job events are scoped.
         if let Some(context) = runtime.try_context() {
@@ -901,6 +923,91 @@ mod sync_state_tests {
             lock_epoch: AtomicU64::new(0),
         };
         (directory, profiles, runtime, session.scope_id)
+    }
+
+    #[cfg(desktop)]
+    #[tokio::test]
+    async fn profile_menu_follows_active_profile_without_duplicating_startup() {
+        let (_directory, profiles, a, _) = connect_profile();
+        a.initialize_for_test(None).await;
+        let hide_menu =
+            serde_json::from_value(serde_json::json!({ "menuBarVisible": false })).unwrap();
+        a.try_context()
+            .unwrap()
+            .settings_service()
+            .update_settings(&hide_menu)
+            .await
+            .unwrap();
+        let b_id = profiles
+            .registry
+            .create("Other", wealthfolio_core::profiles::PROFILE_AVATARS[1])
+            .unwrap()
+            .id;
+        let b = Arc::new(profile_runtime(&profiles.registry, b_id, &mut HashMap::new()).unwrap());
+        b.initialize_for_test(None).await;
+
+        let activate = |runtime: &Arc<DatabaseRuntime>| {
+            *profiles.active.lock().unwrap() = Some(runtime.clone());
+            profiles
+                .registry
+                .sessions
+                .issue(
+                    NATIVE_OWNER,
+                    runtime.profile_id,
+                    false,
+                    runtime.generation(),
+                )
+                .unwrap();
+        };
+        let mut applied = Vec::new();
+        activate(&a);
+        profiles.starting.store(true, Ordering::SeqCst);
+        profiles.apply_profile_menu(|visible| {
+            applied.push(visible);
+            Ok(())
+        });
+        assert!(applied.is_empty(), "Desktop setup owns the startup menu");
+
+        profiles.starting.store(false, Ordering::SeqCst);
+        for runtime in [&a, &b, &a] {
+            activate(runtime);
+            profiles.apply_profile_menu(|visible| {
+                applied.push(visible);
+                Ok(())
+            });
+        }
+        assert_eq!(applied, [false, true, false]);
+    }
+
+    #[cfg(desktop)]
+    #[tokio::test]
+    async fn profile_menu_requires_a_ready_session_and_isolates_native_errors() {
+        let (_directory, profiles, runtime, _) = connect_profile();
+        profiles.apply_profile_menu(|_| panic!("No settings are available before initialization"));
+        runtime.initialize_for_test(None).await;
+        profiles
+            .registry
+            .sessions
+            .issue(
+                NATIVE_OWNER,
+                runtime.profile_id,
+                false,
+                runtime.generation(),
+            )
+            .unwrap();
+        let mut called = false;
+        profiles.apply_profile_menu(|_| {
+            called = true;
+            Err(std::io::Error::other("Native menu unavailable").into())
+        });
+        assert!(called);
+        assert!(
+            profiles.try_context().is_some(),
+            "Menu errors must not close the profile"
+        );
+
+        profiles.registry.sessions.revoke(NATIVE_OWNER).unwrap();
+        profiles.apply_profile_menu(|_| panic!("The chooser must retain its existing menu policy"));
     }
 
     #[tokio::test]

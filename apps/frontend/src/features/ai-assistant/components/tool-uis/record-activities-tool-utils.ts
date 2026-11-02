@@ -322,6 +322,19 @@ export function mapRecordActivitiesSubmission(
     byRow.set(rowIndex, { rowIndex, status: "error", error: err.message });
   }
 
+  // An error naming no row refused the whole save (a conversion written
+  // without its other row, say): it is the error of every row not saved.
+  const batchError = (result.errors ?? [])
+    .filter((err) => !err.id)
+    .map((err) => err.message)
+    .join("; ");
+  if (batchError) {
+    for (const rowIndex of orderedRowIndexes) {
+      if (!byRow.has(rowIndex))
+        byRow.set(rowIndex, { rowIndex, status: "error", error: batchError });
+    }
+  }
+
   const rowStatuses = [...byRow.values()].sort((a, b) => a.rowIndex - b.rowIndex);
   const createdCount = rowStatuses.filter((status) => status.status === "submitted").length;
   const errorCount = rowStatuses.filter((status) => status.status === "error").length;

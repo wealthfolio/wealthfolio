@@ -257,8 +257,8 @@ Watching for changes...
 pnpm dev:server   # Start development server (recommended)
 pnpm build        # Production build
 pnpm type-check   # Run TypeScript checks
-pnpm lint         # Run ESLint
-pnpm format       # Run Prettier
+pnpm lint         # Run configured checks (the CLI initially uses tsc)
+pnpm format       # After adding a formatter; see recommended tooling below
 pnpm bundle       # Bundle addon for distribution
 ```
 
@@ -525,23 +525,80 @@ package and restart `pnpm dev:server`.
 
 Recommended extensions:
 
-- TypeScript and JavaScript Language Features
+- TypeScript 7 (`typescriptteam.native-preview`), after opting into TypeScript 7
+  below
+- Oxc (`oxc.oxc-vscode`), for Oxlint and Oxfmt
+- ESLint, if your addon retains ESLint rules
 - ES7+ React/Redux/React-Native snippets
 - Tailwind CSS IntelliSense
 - Auto Rename Tag
 - Error Lens
 
-Create `.vscode/settings.json`:
+After installing the [recommended tooling](#recommended-tooling), create
+`.vscode/settings.json`:
 
 ```json
 {
   "typescript.preferences.importModuleSpecifier": "relative",
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "./node_modules/@typescript/native"
 }
 ```
 
 ## Code Quality and Testing
+
+### Recommended Tooling
+
+We recommend TypeScript 7, typed Oxlint, and Oxfmt for TypeScript/React addon
+projects too. These are development tools; an addon's compiler, linter, and
+formatter do not have to match the host app to run in Wealthfolio.
+
+This setup is opt-in. The current CLI template still installs TypeScript 5.9,
+uses `tsc --noEmit` for both `lint` and `type-check`, and does not install a
+formatter. Existing ESLint/Prettier setups remain supported.
+
+To adopt the versions used by this repository, run in your addon directory:
+
+```bash
+pnpm add -D '@typescript/native@npm:typescript@^7.0.2' \
+  'typescript@npm:@typescript/typescript6@^6.0.2' \
+  oxlint@^1.89.0 oxlint-tsgolint@^7.0.2005 oxfmt@^0.74.0
+```
+
+The native alias supplies `tsc`; the TypeScript 6 alias keeps the compiler API
+available to tools such as typescript-eslint. Keep required ambient types
+explicit in `tsconfig.json`, as the CLI template already does with
+`"types": ["node", "react", "react-dom"]`. See the repository's
+[TypeScript setup](../frontend-tooling.md#typescript) for migration details.
+
+Add `.oxlintrc.json` to enable React checks alongside typed linting:
+
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react"],
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "warn"
+  },
+  "ignorePatterns": ["dist/**", "node_modules/**"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn"
+  }
+}
+```
+
+Use the package scripts below with this setup. For existing addons, compare lint
+coverage before removing ESLint: this starter config does not reproduce the
+host's entire lint policy. The host retains ESLint for TanStack Query, React
+deprecation, and optional-chain checks; see
+[retained lint rules](../frontend-tooling.md#linting). When keeping those
+checks, run both linters in `lint`. Transfer existing formatting options and
+ignores to `.oxfmtrc.json` before replacing Prettier; see
+[Oxfmt's migration guide](https://oxc.rs/docs/guide/usage/formatter/migrate-from-prettier.html).
 
 ### Manual Testing
 
@@ -568,14 +625,17 @@ pnpm format
 
 ### Package.json Scripts
 
+After opting into the recommended tooling, use:
+
 ```json
 {
   "scripts": {
     "dev:server": "wealthfolio-addon dev",
     "build": "vite build",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "lint": "oxlint --type-aware src",
+    "format": "oxfmt --write src",
+    "format:check": "oxfmt --check src",
     "bundle": "pnpm build && zip -r addon.zip manifest.json dist/ assets/"
   }
 }
@@ -591,6 +651,7 @@ pnpm format
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
+    "types": ["node", "react", "react-dom"],
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

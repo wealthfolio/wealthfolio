@@ -55,6 +55,7 @@
     "holdings": "Modo de posições"
   },
   "exclusion": {
+    "holdings_not_mwr": "A rentabilidade ponderada pelo dinheiro (MWR) não está disponível no modo somente posições porque os fluxos de caixa das transações não são registrados.",
     "no_data": "Os dados de desempenho não estão disponíveis para esta seleção.",
     "no_series": "Não há nenhuma série de gráfico disponível para este período.",
     "holdings_not_twr": "As contas no modo de posições usam Rentabilidade por valor e não são representadas com TWR.",
@@ -135,5 +136,19 @@
     "contributions_desc": "Dinheiro que você adicionou à conta",
     "distributions": "Distribuições",
     "distributions_desc": "Dinheiro retirado da conta"
-  }
+  },
+  "metric_info": {
+    "time_weighted_return": "A rentabilidade ponderada por tempo (TWR) mede o desempenho do investimento eliminando o efeito de depósitos e levantamentos. Períodos inferiores a um ano mostram a rentabilidade do período selecionado; períodos de um ano ou mais são apresentados de forma anualizada, quando disponível.",
+    "money_weighted_return": "A rentabilidade ponderada pelo capital (MWR) mede o desempenho tendo em conta o montante e o momento dos fluxos de caixa externos. É calculada com IRR/XIRR; para períodos de um ano ou mais, o XIRR anualizado é a apresentação padrão.",
+    "irr": "A taxa interna de rentabilidade (IRR) mede o desempenho ponderado pelo dinheiro tendo em conta o montante e o momento dos fluxos de caixa externos. Para períodos de um ano ou mais, o XIRR anualizado é a apresentação padrão.",
+    "simple_return": "A rentabilidade simples compara o ganho ou a perda total com as contribuições líquidas. É cumulativa e não é ponderada por tempo.",
+    "value_return": "A rentabilidade por valor mede a variação do valor da conta no período selecionado quando não estão disponíveis fluxos de caixa por transação.",
+    "price_return": "A rentabilidade do preço mede a variação do preço do título selecionado no período selecionado.",
+    "volatility": "A volatilidade mede a dispersão das rentabilidades de um investimento. Uma volatilidade mais elevada significa que o valor pode variar muito num curto período. É anualizada a partir das rentabilidades de cada dia do calendário.",
+    "max_drawdown": "A queda máxima representa a maior descida percentual entre um pico e um mínimo posterior do valor da carteira no período indicado. Indica o risco de queda.",
+    "annualized_return": "A rentabilidade anualizada é a taxa composta anual média do período selecionado. Não é o ganho ou a perda total acumulada.",
+    "holdings_volatility": "Volatilidade das variações do valor da conta. Baseia-se nas avaliações diárias sem ajustes por depósitos ou levantamentos. Reflete a dimensão das oscilações do valor de mercado.",
+    "holdings_max_drawdown": "Maior queda do valor da conta entre um pico e um mínimo. Baseia-se nas avaliações diárias sem ajustes por depósitos ou levantamentos."
+  },
+  "compare_over_time": "Comparar o desempenho das contas ao longo do tempo"
 }

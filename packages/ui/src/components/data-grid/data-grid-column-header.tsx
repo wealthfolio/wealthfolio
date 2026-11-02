@@ -133,7 +133,7 @@ export function DataGridColumnHeader<TData, TValue>({
           {column.getCanSort() && (
             <>
               <DropdownMenuCheckboxItem
-                className="[&_svg]:text-muted-foreground relative ltr:pl-2 ltr:pr-8 rtl:pl-8 rtl:pr-2 [&>span:first-child]:ltr:left-auto [&>span:first-child]:ltr:right-2 [&>span:first-child]:rtl:left-2 [&>span:first-child]:rtl:right-auto"
+                className="[&_svg]:text-muted-foreground relative ltr:pr-8 ltr:pl-2 rtl:pr-2 rtl:pl-8 [&>span:first-child]:ltr:right-2 [&>span:first-child]:ltr:left-auto [&>span:first-child]:rtl:right-auto [&>span:first-child]:rtl:left-2"
                 checked={column.getIsSorted() === "asc"}
                 onClick={() => onSortingChange("asc")}
               >
@@ -141,7 +141,7 @@ export function DataGridColumnHeader<TData, TValue>({
                 {t("ui:dataGrid.sortAsc", "Sort asc")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                className="[&_svg]:text-muted-foreground relative ltr:pl-2 ltr:pr-8 rtl:pl-8 rtl:pr-2 [&>span:first-child]:ltr:left-auto [&>span:first-child]:ltr:right-2 [&>span:first-child]:rtl:left-2 [&>span:first-child]:rtl:right-auto"
+                className="[&_svg]:text-muted-foreground relative ltr:pr-8 ltr:pl-2 rtl:pr-2 rtl:pl-8 [&>span:first-child]:ltr:right-2 [&>span:first-child]:ltr:left-auto [&>span:first-child]:rtl:right-auto [&>span:first-child]:rtl:left-2"
                 checked={column.getIsSorted() === "desc"}
                 onClick={() => onSortingChange("desc")}
               >

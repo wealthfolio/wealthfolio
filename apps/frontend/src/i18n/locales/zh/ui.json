@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "上一张",
-    "next": "下一张"
+    "next": "下一张",
+    "role": "轮播",
+    "slide": "幻灯片"
   },
   "currency": {
     "selectTitle": "选择货币",
@@ -14,7 +16,15 @@
     "searchPrompt": "搜索任意货币，或从上方热门选项中选择。",
     "useCustom": "使用“{{value}}”作为自定义货币",
     "noneFound": "未找到与“{{query}}”匹配的货币。",
-    "noneFoundShort": "未找到货币。"
+    "noneFoundShort": "未找到货币。",
+    "units": {
+      "GBp": "英国便士",
+      "GBX": "英国便士",
+      "ILA": "以色列阿高洛",
+      "USX": "美分",
+      "ZAc": "南非分",
+      "KWF": "科威特费尔"
+    }
   },
   "dataGrid": {
     "label": "数据网格",
@@ -75,7 +85,11 @@
     "clearSymbol": "清除代码",
     "currency": "货币",
     "searchCurrency": "搜索货币...",
-    "noCurrencyFound": "未找到货币。"
+    "noCurrencyFound": "未找到货币。",
+    "copyFailed": "复制到剪贴板失败",
+    "cutFailed": "剪切到剪贴板失败",
+    "pasteFailed": "粘贴失败，请重试。",
+    "cellsSkipped_other": "因数据无效，已跳过粘贴 {{count}} 个单元格"
   },
   "dataTable": {
     "noResults": "无结果",
@@ -197,5 +211,27 @@
   "page": {
     "back": "返回"
   },
-  "remove": "移除 {{label}}"
+  "remove": "移除 {{label}}",
+  "actionConfirm": {
+    "pending": "进行中…"
+  },
+  "select": {
+    "placeholder": "选择选项"
+  },
+  "progress": {
+    "title": "处理中",
+    "message": "正在处理…",
+    "description": "正在处理您的请求，请稍候。可能需要一点时间。"
+  },
+  "navigation": {
+    "view": "视图 {{number}}",
+    "goTo": "转到{{name}}"
+  },
+  "quoteImport": {
+    "noFile": "未选择文件",
+    "validateFailed": "CSV 验证失败",
+    "validateFirst": "没有可导入的报价，请先验证文件。",
+    "noValid": "没有可导入的有效报价，所有报价均存在验证错误。",
+    "importFailed": "报价导入失败"
+  }
 }

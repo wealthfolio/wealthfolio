@@ -40,7 +40,7 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
   const { field } = useController({
     name,
     control,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     defaultValue: defaultValue as any,
   });
 
@@ -69,7 +69,8 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
             {isSelected && (
               <motion.div
                 layoutId={`asset-type-indicator-${uniqueId}`}
-                className="bg-background absolute inset-0 -z-10 rounded-md shadow-sm"
+                data-slot="segmented-thumb"
+                className="absolute inset-0 -z-10 rounded-md bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow)"
                 initial={false}
                 transition={{
                   type: "spring",

@@ -21,7 +21,7 @@ export function ToolError({ title, message, onRetry }: ToolErrorProps) {
         "text-destructive-subtle-foreground flex flex-col items-center gap-3 rounded-lg px-4 py-6 text-center",
       )}
     >
-      <span className="bg-current/15 flex rounded-full p-3">
+      <span className="flex rounded-full bg-current/15 p-3">
         <Icons.AlertCircle className="size-7" />
       </span>
       <div className="flex flex-col gap-1">

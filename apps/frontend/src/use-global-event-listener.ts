@@ -9,6 +9,7 @@ import {
   listenMarketSyncError,
   listenMarketSyncStart,
   listenPortfolioUpdateComplete,
+  listenGoalSummariesUpdated,
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
   logger,
@@ -19,8 +20,10 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
 import {
   invalidateAfterAssetClassificationsChanged,
+  invalidateAfterGoalSummariesUpdated,
   shouldInvalidateAfterPortfolioUpdate,
   type AssetClassificationsChangedPayload,
+  type GoalSummariesUpdatedPayload,
 } from "@/lib/query-invalidation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -396,6 +399,12 @@ const useGlobalEventListener = () => {
         [
           "asset-classifications-changed",
           listenAssetClassificationsChanged(handleAssetClassificationsChanged),
+        ],
+        [
+          "goal-summaries-updated",
+          listenGoalSummariesUpdated<GoalSummariesUpdatedPayload>((event) => {
+            invalidateAfterGoalSummariesUpdated(queryClientRef.current, event.payload);
+          }),
         ],
         ["database-restored", listenDatabaseRestored(handleDatabaseRestored)],
         ["broker-sync-complete", listenBrokerSyncComplete(handleBrokerSyncComplete)],

@@ -1,10 +1,11 @@
+// The theme's series colours: distinct lines that stay readable on the card.
 export const PERFORMANCE_CHART_COLORS = [
-  "#4385BE", // blue-400
-  "#CE5D97", // magenta-400
-  "#3AA99F", // cyan-400
-  "#8B7EC8", // purple-400
-  "#879A39", // green-400
-  "#D0A215", // yellow-500
-  "#DA702C", // orange-400
-  "#D14D41", // red-400
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+  "var(--series-6)",
+  "var(--series-7)",
+  "var(--series-8)",
 ] as const;

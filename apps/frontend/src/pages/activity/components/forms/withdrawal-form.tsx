@@ -1,4 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -32,12 +34,13 @@ export const createWithdrawalFormSchema = (t?: TFunction) =>
       .string()
       .min(1, { message: msg(t, "activity:form.err_select_account", "Please select an account.") }),
     activityDate: z.date({
-      required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+      error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
     }),
     amount: z.coerce
       .number({
-        required_error: msg(t, "activity:form.err_enter_amount", "Please enter an amount."),
-        invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+        error: invalidTypeError(
+          msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+        ),
       })
       .min(0, {
         message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
@@ -45,11 +48,13 @@ export const createWithdrawalFormSchema = (t?: TFunction) =>
     comment: z.string().optional().nullable(),
     // Advanced options
     currency: z
-      .string()
+      .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     fxRate: z.coerce
       .number({
-        invalid_type_error: msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
+        error: invalidTypeError(
+          msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
+        ),
       })
       .positive({
         message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
@@ -118,6 +123,7 @@ export function WithdrawalForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -132,7 +138,12 @@ export function WithdrawalForm({
         </FormSection>
 
         <FormSection title={t("activity:form.section_amount")}>
-          <AmountInput name="amount" label={t("activity:form.label_amount")} currency={currency} />
+          <AmountInput
+            name="amount"
+            label={t("activity:form.label_amount")}
+            currency={currency}
+            maxDecimalPlaces={moneyDecimals}
+          />
         </FormSection>
 
         {/* Advanced options (currency, FX rate) and notes, collapsed by default */}

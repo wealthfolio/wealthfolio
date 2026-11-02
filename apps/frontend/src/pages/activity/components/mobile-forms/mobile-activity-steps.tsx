@@ -16,6 +16,7 @@ interface MobileActivityStepsProps {
    */
   needsTypeSelection?: boolean;
   amountWasEdited: RefObject<boolean>;
+  onSelectConversion?: () => void;
 }
 
 export function MobileActivitySteps({
@@ -24,6 +25,7 @@ export function MobileActivitySteps({
   isEditing,
   needsTypeSelection = false,
   amountWasEdited,
+  onSelectConversion,
 }: MobileActivityStepsProps) {
   const { watch } = useFormContext<NewActivityFormValues>();
   const activityType = watch("activityType");
@@ -42,7 +44,10 @@ export function MobileActivitySteps({
   return (
     <div className="h-full">
       {currentStep === 1 && (
-        <MobileActivityTypeStep includeReclassificationTypes={needsTypeSelection} />
+        <MobileActivityTypeStep
+          includeReclassificationTypes={needsTypeSelection}
+          onSelectConversion={onSelectConversion}
+        />
       )}
       {currentStep === 2 && activityType && (
         <MobileDetailsStep

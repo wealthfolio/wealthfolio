@@ -1,3 +1,4 @@
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ProfileShell } from "@/features/profiles/profile-shell";
 import { NativeDatabaseGate } from "@/features/database-recovery/native-database-gate";
 import { isWeb } from "@/adapters";
@@ -8,6 +9,7 @@ import { Toaster } from "@/components/sonner";
 import { AuthGate, AuthProvider } from "@/context/auth-context";
 import { EventDialogProvider } from "@/features/spending/components/event-dialog-provider";
 import { WealthfolioConnectProvider } from "@/features/wealthfolio-connect";
+import { useAndroidSystemBars } from "@/hooks/use-android-system-bars";
 import { AppDirectionProvider } from "@/i18n/direction";
 import { SettingsProvider } from "@/lib/settings-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -19,6 +21,7 @@ import { LoginPage } from "./pages/auth/login-page";
 import { AppRoutes } from "./routes";
 
 function App() {
+  useAndroidSystemBars();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -26,6 +29,9 @@ function App() {
           queries: {
             refetchOnWindowFocus: false,
             staleTime: 5 * 60 * 1000,
+            // Phone screens kept under the one on top pause their queries while
+            // hidden; keep that data long enough for the user to come back to it.
+            gcTime: 30 * 60 * 1000,
             retry: false,
           },
         },
@@ -43,10 +49,12 @@ function App() {
           <TooltipProvider>
             <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
             <AddonRuntimeLoader />
-            <EventDialogProvider>
-              <AssetLogoRegistrySync />
-              <AppRoutes />
-            </EventDialogProvider>
+            <ActivitySplitReviewProvider>
+              <EventDialogProvider>
+                <AssetLogoRegistrySync />
+                <AppRoutes />
+              </EventDialogProvider>
+            </ActivitySplitReviewProvider>
           </TooltipProvider>
         </PrivacyProvider>
       </WealthfolioConnectProvider>

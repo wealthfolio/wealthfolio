@@ -68,7 +68,7 @@ const SettingsContributionLimitPage = () => {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:limits_full_title")}
+          heading={t("settings:nav.items.contribution_limits")}
           text={t("settings:limits_description")}
           actionsInline
         >
@@ -131,9 +131,7 @@ const SettingsContributionLimitPage = () => {
                   className="mx-4 shrink-0 rounded-full"
                   onClick={() => setShowPreviousYears(!showPreviousYears)}
                 >
-                  {showPreviousYears
-                    ? t("settings:limits_hide_previous")
-                    : t("settings:limits_show_previous")}{" "}
+                  {showPreviousYears ? t("common:hide") : t("settings:limits_show_previous")}{" "}
                   {t("settings:limits_previous_years")}
                 </Button>
                 <Separator className="flex-1" />

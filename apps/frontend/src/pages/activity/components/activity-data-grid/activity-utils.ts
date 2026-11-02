@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { getActivityCurrencyPatch } from "../../activity-currency";
 import {
   isAssetBackedIncomeSubtype,
@@ -46,6 +47,8 @@ export function requiresTransferPairEditor(previous: LocalTransaction, next: Loc
  * Set of numeric field names for value comparison
  */
 const NUMERIC_FIELDS = new Set(["quantity", "unitPrice", "amount", "fee", "tax", "fxRate"]);
+// The calculation's inputs, plus what decides its rounding: the currency, and
+// the account, which can change the currency.
 const FINAL_AMOUNT_INPUT_FIELDS = new Set([
   "activityType",
   "subtype",
@@ -54,6 +57,8 @@ const FINAL_AMOUNT_INPUT_FIELDS = new Set([
   "fee",
   "tax",
   "instrumentType",
+  "currency",
+  "accountId",
 ]);
 const FINAL_CASH_ACTIVITY_TYPES = new Set<string>([
   ActivityType.BUY,
@@ -300,7 +305,7 @@ function applySplitDefaults(transaction: LocalTransaction): LocalTransaction {
  * of the asset's, which the grid does not have. That is why a trade preview is
  * NOT submitted (see `sendsAmount`): the backend re-derives from the asset.
  */
-function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransaction {
+export function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransaction {
   if (transaction._amountEdited) return transaction;
 
   let finalAmount: number | undefined;
@@ -316,14 +321,16 @@ function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransact
       fee: transaction.fee,
       tax: transaction.tax,
       contractMultiplier: transaction.metadata?.contract_multiplier,
+      currency: transaction.currency,
     });
   } else if (isAssetBackedIncomeSubtype(transaction.activityType, transaction.subtype)) {
-    finalAmount = calculateIncomeFinalAmount(
-      transaction.quantity,
-      transaction.unitPrice,
-      transaction.pendingInstrumentType ?? transaction.instrumentType,
-      transaction.metadata?.contract_multiplier,
-    );
+    finalAmount = calculateIncomeFinalAmount({
+      quantity: transaction.quantity,
+      unitPrice: transaction.unitPrice,
+      instrumentType: transaction.pendingInstrumentType ?? transaction.instrumentType,
+      contractMultiplier: transaction.metadata?.contract_multiplier,
+      currency: transaction.currency,
+    });
   }
 
   if (finalAmount === undefined) return transaction;
@@ -877,7 +884,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "accountId",
-      message: "Account is required",
+      message: i18n.t("activity:validation.account_is_required"),
     });
   }
 
@@ -886,7 +893,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "activityType",
-      message: "Activity type is required",
+      message: i18n.t("activity:validation.activity_type_is_required"),
     });
   }
 
@@ -895,7 +902,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "date",
-      message: "Date is required",
+      message: i18n.t("activity:validation.date_is_required"),
     });
   }
 
@@ -906,7 +913,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
       errors.push({
         transactionId: transaction.id,
         field: "assetSymbol",
-        message: "Symbol is required for this activity type",
+        message: i18n.t("activity:validation.symbol_is_required_for_this_activity_type"),
       });
     }
   }
@@ -921,14 +928,14 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
       errors.push({
         transactionId: transaction.id,
         field: "quantity",
-        message: "Received quantity is required",
+        message: i18n.t("activity:validation.received_quantity_is_required"),
       });
     }
     if (!(unitPrice > 0) && !(amount > 0)) {
       errors.push({
         transactionId: transaction.id,
         field: "unitPrice",
-        message: "Either income amount or FMV per unit is required",
+        message: i18n.t("activity:validation.either_income_amount_or_fmv_per_unit_is_required"),
       });
     }
   }
@@ -941,7 +948,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "amount",
-      message: "Final cash amount is required before approval",
+      message: i18n.t("activity:validation.final_cash"),
     });
   }
 
@@ -950,7 +957,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "fee",
-      message: "Fee cannot be negative",
+      message: i18n.t("activity:validation.fee_cannot_be_negative"),
     });
   }
 
@@ -958,7 +965,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "tax",
-      message: "Tax cannot be negative",
+      message: i18n.t("activity:validation.tax_cannot_be_negative"),
     });
   }
 
@@ -966,7 +973,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "fxRate",
-      message: "FX rate cannot be negative",
+      message: i18n.t("activity:validation.fx_non_negative"),
     });
   }
 
@@ -1032,7 +1039,7 @@ export function validateTransactionsForSave(
         errors.push({
           transactionId: leg.id,
           field: "activityType",
-          message: "A transfer pair needs both legs, in two currencies when they share an account",
+          message: i18n.t("activity:validation.transfer_pair"),
         });
       }
     }

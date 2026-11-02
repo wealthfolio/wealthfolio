@@ -181,7 +181,7 @@ function CurrencyFormatSettings() {
         render={
           <Button
             variant="ghost"
-            className="h-auto w-full justify-between whitespace-normal px-0 py-1 text-start hover:bg-transparent has-[>svg]:px-0"
+            className="h-auto w-full justify-between px-0 py-1 text-start whitespace-normal hover:bg-transparent has-[>svg]:px-0"
             data-testid="currency-formats-toggle"
           />
         }
@@ -321,7 +321,7 @@ export function LanguageRegionSettings() {
           <LanguageSelector
             value={language}
             onChange={handleLanguageChange}
-            className="max-w-90 w-full"
+            className="w-full max-w-90"
           />
         </section>
 
@@ -352,7 +352,7 @@ export function LanguageRegionSettings() {
             onValueChange={(value) => updateSettings({ formattingRegion: value })}
             searchPlaceholder={t("common:search_placeholder")}
             emptyMessage={t("common:no_results_found")}
-            className="max-w-90 h-input-height"
+            className="h-input-height max-w-90"
             data-testid="formatting-locale-select"
             aria-label={t("settings:formattingRegion.title", "Region & formats")}
           />
@@ -375,7 +375,7 @@ export function LanguageRegionSettings() {
             <h3 className="text-sm font-medium">{t("settings:timezone_title")}</h3>
             <p className="text-muted-foreground text-sm">{t("settings:timezone_description")}</p>
           </div>
-          <div className="max-w-90 w-full">
+          <div className="w-full max-w-90">
             <TimezoneInput value={timezone} onChange={handleTimezoneChange} timezones={timezones} />
           </div>
         </section>

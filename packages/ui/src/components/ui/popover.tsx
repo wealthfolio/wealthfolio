@@ -3,6 +3,7 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 
 function Popover(props: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
@@ -32,8 +33,9 @@ function PopoverContent({
   collisionPadding,
   ...props
 }: PopoverContentProps) {
+  const scopeProps = usePortalScopeProps();
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal {...scopeProps}>
       <PopoverPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

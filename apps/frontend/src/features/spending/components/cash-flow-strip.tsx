@@ -12,6 +12,8 @@ export interface CashFlowStripProps {
   spending: number;
   /** Money set aside into the Savings taxonomy (transfers to investing accounts). */
   saving?: number;
+  /** Money brought back from those accounts. The Saving figure shows the net. */
+  fromSavings?: number;
   currency: string;
   isLoading?: boolean;
   incomeHref?: string;
@@ -23,6 +25,7 @@ export function CashFlowStrip({
   income,
   spending,
   saving = 0,
+  fromSavings = 0,
   currency,
   isLoading,
   incomeHref,
@@ -30,9 +33,12 @@ export function CashFlowStrip({
   savingHref,
 }: CashFlowStripProps) {
   const { t } = useTranslation();
-  const net = income - spending - saving;
+  const net = income - spending - saving + fromSavings;
   const netPositive = net >= 0;
-  const showSaving = saving > 0;
+  // Net saving goes negative when more came back from savings than went in;
+  // it shows with its sign rather than clamped, so the strip still adds up.
+  const netSaving = saving - fromSavings;
+  const showSaving = saving > 0 || fromSavings > 0;
 
   if (isLoading) {
     return (
@@ -66,8 +72,9 @@ export function CashFlowStrip({
       />
       {showSaving && (
         <KpiStat
-          label={t("spending:cashFlow.saving")}
-          value={saving}
+          label={t("spending:cashFlow.netSaved")}
+          value={Math.abs(netSaving)}
+          sign={netSaving < 0 ? "−" : undefined}
           currency={currency}
           tone="saving"
           href={savingHref}
@@ -123,7 +130,7 @@ function KpiStat({
     return (
       <Link
         to={href}
-        className="hover:bg-foreground/5 focus-visible:ring-ring -m-1 flex flex-col rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-1"
+        className="hover:bg-foreground/5 focus-visible:ring-ring -m-1 flex flex-col rounded-md p-1 transition-colors focus-visible:ring-1 focus-visible:outline-none"
       >
         {content}
       </Link>

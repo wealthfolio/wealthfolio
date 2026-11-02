@@ -1,8 +1,46 @@
+import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 import { QuoteMode } from "./constants";
-import { importActivitySchema, importMappingSchema } from "./schemas";
+import {
+  createContributionLimitSchema,
+  importActivitySchema,
+  importMappingSchema,
+  newContributionLimitSchema,
+} from "./schemas";
 
 describe("schemas", () => {
+  describe("newContributionLimitSchema", () => {
+    it("accepts date strings with or without seconds", () => {
+      for (const date of ["2024-01-01T12:00Z", "2024-01-01T12:00:00.000Z"]) {
+        const result = newContributionLimitSchema.safeParse({
+          groupName: "TFSA",
+          contributionYear: 2024,
+          limitAmount: 7000,
+          startDate: date,
+          endDate: date,
+        });
+
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it("uses translated messages", () => {
+      const schema = createContributionLimitSchema(((key: string) => key) as unknown as TFunction);
+      const valid = { groupName: "TFSA", contributionYear: 2024, limitAmount: 7000 };
+      const messages = (input: Record<string, unknown>) => {
+        const result = schema.safeParse({ ...valid, ...input });
+        return result.success ? [] : result.error.issues.map((issue) => issue.message);
+      };
+      expect(messages({ groupName: "" })).toEqual(["settings:limits_form_group_name_required"]);
+      expect(messages({ contributionYear: undefined })).toEqual([
+        "settings:limits_form_year_invalid",
+      ]);
+      expect(messages({ limitAmount: -1 })).toEqual([
+        "settings:limits_form_limit_amount_non_negative",
+      ]);
+    });
+  });
+
   describe("importMappingSchema", () => {
     it("should accept valid quoteMode values in symbolMappingMeta", () => {
       const validMapping = {

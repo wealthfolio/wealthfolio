@@ -139,7 +139,7 @@ export default function IncomePage() {
     return (
       <>
         {filters}
-        <Empty className="max-w-105 mx-auto flex items-center justify-center pt-12">
+        <Empty className="mx-auto flex max-w-105 items-center justify-center pt-12">
           <EmptyHeader>
             <EmptyMedia variant="icon">{<Icons.DollarSign className="size-10" />}</EmptyMedia>
             <EmptyTitle>{t("income:no_income_data")}</EmptyTitle>
@@ -290,7 +290,7 @@ export default function IncomePage() {
                       },
                       {},
                     )}
-                    className="max-h-15.5 mx-auto aspect-square"
+                    className="mx-auto aspect-square max-h-15.5"
                   >
                     <PieChart>
                       <ChartTooltip
@@ -307,7 +307,7 @@ export default function IncomePage() {
                               return (
                                 <>
                                   <div
-                                    className="border-border bg-(--color-bg) h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                                    className="border-border h-2.5 w-2.5 shrink-0 rounded-[2px] bg-(--color-bg)"
                                     style={
                                       {
                                         "--color-bg": color,
@@ -457,7 +457,7 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
               {topDividendStocks.length === 0 ? (
-                <Empty className="h-75 max-w-105 mx-auto flex items-center justify-center">
+                <Empty className="mx-auto flex h-75 max-w-105 items-center justify-center">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
                       {<Icons.DollarSign className="size-10" />}
@@ -515,7 +515,9 @@ export default function IncomePage() {
                             className="group relative h-5 cursor-pointer rounded-lg transition-all duration-300 ease-in-out hover:brightness-110"
                             style={{
                               width: `${percentage}%`,
-                              backgroundColor: colors[index % colors.length],
+                              backgroundColor: item.isOther
+                                ? "var(--chart-stone)"
+                                : colors[index % colors.length],
                             }}
                           >
                             {/* Tooltip */}
@@ -534,7 +536,7 @@ export default function IncomePage() {
                                   })}
                                 </div>
                                 {/* Tooltip arrow */}
-                                <div className="border-t-border absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 transform border-e-4 border-s-4 border-t-4 border-e-transparent border-s-transparent"></div>
+                                <div className="border-t-border absolute top-full left-1/2 h-0 w-0 -translate-x-1/2 transform border-s-4 border-e-4 border-t-4 border-s-transparent border-e-transparent"></div>
                               </div>
                             </div>
                           </div>
@@ -576,12 +578,12 @@ function IncomeDashboardSkeleton() {
           {[...Array(3)].map((_, index) => (
             <Card key={index}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <Skeleton className="w-25 h-4" />
+                <Skeleton className="h-4 w-25" />
                 <Skeleton className="h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="w-37.5 h-8" />
-                <Skeleton className="w-25 mt-2 h-4" />
+                <Skeleton className="h-8 w-37.5" />
+                <Skeleton className="mt-2 h-4 w-25" />
               </CardContent>
             </Card>
           ))}
@@ -589,8 +591,8 @@ function IncomeDashboardSkeleton() {
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <Skeleton className="w-37.5 h-6" />
-              <Skeleton className="w-25 h-4" />
+              <Skeleton className="h-6 w-37.5" />
+              <Skeleton className="h-4 w-25" />
             </CardHeader>
             <CardContent>
               <Skeleton className="h-75 w-full" />
@@ -598,13 +600,13 @@ function IncomeDashboardSkeleton() {
           </Card>
           <Card>
             <CardHeader>
-              <Skeleton className="w-50 h-6" />
+              <Skeleton className="h-6 w-50" />
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[...Array(10)].map((_, index) => (
                   <div key={index} className="flex items-center justify-between">
-                    <Skeleton className="w-25 h-4" />
+                    <Skeleton className="h-4 w-25" />
                     <Skeleton className="h-4 w-20" />
                   </div>
                 ))}

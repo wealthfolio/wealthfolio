@@ -87,7 +87,7 @@ export const PeriodSummaryHero: FC<PeriodSummaryHeroProps> = ({
 
   return (
     <HeroSection label={t("spending:hero.periodSummary", { subtitle: periodSubtitle })}>
-      <div className="text-foreground text-3xl font-bold tabular-nums tracking-tight">
+      <div className="text-foreground text-3xl font-bold tracking-tight tabular-nums">
         <PrivacyAmount value={spent} currency={currency} />
       </div>
       <div className="text-muted-foreground/80 text-xs">
@@ -245,7 +245,7 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
     return (
       <div className={CARD_CLASS}>
         <Skeleton className="h-3 w-32" />
-        <Skeleton className="h-22 mt-3 w-full" />
+        <Skeleton className="mt-3 h-22 w-full" />
         <Skeleton className="mt-3 h-4 w-2/3" />
       </div>
     );
@@ -285,11 +285,11 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
   return (
     <HeroSection label={t("spending:hero.budgetStatusWith", { label: monthsLabel })}>
       <div className="flex items-baseline justify-between gap-2">
-        <div className="text-foreground text-3xl font-bold tabular-nums tracking-tight">
+        <div className="text-foreground text-3xl font-bold tracking-tight tabular-nums">
           {numberFormatting.formatPercent(pct, { digits: 0 })}
         </div>
         <span
-          className="text-2xs rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide"
+          className="text-2xs rounded-full px-2 py-0.5 font-semibold tracking-wide uppercase"
           style={{ backgroundColor: `${fillColor}1F`, color: fillColor }}
         >
           {statusLabel}

@@ -808,9 +808,26 @@ impl ValuationRepositoryTrait for MockValuationRepository {
 
     fn get_accounts_with_negative_balance(
         &self,
-        _account_ids: &[String],
+        account_ids: &[String],
     ) -> Result<Vec<NegativeBalanceInfo>> {
-        Ok(Vec::new())
+        Ok(account_ids
+            .iter()
+            .filter_map(|account_id| {
+                let first = self
+                    .valuations
+                    .iter()
+                    .filter(|v| &v.account_id == account_id)
+                    .filter(|v| v.cash_balance < Decimal::ZERO || v.total_value < Decimal::ZERO)
+                    .min_by_key(|v| v.valuation_date)?;
+                Some(NegativeBalanceInfo {
+                    account_id: account_id.clone(),
+                    first_negative_date: first.valuation_date,
+                    cash_balance: first.cash_balance,
+                    total_value: first.total_value,
+                    account_currency: first.account_currency.clone(),
+                })
+            })
+            .collect())
     }
 }
 
@@ -1361,6 +1378,41 @@ async fn test_credit_card_negative_balance_is_liability() {
     assert_eq!(result.liabilities.total, dec!(1250));
     assert_eq!(result.net_worth, dec!(-1250));
     assert_eq!(result.stale_assets.len(), 0);
+}
+
+#[tokio::test]
+async fn test_credit_card_liability_carries_its_first_balance_date() {
+    // Owed in January 2023, paid off in March 2023, charged again in 2024. The row
+    // is dated by the first balance, not by the latest return from zero.
+    let first_owed = NaiveDate::from_ymd_opt(2023, 1, 10).unwrap();
+    let paid_off = NaiveDate::from_ymd_opt(2023, 3, 1).unwrap();
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let card = create_test_account("card1", "CREDIT_CARD", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(-300));
+    let snapshot = create_test_snapshot("card1", vec![], cash);
+
+    let service = create_net_worth_service_with_valuations(
+        vec![card],
+        vec![],
+        vec![snapshot],
+        vec![],
+        vec![
+            create_account_valuation("card1", first_owed, dec!(-500)),
+            create_account_valuation("card1", paid_off, Decimal::ZERO),
+            create_account_valuation("card1", date, dec!(-300)),
+        ],
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    let row = &result.liabilities.breakdown[0];
+    assert_eq!(row.asset_id.as_deref(), Some("CREDIT_CARD:card1"));
+    assert_eq!(row.first_value_date, Some(first_owed));
+    assert_eq!(
+        serde_json::to_value(row).unwrap()["firstValueDate"],
+        json!("2023-01-10")
+    );
 }
 
 #[tokio::test]

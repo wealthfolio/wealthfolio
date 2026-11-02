@@ -144,7 +144,7 @@ export function OverviewCard({
                 ) : (
                   <span
                     key={chip.id}
-                    className="bg-muted/60 text-foreground max-w-50 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs"
+                    className="bg-muted/60 text-foreground inline-flex max-w-50 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs"
                   >
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
