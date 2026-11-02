@@ -318,7 +318,7 @@ function AmountRow({
   const { t } = useTranslation();
   const arrow = useChangeArrow();
   const { formatAmount, formatPrice, currencyFractionDigits } = useAmountFormatting();
-  const { formatQuantity, decimalSeparator } = useNumberFormatting();
+  const { formatQuantity, decimalSeparator, formatPercent, formatDecimal } = useNumberFormatting();
   const {
     position,
     adjustment,
@@ -371,7 +371,10 @@ function AmountRow({
       : worksheetCategoryLabel(t, taxonomyId, exposure.categoryId, exposure.categoryName),
   );
   const classesText = position.categoryExposures
-    .map((exposure, index) => `${classNames[index]} ${Math.round(exposure.weightBps / 100)}%`)
+    .map(
+      (exposure, index) =>
+        `${classNames[index]} ${formatPercent(exposure.weightBps / 10000, { digits: 0 })}`,
+    )
     .join(", ");
   const classesId = `worksheet-classes-${position.assetId}`;
 
@@ -432,7 +435,7 @@ function AmountRow({
               <span className="text-sm leading-5 font-medium">{position.symbol}</span>
               {shareBps !== null && (
                 <span className="border-foreground text-2xs shrink-0 rounded border px-1 font-mono">
-                  {Math.round(shareBps / 100)}%
+                  {formatPercent(shareBps / 10000, { digits: 0 })}
                 </span>
               )}
             </div>
@@ -449,12 +452,20 @@ function AmountRow({
           {isChanged ? (
             <>
               <span className="text-muted-foreground">
-                {position.currentPct.toFixed(1)} {arrow}{" "}
+                {formatDecimal(position.currentPct, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}{" "}
+                {arrow}{" "}
               </span>
-              <span className="font-semibold">{projectedPct.toFixed(1)}%</span>
+              <span className="font-semibold">
+                {formatPercent(projectedPct / 100, { digits: 1 })}
+              </span>
             </>
           ) : (
-            <span className="text-muted-foreground">{position.currentPct.toFixed(1)}%</span>
+            <span className="text-muted-foreground">
+              {formatPercent(position.currentPct / 100, { digits: 1 })}
+            </span>
           )}
         </span>
 

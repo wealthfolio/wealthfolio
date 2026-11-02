@@ -279,9 +279,17 @@ function PercentOverrideInput({
   max: number;
   onChange: (value: number | undefined) => void;
 }) {
+  const numberFormatting = useNumberFormatting();
   const formatDraft = useCallback(
-    (next?: number) => (next === undefined ? "" : (next * 100).toFixed(1)),
-    [],
+    (next?: number) =>
+      next === undefined
+        ? ""
+        : numberFormatting.formatDecimal(next * 100, {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+            useGrouping: false,
+          }),
+    [numberFormatting],
   );
   const [draft, setDraft] = useState<string | null>(null);
   const displayValue = draft ?? formatDraft(value);
@@ -298,14 +306,14 @@ function PercentOverrideInput({
           setDraft(null);
         }}
         onChange={(e) => {
-          const raw = e.target.value.replace(/,/g, "");
+          const raw = e.target.value;
           setDraft(raw);
           if (!raw.trim()) {
             onChange(undefined);
             return;
           }
-          const parsed = parseFloat(raw);
-          if (!Number.isNaN(parsed)) {
+          const parsed = numberFormatting.parseNumber(raw);
+          if (parsed !== undefined) {
             onChange(Math.min(max * 100, Math.max(0, parsed)) / 100);
           }
         }}
@@ -414,6 +422,12 @@ export function SidebarConfigurator({
   const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
   const amountFormatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
+  const formatRate = (value: number, digits = 1) =>
+    numberFormatting.formatDecimal(value * 100, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+      useGrouping: false,
+    });
 
   const { t } = useTranslation();
   const [draft, setDraft] = useState<RetirementPlan>(() => structuredClone(plan));
@@ -779,7 +793,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_RETURN}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highReturnWarning(draft.investment.preRetirementAnnualReturn, t)}
             />
             <LeverRow
@@ -797,7 +811,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_RETURN}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highReturnWarning(draft.investment.retirementAnnualReturn, t)}
             />
             <LeverRow
@@ -815,7 +829,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_FEE}
               step={0.0005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(2)}
+              format={(v) => formatRate(v, 2)}
               warning={highFeeWarning(draft.investment.annualInvestmentFeeRate, t)}
             />
             <LeverRow
@@ -833,7 +847,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_INFLATION}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highInflationWarning(draft.investment.inflationRate, t)}
             />
           </div>
@@ -880,10 +894,7 @@ export function SidebarConfigurator({
                       : t("goals:sidebar.spending.flexible"),
                     it.inflationRate !== undefined
                       ? t("goals:sidebar.spending.inflation_meta", {
-                          pct: numberFormatting.formatDecimal(it.inflationRate * 100, {
-                            minimumFractionDigits: 1,
-                            maximumFractionDigits: 1,
-                          }),
+                          pct: numberFormatting.formatPercent(it.inflationRate, { digits: 1 }),
                         })
                       : undefined,
                   ]
@@ -908,10 +919,7 @@ export function SidebarConfigurator({
                   : t("goals:sidebar.spending.flexible"),
                 item.inflationRate !== undefined
                   ? t("goals:sidebar.spending.inflation_meta", {
-                      pct: numberFormatting.formatDecimal(item.inflationRate * 100, {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      }),
+                      pct: numberFormatting.formatPercent(item.inflationRate, { digits: 1 }),
                     })
                   : undefined,
               ].join(" · ");
@@ -1165,10 +1173,7 @@ export function SidebarConfigurator({
               const growthMeta =
                 s.annualGrowthRate !== undefined
                   ? t("goals:sidebar.income.growth_meta", {
-                      pct: numberFormatting.formatDecimal(s.annualGrowthRate * 100, {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      }),
+                      pct: numberFormatting.formatPercent(s.annualGrowthRate, { digits: 1 }),
                     })
                   : s.adjustForInflation
                     ? t("goals:sidebar.income.inflation_indexed")
@@ -1322,7 +1327,7 @@ export function SidebarConfigurator({
                               inputMax={MAX_RETIREMENT_RETURN}
                               step={0.001}
                               suffix="%"
-                              format={(v) => (v * 100).toFixed(1)}
+                              format={formatRate}
                               warning={highReturnWarning(
                                 s.accumulationReturn ?? planAccumulationReturn(draft),
                                 t,
@@ -1342,7 +1347,7 @@ export function SidebarConfigurator({
                               inputMax={MAX_RETIREMENT_DC_PAYOUT_RATE}
                               step={0.001}
                               suffix="%"
-                              format={(v) => (v * 100).toFixed(1)}
+                              format={formatRate}
                             />
                             <div className="grid gap-2 px-1 py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
                               <div className="min-w-0">
@@ -1380,7 +1385,7 @@ export function SidebarConfigurator({
                                 inputMax={MAX_RETIREMENT_RETURN}
                                 step={0.001}
                                 suffix="%"
-                                format={(v) => (v * 100).toFixed(1)}
+                                format={formatRate}
                                 warning={highReturnWarning(payoutPhaseReturn(s, draft), t)}
                               />
                             )}
@@ -1404,9 +1409,9 @@ export function SidebarConfigurator({
                                   ? "goals:sidebar.income.drawdown_note"
                                   : "goals:sidebar.income.payout_estimate_note",
                                 {
-                                  pct: numberFormatting.formatDecimal(
-                                    (s.payoutRate ?? DEFAULT_DC_PAYOUT_ESTIMATE_RATE) * 100,
-                                    { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                                  pct: numberFormatting.formatPercent(
+                                    s.payoutRate ?? DEFAULT_DC_PAYOUT_ESTIMATE_RATE,
+                                    { digits: 1 },
                                   ),
                                 },
                               )}
@@ -1568,7 +1573,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_RETURN}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highReturnWarning(draft.investment.preRetirementAnnualReturn, t)}
             />
             <LeverRow
@@ -1586,7 +1591,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_RETURN}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highReturnWarning(draft.investment.retirementAnnualReturn, t)}
             />
             <LeverRow
@@ -1603,7 +1608,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_FEE}
               step={0.0005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(2)}
+              format={(v) => formatRate(v, 2)}
               warning={highFeeWarning(draft.investment.annualInvestmentFeeRate, t)}
             />
             <LeverRow
@@ -1624,7 +1629,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_VOLATILITY}
               step={0.005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highVolatilityWarning(draft.investment.annualVolatility, t)}
             />
             <LeverRow
@@ -1641,7 +1646,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_INFLATION}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highInflationWarning(draft.investment.inflationRate, t)}
             />
             <LeverRow
@@ -1658,7 +1663,7 @@ export function SidebarConfigurator({
               inputMax={MAX_RETIREMENT_CONTRIBUTION_GROWTH}
               step={0.001}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
               warning={highContributionGrowthWarning(draft.investment.contributionGrowthRate, t)}
             />
           </div>
@@ -1820,7 +1825,7 @@ export function SidebarConfigurator({
               max={0.6}
               step={0.005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
             />
             <LeverRow
               label={
@@ -1834,7 +1839,7 @@ export function SidebarConfigurator({
               max={0.6}
               step={0.005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
             />
             <LeverRow
               label={
@@ -1848,7 +1853,7 @@ export function SidebarConfigurator({
               max={0.3}
               step={0.005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
             />
             <LeverRow
               label={
@@ -1863,7 +1868,7 @@ export function SidebarConfigurator({
               max={0.3}
               step={0.005}
               suffix="%"
-              format={(v) => (v * 100).toFixed(1)}
+              format={formatRate}
             />
             <LeverRow
               label={

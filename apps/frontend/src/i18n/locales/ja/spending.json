@@ -927,7 +927,7 @@
     "stageWhenLabel": "いつ・どこで",
     "stageWhenSub": "支出のタイミングと支出イベント",
     "spendingAbovePrefix": "支出は",
-    "pctAbove": "{{pct}}%増",
+    "pctAbove": "{{pct}}増",
     "thePriorPeriod": "(前期間比)",
     "moreThan": "{{prior}}より{{more}}多い",
     "uncategorizedCount_one": "未分類の取引{{count}}件",

@@ -1,9 +1,10 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
-import { Icons } from "@wealthfolio/ui";
+import { Icons, useNumberFormatting } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
 import {
   allocationTargetColorForRow,
@@ -103,6 +104,7 @@ function driftTone(
   drift: number,
   bandPct: number,
   t: TFunction,
+  numbers: NumberFormatting,
 ): { label: string; className: string } {
   if (Math.abs(drift) <= bandPct) {
     return {
@@ -112,12 +114,16 @@ function driftTone(
   }
   if (drift > 0) {
     return {
-      label: t("allocation:editor.over", { value: drift.toFixed(1) }),
+      label: t("allocation:editor.over", {
+        value: numbers.formatPercent(drift / 100, { digits: 1 }),
+      }),
       className: "bg-allocation-over/15 text-allocation-over",
     };
   }
   return {
-    label: t("allocation:editor.under", { value: drift.toFixed(1) }),
+    label: t("allocation:editor.under", {
+      value: numbers.formatPercent(drift / 100, { digits: 1 }),
+    }),
     className: "bg-allocation-under/15 text-allocation-under",
   };
 }
@@ -134,6 +140,13 @@ export function TargetWeightEditor({
   onChange,
 }: TargetWeightEditorProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
+  const formatInput = (value: number) =>
+    numbers.formatDecimal(value, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+      useGrouping: false,
+    });
   const resolvedCategoryLabel = categoryLabel ?? t("allocation:editor.assetClass");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -159,13 +172,13 @@ export function TargetWeightEditor({
     skipBlurCommitRef.current = false;
     setEditingId(categoryId);
     setLiveBps(null);
-    setEditValue((getWeightBps(categoryId) / 100).toFixed(1));
+    setEditValue(formatInput(getWeightBps(categoryId) / 100));
   }
 
   function commitEdit(categoryId: string) {
     skipBlurCommitRef.current = false;
-    const pct = parseFloat(editValue);
-    const bps = isNaN(pct) ? 0 : Math.round(Math.min(100, Math.max(0, pct)) * 100);
+    const pct = numbers.parseNumber(editValue);
+    const bps = pct === undefined ? 0 : Math.round(Math.min(100, Math.max(0, pct)) * 100);
     onChange(redistribute(weights, categoryId, bps));
     setEditingId(null);
     setLiveBps(null);
@@ -216,7 +229,7 @@ export function TargetWeightEditor({
         {/* Category rows */}
         <div className="divide-y">
           {rows.map((row) => {
-            const tone = driftTone(row.drift, row.bandPct, t);
+            const tone = driftTone(row.drift, row.bandPct, t, numbers);
             return (
               <div
                 key={row.cat.id}
@@ -253,14 +266,17 @@ export function TargetWeightEditor({
 
                 {/* Current % */}
                 <span className="text-muted-foreground text-end text-xs tabular-nums">
-                  {row.currentPct > 0 ? `${row.currentPct.toFixed(1)}%` : "—"}
+                  {row.currentPct > 0
+                    ? numbers.formatPercent(row.currentPct / 100, { digits: 1 })
+                    : "—"}
                 </span>
 
                 {/* Target input */}
                 <div className="flex items-center justify-end gap-0.5">
                   {row.isEditing ? (
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       aria-label={`${getCategoryLabel(t, row.cat.taxonomyId, row.cat.id, row.cat.name)} ${t("allocation:vsTarget.target")}`}
                       min={0}
                       max={100}
@@ -269,8 +285,8 @@ export function TargetWeightEditor({
                       autoFocus
                       onChange={(e) => {
                         setEditValue(e.target.value);
-                        const pct = parseFloat(e.target.value);
-                        if (!isNaN(pct)) {
+                        const pct = numbers.parseNumber(e.target.value);
+                        if (pct !== undefined) {
                           setLiveBps(Math.round(Math.min(100, Math.max(0, pct)) * 100));
                         }
                       }}
@@ -309,7 +325,7 @@ export function TargetWeightEditor({
                         row.bps > 0 ? "text-foreground font-medium" : "text-muted-foreground",
                       )}
                     >
-                      {row.targetPct.toFixed(1)}
+                      {formatInput(row.targetPct)}
                     </button>
                   )}
                   <span className="text-muted-foreground text-xs">%</span>
@@ -360,7 +376,8 @@ export function TargetWeightEditor({
                 isValid ? "text-success-subtle-foreground" : "text-destructive",
               )}
             >
-              {(totalBps / 100).toFixed(1)}%{isValid && " ✓"}
+              {numbers.formatPercent(totalBps / 10000, { digits: 1 })}
+              {isValid && " ✓"}
             </span>
             <span />
             <span />
@@ -369,10 +386,10 @@ export function TargetWeightEditor({
             <p className="text-destructive text-2xs mt-0.5 px-1">
               {totalBps < 10000
                 ? t("allocation:editor.unallocated", {
-                    value: ((10000 - totalBps) / 100).toFixed(1),
+                    value: numbers.formatPercent((10000 - totalBps) / 10000, { digits: 1 }),
                   })
                 : t("allocation:editor.over100", {
-                    value: ((totalBps - 10000) / 100).toFixed(1),
+                    value: numbers.formatPercent((totalBps - 10000) / 10000, { digits: 1 }),
                   })}
             </p>
           )}
@@ -389,7 +406,7 @@ export function TargetWeightEditor({
                       biggestMove.cat.id,
                       biggestMove.cat.name,
                     ),
-                    value: Math.abs(biggestMove.drift).toFixed(1),
+                    value: numbers.formatPercent(Math.abs(biggestMove.drift) / 100, { digits: 1 }),
                   })
                 : t("allocation:editor.largestGapBelow", {
                     category: getCategoryLabel(
@@ -398,7 +415,7 @@ export function TargetWeightEditor({
                       biggestMove.cat.id,
                       biggestMove.cat.name,
                     ),
-                    value: Math.abs(biggestMove.drift).toFixed(1),
+                    value: numbers.formatPercent(Math.abs(biggestMove.drift) / 100, { digits: 1 }),
                   })}
             </span>
             .

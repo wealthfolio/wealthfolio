@@ -1,6 +1,8 @@
 import { act, render, screen, waitFor, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { FormattingProvider } from "@wealthfolio/ui";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
@@ -27,7 +29,12 @@ vi.mock("../adapters/budget", () => ({
   upsertBudgetRolloverSetting: vi.fn(),
   upsertBudgetTarget: vi.fn(),
 }));
-import { assignCategoryToGroup, getBudget, updateBudgetGroup } from "../adapters/budget";
+import {
+  assignCategoryToGroup,
+  getBudget,
+  updateBudgetGroup,
+  upsertBudgetRolloverSetting,
+} from "../adapters/budget";
 
 const NEEDS_ID = "032ecb02-5912-42e8-9724-2cd566fc08d5";
 const WANTS_ID = "a409e0d6-9152-49c8-a5b4-a147a8ac636e";
@@ -105,7 +112,7 @@ function budgetSnapshot(
   };
 }
 
-async function setup(budget: BudgetSnapshot) {
+async function setup(budget: BudgetSnapshot, locale = "US", direction: "ltr" | "rtl" = "ltr") {
   vi.mocked(getBudget).mockResolvedValue(budget);
   const i18n = createInstance();
   await i18n.use(initReactI18next).init({
@@ -120,17 +127,26 @@ async function setup(budget: BudgetSnapshot) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
   });
-  render(
-    <MemoryRouter>
-      <I18nextProvider i18n={i18n}>
-        <QueryClientProvider client={queryClient}>
-          <BudgetEditor mode="setup" periodKey="default" />
-        </QueryClientProvider>
-      </I18nextProvider>
-    </MemoryRouter>,
+  const editor = (region: string) => (
+    <DirectionProvider direction={direction}>
+      <FormattingProvider locale={region}>
+        <MemoryRouter>
+          <I18nextProvider i18n={i18n}>
+            <QueryClientProvider client={queryClient}>
+              <BudgetEditor mode="setup" periodKey="default" />
+            </QueryClientProvider>
+          </I18nextProvider>
+        </MemoryRouter>
+      </FormattingProvider>
+    </DirectionProvider>
   );
+  const view = render(editor(locale));
   await screen.findAllByRole("button", { name: zhSpending.budgetEditor.expandGroup });
-  return { i18n, user: userEvent.setup() };
+  return {
+    i18n,
+    user: userEvent.setup(),
+    setRegion: (region: string) => view.rerender(editor(region)),
+  };
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -204,3 +220,47 @@ it("keeps a group's raw editable name across language changes", async () => {
     expect(updateBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, { name: "My essentials" }, "default"),
   );
 });
+
+it.each([
+  { direction: "ltr" as const, nextRegion: "ES" },
+  { direction: "rtl" as const, nextRegion: "ES" },
+  { direction: "ltr" as const, nextRegion: "US" },
+  { direction: "rtl" as const, nextRegion: "US" },
+])(
+  "saves a negative Spain rollover draft in $direction after selecting $nextRegion",
+  async ({ direction, nextRegion }) => {
+    const budget = budgetSnapshot();
+    budget.computed.groupRows[0].rolloverEnabled = true;
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    const { i18n, user, setRegion } = await setup(budget, "ES", direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const input = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    expect(input).toHaveValue("-123,5");
+    await user.click(input);
+    await user.keyboard("{End}{Backspace}6");
+    setRegion(nextRegion);
+    expect(input).toHaveValue(nextRegion === "US" ? "-123.6" : "-123,6");
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ startingBalance: "-123.6", enabled: true }),
+        "default",
+      ),
+    );
+  },
+);

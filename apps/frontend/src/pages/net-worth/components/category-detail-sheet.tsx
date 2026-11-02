@@ -161,7 +161,9 @@ export function CategoryDetailSheet({
                         <div className="flex items-baseline gap-2.5">
                           {selected.value > 0 && (
                             <span className="text-muted-foreground/60 text-xs tabular-nums">
-                              {((child.value / selected.value) * 100).toFixed(1)}%
+                              {formatting.formatPercent(child.value / selected.value, {
+                                digits: 1,
+                              })}
                             </span>
                           )}
                           <span className="text-foreground/90 text-sm tabular-nums">

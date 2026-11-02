@@ -44,6 +44,7 @@ import {
   TooltipTrigger,
   PrivacyAmount,
   useIsMobile,
+  stripBidiControls,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
@@ -1000,7 +1001,29 @@ function GroupEditDialogBody({
   const [draftColor, setDraftColor] = useState(color);
   const [draftIcon, setDraftIcon] = useState<string | null>(group.icon ?? null);
   const [draftRollover, setDraftRollover] = useState(rolloverEnabled);
-  const [draftStartingBalance, setDraftStartingBalance] = useState(rolloverStartingBalance);
+  const numbers = useNumberFormatting();
+  // A hidden phone screen can return with a different formatting region.
+  const [startingBalanceDraft, setStartingBalanceDraft] = useState(() => ({
+    value: stripBidiControls(
+      numbers.formatDecimal(Number(rolloverStartingBalance), {
+        maximumFractionDigits: 20,
+        useGrouping: false,
+      }),
+    ),
+    numbers,
+  }));
+  const parsedStartingBalance = startingBalanceDraft.numbers.parseNumber(
+    startingBalanceDraft.value,
+  );
+  const draftStartingBalance =
+    startingBalanceDraft.numbers === numbers || parsedStartingBalance === undefined
+      ? startingBalanceDraft.value
+      : stripBidiControls(
+          numbers.formatDecimal(parsedStartingBalance, {
+            maximumFractionDigits: 20,
+            useGrouping: false,
+          }),
+        );
 
   const handleSave = () => {
     const patch: { name?: string; color?: string | null; icon?: string | null } = {};
@@ -1010,13 +1033,10 @@ function GroupEditDialogBody({
     if ((draftIcon ?? null) !== (group.icon ?? null)) patch.icon = draftIcon;
     if (Object.keys(patch).length > 0) onUpdate(patch);
 
-    const balanceChanged =
-      draftRollover && normalizeBalance(draftStartingBalance) !== rolloverStartingBalance;
+    const startingBalance = String(parsedStartingBalance ?? 0);
+    const balanceChanged = draftRollover && startingBalance !== rolloverStartingBalance;
     if (draftRollover !== rolloverEnabled || balanceChanged) {
-      onSaveRollover(
-        draftRollover,
-        draftRollover ? normalizeBalance(draftStartingBalance) : undefined,
-      );
+      onSaveRollover(draftRollover, draftRollover ? startingBalance : undefined);
     }
     onOpenChange(false);
   };
@@ -1098,7 +1118,12 @@ function GroupEditDialogBody({
                   type="text"
                   inputMode="decimal"
                   value={draftStartingBalance}
-                  onChange={(event) => setDraftStartingBalance(event.target.value)}
+                  onChange={(event) =>
+                    setStartingBalanceDraft({
+                      value: stripBidiControls(event.target.value),
+                      numbers,
+                    })
+                  }
                   placeholder="0"
                   className="bg-background border-input focus-visible:ring-ring/40 text-foreground placeholder:text-muted-foreground/70 h-8 w-full rounded-md border px-2 text-end text-xs tabular-nums outline-none focus-visible:ring-2"
                 />
@@ -1893,14 +1918,6 @@ function findCategoryRollover(settings: BudgetRolloverSetting[], categoryId: str
       setting.taxonomyId === SPENDING_TAXONOMY &&
       setting.categoryId === categoryId,
   );
-}
-
-function normalizeBalance(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "0";
-  const parsed = Number.parseFloat(trimmed);
-  if (!Number.isFinite(parsed)) return "0";
-  return String(parsed);
 }
 
 function safePercent(value: number, total: number) {

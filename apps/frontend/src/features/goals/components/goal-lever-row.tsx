@@ -1,4 +1,4 @@
-import { MoneyInput } from "@wealthfolio/ui";
+import { MoneyInput, stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
@@ -51,6 +51,7 @@ export function GoalLeverRow({
   inputWidthClassName,
 }: GoalLeverRowProps) {
   const labelId = useId();
+  const numbers = useNumberFormatting();
   const inputScale = suffix === "%" ? 100 : 1;
   // Money fields have no natural hard cap (currencies vary by orders of
   // magnitude, e.g. IDR vs USD), so typed amounts stay unclamped unless the
@@ -72,7 +73,7 @@ export function GoalLeverRow({
   const skipNextMoneyCommitRef = useRef(false);
   const [draftValue, setDraftValue] = useState<string | null>(null);
   const numberDraftDirtyRef = useRef(false);
-  const displayValue = draftValue ?? format(value);
+  const displayValue = draftValue ?? stripBidiControls(format(value));
 
   const commitMoneyDraftValue = () => {
     if (skipNextMoneyCommitRef.current) {
@@ -101,8 +102,9 @@ export function GoalLeverRow({
       return;
     }
 
-    const parsed = parseFloat(raw.replace(",", "."));
-    if (Number.isNaN(parsed)) {
+    // These ungrouped fields have always accepted either western decimal mark.
+    const parsed = numbers.parseNumber(raw.replace(/[.,]/g, numbers.decimalSeparator));
+    if (parsed === undefined) {
       setDraftValue(null);
       return;
     }
@@ -163,14 +165,11 @@ export function GoalLeverRow({
               value={displayValue}
               onFocus={() => {
                 numberDraftDirtyRef.current = false;
-                setDraftValue(format(value));
+                setDraftValue(stripBidiControls(format(value)));
               }}
               onChange={(event) => {
-                const next = event.target.value;
-                if (/^-?\d*([.,]\d*)?$/.test(next)) {
-                  numberDraftDirtyRef.current = true;
-                  setDraftValue(next);
-                }
+                numberDraftDirtyRef.current = true;
+                setDraftValue(stripBidiControls(event.target.value));
               }}
               onBlur={() => {
                 commitDraftValue();

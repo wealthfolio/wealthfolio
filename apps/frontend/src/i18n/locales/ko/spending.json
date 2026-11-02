@@ -927,7 +927,7 @@
     "stageWhenLabel": "시기와 장소",
     "stageWhenSub": "지출 시점 및 지출 이벤트",
     "spendingAbovePrefix": "지출이",
-    "pctAbove": "{{pct}}% 더 많습니다",
+    "pctAbove": "{{pct}} 더 많습니다",
     "thePriorPeriod": "이전 기간보다.",
     "moreThan": "{{prior}}보다 {{more}} 더 많음",
     "uncategorizedCount_one": "미분류 거래 {{count}}건",

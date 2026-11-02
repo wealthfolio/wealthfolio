@@ -1,3 +1,4 @@
+import { stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExchangeRate } from "@/lib/types";
@@ -13,8 +14,21 @@ interface RateCellProps {
 
 export function RateCell({ rate, onUpdate }: RateCellProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
+  const formatRateInput = () =>
+    numbers.formatDecimal(rate.rate, { useGrouping: false, maximumFractionDigits: 20 });
   const [isEditing, setIsEditing] = useState(false);
-  const [editedRate, setEditedRate] = useState(rate.rate.toString());
+  // Region settings can change on this same page while the rate is being edited.
+  const [rateDraft, setRateDraft] = useState({ value: "", numbers });
+  const setEditedRate = (value: string) =>
+    setRateDraft({ value: stripBidiControls(value), numbers });
+  const parsedRate = rateDraft.numbers.parseNumber(rateDraft.value);
+  const editedRate =
+    rateDraft.numbers === numbers || parsedRate === undefined
+      ? rateDraft.value
+      : stripBidiControls(
+          numbers.formatDecimal(parsedRate, { useGrouping: false, maximumFractionDigits: 20 }),
+        );
   const isManual = rate.source === "MANUAL";
 
   const handleEdit = () => {
@@ -27,17 +41,17 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
       return;
     }
     setIsEditing(true);
-    setEditedRate(rate.rate.toString());
+    setEditedRate(formatRateInput());
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setEditedRate(rate.rate.toString());
+    setEditedRate(formatRateInput());
   };
 
   const handleSubmit = () => {
-    const newRate = parseFloat(editedRate);
-    if (isNaN(newRate) || newRate <= 0) {
+    const newRate = parsedRate;
+    if (newRate === undefined || newRate <= 0) {
       toast({
         title: t("settings:fx_invalid_title"),
         description: t("settings:fx_invalid_desc"),
@@ -61,7 +75,14 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
             className="w-full"
           />
         ) : (
-          <span>{rate.rate ? Number(rate.rate).toFixed(4) : "-"}</span>
+          <span>
+            {rate.rate
+              ? numbers.formatDecimal(rate.rate, {
+                  minimumFractionDigits: 4,
+                  maximumFractionDigits: 4,
+                })
+              : "-"}
+          </span>
         )}
       </div>
       {isManual && (
