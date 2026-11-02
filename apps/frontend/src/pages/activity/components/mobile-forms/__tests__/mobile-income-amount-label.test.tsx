@@ -14,7 +14,14 @@ vi.mock("@/lib/settings-provider", () => ({
 
 const accounts: AccountSelectOption[] = [
   { value: "usd-account", label: "USD account", currency: "USD", accountType: "SECURITIES" },
-  { value: "card-account", label: "Card", currency: "USD", accountType: "CREDIT_CARD" },
+  // The activity page blocks cards, as getActivityRestrictionLevel does.
+  {
+    value: "card-account",
+    label: "Card",
+    currency: "USD",
+    accountType: "CREDIT_CARD",
+    restrictionLevel: "blocked",
+  },
 ];
 
 function TestForm({
