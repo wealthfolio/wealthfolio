@@ -47,9 +47,20 @@ import { invalidTypeError } from "@/lib/zod-errors";
 import {
   canonicalCurrencyCode,
   getCurrencyDisplayLabel,
+  getQuoteUnitCurrency,
   MoneyInput,
   worldCurrencies,
 } from "@wealthfolio/ui";
+
+/**
+ * A typed code as FX pairs store it: upper case, unless that names another
+ * currency. South African cents become ZAC, but pence (GBp) aren't pounds (GBP).
+ */
+function fxPairCode(text: string) {
+  const code = canonicalCurrencyCode(text);
+  const upper = code.toUpperCase();
+  return getQuoteUnitCurrency(upper)?.value === code ? upper : code;
+}
 
 interface ExchangeRateFormData {
   fromCurrency: string;
@@ -128,7 +139,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
 
   const renderCurrencyField = (fieldName: "fromCurrency" | "toCurrency") => {
     const [searchValue, setSearchValue] = useState("");
-    const customCode = canonicalCurrencyCode(searchValue);
+    const customCode = fxPairCode(searchValue);
     const showCustomCode =
       customCode !== "" && !worldCurrencies.some((currency) => currency.value === customCode);
 
@@ -142,7 +153,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
           currency.value.includes(query),
       );
       if (!matchingCurrency && query) {
-        form.setValue(fieldName, canonicalCurrencyCode(query));
+        form.setValue(fieldName, fxPairCode(query));
       }
     };
 

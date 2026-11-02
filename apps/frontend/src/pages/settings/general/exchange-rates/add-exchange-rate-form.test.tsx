@@ -186,15 +186,39 @@ it.each(["cny", " cny "])("offers and submits %j in upper case", async (query) =
   );
 });
 
-// Typing a code no currency matches fills it in without picking the custom item.
-it("fills in a typed quote unit with its spelling", async () => {
+// FX pairs are stored upper-cased: South African cents are saved as ZAC, the same
+// unit as ZAc, but pence (GBp) must not become pounds (GBP).
+it.each([
+  [" zac ", "ZAC"],
+  ["ZAC", "ZAC"],
+])("fills in %j as %s when no currency matches", async (query, code) => {
   const { user } = await exchangeForm();
   await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
   fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
-    target: { value: " zac " },
+    target: { value: query },
   });
   await user.keyboard("{Escape}");
   expect(screen.getByRole("combobox", { name: zhSettings.fx_from_currency })).toHaveTextContent(
-    "ZAc",
+    code,
+  );
+});
+
+it.each([
+  ["ZAc", "ZAC"],
+  ["GBp", "GBp"],
+])("offers %s as the custom code %s", async (query, code) => {
+  const { user } = await exchangeForm();
+  await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: query },
+  });
+  await user.click(
+    await screen.findByRole("option", {
+      name: zhSettings.fx_custom_search.replace("{{value}}", code),
+    }),
+  );
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("combobox", { name: zhSettings.fx_from_currency })).toHaveTextContent(
+    code,
   );
 });
