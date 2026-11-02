@@ -23,6 +23,7 @@ export function ContributionLimitProjectedItem({
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">{limit.groupName}</span>
+            <span className="text-muted-foreground tabular-nums">{limit.contributionYear}</span>
             <Badge variant="outline">{t("settings:limits_projected_badge")}</Badge>
           </div>
           <p className="text-muted-foreground text-sm">
