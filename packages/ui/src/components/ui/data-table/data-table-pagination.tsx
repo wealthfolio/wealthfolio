@@ -81,7 +81,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             }}
           >
             <SelectTrigger
-              className="sm:w-sidebar-collapsed w-17.5 h-9 transition-colors sm:h-8"
+              className="sm:w-sidebar-collapsed h-9 w-17.5 transition-colors sm:h-8"
               aria-label={t("ui:dataTable.rowsPerPage", "Rows per page")}
             >
               <SelectValue placeholder={pageSize} />
@@ -107,10 +107,10 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder={`${currentPage}`}
-            className="w-15 h-9 text-center sm:h-8"
+            className="h-9 w-15 text-center sm:h-8"
             title={t("ui:dataTable.jumpToPage", "Enter a page number between 1 and {{totalPages}}", { totalPages })}
           />
-          <span className="text-muted-foreground whitespace-nowrap text-sm">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
             <span className="hidden sm:inline">{t("ui:dataTable.of", "of")}</span>
             <span className="sm:hidden">/</span> {totalPages}
           </span>

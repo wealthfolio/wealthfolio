@@ -192,7 +192,7 @@ function DataGridSearchImpl({
           </Button>
         </div>
       </div>
-      <div className="text-muted-foreground flex items-center gap-1 whitespace-nowrap text-xs">
+      <div className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
         {searchMatches.length > 0 ? (
           <span>
             {t("ui:search.matchCount", "{{current}} of {{total}}", {

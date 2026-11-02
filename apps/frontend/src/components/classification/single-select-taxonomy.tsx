@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { RadioGroup, RadioGroupItem, Label, Skeleton, Icons } from "@wealthfolio/ui";
@@ -81,15 +82,6 @@ function flattenTree(nodes: CategoryNode[]): CategoryNode[] {
   traverse(nodes, 0);
   return result;
 }
-
-// Abbreviations for common long names
-const ABBREVIATIONS: Record<string, string> = {
-  "Exchange Traded Fund (ETF)": "ETF",
-  "Exchange Traded Fund": "ETF",
-  Cryptocurrency: "Crypto",
-  "Mutual Fund": "Fund",
-  Unknown: "N/A",
-};
 
 interface SingleSelectTaxonomyProps {
   taxonomyId: string;
@@ -200,10 +192,6 @@ export function SingleSelectTaxonomy({
   };
 
   // Get abbreviated display name
-  const getDisplayName = (name: string): string => {
-    return ABBREVIATIONS[name] ?? name;
-  };
-
   // Loading skeleton
   if (isLoading) {
     return (
@@ -242,7 +230,7 @@ export function SingleSelectTaxonomy({
             // Label with the assigned leaf when there is one, so a pill sitting on
             // the container reads differently from one sitting on a child.
             const shown = selectedChild ?? category;
-            const displayName = getDisplayName(shown.name);
+            const displayName = getCategoryLabel(t, taxonomyId, shown.id, shown.name);
             const pillClassName = cn(
               "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-all",
               isSelected
@@ -319,7 +307,9 @@ export function SingleSelectTaxonomy({
                         style={{ backgroundColor: child.color }}
                         aria-hidden="true"
                       />
-                      <span className="flex-1 truncate">{child.name}</span>
+                      <span className="flex-1 truncate">
+                        {getCategoryLabel(t, taxonomyId, child.id, child.name)}
+                      </span>
                       {selectedCategoryId === child.id && (
                         <Icons.Check className="text-primary h-4 w-4 shrink-0" />
                       )}
@@ -363,7 +353,9 @@ export function SingleSelectTaxonomy({
                     style={{ backgroundColor: selectedCategory.color }}
                     aria-hidden="true"
                   />
-                  <span className="whitespace-nowrap">{getDisplayName(selectedCategory.name)}</span>
+                  <span className="whitespace-nowrap">
+                    {getCategoryLabel(t, taxonomyId, selectedCategory.id, selectedCategory.name)}
+                  </span>
                 </>
               ) : (
                 <>
@@ -388,7 +380,7 @@ export function SingleSelectTaxonomy({
                         <div key={category.id}>
                           {showSeparator && <CommandSeparator className="my-1" />}
                           <CommandItem
-                            value={`${category.name} ${category.id}`}
+                            value={`${category.name} ${getCategoryLabel(t, taxonomyId, category.id, category.name)} ${category.id}`}
                             onSelect={() => handleSelectionChange(category.id)}
                             className={cn(
                               "flex items-center gap-2",
@@ -401,7 +393,9 @@ export function SingleSelectTaxonomy({
                               className="h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: category.color }}
                             />
-                            <span className="flex-1 truncate">{category.name}</span>
+                            <span className="flex-1 truncate">
+                              {getCategoryLabel(t, taxonomyId, category.id, category.name)}
+                            </span>
                             {isSelected && (
                               <Icons.Check className="text-primary h-4 w-4 shrink-0" />
                             )}
@@ -436,7 +430,7 @@ export function SingleSelectTaxonomy({
       >
         {allCategories.map((category) => {
           const isSelected = selectedCategoryId === category.id;
-          const displayName = getDisplayName(category.name);
+          const displayName = getCategoryLabel(t, taxonomyId, category.id, category.name);
 
           return (
             <label

@@ -25,6 +25,23 @@ describe("AnimatedToggleGroup", () => {
     expect(onValueChange).toHaveBeenCalledWith("yearly");
   });
 
+  it("keeps one thumb that moves between options instead of handing it over", () => {
+    // A thumb handed from button to button was measured while React was still
+    // swapping the content the group controls, and Safari clamped the page's
+    // scroll to that half-updated layout.
+    const items = [
+      { value: "holdings", label: "Holdings" },
+      { value: "activities", label: "Activities" },
+    ];
+    const { container, rerender } = render(<AnimatedToggleGroup value="holdings" items={items} />);
+    const thumb = container.querySelector('[data-slot="segmented-thumb"]');
+    expect(thumb).not.toBeNull();
+
+    rerender(<AnimatedToggleGroup value="activities" items={items} />);
+    expect(container.querySelectorAll('[data-slot="segmented-thumb"]')).toHaveLength(1);
+    expect(container.querySelector('[data-slot="segmented-thumb"]')).toBe(thumb);
+  });
+
   it("marks its thumb for theme tokens", () => {
     const { container } = render(
       <AnimatedToggleGroup value="a" items={[{ value: "a", label: "A" }]} />,

@@ -76,11 +76,11 @@ export function ActionPalette({
         side={side}
         sideOffset={8}
         aria-label={title ?? t("common:actions")}
-        className="min-w-65 w-auto max-w-80 p-0"
+        className="w-auto max-w-80 min-w-65 p-0"
       >
         {/* Header - only show if title provided */}
         {title && (
-          <div className="flex items-center justify-between px-5 pb-3 pt-5">
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <h3 className="text-foreground text-lg font-bold">{title}</h3>
             <button
               onClick={handleClose}
@@ -103,7 +103,7 @@ export function ActionPalette({
           {groups.map((group, groupIndex) => (
             <div key={groupIndex}>
               {group.title && (
-                <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+                <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                   {group.title}
                 </div>
               )}

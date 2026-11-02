@@ -46,6 +46,8 @@ import {
 } from "@wealthfolio/ui";
 import { SettingsHeader } from "../settings-header";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function PortfoliosPage() {
   const { t } = useTranslation();
@@ -63,6 +65,21 @@ export default function PortfoliosPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PortfolioWithAccounts | null>(null);
   const [deleting, setDeleting] = useState<PortfolioWithAccounts | null>(null);
+
+  // Closes once the save itself ends rather than from a callback passed to
+  // mutate(): React Query skips those while a phone screen is out of sight,
+  // which left the dialog open, ready to save the portfolio a second time.
+  const savePortfolio = async (
+    data: NewPortfolio | Omit<PortfolioWithAccounts, "createdAt" | "updatedAt">,
+  ) => {
+    try {
+      if (editing) await updateMutation.mutateAsync({ ...editing, ...data });
+      else await createMutation.mutateAsync(data as NewPortfolio);
+      setOpen(false);
+    } catch {
+      // The mutation reports the error; the dialog stays open to try again.
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -92,7 +109,7 @@ export default function PortfoliosPage() {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:portfolios.title")}
+          heading={t("settings:nav.items.portfolios")}
           text={t("settings:portfolios.description")}
           actionsInline
         >
@@ -130,7 +147,7 @@ export default function PortfoliosPage() {
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="divide-border bg-card divide-y rounded-md border">
+          <div className={cn(cardSurfaceClassName, "divide-border divide-y")}>
             {portfolios.map((p) => {
               const missingAccountCount = p.accountIds.filter(
                 (id) => !existingAccountIds.has(id),
@@ -184,9 +201,13 @@ export default function PortfoliosPage() {
 
                   <div className="flex items-center space-x-2">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+                      {/* Named by aria-label, as in account operations: an sr-only span
+                          here is placed against the settings shell (#2252). */}
+                      <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon-xs" />}
+                        aria-label={t("settings:portfolios.operations_open")}
+                      >
                         <Icons.MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>
@@ -216,13 +237,7 @@ export default function PortfoliosPage() {
         portfolio={editing}
         accountOptions={accounts}
         onClose={() => setOpen(false)}
-        onSave={(data) => {
-          if (editing) {
-            updateMutation.mutate({ ...editing, ...data }, { onSuccess: () => setOpen(false) });
-          } else {
-            createMutation.mutate(data as NewPortfolio, { onSuccess: () => setOpen(false) });
-          }
-        }}
+        onSave={(data) => void savePortfolio(data)}
         isSaving={createMutation.isPending || updateMutation.isPending}
       />
 
@@ -337,7 +352,7 @@ function PortfolioDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("settings:portfolios.accounts_label")}</Label>
+            <Label>{t("common:accounts")}</Label>
             <div className="divide-border max-h-56 overflow-y-auto rounded-md border">
               {accountOptions.length === 0 ? (
                 <p className="text-muted-foreground p-3 text-sm">

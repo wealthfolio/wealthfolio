@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -85,7 +86,7 @@ export function useAddonActions() {
 
         // Open file dialog for ZIP files only
         const filePath = await open({
-          filters: [{ name: "Addon Packages", extensions: ["zip"] }],
+          filters: [{ name: i18n.t("settings:messages.addonPackages"), extensions: ["zip"] }],
           multiple: false,
         });
 
@@ -126,8 +127,8 @@ export function useAddonActions() {
       const isZip = file.name.toLowerCase().endsWith(".zip") || file.type === "application/zip";
       if (!isZip) {
         toast({
-          title: "Invalid file type",
-          description: "Please select a .zip addon package.",
+          title: i18n.t("common:notifications.invalid_file_type"),
+          description: i18n.t("common:notifications.please_select_a_zip_addon_package"),
           variant: "destructive",
         });
         return;
@@ -139,8 +140,11 @@ export function useAddonActions() {
     } catch (error) {
       envLogger.error("Error loading addon: " + (error as Error).message);
       toast({
-        title: "Error loading addon",
-        description: error instanceof Error ? error.message : "Failed to load addon",
+        title: i18n.t("common:notifications.error_loading_addon"),
+        description:
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.error_loading_addon"),
         variant: "destructive",
       });
     } finally {
@@ -172,9 +176,11 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error analyzing addon permissions:", error);
       toast({
-        title: "Permission analysis failed",
+        title: i18n.t("common:notifications.permission_analysis_failed"),
         description:
-          error instanceof Error ? error.message : "Could not analyze addon permissions.",
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.permission_analysis_failed"),
         variant: "destructive",
       });
     }
@@ -202,8 +208,10 @@ export function useAddonActions() {
           queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
           await reloadAllAddons();
           toast({
-            title: "Addon installed successfully",
-            description: `${extractedAddon.metadata.name} has been installed and is now active.`,
+            title: i18n.t("common:notifications.addon_installed_successfully"),
+            description: i18n.t("settings:messages.addonInstalled", {
+              name: extractedAddon.metadata.name,
+            }),
           });
         } catch (error) {
           // Clear staging for this specific addon on installation failure
@@ -239,8 +247,8 @@ export function useAddonActions() {
       await reloadAllAddons();
 
       toast({
-        title: "Addon installed successfully",
-        description: `${metadata.name} has been installed and is now active.`,
+        title: i18n.t("common:notifications.addon_installed_successfully"),
+        description: i18n.t("settings:messages.addonInstalled", { name: metadata.name }),
       });
     } catch (error) {
       console.error("Error installing ZIP addon:", error);
@@ -260,8 +268,15 @@ export function useAddonActions() {
       const addon = installedAddons.find((a) => a.metadata.id === addonId);
       if (addon) {
         toast({
-          title: `Addon ${newEnabled ? "enabled" : "disabled"}`,
-          description: `${addon.metadata.name} has been ${newEnabled ? "enabled" : "disabled"}.`,
+          title: i18n.t(
+            newEnabled ? "settings:messages.addonEnabled" : "settings:messages.addonDisabled",
+          ),
+          description: i18n.t(
+            newEnabled
+              ? "settings:messages.addonEnabledDescription"
+              : "settings:messages.addonDisabledDescription",
+            { name: addon.metadata.name },
+          ),
         });
       }
 
@@ -270,8 +285,11 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error toggling addon:", error);
       toast({
-        title: "Error toggling addon",
-        description: error instanceof Error ? error.message : "Failed to toggle addon",
+        title: i18n.t("common:notifications.error_toggling_addon"),
+        description:
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.error_toggling_addon"),
         variant: "destructive",
       });
     } finally {
@@ -290,8 +308,8 @@ export function useAddonActions() {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
 
       toast({
-        title: "Addon uninstalled",
-        description: `${addon.metadata.name} has been completely removed.`,
+        title: i18n.t("common:notifications.addon_uninstalled"),
+        description: i18n.t("settings:messages.addonRemoved", { name: addon.metadata.name }),
       });
 
       // Reload all addons to remove the uninstalled addon from runtime
@@ -299,8 +317,11 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error uninstalling addon:", error);
       toast({
-        title: "Error uninstalling addon",
-        description: error instanceof Error ? error.message : "Failed to uninstall addon",
+        title: i18n.t("common:notifications.error_uninstalling_addon"),
+        description:
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.error_uninstalling_addon"),
         variant: "destructive",
       });
     }
@@ -323,8 +344,8 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error loading addon permissions:", error);
       toast({
-        title: "Error loading permissions",
-        description: "Could not load addon permissions.",
+        title: i18n.t("common:notifications.error_loading_permissions"),
+        description: i18n.t("common:notifications.could_not_load_addon_permissions"),
         variant: "destructive",
       });
     }
@@ -342,15 +363,17 @@ export function useAddonActions() {
       await reloadAllAddons();
 
       toast({
-        title: "Network permissions updated",
-        description: `${metadata.name} network host approvals have been saved.`,
+        title: i18n.t("common:notifications.network_permissions_updated"),
+        description: i18n.t("settings:messages.addonNetworkSaved", { name: metadata.name }),
       });
     } catch (error) {
       console.error("Error updating network approvals:", error);
       toast({
-        title: "Error updating network permissions",
+        title: i18n.t("common:notifications.error_updating_network_permissions"),
         description:
-          error instanceof Error ? error.message : "Failed to update network host approvals",
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.error_updating_network_permissions"),
         variant: "destructive",
       });
     }

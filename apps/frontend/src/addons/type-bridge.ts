@@ -51,6 +51,9 @@ import type {
   CashActivitySearchRequest,
   CashActivitySearchResponse,
 } from "@/features/spending/types/cash-activity";
+import type { BudgetSnapshot, NewBudgetTarget } from "@/features/spending/types/budget";
+import type { SpendingEvent, EventType } from "@/features/spending/types/event";
+import type { SpendingContext } from "@/features/spending/adapters/settings";
 import type { MonthlyReport, ReportRequest } from "@/features/spending/types/report";
 import type {
   CategorizationRule as InternalCategorizationRule,
@@ -61,6 +64,7 @@ import {
   TAXONOMY_ID_TO_SPEND_CATEGORY_KIND,
 } from "../adapters/shared/spending";
 import type {
+  ActivityUpdate as SDKActivityUpdate,
   ActivityType,
   CategorizationRule as SDKCategorizationRule,
   CategorizationRuleInput,
@@ -119,6 +123,19 @@ export interface InternalHostAPI {
 
   // Spend categorization
   isSpendingEnabled(): Promise<boolean>;
+  getSpendingContext(): Promise<SpendingContext>;
+  getBudgetReadonly(periodKey?: string): Promise<BudgetSnapshot>;
+  upsertBudgetTarget(target: NewBudgetTarget, periodKey?: string): Promise<BudgetSnapshot>;
+  listSpendingEvents(): Promise<SpendingEvent[]>;
+  listSpendingEventTypes(): Promise<EventType[]>;
+  assignSpendingCategory(
+    activityId: string,
+    taxonomyId: string,
+    categoryId: string,
+  ): Promise<unknown>;
+  unassignSpendingCategory(activityId: string, taxonomyId: string): Promise<void>;
+  setSpendingEvent(activityId: string, eventId: string | null): Promise<unknown>;
+
   searchCashActivities(request: CashActivitySearchRequest): Promise<CashActivitySearchResponse>;
   getSpendingReport(request: ReportRequest): Promise<MonthlyReport>;
   getSpendCategories(kind?: SpendCategoryKind): Promise<SpendCategory[]>;
@@ -336,6 +353,37 @@ export function createPermissionGuard(
   };
 }
 
+// Native update controls are not addon capabilities. Keep this projection
+// explicit when the native DTO grows; `notes` is a legacy alias for `comment`.
+const ADDON_ACTIVITY_UPDATE_FIELDS = new Set<string>([
+  "id",
+  "accountId",
+  "activityType",
+  "subtype",
+  "activityDate",
+  "sourceGroupId",
+  "asset",
+  "symbol",
+  "quantity",
+  "unitPrice",
+  "amount",
+  "currency",
+  "fee",
+  "tax",
+  "status",
+  "needsReview",
+  "comment",
+  "notes",
+  "fxRate",
+  "metadata",
+] satisfies (keyof SDKActivityUpdate | "notes")[]);
+
+function addonActivityUpdate(input: ActivityUpdate): ActivityUpdate {
+  return Object.fromEntries(
+    Object.entries(input).filter(([key]) => ADDON_ACTIVITY_UPDATE_FIELDS.has(key)),
+  ) as unknown as ActivityUpdate;
+}
+
 function guardNamespace<T extends Record<string, unknown>>(
   namespace: T,
   category: string,
@@ -498,11 +546,17 @@ export function createSDKHostAPIBridge(
       getAll: internalAPI.getActivities,
       search: internalAPI.searchActivities,
       create: internalAPI.createActivity,
-      update: internalAPI.updateActivity,
-      saveMany: (input: ActivityUpdate[] | ActivityBulkMutationRequest) =>
-        Array.isArray(input)
-          ? internalAPI.saveActivities({ updates: input })
-          : internalAPI.saveActivities(input),
+      update: (input: ActivityUpdate) => internalAPI.updateActivity(addonActivityUpdate(input)),
+      saveMany: (input: ActivityUpdate[] | ActivityBulkMutationRequest) => {
+        const request = Array.isArray(input) ? { updates: input } : input;
+        return internalAPI.saveActivities({
+          ...(request.creates === undefined ? {} : { creates: request.creates }),
+          ...(request.updates === undefined
+            ? {}
+            : { updates: request.updates.map(addonActivityUpdate) }),
+          ...(request.deleteIds === undefined ? {} : { deleteIds: request.deleteIds }),
+        });
+      },
       import: (activities: ActivityImport[]) => internalAPI.importActivities({ activities }),
       checkImport: (activities: ActivityImport[]) =>
         internalAPI.checkActivitiesImport({ activities }),
@@ -574,6 +628,10 @@ export function createSDKHostAPIBridge(
   const spendingCategorization = guardNamespace(
     {
       isEnabled: internalAPI.isSpendingEnabled,
+      getContext: internalAPI.getSpendingContext,
+      getBudget: internalAPI.getBudgetReadonly,
+      getEvents: internalAPI.listSpendingEvents,
+      getEventTypes: internalAPI.listSpendingEventTypes,
       getReport: internalAPI.getSpendingReport,
       getCategories: internalAPI.getSpendCategories,
       getRules: async (): Promise<SDKCategorizationRule[]> => {
@@ -624,11 +682,38 @@ export function createSDKHostAPIBridge(
   const spendingActivities = guardNamespace(
     {
       searchCashActivities: internalAPI.searchCashActivities,
+      assignCategory: async (
+        activityId: string,
+        kind: keyof typeof SPEND_CATEGORY_KIND_TO_TAXONOMY_ID,
+        categoryId: string,
+      ): Promise<void> => {
+        const taxonomy = SPEND_CATEGORY_KIND_TO_TAXONOMY_ID[kind];
+        if (!taxonomy) throw new Error("Unsupported Spending category kind");
+        await internalAPI.assignSpendingCategory(activityId, taxonomy, categoryId);
+      },
+      unassignCategory: async (
+        activityId: string,
+        kind: keyof typeof SPEND_CATEGORY_KIND_TO_TAXONOMY_ID,
+      ): Promise<void> => {
+        const taxonomy = SPEND_CATEGORY_KIND_TO_TAXONOMY_ID[kind];
+        if (!taxonomy) throw new Error("Unsupported Spending category kind");
+        await internalAPI.unassignSpendingCategory(activityId, taxonomy);
+      },
+      setEvent: async (activityId: string, eventId: string | null): Promise<void> => {
+        if (eventId === undefined)
+          throw new Error("eventId is required; pass null explicitly to untag");
+        await internalAPI.setSpendingEvent(activityId, eventId);
+      },
     },
     "activities",
     guard,
   );
-  const spending = { ...spendingCategorization, ...spendingActivities };
+  const spendingBudgets = guardNamespace(
+    { upsertBudgetTarget: internalAPI.upsertBudgetTarget },
+    "budgets",
+    guard,
+  );
+  const spending = { ...spendingCategorization, ...spendingActivities, ...spendingBudgets };
   const contributionLimits = guardNamespace(
     {
       getAll: internalAPI.getContributionLimit,

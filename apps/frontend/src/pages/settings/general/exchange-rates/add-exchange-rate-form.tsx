@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -43,7 +43,8 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { MoneyInput, worldCurrencies } from "@wealthfolio/ui";
+import { invalidTypeError } from "@/lib/zod-errors";
+import { getCurrencyDisplayLabel, MoneyInput, worldCurrencies } from "@wealthfolio/ui";
 
 interface ExchangeRateFormData {
   fromCurrency: string;
@@ -58,15 +59,19 @@ interface AddExchangeRateFormProps {
 }
 
 export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currencyLabel = (code: string) => {
+    const currency = worldCurrencies.find((item) => item.value === code);
+    return currency
+      ? getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t)
+      : code;
+  };
   const exchangeRateSchema = z
     .object({
       fromCurrency: z.string().min(1, t("settings:fx_err_from_required")),
       toCurrency: z.string().min(1, t("settings:fx_err_to_required")),
       rate: z.coerce
-        .number({
-          invalid_type_error: t("settings:fx_err_rate_type"),
-        })
+        .number({ error: invalidTypeError(t("settings:fx_err_rate_type")) })
         .min(0, { message: t("settings:fx_err_rate_negative") })
         .optional(),
       source: z.string().min(1, t("settings:fx_err_source_required")),
@@ -91,7 +96,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
     providers?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom") ?? [];
   const enabledCustomProviders = customProviders.filter((cp) => cp.enabled);
   const form = useForm<ExchangeRateFormData>({
-    resolver: zodResolver(exchangeRateSchema),
+    resolver: zodResolver(exchangeRateSchema) as Resolver<ExchangeRateFormData>,
     defaultValues: {
       fromCurrency: "",
       toCurrency: "",
@@ -124,6 +129,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
       const matchingCurrency = worldCurrencies.find(
         (currency) =>
           currency.label.toLowerCase().includes(value.toLowerCase()) ||
+          currencyLabel(currency.value).toLowerCase().includes(value.toLowerCase()) ||
           currency.value.includes(value),
       );
       if (!matchingCurrency && value) {
@@ -153,10 +159,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                     />
                   }
                 >
-                  {field.value
-                    ? worldCurrencies.find((currency) => currency.value === field.value)?.label ||
-                      field.value
-                    : t("settings:fx_select_currency")}
+                  {field.value ? currencyLabel(field.value) : t("settings:fx_select_currency")}
                   <Icons.ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
                 </PopoverTrigger>
               </FormControl>
@@ -193,11 +196,15 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                           .filter(
                             (currency) =>
                               currency.label.toLowerCase().includes(searchValue.toLowerCase()) ||
+                              currencyLabel(currency.value)
+                                .toLowerCase()
+                                .includes(searchValue.toLowerCase()) ||
                               currency.value.includes(searchValue),
                           )
                           .map((currency) => (
                             <CommandItem
-                              value={currency.label}
+                              value={currency.value}
+                              keywords={[currency.label, currencyLabel(currency.value)]}
                               key={currency.value}
                               onSelect={() => {
                                 form.setValue(fieldName, currency.value);
@@ -209,7 +216,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                                   currency.value === field.value ? "opacity-100" : "opacity-0",
                                 )}
                               />
-                              {currency.label}
+                              {currencyLabel(currency.value)}
                             </CommandItem>
                           ))}
                       </ScrollArea>

@@ -1,14 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 
 use crate::activities::ActivityRepositoryTrait;
 use crate::errors::{Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
 use crate::utils::time_utils::{
-    activity_date_in_tz, local_year_utc_bounds, parse_user_timezone_or_default,
+    activity_date_in_tz, local_date_start_utc, local_year_utc_bounds,
+    parse_user_timezone_or_default, user_date_from_utc,
 };
 
 use super::limits_model::{
@@ -60,6 +61,21 @@ impl ContributionLimitService {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
         )
+    }
+
+    /// Whether the dates are the form's former defaults for `year`: noon UTC on
+    /// 1 January and 31 December. At UTC+12 and beyond those fall on the next
+    /// local day, so they are counted as the year instead.
+    fn has_former_default_dates(year: i32, start: &str, end: &str) -> bool {
+        let is_noon_utc = |date: &str, month: u32, day: u32| {
+            let noon = Utc.with_ymd_and_hms(year, month, day, 12, 0, 0).single();
+            noon.is_some()
+                && DateTime::parse_from_rfc3339(date)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+                    == noon
+        };
+        is_noon_utc(start, 1, 1) && is_noon_utc(end, 12, 31)
     }
 
     /// Checks if an activity has metadata.flow.is_external = true
@@ -228,14 +244,27 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
             }
         };
 
-        if let (Some(start_str), Some(end_str)) = (limit.start_date, limit.end_date) {
-            let start = DateTime::parse_from_rfc3339(&start_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))?;
-            let end_inclusive = DateTime::parse_from_rfc3339(&end_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))?;
-            let end_exclusive = end_inclusive + chrono::Duration::seconds(1);
+        let year = limit.contribution_year;
+        let dated_range = match (limit.start_date, limit.end_date) {
+            (Some(start), Some(end)) if !Self::has_former_default_dates(year, &start, &end) => {
+                Some((start, end))
+            }
+            _ => None,
+        };
+        if let Some((start_str, end_str)) = dated_range {
+            // The stored dates are instants on the chosen days; the range covers
+            // those days whole, in the user's timezone.
+            let tz = self.user_timezone();
+            let day = |date: &str| {
+                DateTime::parse_from_rfc3339(date)
+                    .map(|dt| user_date_from_utc(dt.with_timezone(&Utc), tz))
+                    .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))
+            };
+            let start = local_date_start_utc(day(&start_str)?, tz)?;
+            let day_after_end = day(&end_str)?
+                .succ_opt()
+                .expect("an RFC 3339 year ends far before chrono's last date");
+            let end_exclusive = local_date_start_utc(day_after_end, tz)?;
             self.calculate_contributions_by_period(
                 &account_ids,
                 start,
@@ -243,7 +272,6 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
                 base_currency,
             )
         } else {
-            let year = limit.contribution_year;
             let tz = self.user_timezone();
             let (start_utc, end_exclusive_utc) = local_year_utc_bounds(year, tz)?;
             self.calculate_contributions_by_period(
@@ -581,7 +609,10 @@ mod tests {
         }
     }
 
-    struct MockLimitRepository;
+    #[derive(Default)]
+    struct MockLimitRepository {
+        limit: Option<ContributionLimit>,
+    }
 
     #[async_trait]
     impl ContributionLimitRepositoryTrait for MockLimitRepository {
@@ -589,7 +620,7 @@ mod tests {
             unimplemented!()
         }
         fn get_contribution_limit(&self, _: &str) -> Result<ContributionLimit> {
-            unimplemented!()
+            Ok(self.limit.clone().expect("the test sets a limit"))
         }
         async fn create_contribution_limit(
             &self,
@@ -627,7 +658,7 @@ mod tests {
     fn make_service(activities: Vec<ContributionActivity>) -> ContributionLimitService {
         ContributionLimitService::new(
             Arc::new(MockFxService),
-            Arc::new(MockLimitRepository),
+            Arc::new(MockLimitRepository::default()),
             Arc::new(MockActivityRepository::new(activities)),
         )
     }
@@ -638,7 +669,7 @@ mod tests {
     ) -> ContributionLimitService {
         ContributionLimitService::new_with_timezone(
             Arc::new(MockFxService),
-            Arc::new(MockLimitRepository),
+            Arc::new(MockLimitRepository::default()),
             Arc::new(MockActivityRepository::new(activities)),
             Arc::new(RwLock::new(timezone.to_string())),
         )
@@ -1443,5 +1474,236 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.total, dec!(140));
+    }
+
+    fn deposit_at(instant: &str, amount: Decimal) -> ContributionActivity {
+        ContributionActivity {
+            account_id: "acc1".to_string(),
+            activity_type: "DEPOSIT".to_string(),
+            activity_instant: DateTime::parse_from_rfc3339(instant)
+                .unwrap()
+                .with_timezone(&Utc),
+            amount: Some(amount),
+            currency: "USD".to_string(),
+            metadata: None,
+            source_group_id: None,
+        }
+    }
+
+    /// Deposits counted by a limit whose dates were saved as `start` and `end`.
+    fn dated_limit_total(
+        start: &str,
+        end: &str,
+        timezone: &str,
+        activities: Vec<ContributionActivity>,
+    ) -> Decimal {
+        let now = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let service = ContributionLimitService::new_with_timezone(
+            Arc::new(MockFxService),
+            Arc::new(MockLimitRepository {
+                limit: Some(ContributionLimit {
+                    id: "limit1".to_string(),
+                    group_name: "TFSA".to_string(),
+                    contribution_year: 2026,
+                    limit_amount: 7000.0,
+                    account_ids: Some("acc1".to_string()),
+                    created_at: now,
+                    updated_at: now,
+                    start_date: Some(start.to_string()),
+                    end_date: Some(end.to_string()),
+                }),
+            }),
+            Arc::new(MockActivityRepository::new(activities)),
+            Arc::new(RwLock::new(timezone.to_string())),
+        );
+        service
+            .calculate_deposits_for_contribution_limit("limit1", "USD")
+            .unwrap()
+            .total
+    }
+
+    #[test]
+    fn test_date_range_counts_default_first_and_last_days_whole() {
+        // The form's former defaults: noon UTC on 1 January and 31 December.
+        let total = dated_limit_total(
+            "2026-01-01T12:00:00.000Z",
+            "2026-12-31T12:00:00.000Z",
+            "UTC",
+            vec![
+                deposit_at("2025-12-31T23:59:59Z", dec!(1)),
+                deposit_at("2026-01-01T00:00:00Z", dec!(10)),
+                deposit_at("2026-12-31T18:00:00Z", dec!(100)),
+                deposit_at("2027-01-01T00:00:00Z", dec!(1000)),
+            ],
+        );
+
+        assert_eq!(total, dec!(110));
+    }
+
+    #[test]
+    fn test_date_range_counts_picked_days_whole_east_of_utc() {
+        // 1 April 2026 to 31 March 2027 picked in India: local midnights.
+        let total = dated_limit_total(
+            "2026-03-31T18:30:00.000Z",
+            "2027-03-30T18:30:00.000Z",
+            "Asia/Kolkata",
+            vec![
+                // 31 March 2026, 23:59 local
+                deposit_at("2026-03-31T18:29:00Z", dec!(1)),
+                // 1 April 2026, 00:00 local
+                deposit_at("2026-03-31T18:30:00Z", dec!(10)),
+                // 31 March 2027, 09:00 local
+                deposit_at("2027-03-31T03:30:00Z", dec!(100)),
+                // 1 April 2027, 00:00 local
+                deposit_at("2027-03-31T18:30:00Z", dec!(1000)),
+            ],
+        );
+
+        assert_eq!(total, dec!(110));
+    }
+
+    #[test]
+    fn test_date_range_counts_picked_days_whole_west_of_utc() {
+        // 1 April 2026 to 31 March 2027 picked in New York: local midnights.
+        let total = dated_limit_total(
+            "2026-04-01T04:00:00.000Z",
+            "2027-03-31T04:00:00.000Z",
+            "America/New_York",
+            vec![
+                // 31 March 2026, 23:59 local
+                deposit_at("2026-04-01T03:59:00Z", dec!(1)),
+                // 1 April 2026, 00:00 local
+                deposit_at("2026-04-01T04:00:00Z", dec!(10)),
+                // 31 March 2027, 23:59 local
+                deposit_at("2027-04-01T03:59:00Z", dec!(100)),
+                // 1 April 2027, 00:00 local
+                deposit_at("2027-04-01T04:00:00Z", dec!(1000)),
+            ],
+        );
+
+        assert_eq!(total, dec!(110));
+    }
+
+    #[test]
+    fn test_date_range_counts_former_defaults_as_the_year_at_utc_plus_13_and_14() {
+        // Noon UTC on 1 January is already 2 January at UTC+13 and UTC+14.
+        for (timezone, year_start, year_end) in [
+            // UTC+13 (summer time)
+            (
+                "Pacific/Auckland",
+                "2025-12-31T11:00:00Z",
+                "2026-12-31T11:00:00Z",
+            ),
+            // UTC+14
+            (
+                "Pacific/Kiritimati",
+                "2025-12-31T10:00:00Z",
+                "2026-12-31T10:00:00Z",
+            ),
+        ] {
+            let at = |instant: &str, minutes: i64| {
+                (DateTime::parse_from_rfc3339(instant).unwrap()
+                    + chrono::Duration::minutes(minutes))
+                .to_rfc3339()
+            };
+            let total = dated_limit_total(
+                "2026-01-01T12:00:00.000Z",
+                "2026-12-31T12:00:00.000Z",
+                timezone,
+                vec![
+                    deposit_at(&at(year_start, -1), dec!(1)),
+                    deposit_at(&at(year_start, 30), dec!(10)),
+                    deposit_at(&at(year_end, -30), dec!(100)),
+                    deposit_at(year_end, dec!(1000)),
+                ],
+            );
+
+            assert_eq!(total, dec!(110), "{timezone}");
+        }
+    }
+
+    #[test]
+    fn test_date_range_counts_dst_boundary_days_whole() {
+        for (start, next_midnight) in [
+            // 8 March 2026: a 23-hour day in New York.
+            ("2026-03-08T05:00:00Z", "2026-03-09T04:00:00Z"),
+            // 1 November 2026: a 25-hour day in New York.
+            ("2026-11-01T04:00:00Z", "2026-11-02T05:00:00Z"),
+        ] {
+            let before = |instant: &str| {
+                (DateTime::parse_from_rfc3339(instant).unwrap() - chrono::Duration::milliseconds(1))
+                    .to_rfc3339()
+            };
+            let total = dated_limit_total(
+                start,
+                start,
+                "America/New_York",
+                vec![
+                    deposit_at(&before(start), dec!(1)),
+                    deposit_at(start, dec!(10)),
+                    deposit_at(&before(next_midnight), dec!(100)),
+                    deposit_at(next_midnight, dec!(1000)),
+                ],
+            );
+
+            assert_eq!(total, dec!(110), "{start}");
+        }
+    }
+
+    #[test]
+    fn test_date_range_counts_new_local_midnight_defaults_whole() {
+        for (timezone, start, end, next_midnight) in [
+            (
+                "Asia/Kolkata",
+                "2025-12-31T18:30:00Z",
+                "2026-12-30T18:30:00Z",
+                "2026-12-31T18:30:00Z",
+            ),
+            (
+                "America/New_York",
+                "2026-01-01T05:00:00Z",
+                "2026-12-31T05:00:00Z",
+                "2027-01-01T05:00:00Z",
+            ),
+        ] {
+            let before = |instant: &str| {
+                (DateTime::parse_from_rfc3339(instant).unwrap() - chrono::Duration::milliseconds(1))
+                    .to_rfc3339()
+            };
+            let total = dated_limit_total(
+                start,
+                end,
+                timezone,
+                vec![
+                    deposit_at(&before(start), dec!(1)),
+                    deposit_at(start, dec!(10)),
+                    deposit_at(&before(next_midnight), dec!(100)),
+                    deposit_at(next_midnight, dec!(1000)),
+                ],
+            );
+
+            assert_eq!(total, dec!(110), "{timezone}");
+        }
+    }
+
+    #[test]
+    fn test_date_range_preserves_noon_dates_outside_the_contribution_year() {
+        // This is a 2026 limit with custom dates in 2027, not former defaults.
+        let total = dated_limit_total(
+            "2027-01-01T12:00:00Z",
+            "2027-12-31T12:00:00Z",
+            "Pacific/Kiritimati",
+            vec![
+                deposit_at("2027-01-01T09:59:59Z", dec!(1)),
+                deposit_at("2027-01-01T10:00:00Z", dec!(10)),
+                deposit_at("2028-01-01T09:59:59Z", dec!(100)),
+                deposit_at("2028-01-01T10:00:00Z", dec!(1000)),
+            ],
+        );
+
+        assert_eq!(total, dec!(110));
     }
 }

@@ -2,6 +2,7 @@ import type React from "react";
 
 import { PrivacyAmount } from "../financial/privacy-amount";
 import { cn } from "../../lib/utils";
+import { cardSurfaceClassName } from "./card";
 
 interface BudgetProgressRingProps {
   value: number;
@@ -65,7 +66,7 @@ export const BudgetProgressRing: React.FC<BudgetProgressRingProps> = ({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="font-bold leading-tight" style={{ fontSize: size * 0.14 }}>
+        <span className="leading-tight font-bold" style={{ fontSize: size * 0.14 }}>
           <PrivacyAmount value={value} currency={currency} />
         </span>
         <span className="text-muted-foreground leading-tight" style={{ fontSize: size * 0.1 }}>
@@ -122,7 +123,7 @@ export const BudgetGaugeCard: React.FC<BudgetGaugeCardProps> = ({
 
   return (
     <div
-      className={cn("bg-card hover:bg-muted/50 rounded-lg border p-4 transition-colors", onClick && "cursor-pointer")}
+      className={cn(cardSurfaceClassName, "hover:bg-muted/50 p-4 transition-colors", onClick && "cursor-pointer")}
       onClick={onClick}
     >
       <div className="mb-3 flex items-center gap-2">

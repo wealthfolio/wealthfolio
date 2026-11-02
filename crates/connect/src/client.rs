@@ -749,6 +749,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn profile_edge_rate_limits_keep_the_status_marker() {
+        for body in [
+            r#"{"error":"rate_limited","message":"Please try again in 60 seconds."}"#,
+            "<html><body>Too many requests</body></html>",
+        ] {
+            let (base_url, _, handle) = start_one_request_server(429, body, None);
+            let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
+            let error = client.get_user_info().await.unwrap_err();
+            assert!(error.to_string().contains("API error 429"));
+            handle.join().expect("server thread");
+        }
+    }
+
+    #[tokio::test]
     async fn account_scoped_requests_send_configured_tracking_mode() {
         for (tracking_mode, expected) in [
             (BrokerTrackingMode::Holdings, "holdings"),

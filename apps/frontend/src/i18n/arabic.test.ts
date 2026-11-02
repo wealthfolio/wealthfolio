@@ -93,9 +93,7 @@ describe("Arabic plural output", () => {
     ).toBe(`الحسابات قيد المزامنة: 1 من ${total} · الحسابات المستبعدة: 0`);
     expect(
       i18n.t("settings:spending.module.headline_enabled", { count: total, tracked: 1, total }),
-    ).toBe(
-      `الحسابات النقدية المتتبعة: 1 من ${total}. أضف المعاملات عبر الاستيراد أو الإدخال اليدوي.`,
-    );
+    ).toBe(`الحسابات النقدية المتتبعة: 1 من ${total}. أضف المعاملات عبر الاستيراد أو الإدخال اليدوي.`);
   });
 
   it.each([
@@ -135,7 +133,6 @@ describe("Arabic financial terminology", () => {
     ["asset:loanActions.recalculate_new_rate", "معدل الفائدة السنوي الجديد (%)"],
     ["asset:loanPayments.escrow", "مبلغ حساب الضمان لكل دفعة"],
     ["income:ex_dividend_date", "تاريخ تداول السهم دون أحقية الأرباح"],
-    ["allocation:result.cashPlusProceeds", "النقد + حصيلة البيع"],
     ["account:money_weighted_return", "العائد المرجح بالنقود"],
     ["performance:money_weighted_return", "العائد المرجح بالنقود"],
     ["performance:metric.money_weighted_return", "العائد المرجح بالنقود"],

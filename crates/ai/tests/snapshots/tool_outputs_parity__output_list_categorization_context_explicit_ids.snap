@@ -15,6 +15,7 @@ expression: result
     "summary": {
       "deterministicallyProposed": 1,
       "needsAiJudgement": 0,
+      "protectedSplits": 0,
       "total": 1
     },
     "taxonomies": [
@@ -35,7 +36,7 @@ expression: result
             "path": "Food / Coffee"
           }
         ],
-        "taxonomyId": "spending",
+        "taxonomyId": "spending_categories",
         "taxonomyName": "Spending"
       }
     ],

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -29,6 +30,7 @@ import type { TaxonomyCategory } from "@/lib/types";
 import { CategoryEditModal } from "@/features/spending/components/category-edit-modal";
 import { CategoryItem, type CategoryNode } from "@/features/spending/components/category-item";
 import type { CategoryFormValues } from "@/features/spending/components/category-form";
+import { useBudget } from "@/features/spending/hooks/use-budget";
 import {
   useSpendingSettings,
   useSpendingSettingsMutation,
@@ -40,6 +42,12 @@ import { SpendingBackLink } from "../components/spending-back-link";
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
+const DUPLICATE_CATEGORY_KEY_ERROR = "A category with this key already exists in the taxonomy";
+
+function isDuplicateCategoryKeyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return message.includes(DUPLICATE_CATEGORY_KEY_ERROR);
+}
 
 function buildTree(categories: TaxonomyCategory[]): CategoryNode[] {
   const byParent = new Map<string | null, CategoryNode[]>();
@@ -64,6 +72,7 @@ export default function SpendingCategoriesPage() {
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
+  const budget = useBudget();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
@@ -118,6 +127,30 @@ export default function SpendingCategoriesPage() {
         ? INCOME_TAXONOMY
         : SAVINGS_TAXONOMY;
 
+  // Only leaf categories can move: the tree is two levels deep, so a category
+  // with subcategories can't sit under another one.
+  const selectedParentOptions = useMemo(() => {
+    if (!selectedCategory || selectedCategory.children?.length) return undefined;
+    const tree =
+      selectedCategory.taxonomyId === SPENDING_TAXONOMY
+        ? expenseTree
+        : selectedCategory.taxonomyId === INCOME_TAXONOMY
+          ? incomeTree
+          : savingsTree;
+    return tree.filter((c) => c.id !== selectedCategory.id);
+  }, [selectedCategory, expenseTree, incomeTree, savingsTree]);
+
+  // Budget targets only apply to top-level categories, so moving one with a
+  // target would silently drop that target from the budget.
+  const selectedParentLocked =
+    !!selectedCategory &&
+    !selectedCategory.parentId &&
+    !!budget.data?.state.targets.some(
+      (target) =>
+        target.taxonomyId === selectedCategory.taxonomyId &&
+        target.categoryId === selectedCategory.id,
+    );
+
   if (!settingsLoading && !isEnabled) {
     return <Navigate to="/settings/spending" replace />;
   }
@@ -141,15 +174,20 @@ export default function SpendingCategoriesPage() {
     setVisibleModal(true);
   };
 
-  const handleDeleteCategory = (category: CategoryNode) => {
-    deleteCategory.mutate(
-      { taxonomyId: category.taxonomyId, categoryId: category.id },
-      {
-        onSuccess: () =>
-          toast.success(t("settings:spending.categories.deleted", { name: category.name })),
-        onError: () => toast.error(t("settings:spending.categories.delete_error")),
-      },
-    );
+  const handleDeleteCategory = async (category: CategoryNode) => {
+    try {
+      await deleteCategory.mutateAsync({
+        taxonomyId: category.taxonomyId,
+        categoryId: category.id,
+      });
+      toast.success(
+        t("settings:spending.categories.deleted", {
+          name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+        }),
+      );
+    } catch {
+      toast.error(t("settings:spending.categories.delete_error"));
+    }
   };
 
   const slugify = (s: string) =>
@@ -175,11 +213,25 @@ export default function SpendingCategoriesPage() {
             : excludedCategoryIds.filter((id) => id !== selectedCategory.id);
           await settingsMutation.mutateAsync({ excludedCategoryIds: nextIds });
         }
+        const parentId =
+          values.parentId === undefined ? (selectedCategory.parentId ?? null) : values.parentId;
+        const parentChanged = parentId !== (selectedCategory.parentId ?? null);
+        const siblings = (
+          selectedCategory.taxonomyId === SPENDING_TAXONOMY
+            ? spending.data?.categories
+            : selectedCategory.taxonomyId === INCOME_TAXONOMY
+              ? income.data?.categories
+              : savings.data?.categories
+        )?.filter((c) => (c.parentId ?? null) === parentId);
         await updateCategory.mutateAsync({
           ...selectedCategory,
           name: values.name,
           color: values.color ?? selectedCategory.color,
           icon: values.icon ?? null,
+          parentId,
+          sortOrder: parentChanged
+            ? Math.max(-1, ...(siblings ?? []).map((c) => c.sortOrder)) + 1
+            : selectedCategory.sortOrder,
         });
         toast.success(t("settings:spending.categories.updated"));
         setVisibleModal(false);
@@ -188,24 +240,35 @@ export default function SpendingCategoriesPage() {
       }
     } else {
       const taxonomyId = parentCategory ? parentCategory.taxonomyId : activeTaxonomyId;
-      createCategory.mutate(
-        {
+      const categories =
+        taxonomyId === SPENDING_TAXONOMY
+          ? spending.data?.categories
+          : taxonomyId === INCOME_TAXONOMY
+            ? income.data?.categories
+            : savings.data?.categories;
+      const keys = new Set((categories ?? []).map((category) => category.key));
+      const baseKey = slugify(values.name) || `cat_${Date.now()}`;
+      let key = baseKey;
+      for (let suffix = 2; keys.has(key); suffix += 1) key = `${baseKey}_${suffix}`;
+      try {
+        await createCategory.mutateAsync({
           taxonomyId,
           parentId: parentCategory?.id ?? null,
           name: values.name,
-          key: slugify(values.name) || `cat_${Date.now()}`,
+          key,
           color: values.color ?? "#808080",
           sortOrder: 999,
           icon: values.icon ?? null,
-        },
-        {
-          onSuccess: () => {
-            toast.success(t("settings:spending.categories.created"));
-            setVisibleModal(false);
-          },
-          onError: () => toast.error(t("settings:spending.categories.create_error")),
-        },
-      );
+        });
+        toast.success(t("settings:spending.categories.created"));
+        setVisibleModal(false);
+      } catch (error) {
+        toast.error(
+          isDuplicateCategoryKeyError(error)
+            ? t("settings:spending.categories.duplicate_error")
+            : t("settings:spending.categories.create_error"),
+        );
+      }
     }
   };
 
@@ -223,7 +286,7 @@ export default function SpendingCategoriesPage() {
           <CategoryItem
             key={category.id}
             category={category}
-            // eslint-disable-next-line react/no-children-prop
+            // oxlint-disable-next-line react/no-children-prop
             children={category.children}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}
@@ -321,6 +384,8 @@ export default function SpendingCategoriesPage() {
         showExcludeToggle={!!selectedCategory && selectedCategory.taxonomyId === SPENDING_TAXONOMY}
         initialExcluded={!!selectedCategory && excludedIds.has(selectedCategory.id)}
         parentExcluded={selectedParentExcluded}
+        parentOptions={selectedParentOptions}
+        parentLocked={selectedParentLocked}
       />
     </>
   );

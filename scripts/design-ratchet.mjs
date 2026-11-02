@@ -4,7 +4,9 @@
 // sizes in class names, and raw colours that bypass the theme's roles (palette
 // classes like text-amber-600, hex literals, rgb()/hsl() values), and pale
 // tints of a status colour (bg-warning/10), which status text on them can't
-// read against; those surfaces use bg-warning-subtle and its pair. Borders, rings, outlines, shadows and offsets up to 4px
+// read against; those surfaces use bg-warning-subtle and its pair; success and
+// destructive colours picked by a number's sign, which gains and losses take from the
+// gain and loss roles instead. Borders, rings, outlines, shadows and offsets up to 4px
 // are hairlines and stay in px. Fails when a file gains a use; `--update`
 // records the current counts once uses are removed. Moving or renaming a file keeps
 // its counts. Runs in the PR checks.
@@ -12,6 +14,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { physicalDirections } from "./design-ratchet-direction.mjs";
+import { signColors } from "./design-ratchet-sign.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const baselinePath = fileURLToPath(new URL("./design-ratchet.json", import.meta.url));
@@ -73,6 +76,11 @@ const measures = {
     count: pxSizes,
     label: "px sizes",
     fix: "use rem or the spacing scale (w-75, not w-[300px])",
+  },
+  signColors: {
+    count: signColors,
+    label: "status colours picked by sign",
+    fix: "use text-gain and text-loss (bg-gain-subtle, fill-loss, var(--gain)) for a gain or loss; a status keeps success and destructive, recorded with --update",
   },
   physicalDirections: {
     count: physicalDirections,

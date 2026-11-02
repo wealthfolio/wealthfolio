@@ -183,7 +183,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
           <div className="from-primary/5 to-primary/10 rounded-xl border bg-gradient-to-br p-4">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-muted-foreground mb-1 text-xs uppercase tracking-wide">
+                <div className="text-muted-foreground mb-1 text-xs tracking-wide uppercase">
                   {localizeActivityTypeName(t, activity.activityType)}
                 </div>
                 {parsedOption ? (
@@ -356,7 +356,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               title={t("activity:detail.notes")}
               icon={<Icons.FileText className="h-4 w-4" />}
             >
-              <p className="whitespace-pre-wrap text-sm">{activity.comment}</p>
+              <p className="text-sm whitespace-pre-wrap">{activity.comment}</p>
             </DetailSection>
           )}
 

@@ -1,10 +1,9 @@
 use super::*;
 use diesel::RunQueryDsl;
-use tempfile::{tempdir, TempDir};
 
 // Leave the two fixture migrations pending, independently of later migrations.
-fn older_database(encrypted: bool) -> (TempDir, DbAccess, DatabaseOwner) {
-    let root = tempdir().unwrap();
+fn older_database(encrypted: bool) -> (TestDir, DbAccess, DatabaseOwner) {
+    let root = TestDir::new();
     let path = root.path().join("app.db");
     let access = DbAccess::new(
         path.to_str().unwrap(),
@@ -32,25 +31,25 @@ fn pending(access: &DbAccess) -> usize {
         .len()
 }
 
-fn listed(root: &TempDir, access: &DbAccess) -> Vec<snapshots::Snapshot> {
+fn listed(root: &TestDir, access: &DbAccess) -> Vec<snapshots::Snapshot> {
     snapshots::list(root.path().to_str().unwrap(), access.key().cloned()).unwrap()
 }
 
-fn snapshot_access(root: &TempDir, access: &DbAccess, name: &str) -> DbAccess {
+fn snapshot_access(root: &TestDir, access: &DbAccess, name: &str) -> DbAccess {
     DbAccess::new(
         root.path().join("backups").join(name).to_str().unwrap(),
         access.key().cloned(),
     )
 }
 
-fn upgrade(root: &TempDir, access: &DbAccess, owner: &DatabaseOwner) -> Result<()> {
+fn upgrade(root: &TestDir, access: &DbAccess, owner: &DatabaseOwner) -> Result<()> {
     access.run_migrations_with_backup(root.path().to_str().unwrap(), owner)
 }
 
 #[test]
 fn fresh_current_and_scratch_databases_do_not_create_backups() {
     for encrypted in [false, true] {
-        let root = tempdir().unwrap();
+        let root = TestDir::new();
         let access = DbAccess::new(
             root.path().join("app.db").to_str().unwrap(),
             encrypted.then(|| Arc::new(DbEncryptionKey::generate())),
@@ -193,7 +192,7 @@ fn missing_or_unreadable_history_is_not_treated_as_a_fresh_database() {
         "",
         "CREATE TABLE __diesel_schema_migrations (invalid TEXT);",
     ] {
-        let root = tempdir().unwrap();
+        let root = TestDir::new();
         let access = DbAccess::plaintext(root.path().join("app.db").to_str().unwrap());
         let owner = DatabaseOwner::acquire(access.path()).unwrap();
         let conn = access.connect_rusqlite().unwrap();
@@ -215,7 +214,7 @@ fn missing_or_unreadable_history_is_not_treated_as_a_fresh_database() {
 
 #[test]
 fn ownership_is_checked_before_opening_the_database() {
-    let root = tempdir().unwrap();
+    let root = TestDir::new();
     let access = DbAccess::plaintext(root.path().join("app.db").to_str().unwrap());
     let owner = DatabaseOwner::acquire(root.path().join("other.db").to_str().unwrap()).unwrap();
     assert!(upgrade(&root, &access, &owner).is_err());
@@ -301,7 +300,7 @@ fn migration_temp_storage_preserves_encryption_and_mobile_policy() {
 #[test]
 fn overridden_database_path_uses_and_cleans_the_explicit_backup_root() {
     let (database_root, access, owner) = older_database(false);
-    let app_data = tempdir().unwrap();
+    let app_data = TestDir::new();
     let staging = app_data.path().join("backups/.snapshot-abandoned");
     fs::create_dir_all(&staging).unwrap();
     fs::write(staging.join("candidate.db"), b"incomplete").unwrap();

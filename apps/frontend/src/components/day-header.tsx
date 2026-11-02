@@ -44,14 +44,14 @@ export function DayHeading({
       <span
         className={
           muted
-            ? "text-muted-foreground whitespace-nowrap text-xs font-medium"
+            ? "text-muted-foreground text-xs font-medium whitespace-nowrap"
             : "text-xs font-medium"
         }
       >
         {label}
       </span>
       {!isPartial && count > 1 && (
-        <span className="text-muted-foreground whitespace-nowrap text-xs">{countLabel(count)}</span>
+        <span className="text-muted-foreground text-xs whitespace-nowrap">{countLabel(count)}</span>
       )}
     </>
   );

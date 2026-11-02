@@ -42,3 +42,5 @@ pub mod insight;
 pub mod settings;
 
 pub use error::SpendingError;
+
+pub use fx::CalculationQuality;

@@ -74,6 +74,7 @@ interface ActivityDraft {
   fee?: number;
   tax?: number;
   currency: string;
+  fxRate?: number;
   accountId?: string;
   accountName?: string;
   subtype?: string;
@@ -286,6 +287,7 @@ function normalizeResult(result: unknown, fallbackCurrency: string): RecordActiv
     fee: finiteNumberValue(draftRaw.fee),
     tax: finiteNumberValue(draftRaw.tax),
     currency: (draftRaw.currency as string) ?? fallbackCurrency,
+    fxRate: finiteNumberValue(draftRaw.fxRate ?? draftRaw.fx_rate),
     accountId: (draftRaw.accountId as string) ?? (draftRaw.account_id as string) ?? undefined,
     accountName: (draftRaw.accountName as string) ?? (draftRaw.account_name as string) ?? undefined,
     subtype: (draftRaw.subtype as string) ?? undefined,
@@ -561,6 +563,7 @@ function draftToPseudoActivity(
     fee: draft.fee != null ? String(draft.fee) : null,
     tax: draft.tax != null ? String(draft.tax) : null,
     currency: draft.currency,
+    fxRate: draft.fxRate != null ? String(draft.fxRate) : null,
     comment: draft.notes,
     subtype: draft.subtype,
     exchangeMic: resolvedAsset?.exchangeMic ?? draft.exchangeMic,
@@ -856,6 +859,11 @@ function DraftForm({
       if (!config) return;
       try {
         const basePayload = config.toPayload(formData);
+        // Charge forms omit untouched rates when editing stored activities.
+        // This editor creates an activity, so retain the draft's rate; null clears win.
+        if ((pickerType === "FEE" || pickerType === "TAX") && basePayload.fxRate === undefined) {
+          basePayload.fxRate = draft.fxRate;
+        }
         let activityType = config.activityType as NewActivityFormValues["activityType"];
         // TransferForm uses "in"/"out" direction; map it back to the actual
         // ActivityType for the create payload.
@@ -898,7 +906,7 @@ function DraftForm({
         // Error already surfaced via the mutation hook's toast handler.
       }
     },
-    [config, pickerType, threadId, toolCallId, onSuccess, addActivityMutation],
+    [config, pickerType, draft.fxRate, threadId, toolCallId, onSuccess, addActivityMutation],
   );
 
   const handleConfirm = useCallback(() => {

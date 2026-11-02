@@ -452,7 +452,8 @@
     "monthlyAverage": "Média mensal",
     "byType": "Por tipo",
     "monthlyIncome": "Rendimentos mensais",
-    "sources": "Fontes"
+    "sources": "Fontes",
+    "yoyShort": "Interanual"
   },
   "categorizationContext": {
     "loading": "Carregando contexto de categorização…",
@@ -664,5 +665,29 @@
       "otherTitle": "Outros",
       "otherBlurb": "Opções diversas específicas do provedor."
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "configurações dos provedores de IA",
+    "thisModel": "Este modelo",
+    "selectedModel": "modelo selecionado",
+    "thinkingUnsupported": "**Raciocínio não suportado**\n\n{{modelName}} não suporta a função de pensamento ou raciocínio.\n\nExperimente um modelo compatível ou verifique as {{settingsLink}}.",
+    "modelUnavailable": "**Modelo indisponível**\n\nO modelo “{{modelName}}” não foi encontrado. Possíveis causas:\n- O modelo ainda não foi baixado\n- O nome do modelo está incorreto\n- O serviço do provedor de IA não está em execução\n\nEscolha outro modelo ou verifique a configuração nas {{settingsLink}}.",
+    "connectionRefused": "**Não foi possível conectar ao provedor de IA**\n\nO serviço parece não estar em execução. Por favor:\n1. Inicie seu provedor de IA local (por exemplo, Ollama)\n2. Confira a URL nas {{settingsLink}}\n3. Tente novamente",
+    "authentication": "**Falha na autenticação**\n\nSua chave API parece ausente ou inválida. Verifique as {{settingsLink}} e a configuração da chave API.",
+    "rateLimit": "**Limite de solicitações excedido**\n\nVocê fez solicitações demais. Aguarde um momento e tente novamente.",
+    "timeout": "**Tempo limite da solicitação excedido**\n\nO provedor de IA demorou demais para responder. Isso pode ocorrer por conexão lenta, sobrecarga ou uma solicitação complexa.\n\nTente novamente ou escolha um modelo mais rápido nas {{settingsLink}}.",
+    "provider": "**Erro do provedor**\n\n{{error}}\n\nSe o problema persistir, verifique as {{settingsLink}}.",
+    "unknown": "**Algo deu errado**\n\n{{error}}\n\nSe o problema persistir, verifique as {{settingsLink}}."
+  },
+  "importSessionErrors": {
+    "missingCsv": "Nenhum conteúdo CSV disponível. O resultado da ferramenta de IA pode estar incompleto.",
+    "emptyCsv": "O arquivo CSV não contém linhas de dados.",
+    "noActivities": "Não foi possível extrair atividades. O mapeamento de colunas pode estar incorreto.",
+    "prepareFailed": "Não foi possível preparar a importação CSV.",
+    "revalidateFailed": "Falha ao validar novamente.",
+    "nothing": "Nada para importar.",
+    "allInvalid": "Todas as atividades têm erros de validação. Corrija-os e tente novamente.",
+    "importFailed": "Falha ao importar atividades.",
+    "reviewAndRetry": "Falha na importação. Revise os erros e tente novamente."
   }
 }

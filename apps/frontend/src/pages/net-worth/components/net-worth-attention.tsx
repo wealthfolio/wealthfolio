@@ -52,7 +52,7 @@ export function NetWorthAttentionCard({
       aria-label={t("insights:networth.attention.title")}
     >
       <div className="flex items-center gap-2">
-        <span className="text-warning-subtle-foreground bg-current/15 flex shrink-0 rounded-full p-1.5">
+        <span className="text-warning-subtle-foreground flex shrink-0 rounded-full bg-current/15 p-1.5">
           <Icons.AlertCircle className="size-4" />
         </span>
         <h3 className="text-foreground text-sm font-semibold">
@@ -76,7 +76,7 @@ export function NetWorthAttentionCard({
                   className="hover:bg-warning-subtle -mx-2 block rounded-md px-2 py-1.5 transition-colors"
                 >
                   <span className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 break-words text-xs font-medium">
+                    <span className="min-w-0 text-xs font-medium break-words">
                       {asset.name ?? asset.assetId}
                     </span>
                     <span className="text-muted-foreground shrink-0 text-xs">

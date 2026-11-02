@@ -39,6 +39,7 @@ import { BulkHoldingsModal } from "./components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "./components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "./components/transfer-match-dialog";
 import { useActivityActionDialogs } from "./hooks/use-activity-action-dialogs";
+import { isConversionActivity } from "./utils/conversion-counterpart";
 import { useActivitySearch, type ActivityStatusFilter } from "./hooks/use-activity-search";
 import {
   clearActivityUrlFilters,
@@ -358,13 +359,6 @@ const ActivityPage = () => {
     },
     [debouncedUpdateSearch, hasActivityUrlFilters, materializeInvestmentFilters, setSearchInput],
   );
-
-  // Cleanup debounced function on unmount
-  useEffect(() => {
-    return () => {
-      debouncedUpdateSearch.cancel();
-    };
-  }, [debouncedUpdateSearch]);
 
   const { data: accounts = [] } = useQuery<Account[], Error>({
     queryKey: [QueryKeys.ACCOUNTS],
@@ -883,6 +877,7 @@ const ActivityPage = () => {
         isOpen={showDeleteAlert}
         isDeleting={isDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
+        conversion={isConversionActivity(selectedActivity)}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />

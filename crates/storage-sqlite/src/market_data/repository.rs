@@ -1392,15 +1392,14 @@ impl ProviderSettingsStore for MarketDataRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
     use rust_decimal::Decimal;
-    use tempfile::tempdir;
     use wealthfolio_core::quotes::Quote;
 
-    async fn create_test_repository() -> (MarketDataRepository, tempfile::TempDir) {
+    async fn create_test_repository() -> (MarketDataRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let temp_dir = TestDir::new();
         let db_path = temp_dir.path().join("test.db");
         let db_path_str = db_path.to_string_lossy().to_string();
         run_migrations(&db_path_str).expect("Failed to run migrations");

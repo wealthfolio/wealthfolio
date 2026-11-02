@@ -1,12 +1,10 @@
 import { syncTriggerCycle, updatePortfolio } from "@/adapters";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icons, PageScrollContainer, Spinner } from "@wealthfolio/ui";
-import { AnimatePresence } from "motion/react";
+import { Icons, Spinner } from "@wealthfolio/ui";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet } from "react-router-dom";
-import { PageErrorBoundary } from "./page-error-boundary";
+import { MobileStackOutlet } from "./mobile-stack/mobile-stack-outlet";
 
 export function MobileNavigationContainer() {
   const { t } = useTranslation();
@@ -20,23 +18,13 @@ export function MobileNavigationContainer() {
 
   return (
     <div className="relative flex min-h-0 w-full flex-1">
-      <PageScrollContainer
-        withMobileNavOffset
-        className="lg:px-6 lg:py-0"
-        {...pullToRefreshHandlers}
-      >
-        <PageErrorBoundary>
-          <AnimatePresence mode="wait" initial={false}>
-            <Outlet />
-          </AnimatePresence>
-        </PageErrorBoundary>
-      </PageScrollContainer>
+      <MobileStackOutlet scrollProps={pullToRefreshHandlers} />
 
       {/* Pull progress indicator: shows during pull before activation */}
       {!isRefreshing && ptr.isPulling && !ptr.isActivated && (
-        <div className="pointer-events-none absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.25rem)] z-50 -translate-x-1/2">
+        <div className="pointer-events-none absolute top-[calc(env(safe-area-inset-top,0px)+0.25rem)] left-1/2 z-50 -translate-x-1/2">
           <div
-            className="border-border/60 bg-background/70 text-muted-foreground backdrop-saturate-125 flex items-center justify-center rounded-full border px-2 py-2 shadow-sm backdrop-blur-sm transition-transform duration-75 ease-linear"
+            className="border-border/60 bg-background/70 text-muted-foreground flex items-center justify-center rounded-full border px-2 py-2 shadow-sm backdrop-blur-sm backdrop-saturate-125 transition-transform duration-75 ease-linear"
             style={{
               transform: `translateY(${Math.min(ptr.pullDistance * 0.5, 28)}px)`,
               opacity: 0.5 + Math.min(ptr.progress, 1) * 0.5,
@@ -48,7 +36,7 @@ export function MobileNavigationContainer() {
       )}
 
       {(isRefreshing || ptr.isActivated) && (
-        <div className="pointer-events-none absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+2rem)] z-50 -translate-x-1/2">
+        <div className="pointer-events-none absolute top-[calc(env(safe-area-inset-top,0px)+2rem)] left-1/2 z-50 -translate-x-1/2">
           <div className="bg-background/80 text-muted-foreground flex items-center gap-2 rounded-full px-3 py-1 text-xs backdrop-blur-sm">
             <Spinner className="size-4" />
 

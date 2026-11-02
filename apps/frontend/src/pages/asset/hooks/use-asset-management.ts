@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { logger, createAsset, deleteAsset, updateAssetProfile } from "@/adapters";
@@ -25,17 +26,21 @@ export const useAssetManagement = () => {
     onSuccess: (asset) => {
       invalidateCaches(asset.id);
       toast({
-        title: "Security created",
-        description: `${asset.displayCode ?? asset.name ?? "New security"} has been added.`,
+        title: i18n.t("common:notifications.security_created"),
+        description: i18n.t("common:notifications.security_added", {
+          name: asset.displayCode ?? asset.name ?? i18n.t("common:notifications.new_security"),
+        }),
         variant: "success",
       });
     },
     onError: (error) => {
       logger.error(`Error creating asset: ${error}`);
       toast({
-        title: "Creation failed",
+        title: i18n.t("common:notifications.creation_failed"),
         description:
-          error instanceof Error ? error.message : "There was a problem creating the security.",
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.security_create_error_description"),
         variant: "destructive",
       });
     },
@@ -49,16 +54,16 @@ export const useAssetManagement = () => {
       invalidateCaches(asset.id);
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_LOGO_INDEX] });
       toast({
-        title: "Security updated",
-        description: "Changes saved successfully.",
+        title: i18n.t("common:notifications.security_updated"),
+        description: i18n.t("common:notifications.changes_saved_successfully"),
         variant: "success",
       });
     },
     onError: (error) => {
       logger.error(`Error updating asset: ${error}`);
       toast({
-        title: "Update failed",
-        description: "There was a problem saving the security.",
+        title: i18n.t("common:notifications.security_update_failed"),
+        description: i18n.t("common:notifications.security_update_error_description"),
         variant: "destructive",
       });
     },
@@ -70,8 +75,8 @@ export const useAssetManagement = () => {
       invalidateCaches(assetId);
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_LOGO_INDEX] });
       toast({
-        title: "Security deleted",
-        description: "The security has been removed.",
+        title: i18n.t("common:notifications.security_deleted"),
+        description: i18n.t("common:notifications.the_security_has_been_removed"),
         variant: "success",
       });
     },
@@ -85,10 +90,10 @@ export const useAssetManagement = () => {
       const isActivitiesError = errorMessage.toLowerCase().includes("existing activities");
 
       toast({
-        title: "Unable to delete security",
+        title: i18n.t("common:notifications.unable_to_delete_security"),
         description: isActivitiesError
-          ? "This security cannot be deleted because it has existing activities. Please delete all associated activities first."
-          : errorMessage || "The security could not be removed right now.",
+          ? i18n.t("common:notifications.security_has_activities")
+          : errorMessage || i18n.t("common:notifications.security_delete_error_description"),
         variant: "destructive",
       });
     },

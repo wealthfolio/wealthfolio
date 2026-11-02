@@ -32,11 +32,11 @@ vi.mock("@/adapters", () => ({
 
 vi.mock("@/hooks/use-custom-providers", () => ({
   useCreateCustomProvider: () => ({
-    mutate: createProvider,
+    mutateAsync: createProvider,
     isPending: false,
   }),
   useUpdateCustomProvider: () => ({
-    mutate: updateProvider,
+    mutateAsync: updateProvider,
     isPending: false,
   }),
   useTestCustomProviderSource: () => ({
@@ -142,6 +142,30 @@ describe("CustomProviderForm", () => {
 
     expect(screen.getByLabelText(/http method/i)).toHaveValue("GET");
     expect(screen.queryByLabelText(/request body/i)).not.toBeInTheDocument();
+  });
+
+  it("applies the method and body of a POST quick-start template", async () => {
+    const user = userEvent.setup();
+
+    render(<CustomProviderForm open onOpenChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /tmx money/i }));
+
+    expect(screen.getByLabelText(/http method/i)).toHaveValue("POST");
+    const body = (screen.getByLabelText(/request body/i) as HTMLTextAreaElement).value;
+    expect(JSON.parse(body).variables.symbol).toBe("{SYMBOL}");
+
+    await user.click(screen.getByRole("button", { name: /^fetch$/i }));
+
+    expect(testSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://app-money.tmx.com/graphql",
+        method: "POST",
+        body,
+        symbol: "RBF556",
+      }),
+      expect.any(Object),
+    );
   });
 
   it("clears the request body when switching between GET and POST", async () => {

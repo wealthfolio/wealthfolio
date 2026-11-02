@@ -7,9 +7,11 @@ import { Icons, useAmountFormatting, buttonVariants } from "@wealthfolio/ui";
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 
 import { formatAmountWhole } from "./format";
 import { badgeVariants } from "@wealthfolio/ui";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 export function BudgetOverviewCard() {
   const formatting = useAmountFormatting();
@@ -48,7 +50,7 @@ export function BudgetOverviewCard() {
 
   if (isEmpty) {
     return (
-      <div className="bg-card rounded-lg border p-6">
+      <div className={cn(cardSurfaceClassName, "p-6")}>
         <div className="space-y-3">
           <div>
             <h3 className="text-base font-semibold">
@@ -71,7 +73,10 @@ export function BudgetOverviewCard() {
     <Link
       to="/settings/spending/setup"
       aria-label={t("settings:spending.budget_overview.open_aria")}
-      className="bg-card hover:border-foreground/20 group flex flex-col items-stretch overflow-hidden rounded-lg border transition-all hover:shadow-md sm:flex-row"
+      className={cn(
+        cardSurfaceClassName,
+        "hover:border-foreground/20 group flex flex-col items-stretch overflow-hidden transition-all hover:shadow-md sm:flex-row",
+      )}
     >
       <div className="min-w-0 flex-1 p-6">
         <div className="mb-4">
@@ -85,7 +90,7 @@ export function BudgetOverviewCard() {
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div>
-            <div className="tabular-nums leading-none">
+            <div className="leading-none tabular-nums">
               <span className="text-foreground text-xl font-semibold tracking-tight sm:text-2xl">
                 {fmt(spendingPlanned, currency)}
               </span>
@@ -95,7 +100,7 @@ export function BudgetOverviewCard() {
                 </span>
               )}
             </div>
-            <div className="text-muted-foreground text-2xs mt-1.5 font-medium uppercase tracking-widest">
+            <div className="text-muted-foreground text-2xs mt-1.5 font-medium tracking-widest uppercase">
               {incomePlanned > 0
                 ? t("settings:spending.budget_overview.planned_vs_income")
                 : t("settings:spending.budget_overview.planned_spending")}
@@ -136,7 +141,9 @@ export function BudgetOverviewCard() {
                 className="h-2 w-2 rounded-sm"
                 style={{ background: g.color ?? "var(--muted-foreground)" }}
               />
-              <span className="text-foreground font-medium">{g.name}</span>
+              <span className="text-foreground font-medium">
+                {getBudgetGroupLabel(t, g.id, g.name)}
+              </span>
               <span className="text-muted-foreground tabular-nums">{fmt(g.planned, currency)}</span>
             </span>
           ))}
@@ -149,7 +156,7 @@ export function BudgetOverviewCard() {
                 className="h-2 w-2 rounded-sm opacity-40"
                 style={{ background: g.color ?? "var(--muted-foreground)" }}
               />
-              <span>{g.name}</span>
+              <span>{getBudgetGroupLabel(t, g.id, g.name)}</span>
               <span>—</span>
             </span>
           ))}
@@ -157,7 +164,7 @@ export function BudgetOverviewCard() {
       </div>
 
       {/* CTA — bottom bar on mobile, right rail on desktop */}
-      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium uppercase tracking-widest transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
+      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium tracking-widest uppercase transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
         <span>{t("settings:spending.budget_overview.open")}</span>
         <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
       </div>

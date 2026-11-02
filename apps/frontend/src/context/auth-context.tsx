@@ -212,8 +212,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           let message = t("auth:context.invalidPassword");
           try {
-            const body = await response.json();
-            message = body?.message ?? message;
+            const body = (await response.json()) as { message?: string } | null;
+            if (body?.message === "Invalid password" || body?.message === "Unauthorized") {
+              message = t("auth:context.invalidPassword");
+            } else if (body?.message === "Authentication is not configured for this server") {
+              message = t("auth:context.notConfigured");
+            } else {
+              message = body?.message ?? message;
+            }
           } catch (parseError) {
             console.error("Failed to parse login error", parseError);
           }

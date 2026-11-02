@@ -85,6 +85,9 @@ pub struct NewTaxonomyDB {
 pub struct CategoryDB {
     pub id: String,
     pub taxonomy_id: String,
+    // Without this, an update with `None` skips the column and a category moved
+    // to the top level keeps its old parent.
+    #[diesel(treat_none_as_null = true)]
     pub parent_id: Option<String>,
     pub name: String,
     pub key: String,

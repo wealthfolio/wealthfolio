@@ -18,8 +18,9 @@ import {
   LoanSheetFooter,
 } from "./loan-sheet-content";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { loanCalculationRequest, useLoanPayments } from "../hooks/use-loan-calculation";
@@ -45,7 +46,7 @@ export function CloseLoanDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isDateInvalid = (originationDate !== null && date < originationDate) || date > new Date();
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) setDate(new Date());
   }, [open]);
 
@@ -130,7 +131,7 @@ export function RecalculateScheduleDialog({
   const [newRate, setNewRate] = useState<string>(() => String(interestRate));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       setNewRate(String(interestRate));
       setEffectiveDate(new Date());
@@ -330,7 +331,7 @@ export function LoanBalanceEventDialog({
 
   const warnedBalance = replacedBalance ?? overridingBalance;
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setDate(new Date());
     setAmount(null);

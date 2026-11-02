@@ -24,6 +24,7 @@ import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider
 import { getSubscriptionPlans } from "../services/broker-service";
 import type { BillingPeriod, SubscriptionPlan } from "../types";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 // Helper to detect if error is an auth/token issue
 function isAuthError(error: Error | null): boolean {
@@ -209,7 +210,7 @@ export function SubscriptionPlans({
       <Card className={statusSurfaceVariants({ status: "warning" })}>
         <CardContent className="py-8">
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="text-warning-subtle-foreground bg-current/15 mb-4 rounded-full p-4">
+            <div className="text-warning-subtle-foreground mb-4 rounded-full bg-current/15 p-4">
               <Icons.AlertCircle className="h-8 w-8" />
             </div>
             <h3 className="text-foreground mb-2 text-base font-medium">
@@ -234,7 +235,7 @@ export function SubscriptionPlans({
                       className="size-11 sm:size-7"
                       aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
-                        navigator.clipboard.writeText("support@wealthfolio.app");
+                        copyText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));
                       }}
                     >
@@ -275,7 +276,7 @@ export function SubscriptionPlans({
       <Card className={statusSurfaceVariants({ status: "warning" })}>
         <CardContent className="py-8">
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="text-warning-subtle-foreground bg-current/15 mb-4 rounded-full p-4">
+            <div className="text-warning-subtle-foreground mb-4 rounded-full bg-current/15 p-4">
               <Icons.CloudOff className="h-8 w-8" />
             </div>
             <h3 className="text-foreground mb-2 text-base font-medium">
@@ -300,7 +301,7 @@ export function SubscriptionPlans({
                       className="size-11 sm:size-7"
                       aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
-                        navigator.clipboard.writeText("support@wealthfolio.app");
+                        copyText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));
                       }}
                     >

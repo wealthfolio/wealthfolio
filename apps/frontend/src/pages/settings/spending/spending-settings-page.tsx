@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 import { Button, Icons, buttonVariants } from "@wealthfolio/ui";
 
@@ -16,7 +17,7 @@ import { RulesOverviewCard } from "./components/rules-overview-card";
 export default function SpendingSettingsPage() {
   const { t } = useTranslation();
   const { isEnabled } = useSpendingSettings();
-  const navigate = useNavigate();
+  const goBack = useBackNavigation("/settings");
 
   return (
     <div className="text-sm leading-relaxed antialiased [&>*+*]:mt-9 [&>section+section]:mt-11">
@@ -25,7 +26,7 @@ export default function SpendingSettingsPage() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/settings")}
+          onClick={goBack}
           className="text-muted-foreground hover:text-foreground -ms-1 h-8 w-8 shrink-0 p-0 lg:hidden"
           aria-label={t("settings:spending.back_to_settings")}
         >
@@ -40,10 +41,10 @@ export default function SpendingSettingsPage() {
             <span className="text-muted-foreground/50">/</span>
             <span>{t("common:portfolio")}</span>
             <span className="text-muted-foreground/50">/</span>
-            <span className="text-foreground">{t("settings:spending.title")}</span>
+            <span className="text-foreground">{t("settings:nav.items.spending")}</span>
           </nav>
           <h1 className="text-foreground text-base font-semibold tracking-tight sm:text-lg lg:text-2xl">
-            {t("settings:spending.title")}
+            {t("settings:nav.items.spending")}
           </h1>
           <p className="text-muted-foreground mt-1 hidden max-w-[64ch] text-sm sm:block">
             {t("settings:spending.page_description")}
@@ -123,7 +124,7 @@ function Section({ title, meta, children }: SectionProps) {
   return (
     <section>
       <div className="mb-3.5 flex items-baseline justify-between gap-3">
-        <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           {title}
         </h2>
         {meta && <span className="text-muted-foreground/80 hidden text-xs sm:inline">{meta}</span>}

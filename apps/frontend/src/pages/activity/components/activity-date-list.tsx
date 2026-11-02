@@ -5,9 +5,11 @@ import {
   isAssetBackedIncomeActivity,
   isCashActivity,
   isCashTransfer,
+  isConversionRow,
   isFeeActivity,
   isIncomeActivity,
   isSplitActivity,
+  localizeActivityRowLabel,
   localizeActivityTypeName,
 } from "@/lib/activity-utils";
 import { ActivityType } from "@/lib/constants";
@@ -210,7 +212,7 @@ function ActivityDateListItem({
     : null;
   const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
   const displayValue = calculateActivityValue(activity);
-  const activityTypeLabel = localizeActivityTypeName(t, activity.activityType);
+  const activityTypeLabel = localizeActivityRowLabel(t, activity);
   const activityTone = getActivityTone(activity.activityType);
   const quantityLabel =
     !isCash &&
@@ -233,15 +235,15 @@ function ActivityDateListItem({
           className="h-10 w-10 flex-shrink-0"
         />
         <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3">
-          <p className="truncate text-base font-semibold leading-5">{displaySymbol}</p>
-          {activity.activityType !== ActivityType.SPLIT ? (
-            <p className="text-end text-base font-semibold leading-5">
+          <p className="truncate text-base leading-5 font-semibold">{displaySymbol}</p>
+          {activity.activityType !== ActivityType.SPLIT && !isConversionRow(activity) ? (
+            <p className="text-end text-base leading-5 font-semibold">
               {formatting.formatAmount(displayValue, activity.currency)}
             </p>
           ) : (
             <span />
           )}
-          <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-sm leading-5">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5 whitespace-nowrap">
             <span className={cn("font-semibold", activityTone.text)}>{activityTypeLabel}</span>
             {activity.accountName ? (
               <span className="text-muted-foreground min-w-0 truncate">{activity.accountName}</span>

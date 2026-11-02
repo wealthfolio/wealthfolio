@@ -60,7 +60,7 @@ export function PortfolioUpdateTrigger({
               <Icons.AlertTriangle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1.5">
                 {notices.map((notice) => (
-                  <p key={notice} className="text-foreground/80 text-xs font-light leading-relaxed">
+                  <p key={notice} className="text-foreground/80 text-xs leading-relaxed font-light">
                     {notice}
                   </p>
                 ))}

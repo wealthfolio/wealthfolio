@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -24,6 +25,7 @@ import {
   type AccountSelectOption,
 } from "./fields";
 import { calculateIncomeFinalAmount } from "@/lib/activity-final-amount";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { assetMetadataSchema } from "./schemas";
 import { Spinner } from "@wealthfolio/ui";
 
@@ -43,25 +45,24 @@ export const createInterestFormSchema = (t?: TFunction) =>
         message: msg(t, "activity:form.err_select_account", "Please select an account."),
       }),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       symbol: z.string().optional().nullable(),
       existingAssetId: z.string().nullable().optional(),
       exchangeMic: z.string().nullable().optional(),
       amount: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_amount", "Please enter an amount."),
-          invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          ),
         })
         .min(0, {
           message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
         }),
       tax: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_withholding_tax_number",
-            "Withholding tax must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_withholding_tax_number", "Withholding tax must be a number."),
           ),
         })
         .min(0, {
@@ -77,33 +78,33 @@ export const createInterestFormSchema = (t?: TFunction) =>
       // fields, and a top-level .positive() would reject editing them.
       unitPrice: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fmv_number",
-            "FMV per unit must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fmv_number", "FMV per unit must be a number."),
           ),
         })
         .optional(),
       quantity: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_received_quantity_number",
-            "Received quantity must be a number.",
+          error: invalidTypeError(
+            msg(
+              t,
+              "activity:form.err_received_quantity_number",
+              "Received quantity must be a number.",
+            ),
           ),
         })
         .optional(),
       comment: z.string().optional().nullable(),
       // Advanced options
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({
@@ -228,6 +229,7 @@ export function InterestForm({
   const { getFieldState, getValues, setValue } = form;
   const accountId = watch("accountId");
   const currency = watch("currency");
+  const symbolInstrumentType = watch("symbolInstrumentType");
   const subtype = watch("subtype");
   const quantity = watch("quantity");
   const unitPrice = watch("unitPrice");
@@ -240,11 +242,12 @@ export function InterestForm({
     const q = Number(quantity);
     const p = Number(unitPrice);
     if (amountWasEdited.current) return;
-    const computedAmount = calculateIncomeFinalAmount(
+    const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      getValues("symbolInstrumentType"),
-    );
+      instrumentType: symbolInstrumentType,
+      currency,
+    });
     if (computedAmount === undefined) return;
     const currentAmount = Number(getValues("amount"));
     const quantityIsDirty = getFieldState("quantity").isDirty;
@@ -261,7 +264,16 @@ export function InterestForm({
         });
       }
     }
-  }, [getFieldState, getValues, isStakingReward, quantity, setValue, unitPrice]);
+  }, [
+    currency,
+    getFieldState,
+    getValues,
+    isStakingReward,
+    quantity,
+    setValue,
+    symbolInstrumentType,
+    unitPrice,
+  ]);
 
   const handleInterestModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {
@@ -280,6 +292,7 @@ export function InterestForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -355,7 +368,7 @@ export function InterestForm({
                 data-testid="fmv-per-unit-input"
                 label={t("activity:form.label_fmv_per_unit")}
                 labelHelpText={fmvHelpText}
-                maxDecimalPlaces={4}
+                maxDecimalPlaces={DECIMAL_PRECISION}
                 currency={currency}
               />
             </div>
@@ -374,11 +387,13 @@ export function InterestForm({
               onValueChange={() => {
                 amountWasEdited.current = true;
               }}
+              maxDecimalPlaces={moneyDecimals}
             />
             <AmountInput
               name="tax"
               label={t("activity:form.label_withholding_tax")}
               currency={currency}
+              maxDecimalPlaces={moneyDecimals}
             />
           </div>
         </FormSection>

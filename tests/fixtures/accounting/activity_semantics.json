@@ -187,6 +187,21 @@
       }
     },
     {
+      "name": "untyped cash credit is ignored by spending and internal to performance",
+      "accountType": "CASH",
+      "activityType": "CREDIT",
+      "subtype": null,
+      "amount": "100.00",
+      "expected": {
+        "cashDelta": "100.00",
+        "netContributionDelta": "0.00",
+        "gainDelta": "100.00",
+        "externalFlow": false,
+        "spendingDelta": "0.00",
+        "incomeDelta": "0.00"
+      }
+    },
+    {
       "name": "unknown cash credit is ignored by spending and internal to performance",
       "accountType": "CASH",
       "activityType": "CREDIT",

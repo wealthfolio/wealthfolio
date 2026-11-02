@@ -1,0 +1,75 @@
+id: EDGE-CONV-01
+title: A conversion the account cannot fold is rejected whole
+intent: >
+  Rules R7.5. Six conversions the fold refuses, each rejecting both of its
+  rows and changing nothing: converting more units than the account holds,
+  converting into an asset held short, converting into an asset kept in
+  another currency, converting on the day the account records a split of the
+  leaving asset, converting into fewer units than a position holds (the
+  arriving position would drop the lots' cost), and converting fewer units
+  than a position holds out of a position sold out (nothing would be
+  relieved, and nothing would show). A valid conversion afterwards folds as
+  usual, from the holdings the rejected ones left untouched.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-03-05
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+  - { id: fund-eur, quote_ccy: EUR }
+  - { id: stock-s, quote_ccy: USD }
+  - { id: fund-x, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1000 }
+  - { id: short-1, account: acc-1, type: SELL, subtype: POSITION_OPEN, date: 2025-01-03T11:00:00Z, asset: stock-s, quantity: 2, unit_price: 50, amount: 100 }
+  - { id: buy-x, account: acc-1, type: BUY, date: 2025-01-03T12:00:00Z, asset: fund-x, quantity: 1, unit_price: 10, amount: 10 }
+  - { id: sell-x, account: acc-1, type: SELL, date: 2025-01-04T10:00:00Z, asset: fund-x, quantity: 1, unit_price: 10, amount: 10 }
+  # Holds 10 fund-a: 12 cannot leave.
+  - { id: over-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-10T10:00:00Z, asset: fund-a, quantity: 12, source_group_id: g-over }
+  - { id: over-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-10T10:01:00Z, asset: fund-b, quantity: 12, source_group_id: g-over }
+  # stock-s is held short.
+  - { id: short-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-11T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-short }
+  - { id: short-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-11T10:01:00Z, asset: stock-s, quantity: 5, source_group_id: g-short }
+  # fund-eur is kept in EUR, fund-a in USD.
+  - { id: ccy-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-12T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-ccy }
+  - { id: ccy-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-12T10:01:00Z, asset: fund-eur, quantity: 5, currency: EUR, source_group_id: g-ccy }
+  # A split of fund-a recorded the same day.
+  - { id: split-1, account: acc-1, type: SPLIT, date: 2025-01-13T09:00:00Z, asset: fund-a, amount: 2 }
+  - { id: split-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-13T10:00:00Z, asset: fund-a, quantity: 10, source_group_id: g-split }
+  - { id: split-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-13T10:01:00Z, asset: fund-b, quantity: 10, source_group_id: g-split }
+  # 0.000000001 fund-b is fewer units than a position holds.
+  - { id: dust-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-14T10:00:00Z, asset: fund-a, quantity: 1, source_group_id: g-dust }
+  - { id: dust-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-14T10:01:00Z, asset: fund-b, quantity: 0.000000001, source_group_id: g-dust }
+  # fund-x was sold out; 0.000000001 of it is fewer units than a position holds.
+  - { id: tiny-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-15T10:00:00Z, asset: fund-x, quantity: 0.000000001, source_group_id: g-tiny }
+  - { id: tiny-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-15T10:01:00Z, asset: fund-b, quantity: 1, source_group_id: g-tiny }
+  # Valid: 20 fund-a (after the split) into 8 fund-b.
+  - { id: ok-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-20T10:00:00Z, asset: fund-a, quantity: 20, source_group_id: g-ok }
+  - { id: ok-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-20T10:01:00Z, asset: fund-b, quantity: 8, source_group_id: g-ok }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 100 }
+  - { asset: fund-a, day: 2025-01-13, close: 50 }
+  - { asset: fund-b, day: 2025-01-10, close: 125 }
+  - { asset: fund-eur, day: 2025-01-03, close: 90 }
+  - { asset: stock-s, day: 2025-01-03, close: 50 }
+  - { asset: fund-x, day: 2025-01-03, close: 10 }
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.1 }
+expected_notes: >
+  The six bad pairs are each rejected, both rows reported (over-out/over-in:
+  holds 10 of the 12; short-out/short-in: stock-s is held short;
+  ccy-out/ccy-in: fund-a in USD, fund-eur in EUR; split-out/split-in: the
+  split of fund-a on 01-13; dust-out/dust-in and tiny-out/tiny-in: 0.000000001
+  is less than the smallest quantity a position holds). None moves a unit,
+  cash or contribution. buy-x and sell-x buy and sell 1 fund-x at 10: cash
+  unchanged, realized 0. After the split fund-a holds 20 (buy-1, ratio 2,
+  cost 1000). ok-out/ok-in relieve all 20 at cost (realized 0) and open 8
+  fund-b (r = 0.4): one lot ok-in, cost 1000, acquired 2025-01-03, 125 a
+  unit. Cash 5000 - 1000 + 100 = 4100,
+  stock-s short 2, net contribution 5000.
