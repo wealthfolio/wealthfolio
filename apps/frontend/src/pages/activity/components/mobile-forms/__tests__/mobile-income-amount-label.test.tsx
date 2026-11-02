@@ -13,14 +13,23 @@ vi.mock("@/lib/settings-provider", () => ({
 }));
 
 const accounts: AccountSelectOption[] = [
-  { value: "usd-account", label: "USD account", currency: "USD" },
+  { value: "usd-account", label: "USD account", currency: "USD", accountType: "SECURITIES" },
+  { value: "card-account", label: "Card", currency: "USD", accountType: "CREDIT_CARD" },
 ];
 
-function TestForm({ activityType, subtype }: { activityType: string; subtype: string | null }) {
+function TestForm({
+  activityType,
+  subtype,
+  accountId = "usd-account",
+}: {
+  activityType: string;
+  subtype: string | null;
+  accountId?: string;
+}) {
   const form = useForm<NewActivityFormValues>({
     defaultValues: {
       activityType,
-      accountId: "usd-account",
+      accountId,
       activityDate: new Date("2026-09-01T12:00:00Z"),
       currency: "USD",
       subtype,
@@ -70,6 +79,16 @@ describe("mobile income amount label", () => {
     render(<TestForm activityType={activityType} subtype={subtype} />);
 
     expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("Final cash received, after fees and taxes.")).toBeNull();
+  });
+
+  it("does not call credit-card interest, a charge, an amount received", () => {
+    render(
+      <TestForm activityType={ActivityType.INTEREST} subtype={null} accountId="card-account" />,
+    );
+
+    expect(screen.getByText("Interest Amount")).toBeInTheDocument();
+    expect(screen.queryByText("Received amount")).toBeNull();
     expect(screen.queryByText("Final cash received, after fees and taxes.")).toBeNull();
   });
 });

@@ -41,10 +41,11 @@ vi.mock("../fields", () => {
 
 const accounts: AccountSelectOption[] = [
   { value: "acc-1", label: "Brokerage", currency: "USD", accountType: "SECURITIES" },
+  { value: "card-1", label: "Card", currency: "USD", accountType: "CREDIT_CARD" },
 ];
 
-function renderIncome(form: "dividend" | "interest", subtype: string | null) {
-  const defaultValues = { accountId: "acc-1", currency: "USD", subtype };
+function renderIncome(form: "dividend" | "interest", subtype: string | null, accountId = "acc-1") {
+  const defaultValues = { accountId, currency: "USD", subtype };
   render(
     form === "dividend" ? (
       <DividendForm accounts={accounts} onSubmit={vi.fn()} defaultValues={defaultValues} />
@@ -74,6 +75,14 @@ describe("income amount label", () => {
     const amount = renderIncome(form, subtype);
 
     expect(amount).toHaveTextContent(label);
+    expect(amount).not.toHaveTextContent("Final cash received");
+  });
+
+  it("does not call credit-card interest, a charge, an amount received", () => {
+    const amount = renderIncome("interest", null, "card-1");
+
+    expect(amount).toHaveTextContent("Amount");
+    expect(amount).not.toHaveTextContent("Received amount");
     expect(amount).not.toHaveTextContent("Final cash received");
   });
 });

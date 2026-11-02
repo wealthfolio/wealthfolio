@@ -1,5 +1,10 @@
 import { restrictionAllowsType } from "@/lib/activity-restrictions";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import {
+  ACTIVITY_SUBTYPES,
+  ActivityType,
+  isLiabilityAccountType,
+  QuoteMode,
+} from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Button,
@@ -380,6 +385,11 @@ export function MobileDetailsStep({
   });
 
   const selectedAccount = filteredAccounts.find((acc) => acc.value === accountId);
+  // Cash income asks for the amount received; credit-card interest is a charge.
+  const isReceivedIncome =
+    isIncomeActivity &&
+    !isAssetBackedIncome &&
+    !(isInterestActivity && isLiabilityAccountType(selectedAccount?.accountType));
   const destinationAccount = filteredAccounts.find((acc) => acc.value === toAccountId);
   const accountCurrency = selectedAccount?.currency;
   const effectiveSourceCurrency = sourceCurrency || accountCurrency || currency;
@@ -961,7 +971,7 @@ export function MobileDetailsStep({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-base leading-none font-medium">
-                        {isIncomeActivity && !isAssetBackedIncome
+                        {isReceivedIncome
                           ? t("activity:form.received_amount")
                           : activityType === ActivityType.DIVIDEND
                             ? t("activity:field_dividend_amount")
@@ -982,7 +992,7 @@ export function MobileDetailsStep({
                           }}
                         />
                       </FormControl>
-                      {isIncomeActivity && !isAssetBackedIncome && (
+                      {isReceivedIncome && (
                         <FormDescription className="text-xs">
                           {t("activity:form.help_total_credit")}
                         </FormDescription>
