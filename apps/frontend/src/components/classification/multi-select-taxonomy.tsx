@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -277,7 +278,12 @@ export function MultiSelectTaxonomy({
                       style={{ backgroundColor: pendingCategory.category.color }}
                     />
                     <span className="flex-1 truncate text-sm font-medium">
-                      {pendingCategory.category.name}
+                      {getCategoryLabel(
+                        t,
+                        taxonomyId,
+                        pendingCategory.category.id,
+                        pendingCategory.category.name,
+                      )}
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
@@ -349,7 +355,7 @@ export function MultiSelectTaxonomy({
                         <div key={category.id}>
                           {showSeparator && <CommandSeparator className="my-1" />}
                           <CommandItem
-                            value={`${category.name} ${category.id}`}
+                            value={`${category.name} ${getCategoryLabel(t, taxonomyId, category.id, category.name)} ${category.id}`}
                             onSelect={() => {
                               if (!isAssigned) {
                                 handleSelectCategory(category);
@@ -368,7 +374,9 @@ export function MultiSelectTaxonomy({
                               className="h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: category.color }}
                             />
-                            <span className="flex-1 truncate">{category.name}</span>
+                            <span className="flex-1 truncate">
+                              {getCategoryLabel(t, taxonomyId, category.id, category.name)}
+                            </span>
                             {isAssigned && (
                               <Icons.Check className="text-primary h-4 w-4 shrink-0" />
                             )}
@@ -398,7 +406,9 @@ export function MultiSelectTaxonomy({
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: category.color }}
               />
-              <span className="min-w-0 flex-1 truncate text-sm">{category.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {getCategoryLabel(t, taxonomyId, category.id, category.name)}
+              </span>
 
               {/* Weight input */}
               <div className="relative w-20">

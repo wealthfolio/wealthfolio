@@ -1,6 +1,16 @@
-import { render, screen, waitFor } from "@/test/render";
+import { createInstance, type TFunction } from "i18next";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
+import type { TaxonomyCategory } from "@/lib/types";
+import type { FilterOption } from "./transactions-filter-bar";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ActivityUpdate } from "@/lib/types";
+import {
+  ActivityEditCancelled,
+  ActivitySplitReviewProvider,
+} from "./activity-split-review-provider";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
 import { SpendingTransactionsTab } from "./spending-transactions-tab";
 
@@ -63,12 +73,30 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
+    categories: [] as TaxonomyCategory[],
+    translate: undefined as TFunction | undefined,
+    filterProps: undefined as
+      | {
+          categoryOptions: FilterOption[];
+          subcategoryOptions: FilterOption[];
+          viewToggle?: React.ReactNode;
+          selectedNet: { byCurrency: unknown[] };
+        }
+      | undefined,
+    compactViewport: false,
+    gridProps: undefined as
+      | undefined
+      | { pageIndex: number; onPageChange: (index: number) => void },
     accounts,
     transferOut,
     mutation,
     getTransferPairForActivity: vi.fn(),
     invalidateQueries: vi.fn(),
     createActivity: vi.fn(),
+    updateActivity: vi.fn(),
+    reviewActivitiesSplitEffects: vi.fn(),
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
     saveActivities: vi.fn(),
     useMutation: vi.fn(),
   };
@@ -78,13 +106,19 @@ vi.mock("@/adapters", () => ({
   createActivity: mocks.createActivity,
   saveActivities: mocks.saveActivities,
   deleteActivity: vi.fn(),
-  updateActivity: vi.fn(),
+  updateActivity: mocks.updateActivity,
+  reviewActivitiesSplitEffects: mocks.reviewActivitiesSplitEffects,
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
   getTransferPairForActivity: mocks.getTransferPairForActivity,
 }));
 
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }));
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
+  useTranslation: () => ({
+    t: (key: string) => mocks.translate?.(key) ?? key,
+    i18n: { language: "en" },
+  }),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -114,7 +148,10 @@ vi.mock("@tanstack/react-virtual", () => ({
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: mocks.accounts, isLoading: false }),
 }));
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
+vi.mock("@/hooks/use-platform", () => ({
+  useIsMobileViewport: () => false,
+  useIsCompactTableViewport: () => mocks.compactViewport,
+}));
 vi.mock("@/hooks/use-virtual-scroll-container", () => ({
   observeCurrentScrollOffset: vi.fn(),
   useVirtualScrollContainer: () => ({
@@ -124,12 +161,26 @@ vi.mock("@/hooks/use-virtual-scroll-container", () => ({
   }),
 }));
 vi.mock("@/hooks/use-debounced-value", () => ({ useDebouncedValue: (value: unknown) => value }));
-vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: { categories: [] } }) }));
+vi.mock("@/hooks/use-taxonomies", () => ({
+  useTaxonomy: () => ({ data: { categories: mocks.categories } }),
+}));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: undefined } }),
 }));
 
 vi.mock("../hooks/use-cash-activity-search", () => ({
+  useCashActivityPage: () => ({
+    items: [mocks.transferOut],
+    totalCount: 1,
+    pageCount: 1,
+    net: null,
+    baseCurrency: "EUR",
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
   useCashActivitySearch: () => ({
     items: [mocks.transferOut],
     totalCount: 1,
@@ -179,7 +230,18 @@ vi.mock("./transaction-card", () => ({ TransactionCard: () => null }));
 vi.mock("./selection-toolbar", () => ({ SelectionToolbar: () => null }));
 vi.mock("./split-transaction-sheet", () => ({ SplitTransactionSheet: () => null }));
 vi.mock("./transactions-bulk-bar", () => ({ TransactionsBulkBar: () => null }));
-vi.mock("./transactions-filter-bar", () => ({ TransactionsFilterBar: () => null }));
+vi.mock("./spending-activity-data-grid", () => ({
+  SpendingActivityDataGrid: (props: NonNullable<typeof mocks.gridProps>) => {
+    mocks.gridProps = props;
+    return <div data-testid="spending-grid" />;
+  },
+}));
+vi.mock("./transactions-filter-bar", () => ({
+  TransactionsFilterBar: (props: NonNullable<typeof mocks.filterProps>) => {
+    mocks.filterProps = props;
+    return null;
+  },
+}));
 
 vi.mock("./transaction-day-header", async () => {
   const React = await import("react");
@@ -414,5 +476,207 @@ describe("SpendingTransactionsTab selection", () => {
 
     select.click();
     await waitFor(() => expect(list).not.toHaveAttribute("data-selecting"));
+  });
+});
+
+it("localizes category filter options but keeps IDs and renamed labels raw", async () => {
+  mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+  const i18n = createInstance();
+  await i18n.init({
+    lng: "zh",
+    resources: { zh: { common: zhCommon, taxonomies: zhCommonTaxonomies } },
+  });
+  mocks.translate = i18n.getFixedT("zh");
+  mocks.categories = [
+    {
+      id: "cat_food",
+      taxonomyId: "spending_categories",
+      name: "Food & Dining",
+      parentId: null,
+      sortOrder: 0,
+    },
+    {
+      id: "cat_groceries",
+      taxonomyId: "spending_categories",
+      name: "Groceries",
+      parentId: "cat_food",
+      sortOrder: 1,
+    },
+    {
+      id: "cat_coffee",
+      taxonomyId: "spending_categories",
+      name: "My coffee",
+      parentId: "cat_food",
+      sortOrder: 2,
+    },
+  ] as TaxonomyCategory[];
+  const original = structuredClone(mocks.categories);
+  try {
+    render(<SpendingTransactionsTab />);
+    const labels = zhCommonTaxonomies.categoryNames.spending_categories;
+    expect(mocks.filterProps?.categoryOptions).toEqual([
+      { value: "cat_food", label: labels.cat_food },
+    ]);
+    expect(mocks.filterProps?.subcategoryOptions).toEqual([
+      { value: "cat_groceries", label: `${labels.cat_food} / ${labels.cat_groceries}` },
+      { value: "cat_coffee", label: `${labels.cat_food} / My coffee` },
+    ]);
+    expect(mocks.categories).toEqual(original);
+  } finally {
+    mocks.categories = [];
+    mocks.translate = undefined;
+  }
+});
+
+describe("SpendingTransactionsTab reimbursement split review", () => {
+  const effect = {
+    activityId: "income-1",
+    removedSplits: 2,
+    hasRetainedCategoryAssignment: true,
+    fingerprint: "reviewed-income",
+  };
+  const row = {
+    activity: {
+      ...mocks.transferOut,
+      id: "income-1",
+      activityType: ActivityType.DEPOSIT,
+      status: ActivityStatus.POSTED,
+      cashFlowBucket: "income",
+    },
+    category: null,
+    splitCount: 2,
+    needsReview: false,
+  } as TransactionRowVM;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+    mocks.updateActivity.mockResolvedValue({ ...row.activity, activityType: "CREDIT" });
+    mocks.reviewActivitiesSplitEffects.mockReset().mockResolvedValue([[effect]]);
+  });
+
+  function mount() {
+    render(
+      <ActivitySplitReviewProvider>
+        <SpendingTransactionsTab />
+      </ActivitySplitReviewProvider>,
+    );
+    return mocks.useMutation.mock.calls[1][0] as {
+      mutationFn: (row: TransactionRowVM) => Promise<unknown>;
+      onError: (error: unknown) => void;
+    };
+  }
+
+  it.each([false, true])(
+    "reviews split removal before reimbursement (approve=%s)",
+    async (approve) => {
+      const options = mount();
+      let result = Promise.resolve<unknown>(undefined);
+      act(() => {
+        result = options.mutationFn(row).catch((error) => {
+          options.onError(error);
+          return error;
+        });
+      });
+      await screen.findByRole("alertdialog");
+      expect(mocks.reviewActivitiesSplitEffects).toHaveBeenCalledExactlyOnceWith([
+        expect.objectContaining({
+          id: row.activity.id,
+          activityType: "CREDIT",
+          subtype: "REIMBURSEMENT",
+        }),
+      ]);
+      expect(mocks.updateActivity).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByText(approve ? "spending:splitEditReview.confirm" : "common:cancel"),
+      );
+      let outcome: unknown;
+      await act(async () => {
+        outcome = await result;
+      });
+      if (approve) {
+        const update = mocks.reviewActivitiesSplitEffects.mock.calls[0][0][0] as ActivityUpdate;
+        expect(mocks.updateActivity).toHaveBeenCalledExactlyOnceWith({
+          ...update,
+          splitReview: [effect],
+        });
+      } else {
+        expect(outcome).toBeInstanceOf(ActivityEditCancelled);
+        expect(mocks.updateActivity).not.toHaveBeenCalled();
+        expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+      }
+      expect(mocks.toastError).not.toHaveBeenCalled();
+      expect(mocks.toastSuccess).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not write when review fails and keeps ordinary error reporting", async () => {
+    mocks.reviewActivitiesSplitEffects.mockRejectedValue(new Error("Review unavailable"));
+    const options = mount();
+    await expect(options.mutationFn(row)).rejects.toThrow("Review unavailable");
+    options.onError(new Error("Review unavailable"));
+    expect(mocks.updateActivity).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith("spending:txTab.markReimbursementFailed");
+  });
+});
+
+describe("SpendingTransactionsTab view switch", () => {
+  beforeEach(() => {
+    mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+    mocks.compactViewport = false;
+    localStorage.clear();
+  });
+
+  it("switches a desktop list to the grid", async () => {
+    render(<SpendingTransactionsTab />);
+    expect(screen.queryByTestId("spending-grid")).not.toBeInTheDocument();
+
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+
+    expect(await screen.findByTestId("spending-grid")).toBeInTheDocument();
+  });
+
+  it("keeps the list, without the switch, on a compact screen", async () => {
+    render(<SpendingTransactionsTab />);
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+    await screen.findByTestId("spending-grid");
+
+    // The grid stays the stored choice...
+    cleanup();
+    render(<SpendingTransactionsTab />);
+    expect(await screen.findByTestId("spending-grid")).toBeInTheDocument();
+
+    // ...but a compact screen shows the list.
+    cleanup();
+    mocks.compactViewport = true;
+    render(<SpendingTransactionsTab />);
+    expect(mocks.filterProps?.viewToggle).toBeUndefined();
+    expect(screen.queryByTestId("spending-grid")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("select-out-1")).toBeInTheDocument();
+  });
+
+  it("drops the list's checked rows when switching to the grid", async () => {
+    render(<SpendingTransactionsTab />);
+    fireEvent.click(await screen.findByTestId("select-out-1"));
+    await waitFor(() => expect(mocks.filterProps?.selectedNet.byCurrency).toHaveLength(1));
+
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+
+    await screen.findByTestId("spending-grid");
+    expect(mocks.filterProps?.selectedNet.byCurrency).toHaveLength(0);
+  });
+
+  it("steps back to the last page when the grid has fewer pages", async () => {
+    render(<SpendingTransactionsTab />);
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+    await screen.findByTestId("spending-grid");
+
+    // The mocked search has one page.
+    act(() => mocks.gridProps?.onPageChange(3));
+    await waitFor(() => expect(mocks.gridProps?.pageIndex).toBe(0));
   });
 });

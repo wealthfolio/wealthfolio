@@ -16,6 +16,8 @@ pub struct ReportRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodSummary {
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     /// Sum of DEPOSIT/TRANSFER_IN/INTEREST amounts (absolute)
     pub income: f64,
     /// Consumption outflow (WITHDRAWAL/FEE/external TRANSFER_OUT), savings excluded.
@@ -24,7 +26,12 @@ pub struct PeriodSummary {
     /// investing accounts). Its own bucket, parallel to `income`.
     #[serde(default)]
     pub saved: f64,
-    /// income - outflow - saved
+    /// Money brought back from savings (cross-boundary linked transfer-ins
+    /// from investing accounts). Gross, like `saved`: net saving is
+    /// `saved - from_savings`.
+    #[serde(default)]
+    pub from_savings: f64,
+    /// income - outflow - saved + from_savings
     pub net: f64,
     /// Count of activities included
     pub count: usize,
@@ -120,6 +127,8 @@ pub struct EventCategorySpending {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventSpendingSummary {
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     pub event_id: String,
     pub event_name: String,
     pub event_type_id: String,

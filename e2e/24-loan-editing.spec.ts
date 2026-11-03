@@ -190,7 +190,8 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
     "Edit loan details",
     "Close Loan",
   ]) {
-    await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();
+    // On a phone the Holdings list stays mounted, hidden, under the loan page.
+    await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').filter({ visible: true }).click();
     await page.getByRole("button", { name: action, exact: true }).click();
     await checkSheetLayout();
     await expect(async () => {

@@ -28,6 +28,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import type { AccountSelectOption } from "./components/forms/fields";
 import {
   ActivityTypePicker,
@@ -58,13 +59,14 @@ const ActivityManagerPage = () => {
   // Non-archived accounts for filtering
   const activeAccounts = useMemo(() => accounts.filter((acc) => !acc.isArchived), [accounts]);
 
+  const goBack = useBackNavigation();
   const handleClose = useCallback(() => {
     if (redirectTo) {
       navigate(redirectTo);
       return;
     }
-    navigate(-1);
-  }, [navigate, redirectTo]);
+    goBack();
+  }, [goBack, navigate, redirectTo]);
 
   // Get the selected account if pre-selected
   const selectedAccount = useMemo(() => {
@@ -110,6 +112,8 @@ const ActivityManagerPage = () => {
       activity.currency = assetProfile.quoteCcy;
       activity.exchangeMic = assetProfile.instrumentExchangeMic ?? undefined;
       activity.assetQuoteMode = assetProfile.quoteMode;
+      // A crypto asset's totals stay exact and its money fields take 8 decimals.
+      activity.instrumentType = assetProfile.instrumentType ?? undefined;
     }
 
     return activity;
@@ -134,6 +138,7 @@ const ActivityManagerPage = () => {
       value: account.id,
       label: account.name,
       currency: account.currency,
+      accountType: account.accountType,
     }));
   }, [activeAccounts, selectedType]);
 

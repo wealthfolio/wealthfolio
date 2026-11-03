@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { Asset, LatestQuoteSnapshot } from "@/lib/types";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { resolveDisplayTimezone } from "@/lib/utils";
@@ -57,19 +58,33 @@ export const getNoQuoteReasonText = (
   snapshot?: LatestQuoteSnapshot,
   asset?: ParsedAsset,
 ): string => {
+  const reasonKeys: Record<string, string> = {
+    MANUAL_PRICING: "manual",
+    INACTIVE: "inactive",
+    MATURED_BOND: "matured",
+    EXPIRED_OPTION: "expired",
+    TOO_MANY_ERRORS: "paused",
+    PENDING_SYNC: "pending",
+    NO_DATA: "no_data",
+  };
+  const reasonKey = snapshot?.noQuoteReason?.code
+    ? reasonKeys[snapshot.noQuoteReason.code]
+    : undefined;
+  if (reasonKey) return i18n.t(`asset:noQuote.${reasonKey}`);
+
   if (snapshot?.noQuoteReason?.message) {
     return snapshot.noQuoteReason.message;
   }
 
   if (asset?.quoteMode === "MANUAL") {
-    return "Quote mode is Manual";
+    return i18n.t("asset:noQuote.manual");
   }
 
   if (asset?.isActive === false) {
-    return "Asset is inactive";
+    return i18n.t("asset:noQuote.inactive");
   }
 
-  return "No data available from provider yet";
+  return i18n.t("asset:noQuote.no_data");
 };
 
 const normalizeWeight = (weight: unknown): number => {

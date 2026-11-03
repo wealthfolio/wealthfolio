@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use std::sync::Arc;
 
 use chrono::NaiveDate;
@@ -49,7 +51,7 @@ struct Fixture {
     repository: Arc<AlternativeAssetRepository>,
     assets: Arc<AssetRepository>,
     quotes: Arc<dyn QuoteServiceTrait>,
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
 }
 
 impl Fixture {
@@ -111,7 +113,7 @@ impl Fixture {
 }
 
 async fn fixture() -> Fixture {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

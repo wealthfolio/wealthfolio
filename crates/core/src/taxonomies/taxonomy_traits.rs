@@ -20,6 +20,11 @@ pub trait TaxonomyRepositoryTrait: Send + Sync {
     async fn delete_taxonomy(&self, id: &str) -> Result<usize>;
 
     // Category operations
+    fn get_category_references(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<super::CategoryReferences>;
     fn get_categories(&self, taxonomy_id: &str) -> Result<Vec<Category>>;
     fn get_category(&self, taxonomy_id: &str, category_id: &str) -> Result<Option<Category>>;
     fn get_category_spending_reference_count(
@@ -34,6 +39,12 @@ pub trait TaxonomyRepositoryTrait: Send + Sync {
     ) -> Result<usize>;
     async fn create_category(&self, category: NewCategory) -> Result<Category>;
     async fn update_category(&self, category: Category) -> Result<Category>;
+    async fn update_category_reviewed(
+        &self,
+        expected: Category,
+        category: Category,
+    ) -> Result<Category>;
+    async fn delete_category_reviewed(&self, expected: Category) -> Result<usize>;
     async fn delete_category(&self, taxonomy_id: &str, category_id: &str) -> Result<usize>;
     async fn bulk_create_categories(&self, categories: Vec<NewCategory>) -> Result<usize>;
 
@@ -84,8 +95,19 @@ pub trait TaxonomyServiceTrait: Send + Sync {
     async fn delete_taxonomy(&self, id: &str) -> Result<usize>;
 
     // Category operations
+    fn get_category_references(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<super::CategoryReferences>;
     async fn create_category(&self, category: NewCategory) -> Result<Category>;
     async fn update_category(&self, category: Category) -> Result<Category>;
+    async fn update_category_reviewed(
+        &self,
+        expected: Category,
+        category: Category,
+    ) -> Result<Category>;
+    async fn delete_category_reviewed(&self, expected: Category) -> Result<usize>;
     async fn delete_category(&self, taxonomy_id: &str, category_id: &str) -> Result<usize>;
     async fn move_category(
         &self,

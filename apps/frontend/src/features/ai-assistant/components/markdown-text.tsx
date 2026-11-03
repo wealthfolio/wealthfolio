@@ -16,6 +16,7 @@ import remarkGfm from "remark-gfm";
 import { ExternalLink } from "@/components/external-link";
 import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "./tooltip-icon-button";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 const MarkdownTextImpl = () => {
   return (
@@ -58,7 +59,7 @@ const useCopyToClipboard = ({
   const copyToClipboard = (value: string) => {
     if (!value) return;
 
-    navigator.clipboard.writeText(value).then(() => {
+    copyText(value).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), copiedDuration);
     });

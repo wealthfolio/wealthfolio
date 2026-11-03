@@ -121,6 +121,8 @@ export {
   saveActivities,
   searchActivities,
   updateActivity,
+  reviewActivitiesSplitEffects,
+  reviewInternalTransferPairSplitEffects,
 } from "../shared/activities";
 export { parseCsv } from "./activities";
 
@@ -267,6 +269,7 @@ export {
   isSpendingEnabled,
   listCategorizationRules,
   rerunCategorizationRules,
+  rerunCategorizationRulesDetailed,
   SPEND_CATEGORY_KIND_TO_TAXONOMY_ID,
   TAXONOMY_ID_TO_SPEND_CATEGORY_KIND,
   updateCategorizationRule,
@@ -387,10 +390,11 @@ export {
 // Allocation Target Commands
 export {
   archiveAllocationTarget,
-  calculateRebalancePlan,
+  calculateAllocationWorksheet,
   canonicalizeEligibleAssetIds,
   createAllocationTarget,
   deleteAllocationTarget,
+  generateCalculatedAdjustments,
   getAllocationTargetDrift,
   getAllocationTarget,
   listAllocationTargetWeights,
@@ -418,6 +422,7 @@ export {
   listAgentAuditLog,
   purgeAgentAuditLog,
   deleteAgentAccessToken,
+  updateAgentAccessTokenScopes,
   setMcpAuditEnabled,
   setMcpEnabled,
   setMcpAutoStart,
@@ -431,6 +436,7 @@ export { streamAiChat } from "./ai-streaming";
 // Event Listeners (web-specific SSE implementation)
 export {
   listenAssetClassificationsChanged,
+  listenBackButton,
   listenBrokerSyncComplete,
   listenBrokerSyncError,
   listenBrokerSyncStart,
@@ -446,6 +452,7 @@ export {
   listenMarketSyncStart,
   listenNavigateToRoute,
   listenPortfolioUpdateComplete,
+  listenGoalSummariesUpdated,
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
 } from "./events";

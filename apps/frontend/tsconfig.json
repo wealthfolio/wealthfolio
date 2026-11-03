@@ -4,7 +4,6 @@
     "types": ["@tauri-apps/api", "vitest/globals", "node"],
     "noEmit": true,
     "composite": false,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@wealthfolio/addon-sdk": ["../../packages/addon-sdk/src"],

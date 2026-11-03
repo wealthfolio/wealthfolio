@@ -53,7 +53,7 @@ export function AssetLogoPreview({
       <div className="bg-background divide-y rounded-lg border">
         {/* Holding card (mobile) — h-10 avatar */}
         <div className="space-y-1.5 p-3">
-          <p className="text-muted-foreground text-2xs uppercase tracking-wide">
+          <p className="text-muted-foreground text-2xs tracking-wide uppercase">
             {t("logo.preview_card")}
           </p>
           <div className="flex items-center justify-between gap-3">
@@ -73,7 +73,7 @@ export function AssetLogoPreview({
 
         {/* Holdings table row — h-8 avatar */}
         <div className="space-y-1.5 p-3">
-          <p className="text-muted-foreground text-2xs uppercase tracking-wide">
+          <p className="text-muted-foreground text-2xs tracking-wide uppercase">
             {t("logo.preview_table")}
           </p>
           <div className="flex items-center gap-4">
@@ -92,7 +92,7 @@ export function AssetLogoPreview({
 
         {/* Activity / compact list row — h-8 avatar, denser text */}
         <div className="space-y-1.5 p-3">
-          <p className="text-muted-foreground text-2xs uppercase tracking-wide">
+          <p className="text-muted-foreground text-2xs tracking-wide uppercase">
             {t("logo.preview_list")}
           </p>
           <div className="flex items-center gap-3">

@@ -57,7 +57,7 @@ export function AddonStoreCard({
 
   return (
     <Card className="hover:shadow-primary/10 group relative h-full overflow-hidden transition-all duration-200 hover:shadow-lg">
-      <CardHeader className="pb-2 pt-8">
+      <CardHeader className="pt-8 pb-2">
         <CardTitle className="line-clamp-1 text-sm">{listing.name}</CardTitle>
         <CardDescription className="line-clamp-2 text-xs">{listing.description}</CardDescription>
       </CardHeader>

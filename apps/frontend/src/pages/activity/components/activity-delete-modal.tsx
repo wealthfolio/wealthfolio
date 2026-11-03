@@ -16,6 +16,8 @@ export interface ActivityDeleteModalProps {
   isOpen?: boolean;
   isDeleting?: boolean;
   linkedTransfer?: boolean;
+  /** A conversion row: its other row is deleted with it. */
+  conversion?: boolean;
   brokerSynced?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
@@ -25,6 +27,7 @@ export function ActivityDeleteModal({
   isOpen,
   isDeleting,
   linkedTransfer,
+  conversion,
   brokerSynced,
   onConfirm,
   onCancel,
@@ -34,18 +37,20 @@ export function ActivityDeleteModal({
     <AlertDialog open={isOpen} onOpenChange={onCancel}>
       <AlertDialogContent className="max-sm:gap-5 max-sm:p-5">
         <AlertDialogHeader className="max-sm:items-center max-sm:space-y-3 max-sm:text-center">
-          <div className="text-destructive-subtle-foreground bg-current/15 flex size-12 items-center justify-center rounded-full sm:hidden">
+          <div className="text-destructive-subtle-foreground flex size-12 items-center justify-center rounded-full bg-current/15 sm:hidden">
             <Icons.Trash className="size-5" />
           </div>
           <AlertDialogTitle className="leading-tight max-sm:text-xl">
             {t("activity:delete_modal.title")}
           </AlertDialogTitle>
           <AlertDialogDescription className="max-sm:text-base">
-            {linkedTransfer
-              ? t("activity:delete_modal.linked_transfer_desc")
-              : brokerSynced
-                ? t("activity:delete_modal.broker_synced_desc")
-                : t("activity:delete_modal.description")}
+            {conversion
+              ? t("activity:delete_modal.linked_conversion_desc")
+              : linkedTransfer
+                ? t("activity:delete_modal.linked_transfer_desc")
+                : brokerSynced
+                  ? t("activity:delete_modal.broker_synced_desc")
+                  : t("activity:delete_modal.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

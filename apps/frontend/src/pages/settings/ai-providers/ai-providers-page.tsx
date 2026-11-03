@@ -5,6 +5,8 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { SettingsList } from "@/components/settings-list";
 import { SettingsHeader } from "../settings-header";
 import {
   ProviderSettingsCard,
@@ -81,24 +83,31 @@ export default function AiProvidersPage() {
           text={t("settings:ai_providers_description")}
         />
         <Separator />
-        <div className="overflow-hidden rounded-lg border">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
-              <Skeleton className="h-9 w-9 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <Skeleton className="h-3 w-64" />
-              </div>
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-8 w-8 rounded-md" />
-                <Skeleton className="h-5 w-9 rounded-full" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <ul
+              className="divide-y [&>li]:py-3 [&>li:first-child]:pt-0 [&>li:last-child]:pb-0"
+              aria-hidden
+            >
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <li key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                    <Skeleton className="h-5 w-9 rounded-full" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -154,29 +163,37 @@ export default function AiProvidersPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border">
-            {sortedProviders.map((provider, index, arr) => (
-              <ProviderSettingsCardWrapper
-                key={provider.id}
-                provider={provider}
-                isLast={index === arr.length - 1}
-                onToggleEnabled={(enabled) => updateSettings({ providerId: provider.id, enabled })}
-                onSetDefault={() => setDefault({ providerId: provider.id })}
-                onCustomUrlChange={(url) => handleCustomUrlChange(provider.id, url)}
-                onSelectModel={(modelId) => handleSelectModel(provider.id, modelId)}
-                onSetFavoriteModels={(modelIds, capabilityOverride) =>
-                  handleSetFavoriteModels(provider.id, modelIds, capabilityOverride)
-                }
-                onSetCapabilityOverride={(modelId, overrides) =>
-                  handleSetCapabilityOverride(provider.id, modelId, overrides)
-                }
-                onToolsAllowlistChange={(tools) => handleToolsAllowlistChange(provider.id, tools)}
-                onTuningOverridesChange={(overrides) =>
-                  handleTuningOverridesChange(provider.id, overrides)
-                }
-              />
-            ))}
-          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <SettingsList label={t("settings:nav.items.ai_providers")}>
+                {sortedProviders.map((provider) => (
+                  <li key={provider.id}>
+                    <ProviderSettingsCardWrapper
+                      provider={provider}
+                      onToggleEnabled={(enabled) =>
+                        updateSettings({ providerId: provider.id, enabled })
+                      }
+                      onSetDefault={() => setDefault({ providerId: provider.id })}
+                      onCustomUrlChange={(url) => handleCustomUrlChange(provider.id, url)}
+                      onSelectModel={(modelId) => handleSelectModel(provider.id, modelId)}
+                      onSetFavoriteModels={(modelIds, capabilityOverride) =>
+                        handleSetFavoriteModels(provider.id, modelIds, capabilityOverride)
+                      }
+                      onSetCapabilityOverride={(modelId, overrides) =>
+                        handleSetCapabilityOverride(provider.id, modelId, overrides)
+                      }
+                      onToolsAllowlistChange={(tools) =>
+                        handleToolsAllowlistChange(provider.id, tools)
+                      }
+                      onTuningOverridesChange={(overrides) =>
+                        handleTuningOverridesChange(provider.id, overrides)
+                      }
+                    />
+                  </li>
+                ))}
+              </SettingsList>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
@@ -188,7 +205,6 @@ export default function AiProvidersPage() {
  */
 function ProviderSettingsCardWrapper({
   provider,
-  isLast,
   onToggleEnabled,
   onSetDefault,
   onCustomUrlChange,
@@ -199,7 +215,6 @@ function ProviderSettingsCardWrapper({
   onTuningOverridesChange,
 }: {
   provider: Parameters<typeof ProviderSettingsCard>[0]["provider"];
-  isLast: boolean;
   onToggleEnabled: (enabled: boolean) => void;
   onSetDefault: () => void;
   onCustomUrlChange: (url: string) => void;
@@ -233,7 +248,6 @@ function ProviderSettingsCardWrapper({
   return (
     <ProviderSettingsCard
       provider={provider}
-      isLast={isLast}
       onToggleEnabled={onToggleEnabled}
       onSetDefault={onSetDefault}
       onSaveApiKey={(apiKey) => setApiKey.mutate(apiKey)}

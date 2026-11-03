@@ -11,8 +11,8 @@
  * - The Budget page (uses `MonthSwitcher` — budgets are inherently
  *   per-month with rollover, no useful "1Y" view).
  *
- * Dashboard links use shared period-preference keys so the most recent explicit
- * dashboard or insights period selection wins when moving between surfaces.
+ * The dashboard tabs and the insights page share the last explicit period pick
+ * (see `lib/dashboard-period-sync.ts`).
  */
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -89,6 +89,11 @@ interface SpendingPeriodSelectorProps {
   onCustomMonthChange: (monthKey: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
   isLoading?: boolean;
+  /**
+   * "chart" sits under a chart, like the dashboard's interval selector; "header" sits in a
+   * page header, like the shared date range selector (presets on a track, plain calendar).
+   */
+  appearance?: "chart" | "header";
   className?: string;
 }
 
@@ -101,14 +106,17 @@ export function SpendingPeriodSelector({
   onCustomMonthChange,
   onCustomRangeChange,
   isLoading,
+  appearance = "chart",
   className,
 }: SpendingPeriodSelectorProps) {
   const isMobile = useIsMobile();
+  const header = appearance === "header";
 
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 max-w-full items-center justify-center gap-1.5",
+        "flex min-w-0 max-w-full items-center gap-1.5",
+        header ? "justify-end gap-1" : "w-full justify-center",
         className,
       )}
       aria-busy={isLoading ? "true" : undefined}
@@ -117,8 +125,8 @@ export function SpendingPeriodSelector({
         value={value}
         onValueChange={onValueChange}
         size={isMobile ? "compact" : "sm"}
-        variant="default"
-        className="min-w-0 bg-transparent"
+        variant={header ? "secondary" : "default"}
+        className={header ? "min-w-0" : "min-w-0 bg-transparent"}
       />
       <SpendingDatePicker
         customMonth={customMonth}
@@ -126,6 +134,7 @@ export function SpendingPeriodSelector({
         maxMonth={maxMonth}
         onCustomMonthChange={onCustomMonthChange}
         onCustomRangeChange={onCustomRangeChange}
+        appearance={appearance}
       />
     </div>
   );

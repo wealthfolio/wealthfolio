@@ -420,7 +420,8 @@
     "monthlyAverage": "Monatlicher Durchschnitt",
     "byType": "Nach Typ",
     "monthlyIncome": "Monatliche Erträge",
-    "sources": "Quellen"
+    "sources": "Quellen",
+    "yoyShort": "Zum Vorjahr"
   },
   "categorizationContext": {
     "loading": "Kategorisierungskontext wird geladen…",
@@ -626,5 +627,29 @@
       "otherTitle": "Sonstiges",
       "otherBlurb": "Verschiedene anbieterspezifische Optionen."
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "Einstellungen der KI-Anbieter",
+    "thisModel": "Dieses Modell",
+    "selectedModel": "ausgewähltes Modell",
+    "thinkingUnsupported": "**Denkmodus nicht unterstützt**\n\n{{modelName}} unterstützt keine Denk- oder Reasoning-Funktion.\n\nVersuchen Sie ein unterstütztes Modell oder prüfen Sie die {{settingsLink}}.",
+    "modelUnavailable": "**Modell nicht verfügbar**\n\nDas Modell „{{modelName}}“ wurde nicht gefunden. Mögliche Gründe:\n- Das Modell wurde noch nicht heruntergeladen\n- Der Modellname ist falsch\n- Der KI-Anbieter läuft nicht\n\nWählen Sie in den {{settingsLink}} ein anderes Modell oder prüfen Sie die Konfiguration.",
+    "connectionRefused": "**Keine Verbindung zum KI-Anbieter**\n\nDer KI-Anbieter scheint nicht zu laufen. Bitte:\n1. Starten Sie Ihren lokalen KI-Anbieter (z. B. Ollama)\n2. Prüfen Sie die Anbieter-URL in den {{settingsLink}}\n3. Versuchen Sie es erneut",
+    "authentication": "**Authentifizierung fehlgeschlagen**\n\nIhr API-Schlüssel fehlt oder ist ungültig. Prüfen Sie die {{settingsLink}} und die Konfiguration Ihres API-Schlüssels.",
+    "rateLimit": "**Anfragelimit überschritten**\n\nSie haben zu viele Anfragen gestellt. Warten Sie einen Moment und versuchen Sie es erneut.",
+    "timeout": "**Zeitüberschreitung**\n\nDer KI-Anbieter antwortet zu langsam. Mögliche Ursachen sind eine langsame Verbindung, Überlastung oder eine komplexe Anfrage.\n\nVersuchen Sie es erneut oder wählen Sie in den {{settingsLink}} ein schnelleres Modell.",
+    "provider": "**Anbieterfehler**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}.",
+    "unknown": "**Ein Fehler ist aufgetreten**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}."
+  },
+  "importSessionErrors": {
+    "missingCsv": "Kein CSV-Inhalt verfügbar. Das KI-Werkzeugergebnis ist möglicherweise unvollständig.",
+    "emptyCsv": "Die CSV-Datei enthält keine Datenzeilen.",
+    "noActivities": "Es konnten keine Aktivitäten extrahiert werden. Die Spaltenzuordnung ist möglicherweise falsch.",
+    "prepareFailed": "CSV-Import konnte nicht vorbereitet werden.",
+    "revalidateFailed": "Erneute Validierung fehlgeschlagen.",
+    "nothing": "Nichts zu importieren.",
+    "allInvalid": "Alle Aktivitäten weisen Validierungsfehler auf. Korrigieren Sie diese und versuchen Sie es erneut.",
+    "importFailed": "Aktivitäten konnten nicht importiert werden.",
+    "reviewAndRetry": "Import fehlgeschlagen. Überprüfen Sie die Fehler und versuchen Sie es erneut."
   }
 }

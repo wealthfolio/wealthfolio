@@ -1,6 +1,5 @@
 ---
 source: crates/ai/tests/tool_schemas.rs
-assertion_line: 188
 expression: snapshot
 ---
 {
@@ -35,7 +34,13 @@ expression: snapshot
       "amount": {
         "type": "number"
       },
+      "currency": {
+        "type": "string"
+      },
       "fee": {
+        "type": "number"
+      },
+      "fxRate": {
         "type": "number"
       },
       "notes": {

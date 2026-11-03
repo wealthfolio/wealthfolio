@@ -7,13 +7,24 @@ use std::sync::{Arc, RwLock};
 
 use wealthfolio_ai::{AgentEnvironment, AiEnvironment, ChatRepositoryTrait};
 use wealthfolio_core::{
-    accounts::AccountServiceTrait, activities::ActivityServiceTrait,
-    allocation::AllocationServiceTrait, assets::AssetServiceTrait, goals::GoalServiceTrait,
-    health::HealthServiceTrait, holdings::HoldingsServiceTrait, income::IncomeServiceTrait,
-    limits::ContributionLimitServiceTrait, performance::PerformanceServiceTrait,
-    portfolio::net_worth::NetWorthServiceTrait, portfolios::PortfolioServiceTrait,
-    quotes::QuoteServiceTrait, secrets::SecretStore, settings::SettingsServiceTrait,
-    taxonomies::TaxonomyServiceTrait, valuation::ValuationServiceTrait,
+    accounts::AccountServiceTrait,
+    activities::ActivityServiceTrait,
+    allocation::AllocationServiceTrait,
+    assets::AssetServiceTrait,
+    goals::GoalServiceTrait,
+    health::{HealthServiceTrait, HealthStatus},
+    holdings::HoldingsServiceTrait,
+    income::IncomeServiceTrait,
+    limits::ContributionLimitServiceTrait,
+    lots::LotRepositoryTrait,
+    performance::PerformanceServiceTrait,
+    portfolio::{net_worth::NetWorthServiceTrait, snapshot::SnapshotServiceTrait},
+    portfolios::PortfolioServiceTrait,
+    quotes::QuoteServiceTrait,
+    secrets::SecretStore,
+    settings::SettingsServiceTrait,
+    taxonomies::TaxonomyServiceTrait,
+    valuation::ValuationServiceTrait,
 };
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
 use wealthfolio_spending::cash_activities::{CashActivityService, CashActivityServiceTrait};
@@ -27,6 +38,7 @@ use wealthfolio_spending::categorization_rules::{
 /// to the AI crate for tool execution.
 pub struct TauriAiEnvironment {
     base_currency: Arc<RwLock<String>>,
+    timezone: Arc<RwLock<String>>,
     account_service: Arc<dyn AccountServiceTrait + Send + Sync>,
     activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
     holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
@@ -48,6 +60,13 @@ pub struct TauriAiEnvironment {
     cash_activity_service: Arc<CashActivityService>,
     activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
     categorization_rules_service: Arc<CategorizationRulesService>,
+    budget_service: Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>,
+    spending_events_service: Arc<dyn wealthfolio_spending::events::EventsServiceTrait>,
+    spending_analytics_service: Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>,
+    spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
+    // Read by the health checks only.
+    snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
+    lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
 }
 
 impl TauriAiEnvironment {
@@ -55,6 +74,7 @@ impl TauriAiEnvironment {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         base_currency: Arc<RwLock<String>>,
+        timezone: Arc<RwLock<String>>,
         account_service: Arc<dyn AccountServiceTrait + Send + Sync>,
         activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
         holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
@@ -76,9 +96,16 @@ impl TauriAiEnvironment {
         cash_activity_service: Arc<CashActivityService>,
         activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
         categorization_rules_service: Arc<CategorizationRulesService>,
+        budget_service: Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>,
+        spending_events_service: Arc<dyn wealthfolio_spending::events::EventsServiceTrait>,
+        spending_analytics_service: Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>,
+        spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
+        snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
+        lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
     ) -> Self {
         Self {
             base_currency,
+            timezone,
             account_service,
             activity_service,
             holdings_service,
@@ -100,11 +127,34 @@ impl TauriAiEnvironment {
             cash_activity_service,
             activity_taxonomy_assignment_service,
             categorization_rules_service,
+            budget_service,
+            spending_events_service,
+            spending_analytics_service,
+            spending_insight_service,
+            snapshot_service,
+            lot_repository,
         }
     }
 }
 
+#[async_trait::async_trait]
 impl AgentEnvironment for TauriAiEnvironment {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        self.budget_service.clone()
+    }
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        self.spending_events_service.clone()
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        self.spending_analytics_service.clone()
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        self.spending_insight_service.clone()
+    }
     fn base_currency(&self) -> String {
         self.base_currency
             .read()
@@ -182,6 +232,30 @@ impl AgentEnvironment for TauriAiEnvironment {
 
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait> {
         self.categorization_rules_service.clone()
+    }
+
+    async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {
+        let configured_timezone = self
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        self.health_service
+            .run_full_checks(
+                &self.base_currency(),
+                self.account_service.clone(),
+                self.holdings_service.clone(),
+                self.quote_service.clone(),
+                self.asset_service.clone(),
+                self.taxonomy_service.clone(),
+                self.valuation_service.clone(),
+                self.snapshot_service.clone(),
+                self.activity_service.clone(),
+                self.lot_repository.clone(),
+                Some(configured_timezone.as_str()),
+                None,
+            )
+            .await
     }
 }
 

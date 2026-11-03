@@ -123,6 +123,33 @@ describe("correcting original loan terms", () => {
     }
   });
 
+  it("explains a zero payment with its own message", () => {
+    const result = assetDetailsSchema.safeParse({ ...defaults(), paymentAmount: 0 });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues
+        .filter((issue) => issue.path[0] === "paymentAmount")
+        .map((issue) => issue.message);
+      expect(messages[0]).toBe("asset:loanActions.validation.payment_positive");
+    }
+  });
+
+  it("explains a term over 100 years with its own message", () => {
+    for (const [field, value] of [
+      ["amortizationYears", 101],
+      ["amortizationMonths", 1201],
+    ] as const) {
+      const result = assetDetailsSchema.safeParse({ ...defaults(), [field]: value });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues
+          .filter((issue) => issue.path[0] === field)
+          .map((issue) => issue.message);
+        expect(messages[0]).toBe("asset:loanActions.validation.term_too_long");
+      }
+    }
+  });
+
   it("sends renewal maturity with the schedule, and none once cleared", () => {
     const values = assetDetailsSchema.parse({
       ...defaults(),

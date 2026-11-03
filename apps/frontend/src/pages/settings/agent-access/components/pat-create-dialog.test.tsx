@@ -75,8 +75,8 @@ describe("PatCreateDialog scope dependencies", () => {
       />,
     );
 
-    const write = scopeCheckbox("Classification — apply/write");
-    const suggest = scopeCheckbox("Classification — suggest");
+    const write = scopeCheckbox("Asset classification — apply/write");
+    const suggest = scopeCheckbox("Asset classification — suggest");
 
     expect(suggest).toHaveAttribute("aria-checked", "false");
 
@@ -90,6 +90,26 @@ describe("PatCreateDialog scope dependencies", () => {
     expect(suggest).toHaveAttribute("aria-checked", "false");
     expect(suggest).not.toBeDisabled();
   });
+
+  it.each(["Organize spending", "Manage budgets"])(
+    "derives spending read for %s without granting the other write",
+    (label) => {
+      render(<PatCreateDialog open onOpenChange={vi.fn()} onCreate={vi.fn()} isCreating={false} />);
+      const read = scopeCheckbox("View spending");
+      fireEvent.click(read);
+      expect(read).toHaveAttribute("aria-checked", "false");
+      const write = scopeCheckbox(label);
+      fireEvent.click(write);
+      expect(read).toBeDisabled();
+      expect(read).toHaveAttribute("aria-checked", "true");
+      expect(
+        scopeCheckbox(label === "Organize spending" ? "Manage budgets" : "Organize spending"),
+      ).toHaveAttribute("aria-checked", "false");
+      fireEvent.click(write);
+      expect(read).not.toBeDisabled();
+      expect(read).toHaveAttribute("aria-checked", "false");
+    },
+  );
 
   it("derives holdings read from market data write", () => {
     render(

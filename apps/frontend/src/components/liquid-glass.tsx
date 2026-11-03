@@ -53,7 +53,7 @@ export function LiquidGlass({
       style={{ ...style }}
     >
       <div className="relative z-10">{children}</div>
-      <div className="z-5 pointer-events-none absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 z-5 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
     </div>
   );
 }

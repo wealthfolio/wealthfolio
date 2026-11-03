@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use db::get_connection;
 use diesel::prelude::*;
 use rust_decimal::Decimal;
@@ -10,12 +12,12 @@ use wealthfolio_storage_sqlite::{
 };
 
 fn setup_db() -> (
-    tempfile::TempDir,
+    common::TestDir,
     std::sync::Arc<db::DbPool>,
     db::WriteHandle,
     std::sync::Arc<wealthfolio_storage_sqlite::sync::ProfileSyncState>,
 ) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

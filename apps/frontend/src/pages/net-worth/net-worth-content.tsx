@@ -7,15 +7,16 @@ import { formatDateISO, parseLocalDate } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
 import { DashboardCard } from "@/components/dashboard-card";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
   GainAmount,
   GainPercent,
   IntervalSelector,
-  getInitialIntervalData,
   useNumberFormatting,
   type TimePeriod,
 } from "@wealthfolio/ui";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
+import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import {
@@ -32,7 +33,6 @@ import { CategoryDetailSheet } from "./components/category-detail-sheet";
 import { NetWorthAttention } from "./components/net-worth-attention";
 import { MomentumCard } from "./components/momentum-card";
 import {
-  THEME_COLOR,
   THEME_COLOR_LIGHT,
   computeMomentum,
   computeVelocity,
@@ -41,6 +41,7 @@ import {
   investmentAllocation,
   isPlainPercent,
   parseHistory,
+  themeColorTint,
   toneClass,
   type ParsedNetWorth,
   type SelectedCategory,
@@ -50,6 +51,7 @@ import { NetWorthChart } from "./net-worth-chart";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 
 const DEFAULT_INTERVAL: TimePeriod = "ALL";
+// Read only until any dashboard tab picks a shared period.
 const INTERVAL_STORAGE_KEY = "networth-interval";
 const MS_PER_DAY = 86_400_000;
 
@@ -68,16 +70,13 @@ export function NetWorthContent() {
   });
   const isMobile = useIsMobileViewport();
 
-  const [periodCode, setPeriodCode] = usePersistentState<TimePeriod>(
-    INTERVAL_STORAGE_KEY,
-    DEFAULT_INTERVAL,
-  );
+  const period = useDashboardPeriod(currentDateISO, {
+    key: INTERVAL_STORAGE_KEY,
+    initial: DEFAULT_INTERVAL,
+  });
+  const { code: periodCode, range: dateRange } = period;
   // A local Date carries the configured calendar day for the date-only interval helper.
   const currentDate = useMemo(() => parseLocalDate(currentDateISO), [currentDateISO]);
-  const dateRange = useMemo(
-    () => getInitialIntervalData(periodCode, currentDate).range,
-    [periodCode, currentDate],
-  );
 
   // ISO date strings for the selected-range history query.
   const historyDates = useMemo(() => {
@@ -112,36 +111,33 @@ export function NetWorthContent() {
     enabled: !!longHistoryDates,
   });
 
-  const handleIntervalSelect = (code: TimePeriod) => {
-    setPeriodCode(code);
-  };
-
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
     return {
-      netWorth: parseFloat(netWorthData.netWorth) || 0,
+      netWorth: netWorthData.netWorth,
       assets: {
-        total: parseFloat(netWorthData.assets.total) || 0,
+        total: netWorthData.assets.total,
         breakdown: (netWorthData.assets.breakdown || []).map((item) => ({
           category: item.category,
           name: getNetWorthCategoryLabel(t, item.category, item.name),
-          value: parseFloat(item.value) || 0,
+          value: item.value,
           assetId: item.assetId,
           children: (item.children ?? []).map((child) => ({
             category: child.category,
             name: child.name,
-            value: parseFloat(child.value) || 0,
+            value: child.value,
             assetId: child.assetId,
           })),
         })),
       },
       liabilities: {
-        total: parseFloat(netWorthData.liabilities.total) || 0,
+        total: netWorthData.liabilities.total,
         breakdown: (netWorthData.liabilities.breakdown || []).map((item) => ({
           category: item.category,
           name: item.name,
-          value: parseFloat(item.value) || 0,
+          value: item.value,
           assetId: item.assetId,
+          firstValueDate: item.firstValueDate,
         })),
       },
     };
@@ -187,8 +183,8 @@ export function NetWorthContent() {
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
-  const periodLabel = periodCode;
-  const localizedPeriodLabel = t(`ui:interval.${periodCode}`);
+  const periodLabel = periodCode ?? period.label;
+  const localizedPeriodLabel = period.label;
 
   // Breakdown row → detail drawer. Investments open the existing asset-class
   // allocation sheet; every other row opens the category detail sheet.
@@ -205,7 +201,7 @@ export function NetWorthContent() {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-8">
         <div className="text-center">
-          <div className="text-destructive-subtle-foreground bg-current/15 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+          <div className="text-destructive-subtle-foreground mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-current/15">
             <Icons.AlertTriangle className="h-6 w-6" />
           </div>
           <p className="text-destructive text-lg font-medium">
@@ -220,10 +216,10 @@ export function NetWorthContent() {
   return (
     <div className="flex min-h-full flex-col">
       {/* Top section: Net Worth value */}
-      <div className="px-4 pb-1 pt-2 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-1 md:px-6 md:pb-2 lg:px-8">
         <div className="flex items-start gap-2">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Balance
                 isLoading={isLoading}
                 targetValue={parsedData?.netWorth ?? 0}
@@ -232,12 +228,13 @@ export function NetWorthContent() {
                 displayDecimal={false}
                 compact={isMobile}
               />
+              <PrivacyToggle variant="ghost" />
               {hasStaleValuations && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <div className="text-warning-subtle-foreground bg-current/15 flex h-8 w-8 items-center justify-center rounded-full" />
+                        <div className="text-warning-subtle-foreground flex h-8 w-8 items-center justify-center rounded-full bg-current/15" />
                       }
                     >
                       <Icons.AlertCircle className="h-4 w-4" />
@@ -303,11 +300,9 @@ export function NetWorthContent() {
                   )}
                 </>
               )}
-              {periodCode && (
-                <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                  {t(`ui:interval.${periodCode}`)}
-                </span>
-              )}
+              <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
+                {localizedPeriodLabel}
+              </span>
             </div>
           </div>
         </div>
@@ -317,7 +312,7 @@ export function NetWorthContent() {
       <div
         className="flex grow flex-col"
         style={{
-          backgroundImage: `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
+          backgroundImage: `linear-gradient(to top, ${themeColorTint(30)}, ${themeColorTint(15)} 50%, transparent 100%)`,
         }}
       >
         {/* Chart section */}
@@ -338,18 +333,27 @@ export function NetWorthContent() {
           )}
           {historyData && historyData.length > 0 && (
             <div className="flex w-full justify-center">
-              <IntervalSelector
-                className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
-                onIntervalSelect={handleIntervalSelect}
-                isLoading={isHistoryLoading}
-                value={periodCode}
-              />
+              <div className="pointer-events-auto relative z-20 flex w-full max-w-screen-sm min-w-0 items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
+                <IntervalSelector
+                  className="w-auto"
+                  onIntervalSelect={period.selectPreset}
+                  isLoading={isHistoryLoading}
+                  value={periodCode}
+                />
+                <SpendingDatePicker
+                  customMonth={period.customMonth}
+                  customRange={period.customRange}
+                  maxMonth={period.maxMonth}
+                  onCustomMonthChange={period.selectMonth}
+                  onCustomRangeChange={period.selectRange}
+                />
+              </div>
             </div>
           )}
         </div>
 
         {/* Content section */}
-        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-14 md:px-6 md:pb-6 md:pt-12 lg:px-10 lg:pb-8 lg:pt-14">
+        <div className="grow px-4 pt-14 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-12 md:pb-6 lg:px-10 lg:pt-14 lg:pb-8">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
             {/* Left column: Breakdown */}
             <div className="lg:col-span-2">

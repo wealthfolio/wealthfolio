@@ -238,7 +238,7 @@ function AutoResolvedRow({
       ) : (
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {item.resolutionSource === "mark_custom" && (
-            <span className="text-2xs border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold uppercase tracking-wide">
+            <span className="text-2xs border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold tracking-wide uppercase">
               <Icons.Tag className="h-3 w-3 shrink-0" />
               {t("activity:import.assets.custom")}
             </span>
@@ -733,7 +733,7 @@ export function AssetReviewStep() {
             >
               <Icons.AlertTriangle className="text-warning mt-0.5 h-3.5 w-3.5 shrink-0" />
               <div className="flex-1">
-                <span className="text-warning-subtle-foreground text-xs font-semibold uppercase tracking-wider">
+                <span className="text-warning-subtle-foreground text-xs font-semibold tracking-wider uppercase">
                   {t("activity:import.assets.needsFixing")}
                 </span>
                 <p className="text-muted-foreground text-2xs mt-0.5">
@@ -831,7 +831,7 @@ export function AssetReviewStep() {
               >
                 <Icons.Sparkles className="text-info mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <div className="flex-1">
-                  <span className="text-info-subtle-foreground text-xs font-semibold uppercase tracking-wider">
+                  <span className="text-info-subtle-foreground text-xs font-semibold tracking-wider uppercase">
                     {t("activity:import.assets.newAssets")}
                   </span>
                   <p className="text-muted-foreground text-2xs mt-0.5">
@@ -919,7 +919,7 @@ export function AssetReviewStep() {
           >
             <Icons.CheckCircle className="text-success mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="flex-1">
-              <span className="text-success text-xs font-semibold uppercase tracking-wider">
+              <span className="text-success text-xs font-semibold tracking-wider uppercase">
                 {t("activity:import.assets.existingAssets")}
               </span>
               <p className="text-muted-foreground text-2xs mt-0.5">

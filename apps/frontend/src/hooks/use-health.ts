@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FixAction, HealthConfig, HealthStatus } from "@/lib/types";
 import {
@@ -39,18 +40,22 @@ export function useRunHealthChecks(options?: { navigate?: (path: string) => void
       queryClient.setQueryData([QueryKeys.HEALTH_STATUS], data);
       const issueCount = data.issues?.length ?? 0;
       if (issueCount === 0) {
-        toast.success("All checks passed", { description: "No issues found." });
+        toast.success(i18n.t("common:notifications.all_checks_passed"), {
+          description: i18n.t("common:notifications.no_issues_found"),
+        });
       } else {
-        toast.error(`${issueCount} issue${issueCount > 1 ? "s" : ""} found`, {
-          description: "Review the details in the Health Center.",
+        toast.error(i18n.t("common:notifications.issues_found", { count: issueCount }), {
+          description: i18n.t("common:notifications.review_the_details_in_the_health_center"),
           action: options?.navigate
-            ? { label: "View", onClick: () => options.navigate!("/health") }
+            ? { label: i18n.t("common:view"), onClick: () => options.navigate!("/health") }
             : undefined,
         });
       }
     },
     onError: (error: Error) => {
-      toast.error("Health check failed", { description: error.message });
+      toast.error(i18n.t("common:notifications.health_check_failed"), {
+        description: error.message,
+      });
     },
   });
 }
@@ -66,10 +71,12 @@ export function useDismissHealthIssue() {
       dismissHealthIssue(issueId, dataHash),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
-      toast.success("Issue dismissed");
+      toast.success(i18n.t("common:notifications.issue_dismissed"));
     },
     onError: (error: Error) => {
-      toast.error("Failed to dismiss issue", { description: error.message });
+      toast.error(i18n.t("common:notifications.failed_to_dismiss_issue"), {
+        description: error.message,
+      });
     },
   });
 }
@@ -84,10 +91,12 @@ export function useRestoreHealthIssue() {
     mutationFn: restoreHealthIssue,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
-      toast.success("Issue restored");
+      toast.success(i18n.t("common:notifications.issue_restored"));
     },
     onError: (error: Error) => {
-      toast.error("Failed to restore issue", { description: error.message });
+      toast.error(i18n.t("common:notifications.failed_to_restore_issue"), {
+        description: error.message,
+      });
     },
   });
 }
@@ -119,21 +128,21 @@ export function useExecuteHealthFix() {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS] });
       // Skip toast for sync actions — global event listeners handle feedback
       if (actionId === "rebuild_account_history") {
-        toast.success("History rebuild started", {
-          description: "Health will refresh after recalculation finishes.",
+        toast.success(i18n.t("common:notifications.history_rebuild_started"), {
+          description: i18n.t("common:notifications.health_refresh_after_recalculation"),
         });
       } else if (actionId !== "sync_prices" && actionId !== "retry_sync") {
-        toast.success("Fix applied successfully");
+        toast.success(i18n.t("common:notifications.fix_applied_successfully"));
       }
     },
     onError: (error: Error, action) => {
       if (action.id === "sync_prices" || action.id === "retry_sync") {
-        toast.error("Market Data Sync Failed", {
+        toast.error(i18n.t("common:globalEvents.marketSyncFailed"), {
           id: "market-sync-error",
-          description: `${error.message}. Please try again later.`,
+          description: i18n.t("common:globalEvents.errorTryAgainLater", { error: error.message }),
         });
       } else {
-        toast.error("Fix failed", { description: error.message });
+        toast.error(i18n.t("common:notifications.fix_failed"), { description: error.message });
       }
     },
   });
@@ -163,10 +172,12 @@ export function useUpdateHealthConfig() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_CONFIG] });
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
-      toast.success("Configuration updated");
+      toast.success(i18n.t("common:notifications.configuration_updated"));
     },
     onError: (error: Error) => {
-      toast.error("Failed to update configuration", { description: error.message });
+      toast.error(i18n.t("common:notifications.failed_to_update_configuration"), {
+        description: error.message,
+      });
     },
   });
 }

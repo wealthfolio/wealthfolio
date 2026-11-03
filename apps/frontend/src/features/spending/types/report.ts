@@ -3,6 +3,11 @@ export interface PeriodSummary {
   outflow: number;
   /** Money set aside into the Savings taxonomy (transfers to investing accounts). */
   saved: number;
+  /**
+   * Money brought back from those accounts. Gross, like `saved`: net saving is
+   * `saved - fromSavings`, and `net = income - outflow - saved + fromSavings`.
+   */
+  fromSavings?: number;
   net: number;
   count: number;
 }

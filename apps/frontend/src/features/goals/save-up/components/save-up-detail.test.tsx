@@ -59,8 +59,8 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-async function savePlan() {
-  render(<SaveUpDetailPage goal={goal} plan={null} />, { wrapper });
+async function savePlan(succeeds = true) {
+  const view = render(<SaveUpDetailPage goal={goal} plan={null} />, { wrapper });
   fireEvent.click(screen.getByRole("button", { name: "Edit Savings Inputs" }));
   fireEvent.change(screen.getAllByRole("slider")[0], { target: { value: "20000" } });
   // The header and footer both render Save; it reads "Previewing…" until the preview resolves.
@@ -68,10 +68,11 @@ async function savePlan() {
   await waitFor(() => expect(save).toBeEnabled());
   fireEvent.click(save);
   await waitFor(() => {
-    expect(mocks.saveGoalPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.saveGoalPlan).toHaveBeenCalledTimes(succeeds ? 1 : 0);
     expect(mocks.updateGoal).toHaveBeenCalledTimes(1);
     expect(queryClient.isMutating()).toBe(0);
   });
+  return view;
 }
 
 beforeEach(() => {
@@ -84,7 +85,7 @@ beforeEach(() => {
 });
 
 describe("SaveUpDetailPage plan save", () => {
-  it("shows one success toast and still syncs the goal summary", async () => {
+  it("saves inputs in order and leaves calculated fields to the backend", async () => {
     mocks.updateGoal.mockResolvedValue(goal);
 
     await savePlan();
@@ -92,21 +93,69 @@ describe("SaveUpDetailPage plan save", () => {
     expect(mocks.updateGoal).toHaveBeenCalledWith(
       expect.objectContaining({
         targetAmount: 20000,
-        summaryProgress: 0.05,
-        projectedValueAtTargetDate: 19000,
-        statusHealth: "at_risk",
+        targetDate: null,
+        statusHealth: "on_track",
       }),
     );
+    expect(mocks.updateGoal.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.saveGoalPlan.mock.invocationCallOrder[0],
+    );
+    expect(mocks.updateGoal.mock.calls[0][0]).not.toHaveProperty("projectedValueAtTargetDate");
     expect(mocks.success.mock.calls).toEqual([[enGoals.plan_saved]]);
     expect(mocks.error).not.toHaveBeenCalled();
   });
 
-  it("still reports a failed goal summary sync", async () => {
+  it("keeps the draft open and does not save the plan when target persistence fails", async () => {
     mocks.updateGoal.mockRejectedValue(new Error("locked"));
 
-    await savePlan();
-
-    expect(mocks.success.mock.calls).toEqual([[enGoals.plan_saved]]);
+    await savePlan(false);
+    expect(mocks.success).not.toHaveBeenCalled();
     expect(mocks.error.mock.calls).toEqual([[enGoals.goal_error]]);
+    expect(screen.getAllByRole("button", { name: "Save" })[0]).toBeEnabled();
+  });
+  it("keeps the draft after a partial save when the plan write fails", async () => {
+    mocks.updateGoal.mockResolvedValue(goal);
+    mocks.saveGoalPlan.mockRejectedValue(new Error("locked"));
+    const view = await savePlan();
+    view.rerender(<SaveUpDetailPage goal={{ ...goal, targetAmount: 20000 }} plan={null} />);
+    expect(mocks.success).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledWith(enGoals.plan_error);
+    expect(screen.getAllByRole("button", { name: "Save" })[0]).toBeEnabled();
+  });
+});
+
+describe("SaveUpDetailPage dates", () => {
+  const lateGoal = { ...goal, targetAmount: 20000, targetDate: "2026-12-30" };
+
+  it("shows the day for the target date and finish when they fall in the same month", () => {
+    render(
+      <SaveUpDetailPage
+        goal={lateGoal}
+        plan={null}
+        overview={{ ...preview, projectedCompletionDate: "2026-12-31" }}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("by Dec 30, 2026.");
+    // The hero metric and the plan sidebar.
+    expect(screen.getAllByText("Dec 30, 2026")).toHaveLength(2);
+    expect(screen.getByText("Dec 31, 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Dec 2026")).not.toBeInTheDocument();
+  });
+
+  it("shows only the month when the finish falls in another month", () => {
+    render(
+      <SaveUpDetailPage
+        goal={lateGoal}
+        plan={null}
+        overview={{ ...preview, projectedCompletionDate: "2027-01-04" }}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getAllByText("Dec 2026")).toHaveLength(2);
+    expect(screen.getByText("Jan 2027")).toBeInTheDocument();
+    expect(screen.queryByText("Dec 30, 2026")).not.toBeInTheDocument();
   });
 });

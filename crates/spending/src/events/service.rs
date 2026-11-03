@@ -181,6 +181,30 @@ impl EventsService {
 
         Ok(updated)
     }
+
+    pub async fn update_event_reviewed(
+        &self,
+        expected: Event,
+        patch: UpdateEvent,
+    ) -> Result<Event> {
+        validate_event_range(
+            patch.start_date.as_deref().unwrap_or(&expected.start_date),
+            patch.end_date.as_deref().unwrap_or(&expected.end_date),
+        )?;
+        self.events_repo.update_reviewed(expected, patch).await
+    }
+    pub async fn delete_event_reviewed(
+        &self,
+        expected: Event,
+        expected_tag_count: usize,
+    ) -> Result<()> {
+        self.events_repo
+            .delete_reviewed(expected, expected_tag_count)
+            .await
+    }
+    pub async fn event_tag_count(&self, event_id: &str) -> Result<usize> {
+        Ok(self.activity_events.list_for_event(event_id).await?.len())
+    }
     pub async fn delete_event(&self, id: &str) -> Result<()> {
         if self.events_repo.get(id).await?.is_none() {
             return Err(SpendingError::NotFound {
@@ -193,18 +217,21 @@ impl EventsService {
     }
 }
 
-/// Reject `start_date > end_date`. Accepts either RFC3339 timestamps or
-/// `YYYY-MM-DD` date strings; lexicographic comparison works for both (RFC3339
-/// is sortable and pure dates are sortable).
-fn validate_event_range(start: &str, end: &str) -> Result<()> {
-    // Prefer a parsed comparison when possible — falls back to lexicographic
-    // for `YYYY-MM-DD` strings (which the model documents as the on-disk shape
-    // even though the type calls itself "RFC3339").
-    let parsed = (parse_event_start_bound(start), parse_event_end_bound(end));
-    let bad = match parsed {
-        (Ok(s), Ok(e)) => s > e,
+/// Preserve the native range check, including legacy sortable date strings.
+pub fn validate_event_range(start: &str, end: &str) -> Result<()> {
+    let bad = match (parse_event_start_bound(start), parse_event_end_bound(end)) {
+        (Ok(start), Ok(end)) => start > end,
         _ => start > end,
     };
+    if bad {
+        return Err(SpendingError::InvalidEventRange.into());
+    }
+    Ok(())
+}
+
+/// Reviewed agent proposals require explicit calendar dates or zoned timestamps.
+pub fn validate_event_range_strict(start: &str, end: &str) -> Result<()> {
+    let bad = parse_event_start_bound(start)? > parse_event_end_bound(end)?;
     if bad {
         return Err(SpendingError::InvalidEventRange.into());
     }
@@ -229,7 +256,7 @@ fn parse_event_start_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {
-        message: format!("Unparseable event date: {s}"),
+        message: "Event dates must use YYYY-MM-DD or RFC3339".into(),
     }
     .into())
 }
@@ -248,7 +275,7 @@ fn parse_event_end_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {
-        message: format!("Unparseable event date: {s}"),
+        message: "Event dates must use YYYY-MM-DD or RFC3339".into(),
     }
     .into())
 }
@@ -266,6 +293,16 @@ mod tests {
     };
     use wealthfolio_core::limits::ContributionActivity;
 
+    #[test]
+    fn strict_event_date_errors_do_not_echo_input() {
+        let private_input = "private-event-details-not-a-date";
+        let error = validate_event_range_strict(private_input, "2026-06-02")
+            .unwrap_err()
+            .to_string();
+        assert!(!error.contains(private_input));
+        assert!(error.contains("YYYY-MM-DD or RFC3339"));
+    }
+
     // --------------- Mock events repo ---------------
 
     #[derive(Default)]
@@ -279,6 +316,13 @@ mod tests {
 
     #[async_trait]
     impl EventsRepositoryTrait for MockEventsRepo {
+        async fn update_reviewed(&self, _: Event, _: UpdateEvent) -> Result<Event> {
+            unimplemented!("reviewed events")
+        }
+        async fn delete_reviewed(&self, _: Event, _: usize) -> Result<()> {
+            unimplemented!("reviewed events")
+        }
+
         async fn list(&self) -> Result<Vec<Event>> {
             Ok(self.events.lock().unwrap().clone())
         }
@@ -415,6 +459,15 @@ mod tests {
 
     #[async_trait]
     impl crate::activity_events::ActivityEventsRepositoryTrait for MockActivityEventsRepo {
+        async fn set_event_reviewed(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<String>,
+        ) -> Result<()> {
+            unimplemented!("reviewed tags")
+        }
+
         async fn list_for_activities(
             &self,
             ids: &[String],

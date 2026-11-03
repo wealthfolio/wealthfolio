@@ -706,9 +706,9 @@ export function DeviceSyncSection() {
           </CardContent>
 
           <AlertDialog open={showReinitConfirmDialog} onOpenChange={setShowReinitConfirmDialog}>
-            <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:bottom-6 max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
+            <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:start-4 max-sm:end-4 max-sm:top-auto max-sm:bottom-6 max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
               <AlertDialogHeader className="items-center gap-4 px-8 text-center">
-                <div className="text-warning-subtle-foreground bg-current/15 flex h-14 w-14 items-center justify-center rounded-full">
+                <div className="text-warning-subtle-foreground flex h-14 w-14 items-center justify-center rounded-full bg-current/15">
                   <Icons.AlertTriangle className="h-6 w-6" />
                 </div>
                 <AlertDialogTitle className="text-center text-xl">
@@ -1223,7 +1223,7 @@ function DeviceCard({
             <Icon weight="duotone" className="text-muted-foreground size-5" />
           </div>
           {isOnline && (
-            <span className="border-background bg-success absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2" />
+            <span className="border-background bg-success absolute -end-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2" />
           )}
         </div>
 
@@ -1324,7 +1324,7 @@ function DeviceCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-muted-foreground size-11 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 sm:size-7"
+                    className="text-muted-foreground size-11 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 sm:size-7"
                   />
                 }
               >

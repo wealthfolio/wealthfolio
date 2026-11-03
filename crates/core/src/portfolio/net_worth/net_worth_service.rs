@@ -30,6 +30,9 @@ use crate::utils::time_utils::{
 /// Number of days after which a valuation is considered stale.
 const STALENESS_THRESHOLD_DAYS: i64 = 90;
 
+/// Key prefix for a credit-card liability, in the breakdown and the history.
+const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";
+
 /// Service for calculating net worth.
 #[derive(Clone)]
 pub struct NetWorthService {
@@ -294,6 +297,7 @@ impl NetWorthService {
                         name: val.name.clone().unwrap_or_else(|| val.asset_id.clone()),
                         value: val.market_value_base,
                         asset_id: Some(val.asset_id.clone()),
+                        first_value_date: None,
                         children: Vec::new(),
                     });
             }
@@ -311,6 +315,7 @@ impl NetWorthService {
                     name: Self::category_display_name(category).to_string(),
                     value,
                     asset_id: None,
+                    first_value_date: None,
                     children,
                 }
             })
@@ -336,6 +341,7 @@ impl NetWorthService {
                 name: v.name.clone().unwrap_or_else(|| v.asset_id.clone()),
                 value: v.market_value_base,
                 asset_id: Some(v.asset_id.clone()),
+                first_value_date: None,
                 children: Vec::new(),
             })
             .collect();
@@ -347,6 +353,38 @@ impl NetWorthService {
         let total = breakdown.iter().map(|item| item.value).sum();
 
         LiabilitiesSection { total, breakdown }
+    }
+
+    /// Dates each credit-card row by the first day the card owed a balance. The
+    /// history omits a card on days it owes nothing, so without this a card paid
+    /// off before a range looks the same as one opened during it.
+    fn date_credit_card_first_balances(&self, liabilities: &mut LiabilitiesSection) -> Result<()> {
+        let card_account_id = |item: &BreakdownItem| {
+            item.asset_id
+                .as_deref()?
+                .strip_prefix(CREDIT_CARD_KEY_PREFIX)
+                .map(str::to_string)
+        };
+        let account_ids: Vec<String> = liabilities
+            .breakdown
+            .iter()
+            .filter_map(card_account_id)
+            .collect();
+        if account_ids.is_empty() {
+            return Ok(());
+        }
+        let first_balance_dates: HashMap<String, NaiveDate> = self
+            .valuation_repository
+            .get_accounts_with_negative_balance(&account_ids)?
+            .into_iter()
+            .map(|info| (info.account_id, info.first_negative_date))
+            .collect();
+        for item in &mut liabilities.breakdown {
+            if let Some(account_id) = card_account_id(item) {
+                item.first_value_date = first_balance_dates.get(&account_id).copied();
+            }
+        }
+        Ok(())
     }
 
     /// Calculate staleness info for valuations.
@@ -617,7 +655,7 @@ impl NetWorthServiceTrait for NetWorthService {
 
                 if cash_base_total < Decimal::ZERO {
                     valuations.push(ValuationInfo {
-                        asset_id: format!("CREDIT_CARD:{}", account.id),
+                        asset_id: format!("{CREDIT_CARD_KEY_PREFIX}{}", account.id),
                         name: Some(account.name.clone()),
                         market_value_base: cash_base_total.abs(),
                         valuation_date: snapshot.snapshot_date,
@@ -781,7 +819,8 @@ impl NetWorthServiceTrait for NetWorthService {
 
         // Build assets and liabilities sections
         let assets = Self::build_assets_section(&valuations);
-        let liabilities = Self::build_liabilities_section(&valuations);
+        let mut liabilities = Self::build_liabilities_section(&valuations);
+        self.date_credit_card_first_balances(&mut liabilities)?;
 
         // Calculate net worth
         let net_worth = assets.total - liabilities.total;
@@ -1281,7 +1320,7 @@ impl NetWorthService {
             }
             for (account_id, value) in &current_credit_card_liabilities {
                 if !value.is_zero() {
-                    breakdown.insert(format!("CREDIT_CARD:{}", account_id), *value);
+                    breakdown.insert(format!("{CREDIT_CARD_KEY_PREFIX}{}", account_id), *value);
                 }
             }
             for value in breakdown.values_mut() {

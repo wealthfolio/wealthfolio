@@ -61,6 +61,10 @@ pub struct BreakdownItem {
     /// Optional: asset ID for individual items (liabilities, specific holdings)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    /// First day the item carried a balance, when known (credit-card liabilities).
+    /// Tells a card paid off before a range apart from one opened during it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_value_date: Option<NaiveDate>,
     /// Individual items rolled up into this category, for drill-down. Empty for
     /// leaf items and for the Investments category (use allocation drill-down).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

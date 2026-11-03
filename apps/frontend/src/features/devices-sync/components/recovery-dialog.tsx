@@ -31,9 +31,9 @@ export function RecoveryDialog({ open, onOpenChange }: RecoveryDialogProps) {
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:bottom-6 max-sm:end-4 max-sm:start-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
+      <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:start-4 max-sm:end-4 max-sm:top-auto max-sm:bottom-6 max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
         <AlertDialogHeader className="items-center gap-4 px-8 text-center">
-          <div className="text-warning-subtle-foreground bg-current/15 flex h-14 w-14 items-center justify-center rounded-full">
+          <div className="text-warning-subtle-foreground flex h-14 w-14 items-center justify-center rounded-full bg-current/15">
             <Icons.AlertTriangle className="h-6 w-6" />
           </div>
           <AlertDialogTitle className="text-center text-xl">

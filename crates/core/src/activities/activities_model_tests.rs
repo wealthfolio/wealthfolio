@@ -648,6 +648,8 @@ mod tests {
 
     fn create_test_activity_update() -> ActivityUpdate {
         ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -1021,6 +1023,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1071,6 +1074,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1116,6 +1120,7 @@ mod tests {
                 isin: None,
                 force_import: false,
                 is_external: Some(is_external),
+                source_group_id: None,
             };
 
             let converted = NewActivity::from(import);
@@ -1165,6 +1170,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
@@ -1206,6 +1212,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());

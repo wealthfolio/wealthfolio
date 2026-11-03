@@ -28,6 +28,8 @@ starting `dev:web`. In that mode:
 - `YAHOO` is replaced by the fixture provider backed by `instruments.json`.
 - `BOERSE_FRANKFURT` is replaced by the same fixture provider, reporting itself
   as `BOERSE_FRANKFURT`.
+- `MOEX` is replaced by the same fixture provider with strict `MISX` coverage.
+  Synthetic RUB listings cover ticker collisions and provider mappings.
 - `US_TREASURY_CALC` uses the production provider with the local security and
   yield responses. Its parsing, nominal-term validation, and pricing remain
   real. Missing fixture securities or years fail without an HTTP fallback.

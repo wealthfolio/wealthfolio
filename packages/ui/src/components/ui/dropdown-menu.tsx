@@ -4,6 +4,7 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
 
 function DropdownMenu(props: MenuPrimitive.Root.Props) {
@@ -11,7 +12,8 @@ function DropdownMenu(props: MenuPrimitive.Root.Props) {
 }
 
 function DropdownMenuPortal(props: MenuPrimitive.Portal.Props) {
-  return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
+  const scopeProps = usePortalScopeProps();
+  return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...scopeProps} {...props} />;
 }
 
 function DropdownMenuTrigger(props: MenuPrimitive.Trigger.Props) {
@@ -33,8 +35,9 @@ function DropdownMenuContent({
   alignOffset = 0,
   ...props
 }: DropdownMenuContentProps) {
+  const scopeProps = usePortalScopeProps();
   return (
-    <MenuPrimitive.Portal>
+    <MenuPrimitive.Portal {...scopeProps}>
       <MenuPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

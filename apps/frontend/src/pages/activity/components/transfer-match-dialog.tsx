@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
   findTransferMatchCandidates,
   getTransferPairForActivity,
@@ -479,7 +480,7 @@ export function TransferMatchDialog({
     setManualError(null);
   }, []);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setSelectedCandidate(null);
     setSuggestions([]);
@@ -741,7 +742,7 @@ export function TransferMatchDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-190 flex w-full flex-col overflow-hidden">
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-190">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>

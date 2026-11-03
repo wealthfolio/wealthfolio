@@ -10,6 +10,71 @@ use std::str::FromStr;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use support::*;
+use wealthfolio_portfolio_engine::DiagnosticCode;
+
+#[test]
+fn internal_credit_charges_require_a_final_cash_amount() {
+    let mut scenario: Scenario = serde_yaml::from_str(
+        r#"
+id: INLINE-CREDIT-FINAL-CASH
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc, currency: USD }
+activities:
+  - { id: dep, account: acc, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: credit, account: acc, type: CREDIT, subtype: REBATE, date: 2025-01-03T10:00:00Z, fee: 2, tax: 5 }
+"#,
+    )
+    .expect("scenario");
+
+    for amount in [None, Some(0), Some(100)] {
+        scenario.activities[1].amount = amount.map(|value| Dec(Decimal::from(value)));
+        let pipeline = Pipeline::from_scenario(&scenario);
+        assert!(pipeline.bundle.rejected_activities().is_empty());
+        let event = &pipeline.ledger().events[1];
+        assert_eq!(event.cash.is_some(), amount.is_some());
+        assert_eq!(
+            event
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::MissingFinalCash),
+            amount.is_none()
+        );
+
+        let body = capture_body(&pipeline, &all_windows(&scenario));
+        let account = &body["accounts"]["acc"];
+        let gain = Decimal::from(amount.unwrap_or(0));
+        let held =
+            number(&account["valuations"].as_array().unwrap().last().unwrap()["total_value_base"]);
+        assert_eq!(held, Decimal::from(1000) + gain);
+        for performance in [
+            &account["performance"]["all_time"],
+            &body["portfolio"]["all_time"],
+        ] {
+            let attribution = &performance["attribution"];
+            let charges_booked = amount.is_some();
+            assert_eq!(
+                number(&attribution["income"]),
+                if charges_booked {
+                    gain + Decimal::from(7)
+                } else {
+                    Decimal::ZERO
+                }
+            );
+            assert_eq!(
+                number(&attribution["fees"]),
+                Decimal::from(if charges_booked { 2 } else { 0 })
+            );
+            assert_eq!(
+                number(&attribution["taxes"]),
+                Decimal::from(if charges_booked { 5 } else { 0 })
+            );
+            assert_eq!(number(&performance["summary"]["amount"]), gain);
+            assert_eq!(number(&attribution["contributions"]), Decimal::from(1000));
+            assert_eq!(number(&attribution["distributions"]), Decimal::ZERO);
+        }
+    }
+}
 
 /// An account's all-time attribution in a fixture's measured output.
 fn all_time(id: &str, account: &str) -> Value {

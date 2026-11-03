@@ -1,0 +1,437 @@
+{
+  "presetId": "it",
+  "presetVersion": "2026-10.1",
+  "name": "Italy",
+  "description": "Rules for common Italian household transactions, including supermarkets, utilities, telecom, transport, tolls, healthcare, shopping, taxes and PagoPA payments, bank fees, and income such as salary, pension, and tax refunds.",
+  "language": "it-IT",
+  "rules": [
+    {
+      "key": "it.income_salary",
+      "name": "Salary",
+      "pattern": "(?i)\\bstipendi?o?\\b|emolument|retribuzion|busta paga|cedolino|accredito competenze|\\bsalary\\b|\\bpayroll\\b",
+      "matchType": "regex",
+      "categoryKey": "income_salary",
+      "priority": 90,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_pension",
+      "name": "Pension",
+      "pattern": "(?i)\\bpensione\\b|\\binps\\b",
+      "matchType": "regex",
+      "categoryKey": "income_other",
+      "priority": 90,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_tax_refund",
+      "name": "Tax refunds",
+      "pattern": "(?i)rimborso (irpef|730|fiscale|imposte)|\\b730\\b|agenzia (delle )?entrate",
+      "matchType": "regex",
+      "categoryKey": "income_tax_refund",
+      "priority": 90,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_refund",
+      "name": "Refunds & returns",
+      "pattern": "(?i)\\brimbors|\\bstorno\\b|\\breso\\b|\\brefund\\b",
+      "matchType": "regex",
+      "categoryKey": "income_refunds",
+      "priority": 88,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_rental",
+      "name": "Rental income",
+      "pattern": "(?i)\\baffitto\\b|\\blocazione\\b",
+      "matchType": "regex",
+      "categoryKey": "income_rental",
+      "priority": 85,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_dividends",
+      "name": "Dividends & coupons",
+      "pattern": "(?i)\\bdividend|\\bcedol[ae]\\b",
+      "matchType": "regex",
+      "categoryKey": "income_dividends",
+      "priority": 85,
+      "activityType": "DEPOSIT"
+    },
+    {
+      "key": "it.income_interest",
+      "name": "Interest earned",
+      "pattern": "(?i)interessi (creditori|attivi)|\\binteress|competenze",
+      "matchType": "regex",
+      "categoryKey": "income_interest",
+      "priority": 85,
+      "activityType": "INTEREST"
+    },
+    {
+      "key": "it.fees_interest",
+      "name": "Interest charges",
+      "pattern": "(?i)interessi (passivi|debitori)|interessi di mora",
+      "matchType": "regex",
+      "categoryKey": "fees_interest",
+      "priority": 90
+    },
+    {
+      "key": "it.fees_bank",
+      "name": "Bank fees & account charges",
+      "pattern": "(?i)\\bcanone (mensile|annuo|annuale|trimestrale|conto|carta)|spese (tenuta|di tenuta|di gestione|invio|estratto)|\\bcommission[ei]\\b|competenze di chiusura|costo (bonifico|operazione)",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 85
+    },
+    {
+      "key": "it.fees_atm",
+      "name": "ATM withdrawal fees",
+      "pattern": "(?i)commissione (su )?prelievo|comm\\.? ?prel",
+      "matchType": "regex",
+      "categoryKey": "fees_atm",
+      "priority": 88
+    },
+    {
+      "key": "it.fees_taxes",
+      "name": "Taxes, duties & PagoPA",
+      "pattern": "(?i)\\bf24\\b|agenzia (delle )?entrate|\\bimposta\\b|\\btasse\\b|\\btari\\b|\\bimu\\b|bollo auto|pago ?pa\\b|\\bpagopa|\\binps\\b|\\bmulta\\b|contravvenzion|\\bverbale\\b",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 76
+    },
+    {
+      "key": "it.housing_rent",
+      "name": "Rent, mortgage & condominium fees",
+      "pattern": "(?i)\\baffitto\\b|\\blocazione\\b|\\bmutuo\\b|rata mutuo|condomin",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.housing_utilities",
+      "name": "Electricity, gas & water",
+      "pattern": "(?i)\\benel\\b|\\ba2a\\b|\\bhera\\b|\\biren\\b|\\bedison\\b|\\bacea\\b|sorgenia|\\bengie\\b|e\\.? ?on energia|plenitude|\\beni gas\\b|illumia|octopus energy|servizio elettrico|acquedotto|\\bsmat\\b|\\babbanoa\\b|\\bacqua(e)? spa\\b|\\bpulsee\\b|\\bhera comm\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.bills_phone",
+      "name": "Mobile phone",
+      "pattern": "(?i)\\biliad\\b|ho\\.? ?mobile|kena ?mobile|very ?mobile|poste ?mobile|coop ?voce|wind ?tre|\\bwindtre\\b|\\bvodafone\\b|\\btim (s\\.?p\\.?a|mobile|ricarica)|telecom italia|lycamobile|fastweb ?mobile|ricarica (telefonica|cellulare)",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.bills_internet",
+      "name": "Home internet",
+      "pattern": "(?i)\\bfastweb\\b|\\beolo\\b|\\blinkem\\b|\\btiscali\\b|open fiber|\\bstarlink\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_internet",
+      "priority": 84,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.bills_internet_sky_wifi",
+      "name": "Sky WiFi",
+      "pattern": "(?i)\\bsky\\s*wifi\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_internet",
+      "priority": 91,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.bills_software",
+      "name": "Software & online services",
+      "pattern": "(?i)\\badobe\\b|microsoft|\\bicloud\\b|apple\\.com/bill|google (one|storage|workspace)|\\bdropbox\\b|chatgpt|openai|anthropic|\\bclaude\\b|\\bcanva\\b|\\bnotion\\b|\\bgithub\\b|1password|nordvpn",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.entertainment_streaming",
+      "name": "Streaming & pay TV",
+      "pattern": "(?i)\\bnetflix\\b|\\bspotify\\b|disney ?(\\+|plus)|\\bdazn\\b|now ?tv|\\bsky\\b|amazon prime|prime video|apple ?tv|paramount|infinity ?\\+|mediaset infinity|timvision|youtube premium|\\baudible\\b|\\bchili\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 90,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.food_groceries",
+      "name": "Supermarkets & food shops",
+      "pattern": "(?i)esselunga|\\bconad\\b|\\bcoop\\b|ipercoop|carrefour|\\blidl\\b|eurospin|\\bpam\\b|panorama|\\bdespar\\b|interspar|eurospar|\\bspar\\b|penny market|\\bin'?s mercato\\b|\\bbennet\\b|\\bfamila\\b|\\biperal\\b|\\biper\\b|\\bcrai\\b|natura ?s[iì]|\\bbasko\\b|\\bunes\\b|\\bsimply\\b|\\bauchan\\b|il gigante|\\baldi\\b|\\btodis\\b|\\bmd discount|\\bmd s\\.?p\\.?a|\\bdec[oò]\\b|\\btuod[iì]\\b|\\bsigma\\b|\\bprix\\b|\\bmetro italia|\\bcarrefour market|supermercat|alimentari|macelleria|panetteria|panificio|fruttivendolo|ortofrutta",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)\\bglovo\\b|deliveroo|just ?eat|uber ?eats",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 90,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.food_restaurants",
+      "name": "Restaurants & fast food",
+      "pattern": "(?i)ristorant|trattoria|osteria|pizzeria|\\bpizza\\b|mcdonald|burger king|\\bkfc\\b|old wild west|roadhouse|autogrill|\\bsushi\\b|thefork|piadineria|rosticceria|kebab|\\bpoke\\b",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 78,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.food_alcohol",
+      "name": "Pubs & wine bars",
+      "pattern": "(?i)\\bpub\\b|birreria|enoteca|vineria|cocktail|\\blounge bar\\b",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 76,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.food_coffee",
+      "name": "Bars, cafés & pastry shops",
+      "pattern": "(?i)\\bbar\\b|\\bcaff[eèé]\\b|caffetteria|pasticceria|gelateria|starbucks",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 74,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_gas",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\beni\\b|enilive|eni ?station|\\bagip\\b|\\bq8\\b|\\btamoil\\b|\\besso\\b|\\berg\\b|totalenergies|\\bshell\\b|\\bip (gas|matic|carburanti|stazione)|carburant|benzin|distributore|rifornimento",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_public",
+      "name": "Trains & public transport",
+      "pattern": "(?i)trenitalia|italotreno|italo (s\\.?p\\.?a|treno)|trenord|atm milano|azienda trasporti milanes|\\batac\\b|\\bgtt\\b|\\bactv\\b|\\btper\\b|\\bataf\\b|\\banm\\b|\\bcotral\\b|metropolitana|flixbus|busitalia|mycicero|\\bmoovit\\b|\\bbiglietto\\b|abbonamento (bus|treno|mensile atm)",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_rideshare",
+      "name": "Taxi, car & bike sharing",
+      "pattern": "(?i)\\buber\\b|free ?now|\\btaxi\\b|radiotaxi|\\bitaxi\\b|wetaxi|\\bbolt\\b|\\benjoy\\b|share ?now|\\bzity\\b|\\blime\\b|ridedott|\\btier\\b|cityscoot|bikemi",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_parking",
+      "name": "Tolls & parking",
+      "pattern": "(?i)autostrad|telepass|pedaggi|parchegg|\\bparking\\b|easypark|\\bsosta\\b|\\bztl\\b|unipol ?move|area c\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)officina|gommist|pneumatic|revisione|carrozzeria|norauto|\\bmidas\\b|autolavaggio|ricambi auto",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.transport_insurance",
+      "name": "Car insurance",
+      "pattern": "(?i)rc ?auto|assicurazione auto|prima assicurazioni|\\bprima\\.it\\b|genertel|linear assicurazioni|\\bconte\\.it\\b|\\bverti\\b|zurich connect|direct line|allianz direct|\\bquixa\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_pharmacy",
+      "name": "Pharmacies",
+      "pattern": "(?i)farmacia|parafarmacia",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_dental",
+      "name": "Dentists",
+      "pattern": "(?i)dentist|odontoiatr",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_vision",
+      "name": "Opticians",
+      "pattern": "(?i)\\bottic[ao]\\b|salmoiraghi|grandvision|vision ?ottica|occhiali",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_medical",
+      "name": "Medical visits & tests",
+      "pattern": "(?i)ospedal|poliambulator|centro medico|studio medico|analisi cliniche|laboratorio analisi|\\bsynlab\\b|santagostino|ticket sanitari|\\bclinica\\b|\\bvisita\\b|\\basl\\b",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 84,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_insurance",
+      "name": "Health insurance",
+      "pattern": "(?i)assicurazione (salute|sanitaria)|fondo sanitario|\\bunisalute\\b|\\bfasi\\b|\\bfasdac\\b",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.health_fitness",
+      "name": "Gyms & sports centres",
+      "pattern": "(?i)palestra|virgin active|\\bmcfit\\b|anytime fitness|\\bfitness\\b|\\bpiscina\\b|\\bgetfit\\b",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 82,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.shopping_clothing",
+      "name": "Clothing",
+      "pattern": "(?i)\\bzara\\b|\\bh ?& ?m\\b|\\bovs\\b|\\bbershka\\b|pull ?& ?bear|stradivarius|massimo dutti|\\buniqlo\\b|calzedonia|intimissimi|tezenis|benetton|piazza italia|terranova|calliope|\\bprimark\\b|foot locker|\\bzalando\\b|\\bvinted\\b|\\bcoin\\b|rinascente|\\bnike\\b|\\badidas\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.shopping_electronics",
+      "name": "Electronics",
+      "pattern": "(?i)mediaworld|unieuro|euronics|\\bexpert\\b|\\btrony\\b|apple store|\\bcomet\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.shopping_home",
+      "name": "Home & DIY",
+      "pattern": "(?i)\\bikea\\b|leroy merlin|bricocenter|bricoman|\\bbrico\\b|\\bobi\\b|maisons? du monde|\\bjysk\\b|mondo convenienza|kasanova|flying tiger|\\bferramenta\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.shopping_online",
+      "name": "Online shopping",
+      "pattern": "(?i)amazon|\\bamzn\\b|aliexpress|\\bshein\\b|\\btemu\\b|\\bebay\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 76,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.entertainment_sports",
+      "name": "Sporting goods & ski passes",
+      "pattern": "(?i)decathlon|cisalfa|\\bskipass\\b|impianti di risalita",
+      "matchType": "regex",
+      "categoryKey": "entertainment_sports",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.entertainment_events",
+      "name": "Cinema, events & museums",
+      "pattern": "(?i)\\bcinema\\b|the space|uci cinemas|multisala|ticketone|ticketmaster|vivaticket|\\bteatro\\b|\\bmuseo\\b|\\bmusei\\b|concerto|dice\\.fm",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.entertainment_games",
+      "name": "Games & app stores",
+      "pattern": "(?i)\\bsteam\\b|playstation|\\bxbox\\b|nintendo|epic games|app store|google play",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 82,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.personal_care",
+      "name": "Personal care",
+      "pattern": "(?i)parrucchier|barbiere|barber|estetist|centro estetico|\\bsephora\\b|\\bdouglas\\b|\\bkiko\\b|\\btigot[aà]\\b|acqua ?(e|&) ?sapone|\\bpinalli\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.personal_pets",
+      "name": "Pets",
+      "pattern": "(?i)veterinari|arcaplanet|isola dei tesori|maxi ?zoo|zooplus",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.education",
+      "name": "Education & books",
+      "pattern": "(?i)universit|\\bscuola\\b|\\basilo\\b|\\bnido\\b|mensa scolastica|tasse universitarie|\\blibreria\\b|feltrinelli|mondadori|\\bgiunti\\b|scolastic|\\budemy\\b|coursera",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 80,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.gifts_donations",
+      "name": "Donations",
+      "pattern": "(?i)\\bunicef\\b|\\bemergency\\b|croce rossa|caritas|medici senza frontiere|\\bmsf\\b|save the children|\\bairc\\b|\\bwwf\\b|donazion|erogazione liberale",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.travel",
+      "name": "Travel",
+      "pattern": "(?i)ryanair|easyjet|ita airways|alitalia|volotea|wizz ?air|vueling|lufthansa|booking\\.com|\\bairbnb\\b|expedia|\\bhotel\\b|\\bb ?& ?b\\b|edreams|lastminute|trivago|\\bmoby\\b|tirrenia|grimaldi|\\bgnv\\b|traghett|aeroporto",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.housing_insurance",
+      "name": "Home insurance",
+      "pattern": "(?i)assicurazione casa|polizza casa|multirischi",
+      "matchType": "regex",
+      "categoryKey": "housing_insurance",
+      "priority": 86,
+      "activityType": "WITHDRAWAL"
+    }
+  ]
+}

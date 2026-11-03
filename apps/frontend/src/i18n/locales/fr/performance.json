@@ -55,6 +55,7 @@
     "holdings": "Mode avoirs"
   },
   "exclusion": {
+    "holdings_not_mwr": "Le rendement pondéré par les flux (MWR) est indisponible en mode positions seules, car les flux de trésorerie des transactions ne sont pas suivis.",
     "no_data": "Les données de performance ne sont pas disponibles pour cette sélection.",
     "no_series": "Aucune série de graphique n'est disponible pour cette période.",
     "holdings_not_twr": "Les comptes en mode avoirs utilisent le rendement en valeur et ne sont pas tracés avec le TWR.",
@@ -135,5 +136,19 @@
     "contributions_desc": "Liquidités ajoutées au compte",
     "distributions": "Distributions",
     "distributions_desc": "Liquidités retirées du compte"
-  }
+  },
+  "metric_info": {
+    "time_weighted_return": "Le rendement pondéré dans le temps (TWR) mesure la performance des placements en éliminant l’effet des dépôts et retraits. Pour les périodes de moins d’un an, le rendement de la période sélectionnée est affiché ; à partir d’un an, il est annualisé lorsque cette valeur est disponible.",
+    "money_weighted_return": "Le rendement pondéré par l’argent (MWR) mesure la performance en tenant compte du montant et de la date des flux de trésorerie externes. Il est calculé avec IRR/XIRR ; pour les périodes d’un an ou plus, le XIRR annualisé est l’affichage de référence.",
+    "irr": "Le taux de rendement interne (IRR) mesure la performance pondérée par le montant et la date des flux de trésorerie externes. Pour les périodes d’un an ou plus, le XIRR annualisé est l’affichage de référence.",
+    "simple_return": "Le rendement simple compare le gain ou la perte totale aux apports nets. Il est cumulatif et n’est pas pondéré dans le temps.",
+    "value_return": "Le rendement en valeur mesure la variation de la valeur du compte sur la période sélectionnée lorsque les flux de trésorerie par transaction ne sont pas disponibles.",
+    "price_return": "Le rendement du cours mesure la variation du cours du titre sélectionné sur la période sélectionnée.",
+    "volatility": "La volatilité mesure la dispersion des rendements d’un placement. Une volatilité élevée signifie que sa valeur peut varier fortement sur une courte période. Elle est annualisée à partir des rendements quotidiens calendaires.",
+    "max_drawdown": "La perte maximale représente la plus forte diminution en pourcentage entre un sommet et un creux ultérieur de la valeur du portefeuille sur la période indiquée. Elle exprime le risque de baisse.",
+    "annualized_return": "Le rendement annualisé est le taux composé annuel moyen de la période sélectionnée. Il ne correspond pas au gain ou à la perte totale cumulée.",
+    "holdings_volatility": "Volatilité des variations de valeur du compte. Calculée à partir des valorisations quotidiennes, sans ajustement pour les dépôts ou retraits. Elle reflète l’ampleur des fluctuations de la valeur de marché.",
+    "holdings_max_drawdown": "Plus forte baisse de la valeur du compte entre un sommet et un creux. Calculée à partir des valorisations quotidiennes, sans ajustement pour les dépôts ou retraits."
+  },
+  "compare_over_time": "Comparer l’évolution des performances des comptes"
 }

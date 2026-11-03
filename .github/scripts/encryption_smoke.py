@@ -71,7 +71,11 @@ def main():
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--image")
     target.add_argument("--package", type=pathlib.Path)
+    parser.add_argument("--user", help="Override the image's numeric UID:GID (e.g. 99:100 for Unraid)")
     args = parser.parse_args()
+    if args.user and (not args.image or len(args.user.split(":")) != 2
+                      or not all(part.isdecimal() for part in args.user.split(":"))):
+        parser.error("--user requires --image and a numeric UID:GID")
     name = "wf-encryption-smoke-" + uuid.uuid4().hex[:12]
     volume = name + "-data"
     key = base64.b64encode(b"a" * 32).decode()
@@ -82,10 +86,20 @@ def main():
         "--mount", f"type=bind,src={args.package.resolve()},dst=/opt/wealthfolio,readonly"
     ]
     static = "/app/dist" if args.image else "/opt/wealthfolio/dist"
+    data_mount = ["-v", f"{volume}:/data"]
+    runtime_options = []
+    if args.image:
+        # Match the production Compose filesystem restrictions; also exercise Unraid's UID override.
+        runtime_options = ["--read-only", "--tmpfs", "/tmp:size=64M",
+                           "--security-opt", "no-new-privileges:true"]
+        if args.user:
+            runtime_options += ["--user", args.user]
+            # Preserve the fixture's appdata ownership, as an Unraid bind mount does.
+            data_mount = ["--mount", f"type=volume,src={volume},dst=/data,volume-nocopy"]
 
     def command(encrypted, secret=key):
         return [
-            "--name", name, "-v", f"{volume}:/data", *mounts,
+            "--name", name, *data_mount, *mounts, *runtime_options,
             "-e", f"WF_SECRET_KEY={secret}",
             "-e", f"WF_DB_REQUIRE_ENCRYPTION={int(encrypted)}",
             "-e", "WF_DB_PATH=/data/wealthfolio.db",
@@ -99,7 +113,15 @@ def main():
 
     def boot(encrypted, seed=False, wrong_key=False):
         secret = base64.b64encode(b"b" * 32).decode() if wrong_key else key
-        docker("run", "-d", *command(encrypted, secret), "-p", "127.0.0.1::8088", image, binary)
+        healthcheck = []
+        if args.image:
+            # The exact BusyBox command shipped in the Unraid template and Compose healthcheck.
+            healthcheck = [
+                "--health-cmd", "wget --quiet --tries=1 --spider http://127.0.0.1:8088/api/v1/healthz || exit 1",
+                "--health-interval", "1s", "--health-timeout", "10s", "--health-retries", "3",
+            ]
+        docker("run", "-d", *command(encrypted, secret), *healthcheck,
+               "-p", "127.0.0.1::8088", image, binary)
         try:
             port = json.loads(docker("inspect", name))[0]["NetworkSettings"]["Ports"]["8088/tcp"][0]["HostPort"]
             request = make_request(f"http://127.0.0.1:{port}")
@@ -110,11 +132,19 @@ def main():
                     raise RuntimeError("Server exited before becoming healthy")
                 try:
                     request("/api/v1/healthz")
+                    if args.image and docker("inspect", "--format", "{{.State.Health.Status}}", name) != "healthy":
+                        time.sleep(0.5)
+                        continue
                     break
                 except (OSError, urllib.error.URLError, http.client.HTTPException):
                     time.sleep(0.5)
             else:
                 raise RuntimeError("Server health timeout")
+            if args.image:
+                uid, gid = (args.user or "1000:1000").split(":")
+                assert docker("exec", name, "id", "-u") == uid, "Wrong container UID"
+                assert docker("exec", name, "id", "-g") == gid, "Wrong container GID"
+                print(f"PASS user={uid}:{gid}, BusyBox healthcheck, read-only runtime", flush=True)
             if wrong_key:
                 # Profiles open lazily: health can succeed before the database is read.
                 try:
@@ -177,6 +207,10 @@ def main():
 
     docker("volume", "create", volume)
     try:
+        if args.user:
+            # Only the disposable fixture volume: model appdata owned by Unraid's nobody:users.
+            docker("run", "--rm", "--user", "0:0", *data_mount,
+                   "--entrypoint", "chown", image, args.user, "/data")
         if args.package:
             # Model a normal Debian installation, including the CA trust store used by HTTPS.
             # This only prepares the runtime; the supplied server is never recompiled.

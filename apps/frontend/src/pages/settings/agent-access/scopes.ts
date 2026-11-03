@@ -13,6 +13,9 @@ export type ScopeKey =
   | "financial-planning:read"
   | "health:read"
   | "classification:read"
+  | "spending:read"
+  | "spending:write"
+  | "budget:write"
   | "activities:draft"
   | "activities:write"
   | "classification:suggest"
@@ -28,7 +31,7 @@ export interface ScopeMeta {
   group: ScopeGroup;
 }
 
-/** Ordered list of all 12 scopes, grouped reads first then write/suggest. */
+/** Ordered list of all scopes, grouped reads first then write/suggest. */
 export const SCOPES: ScopeMeta[] = [
   { key: "accounts:read", i18n: "accounts_read", group: "read" },
   { key: "holdings:read", i18n: "holdings_read", group: "read" },
@@ -37,14 +40,17 @@ export const SCOPES: ScopeMeta[] = [
   { key: "financial-planning:read", i18n: "financial_planning_read", group: "read" },
   { key: "health:read", i18n: "health_read", group: "read" },
   { key: "classification:read", i18n: "classification_read", group: "read" },
+  { key: "spending:read", i18n: "spending_read", group: "read" },
   { key: "activities:draft", i18n: "activities_draft", group: "write" },
   { key: "activities:write", i18n: "activities_write", group: "write" },
   { key: "classification:suggest", i18n: "classification_suggest", group: "write" },
   { key: "classification:write", i18n: "classification_write", group: "write" },
   { key: "market-data:write", i18n: "market_data_write", group: "write" },
+  { key: "spending:write", i18n: "spending_write", group: "write" },
+  { key: "budget:write", i18n: "budget_write", group: "write" },
 ];
 
-/** The 7 read scopes, in canonical order. */
+/** The read scopes, in canonical order. */
 export const READ_SCOPES: ScopeKey[] = SCOPES.filter((scope) => scope.group === "read").map(
   (scope) => scope.key,
 );
@@ -63,6 +69,13 @@ export const SCOPE_PRESETS: ScopePreset[] = [
     i18n: "read_only",
     scopes: [...READ_SCOPES],
   },
+  { key: "spending-view", i18n: "spending_view", scopes: ["spending:read"] },
+  {
+    key: "spending-organize",
+    i18n: "spending_organize",
+    scopes: ["spending:read", "spending:write"],
+  },
+  { key: "spending-budgets", i18n: "spending_budgets", scopes: ["spending:read", "budget:write"] },
   {
     key: "read-activity-draft",
     i18n: "read_activity_draft",
@@ -118,6 +131,9 @@ export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   }
   if (set.has("market-data:write")) {
     set.add("holdings:read");
+  }
+  if (set.has("spending:write") || set.has("budget:write")) {
+    set.add("spending:read");
   }
   return SCOPES.filter((scope) => set.has(scope.key)).map((scope) => scope.key);
 }

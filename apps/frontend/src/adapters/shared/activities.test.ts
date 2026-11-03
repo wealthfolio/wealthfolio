@@ -16,6 +16,7 @@ import {
   createActivity,
   saveActivities,
   saveInternalTransferPair,
+  reviewInternalTransferPairSplitEffects,
   searchActivities,
   updateActivity,
 } from "./activities";
@@ -91,26 +92,36 @@ describe("activity metadata serialization", () => {
     });
   });
 
-  it("preserves the selected leg and normalizes the date for pair saves", async () => {
-    const request = {
-      editedActivityId: "pair-in",
-      transferOutId: "pair-out",
-      transferInId: "pair-in",
-      fromAccountId: "from",
-      toAccountId: "to",
-      activityDate: new Date("2026-02-01T10:00:00Z"),
-      sourceAmount: 100,
-      destinationAmount: 100,
-      sourceCurrency: "USD",
-      destinationCurrency: "USD",
-      notes: null,
-    };
-    await saveInternalTransferPair(request);
-    expect(mocks.invoke).toHaveBeenCalledWith("save_internal_transfer_pair", {
-      request: { ...request, activityDate: "2026-02-01T10:00:00.000Z" },
-    });
-    expect(request.activityDate).toBeInstanceOf(Date);
-  });
+  it.each([
+    { name: "saves", call: saveInternalTransferPair, command: "save_internal_transfer_pair" },
+    {
+      name: "reviews",
+      call: reviewInternalTransferPairSplitEffects,
+      command: "review_internal_transfer_pair_split_effects",
+    },
+  ])(
+    "preserves the selected leg and normalizes the date for pair $name",
+    async ({ call, command }) => {
+      const request = {
+        editedActivityId: "pair-in",
+        transferOutId: "pair-out",
+        transferInId: "pair-in",
+        fromAccountId: "from",
+        toAccountId: "to",
+        activityDate: new Date("2026-02-01T10:00:00Z"),
+        sourceAmount: 100,
+        destinationAmount: 100,
+        sourceCurrency: "USD",
+        destinationCurrency: "USD",
+        notes: null,
+      };
+      await call(request);
+      expect(mocks.invoke).toHaveBeenCalledWith(command, {
+        request: { ...request, activityDate: "2026-02-01T10:00:00.000Z" },
+      });
+      expect(request.activityDate).toBeInstanceOf(Date);
+    },
+  );
 
   it("normalizes metadata in bulk creates and updates while preserving JSON strings", async () => {
     await saveActivities({

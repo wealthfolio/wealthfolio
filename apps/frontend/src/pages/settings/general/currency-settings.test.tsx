@@ -23,7 +23,7 @@ async function pickAndSave(currency: string) {
   pickedCurrency = currency;
   render(<BaseCurrencyForm />);
   await userEvent.click(screen.getByRole("button", { name: "USD" }));
-  await userEvent.click(screen.getByRole("button", { name: "Save Currency" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save currency" }));
 }
 
 describe("BaseCurrencyForm", () => {

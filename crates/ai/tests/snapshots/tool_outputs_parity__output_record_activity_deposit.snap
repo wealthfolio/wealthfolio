@@ -25,6 +25,7 @@ expression: result
       "currency": "USD",
       "exchangeMic": null,
       "fee": null,
+      "fxRate": null,
       "instrumentType": null,
       "isCustomAsset": false,
       "notes": null,

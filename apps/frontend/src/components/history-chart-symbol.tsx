@@ -123,13 +123,14 @@ export default function HistoryChart({
           >
             <defs>
               <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--success)" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="var(--success)" stopOpacity={0.1} />
+                <stop offset="5%" stopColor="var(--gain)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="var(--gain)" stopOpacity={0.1} />
               </linearGradient>
             </defs>
             <Tooltip
               content={(props) => <SymbolToolTip {...(props as unknown as SymbolTooltipProps)} />}
-              wrapperStyle={{ pointerEvents: "none" }}
+              // Callers overlay IntervalSelector (z-30) on the chart's bottom edge.
+              wrapperStyle={{ pointerEvents: "none", zIndex: 40 }}
             />
             {interval !== "ALL" && interval !== "1Y" ? (
               <YAxis hide={true} type="number" domain={["auto", "auto"]} />
@@ -142,7 +143,7 @@ export default function HistoryChart({
               connectNulls={true}
               type="monotone"
               dataKey="totalValue"
-              stroke="var(--success)"
+              stroke="var(--gain)"
               fillOpacity={1}
               fill="url(#colorUv)"
             />

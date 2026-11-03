@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ComponentProps, ReactElement, ReactNode, useEffect, useRef, useState } from "react";
 import { Button, type ButtonProps } from "../ui/button";
 import { Icons } from "../ui/icons";
@@ -26,12 +27,13 @@ export const ActionConfirm = ({
   handleConfirm,
   button,
   isPending,
-  confirmButtonText = "Confirm",
+  confirmButtonText,
   confirmButtonVariant = "destructive",
-  cancelButtonText = "Cancel",
-  pendingText = "In progress...",
+  cancelButtonText,
+  pendingText,
   side,
 }: ActionConfirmProps) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const wasConfirming = useRef(false);
 
@@ -65,7 +67,7 @@ export const ActionConfirm = ({
       <PopoverContent className="w-80" align="end" side={side}>
         <div className="space-y-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">{confirmTitle}</h4>
+            <h4 className="leading-none font-medium">{confirmTitle}</h4>
             <p className="text-muted-foreground text-sm">{confirmMessage}</p>
           </div>
           <div className="flex justify-end gap-2">
@@ -77,16 +79,16 @@ export const ActionConfirm = ({
                 handleCancel?.();
               }}
             >
-              {cancelButtonText}
+              {cancelButtonText ?? t("common:cancel", "Cancel")}
             </Button>
             <Button variant={confirmButtonVariant} size="sm" disabled={isPending} onClick={handleConfirm}>
               {isPending ? (
                 <>
                   <Spinner className="me-2 h-4 w-4" />
-                  {pendingText}
+                  {pendingText ?? t("ui:actionConfirm.pending", "In progress...")}
                 </>
               ) : (
-                confirmButtonText
+                (confirmButtonText ?? t("common:confirm", "Confirm"))
               )}
             </Button>
           </div>

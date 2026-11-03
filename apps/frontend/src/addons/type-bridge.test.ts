@@ -573,7 +573,7 @@ describe("Addon Type Bridge", () => {
         spendingGuard("rerunRules"),
       );
 
-      await sdkAPI.spending.rerunRules();
+      await expect(sdkAPI.spending.rerunRules()).resolves.toBe(3);
 
       expect(mockRerun).toHaveBeenCalledWith(true);
     });
@@ -680,4 +680,230 @@ describe("Addon Type Bridge", () => {
       expect(getPermissionCategory("activities")?.functions).toContain("searchCashActivities");
     });
   });
+});
+
+describe("Spending integration grant separation", () => {
+  const declared = (category: string, names: string[]) => [
+    {
+      category,
+      purpose: "Synthetic test",
+      functions: names.map((name) => ({ name, isDeclared: true, isDetected: false })),
+    },
+  ];
+  it("old Spending grants cannot write categories, events or budgets", () => {
+    const internal = {
+      assignSpendingCategory: vi.fn(),
+      unassignSpendingCategory: vi.fn(),
+      setSpendingEvent: vi.fn(),
+      upsertBudgetTarget: vi.fn(),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard(
+        "test",
+        declared("spending", [
+          "getReport",
+          "getRules",
+          "saveRule",
+          "rerunRules",
+          "assignCategory",
+          "setEvent",
+          "upsertBudgetTarget",
+        ]),
+      ),
+    );
+    expect(() => api.spending.assignCategory("a", "expense", "c")).toThrow(
+      "activities.assignCategory",
+    );
+    expect(() => api.spending.unassignCategory("a", "expense")).toThrow(
+      "activities.unassignCategory",
+    );
+    expect(() => api.spending.setEvent("a", null)).toThrow("activities.setEvent");
+    expect(() =>
+      api.spending.upsertBudgetTarget({
+        periodKey: "default",
+        targetType: "category",
+        taxonomyId: "spending_categories",
+        categoryId: "c",
+        amount: "100",
+      }),
+    ).toThrow("budgets.upsertBudgetTarget");
+    for (const method of Object.values(internal)) expect(method).not.toHaveBeenCalled();
+  });
+  it("maps taxonomy-qualified metadata writes only after explicit function grants", async () => {
+    const internal = {
+      assignSpendingCategory: vi.fn().mockResolvedValue({}),
+      unassignSpendingCategory: vi.fn().mockResolvedValue(undefined),
+      setSpendingEvent: vi.fn().mockResolvedValue({}),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard(
+        "test",
+        declared("activities", ["assignCategory", "unassignCategory", "setEvent"]),
+      ),
+    );
+    await api.spending.assignCategory("a", "saving", "c");
+    expect(internal.assignSpendingCategory).toHaveBeenCalledWith("a", "savings_categories", "c");
+    await api.spending.unassignCategory("a", "income");
+    expect(internal.unassignSpendingCategory).toHaveBeenCalledWith("a", "income_sources");
+    await api.spending.setEvent("a", null);
+    expect(internal.setSpendingEvent).toHaveBeenCalledWith("a", null);
+    expect(getPermissionCategory("activities")?.riskLevel).toBe("high");
+    expect(getPermissionCategory("budgets")?.riskLevel).toBe("high");
+  });
+  it("budget grants neither grant organization nor require it", async () => {
+    const internal = {
+      upsertBudgetTarget: vi.fn().mockResolvedValue({}),
+      assignSpendingCategory: vi.fn(),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard("test", declared("budgets", ["upsertBudgetTarget"])),
+    );
+    const target = {
+      periodKey: "2026-10",
+      targetType: "group_buffer" as const,
+      groupId: "g",
+      amount: "20.25",
+    };
+    await api.spending.upsertBudgetTarget(target, "2026-10");
+    expect(internal.upsertBudgetTarget).toHaveBeenCalledWith(target, "2026-10");
+    expect(() => api.spending.assignCategory("a", "expense", "c")).toThrow(
+      "activities.assignCategory",
+    );
+  });
+});
+
+describe("addon activity update payload boundary", () => {
+  it.each(["update", "array", "object"] as const)(
+    "does not forward native controls through %s with only that method granted",
+    async (shape) => {
+      const updateActivity = vi.fn().mockResolvedValue({ id: "a" });
+      const saveActivities = vi.fn().mockResolvedValue({ updated: [] });
+      const unlinkTransferActivities = vi.fn();
+      const method = shape === "update" ? "update" : "saveMany";
+      const guard = createPermissionGuard("limited-addon", [
+        {
+          category: "activities",
+          purpose: "Edit transactions",
+          functions: [{ name: method, isDeclared: true, isDetected: false }],
+        },
+      ]);
+      const api = createSDKHostAPIBridge(
+        { updateActivity, saveActivities, unlinkTransferActivities } as unknown as InternalHostAPI,
+        "limited-addon",
+        guard,
+      );
+      const input = {
+        id: "a",
+        accountId: "account",
+        activityType: "TRANSFER_OUT",
+        activityDate: "2026-04-01",
+        currency: "USD",
+        amount: "25",
+        comment: "Edited",
+        notes: "Legacy alias",
+        asset: {},
+        metadata: { flow: { is_external: true } },
+        unlinkTransferPairId: "b",
+        splitReview: [],
+        futureNativeControl: true,
+      };
+      expect(() => api.activities.unlinkTransfer("a", "b")).toThrow("activities.unlinkTransfer");
+      if (shape === "update") await api.activities.update(input);
+      else if (shape === "array") await api.activities.saveMany([input] as never);
+      else {
+        const request = {
+          updates: [input],
+          creates: [],
+          deleteIds: [],
+          futureNativeBatchControl: true,
+        };
+        await api.activities.saveMany(request);
+      }
+      const forwarded =
+        shape === "update"
+          ? updateActivity.mock.calls[0][0]
+          : saveActivities.mock.calls[0][0].updates[0];
+      expect(forwarded).toEqual({
+        id: "a",
+        accountId: "account",
+        activityType: "TRANSFER_OUT",
+        activityDate: "2026-04-01",
+        currency: "USD",
+        amount: "25",
+        comment: "Edited",
+        notes: "Legacy alias",
+        asset: {},
+        metadata: { flow: { is_external: true } },
+      });
+      if (shape !== "update") {
+        expect(saveActivities.mock.calls[0][0]).toEqual(
+          shape === "array"
+            ? { updates: [forwarded] }
+            : { updates: [forwarded], creates: [], deleteIds: [] },
+        );
+      }
+      expect(input.unlinkTransferPairId).toBe("b");
+      expect(unlinkTransferActivities).not.toHaveBeenCalled();
+    },
+  );
+});
+
+it("preserves SDK update values, legacy aliases, and bulk create/delete requests", async () => {
+  const updateActivity = vi.fn().mockResolvedValue({ id: "a" });
+  const saveActivities = vi.fn().mockResolvedValue({ updated: [] });
+  const api = createSDKHostAPIBridge(
+    { updateActivity, saveActivities } as unknown as InternalHostAPI,
+    "addon",
+    createPermissionGuard("addon", [
+      {
+        category: "activities",
+        purpose: "Manage transactions",
+        functions: ["update", "saveMany"].map((name) => ({
+          name,
+          isDeclared: true,
+          isDetected: false,
+        })),
+      },
+    ]),
+  );
+  const update = {
+    id: "a",
+    accountId: "account",
+    activityType: "BUY",
+    activityDate: new Date("2026-04-01T12:00:00Z"),
+    currency: "EUR",
+    sourceGroupId: "legacy-group",
+    symbol: { symbol: "IBM" },
+    subtype: null,
+    quantity: "1.234567890123456789",
+    unitPrice: "10",
+    amount: null,
+    fee: 0,
+    tax: null,
+    fxRate: "1.1",
+    needsReview: true,
+    status: "POSTED" as const,
+    comment: "Comment",
+    notes: "Legacy notes",
+    metadata: { original: "value" },
+  };
+  await api.activities.update(update);
+  expect(updateActivity).toHaveBeenCalledExactlyOnceWith(update);
+  const creates = [
+    {
+      accountId: "account",
+      activityType: "DEPOSIT" as const,
+      activityDate: "2026-04-01",
+      currency: "USD",
+      amount: "5",
+    },
+  ];
+  await api.activities.saveMany({ creates, deleteIds: ["old"] });
+  expect(saveActivities).toHaveBeenCalledExactlyOnceWith({ creates, deleteIds: ["old"] });
 });

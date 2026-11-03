@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
+import { Activity } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
@@ -12,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   loading: false,
   error: false,
   removing: false,
+  useRemove: (() => undefined) as () => unknown,
   web: true,
   data: [
     {
@@ -43,7 +46,7 @@ vi.mock("./use-backup-restore", () => ({
       refetch: mocks.retry,
     },
     create: { mutate: mocks.create, isPending: false },
-    remove: { mutate: mocks.remove, isPending: mocks.removing },
+    remove: mocks.useRemove(),
   }),
 }));
 vi.mock("./backup-export-dialog", () => ({
@@ -57,6 +60,7 @@ vi.mock("./backup-import-dialog", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.removing = false;
+  mocks.useRemove = () => ({ mutateAsync: mocks.remove, isPending: mocks.removing });
   mocks.loading = false;
   mocks.error = false;
   mocks.web = true;
@@ -180,10 +184,48 @@ it.each(SUPPORTED_LOCALE_CODES)(
     fireEvent.click(menu);
     fireEvent.click(screen.getByRole("menuitem", { name: common.delete }));
     expect(screen.getByRole("button", { name: common.cancel })).toBeVisible();
+    mocks.remove.mockReturnValue(
+      new Promise(() => {
+        /* Keep the delete in flight. */
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: common.delete }));
-    expect(mocks.remove).toHaveBeenCalledWith("old.db", expect.anything());
+    expect(mocks.remove).toHaveBeenCalledWith("old.db");
     mocks.removing = true;
     rerender(view());
     expect(screen.getByRole("button", { name: settings.backup_deleting })).toBeDisabled();
   },
 );
+it("closes the delete prompt once the delete ends while its phone screen is out of sight", async () => {
+  // A phone screen kept under another one is a hidden <Activity>; left open,
+  // the prompt would offer to delete a backup that is gone.
+  let finish: () => void = () => undefined;
+  function useSlowRemove() {
+    return useMutation({ mutationFn: () => new Promise<void>((resolve) => (finish = resolve)) });
+  }
+  mocks.useRemove = useSlowRemove;
+  const client = new QueryClient();
+  const view = (hidden: boolean) => (
+    <QueryClientProvider client={client}>
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <BackupRestoreForm />
+      </Activity>
+    </QueryClientProvider>
+  );
+  const deleteStatus = () => client.getMutationCache().getAll()[0]?.state.status;
+  // jsdom never ends the closing animation, so a closed dialog stays in the page.
+  const promptOpen = () => screen.queryByRole("dialog")?.hasAttribute("data-open") ?? false;
+  const { rerender } = render(view(false));
+  openRowMenu(/^Options for backup from Sep 1, 2026/);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(deleteStatus()).toBe("pending"));
+  expect(promptOpen()).toBe(true);
+
+  rerender(view(true));
+  act(() => finish());
+  await waitFor(() => expect(deleteStatus()).toBe("success"));
+  rerender(view(false));
+
+  await waitFor(() => expect(promptOpen()).toBe(false));
+});

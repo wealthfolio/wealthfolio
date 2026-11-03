@@ -1,3 +1,5 @@
+pub use wealthfolio_core::goals::GOAL_SUMMARIES_UPDATED;
+
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 use wealthfolio_core::quotes::MarketSyncMode;

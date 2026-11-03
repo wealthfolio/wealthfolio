@@ -270,3 +270,60 @@ describe("Where I am comparison labels", () => {
     expect(screen.getByText(/vs \u2068Feb\u2069/)).toBeInTheDocument();
   });
 });
+
+describe("Net cashflow with money brought back from savings", () => {
+  function renderMonth(saved: number, fromSavings: number) {
+    const base = report(1500);
+    const month = {
+      iso: "2025-03-01",
+      label: "Mar",
+      report: {
+        ...base,
+        current: {
+          income: 1000,
+          outflow: 1500,
+          saved,
+          fromSavings,
+          net: 1000 - 1500 - saved + fromSavings,
+          count: 4,
+        },
+      },
+      isLoading: false,
+    };
+    render(
+      <MemoryRouter>
+        <FormattingProvider locale="en-US" timezone={timezone}>
+          <WhereIAmStage
+            range={range}
+            currentReport={base}
+            priorReport={report(150)}
+            months={[month]}
+            taxonomyCategories={[]}
+            incomeCategories={[]}
+            savingsCategories={[]}
+            budget={undefined}
+            currency="USD"
+            isLoading={false}
+          />
+        </FormattingProvider>
+      </MemoryRouter>,
+    );
+    // The label sits in the card's header row.
+    return screen.getByText("NET CASHFLOW").parentElement!.parentElement!;
+  }
+
+  it("adds back what was drawn from savings, with no Net saved bar for a net withdrawal", () => {
+    const card = renderMonth(200, 900);
+
+    expect(card).toHaveTextContent(/\+\$200/);
+    expect(within(card).queryByText("Net saved")).not.toBeInTheDocument();
+  });
+
+  it("shows only what stayed in savings as saved", () => {
+    const card = renderMonth(900, 200);
+
+    expect(card).toHaveTextContent(/−\$1,200/);
+    const saved = within(card).getByText("Net saved").parentElement!;
+    expect(saved).toHaveTextContent(/\$700/);
+  });
+});

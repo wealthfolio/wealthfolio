@@ -54,7 +54,7 @@ export function PersonaAvatar({ persona, className }: { persona: Persona; classN
             </span>
           ) : (
             <span className="profile-sculpture-eye block size-full overflow-hidden rounded-full">
-              <span className="profile-sculpture-pupil relative left-[28%] top-[21%] block h-[60%] w-[47%] rounded-full" />
+              <span className="profile-sculpture-pupil relative top-[21%] left-[28%] block h-[60%] w-[47%] rounded-full" />
             </span>
           )}
         </span>

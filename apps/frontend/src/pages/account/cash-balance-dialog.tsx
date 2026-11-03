@@ -71,7 +71,7 @@ export function CashBalanceDialog({
   const schema = z.object({
     currency: z.string().min(1),
     targetBalance: z
-      .number({ required_error: invalidAmount, invalid_type_error: invalidAmount })
+      .number({ error: invalidAmount })
       .finite(invalidAmount)
       .nonnegative(invalidAmount)
       .nullable()

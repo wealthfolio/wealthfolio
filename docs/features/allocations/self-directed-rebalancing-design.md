@@ -23,9 +23,9 @@ it also removes the part of the feature people actually used: not having to work
 out the amounts by hand.
 
 This document describes the middle ground agreed in #1486. The user supplies the
-target, the eligible securities and the allocation rule; the app does the
-arithmetic and prefills the worksheet with the result; the user edits and
-reviews it before anything leaves the app.
+target and the eligible securities; the app applies a stated, mechanical
+allocation rule, does the arithmetic and prefills the worksheet with the result;
+the user edits and reviews it before anything leaves the app.
 
 This is a product-risk and architecture decision, not a conclusion about how any
 feature is treated by a regulator. Nothing here rests on wording or disclaimers
@@ -58,7 +58,7 @@ Applied to this feature:
 | Mode: Invest cash or Rebalance           | User                   | Keep (§4)         |
 | Difference arithmetic                    | Nobody (math)          | Keep              |
 | Eligible securities                      | User                   | Keep (#1486)      |
-| Allocation rule                          | User picks from rules  | Keep              |
+| Allocation rule                          | Stated (one rule)      | Keep (§4.2)       |
 | Which security inside a category         | The rule, mechanically | Prefill, editable |
 | Which account receives an increase       | Only when unambiguous  | §6                |
 | Ranking securities or accounts by merit  | Would be the app       | Never build       |
@@ -93,9 +93,11 @@ Applied to this feature:
 ## 4. Allocation model
 
 The user picks one of two modes, which decides whether reductions are part of
-the calculation at all:
+the worksheet at all:
 
-- **Invest cash** — cash increases positions and nothing is reduced.
+- **Invest cash** — cash increases positions and nothing is reduced, by the
+  calculation or by hand: Adjust positions offers no reduction, and a reduction
+  typed in is held back until Rebalance is chosen.
 - **Rebalance** — cash is used first, then reductions cover what is left. Cash
   is optional; with none selected, reductions fund the increases on their own,
   which is what the removed sell-to-rebalance mode did. `allow_sells` on the
@@ -111,15 +113,31 @@ user choices; steps 3 and 4 describe how the arithmetic resolves.
 
 ### 4.1 Eligible securities
 
-The user chooses which recorded securities may receive changes (#1486). Default
-is every recorded security, which is a fact rather than a selection. The app
-never proposes a subset.
+The user chooses, security by security, whether the calculation may increase it
+(#1486) and whether it may reduce it. Default is every recorded security for
+both, which is a fact rather than a selection. The app never proposes a subset.
+"I don't want to add to this position" is a different intent from "I don't want
+to reduce it", so the two are separate switches on the same row.
 
-Eligibility gates **increases**, in both modes, and never restricts reductions.
-Those stay governed by the existing do-not-sell and avoid-selling constraints
-from #1177 — two overlapping mechanisms for the same decision would be
-confusing, and "I don't want to add to this position" is a different intent from
-"I don't want to sell it".
+The increase choice applies in both modes. The reduce choice applies only to
+Rebalance, the one mode that reduces, and is sent only there
+(`sellableAssetIds`). It holds for this calculation and marks the security as
+not reducible; the do-not-sell and avoid-selling constraints from #1177 still
+apply whatever the choice. Those constraints are standing rules on the target;
+the reduce choice is "not this one, this time", made where the user sees the gap
+it would close.
+
+Setup shows the standing rules where they apply rather than offering a choice
+the calculation would ignore: a security the target never reduces carries a lock
+in place of its Reduce switch, an account it protects says so on its row, and
+the gap notes leave protected securities out. A run choice can only add a
+restriction, never lift one. The security list starts folded to what applies to
+the run (protected, left out this time, added) and opens to change it.
+
+A security the selected accounts do not hold can be added in Setup. The
+proportional rule (§4.2) gives it nothing, so its amount is the user's to set in
+Adjust positions, and it stays in the worksheet through either regeneration
+action (§5).
 
 Selecting no eligible security is a valid state, not an error. The increases
 that cannot be placed become unresolved category amounts (§4.4). The app does
@@ -127,8 +145,10 @@ not fall back to a security the user did not choose.
 
 ### 4.2 Security allocation rule
 
-One rule ships first: **Allocate by current holding proportions**. The user
-selects it explicitly; it is not a default that happens invisibly.
+One rule ships first: **Allocate by current holding proportions**. With one rule
+there is nothing to choose, so Setup states it with the eligible securities
+instead of asking the user to pick it; it is never applied out of sight. A
+second rule turns that statement into an explicit choice.
 
 For category `c`:
 
@@ -180,7 +200,9 @@ construction the manual-only direction removed.
 two, cash first:
 
 1. Deploy the selected cash against the category gaps, then combine and
-   recalculate the projection as above.
+   recalculate the projection as above. When the gaps ask for more than the
+   selected cash, every intent of this step is scaled by one common factor, and
+   that factor is stated in the result (§4.6).
 2. Size reductions against the differences that remain, and fund the increases
    those differences imply from the proceeds.
 
@@ -209,11 +231,15 @@ In order:
    reference branch).
 4. **Funding.** If the increases exceed the funding available to them, they are
    scaled down by a single common factor, and nothing is dropped selectively.
-   Increases already covered by cash deployed in the first pass (§4.5) are not
-   scaled: the shortfall belongs to the increases that depend on reduction
-   proceeds, so scaling the cash-funded ones would leave selected cash
-   undeployed for no reason. The scaling is stated in the result and travels
-   with the export, so a scaled figure is never mistaken for the full amount.
+   Every positive net adjustment is scaled by that same factor, including the
+   ones the first pass funded from cash: the cash-first sequence (§4.5) exists
+   to reduce how much has to be sold, not to shelter the increases it happened
+   to fund, and scaling them all equally spends the funding down to the last
+   unit. The scaling is stated in the result and travels with the export, so a
+   scaled figure is never mistaken for the full amount. Funding counts only
+   toward the increases it can pay for: what a crypto account deploys or raises
+   buys only crypto (§6), so the other increases have to fit in the rest, and
+   the common factor is the smaller of the two fits.
 5. **Rounding.** Under whole-unit policy, quantities are floored. Amounts stay
    primary and quantities remain estimates.
 6. **Minimum line size.** Lines below the target's minimum are reported as below
@@ -241,16 +267,25 @@ values comes from.
   updates the live portfolio-impact preview and nothing else. The debounced core
   calculation still runs to validate the edited worksheet and produce that
   preview; it does not re-derive the adjustments.
+- While account allocation is incomplete, core previews the position totals
+  without assigning them to accounts. The rail labels this as estimated impact;
+  per-account funding and export require every adjustment to be placed first.
+  Current and projected markers remain distinguishable when they overlap.
 - **Adjustments are regenerated only on an explicit user action**, of which
   there are exactly two: **Recalculate from target**, which rebuilds them from
   the current target, eligible securities and allocation rule, and **Reset to
   calculated adjustments**, which restores the last generated set and discards
-  edits.
+  edits. Added securities stay in the worksheet with their amounts cleared.
 - Changing an input the calculation depends on — mode, cash to deploy, account
-  scope, eligible securities, the target itself — marks the worksheet as no
-  longer matching those inputs and offers **Recalculate from target**. It never
-  regenerates on its own, so an edited worksheet is never overwritten without
-  the user asking.
+  scope, the securities it may increase or reduce, the target itself — marks the
+  worksheet as no longer matching those inputs and offers **Recalculate from
+  target**. It never regenerates on its own, so an edited worksheet is never
+  overwritten without the user asking.
+- Setup's one action, **Next: Adjust positions**, goes through Recalculate from
+  target when there is no calculation yet or the inputs changed. While the
+  worksheet still holds the calculated amounts it recalculates directly; once
+  the user has edited them it asks first, and keeping the edits moves on without
+  recalculating.
 - **An edit that breaks a limit is reported, not corrected.** Taking the
   worksheet past the turnover cap, below the minimum line size or over the
   available funding produces a warning on the result and leaves the numbers as
@@ -268,16 +303,43 @@ entered"). See §7.
 
 - **Reductions keep their source accounts.** A reduction is drawn from accounts
   that actually hold the security, which is a fact, not an assignment.
-- **An increase is auto-assigned only when exactly one account is eligible.**
-  Eligible means in scope and permitted to receive the security.
-- **When several accounts are eligible, the app assigns nothing.** The line
-  arrives with its amount unallocated and the existing progressive account
-  allocation ("{{amount}} remaining") is how the user places it. No default, no
-  tiebreak, no largest-position heuristic.
+- **An increase is auto-assigned when exactly one account is eligible, or
+  exactly one eligible account already holds the security.** Eligible means in
+  scope and permitted to receive the security. The sole-holder default states
+  where the security is already held; the user can still change its placement.
+- **Otherwise, when several accounts are eligible, the app assigns nothing.**
+  The line arrives with its amount unallocated and the existing progressive
+  account allocation ("{{amount}} remaining") is how the user places it. No
+  default, no tiebreak, no largest-position heuristic. A split that is off,
+  either way, by less than 1% of the change is accepted and stated ("$11.00
+  unplaced, accepted"): such a remainder moves no category in a way that
+  matters. Rounding is apart from it: under whole units, account placements must
+  cover the whole units in the requested change, counting each account's
+  rounded-down quantity separately. Once those units are placed, a remainder
+  short of one more unit buys nothing and is accepted too. A missing whole unit
+  still blocks, even within 1%, as does a split where every account rounds down
+  to zero units.
 - **Funding is validated per account.** An increase in one account cannot be
   funded by cash recorded in another; no transfer between accounts is assumed or
-  implied.
-- Account type, tax wrapper and contribution room are never inputs.
+  implied. Where an account is short, the worksheet says by how much and offers
+  to add that amount as a deposit, the same cash not yet recorded that Setup
+  takes; it never adds one on its own, since placing the change in another
+  account may be the better answer. A deposit added this way changes an input,
+  so the worksheet offers Recalculate; the amounts stay as they are. It is
+  checked to the cent, as amounts are entered and shown: what dividing by a
+  price leaves past the cent is not a shortfall.
+- **While a change is placed, each account states what it can still fund for
+  it**, as an estimate: the cash it deploys and its contribution, plus what
+  valid reductions elsewhere raise in it, minus what other changes already place
+  in it, partly placed ones included. A shortfall in one account is stated on
+  its own and never offset by another. The estimate is a fact beside every
+  account, not a ranking or a pick; the preview then resolves whole units and
+  confirms.
+- Tax treatment, tax wrapper and contribution room are never inputs, and the app
+  never picks or ranks accounts. Which kinds of account can hold a security
+  still decides eligibility: cash accounts take no security change, a crypto
+  account takes an increase only in crypto or in what it already holds, and
+  increase constraints exclude the accounts they name.
   `crates/agent-tools/src/tools/contribution_limits.rs` must not be wired into
   this.
 
@@ -334,7 +396,11 @@ Clipboard and CSV carry the same readable table, produced only from a fresh
   eligible securities count, and whether increases or reductions were scaled
   (§4.6).
 - One row per security/account allocation: status, category, direction,
-  security, account, amount, estimated quantity, price and price date.
+  security, account, amount, estimated quantity, price and price date. Status
+  says whether the row is as calculated or edited by hand; direction reads
+  Increase or Reduce. Estimated quantities are rounded as the screens show them.
+- Each account's deposit, total and cash remaining, in a table of their own: a
+  deposit is part of what the account's figures count on.
 - **Unresolved amounts (§4.4) are rows in the same table**, with
   `Status: Unresolved`, their category and amount filled in, and security,
   account and quantity left empty. They are part of the picture, so they belong
@@ -433,7 +499,7 @@ carries each one:
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | How many modes?                      | Two: **Invest cash** and **Rebalance**. `allow_sells` decides whether Rebalance is offered                                      | §4      |
 | Iterate after combining intents?     | No. Each pass is single-pass. Rebalance runs a fixed cash-first sequence of exactly two, and never more                         | §4.5    |
-| Funding shortfall                    | Scale the increases that depend on reduction proceeds by one common factor, and state that the scaling was applied              | §4.6    |
+| Funding shortfall                    | Scale every positive net adjustment by one common factor, and state that the scaling was applied                                | §4.6    |
 | Turnover cap                         | Constrains the prefill, applied to reductions before proceeds are known. A later edit past the cap warns and is left alone      | §4.6    |
 | Eligible securities and reductions   | Gate every increase in both modes, never restrict reductions. An empty selection yields unresolved amounts rather than an error | §4.1    |
 | Sub-minimum lines and remaining cash | Report both. No re-rounding, no redistribution                                                                                  | §4.6    |

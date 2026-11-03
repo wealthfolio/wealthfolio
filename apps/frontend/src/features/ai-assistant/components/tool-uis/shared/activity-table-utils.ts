@@ -17,6 +17,7 @@ export function estimateDraftAmount(
     fee?: number;
     tax?: number;
     amount?: number;
+    currency?: string;
   },
   instrumentType?: string,
 ): number | undefined {
@@ -31,11 +32,13 @@ export function estimateDraftAmount(
     unitPrice: draft.unitPrice,
     fee: draft.fee,
     tax: draft.tax,
+    currency: draft.currency,
   });
 }
 
+// Pale pills, matching the activity pages.
 export function getActivityTypeBadge(activityType: string): {
-  variant: "default" | "secondary" | "destructive" | "success";
+  variant: "secondary" | "destructive-subtle" | "success-subtle";
   className: string;
 } {
   const typeUpper = activityType.toUpperCase();
@@ -45,18 +48,15 @@ export function getActivityTypeBadge(activityType: string): {
     case "BUY":
     case "DEPOSIT":
     case "TRANSFER_IN":
-      return { variant: "success", className: "rounded-sm" };
+      return { variant: "success-subtle", className: "rounded-sm" };
     case "SELL":
     case "WITHDRAWAL":
     case "TRANSFER_OUT":
     case "FEE":
     case "TAX":
-      return { variant: "destructive", className: "rounded-sm" };
-    case "SPLIT":
-    case "ADJUSTMENT":
-      return { variant: "secondary", className: "rounded-sm" };
+      return { variant: "destructive-subtle", className: "rounded-sm" };
     default:
-      return { variant: "default", className: "rounded-sm" };
+      return { variant: "secondary", className: "rounded-sm" };
   }
 }
 

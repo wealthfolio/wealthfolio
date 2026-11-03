@@ -13,6 +13,15 @@ import { setLanguageDirection, useDocumentDirection } from "@/i18n/direction";
 import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/i18n";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { Settings, SettingsContextType } from "@/lib/types";
+import { isGainColors, resolveGainColors } from "@/themes/gain-colors";
+import {
+  isTextSize,
+  measureDynamicTypeScale,
+  resolveTextSize,
+  setSystemTextScale,
+  TEXT_SIZE_STORAGE_KEY,
+} from "@/themes/text-size";
+import { isThemeId, resolveThemeId } from "@/themes/themes";
 import { FormattingProvider, resolveFormattingLocale } from "@wealthfolio/ui";
 
 interface ExtendedSettingsContextType extends SettingsContextType {
@@ -20,8 +29,11 @@ interface ExtendedSettingsContextType extends SettingsContextType {
     updates: Partial<
       Pick<
         Settings,
+        | "themeId"
+        | "gainColors"
         | "theme"
         | "font"
+        | "textSize"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -62,8 +74,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     updates: Partial<
       Pick<
         Settings,
+        | "themeId"
+        | "gainColors"
         | "theme"
         | "font"
+        | "textSize"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -78,6 +93,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     >,
   ) => {
     if (!settings) throw new Error("Settings not loaded");
+    if (updates.themeId !== undefined && !isThemeId(updates.themeId)) {
+      throw new Error(`Unknown theme: ${updates.themeId}`);
+    }
+    if (updates.textSize !== undefined && !isTextSize(updates.textSize)) {
+      throw new Error(`Unknown text size: ${updates.textSize}`);
+    }
+    if (updates.gainColors !== undefined && !isGainColors(updates.gainColors)) {
+      throw new Error(`Unknown gain and loss colours: ${updates.gainColors}`);
+    }
     await updateMutation.mutateAsync(updates);
   };
 
@@ -117,6 +141,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+
+  // Until a size is picked, a text size changed in iOS Settings applies when the
+  // app comes back to the foreground.
+  const followsSystemTextSize = settings !== null && settings.textSize === undefined;
+  useEffect(() => {
+    if (!followsSystemTextSize) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshIosTextScale().then(() => applyTextSize(undefined));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [followsSystemTextSize]);
 
   const contextValue: ExtendedSettingsContextType = {
     settings,
@@ -249,6 +286,27 @@ async function getDesktopWindow() {
   return getCurrentWindow();
 }
 
+// iOS: WKWebView neither scales page text by Dynamic Type nor reports its size,
+// so the app measures it. Android's native side sets the scale before load, and
+// the web and desktop builds have none.
+async function refreshIosTextScale() {
+  if (!isTauri) return;
+  const platform = await getPlatform();
+  if (platform.os === "ios") setSystemTextScale(measureDynamicTypeScale());
+}
+
+// Sets <html data-text-size> and caches it for index.html's next start.
+function applyTextSize(saved: Settings["textSize"]) {
+  const textSize = resolveTextSize(saved);
+  document.documentElement.dataset.textSize = textSize;
+  try {
+    localStorage.setItem(TEXT_SIZE_STORAGE_KEY, textSize);
+  } catch {
+    // noop – localStorage may be unavailable
+  }
+  return textSize;
+}
+
 // Helper function to apply settings to the document
 const applySettingsToDocument = async (newSettings: Settings) => {
   const application = ++appearanceGeneration;
@@ -262,13 +320,30 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   document.documentElement.setAttribute("lang", language);
   setLanguageDirection(language);
 
+  // Theme (palette and shape); an ID this version doesn't know shows Classic.
+  const themeId = resolveThemeId(newSettings.themeId);
+  document.documentElement.dataset.theme = themeId;
+  // Gain and loss colours; a value this version doesn't know shows green up.
+  const gainColors = resolveGainColors(newSettings.gainColors);
+  document.documentElement.dataset.gainColors = gainColors;
+
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
 
+  // Text size scales the root font size. Until one is picked it follows the
+  // system's font scale where the app knows one (Android, iOS); an unknown name
+  // shows the default.
+  await refreshIosTextScale();
+  if (application !== appearanceGeneration) return;
+  applyTextSize(newSettings.textSize);
+
   // Cache pre-auth presentation settings so bootstrap UI does not flash defaults.
+  // index.html reads these keys before the app loads.
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
+    localStorage.setItem("wealthfolio-theme-id", themeId);
+    localStorage.setItem("wealthfolio-gain-colors", gainColors);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // noop – localStorage may be unavailable
