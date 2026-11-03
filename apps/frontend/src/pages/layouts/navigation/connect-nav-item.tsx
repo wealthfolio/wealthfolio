@@ -1,5 +1,6 @@
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
+import { CONNECT_ENABLED } from "@/lib/connect-config";
 import { formatDistanceToNow } from "@/lib/utils";
 import { useLocalizationSettings, buttonVariants } from "@wealthfolio/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
@@ -13,6 +14,14 @@ interface ConnectNavItemProps {
 }
 
 export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
+  if (!CONNECT_ENABLED) {
+    return null;
+  }
+
+  return <EnabledConnectNavItem collapsed={collapsed} />;
+}
+
+function EnabledConnectNavItem({ collapsed }: ConnectNavItemProps) {
   const localizationSettings = useLocalizationSettings();
 
   const { t } = useTranslation();
