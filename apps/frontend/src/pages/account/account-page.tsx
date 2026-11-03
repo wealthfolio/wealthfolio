@@ -1077,7 +1077,13 @@ const AccountPage = () => {
                             )}
                           </p>
                           {!hasPerformanceError && (
-                            <div className="flex items-center gap-2 text-sm">
+                            // One line tall in every state: the animated gain is taller than
+                            // a line of text, so loading it in place of N/A, or hiding
+                            // balances, would move the page below.
+                            <div
+                              data-testid="account-gain-row"
+                              className="flex h-5 items-center gap-2 text-sm"
+                            >
                               {gainLossAmountToDisplay == null ? (
                                 <span className="text-muted-foreground text-sm font-light">
                                   {t("account:not_available")}
