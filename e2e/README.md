@@ -173,6 +173,7 @@ npx playwright test && npx playwright show-report
 | `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
 | `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
 | `46-phone-tab-links.spec.ts`           | Phone: links to the dashboard's and Insights' Spending tab open it, though the tab joins the page after settings load       |
+| `47-currency-picker-scroll.spec.ts`    | Desktop currency pickers (base currency, exchange rate From/To) scroll in one area, not two nested ones (#2450)             |
 
 ---
 
