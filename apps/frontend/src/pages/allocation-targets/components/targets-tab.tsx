@@ -15,6 +15,7 @@ import {
   Icons,
   Skeleton,
   stripBidiControls,
+  useNumericDraft,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 
@@ -582,27 +583,16 @@ function TargetEditor({
   const [allowSells, setAllowSells] = useState(target?.allowSells ?? true);
   const [minTradeAmount, setMinTradeAmount] = useState(target?.minTradeAmount ?? "0");
   const [wholeSharesOnly, setWholeSharesOnly] = useState(target?.wholeSharesOnly ?? false);
-  // Keep the parser with the draft: settings can change while a phone tab is hidden.
-  const [turnoverDraft, setTurnoverDraft] = useState({
-    value:
-      target?.maxTurnoverBps != null
-        ? stripBidiControls(
-            numbers.formatDecimal(target.maxTurnoverBps / 100, { useGrouping: false }),
-          )
-        : "",
-    numbers,
-  });
-  const setMaxTurnoverPctDisplay = (value: string) => setTurnoverDraft({ value, numbers });
+  const turnoverDraft = useNumericDraft(
+    target?.maxTurnoverBps == null ? undefined : target.maxTurnoverBps / 100,
+    { acceptPercent: true },
+  );
   const turnoverPercent =
-    turnoverDraft.value.trim() === ""
-      ? null
-      : turnoverDraft.numbers.parseNumber(turnoverDraft.value);
-  const maxTurnoverPctDisplay =
-    turnoverDraft.numbers === numbers || turnoverPercent == null
-      ? turnoverDraft.value
-      : stripBidiControls(
-          numbers.formatDecimal(turnoverPercent, { useGrouping: false, maximumFractionDigits: 20 }),
-        );
+    turnoverDraft.result.status === "valid"
+      ? turnoverDraft.result.value
+      : turnoverDraft.result.status === "empty"
+        ? null
+        : undefined;
   const [weights, setWeights] = useState<WeightDraft[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -714,13 +704,7 @@ function TargetEditor({
       setAllowSells(target?.allowSells ?? false);
       setMinTradeAmount(target?.minTradeAmount ?? "0");
       setWholeSharesOnly(target?.wholeSharesOnly ?? false);
-      setMaxTurnoverPctDisplay(
-        target?.maxTurnoverBps != null
-          ? stripBidiControls(
-              numbers.formatDecimal(target.maxTurnoverBps / 100, { useGrouping: false }),
-            )
-          : "",
-      );
+      turnoverDraft.reset();
     } else {
       setTaxonomyId("asset_classes");
       setStartId("current");
@@ -732,7 +716,7 @@ function TargetEditor({
       setAllowSells(true);
       setMinTradeAmount("0");
       setWholeSharesOnly(false);
-      setMaxTurnoverPctDisplay("");
+      turnoverDraft.reset();
     }
     setWeights([]);
     setHasUnsavedChanges(false);
@@ -884,13 +868,7 @@ function TargetEditor({
       setAllowSells(target.allowSells ?? false);
       setMinTradeAmount(target.minTradeAmount ?? "0");
       setWholeSharesOnly(target.wholeSharesOnly ?? false);
-      setMaxTurnoverPctDisplay(
-        target.maxTurnoverBps != null
-          ? stripBidiControls(
-              numbers.formatDecimal(target.maxTurnoverBps / 100, { useGrouping: false }),
-            )
-          : "",
-      );
+      turnoverDraft.reset();
       if (savedWeightDrafts) setWeights(savedWeightDrafts);
     } else {
       setTaxonomyId("asset_classes");
@@ -1158,9 +1136,9 @@ function TargetEditor({
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={maxTurnoverPctDisplay}
+                    {...turnoverDraft.inputProps}
                     onChange={(event) => {
-                      setMaxTurnoverPctDisplay(stripBidiControls(event.target.value));
+                      turnoverDraft.inputProps.onChange(event);
                       markDirty();
                     }}
                     placeholder={t("allocation:editor.noLimit")}

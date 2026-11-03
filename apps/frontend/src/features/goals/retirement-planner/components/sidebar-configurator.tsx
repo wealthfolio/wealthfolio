@@ -22,7 +22,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  stripBidiControls,
+  useNumericDraft,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -280,45 +280,25 @@ function PercentOverrideInput({
   max: number;
   onChange: (value: number | undefined) => void;
 }) {
-  const numberFormatting = useNumberFormatting();
-  const formatDraft = useCallback(
-    (next?: number) =>
-      next === undefined
-        ? ""
-        : stripBidiControls(
-            numberFormatting.formatDecimal(next * 100, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-              useGrouping: false,
-            }),
-          ),
-    [numberFormatting],
-  );
-  const [draft, setDraft] = useState<string | null>(null);
-  const displayValue = draft ?? formatDraft(value);
+  const draft = useNumericDraft(value === undefined ? undefined : value * 100, {
+    acceptPercent: true,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   return (
     <div className="bg-muted/70 flex h-8 w-full items-center gap-1 rounded-md border px-2.5">
       <input
         type="text"
         inputMode="decimal"
-        value={displayValue}
+        {...draft.inputProps}
         placeholder={placeholder}
-        onFocus={() => setDraft(formatDraft(value))}
-        onBlur={() => {
-          setDraft(null);
-        }}
-        onChange={(e) => {
-          const raw = stripBidiControls(e.target.value);
-          setDraft(raw);
-          if (!raw.trim()) {
-            onChange(undefined);
-            return;
-          }
-          const parsed = numberFormatting.parseNumber(raw);
-          if (parsed !== undefined) {
-            onChange(Math.min(max * 100, Math.max(0, parsed)) / 100);
-          }
+        onBlur={draft.reset}
+        onChange={(event) => {
+          const result = draft.setText(event.currentTarget.value);
+          if (result.status === "empty") onChange(undefined);
+          if (result.status === "valid")
+            onChange(Math.min(max * 100, Math.max(0, result.value)) / 100);
         }}
         className="text-foreground min-w-0 flex-1 bg-transparent text-end text-sm tabular-nums outline-none placeholder:text-start placeholder:text-xs"
       />

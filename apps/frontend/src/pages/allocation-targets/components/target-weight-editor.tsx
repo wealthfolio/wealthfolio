@@ -1,10 +1,10 @@
 import type { NumberFormatting } from "@wealthfolio/ui";
 import { getCategoryLabel } from "@/lib/taxonomy-labels";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
-import { Icons, stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
+import { Icons, useNumericDraft, useNumberFormatting } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
 import {
   allocationTargetColorForRow,
@@ -141,17 +141,15 @@ export function TargetWeightEditor({
 }: TargetWeightEditorProps) {
   const { t } = useTranslation();
   const numbers = useNumberFormatting();
-  const formatInput = (value: number) =>
-    numbers.formatDecimal(value, {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-      useGrouping: false,
-    });
   const resolvedCategoryLabel = categoryLabel ?? t("allocation:editor.assetClass");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
   const [liveBps, setLiveBps] = useState<number | null>(null);
-  const skipBlurCommitRef = useRef(false);
+  const editingWeight = weights.find((weight) => weight.categoryId === editingId);
+  const weightDraft = useNumericDraft((editingWeight?.targetBps ?? 0) / 100, {
+    acceptPercent: true,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   // Preview weights: redistribute live while user is typing, so other rows update in real-time.
   const previewWeights =
@@ -169,15 +167,15 @@ export function TargetWeightEditor({
 
   function startEdit(categoryId: string) {
     if (getIsLocked(categoryId)) return;
-    skipBlurCommitRef.current = false;
     setEditingId(categoryId);
     setLiveBps(null);
-    setEditValue(formatInput(getWeightBps(categoryId) / 100));
+    weightDraft.reset();
   }
 
   function commitEdit(categoryId: string) {
-    skipBlurCommitRef.current = false;
-    const pct = stripBidiControls(editValue).trim() === "" ? 0 : numbers.parseNumber(editValue);
+    const result = weightDraft.commit();
+    const pct =
+      result.status === "empty" ? 0 : result.status === "valid" ? result.value : undefined;
     if (pct !== undefined) {
       const bps = Math.round(Math.min(100, Math.max(0, pct)) * 100);
       onChange(redistribute(weights, categoryId, bps));
@@ -283,30 +281,14 @@ export function TargetWeightEditor({
                       min={0}
                       max={100}
                       step={1}
-                      value={editValue}
+                      {...weightDraft.inputProps}
                       autoFocus
-                      onChange={(e) => {
-                        setEditValue(e.target.value);
-                        const pct = numbers.parseNumber(e.target.value);
-                        if (pct !== undefined) {
-                          setLiveBps(Math.round(Math.min(100, Math.max(0, pct)) * 100));
-                        }
+                      onChange={(event) => {
+                        const result = weightDraft.setText(event.currentTarget.value);
+                        if (result.status === "valid")
+                          setLiveBps(Math.round(Math.min(100, Math.max(0, result.value)) * 100));
                       }}
-                      onBlur={() => {
-                        if (skipBlurCommitRef.current) {
-                          skipBlurCommitRef.current = false;
-                          return;
-                        }
-                        commitEdit(row.cat.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitEdit(row.cat.id);
-                        if (e.key === "Escape") {
-                          skipBlurCommitRef.current = true;
-                          setEditingId(null);
-                          setLiveBps(null);
-                        }
-                      }}
+                      onBlur={() => commitEdit(row.cat.id)}
                       className="border-primary bg-background focus:ring-primary w-12 [appearance:textfield] rounded border px-1.5 py-1 text-end text-sm tabular-nums focus:ring-1 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   ) : (
@@ -327,7 +309,11 @@ export function TargetWeightEditor({
                         row.bps > 0 ? "text-foreground font-medium" : "text-muted-foreground",
                       )}
                     >
-                      {formatInput(row.targetPct)}
+                      {numbers.formatDecimal(row.targetPct, {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                        useGrouping: false,
+                      })}
                     </button>
                   )}
                   <span className="text-muted-foreground text-xs">%</span>

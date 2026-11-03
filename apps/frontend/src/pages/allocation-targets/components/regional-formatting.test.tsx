@@ -83,7 +83,7 @@ function renderEditableWeights(locale = "US", direction: "ltr" | "rtl" = "ltr") 
 }
 
 it.each([
-  { locale: "US", direction: "ltr" as const, invalid: "12%", commit: "blur" },
+  { locale: "US", direction: "ltr" as const, invalid: "12%%", commit: "blur" },
   { locale: "US", direction: "ltr" as const, invalid: "12,5", commit: "Enter" },
   { locale: "ES", direction: "rtl" as const, invalid: "12abc", commit: "blur" },
   { locale: "ES", direction: "rtl" as const, invalid: "abc", commit: "Enter" },
@@ -134,3 +134,32 @@ it.each([
     ]);
   },
 );
+
+it("accepts a percent affix when editing a target weight", () => {
+  const { input, onChange } = renderEditableWeights("ES", "rtl");
+  fireEvent.change(input, { target: { value: "12,5 %" } });
+  fireEvent.blur(input);
+  expect(onChange).toHaveBeenCalledWith([
+    expect.objectContaining({ categoryId: "Equity", targetBps: 1250 }),
+    expect.objectContaining({ categoryId: "Bonds", targetBps: 8750 }),
+  ]);
+});
+
+it("shows zero when editing a category without a stored target weight", () => {
+  render(
+    <FormattingProvider locale="ES">
+      <TargetWeightEditor
+        categories={categories}
+        weights={[{ categoryId: "Equity", targetBps: 10000, isLocked: false }]}
+        currentAllocation={{ Equity: 100 }}
+        colorByCategory={new Map()}
+        bandType="absolute"
+        driftBandBps={100}
+        relativeFactorBps={2000}
+        onChange={vi.fn()}
+      />
+    </FormattingProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "0,0" }));
+  expect(screen.getByRole("textbox", { name: "Bonds Target" })).toHaveValue("0,0");
+});

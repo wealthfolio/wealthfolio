@@ -1,4 +1,4 @@
-import { MoneyInput, stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
+import { MoneyInput, useNumericDraft } from "@wealthfolio/ui";
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
@@ -51,7 +51,6 @@ export function GoalLeverRow({
   inputWidthClassName,
 }: GoalLeverRowProps) {
   const labelId = useId();
-  const numbers = useNumberFormatting();
   const inputScale = suffix === "%" ? 100 : 1;
   // Money fields have no natural hard cap (currencies vary by orders of
   // magnitude, e.g. IDR vs USD), so typed amounts stay unclamped unless the
@@ -71,9 +70,11 @@ export function GoalLeverRow({
   const [moneyDraftValue, setMoneyDraftValue] = useState<number | undefined>(undefined);
   const [moneyInputFocused, setMoneyInputFocused] = useState(false);
   const skipNextMoneyCommitRef = useRef(false);
-  const [draftValue, setDraftValue] = useState<string | null>(null);
-  const numberDraftDirtyRef = useRef(false);
-  const displayValue = draftValue ?? stripBidiControls(format(value));
+  const numberDraft = useNumericDraft(value * inputScale, {
+    acceptPercent: suffix === "%",
+    decimalAliases: true,
+    formatValue: (displayValue) => format(displayValue / inputScale),
+  });
 
   const commitMoneyDraftValue = () => {
     if (skipNextMoneyCommitRef.current) {
@@ -90,28 +91,8 @@ export function GoalLeverRow({
   };
 
   const commitDraftValue = () => {
-    if (!numberDraftDirtyRef.current) {
-      setDraftValue(null);
-      return;
-    }
-    numberDraftDirtyRef.current = false;
-
-    const raw = displayValue.trim();
-    if (!raw) {
-      setDraftValue(null);
-      return;
-    }
-
-    // These ungrouped fields have always accepted either western decimal mark.
-    const parsed = numbers.parseNumber(raw.replace(/[.,]/g, numbers.decimalSeparator));
-    if (parsed === undefined) {
-      setDraftValue(null);
-      return;
-    }
-
-    const next = clampInputValue(parsed);
-    onChange(next);
-    setDraftValue(null);
+    const result = numberDraft.commit();
+    if (result.status === "valid") onChange(clampInputValue(result.value));
   };
 
   return (
@@ -162,27 +143,8 @@ export function GoalLeverRow({
               type="text"
               aria-labelledby={labelId}
               inputMode={suffix === "%" ? "decimal" : "numeric"}
-              value={displayValue}
-              onFocus={() => {
-                numberDraftDirtyRef.current = false;
-                setDraftValue(stripBidiControls(format(value)));
-              }}
-              onChange={(event) => {
-                numberDraftDirtyRef.current = true;
-                setDraftValue(stripBidiControls(event.target.value));
-              }}
-              onBlur={() => {
-                commitDraftValue();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.currentTarget.blur();
-                }
-                if (event.key === "Escape") {
-                  numberDraftDirtyRef.current = false;
-                  setDraftValue(null);
-                }
-              }}
+              {...numberDraft.inputProps}
+              onBlur={commitDraftValue}
               className="text-foreground w-full min-w-0 bg-transparent text-end text-sm tabular-nums outline-none"
             />
           )}
