@@ -1,4 +1,4 @@
-import { stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
+import { useNumericDraft, useNumberFormatting } from "@wealthfolio/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExchangeRate } from "@/lib/types";
@@ -15,20 +15,8 @@ interface RateCellProps {
 export function RateCell({ rate, onUpdate }: RateCellProps) {
   const { t } = useTranslation();
   const numbers = useNumberFormatting();
-  const formatRateInput = () =>
-    numbers.formatDecimal(rate.rate, { useGrouping: false, maximumFractionDigits: 20 });
   const [isEditing, setIsEditing] = useState(false);
-  // Region settings can change on this same page while the rate is being edited.
-  const [rateDraft, setRateDraft] = useState({ value: "", numbers });
-  const setEditedRate = (value: string) =>
-    setRateDraft({ value: stripBidiControls(value), numbers });
-  const parsedRate = rateDraft.numbers.parseNumber(rateDraft.value);
-  const editedRate =
-    rateDraft.numbers === numbers || parsedRate === undefined
-      ? rateDraft.value
-      : stripBidiControls(
-          numbers.formatDecimal(parsedRate, { useGrouping: false, maximumFractionDigits: 20 }),
-        );
+  const rateDraft = useNumericDraft(rate.rate);
   const isManual = rate.source === "MANUAL";
 
   const handleEdit = () => {
@@ -41,17 +29,17 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
       return;
     }
     setIsEditing(true);
-    setEditedRate(formatRateInput());
+    rateDraft.reset();
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setEditedRate(formatRateInput());
+    rateDraft.reset();
   };
 
   const handleSubmit = () => {
-    const newRate = parsedRate;
-    if (newRate === undefined || newRate <= 0) {
+    const result = rateDraft.read();
+    if (result.status !== "valid" || result.value <= 0) {
       toast({
         title: t("settings:fx_invalid_title"),
         description: t("settings:fx_invalid_desc"),
@@ -59,7 +47,7 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
       });
       return;
     }
-    const updatedRate = { ...rate, rate: newRate };
+    const updatedRate = { ...rate, rate: result.value };
     onUpdate(updatedRate);
     setIsEditing(false);
   };
@@ -70,8 +58,7 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
         {isManual && isEditing ? (
           <Input
             aria-label={t("settings:exchange_rates_rate")}
-            value={editedRate}
-            onChange={(e) => setEditedRate(e.target.value)}
+            {...rateDraft.inputProps}
             className="w-full"
           />
         ) : (

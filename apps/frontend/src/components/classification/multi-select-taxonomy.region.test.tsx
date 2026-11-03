@@ -119,3 +119,27 @@ it("restores the default weight when a new classification draft is empty", async
   expect(input).toHaveValue("100");
   expect(save).not.toHaveBeenCalled();
 });
+
+it("retains an edited classification draft while its save is pending", async () => {
+  let complete!: (value: object) => void;
+  save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(
+    <FormattingProvider locale="ES">
+      <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
+    </FormattingProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /33,3/ }));
+  const input = screen.getByRole("textbox", { name: "Weight" });
+  fireEvent.change(input, { target: { value: "34,5" } });
+  fireEvent.blur(input);
+  expect(input).toHaveValue("34,5");
+  complete({});
+  await waitFor(() =>
+    expect(screen.queryByRole("textbox", { name: "Weight" })).not.toBeInTheDocument(),
+  );
+});

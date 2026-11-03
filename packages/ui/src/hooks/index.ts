@@ -8,3 +8,4 @@ export { useDebouncedCallback } from "./use-debounced-callback";
 export { dateFnsLocaleFor, useDateFnsLocale } from "./use-date-fns-locale";
 export { useIsMobile } from "./use-mobile";
 export { usePersistentState } from "./use-persistent-state";
+export * from "./use-numeric-draft";

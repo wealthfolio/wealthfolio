@@ -6,12 +6,7 @@ import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, GoalFundingRule, GoalFundingRuleInput } from "@/lib/types";
-import {
-  Button,
-  stripBidiControls,
-  useAmountFormatting,
-  useNumberFormatting,
-} from "@wealthfolio/ui";
+import { Button, useNumericDraft, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
@@ -78,38 +73,10 @@ function SharePercentInput({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const numbers = useNumberFormatting();
-  const formatInput = useCallback(
-    (value: number) =>
-      stripBidiControls(
-        numbers.formatDecimal(value, { maximumFractionDigits: 1, useGrouping: false }),
-      ),
-    [numbers],
-  );
-  const [draftValue, setDraftValue] = useState(formatInput(value));
-  const [inputFocused, setInputFocused] = useState(false);
-
-  useEffect(() => {
-    if (!inputFocused) {
-      setDraftValue(formatInput(value));
-    }
-  }, [inputFocused, value, formatInput]);
-
+  const draft = useNumericDraft(value, { acceptPercent: true, maximumFractionDigits: 1 });
   const commitDraftValue = () => {
-    const raw = draftValue.trim();
-    if (!raw) {
-      setDraftValue(formatInput(value));
-      return;
-    }
-
-    const parsed = numbers.parseNumber(raw);
-    if (parsed === undefined) {
-      setDraftValue(formatInput(value));
-      return;
-    }
-
-    onChange(parsed);
-    setDraftValue(formatInput(parsed));
+    const result = draft.commit();
+    if (result.status === "valid") onChange(result.value);
   };
 
   return (
@@ -118,27 +85,8 @@ function SharePercentInput({
         type="text"
         inputMode="decimal"
         aria-label={label}
-        value={draftValue}
-        onFocus={() => {
-          setInputFocused(true);
-          setDraftValue(formatInput(value));
-        }}
-        onChange={(e) => {
-          setDraftValue(stripBidiControls(e.target.value));
-        }}
-        onBlur={() => {
-          setInputFocused(false);
-          commitDraftValue();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.currentTarget.blur();
-          }
-          if (e.key === "Escape") {
-            setDraftValue(formatInput(value));
-            e.currentTarget.blur();
-          }
-        }}
+        {...draft.inputProps}
+        onBlur={commitDraftValue}
         className="text-foreground min-w-0 flex-1 bg-transparent text-end text-sm tabular-nums outline-none"
       />
       <span className="text-muted-foreground text-xs tabular-nums">%</span>
