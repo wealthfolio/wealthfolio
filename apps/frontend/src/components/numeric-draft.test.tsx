@@ -148,3 +148,44 @@ it.each([
   expect(input).toHaveValue("12.");
   expect(onCommit).not.toHaveBeenCalled();
 });
+
+it.each([
+  ["ES", "12.34", "US", "12.34"],
+  ["DE", "5.50", "US", "5.50"],
+  ["ES", "12.3400", "US", "12.3400"],
+  ["ES", "12,3400", "US", "12.3400"],
+  ["DE", "1.234", "US", "1234"],
+  ["DE", "1.234,500", "US", "1234.500"],
+  ["US", "1,234.500", "ES", "1234,500"],
+  ["US", "１２．３４００", "ES", "12,3400"],
+  ["US", "１２．", "ES", "12,"],
+  ["DE", "12.", "ES", "12,"],
+  ["ar-EG", "١٢٫٣٤٠٠", "US", "12.3400"],
+  ["US", "12.3400", "ar-EG", "١٢٫٣٤٠٠"],
+  ["US", "١٢٫٣٤٠٠", "ES", "١٢٫٣٤٠٠"],
+  ["ES", "0,00000000000000000000120", "US", "0.00000000000000000000120"],
+])(
+  "preserves active draft precision for %s %j when changing to %s",
+  (from, draft, to, expected) => {
+    const props = { options: { maximumFractionDigits: 1 } };
+    const { rerender } = render(view(from, props));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: draft } });
+    const before = result();
+    expect(before.status).toBe("valid");
+    rerender(view(to, props));
+    expect(input).toHaveValue(expected);
+    expect(result()).toEqual(before);
+  },
+);
+
+it("preserves the numeric parser order of decimal aliases before NFKC", () => {
+  const props = { options: { decimalAliases: true, maximumFractionDigits: 1 } };
+  const { rerender } = render(view("DE", props));
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "１２．３４５" } });
+  expect(result()).toEqual({ status: "valid", value: 12345 });
+  rerender(view("US", props));
+  expect(input).toHaveValue("12345");
+  expect(result()).toEqual({ status: "valid", value: 12345 });
+});

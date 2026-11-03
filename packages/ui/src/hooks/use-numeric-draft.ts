@@ -1,6 +1,10 @@
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { useNumberFormatting } from "../components/formatting-provider";
-import { stripBidiControls, type NumberFormatting } from "../lib/formatting";
+import { useLocalizationSettings, useNumberFormatting } from "../components/formatting-provider";
+import {
+  parseLocalizedDecimalString,
+  stripBidiControls,
+  type NumberFormatting,
+} from "../lib/formatting";
 import { isKeyboardEventComposing } from "../lib/utils";
 
 export type NumericDraftResult =
@@ -25,6 +29,7 @@ export interface NumericDraftOptions {
 interface Draft {
   text: string;
   numbers: NumberFormatting;
+  locale: string;
 }
 
 /**
@@ -33,6 +38,7 @@ interface Draft {
  */
 export function useNumericDraft(value: number | undefined, options: NumericDraftOptions = {}) {
   const numbers = useNumberFormatting();
+  const { locale } = useLocalizationSettings();
   const [draft, setDraft] = useState<Draft | null>(null);
   // Event handlers must see a change/cancel before React's next render (e.g. Escape + blur).
   const draftRef = useRef<Draft | null>(null);
@@ -65,12 +71,31 @@ export function useNumericDraft(value: number | undefined, options: NumericDraft
     draft?.text ??
     (value === undefined ? "" : stripBidiControls(options.formatValue?.(value) ?? format(value)));
   if (draft && draft.numbers !== numbers && result.status === "valid") {
-    // Preserve fractional zeroes and an unfinished decimal separator across region changes.
     const sourceText = decimalText(draft.text.trim(), draft.numbers);
-    const separator = sourceText.lastIndexOf(draft.numbers.decimalSeparator);
-    const fractionDigits = separator < 0 ? 0 : sourceText.length - separator - 1;
-    text = format(result.value, Math.min(20, fractionDigits));
-    if (separator === sourceText.length - 1) text += numbers.decimalSeparator;
+    // Use the parser's localized/grouped/invariant interpretation, not separator guesses.
+    const decimal = parseLocalizedDecimalString(sourceText, draft.locale);
+    if (decimal !== undefined) {
+      // Translate the exact text so active drafts never inherit display rounding limits.
+      text = decimal.replace(/[0-9.]/g, (character) =>
+        character === "."
+          ? numbers.decimalSeparator
+          : stripBidiControls(
+              numbers.formatDecimal(Number(character), {
+                useGrouping: false,
+                maximumFractionDigits: 0,
+              }),
+            ),
+      );
+      const normalizedSource = sourceText.normalize("NFKC");
+      if (
+        normalizedSource.endsWith(draft.numbers.decimalSeparator) ||
+        normalizedSource.endsWith(".")
+      ) {
+        text += numbers.decimalSeparator;
+      }
+    }
+    // Some numbering systems are accepted by parseNumber but not the exact-string
+    // parser. Keep those drafts verbatim rather than round or reinterpret them.
   }
 
   const setText = (raw: string): NumericDraftResult => {
@@ -83,7 +108,7 @@ export function useNumericDraft(value: number | undefined, options: NumericDraft
         if (withoutAffix.trim() && !/[%٪]/u.test(withoutAffix)) next = withoutAffix;
       }
     }
-    const current = { text: next, numbers };
+    const current = { text: next, numbers, locale };
     draftRef.current = current;
     setDraft(current);
     return parse(current);

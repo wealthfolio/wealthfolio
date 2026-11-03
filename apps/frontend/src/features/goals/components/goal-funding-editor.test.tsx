@@ -102,3 +102,34 @@ it("restores the existing account share when its draft is empty", () => {
   expect(input).toHaveValue("20");
   expect(screen.getByText("80 % left")).toBeInTheDocument();
 });
+
+it.each(["ltr", "rtl"] as const)(
+  "preserves a fallback share through a region change, continued typing and save in %s",
+  async (direction) => {
+    const save = vi.spyOn(data.mutations.saveFundingMutation, "mutate");
+    save.mockClear();
+    const user = userEvent.setup();
+    const client = new QueryClient();
+    const view = (locale: string) => (
+      <QueryClientProvider client={client}>
+        <DirectionProvider direction={direction}>
+          <FormattingProvider locale={locale}>
+            <TooltipProvider>
+              <GoalFundingEditor goalId="house" goalType="home" />
+            </TooltipProvider>
+          </FormattingProvider>
+        </DirectionProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view("ES"));
+    await user.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+    const input = screen.getByRole("textbox");
+    await user.click(input);
+    fireEvent.change(input, { target: { value: "12.34" } });
+    rerender(view("US"));
+    expect(input).toHaveValue("12.34");
+    await user.keyboard("{End}5{Tab}");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith([expect.objectContaining({ sharePercent: 12.345 })]);
+  },
+);
