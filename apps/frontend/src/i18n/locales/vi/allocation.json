@@ -509,7 +509,17 @@
     "useAmount": "Use {{amount}}",
     "useAmountIn": "Use {{amount}} in {{account}}",
     "useAsAdjustment": "Use {{amount}} as the adjustment",
-    "calculationInterrupted": "The worksheet changed while calculating. Please try again."
+    "calculationInterrupted": "The worksheet changed while calculating. Please try again.",
+    "accountCount_one": "{{count}} account",
+    "categoriesOutsideTarget_one": "{{count}} category is outside its target.",
+    "collapsedRows_one": "+{{count}} more item",
+    "collapsedTouching_one": "{{count}} of them touches {{category}}",
+    "fundingFromAccounts_one": "From {{count}} account",
+    "lineCount_one": "{{count}} line",
+    "lineWarningCount_one": "{{count}} line has a warning",
+    "setupScope_one": "Generating for {{count}} account",
+    "unitsAtPrice_one": "≈ {{quantity}} unit at {{price}}",
+    "warningCount_one": "{{count}} warning"
   },
   "categoryNouns": {
     "assetClass": "asset classes",
@@ -519,6 +529,10 @@
     "assetClass_other": "asset classes",
     "region_other": "regions",
     "industry_other": "industries",
-    "category_other": "categories"
+    "category_other": "categories",
+    "assetClass_one": "asset class",
+    "category_one": "category",
+    "industry_one": "industry",
+    "region_one": "region"
   }
 }

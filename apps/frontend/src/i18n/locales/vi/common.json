@@ -684,7 +684,9 @@
     "activity_failed_deleting": "Failed to delete activity",
     "activity_failed_duplicating": "Failed to duplicate activity",
     "addon_error": "Add-on '{{addonId}}' error",
-    "security_update_failed": "Failed to update security"
+    "security_update_failed": "Failed to update security",
+    "issues_found_one": "{{count}} issue found",
+    "recategorized_one": "Re-categorized {{count}} activity."
   },
   "validation": {
     "accountNameMin": "Name must be at least 2 characters.",

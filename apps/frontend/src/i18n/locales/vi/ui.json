@@ -89,7 +89,8 @@
     "copyFailed": "Sao chép thất bại",
     "cutFailed": "Cắt thất bại",
     "pasteFailed": "Dán thất bại",
-    "cellsSkipped_other": "Đã bỏ qua {{count}} ô khác"
+    "cellsSkipped_other": "Đã bỏ qua {{count}} ô khác",
+    "cellsSkipped_one": "Đã bỏ qua {{count}} ô khác"
   },
   "dataTable": {
     "noResults": "Không có kết quả",

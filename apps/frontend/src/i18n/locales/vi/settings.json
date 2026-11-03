@@ -1587,7 +1587,10 @@
     "addonCheckFailed": "Failed to check updates for addon {{addon}}",
     "auditRemoved_other": "{{count}} entries removed.",
     "addonUpdates_other": "{{count}} addons have updates available.",
-    "addonCriticalUpdates_other": "{{count}} addons have critical security updates available."
+    "addonCriticalUpdates_other": "{{count}} addons have critical security updates available.",
+    "addonCriticalUpdates_one": "{{count}} addon has critical security updates available.",
+    "addonUpdates_one": "{{count}} addon has updates available.",
+    "auditRemoved_one": "{{count}} entry removed."
   },
   "addonPermissions": {
     "functions": {

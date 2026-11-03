@@ -438,7 +438,8 @@
     "staleTaxonomy": "Phân loại cũ",
     "replaceWithCategory": "Thay thế bằng danh mục",
     "replaceDescription_other": "Replace {{count}} split allocations with {{category}}? This removes the existing splits.",
-    "categoryProtected": "Danh mục được bảo vệ"
+    "categoryProtected": "Danh mục được bảo vệ",
+    "replaceDescription_one": "Replace {{count}} split allocation with {{category}}? This removes the existing splits."
   },
   "hierarchy": {
     "noCategorizedSpending": "Không có chi tiêu được phân loại trong kỳ này.",
@@ -1068,7 +1069,8 @@
     "title": "Tiêu đề xem xét chỉnh sửa chia",
     "hiddenCategory": "Danh mục ẩn",
     "confirm": "Xác nhận",
-    "removed_other": "Đã xóa {{count}} mục khác"
+    "removed_other": "Đã xóa {{count}} mục khác",
+    "removed_one": "{{count}} entry removed."
   },
   "budgetErrors": {
     "deleteGroup": "Lỗi xóa nhóm",

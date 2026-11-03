@@ -976,7 +976,8 @@
       "allRowsSkippedDescription": "Không có hàng nào được thêm.",
       "includeRow": "Include row {{line}}",
       "includeAllRows": "Bao gồm tất cả các hàng",
-      "includeMatchingRows": "Bao gồm các hàng khớp"
+      "includeMatchingRows": "Bao gồm các hàng khớp",
+      "skippedCount_one": "Đã bỏ qua {{count}} mục"
     },
     "csvViewer": {
       "status": "Trạng thái",
