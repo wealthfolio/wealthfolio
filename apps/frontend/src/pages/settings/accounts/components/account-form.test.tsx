@@ -230,6 +230,21 @@ describe("AccountForm archive", () => {
   });
 });
 
+describe("AccountForm group", () => {
+  beforeEach(() => mutations.update.mockClear());
+
+  it("sends null when the group is cleared", async () => {
+    renderForm({ group: "Retirement" });
+    fireEvent.change(screen.getByLabelText(/settings:accounts_form_group_label/), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mock.calls[0][0]).toMatchObject({ group: null });
+  });
+});
+
 describe("AccountForm account number", () => {
   beforeEach(() => {
     mutations.create.mockClear();
