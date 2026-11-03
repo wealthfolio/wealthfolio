@@ -782,7 +782,9 @@ mod tests {
     }
 
     use crate::assets::AssetRepository;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::sync_outbox;
     use std::sync::Arc;
     use wealthfolio_core::assets::AssetRepositoryTrait;
@@ -793,18 +795,15 @@ mod tests {
     const MANUAL_QUOTE_CLASHES: &str = "0190f0a0-0000-7000-8000-000000000002";
     const SOURCE_SNAPSHOT: &str = "0190f0a0-0000-7000-8000-0000000000aa";
 
-    fn setup() -> (Pool, AssetRepository) {
+    fn setup() -> (Pool, AssetRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempfile::tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool.clone(), AssetRepository::new(pool, writer))
+        (pool.clone(), AssetRepository::new(pool, writer), dir)
     }
 
     fn exec(conn: &mut SqliteConnection, sql: &str) {
@@ -1040,7 +1039,7 @@ mod tests {
 
     #[tokio::test]
     async fn merge_moves_everything_onto_the_survivor() {
-        let (pool, repo) = setup();
+        let (pool, repo, _dir) = setup();
         seed_split_pair(&mut get_connection(&pool).expect("conn"));
         clear_outbox(&pool);
 
@@ -1180,7 +1179,7 @@ mod tests {
 
     #[tokio::test]
     async fn merge_refuses_and_rolls_back_when_a_source_snapshot_lists_both() {
-        let (pool, repo) = setup();
+        let (pool, repo, _dir) = setup();
         {
             let conn = &mut get_connection(&pool).expect("conn");
             seed_split_pair(conn);
@@ -1223,7 +1222,7 @@ mod tests {
 
     #[tokio::test]
     async fn merge_rejects_an_asset_into_itself_or_a_missing_one() {
-        let (pool, repo) = setup();
+        let (pool, repo, _dir) = setup();
         seed_split_pair(&mut get_connection(&pool).expect("conn"));
         assert!(repo.merge_into("S", "S").await.is_err());
         assert!(repo.merge_into("S", "missing").await.is_err());
