@@ -191,7 +191,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                   />
                   <CommandList>
                     <CommandGroup>
-                      <ScrollArea className="max-h-96 overflow-y-auto">
+                      {/* Fits inside CommandList's max-h-75 with the group's padding, so
+                          only this area scrolls. */}
+                      <ScrollArea className="max-h-72 overflow-y-auto">
                         {showCustomCode && (
                           <CommandItem
                             value={customCode}
