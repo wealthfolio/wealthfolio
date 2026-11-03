@@ -320,5 +320,13 @@
     "description": "Bạn đang kết nối một tài khoản hoặc gia đình khác. Dữ liệu danh mục cục bộ của bạn sẽ được giữ lại, nhưng các liên kết công ty chứng khoán và thiết lập đồng bộ thiết bị hiện có sẽ bị xóa. Tài khoản mới có thể thêm dữ liệu chứng khoán vào hồ sơ này. Hãy thiết lập lại đồng bộ thiết bị khi bạn đã sẵn sàng. Sử dụng một hồ sơ mới nếu bạn muốn giữ riêng biệt dữ liệu.",
     "cancel": "Hủy",
     "confirm": "Thay đổi kết nối"
+  },
+  "syncMessages": {
+    "runFailed": "This sync run couldn't be completed. Please retry sync or manage your broker connection.",
+    "runNeedsReview": "Some synced items need your review before sync can continue.",
+    "accountFailed": "We couldn't sync this broker account. Please retry sync or manage your broker connection.",
+    "accountNeedsReview": "Some broker data needs review. Please retry sync or manage your broker connection.",
+    "holdingsSynced": "Holdings synced, but activity sync needs attention. Please retry sync or manage your broker connection.",
+    "holdingsDeferred": "Holdings sync needs attention. Please retry sync or manage your broker connection."
   }
 }

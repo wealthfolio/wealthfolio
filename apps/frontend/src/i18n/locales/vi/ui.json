@@ -1,7 +1,9 @@
 {
   "carousel": {
     "previous": "Trang trước",
-    "next": "Trang sau"
+    "next": "Trang sau",
+    "role": "Vai trò",
+    "slide": "Trang trình bày"
   },
   "currency": {
     "selectTitle": "Chọn đơn vị tiền tệ",
@@ -14,7 +16,15 @@
     "searchPrompt": "Tìm kiếm đơn vị tiền tệ bất kỳ hoặc chọn từ các tùy chọn phổ biến ở trên.",
     "useCustom": "Sử dụng \"{{value}}\" làm đơn vị tiền tệ tùy chỉnh",
     "noneFound": "Không tìm thấy tiền tệ nào cho \"{{query}}\".",
-    "noneFoundShort": "Không tìm thấy tiền tệ nào."
+    "noneFoundShort": "Không tìm thấy tiền tệ nào.",
+    "units": {
+      "GBp": "GBp",
+      "GBX": "GBX",
+      "ILA": "ILA",
+      "USX": "USX",
+      "ZAc": "ZAc",
+      "KWF": "KWF"
+    }
   },
   "dataGrid": {
     "label": "Lưới dữ liệu",
@@ -75,7 +85,11 @@
     "clearSymbol": "Xóa mã chứng khoán",
     "currency": "Tiền tệ",
     "searchCurrency": "Tìm kiếm tiền tệ...",
-    "noCurrencyFound": "Không tìm thấy tiền tệ nào."
+    "noCurrencyFound": "Không tìm thấy tiền tệ nào.",
+    "copyFailed": "Sao chép thất bại",
+    "cutFailed": "Cắt thất bại",
+    "pasteFailed": "Dán thất bại",
+    "cellsSkipped_other": "Đã bỏ qua {{count}} ô khác"
   },
   "dataTable": {
     "noResults": "Không có kết quả",
@@ -197,5 +211,27 @@
   "page": {
     "back": "Quay lại"
   },
-  "remove": "Xóa {{label}}"
+  "remove": "Xóa {{label}}",
+  "actionConfirm": {
+    "pending": "Đang chờ xử lý"
+  },
+  "select": {
+    "placeholder": "Chọn..."
+  },
+  "progress": {
+    "title": "Tiến độ",
+    "message": "Thông báo",
+    "description": "Mô tả"
+  },
+  "navigation": {
+    "view": "Xem {{number}}",
+    "goTo": "Đi tới {{name}}"
+  },
+  "quoteImport": {
+    "noFile": "Không có tệp",
+    "validateFailed": "Xác minh thất bại",
+    "validateFirst": "Xác minh trước",
+    "noValid": "Không hợp lệ",
+    "importFailed": "Nhập thất bại"
+  }
 }

@@ -163,5 +163,8 @@
     "irr_hover_hint": " Di chuột qua giá trị để xem IRR trong kỳ đã chọn."
   },
   "more_count_one": "+{{count}} mục khác",
-  "more_count_other": "+{{count}} mục khác"
+  "more_count_other": "+{{count}} mục khác",
+  "copy_account_number": "Sao chép số tài khoản",
+  "account_number_copied": "Đã sao chép số tài khoản",
+  "account_number_copy_failed": "Không thể sao chép số tài khoản"
 }

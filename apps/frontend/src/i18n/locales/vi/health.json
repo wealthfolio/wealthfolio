@@ -192,7 +192,12 @@
     "to_market_data": "Xem dữ liệu thị trường",
     "to_general_settings": "Mở Cài đặt chung",
     "to_connect": "Cấu hình tài khoản",
-    "review_transfers": "Xem xét chuyển khoản"
+    "review_transfers": "Xem xét chuyển khoản",
+    "rebuild_account_history": "Rebuild History",
+    "add_price": "Add Price",
+    "update_cost_basis": "Update Cost Basis",
+    "review_transaction": "Review Transaction",
+    "review_entry": "Review entry"
   },
   "updatedAt": "Đã cập nhật {{time}}",
   "healthy": {

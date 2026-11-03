@@ -12,7 +12,6 @@
     "more": "Thêm"
   },
   "securities": {
-    "heading": "Chứng khoán",
     "subtitle": "Duyệt và quản lý các chứng khoán có sẵn trong danh mục đầu tư của bạn.",
     "add_security": "Thêm chứng khoán",
     "delete_title": "Xóa chứng khoán",
@@ -313,7 +312,9 @@
       "bond": "Trái phiếu",
       "option": "Quyền chọn",
       "metal": "Kim loại (Hàng hóa)"
-    }
+    },
+    "moex_symbol_placeholder": "e.g. SBER, AFLT",
+    "moex_symbol_hint": "Use a MOEX security code without a prefix or suffix. Set the exchange to Moscow Exchange (MISX)."
   },
   "assetForm": {
     "symbol": "Mã",
@@ -697,6 +698,18 @@
       "precious_metal": "Kim loại quý",
       "liability": "Nợ phải trả",
       "other": "Khác"
+    },
+    "validation": {
+      "quantity_must_be_greater_than_0": "Quantity must be greater than 0",
+      "name_is_required": "Name is required",
+      "purchase_price_must_be_greater_than_0": "Purchase price must be greater than 0",
+      "notes_must_be_less_than_1000_characters": "Notes must be less than 1000 characters",
+      "address_must_be_less_than_200_characters": "Address must be less than 200 characters",
+      "interest_rate_must_be_100_or_less": "Interest rate must be 100 or less",
+      "name_must_be_less_than_100_characters": "Name must be less than 100 characters",
+      "interest_rate_must_be_0_or_greater": "Interest rate must be 0 or greater",
+      "description_must_be_less_than_200_characters": "Description must be less than 200 characters",
+      "original_amount_must_be_greater_than_0": "Original amount must be greater than 0"
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "Thêm ngữ cảnh về đợt định giá này (ví dụ: nguồn thẩm định, điều kiện thị trường)",
     "cancel": "Hủy",
     "update_value": "Cập nhật giá trị",
-    "na": "K/D"
+    "na": "K/D",
+    "validation": {
+      "number": "Value must be a number.",
+      "non_negative": "Value cannot be negative",
+      "notes": "Notes must be less than 500 characters"
+    }
   },
   "valueHistory": {
     "date": "Ngày",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "Nhập khoản thanh toán lớn hơn 0.",
     "payment_unavailable": "Không thể tính khoản thanh toán cho các điều khoản này.",
     "fields_read_only": "Chỉ có thể thay đổi các điều khoản khoản vay trong phần chi tiết của khoản vay."
+  },
+  "notifications": {
+    "profile_updated": "Asset profile updated successfully.",
+    "quote_mode_updated": "Asset quote mode updated successfully.",
+    "profile_failed": "There was a problem updating the asset profile.",
+    "quote_mode_failed": "There was a problem updating the asset quote mode.",
+    "quote_added": "Quote added successfully.",
+    "quote_updated": "Quote updated successfully.",
+    "quote_deleted": "Quote deleted successfully.",
+    "quote_save_failed": "There was a problem saving the quote.",
+    "quote_delete_failed": "There was a problem deleting the quote."
+  },
+  "noQuote": {
+    "manual": "Quote mode is Manual",
+    "inactive": "Asset is inactive",
+    "matured": "Bond has matured",
+    "expired": "Option has expired",
+    "paused": "Sync paused after repeated errors",
+    "pending": "No provider quote has been synced yet",
+    "no_data": "No data available from provider yet"
   }
 }

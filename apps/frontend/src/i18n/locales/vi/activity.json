@@ -315,7 +315,8 @@
   "delete_modal": {
     "title": "Xóa hoạt động?",
     "description": "Hoạt động này sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.",
-    "linked_transfer_desc": "Hoạt động này được liên kết với một cặp chuyển khoản. Cả hai vế sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+    "linked_transfer_desc": "Hoạt động này được liên kết với một cặp chuyển khoản. Cả hai vế sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.",
+    "linked_conversion_desc": "Xóa chuyển đổi liên kết"
   },
   "form_renderer": {
     "select_type": "Chọn loại hoạt động ở trên để tiếp tục",
@@ -337,7 +338,8 @@
     "split": "Tách",
     "all_types_group": "Tất cả loại hoạt động",
     "expand_all_types": "Mở rộng để hiện tất cả các loại",
-    "collapse": "Thu gọn"
+    "collapse": "Thu gọn",
+    "conversion": "Chuyển đổi"
   },
   "view_controls": {
     "status": "Trạng thái",
@@ -687,7 +689,14 @@
     "err_select_reward_asset": "Vui lòng chọn một tài sản thưởng.",
     "err_enter_received_quantity": "Vui lòng nhập số lượng nhận được.",
     "err_enter_income_or_fmv": "Vui lòng nhập số tiền thu nhập hoặc FMV mỗi đơn vị.",
-    "err_enter_sent_amount": "Vui lòng nhập số tiền đã gửi."
+    "err_enter_sent_amount": "Vui lòng nhập số tiền đã gửi.",
+    "section_conversion": "Chuyển đổi",
+    "section_conversion_from": "Chuyển đổi từ",
+    "section_conversion_to": "Chuyển đổi sang",
+    "conversion_hint": "Chuyển đổi",
+    "button_add_conversion": "Thêm chuyển đổi",
+    "warn_converting_more_than_held": "You are converting {{converting}} units, but this account holds {{available}} today.",
+    "err_conversion_same_asset": "Lỗi: Chuyển đổi cùng loại tài sản"
   },
   "datagrid": {
     "pagination": {
@@ -960,7 +969,14 @@
       "missingAccount": "Thiếu tài khoản",
       "emptySymbol": "Mã trống",
       "accountAssignmentBlankRows_one": "Ánh xạ từng dòng CSV vào một tài khoản. {{count}} dòng vẫn đang trống, hãy chọn tài khoản mặc định ở phần Tải lên hoặc điền vào cột tài khoản.",
-      "accountAssignmentBlankRows_other": "Ánh xạ từng dòng CSV vào một tài khoản. {{count}} dòng vẫn đang trống, hãy chọn tài khoản mặc định ở phần Tải lên hoặc điền vào cột tài khoản."
+      "accountAssignmentBlankRows_other": "Ánh xạ từng dòng CSV vào một tài khoản. {{count}} dòng vẫn đang trống, hãy chọn tài khoản mặc định ở phần Tải lên hoặc điền vào cột tài khoản.",
+      "statusIncluded": "Bao gồm",
+      "skippedCount_other": "Đã bỏ qua {{count}} mục khác",
+      "allRowsSkipped": "Đã bỏ qua tất cả các hàng",
+      "allRowsSkippedDescription": "Không có hàng nào được thêm.",
+      "includeRow": "Include row {{line}}",
+      "includeAllRows": "Bao gồm tất cả các hàng",
+      "includeMatchingRows": "Bao gồm các hàng khớp"
     },
     "csvViewer": {
       "status": "Trạng thái",
@@ -1072,7 +1088,8 @@
       "willBeImportedTitle_one": "{{count}} trên tổng số {{all}} hoạt động sẽ được nhập",
       "willBeImportedTitle_other": "{{count}} trên tổng số {{all}} hoạt động sẽ được nhập",
       "activitiesCount_one": "{{count}} hoạt động",
-      "activitiesCount_other": "{{count}} hoạt động"
+      "activitiesCount_other": "{{count}} hoạt động",
+      "backend_failed": "Lỗi hệ thống khi xử lý."
     },
     "status": {
       "valid": "Hợp lệ",
@@ -1348,6 +1365,60 @@
       "importing": "Đang nhập...",
       "issuesTitle_one": "Có vấn đề với {{count}} hoạt động.",
       "issuesTitle_other": "Có vấn đề với {{count}} hoạt động."
+    },
+    "creditCard": {
+      "charge": "Phí",
+      "payment": "Thanh toán",
+      "transfer": "Chuyển khoản",
+      "refund": "Hoàn tiền",
+      "interest": "Lãi suất"
     }
+  },
+  "subtype_conversion_out": "Chuyển đổi (Ra)",
+  "subtype_conversion_in": "Chuyển đổi (Vào)",
+  "mobile_type_conversion_desc": "Chuyển đổi",
+  "validation": {
+    "account_is_required": "Tài khoản là bắt buộc",
+    "date_is_required": "Ngày là bắt buộc",
+    "symbol_is_required_for_this_activity_type": "Mã tài sản là bắt buộc cho loại hoạt động này",
+    "received_quantity_is_required": "Số lượng nhận được là bắt buộc",
+    "either_income_amount_or_fmv_per_unit_is_required": "Cần số tiền thu nhập hoặc giá thị trường mỗi đơn vị",
+    "fee_cannot_be_negative": "Phí không được âm",
+    "tax_cannot_be_negative": "Thuế không được âm",
+    "currency_is_required": "Tiền tệ là bắt buộc",
+    "symbol_is_required_for_trade_activities": "Mã tài sản là bắt buộc cho các hoạt động giao dịch",
+    "quantity_must_be_greater_than_0": "Quantity must be greater than 0",
+    "unit_price_must_be_greater_than_0": "Unit price must be greater than 0",
+    "symbol_is_required_for_drip_dividends": "Symbol is required for DRIP dividends",
+    "quantity_is_required_for_drip_shares_received": "Quantity is required for DRIP (shares received)",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "Either amount or unit price is required for DRIP dividends",
+    "symbol_is_required_for_dividend_in_kind_activities": "Symbol is required for dividend in kind activities",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "Quantity is required for dividend in kind (shares received)",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "Either amount or unit price is required for dividend in kind",
+    "amount_is_required_for_dividend_activities": "Amount is required for dividend activities",
+    "symbol_is_required_for_staking_rewards": "Symbol is required for staking rewards",
+    "quantity_is_required_for_staking_rewards_tokens_received": "Quantity is required for staking rewards (tokens received)",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "Either amount or unit price is required for staking rewards",
+    "amount_is_required_for_interest_activities": "Amount is required for interest activities",
+    "symbol_is_required_for_split_activities": "Symbol is required for split activities",
+    "amount_split_ratio_must_be_greater_than_0": "Amount (split ratio) must be greater than 0",
+    "amount_is_required_for_credit_activities": "Amount is required for credit activities",
+    "activity_type_is_required": "Activity type is required",
+    "date_not_recognized": "Date not recognized",
+    "map_type": "Map the CSV activity type before continuing",
+    "credit_card_types": "Credit card imports only support charges, payments, transfers out, refunds, fees, and interest",
+    "fee_or_amount": "Either fee or amount is required for fee activities",
+    "amount_or_fee": "Amount or fee is required for tax activities",
+    "amount_or_quantity": "Amount or quantity is required for transfer activities",
+    "final_cash": "Final cash amount is required before approval",
+    "fx_non_negative": "FX rate cannot be negative",
+    "transfer_pair": "A transfer pair needs both legs, in two currencies when they share an account",
+    "more": " (+{{remaining}} more)",
+    "amount_is_required_for_deposit_withdrawal_activities": "Amount is required for deposit/withdrawal activities"
+  },
+  "validationFields": {
+    "external": "External Transfer",
+    "direction": "Transfer Direction",
+    "mode": "Transfer Mode"
   }
 }

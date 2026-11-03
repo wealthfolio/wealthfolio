@@ -39,10 +39,7 @@
     "rails": {
       "target_allocation": "Phân bổ mục tiêu",
       "details": "Chi tiết",
-      "suggested_moves": "Gợi ý điều chỉnh",
       "all_in_range": "Tất cả các danh mục đều nằm trong khoảng mục tiêu — không cần tái cân bằng",
-      "add": "Thêm",
-      "trim": "Giảm",
       "inside_target_range": "Trong khoảng mục tiêu",
       "outside_range": "{{count}} mục ngoài khoảng · chênh lệch lớn nhất {{gap}}",
       "tolerance": "dung sai {{tolerance}}",
@@ -52,7 +49,10 @@
       "compare_weights": "So sánh tỷ trọng hiện tại với danh mục dự kiến của bạn.",
       "set_target_allocation": "Đặt phân bổ mục tiêu",
       "outside_range_one": "{{count}} mục ngoài khoảng · chênh lệch lớn nhất {{gap}}",
-      "outside_range_other": "{{count}} mục ngoài khoảng · chênh lệch lớn nhất {{gap}}"
+      "outside_range_other": "{{count}} mục ngoài khoảng · chênh lệch lớn nhất {{gap}}",
+      "target_differences": "Differences from target",
+      "below_target_by": "{{amount}} below target",
+      "above_target_by": "{{amount}} above target"
     },
     "value_strip": {
       "portfolio_value": "Giá trị danh mục",

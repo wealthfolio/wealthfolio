@@ -59,24 +59,8 @@
   },
   "appearance": {
     "subtitle": "Tùy chỉnh giao diện hiển thị",
-    "themeLabel": "Chủ đề",
-    "fontLabel": "Phông chữ",
-    "themeLight": "Sáng",
-    "themeDark": "Tối",
-    "themeSystem": "Hệ thống",
-    "themeLightPreviewAlt": "Xem trước chủ đề sáng",
-    "themeDarkPreviewAlt": "Xem trước chủ đề tối",
-    "themeSystemPreviewAlt": "Xem trước chủ đề hệ thống",
-    "fontSample": "Đầu tư với sự thấu suốt và minh bạch.",
-    "fonts": {
-      "monoLabel": "Mono",
-      "monoDescription": "Kỹ thuật & chính xác",
-      "sansLabel": "Sans",
-      "sansDescription": "Gọn gàng & hiện đại",
-      "serifLabel": "Serif",
-      "serifDescription": "Cổ điển & trang nhã"
-    },
-    "navigationLabel": "Điều hướng"
+    "fonts": {},
+    "changeLater": "You can change these anytime in Settings."
   },
   "connect": {
     "optional": "Tùy chọn",
