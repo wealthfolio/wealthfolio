@@ -755,7 +755,7 @@ export function AllocationWorksheetTab({
   const { t } = useTranslation();
   const { formatAmount, formatPrice, currencyFractionDigits } = useAmountFormatting();
   // The export writes numbers the way the user reads them (see toCsv).
-  const { decimalSeparator, formatPercent } = useNumberFormatting();
+  const { decimalSeparator, formatDecimal, formatPercent } = useNumberFormatting();
   const { formatCalendarDate } = useDateFormatting();
   const navigate = useNavigate();
   const worksheet = useAllocationWorksheet();
@@ -2228,7 +2228,10 @@ export function AllocationWorksheetTab({
       : null,
     profile.maxTurnoverBps
       ? t("allocation:worksheet.limitTurnover", {
-          percent: formatPercent(profile.maxTurnoverBps / 10000, { digits: 0 }),
+          percent: formatDecimal(profile.maxTurnoverBps / 10000, {
+            style: "percent",
+            maximumFractionDigits: 2,
+          }),
         })
       : null,
   ].filter((limit): limit is string => limit !== null);
