@@ -103,14 +103,13 @@ describe("Connect navigation visibility", () => {
   it("omits the Connect item in MobileNavBar when CONNECT_ENABLED is false", () => {
     render(
       <MemoryRouter>
-        <MobileNavBar navigation={{ primary: [] }} />
+        <MobileNavBar
+          navigation={{ primary: [], secondary: [{ title: "Settings", href: "/settings" }] }}
+        />
       </MemoryRouter>,
     );
 
-    const moreButton = screen.queryByRole("button", { name: /more options/i });
-    if (moreButton) {
-      fireEvent.click(moreButton);
-    }
+    fireEvent.click(screen.getByRole("button", { name: /more options/i }));
 
     expect(screen.queryByRole("link", { name: /connect/i })).toBeNull();
   });
@@ -120,12 +119,13 @@ describe("Connect navigation visibility", () => {
 
     render(
       <MemoryRouter>
-        <MobileNavBar navigation={{ primary: [] }} />
+        <MobileNavBar
+          navigation={{ primary: [], secondary: [{ title: "Settings", href: "/settings" }] }}
+        />
       </MemoryRouter>,
     );
 
-    const moreButton = screen.getByRole("button", { name: /more options/i });
-    fireEvent.click(moreButton);
+    fireEvent.click(screen.getByRole("button", { name: /more options/i }));
 
     expect(screen.getByRole("link", { name: /connect/i })).toBeInTheDocument();
   });
