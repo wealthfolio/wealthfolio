@@ -517,7 +517,7 @@ export function FeesPage({ ctx }: FeesPageProps) {
                   <p className="text-sm text-gray-600">{account.accountType}</p>
                 </div>
                 <span className="text-gray-900 font-medium">
-                  ${account.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                  {account.currency}
                 </span>
               </div>
             ))}
@@ -529,22 +529,6 @@ export function FeesPage({ ctx }: FeesPageProps) {
 }
 
 export default FeesPage;
-          <h2 className="text-lg font-semibold mb-4">Holdings Overview</h2>
-          <p>Total holdings: {holdings.length}</p>
-          {/* Add your custom analytics here */}
-        </div>
-
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Account Summary</h2>
-          <p>Total accounts: {accounts.length}</p>
-          {/* Add account analytics here */}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default AnalyticsDashboard;
 ```
 
 ### Using Hooks and State Management
