@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
-import { Icons, useNumberFormatting } from "@wealthfolio/ui";
+import { Icons, stripBidiControls, useNumberFormatting } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
 import {
   allocationTargetColorForRow,
@@ -177,7 +177,7 @@ export function TargetWeightEditor({
 
   function commitEdit(categoryId: string) {
     skipBlurCommitRef.current = false;
-    const pct = numbers.parseNumber(editValue);
+    const pct = stripBidiControls(editValue).trim() === "" ? 0 : numbers.parseNumber(editValue);
     if (pct !== undefined) {
       const bps = Math.round(Math.min(100, Math.max(0, pct)) * 100);
       onChange(redistribute(weights, categoryId, bps));

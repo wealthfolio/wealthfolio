@@ -198,6 +198,22 @@ describe("AssetClassificationToolUIContentImpl", () => {
     ]);
   });
 
+  it("restores the existing proposal when its percent draft is empty", async () => {
+    renderWidget(result());
+    const input = screen.getByRole("textbox", { name: "New Equity percent" });
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    expect(input).toHaveValue("100");
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    await waitFor(() =>
+      expect(taxonomyHookMocks.replaceMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assignments: [expect.objectContaining({ categoryId: "equity", weight: 10000 })],
+        }),
+      ),
+    );
+  });
+
   it("disables confirm for applied drafts", () => {
     renderWidget(result({ draftStatus: "applied", appliedAt: "2026-06-03T10:00:00.000Z" }));
 

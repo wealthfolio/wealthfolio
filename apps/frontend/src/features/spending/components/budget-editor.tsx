@@ -1026,7 +1026,12 @@ function GroupEditDialogBody({
         );
 
   const handleSave = () => {
-    if (draftRollover && parsedStartingBalance === undefined) return;
+    if (
+      draftRollover &&
+      startingBalanceDraft.value.trim() !== "" &&
+      parsedStartingBalance === undefined
+    )
+      return;
 
     const patch: { name?: string; color?: string | null; icon?: string | null } = {};
     const trimmedName = draftName.trim();

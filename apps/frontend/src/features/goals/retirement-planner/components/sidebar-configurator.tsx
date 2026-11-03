@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  stripBidiControls,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -284,11 +285,13 @@ function PercentOverrideInput({
     (next?: number) =>
       next === undefined
         ? ""
-        : numberFormatting.formatDecimal(next * 100, {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-            useGrouping: false,
-          }),
+        : stripBidiControls(
+            numberFormatting.formatDecimal(next * 100, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+              useGrouping: false,
+            }),
+          ),
     [numberFormatting],
   );
   const [draft, setDraft] = useState<string | null>(null);
@@ -306,7 +309,7 @@ function PercentOverrideInput({
           setDraft(null);
         }}
         onChange={(e) => {
-          const raw = e.target.value;
+          const raw = stripBidiControls(e.target.value);
           setDraft(raw);
           if (!raw.trim()) {
             onChange(undefined);

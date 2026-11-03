@@ -54,3 +54,28 @@ it("preserves an edited rate across a region change before saving", () => {
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ rate: 1.235 }));
 });
+
+it("rejects an empty exchange-rate draft without saving zero", () => {
+  const onUpdate = vi.fn();
+  render(
+    <FormattingProvider locale="ES">
+      <RateCell
+        rate={{
+          id: "USD_EUR",
+          fromCurrency: "USD",
+          toCurrency: "EUR",
+          rate: 1.234,
+          source: "MANUAL",
+          timestamp: "2026-11-02",
+        }}
+        onUpdate={onUpdate}
+      />
+    </FormattingProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onUpdate).not.toHaveBeenCalled();
+  expect(input).toHaveValue("");
+});

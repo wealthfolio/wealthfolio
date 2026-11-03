@@ -115,3 +115,14 @@ it("parses localized digits and rejects malformed drafts", () => {
   fireEvent.blur(input);
   expect(onChange).not.toHaveBeenCalled();
 });
+
+it("keeps the existing lever value when its draft is empty", () => {
+  const onChange = vi.fn();
+  renderRateLever(0.058, onChange);
+  const input = screen.getByRole("textbox");
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.blur(input);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(input).toHaveValue("5.8");
+});
