@@ -1937,7 +1937,7 @@ export function FileCell<TData>({
       }
       return null;
     },
-    [maxFileSize, acceptedTypes, t],
+    [maxFileSize, acceptedTypes, formatting, t],
   );
 
   const addFiles = React.useCallback(
