@@ -233,3 +233,31 @@ it("preserves an edited turnover cap across a region change", async () => {
     ),
   );
 });
+
+it("clears a turnover cap instead of saving zero when its draft is empty", async () => {
+  const cappedTarget = { ...target, maxTurnoverBps: 1250 };
+  saveTarget.mockReset().mockResolvedValue({ target: cappedTarget, weights });
+  saveConstraints.mockReset().mockResolvedValue([]);
+  render(
+    <FormattingProvider locale="ES">
+      <TooltipProvider>
+        <TargetsTab
+          targets={[cappedTarget]}
+          selectedTargetId={target.id}
+          accountScope={{ type: "all" }}
+          onTargetChange={vi.fn()}
+        />
+      </TooltipProvider>
+    </FormattingProvider>,
+  );
+  const user = userEvent.setup();
+  await user.clear(screen.getByPlaceholderText("No limit"));
+  await user.click(screen.getByRole("button", { name: "Save target" }));
+  await waitFor(() =>
+    expect(saveTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ maxTurnoverBps: null }),
+      }),
+    ),
+  );
+});

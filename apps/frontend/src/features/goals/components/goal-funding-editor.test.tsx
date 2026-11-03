@@ -91,3 +91,14 @@ it("edits an existing share in place in RTL without retaining direction markers"
   expect(input).toHaveValue("21");
   expect(screen.getByText((text) => stripBidiControls(text) === "79 % left")).toBeInTheDocument();
 });
+
+it("restores the existing account share when its draft is empty", () => {
+  renderEditor(false, "ES");
+  fireEvent.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  const input = screen.getByRole("textbox");
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.blur(input);
+  expect(input).toHaveValue("20");
+  expect(screen.getByText("80 % left")).toBeInTheDocument();
+});

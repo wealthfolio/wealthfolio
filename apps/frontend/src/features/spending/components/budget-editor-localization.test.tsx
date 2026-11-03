@@ -294,7 +294,7 @@ it.each(["ltr", "rtl"] as const)(
     const colors = within(dialog).getAllByRole("button", { name: /#/ });
     await user.click(colors[0]);
     const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
-    for (const invalid of ["12abc", "", " "]) {
+    for (const invalid of ["12abc", "12,3,4"]) {
       await user.clear(balance);
       if (invalid) await user.type(balance, invalid);
       await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
@@ -357,3 +357,61 @@ it("can disable rollover after entering an invalid starting balance", async () =
   );
   expect(updateBudgetGroup).not.toHaveBeenCalled();
 });
+
+it.each([
+  { locale: "US", direction: "ltr" as const, blank: "", nextRegion: "US" },
+  { locale: "US", direction: "rtl" as const, blank: " ", nextRegion: "US" },
+  { locale: "ES", direction: "ltr" as const, blank: "", nextRegion: "ES" },
+  { locale: "ES", direction: "rtl" as const, blank: " ", nextRegion: "ES" },
+  { locale: "ES", direction: "rtl" as const, blank: "", nextRegion: "US" },
+  { locale: "US", direction: "ltr" as const, blank: " ", nextRegion: "ES" },
+])(
+  "saves an empty starting balance as zero with pending group edits in $locale $direction → $nextRegion",
+  async ({ locale, direction, blank, nextRegion }) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    vi.mocked(updateBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user, setRegion } = await setup(budget, locale, direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const name = within(dialog).getByRole("textbox", { name: zhCommon.name });
+    await user.clear(name);
+    await user.type(name, "New name");
+    await user.click(within(dialog).getAllByRole("button", { name: /#/ })[0]);
+    const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    expect(balance).toHaveAttribute("placeholder", "0");
+    await user.clear(balance);
+    if (blank) await user.type(balance, blank);
+    setRegion(nextRegion);
+    expect(balance).toHaveValue(blank);
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(updateBudgetGroup).toHaveBeenCalledWith(
+        NEEDS_ID,
+        expect.objectContaining({ name: "New name", color: "#fecaca" }),
+        "default",
+      ),
+    );
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: true, startingBalance: "0" }),
+        "default",
+      ),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  },
+);

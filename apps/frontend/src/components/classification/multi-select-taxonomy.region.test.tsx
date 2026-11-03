@@ -67,18 +67,21 @@ it.each([
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ weight: 3450 })));
 });
 
-it.each(["101%", "-1%", "34bad%", "34%%", "%34%"])("does not save invalid weight %s", (value) => {
-  render(
-    <FormattingProvider locale="US">
-      <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
-    </FormattingProvider>,
-  );
-  fireEvent.click(screen.getByRole("button", { name: /33.3%/ }));
-  const input = screen.getByRole("textbox", { name: "Weight" });
-  fireEvent.change(input, { target: { value } });
-  fireEvent.blur(input);
-  expect(save).not.toHaveBeenCalled();
-});
+it.each(["101%", "-1%", "34bad%", "34%%", "%34%", ""])(
+  "does not save invalid weight %s",
+  (value) => {
+    render(
+      <FormattingProvider locale="US">
+        <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
+      </FormattingProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /33.3%/ }));
+    const input = screen.getByRole("textbox", { name: "Weight" });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+    expect(save).not.toHaveBeenCalled();
+  },
+);
 
 it("accepts a pasted localized percentage when adding a classification", async () => {
   render(
@@ -98,4 +101,21 @@ it("accepts a pasted localized percentage when adding a classification", async (
       expect.objectContaining({ categoryId: "bonds", weight: 3450 }),
     ),
   );
+});
+
+it("restores the default weight when a new classification draft is empty", async () => {
+  render(
+    <FormattingProvider locale="ES">
+      <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
+    </FormattingProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  fireEvent.click(await screen.findByRole("option", { name: "Bonds" }));
+  const input = screen
+    .getAllByRole("textbox")
+    .find((element) => (element as HTMLInputElement).value === "100")!;
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+  expect(input).toHaveValue("100");
+  expect(save).not.toHaveBeenCalled();
 });

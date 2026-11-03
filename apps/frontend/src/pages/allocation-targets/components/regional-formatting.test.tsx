@@ -78,7 +78,7 @@ function renderEditableWeights(locale = "US", direction: "ltr" | "rtl" = "ltr") 
       </FormattingProvider>
     </DirectionProvider>,
   );
-  fireEvent.click(screen.getByRole("button", { name: locale === "US" ? "33.3" : /33,3/ }));
+  fireEvent.click(screen.getByRole("button", { name: locale === "US" ? /33\.3/ : /33,3/ }));
   return { onChange, input: screen.getByRole("textbox", { name: "Equity Target" }) };
 }
 
@@ -86,7 +86,7 @@ it.each([
   { locale: "US", direction: "ltr" as const, invalid: "12%", commit: "blur" },
   { locale: "US", direction: "ltr" as const, invalid: "12,5", commit: "Enter" },
   { locale: "ES", direction: "rtl" as const, invalid: "12abc", commit: "blur" },
-  { locale: "ES", direction: "rtl" as const, invalid: "", commit: "Enter" },
+  { locale: "ES", direction: "rtl" as const, invalid: "abc", commit: "Enter" },
 ])(
   "preserves target weights for unreadable $invalid in $locale on $commit",
   ({ locale, direction, invalid, commit }) => {
@@ -98,7 +98,7 @@ it.each([
     else fireEvent.keyDown(input, { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("button", { name: locale === "US" ? "33.3" : /33,3/ }),
+      screen.getByRole("button", { name: locale === "US" ? /33\.3/ : /33,3/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: locale === "US" ? "66.7" : /66,7/ }),
@@ -115,3 +115,22 @@ it("still commits an explicit zero target weight", () => {
     expect.objectContaining({ categoryId: "Bonds", targetBps: 10000 }),
   ]);
 });
+
+it.each([
+  { locale: "US", direction: "ltr" as const, blank: "", commit: "blur" },
+  { locale: "US", direction: "rtl" as const, blank: " ", commit: "Enter" },
+  { locale: "ES", direction: "ltr" as const, blank: "", commit: "Enter" },
+  { locale: "ES", direction: "rtl" as const, blank: "\u2068 \u2069", commit: "blur" },
+])(
+  "commits a cleared target weight as zero in $locale $direction on $commit",
+  ({ locale, direction, blank, commit }) => {
+    const { input, onChange } = renderEditableWeights(locale, direction);
+    fireEvent.change(input, { target: { value: blank } });
+    if (commit === "blur") fireEvent.blur(input);
+    else fireEvent.keyDown(input, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ categoryId: "Equity", targetBps: 0 }),
+      expect.objectContaining({ categoryId: "Bonds", targetBps: 10000 }),
+    ]);
+  },
+);
