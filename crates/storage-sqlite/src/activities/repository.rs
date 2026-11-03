@@ -7496,7 +7496,7 @@ mod tests {
 
     #[tokio::test]
     async fn deleted_broker_activity_stays_deleted_across_resync() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7539,7 +7539,7 @@ mod tests {
 
     #[tokio::test]
     async fn suppression_survives_a_provider_id_change() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7575,7 +7575,7 @@ mod tests {
 
     #[tokio::test]
     async fn suppression_falls_back_to_the_idempotency_key_without_a_record_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7610,7 +7610,7 @@ mod tests {
 
     #[tokio::test]
     async fn suppression_is_scoped_to_the_account_it_was_deleted_in() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-one");
@@ -7648,7 +7648,7 @@ mod tests {
 
     #[tokio::test]
     async fn deleting_a_manual_activity_records_no_tombstone() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-manual");
@@ -7679,7 +7679,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_record_the_provider_stops_returning_is_not_a_user_deletion() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7740,7 +7740,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_restored_activity_is_synced_again_rather_than_duplicated() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7794,7 +7794,7 @@ mod tests {
 
     #[tokio::test]
     async fn deleting_an_account_forgets_its_suppressions() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7827,7 +7827,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_bulk_delete_suppresses_every_row_it_removes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
@@ -7865,7 +7865,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_snapshot_written_before_a_new_column_is_still_restorable() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-sync");
