@@ -8,7 +8,11 @@ for (const width of [320, 1280]) {
       const chart = page.getByRole("region", { name: "Net worth history" });
       const curve = chart.locator(".recharts-area-curve");
       await expect(curve).toBeAttached();
-      await expect(curve).toHaveAttribute("stroke", "hsl(38 75% 50%)");
+      // The line takes the theme's net-worth colour, which must resolve to a real colour.
+      await expect(curve).toHaveAttribute("stroke", "var(--net-worth)");
+      expect(await curve.evaluate((path) => getComputedStyle(path).stroke)).toMatch(
+        /^(rgb|oklab|oklch|color)\(/,
+      );
       const area = chart.locator(".recharts-area-area");
       // The fill closes along the bottom of the plot, including all-negative ranges.
       await expect(area).toHaveAttribute("d", /[,L]0,280Z$/);

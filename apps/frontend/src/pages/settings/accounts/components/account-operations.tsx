@@ -58,9 +58,14 @@ export function AccountOperations({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+        {/* Named by aria-label, not an sr-only span: the span is positioned against the
+            settings shell, not the page that scrolls, so a long list stretched the shell
+            and gave it a second scrollbar (#2252). */}
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-xs" />}
+          aria-label={t("settings:accounts_operations_open")}
+        >
           <Icons.MoreVertical className="h-4 w-4" />
-          <span className="sr-only">{t("settings:accounts_operations_open")}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onEdit(account)}>
@@ -85,7 +90,7 @@ export function AccountOperations({
             className="text-destructive focus:text-destructive flex cursor-pointer items-center"
             onClick={() => setShowDeleteAlert(true)}
           >
-            {t("settings:accounts_operations_delete")}
+            {t("common:delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -99,10 +104,10 @@ export function AccountOperations({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
-            <Button onClick={handleDelete} className="bg-destructive focus:ring-destructive">
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDelete}>
               <Icons.Trash className="me-2 h-4 w-4" />
-              <span>{t("settings:accounts_operations_delete")}</span>
+              <span>{t("common:delete")}</span>
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -121,7 +126,7 @@ export function AccountOperations({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <Button onClick={handleArchive}>{t("settings:accounts.operations_archive")}</Button>
           </AlertDialogFooter>
         </AlertDialogContent>

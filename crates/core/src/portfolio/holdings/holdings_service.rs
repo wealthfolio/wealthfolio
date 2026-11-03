@@ -2823,6 +2823,28 @@ mod tests {
 
     #[async_trait::async_trait]
     impl TaxonomyServiceTrait for EmptyTaxonomyService {
+        async fn update_category_reviewed(
+            &self,
+            _: crate::taxonomies::Category,
+            _: crate::taxonomies::Category,
+        ) -> crate::Result<crate::taxonomies::Category> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+        async fn delete_category_reviewed(
+            &self,
+            _: crate::taxonomies::Category,
+        ) -> crate::Result<usize> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+
+        fn get_category_references(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> crate::Result<crate::taxonomies::CategoryReferences> {
+            unimplemented!("category references are not used by this fixture")
+        }
+
         fn get_taxonomies(&self) -> Result<Vec<Taxonomy>> {
             Ok(Vec::new())
         }

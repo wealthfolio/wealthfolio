@@ -1,6 +1,7 @@
 // Goal Commands
 import type {
   Goal,
+  GoalUpdate,
   GoalFundingRule,
   GoalFundingRuleInput,
   GoalPlan,
@@ -40,7 +41,7 @@ export const createGoal = async (goal: NewGoal): Promise<Goal> => {
   }
 };
 
-export const updateGoal = async (goal: Goal): Promise<Goal> => {
+export const updateGoal = async (goal: GoalUpdate): Promise<Goal> => {
   try {
     return await invoke<Goal>("update_goal", { goal });
   } catch (error) {

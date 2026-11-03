@@ -11,6 +11,8 @@
 //! The last test guards the other half of the rule: an entity with a random
 //! UUID stays deleted when newer writes for its ID arrive.
 
+mod common;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -62,12 +64,12 @@ const HOUSE_GOAL: &str = "goal-house-deposit";
 const TRAVEL_EVENT_TYPE: &str = "255600dc-c2a3-47e0-979d-a602c21fc337";
 
 fn setup_db() -> (
-    tempfile::TempDir,
+    common::TestDir,
     std::sync::Arc<db::DbPool>,
     db::WriteHandle,
     std::sync::Arc<wealthfolio_storage_sqlite::sync::ProfileSyncState>,
 ) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();
@@ -84,10 +86,10 @@ fn setup_db() -> (
 
 /// One profile database with its writer and sync repository.
 struct Device {
-    _dir: tempfile::TempDir,
     pool: Arc<db::DbPool>,
     writer: db::WriteHandle,
     sync: AppSyncRepository,
+    _dir: common::TestDir,
 }
 
 impl Device {
@@ -95,10 +97,10 @@ impl Device {
         let (dir, pool, writer, _sync_state) = setup_db();
         let sync = AppSyncRepository::new(pool.clone(), writer.clone());
         Self {
-            _dir: dir,
             pool,
             writer,
             sync,
+            _dir: dir,
         }
     }
 
@@ -468,20 +470,28 @@ fn activity_exists(d: &Device, activity_id: &str) -> bool {
 
 // ----------------------------- inputs -----------------------------
 
-/// The single-category write the activity form makes: it clears any splits.
+/// An explicitly reviewed replacement of the current split state.
 async fn assign_category(
     repo: &ActivityTaxonomyAssignmentRepository,
+    device: &Device,
     activity_id: &str,
     category_id: &str,
 ) {
-    repo.assign_many_single_select_clearing_splits(vec![NewActivityTaxonomyAssignment {
-        id: None,
-        activity_id: activity_id.to_string(),
-        taxonomy_id: SPENDING.to_string(),
-        category_id: category_id.to_string(),
-        weight: 10_000,
-        source: "manual".to_string(),
-    }])
+    let expected = ActivitySplitRepository::new(device.pool.clone(), device.writer.clone())
+        .list_for_activity(activity_id)
+        .await
+        .expect("read reviewed splits");
+    repo.assign_many_single_select_clearing_splits(
+        vec![NewActivityTaxonomyAssignment {
+            id: None,
+            activity_id: activity_id.to_string(),
+            taxonomy_id: SPENDING.to_string(),
+            category_id: category_id.to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+        }],
+        HashMap::from([(activity_id.to_string(), expected)]),
+    )
     .await
     .expect("assign category on A");
 }
@@ -729,7 +739,7 @@ async fn category_change_through_the_activity_form_reaches_peer() {
     let repo = ActivityTaxonomyAssignmentRepository::new(a.pool.clone(), a.writer.clone());
     let mut seq = 0;
 
-    assign_category(&repo, GROCERY_RUN, "cat_food").await;
+    assign_category(&repo, &a, GROCERY_RUN, "cat_food").await;
     let first = sync_cycle(&a, &b, &mut seq).await;
     let assignment = assignment_id(&a, GROCERY_RUN);
     first.assert_pushed(
@@ -751,7 +761,7 @@ async fn category_change_through_the_activity_form_reaches_peer() {
     );
     assert_eq!(categories(&b, GROCERY_RUN), categories(&a, GROCERY_RUN));
 
-    assign_category(&repo, GROCERY_RUN, "cat_groceries").await;
+    assign_category(&repo, &a, GROCERY_RUN, "cat_groceries").await;
     let changed = sync_cycle(&a, &b, &mut seq).await;
     changed.assert_pushed(
         SyncEntity::ActivityTaxonomyAssignment,
@@ -778,7 +788,7 @@ async fn uncategorize_then_recategorize_later_reaches_peer() {
     let repo = ActivityTaxonomyAssignmentRepository::new(a.pool.clone(), a.writer.clone());
     let mut seq = 0;
 
-    assign_category(&repo, GROCERY_RUN, "cat_food").await;
+    assign_category(&repo, &a, GROCERY_RUN, "cat_food").await;
     sync_cycle(&a, &b, &mut seq).await;
     let assignment = assignment_id(&a, GROCERY_RUN);
     assert_eq!(categories(&b, GROCERY_RUN), categories(&a, GROCERY_RUN));
@@ -798,7 +808,7 @@ async fn uncategorize_then_recategorize_later_reaches_peer() {
         "B is uncategorized too"
     );
 
-    assign_category(&repo, GROCERY_RUN, "cat_food").await;
+    assign_category(&repo, &a, GROCERY_RUN, "cat_food").await;
     let recategorized = sync_cycle(&a, &b, &mut seq).await;
     recategorized.assert_pushed(
         SyncEntity::ActivityTaxonomyAssignment,
@@ -826,7 +836,7 @@ async fn split_then_single_category_reaches_peer() {
     let split_repo = ActivitySplitRepository::new(a.pool.clone(), a.writer.clone());
     let mut seq = 0;
 
-    assign_category(&assignments, GROCERY_RUN, "cat_food").await;
+    assign_category(&assignments, &a, GROCERY_RUN, "cat_food").await;
     sync_cycle(&a, &b, &mut seq).await;
     let assignment = assignment_id(&a, GROCERY_RUN);
     assert_eq!(categories(&b, GROCERY_RUN), categories(&a, GROCERY_RUN));
@@ -857,7 +867,7 @@ async fn split_then_single_category_reaches_peer() {
     assert_eq!(splits(&b, GROCERY_RUN), split_rows, "B has the split lines");
     assert!(categories(&b, GROCERY_RUN).is_empty());
 
-    assign_category(&assignments, GROCERY_RUN, "cat_groceries").await;
+    assign_category(&assignments, &a, GROCERY_RUN, "cat_groceries").await;
     let single = sync_cycle(&a, &b, &mut seq).await;
     for (id, ..) in &split_rows {
         single.assert_pushed(SyncEntity::SpendingActivitySplit, id, SyncOperation::Delete);

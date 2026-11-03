@@ -48,4 +48,11 @@ describe("manual holdings activity types", () => {
   it("keeps connected holdings sync-only", () => {
     expect(getAllowedActivityTypes(holdingsAccount("provider-account"))).toEqual([]);
   });
+
+  it("keeps conversions on transactions accounts, whose lots they move", () => {
+    expect(getAllowedActivityTypes(undefined)).toContain("CONVERSION");
+    expect(getAllowedActivityTypes(holdingsAccount())).not.toContain("CONVERSION");
+    expect(restrictionAllowsType("none", "CONVERSION")).toBe(true);
+    expect(restrictionAllowsType("limited", "CONVERSION")).toBe(false);
+  });
 });

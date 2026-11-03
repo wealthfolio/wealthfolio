@@ -133,7 +133,7 @@
     "errors": {
       "currency_required": "العملة مطلوبة",
       "instrument_type_required": "نوع الأداة مطلوب",
-      "name_max": "يجب ألا يتجاوز الاسم 100 حرف",
+      "name_max": "يجب ألا يتجاوز الاسم 200 حرف",
       "name_required": "الاسم مطلوب",
       "symbol_max": "يجب ألا يتجاوز الرمز 100 حرف",
       "symbol_required": "الرمز مطلوب"
@@ -278,9 +278,23 @@
     "select_vehicle_type": "اختر نوع المركبة",
     "unit": "الوحدة",
     "vehicle_type": "نوع المركبة",
-    "weight_unit": "وحدة الوزن"
+    "weight_unit": "وحدة الوزن",
+    "validation": {
+      "name_is_required": "الاسم مطلوب",
+      "quantity_must_be_greater_than_0": "يجب أن تكون الكمية أكبر من 0",
+      "purchase_price_must_be_greater_than_0": "يجب أن يكون سعر الشراء أكبر من 0",
+      "notes_must_be_less_than_1000_characters": "يجب أن تكون الملاحظات أقل من 1000 حرف",
+      "address_must_be_less_than_200_characters": "يجب أن يكون العنوان أقل من 200 حرف",
+      "interest_rate_must_be_100_or_less": "يجب أن يكون سعر الفائدة 100 أو أقل",
+      "name_must_be_less_than_100_characters": "يجب أن يكون الاسم أقل من 100 حرف",
+      "interest_rate_must_be_0_or_greater": "يجب أن يكون سعر الفائدة 0 أو أكبر",
+      "description_must_be_less_than_200_characters": "يجب أن يكون الوصف أقل من 200 حرف",
+      "original_amount_must_be_greater_than_0": "يجب أن يكون المبلغ الأصلي أكبر من 0"
+    }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "مثل SBER، AFLT",
+    "moex_symbol_hint": "استخدم رمز ورقة مالية في MOEX دون بادئة أو لاحقة. اختر Moscow Exchange (MISX) كبورصة.",
     "add": "إضافة",
     "auto_default": "تلقائي (افتراضي)",
     "automatic_off_description": "المزامنة التلقائية متوقفة. أنت تدير الأسعار يدويًا.",
@@ -989,7 +1003,6 @@
     "delete_fallback_name": "هذه الورقة المالية",
     "delete_title": "حذف الورقة المالية",
     "deleting": "جارٍ الحذف...",
-    "heading": "الأوراق المالية",
     "subtitle": "تصفّح الأوراق المالية المتاحة في محفظتك وأدِرها."
   },
   "table": {
@@ -1031,7 +1044,12 @@
     "notes_placeholder": "أضف أي سياق حول هذا التقييم (مثل مصدر التثمين أو ظروف السوق)",
     "optional": "(اختياري)",
     "title": "تحديث القيمة: {{name}}",
-    "update_value": "تحديث القيمة"
+    "update_value": "تحديث القيمة",
+    "validation": {
+      "number": "يجب أن تكون القيمة رقمًا.",
+      "non_negative": "لا يمكن أن تكون القيمة سالبة",
+      "notes": "يجب ألا تتجاوز الملاحظات 500 حرف"
+    }
   },
   "valueHistory": {
     "balance": "الرصيد",
@@ -1073,5 +1091,25 @@
     "to_delete_other": "{{count}} عنصر للحذف",
     "to_delete_two": "عنصران للحذف",
     "to_delete_zero": "{{count}} للحذف"
+  },
+  "notifications": {
+    "profile_updated": "تم تحديث بيانات الأصل.",
+    "quote_mode_updated": "تم تحديث وضع تسعير الأصل.",
+    "profile_failed": "تعذر تحديث بيانات الأصل.",
+    "quote_mode_failed": "تعذر تحديث وضع التسعير.",
+    "quote_added": "تمت إضافة السعر.",
+    "quote_updated": "تم تحديث السعر.",
+    "quote_deleted": "تم حذف السعر.",
+    "quote_save_failed": "تعذر حفظ السعر.",
+    "quote_delete_failed": "تعذر حذف السعر."
+  },
+  "noQuote": {
+    "manual": "وضع التسعير يدوي",
+    "inactive": "الأصل غير نشط",
+    "matured": "استحق السند",
+    "expired": "انتهت صلاحية الخيار",
+    "paused": "تم إيقاف المزامنة مؤقتًا بعد أخطاء متكررة",
+    "pending": "لم تتم مزامنة أي سعر من مزود البيانات بعد",
+    "no_data": "لا تتوفر بيانات من المزود بعد"
   }
 }

@@ -12,7 +12,7 @@ export function ConnectFeatures({ dashboard = false }: { dashboard?: boolean }) 
   const prefix = dashboard ? "connect:emptyState.features" : "auth:connect.features";
   return (
     <div className="@container w-full">
-      <ul className="@min-[47.25rem]:grid-cols-3 grid grid-cols-1 gap-3">
+      <ul className="grid grid-cols-1 gap-3 @min-[47.25rem]:grid-cols-3">
         {features.map(({ key, icon: Icon }) => (
           <li
             key={key}
@@ -22,7 +22,7 @@ export function ConnectFeatures({ dashboard = false }: { dashboard?: boolean }) 
               <span className="bg-connect-brand/10 text-connect-brand flex size-8 shrink-0 items-center justify-center rounded-lg">
                 <Icon className="size-4" aria-hidden />
               </span>
-              <h3 className="min-w-0 text-sm font-semibold leading-5">
+              <h3 className="min-w-0 text-sm leading-5 font-semibold">
                 {t(`${prefix}.${key}.title`)}
               </h3>
             </div>

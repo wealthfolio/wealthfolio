@@ -13,15 +13,14 @@ class ChangeDetectionTests(unittest.TestCase):
         self.assertEqual({name for name, enabled in classify(paths).items() if enabled}, set(expected))
 
     def test_frontend_paths(self):
-        for path in ["apps/frontend/src/app.tsx", "packages/ui/src/button.tsx"]:
-            with self.subTest(path=path):
-                self.assert_jobs([path], "frontend", "formatting")
+        self.assert_jobs(["apps/frontend/src/app.tsx"], "frontend", "formatting")
+        self.assert_jobs(["packages/ui/src/button.tsx"], "frontend", "formatting", "addon_sandbox")
 
     def test_docs_only(self):
         self.assert_jobs(["docs/design.md", "AGENTS.md"], "formatting")
 
     def test_connect_defaults_cover_every_consumer(self):
-        self.assert_jobs(["config/connect.defaults.json"], "frontend", "rust", "formatting", "android", "ios")
+        self.assert_jobs(["config/connect.defaults.json"], "frontend", "rust", "formatting", "android", "ios", "addon_sandbox")
 
     def test_native_paths(self):
         for path in ["apps/tauri/src/lib.rs", "Cargo.lock", "Cargo.toml", ".cargo/config.toml"]:
@@ -33,16 +32,60 @@ class ChangeDetectionTests(unittest.TestCase):
 
     def test_application_csp_contract(self):
         self.assert_jobs(["apps/server/src/api.rs"], "frontend", "rust")
-        self.assert_jobs(["apps/frontend/index.html"], "frontend", "formatting")
+        self.assert_jobs(["apps/frontend/index.html"], "frontend", "formatting", "addon_sandbox")
 
     def test_shared_workflows(self):
-        self.assert_jobs([".github/workflows/pr-check.yml"], "frontend", "rust", "formatting", "android", "ios")
+        self.assert_jobs([".github/workflows/pr-check.yml"], "frontend", "rust", "formatting", "android", "ios", "addon_sandbox")
 
     def test_tauri_configuration(self):
         self.assert_jobs(["apps/tauri/tauri.conf.json"], "frontend", "rust", "android", "ios")
 
     def test_dependency_manifests(self):
-        self.assert_jobs(["pnpm-lock.yaml"], "frontend", "formatting", "android", "ios")
+        self.assert_jobs(["pnpm-lock.yaml"], "frontend", "formatting", "android", "ios", "addon_sandbox")
+
+    def test_addon_runtime_and_harness_changes_require_browsers(self):
+        for path in [
+            "apps/frontend/src/addons/iframe/addon-sandbox-entry.tsx",
+            "apps/frontend/src/addons/activation-coordinator.ts",
+            "apps/frontend/addon-sandbox.html",
+            "packages/addon-sdk/src/index.ts",
+            "packages/addon-dev-tools/dev-server.js",
+            "e2e/addon-sandbox/addon-sandbox.spec.ts",
+            "scripts/run-addon-sandbox-e2e.mjs",
+            "playwright.addon-sandbox.config.ts",
+        ]:
+            with self.subTest(path=path):
+                self.assert_jobs([path], "frontend", "formatting", "addon_sandbox")
+
+    def test_shared_sandbox_inputs_require_browsers(self):
+        for path in [
+            "apps/frontend/src/lib/id.ts", "apps/frontend/src/lib/utils.ts",
+            "apps/frontend/src/lib/asset-logo-registry.ts", "apps/frontend/src/lib/types.ts",
+            "apps/frontend/src/i18n/interpolation.ts", "apps/frontend/src/i18n/locales/ar/ui.json",
+            "apps/frontend/src/globals.css", "apps/frontend/src/themes/definitions/classic.css",
+            "apps/frontend/vite.config.ts", "apps/frontend/vite.addon-sandbox.config.ts",
+            "apps/frontend/scripts/verify-addon-sandbox-runtime.mjs",
+            "apps/frontend/tsconfig.json", "apps/frontend/tsconfig.node.json",
+            "tsconfig.base.json", ".node-version", ".npmrc",
+        ]:
+            with self.subTest(path=path):
+                self.assert_jobs([path], "frontend", "formatting", "addon_sandbox")
+
+    def test_unrelated_changes_do_not_require_browsers(self):
+        for path in [
+            "apps/frontend/src/pages/holdings/holdings-page.tsx",
+            "apps/frontend/src/pages/net-worth/net-worth-content.tsx",
+            "e2e/net-worth/layout.spec.ts", "playwright.net-worth.config.ts",
+            "docs/addons/addon-getting-started.md", "packages/ui/README.md",
+            "apps/frontend/src/addons/README.md", "crates/core/src/addons/network.rs",
+        ]:
+            with self.subTest(path=path):
+                self.assertFalse(classify([path])["addon_sandbox"])
+
+    def test_addon_requirement_survives_mixed_changes(self):
+        paths = ["apps/frontend/src/addons/iframe/deleted.ts", "docs/addons.md"]
+        for ordered in [paths, list(reversed(paths))]:
+            self.assert_jobs(ordered, "frontend", "formatting", "addon_sandbox")
 
     def test_docker(self):
         self.assert_jobs(["Dockerfile"], "frontend", "rust", "formatting")
@@ -55,7 +98,7 @@ class ChangeDetectionTests(unittest.TestCase):
             def git(*args):
                 return subprocess.check_output(["git", "-C", root, *args])
             git("init", "-q")
-            source = Path(root) / "apps/frontend/example.ts"
+            source = Path(root) / "apps/frontend/src/addons/example.ts"
             source.parent.mkdir(parents=True)
             source.write_text("export const example = 1;\n")
             git("add", ".")
@@ -65,7 +108,7 @@ class ChangeDetectionTests(unittest.TestCase):
             source.rename(destination)
             git("add", "-A")
             paths = git("diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD").decode().strip("\0").split("\0")
-            self.assert_jobs(paths, "frontend", "rust", "formatting", "android", "ios")
+            self.assert_jobs(paths, "frontend", "rust", "formatting", "android", "ios", "addon_sandbox")
 
     def test_shared_rust_only_checks_mobile(self):
         for path in ["crates/core/src/addons/network.rs", "crates/core/src/addons/tests.rs",
@@ -103,6 +146,18 @@ class ChangeDetectionTests(unittest.TestCase):
 
     def test_no_changes(self):
         self.assert_jobs([])
+
+
+class BrowserCheckWorkflowTests(unittest.TestCase):
+    def test_browser_install_and_execution_share_the_path_filter(self):
+        workflow = (Path(__file__).parents[1] / "workflows/pr-check.yml").read_text()
+        self.assertIn("addon_sandbox: ${{ steps.filter.outputs.addon_sandbox }}", workflow)
+        for name in ["Install addon sandbox browsers", "Run addon sandbox browser tests"]:
+            step = workflow.split(f"      - name: {name}\n")[1].split("\n      - name:")[0]
+            self.assertIn("if: needs.changes.outputs.addon_sandbox == 'true'", step)
+        self.assertNotIn("pnpm test:e2e:net-worth", workflow)
+        self.assertIn("pnpm exec playwright install --with-deps chromium firefox webkit", workflow)
+        self.assertIn("pnpm test:e2e:addon-sandbox", workflow)
 
 
 class BuildStatusTests(unittest.TestCase):

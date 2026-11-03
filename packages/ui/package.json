@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/ui",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "type": "module",
   "description": "Wealthfolio UI components based on shadcn/ui and Tailwind CSS",
   "main": "dist/index.js",
@@ -49,11 +49,12 @@
     "build": "tsup && pnpm run build:types",
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "lint:quiet": "eslint . --quiet",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint": "pnpm --dir ../.. exec oxlint --type-aware packages/ui && pnpm lint:eslint",
+    "lint:fix": "pnpm --dir ../.. exec oxlint --type-aware --fix packages/ui && pnpm lint:eslint --fix",
+    "lint:quiet": "pnpm --dir ../.. exec oxlint --type-aware --quiet packages/ui && pnpm lint:eslint --quiet",
+    "lint:eslint": "eslint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "type-check": "tsc --noEmit",
     "build:types": "tsc -p tsconfig.json"
   },
@@ -94,10 +95,11 @@
   "devDependencies": {
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "i18next": "^25.6.0",
     "react-i18next": "^16.0.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "^7.3.7"
   }
 }

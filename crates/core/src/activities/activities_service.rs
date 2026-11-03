@@ -36,7 +36,7 @@
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use log::debug;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -44,6 +44,7 @@ use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, is_securities_transfer,
     requires_final_cash_amount, requires_symbol, ImportSymbolDisposition,
+    ACTIVITY_SUBTYPE_CONVERSION_IN, ACTIVITY_SUBTYPE_CONVERSION_OUT,
     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
     ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY,
     ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
@@ -57,10 +58,12 @@ use crate::activities::cash_balances::{
     CashLedgerActivity,
 };
 use crate::activities::csv_parser::{self, ParseConfig, ParsedCsvResult};
-use crate::activities::idempotency::{compute_activity_idempotency_key, compute_idempotency_key};
+use crate::activities::idempotency::{
+    compute_activity_idempotency_key, compute_idempotency_key, idempotency_activity_type,
+};
 use crate::activities::{
-    ActivityRepositoryTrait, ActivityServiceTrait, TransferLinkState, TransferPair,
-    TransferPairResolution,
+    is_conversion_row, ActivityRepositoryTrait, ActivityServiceTrait, ConversionPair,
+    ConversionPairResolution, TransferLinkState, TransferPair, TransferPairResolution,
 };
 use crate::activities::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunSummary, ImportRunType, ReviewMode,
@@ -75,7 +78,7 @@ use crate::assets::{
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    currency_minor_unit, get_normalization_rule, normalize_amount, resolve_currency,
+    currency_fraction_digits, get_normalization_rule, normalize_amount, resolve_currency,
 };
 use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
@@ -208,6 +211,13 @@ struct UpdateTradeFacts {
     unit_multiplier: Decimal,
     /// Multiplier of the row's current asset, for judging the stored amount.
     existing_unit_multiplier: Decimal,
+    /// The effective asset is crypto, so a derived total stays exact.
+    is_crypto: bool,
+    /// The row's current asset is crypto, for judging the stored amount.
+    existing_is_crypto: bool,
+    /// Quote currency of the effective asset, which fills a blank activity
+    /// currency when the update is prepared.
+    quote_ccy: Option<String>,
     /// The patch swaps the instrument - by a different resolved id, or by a
     /// bare symbol that names something other than the current asset. An
     /// economics change even though `get_symbol_id()` may be empty (bare
@@ -268,6 +278,84 @@ impl ActivityService {
         }
     }
 
+    /// Decimal places a derived total is rounded to. Brokers settle stock,
+    /// fund, option and bond trades in the currency's minor unit, so a derived
+    /// total that keeps sub-unit digits drifts from the statement. Crypto
+    /// exchanges settle at their own precision (Kraken keeps USD to 4 places,
+    /// Binance USDT to 8), so a derived crypto total stays exact.
+    fn derived_cash_scale(currency: &str, is_crypto: bool) -> Option<u32> {
+        (!is_crypto).then(|| Self::currency_cash_scale(currency))
+    }
+
+    /// Decimal places of one minor unit in `currency`'s own units. A
+    /// minor-unit quote such as GBp (pence) is itself one minor unit of its
+    /// major currency, so it counts in whole units: an edit derives and checks
+    /// its total before the currency is normalized, and this keeps both equal
+    /// to a create's, which works in GBP.
+    fn currency_cash_scale(currency: &str) -> u32 {
+        let digits = currency_fraction_digits(currency);
+        match get_normalization_rule(currency) {
+            Some(rule) => digits.saturating_sub(rule.factor.scale()),
+            None => digits,
+        }
+    }
+
+    /// Half a minor unit of `currency`: how far a total may sit from the
+    /// calculation and still be consistent with it.
+    fn half_minor_unit(currency: &str) -> Decimal {
+        Decimal::new(5, Self::currency_cash_scale(currency) + 1)
+    }
+
+    /// Rounds a derived value half away from zero. A non-zero value that would
+    /// round to zero stays exact: a zero trade total means units received for
+    /// free.
+    fn round_derived_cash(value: Decimal, scale: Option<u32>) -> Decimal {
+        let Some(scale) = scale else {
+            return value;
+        };
+        let rounded = value.round_dp_with_strategy(scale, RoundingStrategy::MidpointAwayFromZero);
+        if rounded.is_zero() && !value.is_zero() {
+            value
+        } else {
+            rounded
+        }
+    }
+
+    /// Final cash magnitude of a BUY or SELL from a trade value (`gross`) and
+    /// its charges. Readers take a SELL's direction from the exact value
+    /// (`ActivityEconomicsResolver`, `isProvenNegativeSell`), so a `gross`
+    /// that would turn proceeds into a debit, or a debit into proceeds, gives
+    /// way to `exact_gross`.
+    fn trade_final_cash(
+        activity_type: &str,
+        exact_gross: Decimal,
+        gross: Decimal,
+        fee: Option<Decimal>,
+        tax: Option<Decimal>,
+    ) -> Option<Decimal> {
+        let exact = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            activity_type,
+            exact_gross,
+            fee,
+            tax,
+        )?;
+        let cash = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            activity_type,
+            gross,
+            fee,
+            tax,
+        )?;
+        let flips_direction =
+            !cash.is_zero() && cash.is_sign_negative() != exact.is_sign_negative();
+        Some(if flips_direction { exact } else { cash }.abs())
+    }
+
+    /// Final cash for a row that carries none. A trade rounds its value
+    /// (quantity × price) to `cash_scale` before adding charges as entered,
+    /// the way a statement builds it; a recognized income composite rounds
+    /// its value the same way.
+    // Same shape as `activity_cash_inputs`: a list of the row's economics.
+    #[allow(clippy::too_many_arguments)]
     fn calculated_missing_final_amount(
         activity_type: &str,
         subtype: Option<&str>,
@@ -276,6 +364,7 @@ impl ActivityService {
         fee: Option<Decimal>,
         tax: Option<Decimal>,
         unit_multiplier: Decimal,
+        cash_scale: Option<u32>,
     ) -> Option<Decimal> {
         // Derivation only - the currency-scaled tolerance is never consulted.
         let inputs = Self::activity_cash_inputs(
@@ -289,7 +378,14 @@ impl ActivityService {
             unit_multiplier,
         );
         if Self::is_trade_type(activity_type) {
-            ActivityEconomicsResolver::calculate_trade_final_cash(inputs)
+            let gross = ActivityEconomicsResolver::derived_positive_gross(inputs)?;
+            Self::trade_final_cash(
+                activity_type,
+                gross,
+                Self::round_derived_cash(gross, cash_scale),
+                fee,
+                tax,
+            )
         } else if matches!(activity_type, ACTIVITY_TYPE_FEE | ACTIVITY_TYPE_TAX) {
             ActivityEconomicsResolver::calculate_standalone_charge_amount(inputs)
         } else {
@@ -300,12 +396,15 @@ impl ActivityService {
                 unit_price,
                 unit_multiplier,
             )
+            .map(|value| Self::round_derived_cash(value, cash_scale))
         }
     }
 
-    /// Canonicalizes a supplied trade total and reports whether it needs
-    /// review. `amount` is passed separately from `inputs` so the caller's
-    /// "an explicit amount exists" guarantee is carried by the type.
+    /// Settles a supplied trade total and reports whether it needs review.
+    /// The supplied total is the cash that moved, so it is stored as given;
+    /// the calculation only decides whether it needs review. `amount` is
+    /// passed separately from `inputs` so the caller's "an explicit amount
+    /// exists" guarantee is carried by the type.
     /// `allow_gross_conversion` is false when the caller honors an explicit
     /// attestation: an attested total is the user's number and must never be
     /// rewritten, even when it happens to equal the derived gross (fee
@@ -317,20 +416,28 @@ impl ActivityService {
         allow_gross_conversion: bool,
     ) -> (Decimal, bool) {
         if let Some(expected) = ActivityEconomicsResolver::calculate_trade_final_cash(inputs) {
-            // Half a minor unit: absorbs genuine rounding artifacts while a
-            // deliberate one-cent difference stays the user's value and flags.
-            let tolerance = currency_minor_unit(currency) / Decimal::TWO;
+            // Half a minor unit: a statement rounds the trade this calculation
+            // prices exactly, so a total that close is consistent and stays
+            // as given. A deliberate one-cent difference stays too, and flags.
+            let tolerance = Self::half_minor_unit(currency);
             if (amount.abs() - expected).abs() <= tolerance {
-                return (expected, false);
+                return (amount.abs(), false);
             }
             // A total matching the derived gross is the pre-fee number from a
-            // gross-reporting source; convert it to final exactly like the
-            // migration does instead of storing it short by the charges.
-            if allow_gross_conversion
-                && ActivityEconomicsResolver::derived_positive_gross(inputs)
-                    .is_some_and(|gross| (amount.abs() - gross).abs() <= tolerance)
-            {
-                return (expected, false);
+            // gross-reporting source; add the charges to that number instead
+            // of storing it short by the charges.
+            let matching_gross = ActivityEconomicsResolver::derived_positive_gross(inputs)
+                .filter(|gross| (amount.abs() - gross).abs() <= tolerance);
+            if let Some(exact_gross) = matching_gross.filter(|_| allow_gross_conversion) {
+                if let Some(final_cash) = Self::trade_final_cash(
+                    inputs.activity_type,
+                    exact_gross,
+                    amount.abs(),
+                    inputs.fee,
+                    inputs.tax,
+                ) {
+                    return (final_cash, false);
+                }
             }
             return (amount.abs(), true);
         }
@@ -349,11 +456,13 @@ impl ActivityService {
     ///
     /// All monetary inputs are denominated in `activity.currency`; the asset
     /// quote currency is deliberately irrelevant here. The resolved asset is
-    /// consulted only for its contract multiplier.
+    /// consulted only for its contract multiplier and, through `cash_scale`
+    /// (see `derived_cash_scale`), for whether a derived total is rounded.
     fn ensure_new_activity_final_amount(
         activity: &mut NewActivity,
         resolved_asset_id: Option<&str>,
         unit_multiplier: Decimal,
+        cash_scale: Option<u32>,
         honor_explicit_review_clear: bool,
     ) {
         if activity.activity_type == ACTIVITY_TYPE_SPLIT {
@@ -404,6 +513,7 @@ impl ActivityService {
                     activity.fee,
                     activity.tax,
                     unit_multiplier,
+                    cash_scale,
                 )
                 .filter(|value| !value.is_zero())
                 {
@@ -421,6 +531,7 @@ impl ActivityService {
             activity.fee,
             activity.tax,
             unit_multiplier,
+            cash_scale,
         );
     }
 
@@ -446,12 +557,19 @@ impl ActivityService {
             .as_ref()
             .map(|asset| asset.contract_multiplier())
             .unwrap_or(Decimal::ONE);
+        let is_crypto_asset = |asset: Option<&crate::assets::Asset>| {
+            asset.is_some_and(|asset| asset.instrument_type == Some(InstrumentType::Crypto))
+        };
+        let existing_is_crypto = is_crypto_asset(existing_asset.as_ref());
 
         if let Some(asset_id) = activity.get_symbol_id() {
             if Some(asset_id) == existing.asset_id.as_deref() {
                 return UpdateTradeFacts {
                     unit_multiplier: existing_unit_multiplier,
                     existing_unit_multiplier,
+                    is_crypto: existing_is_crypto,
+                    existing_is_crypto,
+                    quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
                     replaces_asset: false,
                 };
             }
@@ -462,6 +580,9 @@ impl ActivityService {
                     .map(|asset| asset.contract_multiplier())
                     .unwrap_or(Decimal::ONE),
                 existing_unit_multiplier,
+                is_crypto: is_crypto_asset(asset.as_ref()),
+                existing_is_crypto,
+                quote_ccy: asset.as_ref().map(|asset| asset.quote_ccy.clone()),
                 replaces_asset: true,
             };
         }
@@ -489,9 +610,39 @@ impl ActivityService {
                     instrument_type.eq_ignore_ascii_case("OPTION"),
                     false,
                 );
+                // Same inference `prepare_update_activity` applies when it
+                // resolves the bare symbol later (e.g. BTC-USD is crypto).
+                let replacement_type =
+                    Self::parse_instrument_type(Some(instrument_type)).or_else(|| {
+                        self.infer_asset_kind(
+                            symbol,
+                            activity.get_exchange_mic(),
+                            activity.get_kind(),
+                        )
+                        .1
+                    });
+                // A blank currency is filled from the replacement asset when
+                // the update is prepared; find an existing asset's quote
+                // currency with the same local lookup the save uses.
+                let quote_ccy = Self::normalize_quote_ccy(activity.get_quote_ccy()).or_else(|| {
+                    if !activity.currency.trim().is_empty() {
+                        return None;
+                    }
+                    let (base_symbol, suffix_mic) =
+                        parse_symbol_with_known_exchange(symbol, activity.get_exchange_mic());
+                    let exchange_mic = activity.get_exchange_mic().or(suffix_mic);
+                    self.asset_service.existing_quote_ccy_by_symbol(
+                        base_symbol,
+                        exchange_mic,
+                        replacement_type.as_ref(),
+                    )
+                });
                 return UpdateTradeFacts {
                     unit_multiplier,
                     existing_unit_multiplier,
+                    is_crypto: replacement_type == Some(InstrumentType::Crypto),
+                    existing_is_crypto,
+                    quote_ccy,
                     replaces_asset: true,
                 };
             }
@@ -499,8 +650,28 @@ impl ActivityService {
         UpdateTradeFacts {
             unit_multiplier: existing_unit_multiplier,
             existing_unit_multiplier,
+            is_crypto: existing_is_crypto,
+            existing_is_crypto,
+            quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
             replaces_asset: false,
         }
+    }
+
+    /// The currency an update's cash is in. A blank currency is filled from
+    /// the asset when the update is prepared, so a total is derived and
+    /// checked in that currency, as a create does.
+    fn update_cash_currency(
+        activity: &ActivityUpdate,
+        existing: &Activity,
+        facts: &UpdateTradeFacts,
+    ) -> String {
+        if !activity.currency.trim().is_empty() {
+            return activity.currency.clone();
+        }
+        facts
+            .quote_ccy
+            .clone()
+            .unwrap_or_else(|| existing.currency.clone())
     }
 
     fn missing_final_cash_error(activity_type: &str) -> crate::errors::Error {
@@ -625,6 +796,8 @@ impl ActivityService {
         } else if Self::is_trade_type(&activity.activity_type) {
             let trade_facts = self.update_trade_facts(activity, existing);
             let unit_multiplier = trade_facts.unit_multiplier;
+            let cash_currency = Self::update_cash_currency(activity, existing, &trade_facts);
+            let cash_scale = Self::derived_cash_scale(&cash_currency, trade_facts.is_crypto);
             // The activity currency is deliberately absent from this list: a
             // currency-only edit is a label correction on real data, and
             // treating it as an economics change would re-derive a total
@@ -651,6 +824,7 @@ impl ActivityService {
                     fee,
                     tax,
                     unit_multiplier,
+                    cash_scale,
                 ) {
                     // An economics-only patch that never mentioned the
                     // amount may be replacing a deliberate custom total;
@@ -667,10 +841,13 @@ impl ActivityService {
                                 existing.fee,
                                 existing.tax,
                                 trade_facts.existing_unit_multiplier,
+                                Self::derived_cash_scale(
+                                    &existing.currency,
+                                    trade_facts.existing_is_crypto,
+                                ),
                             )
                             .is_none_or(|expected| {
-                                (stored - expected).abs()
-                                    > currency_minor_unit(&activity.currency) / Decimal::TWO
+                                (stored - expected).abs() > Self::half_minor_unit(&cash_currency)
                             })
                         });
                     if replaces_custom_total && activity.needs_review != Some(false) {
@@ -684,7 +861,7 @@ impl ActivityService {
             if let Some(current_amount) = explicit_amount.or(amount) {
                 let inputs = Self::activity_cash_inputs(
                     &activity.activity_type,
-                    &activity.currency,
+                    &cash_currency,
                     quantity,
                     unit_price,
                     Some(current_amount),
@@ -693,7 +870,7 @@ impl ActivityService {
                     unit_multiplier,
                 );
                 let (canonical, needs_review) = Self::mark_trade_amount_confidence(
-                    &activity.currency,
+                    &cash_currency,
                     current_amount,
                     inputs,
                     activity.needs_review != Some(false),
@@ -717,7 +894,7 @@ impl ActivityService {
             // Non-trades read the asset facts only to fill a missing
             // composite amount; a patch that keeps its amount skips the
             // asset fetch entirely.
-            let unit_multiplier = self.update_trade_facts(activity, existing).unit_multiplier;
+            let trade_facts = self.update_trade_facts(activity, existing);
             if let Some(calculated) = Self::calculated_missing_final_amount(
                 &activity.activity_type,
                 effective_subtype,
@@ -725,7 +902,11 @@ impl ActivityService {
                 unit_price,
                 fee,
                 tax,
-                unit_multiplier,
+                trade_facts.unit_multiplier,
+                Self::derived_cash_scale(
+                    &Self::update_cash_currency(activity, existing, &trade_facts),
+                    trade_facts.is_crypto,
+                ),
             ) {
                 activity.amount = Some(Some(calculated));
                 amount = Some(calculated);
@@ -853,9 +1034,19 @@ impl ActivityService {
             &activity.activity_type,
             activity.subtype.as_deref(),
         );
+        Self::trim_source_group_id(&mut activity);
         Self::drop_cash_symbol_asset(&mut activity);
         Self::normalize_new_activity_economic_signs(&mut activity);
         activity
+    }
+
+    /// Stores a group id trimmed, as the engine and the pair lookups read it.
+    fn trim_source_group_id(activity: &mut NewActivity) {
+        activity.source_group_id = activity
+            .source_group_id
+            .take()
+            .map(|group| group.trim().to_string())
+            .filter(|group| !group.is_empty());
     }
 
     fn prepare_incomplete_sync_asset_income_for_review(activity: &mut NewActivity) {
@@ -944,6 +1135,8 @@ impl ActivityService {
                     ACTIVITY_SUBTYPE_OPTION_EXPIRY,
                     ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
                     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION,
+                    ACTIVITY_SUBTYPE_CONVERSION_OUT,
+                    ACTIVITY_SUBTYPE_CONVERSION_IN,
                 ]
                 .iter()
                 .any(|known| subtype.eq_ignore_ascii_case(known))
@@ -1851,6 +2044,378 @@ impl ActivityService {
         }
     }
 
+    /// The conversion `activity_id` is a row of (rules R7.5), with its rows
+    /// as stored.
+    fn load_conversion_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<Option<ConversionPair>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        let Some(group_id) = activity
+            .source_group_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(None);
+        };
+        if !is_conversion_row(&activity) {
+            return Ok(None);
+        }
+        let group_activities = self
+            .activity_repository
+            .get_activities_by_source_group_id(group_id)?;
+        Ok(
+            ConversionPairResolution::from_activities(
+                &group_activities,
+                self.configured_timezone(),
+            )
+            .pair_for_activity(activity_id)
+            .cloned(),
+        )
+    }
+
+    /// The other row's update when `existing` is a row of a conversion: the
+    /// rows stay one conversion, so an edit keeps this row's type and
+    /// subtype, and the other row follows its account, day, lifecycle,
+    /// review state and notes. Its own asset and units stay as they are.
+    fn conversion_counterpart_update(
+        update: &ActivityUpdate,
+        existing: &Activity,
+        pair: &ConversionPair,
+        timezone: Tz,
+    ) -> Result<Option<ActivityUpdate>> {
+        let Some(counterpart) = pair.counterpart(&existing.id) else {
+            return Ok(None);
+        };
+        let keeps_subtype = match update.subtype.as_deref().map(str::trim) {
+            None => true,
+            Some(subtype) => {
+                NewActivity::canonicalize_subtype(Some(subtype))
+                    == NewActivity::canonicalize_subtype(existing.subtype.as_deref())
+            }
+        };
+        if !update
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+            || !keeps_subtype
+        {
+            return Err(Self::invalid_activity_data(
+                "A conversion row keeps its type and subtype; delete the conversion to record something else",
+            ));
+        }
+        let status_transition = update
+            .status
+            .clone()
+            .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
+        let review_transition = update
+            .needs_review
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
+        let counterpart_status = status_transition.or_else(|| {
+            (review_transition == Some(false) && counterpart.status == ActivityStatus::Draft)
+                .then_some(ActivityStatus::Posted)
+        });
+        // The pair folds at its first row: the other row moves only when the
+        // edit moves this one, so an edit of anything else keeps its place.
+        let moved = Self::prospective_activity_date(&update.activity_date, timezone)
+            != existing.activity_date;
+        let counterpart_date = if moved {
+            update.activity_date.clone()
+        } else {
+            counterpart.activity_date.to_rfc3339()
+        };
+        Ok(Some(ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: update.split_review.clone(),
+            id: counterpart.id.clone(),
+            account_id: update.account_id.clone(),
+            asset: Self::activity_asset_input(counterpart),
+            activity_type: counterpart.effective_type().to_string(),
+            subtype: None,
+            activity_date: counterpart_date,
+            quantity: None,
+            unit_price: None,
+            currency: counterpart.currency.clone(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: counterpart_status,
+            needs_review: review_transition,
+            notes: update.notes.clone(),
+            fx_rate: None,
+            metadata: None,
+        }))
+    }
+
+    /// Rejects writes that break a conversion (rules R7.5): after the writes,
+    /// with the stored rows of their groups, a conversion that was paired
+    /// stays paired, a created conversion row pairs, and a conversion's group
+    /// holds its two rows only. A row already unpaired may still be edited, so
+    /// broken data can be repaired.
+    fn check_conversion_writes(
+        &self,
+        creates: &[NewActivity],
+        updates: &[ActivityUpdate],
+        deletes: &[String],
+    ) -> Result<()> {
+        let timezone = self.configured_timezone();
+        let mut written: Vec<Activity> = Vec::new();
+        let mut created_conversions: Vec<String> = Vec::new();
+        for (index, create) in creates.iter().enumerate() {
+            let row = Self::prospective_new_activity(create, index, timezone);
+            if is_conversion_row(&row) {
+                created_conversions.push(row.id.clone());
+            }
+            written.push(row);
+        }
+        for update in updates {
+            // Loaded as the update paths load it, archived accounts included.
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            let row = Self::prospective_updated_activity(&existing, update, timezone);
+            // A row an edit makes a conversion row pairs, as a created one.
+            if is_conversion_row(&row) && !is_conversion_row(&existing) {
+                created_conversions.push(row.id.clone());
+            }
+            written.push(row);
+        }
+        let group = |row: &Activity| {
+            row.source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(str::to_string)
+        };
+        if written
+            .iter()
+            .any(|row| created_conversions.contains(&row.id) && group(row).is_none())
+        {
+            return Err(Self::invalid_activity_data(
+                "A conversion is written as a pair: a conversion row must be linked to its other row by a group",
+            ));
+        }
+        let groups: Vec<String> = written
+            .iter()
+            .filter_map(group)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        if groups.is_empty() {
+            return Ok(());
+        }
+        let stored = self
+            .activity_repository
+            .get_activities_by_source_group_ids(&groups)?;
+        if created_conversions.is_empty() && !stored.iter().any(is_conversion_row) {
+            return Ok(());
+        }
+        let before = ConversionPairResolution::from_activities(&stored, timezone);
+        let mut after_rows: HashMap<String, Activity> = stored
+            .iter()
+            .map(|row| (row.id.clone(), row.clone()))
+            .collect();
+        for row in &written {
+            after_rows.insert(row.id.clone(), row.clone());
+        }
+        for delete in deletes {
+            after_rows.remove(delete);
+        }
+        let after_rows: Vec<Activity> = after_rows.into_values().collect();
+        // Deleting a row deletes its whole group, so a conversion's group holds
+        // its two rows only, whatever their status: checked for the groups of
+        // created rows and of rows an edit makes conversion rows.
+        let joined_groups = written
+            .iter()
+            .enumerate()
+            .filter(|(index, row)| *index < creates.len() || created_conversions.contains(&row.id))
+            .filter_map(|(_, row)| group(row));
+        for created_group in joined_groups {
+            let members: Vec<&Activity> = after_rows
+                .iter()
+                .filter(|row| group(row).as_deref() == Some(created_group.as_str()))
+                .collect();
+            if members.len() > 2 && members.iter().any(|row| is_conversion_row(row)) {
+                return Err(Self::invalid_activity_data(
+                    "A conversion is written as a pair: its group holds its two rows only",
+                ));
+            }
+        }
+        let after = ConversionPairResolution::from_activities(&after_rows, timezone);
+        let must_pair = before
+            .pairs()
+            .iter()
+            .flat_map(|pair| [&pair.leaving.id, &pair.arriving.id])
+            .chain(created_conversions.iter())
+            .filter(|id| !deletes.contains(id));
+        for id in must_pair {
+            if after.pair_for_activity(id).is_none() {
+                let reason = after
+                    .invalid_reason(id)
+                    .unwrap_or("its other row is missing");
+                return Err(Self::invalid_activity_data(format!(
+                    "A conversion is written as a pair: {reason}"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// The import's conversion check (rules R7.5), one conversion at a time:
+    /// each refused row's offset in `rows`, with why. A conversion row without
+    /// a group is a conversion of its own. Errors other than a refusal pass.
+    fn refused_conversion_imports(&self, rows: &[NewActivity]) -> Result<Vec<(usize, String)>> {
+        let is_refusal =
+            |err: &Error| matches!(err, Error::Activity(ActivityError::InvalidData(_)));
+        match self.check_conversion_writes(rows, &[], &[]) {
+            Ok(()) => return Ok(Vec::new()),
+            Err(err) if !is_refusal(&err) => return Err(err),
+            Err(_) => {}
+        }
+        let timezone = self.configured_timezone();
+        let mut conversions: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (offset, row) in rows.iter().enumerate() {
+            if !is_conversion_row(&Self::prospective_new_activity(row, offset, timezone)) {
+                continue;
+            }
+            let key = row
+                .source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(|group| format!("group:{group}"))
+                .unwrap_or_else(|| format!("row:{offset}"));
+            conversions.entry(key).or_default().push(offset);
+        }
+        let mut refused = Vec::new();
+        for offsets in conversions.values() {
+            let conversion: Vec<NewActivity> =
+                offsets.iter().map(|&offset| rows[offset].clone()).collect();
+            match self.check_conversion_writes(&conversion, &[], &[]) {
+                Ok(()) => {}
+                Err(err) if is_refusal(&err) => {
+                    let message = err.to_string();
+                    refused.extend(offsets.iter().map(|&offset| (offset, message.clone())));
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if refused.is_empty() {
+            // Refused only together: every conversion row carries the refusal.
+            if let Err(err) = self.check_conversion_writes(rows, &[], &[]) {
+                let message = err.to_string();
+                refused.extend(
+                    conversions
+                        .values()
+                        .flatten()
+                        .map(|&offset| (offset, message.clone())),
+                );
+                if refused.is_empty() {
+                    return Err(err);
+                }
+            }
+        }
+        refused.sort_by_key(|(offset, _)| *offset);
+        Ok(refused)
+    }
+
+    /// A prepared create as the row it will store, for the conversion check.
+    fn prospective_new_activity(create: &NewActivity, index: usize, timezone: Tz) -> Activity {
+        let activity_date = Self::prospective_activity_date(&create.activity_date, timezone);
+        Activity {
+            id: create
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("new-activity-{index}")),
+            account_id: create.account_id.clone(),
+            // An import may name an asset it has not resolved yet.
+            asset_id: create
+                .asset
+                .as_ref()
+                .and_then(|asset| asset.id.clone().or_else(|| asset.symbol.clone())),
+            activity_type: create.activity_type.clone(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: create.subtype.clone(),
+            status: create.status.clone().unwrap_or_default(),
+            activity_date,
+            settlement_date: None,
+            quantity: create.quantity,
+            unit_price: create.unit_price,
+            amount: create.amount,
+            fee: create.fee,
+            tax: create.tax,
+            currency: create.currency.clone(),
+            fx_rate: create.fx_rate,
+            notes: None,
+            metadata: None,
+            source_system: create.source_system.clone(),
+            source_record_id: create.source_record_id.clone(),
+            source_group_id: create.source_group_id.clone(),
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: activity_date,
+            updated_at: activity_date,
+        }
+    }
+
+    /// A prepared update over its stored row, for the conversion check: an
+    /// omitted field keeps the stored value.
+    fn prospective_updated_activity(
+        existing: &Activity,
+        update: &ActivityUpdate,
+        timezone: Tz,
+    ) -> Activity {
+        let mut row = existing.clone();
+        row.account_id = update.account_id.clone();
+        if let Some(asset) = &update.asset {
+            row.asset_id = asset.id.clone();
+        }
+        if !update
+            .activity_type
+            .eq_ignore_ascii_case(existing.effective_type())
+        {
+            row.activity_type = update.activity_type.clone();
+            row.activity_type_override = None;
+        }
+        match update.subtype.as_deref().map(str::trim) {
+            Some("") => row.subtype = None,
+            Some(subtype) => row.subtype = Some(subtype.to_string()),
+            None => {}
+        }
+        row.activity_date = Self::prospective_activity_date(&update.activity_date, timezone);
+        if let Some(quantity) = update.quantity {
+            row.quantity = quantity;
+        }
+        if let Some(fee) = update.fee {
+            row.fee = fee;
+        }
+        if let Some(tax) = update.tax {
+            row.tax = tax;
+        }
+        if let Some(status) = &update.status {
+            row.status = status.clone();
+        }
+        row
+    }
+
+    fn prospective_activity_date(activity_date: &str, timezone: Tz) -> DateTime<Utc> {
+        let activity_date = activity_date.trim();
+        if let Ok(day) = NaiveDate::parse_from_str(activity_date, "%Y-%m-%d") {
+            return calendar_day_instant(day, timezone);
+        }
+        DateTime::parse_from_rfc3339(activity_date)
+            .map(|instant| instant.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now())
+    }
+
     fn require_internal_transfer_pair_for_activity(
         &self,
         activity_id: &str,
@@ -2041,6 +2606,8 @@ impl ActivityService {
         };
         let mut updates = vec![
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
                 asset: None,
@@ -2064,6 +2631,8 @@ impl ActivityService {
                 metadata: metadata.clone(),
             },
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_in.id.clone(),
                 account_id: request.to_account_id.clone(),
                 asset: None,
@@ -2107,11 +2676,48 @@ impl ActivityService {
         Ok(updates)
     }
 
+    fn build_internal_pair_update_inputs(
+        &self,
+        request: &InternalTransferPairRequest,
+        pair_values: &InternalPairValues,
+    ) -> Result<(TransferPair, Vec<ActivityUpdate>)> {
+        let transfer_out_id = request
+            .transfer_out_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
+        let transfer_in_id = request
+            .transfer_in_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
+
+        let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
+        if pair.transfer_in.id != transfer_in_id {
+            return Err(Self::invalid_activity_data(
+                "Transfer legs do not belong to the same pair",
+            ));
+        }
+        if !Self::is_cash_transfer_pair(&pair) {
+            return Err(Self::invalid_activity_data(
+                "Pair save currently supports internal cash transfers only",
+            ));
+        }
+
+        let mut updates = self.build_internal_pair_updates(request, &pair, pair_values)?;
+        for update in &mut updates {
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            self.hydrate_and_validate_update_against_existing(update, &existing)?;
+        }
+        Ok((pair, updates))
+    }
+
     fn validate_internal_cash_pair_currency_update(
         update: &ActivityUpdate,
         existing: &Activity,
         pair: &TransferPair,
     ) -> Result<()> {
+        if update.unlink_transfer_pair_id.is_some() {
+            return Ok(());
+        }
         if Self::is_cash_transfer_pair(pair)
             && (update.account_id != existing.account_id
                 || (!update.currency.is_empty() && update.currency != existing.currency)
@@ -2143,6 +2749,17 @@ impl ActivityService {
             return Ok(None);
         };
 
+        if let Some(counterpart_id) = &update.unlink_transfer_pair_id {
+            if counterpart_id != &counterpart.id {
+                return Err(Self::invalid_activity_data(
+                    "Transfer pair changed; refresh before editing",
+                ));
+            }
+            // Unlinking changes only link metadata on this leg. It must never
+            // enter financial preparation or projection (including type overrides).
+            return Ok(None);
+        }
+
         // Lifecycle fields are pair-level actions, but only deliberate
         // transitions travel: the grid echoes the primary's current status on
         // every save, and an ordinary edit must not disturb the counterpart's
@@ -2151,9 +2768,15 @@ impl ActivityService {
             .status
             .clone()
             .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
         let review_transition = update
             .needs_review
-            .filter(|review| *review != existing.needs_review);
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
         // Approving a pair must also post a Draft counterpart, or its
         // lifecycle guard would reject clearing the review flag alone.
         let counterpart_status = status_transition.or_else(|| {
@@ -2162,10 +2785,12 @@ impl ActivityService {
         });
 
         let mut counterpart_update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: update.split_review.clone(),
             id: counterpart.id.clone(),
             account_id: counterpart.account_id.clone(),
             asset: Self::activity_asset_input(counterpart),
-            activity_type: counterpart.activity_type.clone(),
+            activity_type: counterpart.effective_type().to_string(),
             subtype: None,
             activity_date: update.activity_date.clone(),
             quantity: None,
@@ -2337,7 +2962,11 @@ impl ActivityService {
 
         Some(compute_idempotency_key(
             account_id,
-            &activity.activity_type,
+            &idempotency_activity_type(
+                &activity.activity_type,
+                activity.subtype.as_deref(),
+                activity.source_group_id.as_deref(),
+            ),
             &date,
             asset_id.as_deref(),
             quantity,
@@ -2418,11 +3047,137 @@ impl ActivityService {
         Ok(())
     }
 
+    /// An import key names the asset by ID when the row carries one and by
+    /// symbol@mic otherwise. A trade imported symbol-only keeps the symbol key
+    /// after its asset is created, but the check step fills in the asset ID
+    /// once the asset exists, and the CSV import sends it. For each row whose
+    /// asset is known, also look up the key in the other form. Returns the
+    /// matches by row position, since symbol-only rows for different assets
+    /// can share a key.
+    fn find_other_asset_form_duplicates<'a>(
+        &self,
+        activities: impl Iterator<Item = (usize, &'a ActivityImport, Option<&'a str>)>,
+        existing: &HashMap<String, String>,
+    ) -> Result<HashMap<usize, String>> {
+        let mut rows_by_other_key: HashMap<String, Vec<(usize, &'a str)>> = HashMap::new();
+        for (position, activity, asset_id) in activities {
+            let Some(asset_id) = asset_id.filter(|id| !id.trim().is_empty()) else {
+                continue;
+            };
+            let Some(account_id) = activity.account_id.as_deref() else {
+                continue;
+            };
+            let Some(key) = Self::build_import_idempotency_key(activity, account_id) else {
+                continue;
+            };
+            if existing.contains_key(&key) {
+                continue;
+            }
+            let mut other = activity.clone();
+            if activity.asset_id.is_some() {
+                // Fill a missing symbol or MIC from the asset, as the check
+                // step does.
+                if other.symbol.trim().is_empty() || other.exchange_mic.is_none() {
+                    self.hydrate_import_activity_from_asset_id(&mut other);
+                }
+                if other.symbol.trim().is_empty() {
+                    continue;
+                }
+                other.asset_id = None;
+            } else {
+                other.asset_id = Some(asset_id.to_string());
+            }
+            if let Some(other_key) = Self::build_import_idempotency_key(&other, account_id) {
+                rows_by_other_key
+                    .entry(other_key)
+                    .or_default()
+                    .push((position, asset_id));
+            }
+        }
+        if rows_by_other_key.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let candidates =
+            self.check_existing_duplicates(rows_by_other_key.keys().cloned().collect())?;
+        let candidate_ids: Vec<String> = candidates.values().cloned().collect();
+        let stored_asset_ids: HashMap<String, Option<String>> = self
+            .activity_repository
+            .get_activities_by_ids(&candidate_ids)?
+            .into_iter()
+            .map(|stored| (stored.id, stored.asset_id))
+            .collect();
+        let mut duplicates = HashMap::new();
+        for (other_key, stored_id) in candidates {
+            let stored_asset_id = stored_asset_ids.get(&stored_id).and_then(Option::as_deref);
+            // A symbol key does not pin the asset, so require the stored row to
+            // hold the same one.
+            for (position, asset_id) in rows_by_other_key.get(&other_key).into_iter().flatten() {
+                if stored_asset_id == Some(*asset_id) {
+                    duplicates
+                        .entry(*position)
+                        .or_insert_with(|| stored_id.clone());
+                }
+            }
+        }
+        Ok(duplicates)
+    }
+
     fn add_activity_warning(activity: &mut ActivityImport, key: &str, message: &str) {
         let warnings = activity.warnings.get_or_insert_with(HashMap::new);
         let entry = warnings.entry(key.to_string()).or_default();
         if !entry.iter().any(|m| m == message) {
             entry.push(message.to_string());
+        }
+    }
+
+    /// A conversion is imported as its two rows (rules R7.5). A conversion
+    /// row whose other row is not in the batch is flagged on its row here,
+    /// before the import, which would otherwise refuse the whole batch.
+    fn flag_unpaired_conversion_imports(rows: &mut [ActivityImport]) {
+        let direction = |row: &ActivityImport| {
+            if !row
+                .activity_type
+                .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+            {
+                return None;
+            }
+            NewActivity::canonicalize_subtype(row.subtype.as_deref()).filter(|subtype| {
+                subtype == ACTIVITY_SUBTYPE_CONVERSION_OUT
+                    || subtype == ACTIVITY_SUBTYPE_CONVERSION_IN
+            })
+        };
+        let group = |row: &ActivityImport| {
+            row.source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(str::to_string)
+        };
+        let mut directions: HashMap<String, Vec<String>> = HashMap::new();
+        for row in rows.iter() {
+            if let (Some(direction), Some(group)) = (direction(row), group(row)) {
+                directions.entry(group).or_default().push(direction);
+            }
+        }
+        for row in rows.iter_mut() {
+            if direction(row).is_none() {
+                continue;
+            }
+            let paired = group(row)
+                .and_then(|group| directions.get(&group))
+                .is_some_and(|found| {
+                    found.len() == 2
+                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_OUT)
+                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_IN)
+                });
+            if !paired {
+                Self::add_activity_error(
+                    row,
+                    "general",
+                    "A conversion is imported as its two rows, CONVERSION_OUT and CONVERSION_IN, sharing one sourceGroupId.",
+                );
+            }
         }
     }
 
@@ -3035,6 +3790,7 @@ impl ActivityService {
     async fn prepare_new_activity(&self, mut activity: NewActivity) -> Result<NewActivity> {
         activity.activity_date =
             self.validate_and_normalize_activity_date(&activity.activity_date)?;
+        Self::trim_source_group_id(&mut activity);
         activity.metadata = Self::without_loan_payment_tag(activity.metadata.take());
         activity.subtype = NewActivity::canonicalize_subtype_for_activity(
             &activity.activity_type,
@@ -3266,6 +4022,7 @@ impl ActivityService {
                     instrument_exchange_mic: exchange_mic.clone(),
                     instrument_symbol: Some(normalized_symbol.clone()),
                     instrument_type: effective_instrument_type.clone(),
+                    instrument_type_label: None,
                     display_code: Some(normalized_symbol.clone()),
                     requested_quote_ccy: quote_ccy_for_asset.clone(),
                     provider_config: None,
@@ -3314,6 +4071,7 @@ impl ActivityService {
         // Facts the final-amount boundary needs from the resolved asset,
         // captured while it is in scope so it is fetched exactly once.
         let mut resolved_asset_multiplier: Option<Decimal> = None;
+        let mut resolved_asset_is_crypto = false;
 
         // Process asset if asset_id is resolved
         if let Some(ref asset_id) = resolved_asset_id {
@@ -3324,6 +4082,7 @@ impl ActivityService {
                 instrument_exchange_mic: exchange_mic.clone(),
                 instrument_symbol: canonical_symbol.clone(),
                 instrument_type: effective_instrument_type.clone(),
+                instrument_type_label: None,
                 display_code: canonical_symbol,
                 requested_quote_ccy: quote_ccy_for_asset.clone(),
                 provider_config: None,
@@ -3357,6 +4116,7 @@ impl ActivityService {
             }
 
             resolved_asset_multiplier = Some(asset.contract_multiplier());
+            resolved_asset_is_crypto = asset.instrument_type == Some(InstrumentType::Crypto);
 
             // Create a quote from the activity price as a fallback, but only
             // for MANUAL-mode assets. For MARKET-mode assets the unit price is
@@ -3450,10 +4210,12 @@ impl ActivityService {
         // that seed is already reflected here because the asset is resolved
         // or created before these facts are read.
         let unit_multiplier = resolved_asset_multiplier.unwrap_or(Decimal::ONE);
+        let cash_scale = Self::derived_cash_scale(&activity.currency, resolved_asset_is_crypto);
         Self::ensure_new_activity_final_amount(
             &mut activity,
             resolved_asset_id.as_deref(),
             unit_multiplier,
+            cash_scale,
             true,
         );
         Self::validate_new_activity_final_amount(&activity, resolved_asset_id.as_deref())?;
@@ -3478,7 +4240,11 @@ impl ActivityService {
         {
             let key = compute_idempotency_key(
                 &activity.account_id,
-                &activity.activity_type,
+                &idempotency_activity_type(
+                    &activity.activity_type,
+                    activity.subtype.as_deref(),
+                    activity.source_group_id.as_deref(),
+                ),
                 &date,
                 activity.get_symbol_id(),
                 activity.quantity,
@@ -3828,6 +4594,7 @@ impl ActivityService {
                     instrument_exchange_mic: exchange_mic.clone(),
                     instrument_symbol: Some(normalized_symbol.clone()),
                     instrument_type: effective_instrument_type.clone(),
+                    instrument_type_label: None,
                     display_code: Some(normalized_symbol.clone()),
                     requested_quote_ccy: quote_ccy_for_asset.clone(),
                     provider_config: None,
@@ -3881,6 +4648,7 @@ impl ActivityService {
                 instrument_exchange_mic: exchange_mic.clone(),
                 instrument_symbol: canonical_symbol.clone(),
                 instrument_type: effective_instrument_type.clone(),
+                instrument_type_label: None,
                 display_code: canonical_symbol,
                 requested_quote_ccy: quote_ccy_for_asset.clone(),
                 provider_config: None,
@@ -4881,13 +5649,27 @@ impl ActivityService {
                 .filter_map(|(activity, key)| key.as_ref().map(|_| activity)),
             &mut existing,
         )?;
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            activities_with_status
+                .iter()
+                .zip(&keys)
+                .enumerate()
+                .filter_map(|(idx, (activity, key))| {
+                    key.as_ref()
+                        .map(|_| (idx, activity, activity.asset_id.as_deref()))
+                }),
+            &existing,
+        )?;
 
         for (idx, maybe_key) in keys.iter().enumerate() {
             let Some(key) = maybe_key else {
                 continue;
             };
 
-            if let Some(existing_id) = existing.get(key) {
+            if let Some(existing_id) = existing
+                .get(key)
+                .or_else(|| other_form_duplicates.get(&idx))
+            {
                 let activity = &mut activities_with_status[idx];
                 Self::add_activity_warning(
                     activity,
@@ -5180,6 +5962,7 @@ impl ActivityServiceTrait for ActivityService {
     /// Creates a new activity
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity> {
         let prepared = self.prepare_new_activity(activity).await?;
+        self.check_conversion_writes(std::slice::from_ref(&prepared), &[], &[])?;
         let created = self
             .activity_repository
             .create_activity(prepared)
@@ -5209,32 +5992,56 @@ impl ActivityServiceTrait for ActivityService {
         self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
 
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
-        let counterpart_update = match pair.as_ref() {
-            Some(pair) => {
+        let conversion = match pair {
+            Some(_) => None,
+            None => self.load_conversion_pair_for_activity(&activity.id)?,
+        };
+        let counterpart_update = match (pair.as_ref(), conversion.as_ref()) {
+            (Some(pair), _) => {
                 Self::validate_internal_cash_pair_currency_update(&activity, &existing, pair)?;
                 self.build_counterpart_update(&activity, &existing, pair)?
             }
-            None => None,
+            (None, Some(conversion)) => Self::conversion_counterpart_update(
+                &activity,
+                &existing,
+                conversion,
+                self.configured_timezone(),
+            )?,
+            (None, None) => None,
         };
 
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let prepared = self.prepare_update_activity(activity).await?;
 
-        if let Some(mut counterpart_update) = counterpart_update {
-            let counterpart_existing = self
-                .activity_repository
-                .get_activity(&counterpart_update.id)?;
-            self.hydrate_and_validate_update_against_existing(
-                &mut counterpart_update,
-                &counterpart_existing,
-            )?;
-            let prepared_counterpart = self.prepare_update_activity(counterpart_update).await?;
+        let counterpart_id = match (pair.as_ref(), conversion.as_ref()) {
+            (Some(pair), _) => Some(if existing.id == pair.transfer_in.id {
+                pair.transfer_out.id.clone()
+            } else {
+                pair.transfer_in.id.clone()
+            }),
+            (None, Some(conversion)) => conversion
+                .counterpart(&existing.id)
+                .map(|row| row.id.clone()),
+            (None, None) => None,
+        };
+        if let Some(counterpart_id) = counterpart_id {
+            let counterpart_existing = self.activity_repository.get_activity(&counterpart_id)?;
+            let mut updates = vec![prepared.clone()];
+            if let Some(mut counterpart_update) = counterpart_update {
+                self.hydrate_and_validate_update_against_existing(
+                    &mut counterpart_update,
+                    &counterpart_existing,
+                )?;
+                updates.push(self.prepare_update_activity(counterpart_update).await?);
+            }
+            self.check_conversion_writes(&[], &updates, &[])?;
             let persisted = self
                 .activity_repository
-                .bulk_mutate_activities(
-                    Vec::new(),
-                    vec![prepared.clone(), prepared_counterpart],
-                    Vec::new(),
-                )
+                .bulk_mutate_activities(Vec::new(), updates, Vec::new())
                 .await?;
 
             let mut account_ids_set: HashSet<String> = HashSet::new();
@@ -5265,9 +6072,7 @@ impl ActivityServiceTrait for ActivityService {
                 .updated
                 .into_iter()
                 .find(|updated| updated.id == prepared.id)
-                .ok_or_else(|| {
-                    Self::invalid_activity_data("Updated transfer leg was not returned")
-                })?;
+                .ok_or_else(|| Self::invalid_activity_data("Updated pair row was not returned"))?;
             let earliest_activity_at_utc = Self::earliest_activity_at_utc(
                 [&existing, &counterpart_existing]
                     .into_iter()
@@ -5283,6 +6088,7 @@ impl ActivityServiceTrait for ActivityService {
             return Ok(updated);
         }
 
+        self.check_conversion_writes(&[], std::slice::from_ref(&prepared), &[])?;
         let updated = self.activity_repository.update_activity(prepared).await?;
 
         // Emit domain event after successful update
@@ -5341,9 +6147,22 @@ impl ActivityServiceTrait for ActivityService {
         self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
 
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let counterpart_update = match pair.as_ref() {
             Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
-            None => None,
+            None => match self.load_conversion_pair_for_activity(&activity.id)? {
+                Some(conversion) => Self::conversion_counterpart_update(
+                    &activity,
+                    &existing,
+                    &conversion,
+                    self.configured_timezone(),
+                )?,
+                None => None,
+            },
         };
         let activity = self.preview_prepared_update(activity, existing)?;
         let linked = match counterpart_update {
@@ -5359,14 +6178,161 @@ impl ActivityServiceTrait for ActivityService {
             }
             None => None,
         };
+        // A preview refuses what the save would: an edit that breaks a
+        // conversion (rules R7.5).
+        let mut updates = vec![activity.update.clone()];
+        updates.extend(linked.as_ref().map(|linked| linked.update.clone()));
+        self.check_conversion_writes(&[], &updates, &[])?;
 
         Ok(ActivityUpdatePreview { activity, linked })
     }
 
+    fn review_activity_split_effects(
+        &self,
+        mut activity: ActivityUpdate,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        let existing = self.activity_repository.get_activity(&activity.id)?;
+        let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        let counterpart = match pair.as_ref() {
+            Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
+            None => match self.load_conversion_pair_for_activity(&activity.id)? {
+                Some(conversion) => Self::conversion_counterpart_update(
+                    &activity,
+                    &existing,
+                    &conversion,
+                    self.configured_timezone(),
+                )?,
+                None => None,
+            },
+        };
+        let unlink_effect = match activity.unlink_transfer_pair_id.as_deref() {
+            Some(counterpart_id) => {
+                if pair.is_none() {
+                    return Err(Self::invalid_activity_data(
+                        "Transfer pair changed; refresh before editing",
+                    ));
+                }
+                Some(
+                    self.activity_repository
+                        .preview_unchanged_split_effect(counterpart_id)?,
+                )
+            }
+            None => None,
+        };
+        // With no allocations on either leg, only capture state. Resolving a
+        // new symbol or deriving its multiplier belongs to the existing write;
+        // it cannot remove splits that are absent at this snapshot.
+        let mut ids = vec![activity.id.as_str()];
+        if let Some(counterpart) = &counterpart {
+            ids.push(&counterpart.id);
+        }
+        let mut any_splits = false;
+        for id in ids {
+            any_splits |= self.activity_repository.has_spending_splits(id)?;
+        }
+        if !any_splits {
+            let mut effects = vec![self.activity_repository.preview_split_effect(&activity)?];
+            if let Some(counterpart) = counterpart {
+                effects.push(
+                    self.activity_repository
+                        .preview_split_effect(&counterpart)?,
+                );
+            }
+            effects.extend(unlink_effect);
+            return Ok(effects);
+        }
+        // Account/type changes already invalidate splits in the financial
+        // writer, independently of a new symbol's resolution or multiplier.
+        // Capture that effect directly and leave asset creation to the write.
+        if activity
+            .get_symbol_id()
+            .is_none_or(|id| id.trim().is_empty())
+            && activity
+                .get_symbol_code()
+                .is_some_and(|s| !s.trim().is_empty())
+            && (activity.account_id != existing.account_id
+                || !activity
+                    .activity_type
+                    .trim()
+                    .eq_ignore_ascii_case(effective_activity_type(
+                        &existing.activity_type,
+                        existing.activity_type_override.as_deref(),
+                    )))
+        {
+            let effect = self.activity_repository.preview_split_effect(&activity)?;
+            if effect.removed_splits > 0 {
+                let mut effects = vec![effect];
+                if let Some(mut counterpart) = counterpart {
+                    let stored = self.activity_repository.get_activity(&counterpart.id)?;
+                    self.hydrate_and_validate_update_against_existing(&mut counterpart, &stored)?;
+                    let preview = self.preview_prepared_update(counterpart, stored)?;
+                    effects.push(
+                        self.activity_repository
+                            .preview_split_effect(&preview.update)?,
+                    );
+                }
+                effects.extend(unlink_effect);
+                return Ok(effects);
+            }
+        }
+        // Stored IDs can be priced locally and must retain their own multiplier.
+        // Symbol-only native inputs still avoid adding provider calls to review.
+        if activity
+            .get_symbol_code()
+            .is_some_and(|symbol| !symbol.trim().is_empty())
+        {
+            activity.asset = match activity.get_symbol_id().filter(|id| !id.trim().is_empty()) {
+                Some(id) => Some(AssetResolutionInput {
+                    id: Some(id.to_string()),
+                    ..Default::default()
+                }),
+                None => Self::activity_asset_input(&existing),
+            };
+        }
+        let preview = self.preview_activity_update(activity)?;
+        let mut effects = vec![self
+            .activity_repository
+            .preview_split_effect(&preview.activity.update)?];
+        if let Some(linked) = preview.linked {
+            effects.push(
+                self.activity_repository
+                    .preview_split_effect(&linked.update)?,
+            );
+        }
+        effects.extend(unlink_effect);
+        Ok(effects)
+    }
+
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        let values = self.validate_internal_pair_request(&request)?;
+        let (_, updates) = self.build_internal_pair_update_inputs(&request, &values)?;
+        updates
+            .into_iter()
+            .map(|update| {
+                let existing = self.activity_repository.get_activity(&update.id)?;
+                // Cash pair inputs have no asset. This existing pure path shares
+                // save normalization without registering proposed FX currencies.
+                let preview = self.preview_prepared_update(update, existing)?;
+                self.activity_repository
+                    .preview_split_effect(&preview.update)
+            })
+            .collect()
+    }
+
     /// Deletes an activity
     async fn delete_activity(&self, activity_id: String) -> Result<Activity> {
-        if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
-            let delete_ids = vec![pair.transfer_out.id.clone(), pair.transfer_in.id.clone()];
+        // A transfer pair or a conversion (rules R7.5) is deleted whole.
+        let pair_ids = match self.load_internal_transfer_pair_for_activity(&activity_id)? {
+            Some(pair) => Some([pair.transfer_out.id, pair.transfer_in.id]),
+            None => self
+                .load_conversion_pair_for_activity(&activity_id)?
+                .map(|pair| [pair.leaving.id, pair.arriving.id]),
+        };
+        if let Some(pair_ids) = pair_ids {
+            let delete_ids = pair_ids.to_vec();
             let persisted = self
                 .activity_repository
                 .bulk_mutate_activities(Vec::new(), Vec::new(), delete_ids)
@@ -5377,9 +6343,7 @@ impl ActivityServiceTrait for ActivityService {
                 .iter()
                 .find(|activity| activity.id == activity_id)
                 .cloned()
-                .ok_or_else(|| {
-                    Self::invalid_activity_data("Deleted transfer leg was not returned")
-                })?;
+                .ok_or_else(|| Self::invalid_activity_data("Deleted pair row was not returned"))?;
 
             let mut account_ids_set: HashSet<String> = HashSet::new();
             let mut asset_ids_set: HashSet<String> = HashSet::new();
@@ -5422,13 +6386,60 @@ impl ActivityServiceTrait for ActivityService {
         Ok(deleted)
     }
 
+    fn get_activity_deletion_ids(&self, activity_id: &str) -> Result<Vec<String>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        match activity.source_group_id {
+            Some(group_id) => Ok(self
+                .activity_repository
+                .get_activities_by_source_group_ids(&[group_id])?
+                .into_iter()
+                .map(|activity| activity.id)
+                .collect()),
+            None => Ok(vec![activity.id]),
+        }
+    }
+
+    async fn delete_activities_checked(&self, activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        let deleted = self
+            .activity_repository
+            .delete_activities_checked(activity_ids)
+            .await?;
+        let mut account_ids = HashSet::new();
+        let mut asset_ids = HashSet::new();
+        let mut currencies = HashSet::new();
+        for activity in &deleted {
+            Self::add_activity_to_event_sets(
+                activity,
+                &mut account_ids,
+                &mut asset_ids,
+                &mut currencies,
+            );
+        }
+        self.emit_activities_changed(
+            account_ids.into_iter().collect(),
+            asset_ids.into_iter().collect(),
+            currencies.into_iter().collect(),
+            Self::earliest_activity_at_utc(deleted.iter()),
+        );
+        self.emit_asset_split_activities_changed(deleted.iter());
+        Ok(deleted)
+    }
+
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,
     ) -> Result<Option<InternalTransferPairResponse>> {
+        if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
+            return Ok(Some(Self::transfer_pair_response(pair)));
+        }
+        // A conversion is a pair too (rules R7.5): its leaving row is the
+        // outgoing side, its arriving row the incoming one.
         Ok(self
-            .load_internal_transfer_pair_for_activity(&activity_id)?
-            .map(Self::transfer_pair_response))
+            .load_conversion_pair_for_activity(&activity_id)?
+            .map(|pair| InternalTransferPairResponse {
+                transfer_out: pair.leaving,
+                transfer_in: pair.arriving,
+            }))
     }
 
     fn find_transfer_match_candidates(
@@ -5493,25 +6504,10 @@ impl ActivityServiceTrait for ActivityService {
         let mut old_activities: Vec<Activity> = Vec::new();
 
         let persisted = if is_update {
-            let transfer_out_id = request
-                .transfer_out_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
-            let transfer_in_id = request
-                .transfer_in_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
-
-            let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
-            if pair.transfer_in.id != transfer_in_id {
-                return Err(Self::invalid_activity_data(
-                    "Transfer legs do not belong to the same pair",
-                ));
-            }
-            if !Self::is_cash_transfer_pair(&pair) {
-                return Err(Self::invalid_activity_data(
-                    "Pair save currently supports internal cash transfers only",
-                ));
+            let (pair, updates) = self.build_internal_pair_update_inputs(&request, &pair_values)?;
+            let mut prepared_updates = Vec::new();
+            for update in updates {
+                prepared_updates.push(self.prepare_update_activity(update).await?);
             }
 
             for activity in [&pair.transfer_out, &pair.transfer_in] {
@@ -5524,15 +6520,6 @@ impl ActivityServiceTrait for ActivityService {
                 old_activities.push(activity.clone());
             }
 
-            let mut updates = self.build_internal_pair_updates(&request, &pair, &pair_values)?;
-            for update in &mut updates {
-                let existing = self.activity_repository.get_activity(&update.id)?;
-                self.hydrate_and_validate_update_against_existing(update, &existing)?;
-            }
-            let mut prepared_updates = Vec::new();
-            for update in updates {
-                prepared_updates.push(self.prepare_update_activity(update).await?);
-            }
             self.activity_repository
                 .bulk_mutate_activities(Vec::new(), prepared_updates, Vec::new())
                 .await?
@@ -5542,6 +6529,8 @@ impl ActivityServiceTrait for ActivityService {
             for create in creates {
                 prepared_creates.push(self.prepare_new_activity(create).await?);
             }
+            // A caller-supplied group must not join a conversion's (rules R7.5).
+            self.check_conversion_writes(&prepared_creates, &[], &[])?;
             self.activity_repository
                 .bulk_mutate_activities(prepared_creates, Vec::new(), Vec::new())
                 .await
@@ -5552,14 +6541,14 @@ impl ActivityServiceTrait for ActivityService {
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_OUT)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_OUT)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer out leg was not returned"))?;
         let transfer_in = persisted
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_IN)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_IN)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer in leg was not returned"))?;
 
@@ -5732,6 +6721,31 @@ impl ActivityServiceTrait for ActivityService {
                                 }
                             }
                         }
+                    } else if let Some(conversion) =
+                        self.load_conversion_pair_for_activity(&update_request.id)?
+                    {
+                        let counterpart_explicit = conversion
+                            .counterpart(&existing.id)
+                            .is_some_and(|row| explicit_update_ids.contains(&row.id));
+                        match Self::conversion_counterpart_update(
+                            &update_request,
+                            &existing,
+                            &conversion,
+                            self.configured_timezone(),
+                        ) {
+                            Ok(Some(counterpart_update)) if !counterpart_explicit => {
+                                update_requests.push(counterpart_update);
+                            }
+                            Ok(_) => {}
+                            Err(err) => {
+                                errors.push(ActivityBulkMutationError {
+                                    id: Some(update_request.id.clone()),
+                                    action: "update".to_string(),
+                                    message: err.to_string(),
+                                });
+                                continue;
+                            }
+                        }
                     }
                 }
                 Err(_) => {
@@ -5747,6 +6761,12 @@ impl ActivityServiceTrait for ActivityService {
             if self.activity_repository.get_activity(&delete_id).is_ok() {
                 if let Some(pair) = self.load_internal_transfer_pair_for_activity(&delete_id)? {
                     for pair_delete_id in [pair.transfer_out.id, pair.transfer_in.id] {
+                        if valid_delete_ids_seen.insert(pair_delete_id.clone()) {
+                            delete_requests.push(pair_delete_id);
+                        }
+                    }
+                } else if let Some(pair) = self.load_conversion_pair_for_activity(&delete_id)? {
+                    for pair_delete_id in [pair.leaving.id, pair.arriving.id] {
                         if valid_delete_ids_seen.insert(pair_delete_id.clone()) {
                             delete_requests.push(pair_delete_id);
                         }
@@ -5921,6 +6941,20 @@ impl ActivityServiceTrait for ActivityService {
             }
         }
 
+        if errors.is_empty() {
+            if let Err(err) = self.check_conversion_writes(
+                &prepared_creates,
+                &prepared_updates,
+                &valid_delete_ids,
+            ) {
+                errors.push(ActivityBulkMutationError {
+                    id: None,
+                    action: "save".to_string(),
+                    message: err.to_string(),
+                });
+            }
+        }
+
         if !errors.is_empty() {
             let outcome = ActivityBulkMutationResult {
                 errors,
@@ -6073,7 +7107,9 @@ impl ActivityServiceTrait for ActivityService {
             }
         }
 
-        Ok(ordered.into_iter().flatten().collect())
+        let mut checked: Vec<ActivityImport> = ordered.into_iter().flatten().collect();
+        Self::flag_unpaired_conversion_imports(&mut checked);
+        Ok(checked)
     }
 
     async fn preview_import_assets(
@@ -6242,6 +7278,7 @@ impl ActivityServiceTrait for ActivityService {
 
         if valid.is_empty() {
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6394,6 +7431,7 @@ impl ActivityServiceTrait for ActivityService {
                 ordered[idx] = Some(activity);
             }
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6475,6 +7513,19 @@ impl ActivityServiceTrait for ActivityService {
                 .map(|(_, activity)| activity),
             &mut existing_duplicates,
         )?;
+        // Pass the asset step 4.5 resolved, so a symbol-only row is also
+        // looked up under its asset ID.
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            source_slice
+                .iter()
+                .zip(new_activities.iter())
+                .enumerate()
+                .filter(|(position, _)| !policy_failed_positions.contains(position))
+                .map(|(position, (activity, prepared))| {
+                    (position, activity, prepared.get_symbol_id())
+                }),
+            &existing_duplicates,
+        )?;
 
         let mut duplicate_count = 0u32;
         let mut insertable_positions: Vec<usize> = Vec::with_capacity(new_activities.len());
@@ -6494,7 +7545,10 @@ impl ActivityServiceTrait for ActivityService {
                 .get(position)
                 .is_some_and(|(_, imp)| imp.force_import);
 
-            if let Some(existing_id) = existing_duplicates.get(&key) {
+            if let Some(existing_id) = existing_duplicates
+                .get(&key)
+                .or_else(|| other_form_duplicates.get(&position))
+            {
                 if is_force_import {
                     // User explicitly chose to import despite DB duplicate.
                     // Clear key so the unique constraint is not violated.
@@ -6550,6 +7604,9 @@ impl ActivityServiceTrait for ActivityService {
             Vec::with_capacity(insertable_positions.len());
         let mut insertable_new_activities: Vec<NewActivity> =
             Vec::with_capacity(insertable_positions.len());
+        // Where each insertable row sits in `import_activities_indexed`.
+        let mut insertable_new_positions: Vec<usize> =
+            Vec::with_capacity(insertable_positions.len());
 
         for position in insertable_positions {
             if let Some(indexed_activity) = import_activities_indexed.get(position).cloned() {
@@ -6557,6 +7614,7 @@ impl ActivityServiceTrait for ActivityService {
             }
             if let Some(new_activity) = new_activities.get(position).cloned() {
                 insertable_new_activities.push(new_activity);
+                insertable_new_positions.push(position);
             }
         }
 
@@ -6567,6 +7625,42 @@ impl ActivityServiceTrait for ActivityService {
         // Link only rows that will be inserted so a duplicate-skipped leg cannot
         // leave its counterpart with an orphan source_group_id.
         self.link_imported_transfer_pairs(&insertable_source_slice, &mut insertable_new_activities);
+        // A conversion's two rows are imported together (rules R7.5). A
+        // refusal fails the import as validation errors do, on the rows of
+        // the conversion it concerns.
+        let refused = self.refused_conversion_imports(&insertable_new_activities)?;
+        if !refused.is_empty() {
+            for (offset, message) in &refused {
+                if let Some((_, import_activity)) = insertable_new_positions
+                    .get(*offset)
+                    .and_then(|&position| import_activities_indexed.get_mut(position))
+                {
+                    Self::add_activity_error(import_activity, "general", message);
+                }
+            }
+            let error_message = refused.first().map(|(_, message)| message.clone());
+            let skipped = import_activities_indexed
+                .iter()
+                .filter(|(_, a)| !a.is_valid)
+                .count() as u32;
+            for (idx, activity) in import_activities_indexed {
+                ordered[idx] = Some(activity);
+            }
+            return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
+                activities: ordered.into_iter().flatten().collect(),
+                import_run_id: String::new(),
+                summary: ImportActivitiesSummary {
+                    total: total as u32,
+                    imported: 0,
+                    skipped,
+                    duplicates: duplicate_count,
+                    assets_created: assets_created_count,
+                    success: false,
+                    error_message,
+                },
+            });
+        }
 
         // ── 6. Ensure FX pairs (one batch call) ──────────────────────────────
         let mut fx_pairs: HashSet<(String, String)> = HashSet::new();
@@ -6660,15 +7754,19 @@ impl ActivityServiceTrait for ActivityService {
             .collect();
 
         // ── 9. Insert all non-duplicate activities in one transaction ────────
-        let inserted_count = if insertable_new_activities.is_empty() {
-            0
+        let persisted_sources = insertable_sources
+            .iter()
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>();
+        let persisted = if insertable_new_activities.is_empty() {
+            Vec::new()
         } else {
             match self
                 .activity_repository
-                .create_activities(insertable_new_activities)
+                .create_activities_returning(insertable_new_activities)
                 .await
             {
-                Ok(n) => n as u32,
+                Ok(rows) => rows,
                 Err(e) => {
                     if let Some(ref repo) = self.import_run_repository {
                         let mut failed_run = import_run.clone();
@@ -6681,6 +7779,16 @@ impl ActivityServiceTrait for ActivityService {
                 }
             }
         };
+
+        let inserted_count = persisted.len() as u32;
+        let persisted_rows = persisted_sources
+            .into_iter()
+            .zip(persisted)
+            .map(|(index, row)| crate::activities::ImportedActivityIdentity {
+                index,
+                activity_id: row.id,
+            })
+            .collect();
 
         // ── 10. Finalize ImportRun ────────────────────────────────────────────
         if let Some(ref repo) = self.import_run_repository {
@@ -6712,6 +7820,7 @@ impl ActivityServiceTrait for ActivityService {
         }
 
         Ok(ImportActivitiesResult {
+            persisted_rows,
             activities: ordered.into_iter().flatten().collect(),
             import_run_id,
             summary: ImportActivitiesSummary {
@@ -7558,10 +8667,16 @@ impl ActivityService {
             let unit_multiplier = prepared_asset
                 .map(|asset| asset.contract_multiplier())
                 .unwrap_or(Decimal::ONE);
+            let cash_scale = Self::derived_cash_scale(
+                &activity.currency,
+                prepared_asset
+                    .is_some_and(|asset| asset.instrument_type == Some(InstrumentType::Crypto)),
+            );
             Self::ensure_new_activity_final_amount(
                 &mut activity,
                 resolved_asset_id.as_deref(),
                 unit_multiplier,
+                cash_scale,
                 matches!(mode, PreparationMode::Save),
             );
             if let Err(error) =
@@ -7598,7 +8713,11 @@ impl ActivityService {
             {
                 let key = compute_idempotency_key(
                     &activity.account_id,
-                    &activity.activity_type,
+                    &idempotency_activity_type(
+                        &activity.activity_type,
+                        activity.subtype.as_deref(),
+                        activity.source_group_id.as_deref(),
+                    ),
                     &date,
                     activity.get_symbol_id(),
                     activity.quantity,
@@ -7850,7 +8969,6 @@ impl ActivityService {
             {
                 continue;
             }
-
             if let Some(key) = transfer_match_key(activity) {
                 if activity_type == ACTIVITY_TYPE_TRANSFER_IN {
                     transfer_in.entry(key).or_default().push(idx);
@@ -7986,6 +9104,7 @@ mod reviewed_import_metadata_tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 

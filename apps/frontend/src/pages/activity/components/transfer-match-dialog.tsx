@@ -742,7 +742,7 @@ export function TransferMatchDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-190 flex w-full flex-col overflow-hidden">
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-190">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>

@@ -114,6 +114,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
   const initialTargetDate = existingSettings.targetDate ?? goal.targetDate ?? "";
   const initialMonthlyContribution =
     existingSettings.monthlyContribution ?? existingSettings.plannedMonthlyContribution ?? 0;
+  // Keep in sync with DEFAULT_SAVE_UP_ANNUAL_RETURN in crates/core/src/planning/save_up.rs.
   const initialAnnualReturn = existingSettings.expectedAnnualReturn ?? 0.05;
 
   // Editable fields
@@ -126,6 +127,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
   const displayProgress = targetAmount > 0 ? Math.min(currentValue / targetAmount, 1) : progress;
   const remainingNow = Math.max(targetAmount - currentValue, 0);
   const isPlanDirty =
+    savePlanMutation.isError ||
     targetAmount !== initialTargetAmount ||
     targetDate !== initialTargetDate ||
     monthlyContribution !== initialMonthlyContribution ||
@@ -144,7 +146,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     setMonthlyContribution(initialMonthlyContribution);
     setAnnualReturn(initialAnnualReturn);
     // Only sync when persisted values change. Toggling edit mode should not snap drafts back.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [persistedPlanKey]);
 
   const previewInput = useMemo<SaveUpPreviewInputDTO | null>(
@@ -170,7 +172,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     ? (previewQuery.data ?? null)
     : (overview ?? null);
 
-  const savePending = savePlanMutation.isPending;
+  const savePending = savePlanMutation.isPending || updateMutation.isPending;
   const actionPending = savePending || previewPending || previewUnavailable;
   const actionPendingLabel = previewUnavailable
     ? t("goals:save_up.preview_failed")
@@ -182,72 +184,77 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     const raw = projection?.trajectory ?? [];
     if (raw.length === 0 || !targetAmount) return [];
 
-    const start = raw[0]?.nominal ?? currentValue;
-    const span = Math.max(1, raw.length - 1);
-    return raw.map((p, i) => ({
+    // The dashed line is the balance needed to stay on track: above it means on track.
+    return raw.map((p) => ({
       ...p,
-      target: start + (targetAmount - start) * (i / span),
+      target: p.needed,
       range: [p.pessimistic, p.optimistic] as [number, number],
     }));
-  }, [projection, currentValue, targetAmount]);
+  }, [projection, targetAmount]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const settings: SaveUpPlanSettings = {
       targetDate,
       targetAmount,
       monthlyContribution,
       expectedAnnualReturn: annualReturn,
     };
-
-    savePlanMutation.mutate({
-      goalId: goal.id,
-      planKind: "save_up",
-      settingsJson: JSON.stringify(settings),
-    });
-
-    const prog = targetAmount > 0 ? Math.min(currentValue / targetAmount, 1) : 0;
-    updateMutation.mutate({
-      ...goal,
-      targetAmount: targetAmount || undefined,
-      targetDate: targetDate || undefined,
-      summaryCurrentValue: currentValue,
-      summaryProgress: prog,
-      projectedValueAtTargetDate: projection?.projectedValueAtTargetDate,
-      projectedCompletionDate: projection?.projectedCompletionDate ?? undefined,
-      statusHealth: projection?.health ?? "not_applicable",
-    });
-
-    setIsEditingPlan(false);
+    try {
+      // The final plan-save refresh must see the new goal target as well as plan inputs.
+      await updateMutation.mutateAsync({
+        ...goal,
+        targetAmount: targetAmount || undefined,
+        targetDate: targetDate || null,
+      });
+      await savePlanMutation.mutateAsync({
+        goalId: goal.id,
+        planKind: "save_up",
+        settingsJson: JSON.stringify(settings),
+      });
+      setIsEditingPlan(false);
+    } catch {
+      // Mutation hooks report the error. Keep the draft open, including a partial save.
+    }
   }, [
     goal,
     targetAmount,
     targetDate,
     monthlyContribution,
     annualReturn,
-    currentValue,
-    projection,
     savePlanMutation,
     updateMutation,
   ]);
 
   const handleCancelEdit = useCallback(() => {
+    savePlanMutation.reset();
     setTargetAmount(initialTargetAmount);
     setTargetDate(initialTargetDate);
     setMonthlyContribution(initialMonthlyContribution);
     setAnnualReturn(initialAnnualReturn);
     setIsEditingPlan(false);
-  }, [initialTargetAmount, initialTargetDate, initialMonthlyContribution, initialAnnualReturn]);
+  }, [
+    initialTargetAmount,
+    initialTargetDate,
+    initialMonthlyContribution,
+    initialAnnualReturn,
+    savePlanMutation,
+  ]);
 
+  const { targetDateLabel, finishLabel } = formatGoalDates(
+    targetDate,
+    projection?.projectedCompletionDate,
+    dateFormatting,
+  );
   const status = getSaveUpStatus(
     {
       goalTitle: goal.title,
       currentValue,
       targetAmount,
       targetDate,
+      targetDateLabel,
       projection,
     },
     t,
-    dateFormatting,
   );
   const projectedGap = projection ? projection.projectedValueAtTargetDate - targetAmount : null;
   const monthlyDifference = projection
@@ -272,7 +279,6 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
         ? t("goals:save_up.surplus")
         : t("goals:save_up.gap");
   const gapMetricValue = projectedGap === null ? remainingNow : Math.abs(projectedGap);
-  const targetDateLabel = formatGoalDate(targetDate, dateFormatting);
   const savingsMilestones = useMemo(
     () =>
       buildSavingsMilestones(chartData, targetAmount, currentValue, t, {
@@ -297,7 +303,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                   >
                     {status.label}
                   </span>
-                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-[0.15em]">
+                  <span className="text-muted-foreground text-xs font-medium tracking-[0.15em] uppercase">
                     {t("goals:save_up.savings_plan")}
                   </span>
                 </div>
@@ -391,7 +397,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
             monthlyDifference={monthlyDifference}
             monthlyDifferenceLabel={monthlyDifferenceLabel}
             monthlyDifferenceClass={monthlyDifferenceClass}
-            completionDate={projection.projectedCompletionDate}
+            finishLabel={finishLabel}
             currency={currency}
             isHidden={isBalanceHidden}
           />
@@ -545,18 +551,19 @@ function getSaveUpStatus(
     currentValue,
     targetAmount,
     targetDate,
+    targetDateLabel,
     projection,
   }: {
     goalTitle: string;
     currentValue: number;
     targetAmount: number;
     targetDate: string;
+    targetDateLabel: string | null;
     projection: SaveUpOverviewDTO | null;
   },
   t: TFn,
-  formatting: Pick<FormattingApi, "formatCalendarDate">,
 ): SaveUpStatus {
-  const dateLabel = formatGoalDate(targetDate, formatting) ?? t("goals:save_up.your_target_date");
+  const dateLabel = targetDateLabel ?? t("goals:save_up.your_target_date");
 
   if (!targetAmount || !targetDate) {
     return {
@@ -623,26 +630,49 @@ function getSaveUpStatus(
   };
 }
 
-function formatGoalDate(
-  value: string | null | undefined,
-  formatting: Pick<FormattingApi, "formatCalendarDate">,
-) {
+function parseGoalDate(value: string | null | undefined) {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month) return null;
-  return formatting.formatCalendarDate(
-    { year, month, day: day || 1 },
-    {
-      year: "numeric",
-      month: "short",
-    },
-  );
+  return { year, month, day: day || 1 };
+}
+
+function formatGoalDate(
+  date: ReturnType<typeof parseGoalDate>,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+  withDay: boolean,
+) {
+  if (!date) return null;
+  return formatting.formatCalendarDate(date, {
+    year: "numeric",
+    month: "short",
+    day: withDay ? "numeric" : undefined,
+  });
+}
+
+/**
+ * Labels for the target date and the projected finish: month and year, with the day for both
+ * when they fall in the same month, so a finish a day late does not read as the target date.
+ */
+function formatGoalDates(
+  targetDate: string | null | undefined,
+  completionDate: string | null | undefined,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+) {
+  const target = parseGoalDate(targetDate);
+  const finish = parseGoalDate(completionDate);
+  const sameMonth =
+    !!target && !!finish && target.year === finish.year && target.month === finish.month;
+  return {
+    targetDateLabel: formatGoalDate(target, formatting, sameMonth),
+    finishLabel: formatGoalDate(finish, formatting, sameMonth),
+  };
 }
 
 function HeroMetric({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 px-5 py-4">
-      <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+      <div className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
         {label}
       </div>
       <div className="mt-2 truncate text-lg font-semibold tabular-nums">{children}</div>
@@ -656,7 +686,7 @@ function MonthlyPlanCallout({
   monthlyDifference,
   monthlyDifferenceLabel,
   monthlyDifferenceClass,
-  completionDate,
+  finishLabel,
   currency,
   isHidden,
 }: {
@@ -665,21 +695,20 @@ function MonthlyPlanCallout({
   monthlyDifference: number;
   monthlyDifferenceLabel: string;
   monthlyDifferenceClass: string;
-  completionDate: string | null;
+  finishLabel: string | null;
   currency: string;
   isHidden: boolean;
 }) {
-  const formatting = useDateFormatting();
   const { t } = useTranslation();
   return (
     <Card>
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+            <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
               {t("goals:save_up.action")}
             </div>
-            <h3 className="text-md font-semibold leading-none tracking-tight">
+            <h3 className="text-md leading-none font-semibold tracking-tight">
               {t("goals:save_up.monthly_plan")}
             </h3>
           </div>
@@ -709,7 +738,7 @@ function MonthlyPlanCallout({
               </span>
             </CalloutMetric>
             <CalloutMetric label={t("goals:save_up.finish")}>
-              {formatGoalDate(completionDate, formatting) ?? t("goals:save_up.not_reached")}
+              {finishLabel ?? t("goals:save_up.not_reached")}
             </CalloutMetric>
           </div>
         </div>
@@ -777,7 +806,7 @@ function SidebarCard({
     <Card>
       <CardHeader className="flex-row items-start justify-between pb-4">
         <div className="min-w-0">
-          <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+          <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
             {kicker}
           </div>
           <CardTitle className="text-md leading-none tracking-tight">{title}</CardTitle>
@@ -827,7 +856,7 @@ function DateRow({
     <div className="py-4 first:pt-1 last:pb-1">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <div className="text-foreground text-sm font-semibold leading-tight">{label}</div>
+          <div className="text-foreground text-sm leading-tight font-semibold">{label}</div>
           <div className="text-muted-foreground mt-1 text-xs leading-tight">{hint}</div>
         </div>
       </div>

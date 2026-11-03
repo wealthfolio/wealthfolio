@@ -266,7 +266,7 @@ describe("AssetEditSheet automatic updates", () => {
     const { unmount } = render(
       <AssetEditSheet asset={buildAsset()} open onOpenChange={vi.fn()} defaultTab="market-data" />,
     );
-    expect(screen.getByRole("button", { name: "Automatic Updates" })).toHaveAccessibleDescription(
+    expect(screen.getByRole("button", { name: "Automatic updates" })).toHaveAccessibleDescription(
       "Prices sync automatically from market data providers.",
     );
     unmount();
@@ -279,7 +279,7 @@ describe("AssetEditSheet automatic updates", () => {
         defaultTab="market-data"
       />,
     );
-    expect(screen.getByRole("button", { name: "Automatic Updates" })).toHaveAccessibleDescription(
+    expect(screen.getByRole("button", { name: "Automatic updates" })).toHaveAccessibleDescription(
       "Automatic syncing is off. You manage prices manually.",
     );
   });

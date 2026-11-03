@@ -94,24 +94,34 @@ export const newAccountSchema = z
     name: z
       .string()
       .min(2, {
-        message: "Name must be at least 2 characters.",
+        message: "common:validation.accountNameMin",
       })
       .max(50, {
-        message: "Name must not be longer than 50 characters.",
+        message: "common:validation.accountNameMax",
       }),
     group: z.string().optional(),
+    // Blank clears the stored number; left out, the stored number stays.
+    accountNumber: z
+      .string()
+      .trim()
+      .max(64, {
+        message: "common:validation.accountNumberMax",
+      })
+      .optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
     isArchived: z.boolean().optional().default(false),
     accountType: accountTypeSchema,
-    currency: z.string({ error: requiredError("Please select a currency.") }),
+    currency: z.string({
+      error: requiredError("common:validation.accountCurrency"),
+    }),
     trackingMode: trackingModeSchema.optional().default("NOT_SET"),
     meta: z.string().nullable().optional(),
   })
   .refine(
     (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
     {
-      message: "Credit card accounts cannot use holdings tracking mode.",
+      message: "common:validation.creditCardTracking",
       path: ["trackingMode"],
     },
   );

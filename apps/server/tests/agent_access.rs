@@ -8,13 +8,48 @@
 use std::net::SocketAddr;
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use axum::{
+    body::{to_bytes, Body},
+    extract::ConnectInfo,
+    http::Request,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use rand::{rngs::OsRng, RngCore};
 use reqwest::header;
 use tempfile::TempDir;
+use tower::ServiceExt;
 use wealthfolio_server::{api::app_router_from_config, config::Config};
 
 const PASSWORD: &str = "super-secret";
+
+#[tokio::test]
+async fn invalid_draft_currency_stays_out_of_audit_errors() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let private_input = "synthetic private transaction note";
+    mcp_call_tool_error(&server, &pat, &session, "commit_activity_draft", serde_json::json!({
+        "draft": {"accountId":"synthetic", "activityType":"DEPOSIT", "activityDate":"2026-04-01",
+        "currency":private_input, "priceSource":"none", "pricingMode":"MARKET", "isCustomAsset":false}
+    })).await;
+    let audit: serde_json::Value = server
+        .client
+        .get(format!("{}/api/v1/agent-access/audit", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(!audit.to_string().contains(private_input), "{audit}");
+    let entry = &audit["items"][0];
+    assert_eq!(entry["tool"], "commit_activity_draft");
+    assert_eq!(
+        entry["errorMessage"],
+        "currency must be a three-letter code"
+    );
+}
 
 /// The canonical read-only scope set, used when minting test tokens.
 const READ_ONLY_SCOPES: &[&str] = &[
@@ -25,6 +60,7 @@ const READ_ONLY_SCOPES: &[&str] = &[
     "financial-planning:read",
     "health:read",
     "classification:read",
+    "spending:read",
 ];
 
 /// Env vars are process-global; serialize config/state construction
@@ -38,7 +74,7 @@ struct TestServer {
     _tmp: TempDir,
 }
 
-async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
+async fn build_test_router(mcp_enabled: bool, audit_enabled: bool) -> (axum::Router, TempDir) {
     let tmp = tempfile::tempdir().unwrap();
     let router = {
         let _guard = ENV_LOCK.lock().await;
@@ -70,6 +106,11 @@ async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
         app_router_from_config(&config).await.unwrap()
     };
 
+    (router, tmp)
+}
+
+async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
+    let (router, tmp) = build_test_router(mcp_enabled, audit_enabled).await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -237,7 +278,7 @@ async fn mcp_pat_lifecycle() {
     assert_eq!(created["name"], "ci token");
     assert_eq!(created["tokenPrefix"].as_str().unwrap().len(), 12);
     assert!(pat[4..].starts_with(created["tokenPrefix"].as_str().unwrap()));
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 7);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 8);
     let token_id = created["id"].as_str().unwrap().to_string();
 
     // Empty name is rejected.
@@ -298,7 +339,7 @@ async fn mcp_pat_lifecycle() {
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
     // and find_transfer_matches (also activities:read) + list_categorization_rules
-    // (classification:read) = 19.
+    // (spending:read), plus the two Spending proposal tools = 21.
     let response = mcp_post(
         &server,
         Some(&pat),
@@ -309,10 +350,14 @@ async fn mcp_pat_lifecycle() {
     assert_eq!(response.status(), 200);
     let list = parse_sse_data(&response.text().await.unwrap());
     let tools = list["result"]["tools"].as_array().unwrap();
+    let names: Vec<&str> = tools
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
     assert_eq!(
         tools.len(),
-        19,
-        "read-only catalog must expose 19 tools (incl. get_import_mapping): {tools:?}"
+        41,
+        "read-only catalog must expose 41 tools (including Spending reads and proposals): {names:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -459,9 +504,9 @@ async fn mcp_pat_lifecycle() {
 
 /// A write/suggest-scoped token sees the draft, suggest, commit, AND import
 /// tools via `tools/list` — proving scope-gated visibility extends past the
-/// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
-/// 16 read + 5 draft/suggest + 5 commit + 3 import + 3 transfer linking +
-/// 2 quote import + 2 activity updates = 36.)
+/// read-only catalog. (Read-only tokens see 19; the full catalog includes the
+/// previous 36 tools plus three category-management tools = 39, plus two
+/// activity-deletion tools.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -475,6 +520,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
             "activities:write",
             "classification:suggest",
             "classification:write",
+            "spending:write",
+            "budget:write",
             "market-data:write",
         ])
         .collect();
@@ -485,7 +532,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     )
     .await;
     assert_eq!(status, 201);
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 12);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 15);
     let pat = created["token"].as_str().unwrap().to_string();
 
     let session = mcp_initialize(&server, &pat).await;
@@ -502,8 +549,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        38,
-        "full-scope token must see all 38 tools: {names:?}"
+        69,
+        "full-scope token must see all 69 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -515,6 +562,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "commit_quote_import",
         "prepare_activity_updates",
         "commit_activity_updates",
+        "prepare_activity_deletions",
+        "commit_activity_deletions",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -2019,6 +2068,300 @@ async fn mcp_updates_keep_linked_transfers_paired() {
     assert_eq!(found["linkedTo"], out_id, "still linked: {found}");
 }
 
+/// A health:read token runs the Health Center checks with refresh: true; the
+/// result is then cached, so a plain read returns it instead of NOT_COMPUTED.
+#[tokio::test]
+async fn mcp_health_status_runs_checks_on_refresh() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    create_eur_account(&server, &cookie, "Brokerage").await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "health reader", "scopes": ["health:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], "NOT_COMPUTED", "{cached}");
+    assert!(
+        cached["note"].as_str().unwrap().contains("refresh: true"),
+        "{cached}"
+    );
+
+    let refreshed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({ "refresh": true }),
+    )
+    .await;
+    let severity = refreshed["overallSeverity"].as_str().unwrap();
+    assert!(
+        ["INFO", "WARNING", "ERROR", "CRITICAL"].contains(&severity),
+        "{refreshed}"
+    );
+    assert_eq!(refreshed["isStale"], false, "{refreshed}");
+    assert!(refreshed.get("note").is_none(), "{refreshed}");
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], refreshed["overallSeverity"]);
+    assert_eq!(cached["issues"], refreshed["issues"], "{cached}");
+}
+
+#[tokio::test]
+async fn deletion_previews_refuse_unsupported_groups_and_commit_ready_rows() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Grouped charges").await;
+    let mut grouped_ids = Vec::new();
+    for activity_type in ["DEPOSIT", "FEE", "TAX"] {
+        let activity = api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": "5",
+                "sourceGroupId": "provider-group"
+            }),
+        )
+        .await;
+        grouped_ids.push(activity["id"].clone());
+    }
+    // Naming either one row or every grouped row must not promise a deletion
+    // that the checked commit cannot perform.
+    for ids in [vec![grouped_ids[0].clone()], grouped_ids.clone()] {
+        let args = serde_json::json!({"activityIds": ids});
+        let preview = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "prepare_activity_deletions",
+            args.clone(),
+        )
+        .await;
+        assert_eq!(preview["summary"]["ready"], 0, "{preview}");
+        for row in preview["rows"].as_array().unwrap() {
+            assert_eq!(row["status"], "invalid", "{row}");
+            assert!(row["error"].as_str().unwrap().contains("void it"), "{row}");
+        }
+        let committed =
+            mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", args).await;
+        assert_eq!(committed["deleted"], serde_json::json!([]), "{committed}");
+    }
+    assert_eq!(stored_activities(&server, &cookie, &account).await.len(), 3);
+
+    let single = api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": account["id"], "activityType": "FEE",
+            "activityDate": "2026-04-02T12:00:00Z", "currency": "EUR", "amount": "5"
+        }),
+    )
+    .await;
+    let args = serde_json::json!({"activityIds": [single["id"]]});
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        args.clone(),
+    )
+    .await;
+    assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+    let committed = mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", args).await;
+    assert_eq!(
+        committed["deleted"][0]["activityId"], single["id"],
+        "{committed}"
+    );
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    assert_eq!(stored_activities(&server, &cookie, &account).await.len(), 3);
+}
+
+/// A deletion is previewed first and removes both legs of a linked transfer,
+/// which must both be named, so a link made after the preview cannot delete
+/// an unreviewed leg;
+/// a void keeps the activity, mirrors onto the other leg, marks it
+/// user-modified so broker syncs keep it, and can be undone.
+#[tokio::test]
+async fn mcp_deletes_and_voids_activities_after_a_preview() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let cash = |account: &serde_json::Value, activity_type: &str, date: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": date, "currency": "EUR", "amount": "100"
+            }),
+        )
+    };
+    let link = |out_id: serde_json::Value, in_id: serde_json::Value| {
+        mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "link_transfer_activities",
+            serde_json::json!({ "pairs": [{ "activityAId": out_id, "activityBId": in_id }] }),
+        )
+    };
+    let out_id = cash(&chequing, "TRANSFER_OUT", "2026-04-01T12:00:00Z").await["id"].clone();
+    let in_id = cash(&savings, "TRANSFER_IN", "2026-04-01T12:00:00Z").await["id"].clone();
+
+    // Previewed while unlinked, then linked: the commit refuses the delete
+    // instead of taking the unreviewed leg with it.
+    let stale = serde_json::json!({ "activityIds": [out_id] });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        stale.clone(),
+    )
+    .await;
+    assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+    assert!(
+        preview["rows"][0].get("linkedActivity").is_none(),
+        "{preview}"
+    );
+    let linked = link(out_id.clone(), in_id.clone()).await;
+    assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+    let committed =
+        mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", stale).await;
+    assert_eq!(committed["deleted"], serde_json::json!([]), "{committed}");
+    let refused = committed["errors"][0]["message"].as_str().unwrap();
+    assert!(refused.contains(in_id.as_str().unwrap()), "{refused}");
+    assert_eq!(stored_activities(&server, &cookie, &savings).await.len(), 1);
+
+    // Naming both legs: the second row goes with the first.
+    let ids = serde_json::json!({ "activityIds": [out_id, in_id, "missing"] });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        ids.clone(),
+    )
+    .await;
+    assert_eq!(preview["summary"]["ready"], 2, "{preview}");
+    assert_eq!(preview["summary"]["activitiesDeleted"], 2, "{preview}");
+    assert_eq!(preview["rows"][0]["activity"]["amount"], "100", "{preview}");
+    assert_eq!(
+        preview["rows"][0]["linkedActivity"]["accountId"], savings["id"],
+        "{preview}"
+    );
+    assert_eq!(preview["rows"][1]["deletedWith"], 0, "{preview}");
+    let missing = preview["rows"][2]["error"].as_str().unwrap();
+    assert!(missing.contains("not found"), "{missing}");
+    // The preview wrote nothing.
+    assert_eq!(
+        stored_activities(&server, &cookie, &chequing).await.len(),
+        1
+    );
+
+    let committed = mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", ids).await;
+    assert_eq!(committed["deleted"][0]["activityId"], out_id, "{committed}");
+    assert_eq!(
+        committed["deletedWithPair"][0],
+        serde_json::json!({ "index": 1, "activityId": in_id, "deletedWith": 0 }),
+        "{committed}"
+    );
+    assert_eq!(
+        committed["errors"].as_array().unwrap().len(),
+        1,
+        "{committed}"
+    );
+    assert!(stored_activities(&server, &cookie, &chequing)
+        .await
+        .is_empty());
+    assert!(stored_activities(&server, &cookie, &savings)
+        .await
+        .is_empty());
+
+    // Voiding one leg of a linked transfer voids the other leg too.
+    let out_id = cash(&chequing, "TRANSFER_OUT", "2026-04-02T12:00:00Z").await["id"].clone();
+    let in_id = cash(&savings, "TRANSFER_IN", "2026-04-02T12:00:00Z").await["id"].clone();
+    let linked = link(out_id.clone(), in_id.clone()).await;
+    assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+    let void = serde_json::json!({ "activityId": out_id, "void": true });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        serde_json::json!({ "updates": [void.clone()] }),
+    )
+    .await;
+    let previewed = &preview["rows"][0];
+    assert_eq!(previewed["status"], "ready", "{preview}");
+    assert_eq!(changed_fields(&previewed["changes"]), vec!["status"]);
+    assert_eq!(previewed["changes"][0]["proposed"], "VOID", "{preview}");
+    assert_eq!(changed_fields(&previewed["linkedChanges"]), vec!["status"]);
+    assert_eq!(
+        stored_activities(&server, &cookie, &chequing).await[0]["status"],
+        "POSTED"
+    );
+
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_updates",
+        serde_json::json!({ "updates": [void] }),
+    )
+    .await;
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    for (account, id) in [(&chequing, &out_id), (&savings, &in_id)] {
+        let stored = stored_activities(&server, &cookie, account).await;
+        let voided = activity_by_id(&stored, id);
+        assert_eq!(voided["status"], "VOID", "{stored:?}");
+        assert_eq!(voided["isUserModified"], true, "{stored:?}");
+    }
+
+    let restore = serde_json::json!({ "updates": [{ "activityId": in_id, "void": false }] });
+    let committed =
+        mcp_call_tool(&server, &pat, &session, "commit_activity_updates", restore).await;
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    for (account, id) in [(&chequing, &out_id), (&savings, &in_id)] {
+        let stored = stored_activities(&server, &cookie, account).await;
+        assert_eq!(
+            activity_by_id(&stored, id)["status"],
+            "POSTED",
+            "{stored:?}"
+        );
+    }
+}
+
 /// Core mirrors a linked cross-currency cash transfer with the pair's stored
 /// rate, so a leg keeps its FX rate: a new rate would no longer match the two
 /// amounts. An amount alone is mirrored at the stored rate.
@@ -2505,7 +2848,7 @@ async fn category_writer_session(server: &TestServer, cookie: &str) -> (String, 
         cookie,
         serde_json::json!({
             "name": "category writer",
-            "scopes": ["activities:read", "classification:read", "classification:suggest", "classification:write"]
+            "scopes": ["spending:read", "spending:write"]
         }),
     )
     .await;
@@ -2729,8 +3072,35 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
     let prior_splits = category_splits(&server, &cookie, &activities[0]).await;
     assert_eq!(prior_splits.as_array().unwrap().len(), 2);
 
-    // The second category exists, but in another taxonomy. This fails the FK
-    // after the first assignment and split deletion enter the write transaction.
+    let proposed = mcp_call_tool(&server, &pat, &session, "propose_transaction_categories",
+        serde_json::json!({"activityIds": [activities[0]["id"], activities[1]["id"]], "status": "all"})).await;
+    assert_eq!(proposed["summary"]["protectedSplits"], 1);
+    assert!(!proposed["proposals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["activityId"] == activities[0]["id"]));
+    assert!(!proposed["unproposed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["activityId"] == activities[0]["id"]));
+    let conflict = mcp_call_tool(&server, &pat, &session, "commit_transaction_categories",
+        serde_json::json!({"assignments": [category_assignment(&activities[1], &second), category_assignment(&activities[0], &second)]})).await;
+    assert_eq!(conflict["draftStatus"], "conflict");
+    assert_eq!(conflict["assignmentCount"], 0);
+    assert_eq!(conflict["conflicts"][0]["activityId"], activities[0]["id"]);
+    assert_eq!(conflict["conflicts"][0]["reason"], "protected_splits");
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[1]).await,
+        prior_rows
+    );
+    assert_eq!(
+        category_splits(&server, &cookie, &activities[0]).await,
+        prior_splits
+    );
+
+    // A category in another taxonomy is rejected before any persistence.
     let error = mcp_call_tool_error(
         &server,
         &pat,
@@ -2768,7 +3138,7 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
         ),
         (
             category_assignment(&activities[1], "missing-category"),
-            "FOREIGN KEY constraint failed",
+            "Category does not belong to the selected cash-flow taxonomy",
         ),
         (
             serde_json::json!({"activityId": activities[1]["id"], "taxonomyId": "missing-taxonomy", "categoryId": first}),
@@ -2793,7 +3163,10 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
         &pat,
         &session,
         "commit_transaction_categories",
-        serde_json::json!({"assignments": [category_assignment(&activities[0], &second)]}),
+        serde_json::json!({"assignments": [{
+            "activityId": activities[0]["id"], "taxonomyId": "spending_categories", "categoryId": second,
+            "expectedSplits": prior_splits,
+        }]}),
     )
     .await;
     assert!(category_splits(&server, &cookie, &activities[0])
@@ -2925,5 +3298,2275 @@ async fn mcp_category_save_denies_insufficient_scopes_and_redacts_audit_errors()
             "{row}"
         );
         assert!(!text.contains(&first), "{row}");
+    }
+}
+
+#[tokio::test]
+async fn spending_only_reads_are_scoped_paginated_and_available_without_investment_grants() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, activities, first, _, _) = category_save_fixture(&server, &cookie).await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"spending reader", "scopes":["spending:read"]}),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let context = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_spending_context",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(context["availability"], "available");
+    assert_eq!(context["accountIds"], serde_json::json!([account["id"]]));
+    let list = mcp_post(
+        &server,
+        Some(pat),
+        Some(&session),
+        serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
+    )
+    .await;
+    let list = parse_sse_data(&list.text().await.unwrap());
+    let names = list["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    for name in [
+        "get_spending_context",
+        "search_spending_transactions",
+        "list_transaction_categories",
+        "list_categorization_context",
+        "propose_transaction_categories",
+        "create_categorization_rule",
+        "list_categorization_rules",
+    ] {
+        assert!(names.contains(&name), "{name}");
+    }
+    for name in [
+        "search_activities",
+        "get_holdings",
+        "list_asset_taxonomies",
+        "commit_transaction_categories",
+        "rerun_categorization_rules",
+    ] {
+        assert!(!names.contains(&name), "{name}");
+        assert!(
+            mcp_call_tool_error(&server, pat, &session, name, serde_json::json!({}))
+                .await
+                .contains("Scope denied")
+        );
+    }
+    let page = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"limit":1,"sortDir":"asc"}),
+    )
+    .await;
+    assert_eq!(page["items"].as_array().unwrap().len(), 1);
+    assert_eq!(page["totalCount"], 2);
+    assert_eq!(page["hasMore"], true);
+    assert_eq!(page["fxRequested"], false);
+    assert_eq!(page["items"][0]["accountId"], account["id"]);
+    let next = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"offset":1,"limit":1,"sortDir":"asc"}),
+    )
+    .await;
+    assert_eq!(next["hasMore"], false);
+    assert_ne!(next["items"][0]["id"], page["items"][0]["id"]);
+    let outside = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"accountIds":["not-enrolled"]}),
+    )
+    .await;
+    assert_eq!(outside["totalCount"], 0);
+    assert_eq!(outside["context"]["accountIds"], serde_json::json!([]));
+    api_put(&server, &cookie, &format!("spending/activities/{}/splits", activities[0]["id"].as_str().unwrap()),
+        serde_json::json!([{"taxonomyId":"spending_categories","categoryId":first,"amount":"12.50"}])).await;
+    let split = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]],"status":"categorized"}),
+    )
+    .await;
+    assert_eq!(split["totalCount"], 1);
+    assert_eq!(
+        split["items"][0]["effectiveAllocations"][0]["categoryId"],
+        first
+    );
+    assert_eq!(split["items"][0]["splits"].as_array().unwrap().len(), 1);
+    let uncategorized = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]],"status":"uncategorized"}),
+    )
+    .await;
+    assert_eq!(uncategorized["totalCount"], 0);
+    let categories = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "list_transaction_categories",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(categories["taxonomies"].as_array().unwrap().len(), 3);
+    api_put(
+        &server,
+        &cookie,
+        "spending/settings",
+        serde_json::json!({"enabled":false}),
+    )
+    .await;
+    let context = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_spending_context",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(context["availability"], "disabled");
+    assert_eq!(context["accountIds"], serde_json::json!([]));
+    let disabled = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]]}),
+    )
+    .await;
+    assert_eq!(disabled["totalCount"], 0);
+    let configuration = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "list_transaction_categories",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(configuration, categories);
+}
+
+#[tokio::test]
+async fn mcp_permission_edits_apply_in_the_existing_session() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"editable", "scopes":["accounts:read"]}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let id = created["id"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let denied =
+        mcp_call_tool_error(&server, pat, &session, "get_goals", serde_json::json!({})).await;
+    assert!(denied.contains("Scope denied"));
+    let url = format!("{}/api/v1/agent-access/tokens/{id}", server.base);
+    let patch = |scopes: serde_json::Value| {
+        server
+            .client
+            .patch(&url)
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({"scopes":scopes}))
+    };
+    for scopes in [
+        serde_json::json!(["accounts:read", "financial-planning:read"]),
+        serde_json::json!(["accounts:read"]),
+    ] {
+        let response = patch(scopes.clone()).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        let edited: serde_json::Value = response.json().await.unwrap();
+        assert_eq!(edited["scopes"], scopes);
+        for field in ["id", "name", "tokenPrefix", "createdAt", "expiresAt"] {
+            assert_eq!(edited[field], created[field]);
+        }
+        assert!(edited.get("token").is_none() && edited.get("tokenHash").is_none());
+        let response = mcp_post(
+            &server,
+            Some(pat),
+            Some(&session),
+            serde_json::json!({"jsonrpc":"2.0","id":"list","method":"tools/list"}),
+        )
+        .await;
+        let list = parse_sse_data(&response.text().await.unwrap());
+        let visible = list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "get_goals");
+        if scopes.as_array().unwrap().len() == 2 {
+            assert!(visible);
+            assert!(
+                mcp_call_tool(&server, pat, &session, "get_goals", serde_json::json!({})).await
+                    ["goals"]
+                    .is_array()
+            );
+        } else {
+            assert!(!visible);
+            assert!(mcp_call_tool_error(
+                &server,
+                pat,
+                &session,
+                "get_goals",
+                serde_json::json!({})
+            )
+            .await
+            .contains("Scope denied"));
+        }
+    }
+}
+
+/// Management requests do not need the streaming MCP transport, so exercise
+/// their complete authentication/router/persistence path without a TCP listener.
+async fn scope_api_request(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    credential: Option<(&str, &str)>,
+    body: serde_json::Value,
+) -> axum::response::Response {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("content-type", "application/json")
+        .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))));
+    if let Some((name, value)) = credential {
+        request = request.header(name, value);
+    }
+    app.clone()
+        .oneshot(request.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap()
+}
+
+async fn scope_response_json(response: axum::response::Response) -> serde_json::Value {
+    serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn permission_edits_management_requires_session_and_preserves_token_metadata() {
+    let (app, _tmp) = build_test_router(true, true).await;
+    let response = scope_api_request(
+        &app,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        serde_json::json!({"password": PASSWORD}),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+    let cookie = response.headers()[header::SET_COOKIE]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let auth = Some(("cookie", cookie.as_str()));
+    let created = scope_api_request(&app, "POST", "/api/v1/agent-access/tokens", auth,
+        serde_json::json!({"name":"editable", "scopes":["accounts:read"], "expiresAt":"2099-01-01T00:00:00Z"})).await;
+    assert_eq!(created.status(), 201);
+    let created = scope_response_json(created).await;
+    let url = format!(
+        "/api/v1/agent-access/tokens/{}",
+        created["id"].as_str().unwrap()
+    );
+    let bearer = format!("Bearer {}", created["token"].as_str().unwrap());
+    for credential in [None, Some(("authorization", bearer.as_str()))] {
+        let response = scope_api_request(
+            &app,
+            "PATCH",
+            &url,
+            credential,
+            serde_json::json!({"scopes":["holdings:read"]}),
+        )
+        .await;
+        assert_eq!(response.status(), 401);
+    }
+    let before = scope_response_json(
+        scope_api_request(
+            &app,
+            "GET",
+            "/api/v1/agent-access/tokens",
+            auth,
+            serde_json::Value::Null,
+        )
+        .await,
+    )
+    .await[0]
+        .clone();
+    for scopes in [
+        serde_json::json!([]),
+        serde_json::json!(["unknown:scope"]),
+        serde_json::json!(["activities:write"]),
+        serde_json::json!(["classification:write"]),
+        serde_json::json!(["market-data:write"]),
+    ] {
+        assert_eq!(
+            scope_api_request(
+                &app,
+                "PATCH",
+                &url,
+                auth,
+                serde_json::json!({"scopes":scopes})
+            )
+            .await
+            .status(),
+            400
+        );
+    }
+    for payload in [
+        serde_json::json!({}),
+        serde_json::json!({"scopes":"accounts:read"}),
+        serde_json::json!({"scopes":["holdings:read"], "expiresAt":null}),
+        serde_json::json!({"scopes":["holdings:read"], "name":"renamed"}),
+    ] {
+        assert_eq!(
+            scope_api_request(&app, "PATCH", &url, auth, payload)
+                .await
+                .status(),
+            422
+        );
+    }
+    let unchanged = scope_response_json(
+        scope_api_request(
+            &app,
+            "GET",
+            "/api/v1/agent-access/tokens",
+            auth,
+            serde_json::Value::Null,
+        )
+        .await,
+    )
+    .await[0]
+        .clone();
+    assert_eq!(unchanged, before);
+    let response = scope_api_request(
+        &app,
+        "PATCH",
+        &url,
+        auth,
+        serde_json::json!({"scopes":["holdings:read", "accounts:read", "holdings:read"]}),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+    let updated = scope_response_json(response).await;
+    assert_eq!(
+        updated["scopes"],
+        serde_json::json!(["accounts:read", "holdings:read"])
+    );
+    for field in [
+        "id",
+        "name",
+        "tokenPrefix",
+        "fingerprint",
+        "createdAt",
+        "expiresAt",
+        "lastUsedAt",
+        "revokedAt",
+    ] {
+        assert_eq!(updated[field], before[field]);
+    }
+    assert!(updated.get("token").is_none() && updated.get("tokenHash").is_none());
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "PATCH",
+            "/api/v1/agent-access/tokens/missing",
+            auth,
+            serde_json::json!({"scopes":["accounts:read"]})
+        )
+        .await
+        .status(),
+        404
+    );
+    let expired = scope_response_json(scope_api_request(&app, "POST", "/api/v1/agent-access/tokens", auth,
+        serde_json::json!({"name":"expired", "scopes":["accounts:read"], "expiresAt":"2000-01-01T00:00:00Z"})).await).await;
+    let url = format!(
+        "/api/v1/agent-access/tokens/{}",
+        expired["id"].as_str().unwrap()
+    );
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "PATCH",
+            &url,
+            auth,
+            serde_json::json!({"scopes":["holdings:read"]})
+        )
+        .await
+        .status(),
+        200
+    );
+    let expired_bearer = format!("Bearer {}", expired["token"].as_str().unwrap());
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "POST",
+            "/mcp",
+            Some(("authorization", &expired_bearer)),
+            init_body()
+        )
+        .await
+        .status(),
+        401
+    );
+}
+
+#[tokio::test]
+async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_insight() {
+    for missing in [
+        "key = 'other'",
+        "key IN ('needs','wants','other')",
+        "is_system = 1",
+    ] {
+        let server = spawn_server(true, false).await;
+        let cookie = login(&server).await;
+        category_save_fixture(&server, &cookie).await;
+        let (_, token) = create_pat(
+            &server,
+            &cookie,
+            serde_json::json!({"name":"budget reader","scopes":["spending:read"]}),
+        )
+        .await;
+        let pat = token["token"].as_str().unwrap();
+        let session = mcp_initialize(&server, pat).await;
+        let profile = api_post(
+            &server,
+            &cookie,
+            "profiles/get_profile_state",
+            serde_json::json!({}),
+        )
+        .await;
+        let path = server
+            ._tmp
+            .path()
+            .join("profiles")
+            .join(profile["session"]["profileId"].as_str().unwrap())
+            .join("app.db");
+        let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+            .connect_rusqlite()
+            .unwrap();
+        db.execute("INSERT INTO budget_groups (id,name,key,is_system) VALUES ('custom','My custom group','custom',0)", []).unwrap();
+        db.execute(&format!("DELETE FROM budget_groups WHERE {missing}"), [])
+            .unwrap();
+        let count = || {
+            db.query_row("SELECT COUNT(*) FROM budget_groups", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap()
+        };
+        let budget_outbox = || {
+            db.query_row("SELECT COUNT(*) FROM sync_outbox WHERE entity IN ('budget_group','budget_group_assignment','budget_target','budget_rollover_setting')", [], |row| row.get::<_, i64>(0)).unwrap()
+        };
+        let before = count();
+        let outbox_before = budget_outbox();
+        let read = mcp_call_tool(
+            &server,
+            pat,
+            &session,
+            "get_budget",
+            serde_json::json!({"periodKey":"default"}),
+        )
+        .await;
+        let groups = read["budget"]["state"]["groups"].as_array().unwrap();
+        assert_eq!(groups.len(), 7);
+        assert!(groups
+            .iter()
+            .any(|group| group["id"] == "custom" && group["name"] == "My custom group"));
+        let expected_ids = groups
+            .iter()
+            .map(|group| group["id"].as_str().unwrap().to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(count(), before, "agent read must not seed groups");
+        assert_eq!(
+            budget_outbox(),
+            outbox_before,
+            "agent read must not emit budget writes"
+        );
+        let insight = api_post(&server, &cookie, "spending/insight", serde_json::json!({"startDate":"2026-01-01T00:00:00Z","endDate":"2026-01-31T23:59:59Z"})).await;
+        let insight_ids = insight["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|group| group["group"]["id"].as_str().unwrap().to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+        // Native Insight deliberately omits the Savings group from its
+        // consumption breakdown; preserve that accounting presentation.
+        let consumption_ids = groups
+            .iter()
+            .filter(|group| group["key"] != "savings")
+            .map(|group| group["id"].as_str().unwrap().to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            insight_ids, consumption_ids,
+            "Insight and Budget resolve the same consumption groups"
+        );
+        assert_eq!(count(), before, "Insight also stays pure");
+        assert_eq!(budget_outbox(), outbox_before);
+        let integration = category_api_get(
+            &server,
+            &cookie,
+            "spending/budget/snapshot?periodKey=default",
+        )
+        .await;
+        assert_eq!(
+            integration["state"]["groups"],
+            read["budget"]["state"]["groups"]
+        );
+        assert_eq!(count(), before, "addon snapshot read stays pure");
+        assert_eq!(budget_outbox(), outbox_before);
+        // The native screen deliberately retains its existing initialization lifecycle.
+        let native = category_api_get(&server, &cookie, "spending/budget?periodKey=default").await;
+        let native_ids = native["state"]["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|group| group["id"].as_str().unwrap().to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(native_ids, expected_ids);
+        assert_eq!(
+            native["computed"]["totals"],
+            read["budget"]["computed"]["totals"]
+        );
+        assert_eq!(count(), 7, "native budget read still seeds missing groups");
+    }
+}
+
+async fn reviewed_budget_change(
+    server: &TestServer,
+    pat: &str,
+    session: &str,
+    operation: serde_json::Value,
+    period: &str,
+) -> serde_json::Value {
+    let preview = mcp_call_tool(
+        server,
+        pat,
+        session,
+        "prepare_budget_change",
+        serde_json::json!({"change":operation,"periodKey":period}),
+    )
+    .await;
+    mcp_call_tool(
+        server,
+        pat,
+        session,
+        "commit_budget_change",
+        preview["change"].clone(),
+    )
+    .await["budget"]
+        .clone()
+}
+fn budget_category<'a>(snapshot: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+    snapshot["computed"]["groupRows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|group| group["categories"].as_array().unwrap())
+        .find(|c| c["categoryId"] == id)
+        .unwrap()
+}
+#[tokio::test]
+async fn reviewed_budget_defaults_overrides_copy_and_stale_reviews_use_native_calculations() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"Budget only","scopes":["spending:read","budget:write"]}),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let set = |period: &str, amount: &str| serde_json::json!({"operation":"set_target","target":{"periodKey":period,"targetType":"category","taxonomyId":"spending_categories","categoryId":category,"amount":amount}});
+    let default =
+        reviewed_budget_change(&server, pat, &session, set("default", "100"), "2026-04").await;
+    assert_eq!(budget_category(&default, &category)["target"], 100.0);
+    let monthly =
+        reviewed_budget_change(&server, pat, &session, set("2026-04", "200"), "2026-04").await;
+    assert_eq!(budget_category(&monthly, &category)["target"], 200.0);
+    let override_id = monthly["state"]["targets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["periodKey"] == "2026-04")
+        .unwrap()["id"]
+        .clone();
+    let stale = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_budget_change",
+        serde_json::json!({"change":set("default","150"),"periodKey":"2026-04"}),
+    )
+    .await;
+    let changed =
+        reviewed_budget_change(&server, pat, &session, set("default", "300"), "2026-04").await;
+    assert_eq!(
+        budget_category(&changed, &category)["target"],
+        200.0,
+        "monthly override wins over newer default"
+    );
+    assert!(mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "commit_budget_change",
+        stale["change"].clone()
+    )
+    .await
+    .contains("refresh"));
+    let historical = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_budget",
+        serde_json::json!({"periodKey":"2026-03"}),
+    )
+    .await;
+    assert_eq!(
+        budget_category(&historical["budget"], &category)["target"],
+        300.0,
+        "defaults also affect historical inheriting months"
+    );
+    let copied=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"copy_targets","sourcePeriodKey":"default","targetPeriodKey":"2026-04","overwrite":false}),"2026-04").await;
+    assert_eq!(budget_category(&copied, &category)["target"], 200.0);
+    let restored = reviewed_budget_change(
+        &server,
+        pat,
+        &session,
+        serde_json::json!({"operation":"remove_target","id":override_id}),
+        "2026-04",
+    )
+    .await;
+    assert_eq!(
+        budget_category(&restored, &category)["target"],
+        300.0,
+        "remove override restores current default"
+    );
+    let copied=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"copy_targets","sourcePeriodKey":"default","targetPeriodKey":"2026-04","overwrite":true}),"2026-04").await;
+    assert_eq!(budget_category(&copied, &category)["target"], 300.0);
+    let native = category_api_get(&server, &cookie, "spending/budget?periodKey=2026-04").await;
+    assert_eq!(
+        native["computed"], copied["computed"],
+        "native and MCP use the same calculator"
+    );
+    // Budget permission does not grant transaction organization.
+    let denied = mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "commit_transaction_categories",
+        serde_json::json!({"assignments":[]}),
+    )
+    .await;
+    assert!(denied.contains("spending:write"));
+}
+
+#[tokio::test]
+async fn reviewed_budget_groups_buffers_and_rollovers_preserve_atomic_native_operations() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let (_, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"Budget only","scopes":["spending:read","budget:write"]}),
+    )
+    .await;
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let created = reviewed_budget_change(
+        &server,
+        pat,
+        &session,
+        serde_json::json!({"operation":"create_group","group":{"name":"Travel fund"}}),
+        "2026-04",
+    )
+    .await;
+    let group = created["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["name"] == "Travel fund")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let other = created["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["key"] == "other")
+        .unwrap()["id"]
+        .clone();
+    reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"update_group","id":group,"changes":{"name":"Trips","sortOrder":99}}),"2026-04").await;
+    reviewed_budget_change(
+        &server,
+        pat,
+        &session,
+        serde_json::json!({"operation":"assign_category","categoryId":category,"groupId":group}),
+        "2026-04",
+    )
+    .await;
+    for (id, amount) in [
+        (serde_json::json!(group), "20.25"),
+        (other.clone(), "30.10"),
+    ] {
+        reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"set_target","target":{"periodKey":"default","targetType":"group_buffer","groupId":id,"amount":amount}}),"2026-04").await;
+    }
+    let category_rollover = serde_json::json!({"operation":"set_rollover","setting":{"targetType":"category","taxonomyId":"spending_categories","categoryId":category,"enabled":true,"startMonth":"2026-04","startingBalance":"5.50"}});
+    reviewed_budget_change(&server, pat, &session, category_rollover.clone(), "2026-04").await;
+    let group_rollover=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"set_rollover","setting":{"targetType":"group","groupId":group,"enabled":true,"startMonth":"2026-04","startingBalance":"2.25"}}),"2026-04").await;
+    let settings = group_rollover["state"]["rolloverSettings"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        settings
+            .iter()
+            .find(|s| s["targetType"] == "category")
+            .unwrap()["enabled"],
+        false,
+        "group activation disables category rollover in same writer operation"
+    );
+    assert!(mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "prepare_budget_change",
+        serde_json::json!({"change":category_rollover})
+    )
+    .await
+    .contains("rejected"));
+    let group_setting = settings
+        .iter()
+        .find(|s| s["targetType"] == "group")
+        .unwrap()["id"]
+        .clone();
+    reviewed_budget_change(
+        &server,
+        pat,
+        &session,
+        serde_json::json!({"operation":"remove_rollover","id":group_setting}),
+        "2026-04",
+    )
+    .await;
+    let deleted = reviewed_budget_change(
+        &server,
+        pat,
+        &session,
+        serde_json::json!({"operation":"delete_group","id":group,"reassignToGroupId":other}),
+        "2026-04",
+    )
+    .await;
+    assert!(!deleted["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|g| g["id"] == group));
+    assert_eq!(
+        deleted["state"]["groupAssignments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["categoryId"] == category)
+            .unwrap()["groupId"],
+        other
+    );
+    assert_eq!(
+        deleted["state"]["targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["groupId"] == other)
+            .unwrap()["amount"],
+        "50.35"
+    );
+}
+
+#[tokio::test]
+async fn reviewed_spending_splits_rules_events_and_tags_roundtrip_without_activity_write_access() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let activity = activities[0]["id"].clone();
+    let preview=mcp_call_tool(&server,&pat,&session,"prepare_spending_splits",serde_json::json!({"activityId":activity,"splits":[{"taxonomyId":"spending_categories","categoryId":first,"amount":"8.00","note":"Item"},{"taxonomyId":"spending_categories","categoryId":second,"amount":"4.50","note":"Tax and tip"}],"reviewNotes":"Receipt verified"})).await;
+    assert_eq!(preview["valid"], true);
+    assert_eq!(preview["remaining"], 0.0);
+    let split = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_splits",
+        preview["change"].clone(),
+    )
+    .await;
+    assert_eq!(split["splits"].as_array().unwrap().len(), 2);
+    assert!(!mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_splits",
+        preview["change"].clone()
+    )
+    .await
+    .is_empty());
+    let events = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "list_spending_events",
+        serde_json::json!({}),
+    )
+    .await;
+    let draft=mcp_call_tool(&server,&pat,&session,"prepare_spending_event",serde_json::json!({"event":{"name":"Trip","eventTypeId":events["eventTypes"][0]["id"],"startDate":"2026-06-01","endDate":"2026-06-10"}})).await;
+    let event = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_event",
+        draft["change"].clone(),
+    )
+    .await["created"]
+        .clone();
+    let tag = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event_tag",
+        serde_json::json!({"activityId":activity,"eventId":event["id"]}),
+    )
+    .await;
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_event_tag",
+        tag["change"].clone(),
+    )
+    .await;
+    // April purchase may be attached to the June event; no financial edit.
+    let delete = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event",
+        serde_json::json!({"eventId":event["id"],"event":null}),
+    )
+    .await;
+    assert_eq!(delete["removedTagCount"], 1);
+    let tag = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event_tag",
+        serde_json::json!({"activityId":activities[1]["id"],"eventId":event["id"]}),
+    )
+    .await;
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_event_tag",
+        tag["change"].clone(),
+    )
+    .await;
+    assert!(
+        !mcp_call_tool_error(
+            &server,
+            &pat,
+            &session,
+            "commit_spending_event",
+            delete["change"].clone()
+        )
+        .await
+        .is_empty(),
+        "new tag invalidates reviewed deletion"
+    );
+    let delete = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event",
+        serde_json::json!({"eventId":event["id"],"event":null}),
+    )
+    .await;
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_event",
+        delete["change"].clone(),
+    )
+    .await;
+    assert_eq!(
+        category_splits(&server, &cookie, &activities[0])
+            .await
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "deleting event preserves splits"
+    );
+    let taxonomy = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    let key = taxonomy["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == first)
+        .unwrap()["key"]
+        .clone();
+    let draft=mcp_call_tool(&server,&pat,&session,"create_categorization_rule",serde_json::json!({"pattern":"Synthetic merchant","taxonomyId":"spending_categories","categoryKey":key})).await;
+    let saved = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_categorization_rule",
+        serde_json::json!({"rule":draft["rule"]}),
+    )
+    .await["created"]
+        .clone();
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "preview_categorization_rules",
+        serde_json::json!({"onlyUncategorized":true}),
+    )
+    .await;
+    assert_eq!(preview["summary"]["matched"], 2);
+    assert_eq!(preview["summary"]["eligible"], 1);
+    assert_eq!(preview["summary"]["protectedSplits"], 1);
+    let ran = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "rerun_categorization_rules",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(ran["matched"], 2);
+    assert_eq!(ran["changed"], 1);
+    assert_eq!(ran["protectedSplits"], 1);
+    let reran = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "rerun_categorization_rules",
+        serde_json::json!({"onlyUncategorized":false}),
+    )
+    .await;
+    assert_eq!(reran["changed"], 0);
+    assert_eq!(reran["unchanged"], 1);
+    assert_eq!(reran["protectedSplits"], 1);
+    mcp_call_tool(&server,&pat,&session,"commit_transaction_categories",serde_json::json!({"assignments":[{"activityId":activities[1]["id"],"taxonomyId":"spending_categories","categoryId":second}]})).await;
+    let reran = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "rerun_categorization_rules",
+        serde_json::json!({"onlyUncategorized":false}),
+    )
+    .await;
+    assert_eq!(reran["changed"], 0);
+    assert_eq!(reran["protectedManual"], 1);
+    assert_eq!(reran["protectedSplits"], 1);
+    let edit = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_categorization_rule_change",
+        serde_json::json!({"ruleId":saved["id"],"changes":{"name":"Reviewed rule","priority":50}}),
+    )
+    .await;
+    let updated = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_categorization_rule_change",
+        edit["change"].clone(),
+    )
+    .await;
+    assert_eq!(updated["updated"]["priority"], 50);
+    assert!(!mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_categorization_rule_change",
+        edit["change"].clone()
+    )
+    .await
+    .is_empty());
+    let deletion = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_categorization_rule_change",
+        serde_json::json!({"ruleId":saved["id"],"changes":null}),
+    )
+    .await;
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_categorization_rule_change",
+        deletion["change"].clone(),
+    )
+    .await;
+    let clear = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_allocation_clear",
+        serde_json::json!({"activityId":activity,"taxonomyId":"spending_categories"}),
+    )
+    .await;
+    assert_eq!(clear["removedSplits"].as_array().unwrap().len(), 2);
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_spending_allocation_clear",
+        clear["change"].clone(),
+    )
+    .await;
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(
+        !mcp_call_tool_error(
+            &server,
+            &pat,
+            &session,
+            "commit_spending_allocation_clear",
+            clear["change"].clone()
+        )
+        .await
+        .is_empty(),
+        "replayed clear has stale evidence"
+    );
+}
+
+#[tokio::test]
+async fn spending_import_metadata_retries_saved_ids_without_reimporting_financial_rows() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, _, parent, _, _) = category_save_fixture(&server, &cookie).await;
+    let child=api_post(&server,&cookie,"taxonomies/categories",serde_json::json!({"taxonomyId":"spending_categories","parentId":parent,"name":"Imported subcategory","key":"imported_child","color":"#123456","sortOrder":0})).await;
+    let taxonomy = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    let key = taxonomy["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == parent)
+        .unwrap()["key"]
+        .clone();
+    let (_,token)=create_pat(&server,&cookie,serde_json::json!({"name":"Import and organize","scopes":["activities:read","activities:draft","activities:write","spending:read","spending:write"]})).await;
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let input = serde_json::json!({"activities":[{"date":"2026-05-10","activityType":"WITHDRAWAL","currency":"EUR","amount":42.25,"accountId":account["id"],"comment":"Imported synthetic purchase","lineNumber":2}]});
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_activity_import",
+        input.clone(),
+    )
+    .await;
+    let imported = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_activity_import",
+        input.clone(),
+    )
+    .await;
+    assert_eq!(imported["summary"]["imported"], 1);
+    assert_eq!(imported["financialRows"][0]["financialStatus"], "imported");
+    let id = imported["financialRows"][0]["activityId"].clone();
+    assert!(
+        stored_activities(&server, &cookie, &account)
+            .await
+            .iter()
+            .any(|a| a["id"] == id),
+        "reported saved ID must exist in SQLite"
+    );
+    let bad=mcp_call_tool(&server,pat,&session,"prepare_spending_import_metadata",serde_json::json!({"rows":[{"activityId":id,"taxonomyId":"spending_categories","categoryKey":key,"subcategoryKey":"imported_child","eventName":"Unknown event"}]})).await;
+    assert_eq!(bad["rows"][0]["status"], "needs_review");
+    assert!(
+        bad["categoryAssignments"].as_array().unwrap().is_empty(),
+        "unresolved rows never silently apply a successful half"
+    );
+    let mapped=mcp_call_tool(&server,pat,&session,"prepare_spending_import_metadata",serde_json::json!({"rows":[{"activityId":id,"taxonomyId":"spending_categories","categoryKey":key,"subcategoryKey":"imported_child"}]})).await;
+    assert_eq!(mapped["rows"][0]["status"], "ready");
+    assert_eq!(mapped["categoryAssignments"][0]["categoryId"], child["id"]);
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_transaction_categories",
+        serde_json::json!({"assignments":mapped["categoryAssignments"]}),
+    )
+    .await;
+    assert_eq!(
+        stored_activities(&server, &cookie, &account).await.len(),
+        3,
+        "metadata-only retry adds no financial rows"
+    );
+    let duplicate = mcp_call_tool(&server, pat, &session, "commit_activity_import", input).await;
+    assert_eq!(duplicate["summary"]["imported"], 0);
+    assert_eq!(
+        duplicate["financialRows"][0]["financialStatus"],
+        "duplicate_skipped"
+    );
+    assert_eq!(duplicate["financialRows"][0]["activityId"], id);
+}
+
+#[tokio::test]
+async fn activity_write_reviews_split_loss_without_a_spending_grant_and_rejects_stale_review() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let path = format!(
+        "spending/activities/{}/splits",
+        activities[0]["id"].as_str().unwrap()
+    );
+    let splits = serde_json::json!([{"taxonomyId":"spending_categories","categoryId":first,"amount":"8"},{"taxonomyId":"spending_categories","categoryId":second,"amount":"4.5"}]);
+    api_put(&server, &cookie, &path, splits.clone()).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let mut updates =
+        serde_json::json!({"updates":[{"activityId":activities[0]["id"],"amount":"15"}]});
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        updates.clone(),
+    )
+    .await;
+    assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+    assert_eq!(preview["rows"][0]["splitReview"][0]["removedSplits"], 2);
+    let evidence = serde_json::to_string(&preview["rows"][0]["splitReview"]).unwrap();
+    assert!(!evidence.contains(&first));
+    assert!(!evidence.contains(&second));
+    let refused = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_updates",
+        updates.clone(),
+    )
+    .await;
+    assert_eq!(refused["updated"].as_array().unwrap().len(), 0);
+    updates["updates"][0]["splitReview"] = preview["rows"][0]["splitReview"].clone();
+    api_put(&server, &cookie, &path, splits).await; // new split state since review
+    let stale = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_updates",
+        updates.clone(),
+    )
+    .await;
+    assert_eq!(stale["updated"].as_array().unwrap().len(), 0, "{stale}");
+    assert_eq!(
+        category_splits(&server, &cookie, &activities[0])
+            .await
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let fresh = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        updates.clone(),
+    )
+    .await;
+    updates["updates"][0]["splitReview"] = fresh["rows"][0]["splitReview"].clone();
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_activity_updates", updates).await;
+    assert_eq!(saved["errors"], serde_json::json!([]), "{saved}");
+    assert_eq!(saved["updated"].as_array().unwrap().len(), 1);
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn reviewed_asset_multiplier_swaps_succeed_through_mcp_single_and_bulk_native_updates() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Reviewed multiplier edits").await;
+    let mut assets = Vec::new();
+    for (kind, symbol, multiplier) in [
+        ("EQUITY", "ZZREVIEWSTOCK", 1),
+        ("OPTION", "ZZREVIEWOPTION", 100),
+    ] {
+        assets.push(api_post(&server,&cookie,"assets",serde_json::json!({"kind":"INVESTMENT","name":symbol,"instrumentSymbol":symbol,"instrumentType":kind,"quoteCcy":"EUR","quoteMode":"MANUAL","metadata":{"contractMultiplier":multiplier}})).await);
+    }
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    for mode in ["mcp", "single", "bulk"] {
+        let activity=api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"id":assets[0]["id"]},"quantity":"1","unitPrice":"2","notes":format!("Multiplier review {mode}")})).await;
+        if mode == "mcp" {
+            let mut args = serde_json::json!({"updates":[{"activityId":activity["id"],"assetId":assets[1]["id"]}]});
+            let preview = mcp_call_tool(
+                &server,
+                &pat,
+                &session,
+                "prepare_activity_updates",
+                args.clone(),
+            )
+            .await;
+            assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+            args["updates"][0]["splitReview"] = preview["rows"][0]["splitReview"].clone();
+            let result =
+                mcp_call_tool(&server, &pat, &session, "commit_activity_updates", args).await;
+            assert_eq!(result["errors"], serde_json::json!([]), "{result}");
+            assert_eq!(result["updated"].as_array().unwrap().len(), 1);
+        } else {
+            let mut update = serde_json::json!({"id":activity["id"],"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"id":assets[1]["id"]},"notes":format!("Multiplier review {mode}")});
+            let review = api_post(
+                &server,
+                &cookie,
+                "activities/split-effects",
+                serde_json::json!([update.clone()]),
+            )
+            .await;
+            assert_eq!(review[0][0]["removedSplits"], 0);
+            update["splitReview"] = review[0].clone();
+            if mode == "single" {
+                api_put(&server, &cookie, "activities", update).await;
+            } else {
+                let result = api_post(
+                    &server,
+                    &cookie,
+                    "activities/bulk",
+                    serde_json::json!({"creates":[],"updates":[update],"deleteIds":[]}),
+                )
+                .await;
+                assert_eq!(result["errors"], serde_json::json!([]), "{result}");
+            }
+        }
+        let stored = stored_activities(&server, &cookie, &account).await;
+        let updated = activity_by_id(&stored, &activity["id"]);
+        assert_eq!(updated["amount"], "200", "{mode}: {updated}");
+    }
+    // A cash -> trade edit with a new symbol has no allocations to preview.
+    // The read must leave symbol resolution to the existing native write path.
+    let cash=api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account["id"],"activityType":"DEPOSIT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"2"})).await;
+    let review=api_post(&server,&cookie,"activities/split-effects",serde_json::json!([{"id":cash["id"],"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","asset":{"symbol":"ZZNEWSYMBOL","kind":"SECURITY","instrumentType":"EQUITY","quoteMode":"MANUAL"},"quantity":"1","unitPrice":"2"}])).await;
+    assert_eq!(review[0][0]["removedSplits"], 0);
+}
+
+#[tokio::test]
+async fn review_followup_split_cash_to_new_symbol_trade_preserves_native_edits() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let securities = create_eur_account(&server, &cookie, "Moved split trade").await;
+    api_put(&server,&cookie,&format!("spending/activities/{}/splits",activities[0]["id"].as_str().unwrap()),serde_json::json!([{"taxonomyId":"spending_categories","categoryId":first,"amount":"8"},{"taxonomyId":"spending_categories","categoryId":second,"amount":"4.5"}])).await;
+    let mut update = serde_json::json!({"id":activities[0]["id"],"accountId":securities["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"symbol":"ZZSPLITTRADE","kind":"SECURITY","instrumentType":"EQUITY","quoteMode":"MANUAL"},"quantity":"1","unitPrice":"10","amount":null});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    assert_eq!(review[0][0]["removedSplits"], 2, "{review}");
+    update["splitReview"] = review[0].clone();
+    let saved = api_put(&server, &cookie, "activities", update.clone()).await;
+    assert_eq!(saved["accountId"], securities["id"]);
+    assert!(saved["assetId"].as_str().is_some(), "{saved}");
+    update["asset"] = serde_json::json!({"id":saved["assetId"]});
+    update["amount"] = serde_json::json!("11");
+    let after = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update]),
+    )
+    .await;
+    assert_eq!(
+        after[0][0]["removedSplits"], 0,
+        "splits cleared by the existing financial writer: {after}"
+    );
+}
+
+#[tokio::test]
+async fn review_followup_native_legacy_event_dates_keep_their_validation_contract() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let types = category_api_get(&server, &cookie, "spending/event-types").await;
+    let event = serde_json::json!({"name":"Legacy date event","eventTypeId":types[0]["id"],"startDate":"2026-06-01T00:00:00","endDate":"2026-06-02T00:00:00"});
+    let saved = api_post(&server, &cookie, "spending/events", event.clone()).await;
+    assert_eq!(saved["startDate"], event["startDate"]);
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event",
+        serde_json::json!({"eventId":saved["id"],"event":event}),
+    )
+    .await;
+    assert!(!error.contains("2026-06-01"), "{error}");
+}
+
+#[tokio::test]
+async fn reviewed_budget_group_patches_preserve_omissions_and_allow_explicit_clears() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    category_save_fixture(&server, &cookie).await;
+    let (_, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"review","scopes":["spending:read","budget:write"]}),
+    )
+    .await;
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let created=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"create_group","group":{"name":"Appearance","color":"#123456","icon":"Plane"}}),"2026-04").await;
+    let group = created["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["name"] == "Appearance")
+        .unwrap();
+    assert_eq!(group["color"], "#123456");
+    assert_eq!(group["icon"], "Plane");
+    let renamed=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"update_group","id":group["id"],"changes":{"name":"Renamed","sortOrder":99}}),"2026-04").await;
+    let after = renamed["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == group["id"])
+        .unwrap();
+    assert_eq!(after["name"], "Renamed");
+    assert_eq!(after["color"], "#123456");
+    assert_eq!(after["icon"], "Plane");
+    let cleared=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"update_group","id":group["id"],"changes":{"color":null,"icon":null}}),"2026-04").await;
+    let final_group = cleared["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == group["id"])
+        .unwrap();
+    assert!(final_group["color"].is_null());
+    assert!(final_group["icon"].is_null());
+    assert_eq!(final_group["name"], "Renamed");
+    assert_eq!(final_group["sortOrder"], 99);
+}
+
+#[tokio::test]
+async fn spending_reads_preserve_exact_split_evidence_for_category_replacement() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let id = activities[0]["id"].as_str().unwrap();
+    let path = format!("spending/activities/{id}/splits");
+    let lines = serde_json::json!([
+        {"taxonomyId":"spending_categories","categoryId":first,"amount":"1.234567890123456789"},
+        {"taxonomyId":"spending_categories","categoryId":second,"amount":"11.265432109876543211"}
+    ]);
+    api_put(&server, &cookie, &path, lines.clone()).await;
+    let found = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[id]}),
+    )
+    .await;
+    let splits = found["items"][0]["splits"].clone();
+    for rows in [&splits, &found["items"][0]["effectiveAllocations"]] {
+        assert_eq!(rows.as_array().unwrap().len(), 2);
+        assert!(rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["amount"].is_string()));
+        assert_eq!(
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["categoryId"] == first)
+                .unwrap()["amount"],
+            "1.234567890123456789"
+        );
+    }
+    let result = mcp_call_tool(
+        &server, &pat, &session, "commit_transaction_categories",
+        serde_json::json!({"assignments":[{"activityId":id,"taxonomyId":"spending_categories","categoryId":first,"expectedSplits":splits}]}),
+    ).await;
+    assert_eq!(result["draftStatus"], "applied");
+    assert_eq!(result["assignmentCount"], 1);
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+
+    // The native/addon read is replacement evidence too. Returning a JSON
+    // number here would make the same exact comparison fail after rounding.
+    api_put(&server, &cookie, &path, lines).await;
+    let native = category_splits(&server, &cookie, &activities[0]).await;
+    assert_eq!(
+        native
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["categoryId"] == first)
+            .unwrap()["amount"],
+        "1.234567890123456789"
+    );
+    api_post(&server, &cookie, "spending/assignments/bulk", serde_json::json!([{
+        "activityId":id, "taxonomyId":"spending_categories", "categoryId":second, "expectedSplits":native
+    }])).await;
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn reviewed_external_transfer_edit_is_atomic_and_preserves_the_other_legs_economics() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, first, _, _) = category_save_fixture(&server, &cookie).await;
+    let securities = create_eur_account(&server, &cookie, "Atomic transfer destination").await;
+    let outgoing = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let incoming = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":securities["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let link = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({"pairs":[{"activityAId":outgoing["id"],"activityBId":incoming["id"]}]}),
+    )
+    .await;
+    assert_eq!(link["errors"], serde_json::json!([]));
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    // Legacy allocations can survive linking or an account/type change. The
+    // financial edit removes only the edited row's splits; unlink alone retains them.
+    for (id, activity) in [("out-allocation", &outgoing), ("in-allocation", &incoming)] {
+        db.execute("INSERT INTO spending_activity_splits (id,activity_id,taxonomy_id,category_id,amount,sort_order,created_at,updated_at) VALUES (?1,?2,'spending_categories',?3,'12.5',0,'2026-04-01T12:00:00Z','2026-04-01T12:00:00Z')",[id,activity["id"].as_str().unwrap(),first.as_str()]).unwrap();
+    }
+    db.execute(
+        "UPDATE activities SET status='DRAFT', needs_review=1 WHERE id IN (?1,?2)",
+        [
+            outgoing["id"].as_str().unwrap(),
+            incoming["id"].as_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    let mut update = serde_json::json!({"id":outgoing["id"],"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"25","status":"POSTED","needsReview":false,"unlinkTransferPairId":incoming["id"],"metadata":"{\"flow\":{\"is_external\":true}}"});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    assert_eq!(review[0].as_array().unwrap().len(), 2);
+    assert_eq!(review[0][0]["removedSplits"], 1);
+    assert_eq!(review[0][1]["removedSplits"], 0);
+    update["splitReview"] = review[0].clone();
+    // Change only the other leg after review. Its guard is checked inside the
+    // transaction: failure must leave both legs, allocations and outbox unchanged.
+    db.execute(
+        "UPDATE activities SET notes='Changed counterpart' WHERE id=?1",
+        [incoming["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let outbox = || {
+        db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap()
+    };
+    let before_outbox = outbox();
+    let before_rowid: i64 = db
+        .query_row(
+            "SELECT COALESCE(MAX(rowid),0) FROM sync_outbox",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let response = server
+        .client
+        .put(format!("{}/api/v1/activities", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&update)
+        .send()
+        .await
+        .unwrap();
+    assert!(!response.status().is_success());
+    assert_eq!(outbox(), before_outbox);
+    for row in [&outgoing, &incoming] {
+        let group: Option<String> = db
+            .query_row(
+                "SELECT source_group_id FROM activities WHERE id=?1",
+                [row["id"].as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(group.is_some());
+    }
+    let amount: String = db
+        .query_row(
+            "SELECT amount FROM activities WHERE id=?1",
+            [outgoing["id"].as_str().unwrap()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        amount.parse::<rust_decimal::Decimal>().unwrap(),
+        "12.5".parse::<rust_decimal::Decimal>().unwrap()
+    );
+    let count: i64 = db
+        .query_row("SELECT COUNT(*) FROM spending_activity_splits", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 2);
+    let fresh = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    update["splitReview"] = fresh[0].clone();
+    api_put(&server, &cookie, "activities", update).await;
+    for row in [&outgoing, &incoming] {
+        let group: Option<String> = db
+            .query_row(
+                "SELECT source_group_id FROM activities WHERE id=?1",
+                [row["id"].as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(group.is_none());
+    }
+    let rows = stored_activities(&server, &cookie, &securities).await;
+    let other = activity_by_id(&rows, &incoming["id"]);
+    assert_eq!(
+        other["amount"]
+            .as_str()
+            .unwrap()
+            .parse::<rust_decimal::Decimal>()
+            .unwrap(),
+        "12.5".parse::<rust_decimal::Decimal>().unwrap()
+    );
+    assert_eq!(other["comment"], "Changed counterpart");
+    let lifecycle: (String, bool) = db
+        .query_row(
+            "SELECT status,needs_review FROM activities WHERE id=?1",
+            [incoming["id"].as_str().unwrap()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(lifecycle, ("DRAFT".to_string(), true));
+    let payloads: Vec<String> = db
+        .prepare(
+            "SELECT payload FROM sync_outbox WHERE rowid>?1 AND entity='activity' ORDER BY rowid",
+        )
+        .unwrap()
+        .query_map([before_rowid], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(payloads.len(), 2, "one final-state update per leg");
+    for payload in payloads {
+        let row: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(row["source_group_id"].is_null());
+        let metadata: serde_json::Value =
+            serde_json::from_str(row["metadata"].as_str().unwrap()).unwrap();
+        assert_eq!(metadata["flow"]["is_external"], true);
+        assert_eq!(
+            row["amount"]
+                .as_str()
+                .unwrap()
+                .parse::<rust_decimal::Decimal>()
+                .unwrap(),
+            if row["id"] == outgoing["id"] {
+                "25"
+            } else {
+                "12.5"
+            }
+            .parse::<rust_decimal::Decimal>()
+            .unwrap()
+        );
+    }
+    let remaining: Vec<String> = db
+        .prepare("SELECT activity_id FROM spending_activity_splits")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        remaining,
+        vec![incoming["id"].as_str().unwrap().to_string()]
+    );
+}
+
+#[tokio::test]
+async fn transfer_edits_preserve_classification_and_unlink_only_counterpart_fields() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Counterpart preservation").await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    db.execute(
+        "UPDATE accounts SET provider_account_id='preservation-provider' WHERE id=?1",
+        [destination["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let database_rows = |sql: &str, id: &str| -> Vec<serde_json::Value> {
+        let mut statement = db.prepare(sql).unwrap();
+        let columns: Vec<String> = statement
+            .column_names()
+            .iter()
+            .map(|name| name.to_string())
+            .collect();
+        statement
+            .query_map([id], |row| {
+                let mut object = serde_json::Map::new();
+                for (index, name) in columns.iter().enumerate() {
+                    let value = row.get_ref(index)?;
+                    let value = if let Ok(value) = value.as_str() {
+                        serde_json::json!(value)
+                    } else if let Ok(value) = value.as_i64() {
+                        serde_json::json!(value)
+                    } else if let Ok(value) = value.as_f64() {
+                        serde_json::json!(value)
+                    } else {
+                        serde_json::Value::Null
+                    };
+                    object.insert(name.clone(), value);
+                }
+                Ok(serde_json::Value::Object(object))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    };
+    db.execute(
+        "UPDATE accounts SET provider_account_id='preservation-primary-provider' WHERE id=?1",
+        [cash["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let mut case = 0;
+    for unlink in [true, false] {
+        for (edited_broker, broker) in [(false, true), (false, false), (true, false), (true, true)]
+        {
+            for primary_type in ["TRANSFER_OUT", "TRANSFER_IN"] {
+                for allocations in ["both", "counterpart", "none"] {
+                    for bulk in [false, true] {
+                        case += 1;
+                        let activity_date = (chrono::NaiveDate::from_ymd_opt(2026, 4, 1).unwrap()
+                            + chrono::Duration::days(case))
+                        .format("%Y-%m-%dT12:00:00Z")
+                        .to_string();
+                        let other_type = if primary_type == "TRANSFER_OUT" {
+                            "TRANSFER_IN"
+                        } else {
+                            "TRANSFER_OUT"
+                        };
+                        let primary = api_post(&server, &cookie, "activities", serde_json::json!({
+                        "accountId":cash["id"],"activityType":primary_type,"activityDate":activity_date,"currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"
+                    })).await;
+                        let other = api_post(&server, &cookie, "activities", serde_json::json!({
+                        "accountId":destination["id"],"activityType":other_type,"activityDate":activity_date,"currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"
+                    })).await;
+                        let primary_id = primary["id"].as_str().unwrap();
+                        let other_id = other["id"].as_str().unwrap();
+                        api_post(
+                            &server,
+                            &cookie,
+                            "activities/link",
+                            serde_json::json!({"activityAId":primary_id,"activityBId":other_id}),
+                        )
+                        .await;
+                        if edited_broker {
+                            let primary_raw = if primary_type == "TRANSFER_IN" {
+                                "DEPOSIT"
+                            } else {
+                                "WITHDRAWAL"
+                            };
+                            db.execute("UPDATE activities SET activity_type=?1,activity_type_override=?2,source_system='SNAPTRADE',source_record_id=?3 WHERE id=?4",[primary_raw,primary_type,format!("primary-record-{case}").as_str(),primary_id]).unwrap();
+                        }
+                        // Reclassified broker and manual rows must retain BOTH raw and effective types.
+                        let record_id = format!("preservation-record-{case}");
+                        let raw = if other_type == "TRANSFER_IN" {
+                            "DEPOSIT"
+                        } else {
+                            "WITHDRAWAL"
+                        };
+                        db.execute("UPDATE activities SET activity_type=?1,activity_type_override=?2,source_system=?3,source_record_id=?4,notes='Counterpart note',status='DRAFT',needs_review=1,fee='0.10',tax='0.20' WHERE id=?5", [Some(raw),Some(other_type),Some(if broker {"SNAPTRADE"} else {"MANUAL"}),if broker {Some(record_id.as_str())} else {None},Some(other_id)]).unwrap();
+                        for (id, include) in [
+                            (primary_id, allocations == "both"),
+                            (other_id, allocations != "none"),
+                        ] {
+                            if include {
+                                db.execute("INSERT INTO spending_activity_splits(id,activity_id,taxonomy_id,category_id,amount,note,sort_order,created_at,updated_at) VALUES(?1,?2,'spending_categories',?3,'12.50','Keep allocation',0,'2026-04-01','2026-04-01')",[format!("preserve-{case}-{id}").as_str(),id,category.as_str()]).unwrap();
+                            }
+                        }
+                        let mut update = serde_json::json!({"id":primary_id,"accountId":cash["id"],"activityType":primary_type,"activityDate":activity_date,"currency":"EUR","amount":"25","notes":"Primary edit","unlinkTransferPairId":other_id,"metadata":"{\"flow\":{\"is_external\":true}}"});
+                        if !unlink {
+                            let object = update.as_object_mut().unwrap();
+                            object.remove("unlinkTransferPairId");
+                            object.remove("metadata");
+                            update["amount"] = serde_json::json!("12.50");
+                        }
+                        let review = api_post(
+                            &server,
+                            &cookie,
+                            "activities/split-effects",
+                            serde_json::json!([update.clone()]),
+                        )
+                        .await;
+                        update["splitReview"] = review[0].clone();
+                        let primary_before =
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id);
+                        let splits_before = database_rows(
+                            "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                            other_id,
+                        );
+                        db.execute(
+                            "UPDATE activities SET notes='Concurrent counterpart edit' WHERE id=?1",
+                            [other_id],
+                        )
+                        .unwrap();
+                        let counterpart_before =
+                            database_rows("SELECT * FROM activities WHERE id=?1", other_id);
+                        let before_rowid: i64 = db
+                            .query_row(
+                                "SELECT COALESCE(MAX(rowid),0) FROM sync_outbox",
+                                [],
+                                |row| row.get(0),
+                            )
+                            .unwrap();
+                        let request = if bulk {
+                            server
+                                .client
+                                .post(format!("{}/api/v1/activities/bulk", server.base))
+                                .json(&serde_json::json!({"updates":[update.clone()]}))
+                        } else {
+                            server
+                                .client
+                                .put(format!("{}/api/v1/activities", server.base))
+                                .json(&update)
+                        };
+                        let response = request
+                            .header(header::COOKIE, format!("wf_session={cookie}"))
+                            .send()
+                            .await
+                            .unwrap();
+                        let status = response.status();
+                        let body: serde_json::Value = response.json().await.unwrap();
+                        assert!(
+                            !status.is_success()
+                                || body["errors"]
+                                    .as_array()
+                                    .is_some_and(|rows| !rows.is_empty()),
+                            "stale counterpart must reject {case}"
+                        );
+                        assert_eq!(
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id),
+                            primary_before
+                        );
+                        assert_eq!(
+                            database_rows(
+                                "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                                other_id
+                            ),
+                            splits_before
+                        );
+                        assert_eq!(
+                            db.query_row(
+                                "SELECT COUNT(*) FROM sync_outbox WHERE rowid>?1",
+                                [before_rowid],
+                                |row| row.get::<_, i64>(0)
+                            )
+                            .unwrap(),
+                            0
+                        );
+                        let review = api_post(
+                            &server,
+                            &cookie,
+                            "activities/split-effects",
+                            serde_json::json!([update.clone()]),
+                        )
+                        .await;
+                        update["splitReview"] = review[0].clone();
+                        if bulk {
+                            let result = api_post(
+                                &server,
+                                &cookie,
+                                "activities/bulk",
+                                serde_json::json!({"updates":[update]}),
+                            )
+                            .await;
+                            assert_eq!(result["errors"], serde_json::json!([]));
+                            assert_eq!(result["updated"].as_array().unwrap().len(), 2);
+                        } else {
+                            api_put(&server, &cookie, "activities", update).await;
+                        }
+                        let mut expected = counterpart_before[0].clone();
+                        let mut actual =
+                            database_rows("SELECT * FROM activities WHERE id=?1", other_id)
+                                .remove(0);
+                        assert_eq!(actual["source_group_id"].is_null(), unlink);
+                        if !unlink {
+                            assert_eq!(actual["source_group_id"], expected["source_group_id"]);
+                        }
+                        if !unlink && !edited_broker && !broker {
+                            expected["notes"] = serde_json::json!("Primary edit");
+                        }
+                        assert_eq!(actual["is_user_modified"], 1);
+                        let mut expected_metadata: serde_json::Value =
+                            serde_json::from_str(expected["metadata"].as_str().unwrap()).unwrap();
+                        if unlink {
+                            expected_metadata["flow"]["is_external"] = serde_json::json!(true);
+                        }
+                        assert_eq!(
+                            serde_json::from_str::<serde_json::Value>(
+                                actual["metadata"].as_str().unwrap()
+                            )
+                            .unwrap(),
+                            expected_metadata
+                        );
+                        for field in [
+                            "source_group_id",
+                            "metadata",
+                            "updated_at",
+                            "is_user_modified",
+                        ] {
+                            expected.as_object_mut().unwrap().remove(field);
+                            actual.as_object_mut().unwrap().remove(field);
+                        }
+                        assert_eq!(
+                            actual, expected,
+                            "unlink-only counterpart changed in case {case}"
+                        );
+                        assert_eq!(
+                            database_rows(
+                                "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                                other_id
+                            ),
+                            splits_before
+                        );
+                        assert_eq!(
+                            review[0]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .find(|effect| effect["activityId"] == other_id)
+                                .unwrap()["removedSplits"],
+                            0
+                        );
+                        let primary_after =
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id)
+                                .remove(0);
+                        assert_eq!(primary_after["source_group_id"].is_null(), unlink);
+                        assert_eq!(
+                            primary_after["activity_type"],
+                            primary_before[0]["activity_type"]
+                        );
+                        assert_eq!(
+                            primary_after["activity_type_override"],
+                            primary_before[0]["activity_type_override"]
+                        );
+                        assert_eq!(
+                            primary_after["amount"]
+                                .as_str()
+                                .unwrap()
+                                .parse::<rust_decimal::Decimal>()
+                                .unwrap(),
+                            if unlink {
+                                rust_decimal::Decimal::from(25)
+                            } else {
+                                "12.50".parse::<rust_decimal::Decimal>().unwrap()
+                            }
+                        );
+                        assert_eq!(
+                        db.query_row(
+                            "SELECT COUNT(*) FROM spending_activity_splits WHERE activity_id=?1",
+                            [primary_id],
+                            |row| row.get::<_, i64>(0)
+                        )
+                        .unwrap(),
+                        if !unlink && allocations=="both" { 1 } else { 0 }
+                    );
+                        if broker {
+                            assert_eq!(db.query_row("SELECT COUNT(*) FROM sync_outbox WHERE rowid>?1 AND entity='broker_activity_user_patch' AND json_extract(payload,'$.source_record_id')=?2",(before_rowid,record_id.as_str()),|row|row.get::<_,i64>(0)).unwrap(),0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn paired_unlink_rejects_unreviewed_or_ambiguous_requests_without_writes() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, _, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Unlink request validation").await;
+    let primary = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let other = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":destination["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let primary_id = primary["id"].as_str().unwrap();
+    let other_id = other["id"].as_str().unwrap();
+    api_post(
+        &server,
+        &cookie,
+        "activities/link",
+        serde_json::json!({"activityAId":primary_id,"activityBId":other_id}),
+    )
+    .await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    let snapshot = || {
+        db.prepare("SELECT json_object('id',id,'group',source_group_id,'amount',amount,'notes',notes,'metadata',metadata,'updated',updated_at) FROM activities WHERE id IN (?1,?2) ORDER BY id").unwrap().query_map([primary_id,other_id],|row|row.get::<_,String>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap()
+    };
+    let before = snapshot();
+    let outbox_before: i64 = db
+        .query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row.get(0))
+        .unwrap();
+    let unreviewed = serde_json::json!({"id":primary_id,"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"25","unlinkTransferPairId":other_id,"metadata":"{\"flow\":{\"is_external\":true}}"});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([unreviewed.clone()]),
+    )
+    .await;
+    assert_eq!(review[0].as_array().unwrap().len(), 2);
+    let mut reviewed = unreviewed.clone();
+    reviewed["splitReview"] = review[0].clone();
+    let mut missing_other = reviewed.clone();
+    missing_other["splitReview"] = serde_json::json!([review[0][0]]);
+    let mut duplicate_other = reviewed.clone();
+    duplicate_other["splitReview"]
+        .as_array_mut()
+        .unwrap()
+        .push(review[0][1].clone());
+    for update in [unreviewed, missing_other, duplicate_other] {
+        let response = server
+            .client
+            .put(format!("{}/api/v1/activities", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&update)
+            .send()
+            .await
+            .unwrap();
+        assert!(!response.status().is_success());
+        assert_eq!(snapshot(), before);
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            outbox_before
+        );
+    }
+    let other_update = serde_json::json!({"id":other_id,"accountId":destination["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"99"});
+    for request in [
+        serde_json::json!({"updates":[reviewed.clone(),reviewed.clone()]}),
+        serde_json::json!({"updates":[reviewed.clone(),other_update]}),
+        serde_json::json!({"updates":[reviewed],"deleteIds":[other_id]}),
+    ] {
+        let response = server
+            .client
+            .post(format!("{}/api/v1/activities/bulk", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&request)
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.unwrap();
+        assert!(
+            !status.is_success()
+                || body["errors"]
+                    .as_array()
+                    .is_some_and(|errors| !errors.is_empty())
+        );
+        assert_eq!(snapshot(), before);
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            outbox_before
+        );
+    }
+}
+
+#[tokio::test]
+async fn internal_transfer_pair_reviews_match_commits_and_reject_stale_legs_atomically() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Pair review destination").await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    for broker in [false, true] {
+        let date = if broker {
+            "2026-04-02T12:00:00Z"
+        } else {
+            "2026-04-01T12:00:00Z"
+        };
+        let mut request = serde_json::json!({"fromAccountId":cash["id"],"toAccountId":destination["id"],"activityDate":date,"sourceAmount":"12.50","destinationAmount":"12.50","sourceCurrency":"EUR","destinationCurrency":"EUR","transferMode":"cash","notes":"Original pair"});
+        let pair = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair",
+            request.clone(),
+        )
+        .await;
+        let out_id = pair["transferOut"]["id"].as_str().unwrap();
+        let in_id = pair["transferIn"]["id"].as_str().unwrap();
+        for id in [out_id, in_id] {
+            db.execute("INSERT INTO spending_activity_splits (id,activity_id,taxonomy_id,category_id,amount,sort_order,created_at,updated_at) VALUES (?1,?1,'spending_categories',?2,'12.5',0,'2026-04-01T12:00:00Z','2026-04-01T12:00:00Z')", [id, category.as_str()]).unwrap();
+        }
+        if broker {
+            db.execute("UPDATE accounts SET provider_account_id='pair-preview-provider' WHERE id IN (?1,?2)", [cash["id"].as_str().unwrap(),destination["id"].as_str().unwrap()]).unwrap();
+            for (id, raw, effective) in [
+                (out_id, "WITHDRAWAL", "TRANSFER_OUT"),
+                (in_id, "DEPOSIT", "TRANSFER_IN"),
+            ] {
+                db.execute("UPDATE activities SET source_system='SNAPTRADE',source_record_id=id,activity_type=?2,activity_type_override=?3 WHERE id=?1", [id,raw,effective]).unwrap();
+            }
+        }
+        request["transferOutId"] = serde_json::json!(out_id);
+        request["transferInId"] = serde_json::json!(in_id);
+        request["editedActivityId"] = serde_json::json!(out_id);
+        request["sourceAmount"] = serde_json::json!("25");
+        request["destinationAmount"] = serde_json::json!("25");
+        request["activityDate"] = serde_json::json!("2026-04-03T12:00:00Z");
+        let snapshot = || -> (String, i64, i64) {
+            let rows = db.query_row("SELECT json_group_array(json_object('id',id,'amount',amount,'date',activity_date,'notes',notes,'group',source_group_id,'type',activity_type,'override',activity_type_override,'updated',updated_at)) FROM (SELECT * FROM activities WHERE id IN (?1,?2) ORDER BY id)",[out_id,in_id],|row|row.get(0)).unwrap();
+            let splits = db
+                .query_row(
+                    "SELECT COUNT(*) FROM spending_activity_splits WHERE activity_id IN (?1,?2)",
+                    [out_id, in_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let outbox = db
+                .query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row.get(0))
+                .unwrap();
+            (rows, splits, outbox)
+        };
+        let original = snapshot();
+        // A new currency belongs only to the proposed edit. Cancelling its
+        // review must not register an FX asset, queue sync or mutate either leg.
+        let fx_assets = || -> i64 {
+            db.query_row(
+                "SELECT COUNT(*) FROM assets WHERE instrument_key='FX:JPY/EUR'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(fx_assets(), 0);
+        let mut foreign_preview = request.clone();
+        foreign_preview["destinationCurrency"] = serde_json::json!("JPY");
+        let foreign_effects = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            foreign_preview,
+        )
+        .await;
+        assert_eq!(foreign_effects.as_array().unwrap().len(), 2);
+        assert_eq!(
+            fx_assets(),
+            0,
+            "Read-only review must not register a proposed currency"
+        );
+        assert_eq!(
+            snapshot(),
+            original,
+            "Foreign-currency preview must not enqueue outbox work or write activities"
+        );
+
+        let effects = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            request.clone(),
+        )
+        .await;
+        assert_eq!(effects.as_array().unwrap().len(), 2);
+        assert!(effects
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|effect| effect["removedSplits"] == 1));
+        assert_eq!(
+            snapshot(),
+            original,
+            "preview must not write or clear splits"
+        );
+        for invalid in [
+            serde_json::json!([]),
+            serde_json::json!([effects[0].clone()]),
+        ] {
+            request["splitReview"] = invalid;
+            let response = server
+                .client
+                .post(format!("{}/api/v1/activities/transfer-pair", server.base))
+                .header(header::COOKIE, format!("wf_session={cookie}"))
+                .json(&request)
+                .send()
+                .await
+                .unwrap();
+            assert!(!response.status().is_success());
+            assert_eq!(
+                snapshot(),
+                original,
+                "incomplete proofs must roll back the whole pair"
+            );
+        }
+        request["splitReview"] = effects;
+        db.execute(
+            "UPDATE activities SET notes='Concurrent counterpart edit' WHERE id=?1",
+            [in_id],
+        )
+        .unwrap();
+        let concurrent = snapshot();
+        let response = server
+            .client
+            .post(format!("{}/api/v1/activities/transfer-pair", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&request)
+            .send()
+            .await
+            .unwrap();
+        assert!(!response.status().is_success());
+        assert_eq!(
+            snapshot(),
+            concurrent,
+            "stale counterpart review must leave both legs, splits and outbox intact"
+        );
+        request["splitReview"] = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            request.clone(),
+        )
+        .await;
+        let result = api_post(&server, &cookie, "activities/transfer-pair", request).await;
+        assert_eq!(result["transferOut"]["id"], out_id);
+        assert_eq!(result["transferIn"]["id"], in_id);
+        assert_eq!(snapshot().1, 0);
+        for (id, raw, effective) in [
+            (out_id, "WITHDRAWAL", "TRANSFER_OUT"),
+            (in_id, "DEPOSIT", "TRANSFER_IN"),
+        ] {
+            let (kind,overridden,amount):(String,Option<String>,String)=db.query_row("SELECT activity_type,activity_type_override,amount FROM activities WHERE id=?1",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).unwrap();
+            assert_eq!(kind, if broker { raw } else { effective });
+            assert_eq!(overridden, broker.then(|| effective.to_string()));
+            assert_eq!(amount, "25");
+        }
     }
 }

@@ -34,7 +34,7 @@ function DayCash({ group }: Pick<DayHeaderProps, "group">) {
   const { isBalanceHidden } = useBalancePrivacy();
   if (!group.cashBalance) return null;
   return (
-    <span className="text-muted-foreground inline-flex items-baseline gap-1.5 whitespace-nowrap text-xs tabular-nums">
+    <span className="text-muted-foreground inline-flex items-baseline gap-1.5 text-xs whitespace-nowrap tabular-nums">
       {t("activity:table.day_end_cash")}
       <AmountDisplay
         value={group.cashBalance.amount}

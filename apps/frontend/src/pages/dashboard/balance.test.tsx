@@ -3,8 +3,10 @@ import { FormattingProvider } from "@wealthfolio/ui";
 import { describe, expect, it, vi } from "vitest";
 import Balance from "./balance";
 
+const privacy = vi.hoisted(() => ({ hidden: false }));
+
 vi.mock("@/hooks/use-balance-privacy", () => ({
-  useBalancePrivacy: () => ({ isBalanceHidden: false }),
+  useBalancePrivacy: () => ({ isBalanceHidden: privacy.hidden }),
 }));
 
 vi.mock("@number-flow/react", () => ({
@@ -85,6 +87,26 @@ describe("Balance", () => {
     );
     expect(screen.getByTestId("portfolio-balance-value")).toHaveTextContent("KWD 1.235");
   });
+
+  it.each([
+    { locale: "GB", currency: "USD", expected: "$•••••••" },
+    { locale: "DE", currency: "EUR", expected: "••••••• €" },
+  ])(
+    "hides a $currency balance in $locale with the symbol it shows",
+    ({ locale, currency, expected }) => {
+      privacy.hidden = true;
+      try {
+        render(
+          <FormattingProvider locale={locale}>
+            <Balance targetValue={1234.56} currency={currency} displayCurrency />
+          </FormattingProvider>,
+        );
+        expect(screen.getByTestId("portfolio-balance").textContent).toBe(expected);
+      } finally {
+        privacy.hidden = false;
+      }
+    },
+  );
 
   it.each([
     { currency: "JPY", value: -0.4, expected: "¥0" },

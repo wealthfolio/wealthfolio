@@ -112,7 +112,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                   {flag}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-foreground text-sm font-medium leading-tight">
+                  <span className="text-foreground text-sm leading-tight font-medium">
                     {preset.name}
                   </span>
                   <span className="text-muted-foreground text-2xs leading-tight">

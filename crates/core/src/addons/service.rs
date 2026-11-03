@@ -17,7 +17,7 @@ pub const ADDON_STORE_API_BASE_URL: &str = "https://wealthfolio.app/api/addons";
 const MAX_ADDON_ARCHIVE_ENTRIES: usize = 256;
 const MAX_ADDON_ARCHIVE_FILE_SIZE: u64 = 5 * 1024 * 1024;
 const MAX_ADDON_ARCHIVE_TOTAL_SIZE: u64 = 25 * 1024 * 1024;
-const MAX_ADDON_ARCHIVE_COMPRESSED_SIZE: usize = 50 * 1024 * 1024;
+pub const MAX_ADDON_ARCHIVE_COMPRESSED_SIZE: usize = 50 * 1024 * 1024;
 const MAX_ADDON_STORAGE_KEY_LEN: usize = 128;
 /// Upper bound on the serialized `{addon_id, key, value}` sync payload — NOT the
 /// raw value length. A storage write emits a device-sync outbox event whose
@@ -254,7 +254,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
         (
             "activities",
             "spending",
-            vec!["searchCashActivities"],
+            vec![
+                "searchCashActivities",
+                "assignCategory",
+                "unassignCategory",
+                "setEvent",
+            ],
             "Access to categorized spending transactions",
         ),
         (
@@ -262,6 +267,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             "accounts",
             vec!["getAll", "create"],
             "Access to account information and management",
+        ),
+        (
+            "alternative-assets",
+            "alternativeAssets",
+            vec!["getAll"],
+            "Read-only access to alternative assets and liabilities",
         ),
         (
             "market-data",
@@ -329,6 +340,10 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             vec![
                 "isEnabled",
                 "getCategories",
+                "getContext",
+                "getBudget",
+                "getEvents",
+                "getEventTypes",
                 "getReport",
                 "getRules",
                 "saveRule",
@@ -336,6 +351,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
                 "rerunRules",
             ],
             "Access to spending reports, categories, and categorization rules",
+        ),
+        (
+            "budgets",
+            "spending",
+            vec!["upsertBudgetTarget"],
+            "Change default and monthly budget targets",
         ),
         (
             "settings",
@@ -851,7 +872,10 @@ fn extract_addon_zip_archive(zip_data: Vec<u8>) -> Result<ExtractedAddonArchive,
         }
 
         // Archives zipped on Windows (e.g. Compress-Archive) use '\\' as separator.
-        let file_name = file.name().replace('\\', "/");
+        let file_name = file
+            .name()
+            .map_err(|e| format!("Invalid file name for entry {}: {}", i, e))?
+            .replace('\\', "/");
         validated_addon_archive_path(&file_name)?;
 
         if file_name.ends_with(".map") {
@@ -2050,7 +2074,9 @@ pub fn save_addon_to_staging(
             let mut manifest_found = false;
             for i in 0..archive.len() {
                 if let Ok(file) = archive.by_index(i) {
-                    if file.name() == "manifest.json" || file.name().ends_with("/manifest.json") {
+                    if file.name().is_ok_and(|name| {
+                        name == "manifest.json" || name.ends_with("/manifest.json")
+                    }) {
                         manifest_found = true;
                         break;
                     }

@@ -11,11 +11,11 @@ export default function NotFoundPage() {
   return (
     <div className="animate-in fade-in zoom-in flex h-full w-full flex-col items-center justify-center gap-6 p-8 text-center duration-500">
       <div className="space-y-2">
-        <h1 className="text-muted-foreground/10 select-none text-[8rem] font-black leading-none tracking-tighter">
+        <h1 className="text-muted-foreground/10 text-[8rem] leading-none font-black tracking-tighter select-none">
           404
         </h1>
         <h2 className="text-3xl font-bold tracking-tight">{t("common:notFound.title")}</h2>
-        <p className="text-muted-foreground max-w-112.5 mx-auto text-lg">
+        <p className="text-muted-foreground mx-auto max-w-112.5 text-lg">
           {t("common:notFound.description")}
         </p>
       </div>

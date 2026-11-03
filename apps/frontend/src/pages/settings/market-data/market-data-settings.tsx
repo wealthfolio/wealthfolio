@@ -1,3 +1,9 @@
+import {
+  getProviderDescription,
+  getProviderCoverage,
+  getProviderName,
+  getProviderInstruments,
+} from "@/lib/provider-labels";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -10,6 +16,14 @@ import {
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@wealthfolio/ui/components/ui/card";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -22,13 +36,13 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { ResetProviderHistoryDialog } from "@/pages/asset/reset-provider-history-dialog";
 
+import { SettingsList, SettingsListMedia, SettingsListRow } from "@/components/settings-list";
 import { SettingsHeader } from "../settings-header";
 
 import { getAssets, getSecret, type MarketDataProviderSetting } from "@/adapters";
@@ -42,9 +56,9 @@ import {
   useUpdateCustomProvider,
 } from "@/hooks/use-custom-providers";
 import { QueryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
-import { cn } from "@/lib/utils";
 import { ActionConfirm, useDateFormatting, Spinner } from "@wealthfolio/ui";
 import {
   Collapsible,
@@ -56,6 +70,9 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { CustomProviderForm } from "./custom-provider-form";
 import { CustomProviderUsageChips } from "./custom-provider-usage-chips";
+import { ProviderCatalogDialog } from "./provider-catalog-dialog";
+import { ProviderLogo } from "./provider-logo";
+import { moveProvider } from "./provider-order";
 import {
   EMPTY_USAGE,
   getCustomProviderUsage,
@@ -66,6 +83,7 @@ import {
 } from "./custom-provider-usage";
 import {
   useDeleteApiKey,
+  useIsSavingProviderSettings,
   useMarketDataProviderSettings,
   useSetApiKey,
   useUpdateMarketDataProviderSettings,
@@ -74,25 +92,33 @@ import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/
 
 interface ProviderSettingsProps {
   provider: MarketDataProviderSetting;
-  priorityValue: number;
-  onUpdate: (settings: { priority?: number; enabled?: boolean }) => void;
-  onPriorityChange: (value: string) => void;
-  onPrioritySave: () => void;
-  isLast?: boolean;
+  /** Position in the fetch order, from 1; none while the provider is off. */
+  rank?: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMove: (step: -1 | 1) => void;
+  onEnabledChange: (enabled: boolean) => void;
+  /** A move is saving: the order and switches wait until it's done. */
+  locked?: boolean;
+  /** Opens the details on mount, e.g. for a provider just added that still needs a key. */
+  defaultOpen?: boolean;
 }
 
 function ProviderSettings({
   provider,
-  priorityValue,
-  onUpdate,
-  onPriorityChange,
-  onPrioritySave,
-  isLast = false,
+  rank,
+  canMoveUp,
+  canMoveDown,
+  onMove,
+  onEnabledChange,
+  locked = false,
+  defaultOpen = false,
 }: ProviderSettingsProps) {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const name = getProviderName(t, provider.id, provider.name);
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [isLoadingKey, setIsLoadingKey] = useState(false);
@@ -170,36 +196,35 @@ function ProviderSettings({
         label: t("settings:market_data_page.feature_profiles"),
       };
     }
+    if (normalized === "dividends")
+      return { icon: null, label: t("settings:market_data_page.feature_dividends") };
+    if (normalized === "no api key")
+      return { icon: null, label: t("settings:market_data_page.feature_no_api_key") };
     return { icon: null, label: feature };
   };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className={cn("hover:bg-accent/30 transition-colors", !isLast && "border-b")}>
-        {/* Main row */}
-        <div className="flex items-center gap-4 px-4 py-3">
-          {/* Logo */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-            {provider.logoFilename ? (
-              <img
-                src={`/market-data/${provider.logoFilename}`}
-                alt=""
-                className="h-9 w-9 rounded-lg object-contain"
-              />
-            ) : (
-              <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-lg">
-                <Icons.Globe className="text-muted-foreground h-5 w-5" />
-              </div>
-            )}
-          </div>
-
-          {/* Name, description and capabilities */}
-          <div className="min-w-0 flex-1">
+      <div>
+        <SettingsListRow
+          media={
             <div className="flex items-center gap-2">
-              <span className="font-medium">{provider.name}</span>
+              <span
+                aria-hidden
+                className="text-muted-foreground w-4 text-center text-xs tabular-nums max-sm:hidden"
+              >
+                {rank}
+              </span>
+              <ProviderLogo logoFilename={provider.logoFilename} />
+            </div>
+          }
+          title={name}
+          inactive={!provider.enabled}
+          badges={
+            <>
               {provider.capabilities?.coverage && (
-                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
-                  {provider.capabilities.coverage}
+                <Badge variant="secondary">
+                  {getProviderCoverage(t, provider.capabilities.coverage)}
                 </Badge>
               )}
               {provider.enabled && provider.requiresApiKey && !provider.hasApiKey && (
@@ -209,7 +234,7 @@ function ProviderSettings({
                 </Badge>
               )}
               {provider.assetCount > 0 && (
-                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
+                <Badge variant="secondary">
                   {t("settings:market_data_page.assets_count", { count: provider.assetCount })}
                 </Badge>
               )}
@@ -244,7 +269,7 @@ function ProviderSettings({
                           {provider.uniqueErrors.map((error, index) => (
                             <li
                               key={index}
-                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs"
+                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words"
                             >
                               {error}
                             </li>
@@ -259,63 +284,82 @@ function ProviderSettings({
                   </PopoverContent>
                 </Popover>
               )}
-            </div>
-            {/* Description - smaller text */}
-            {provider.description && (
-              <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
-            )}
-            {/* Capability features */}
-            {provider.capabilities && provider.capabilities.features.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {provider.capabilities.features.map((feature) => {
-                  const { icon, label } = getFeatureDisplay(feature);
-                  return (
-                    <span
-                      key={feature}
-                      className="text-muted-foreground text-2xs inline-flex items-center gap-1"
-                    >
-                      {icon}
-                      {label}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Controls */}
-          <div className="flex shrink-0 items-center gap-2">
-            <CollapsibleTrigger
-              render={
+            </>
+          }
+          meta={
+            provider.capabilities?.instruments
+              ? getProviderInstruments(t, provider.capabilities.instruments)
+              : undefined
+          }
+          actions={
+            <>
+              {/* Phones stack the arrows so the name keeps room. */}
+              <div className="flex items-center gap-2 max-sm:flex-col max-sm:gap-0">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-foreground h-8 w-8"
-                  aria-label={t("common:settings_for", { name: provider.name })}
-                />
-              }
-            >
-              <Icons.Settings className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <Switch
-              id={`${provider.id}-enabled`}
-              aria-label={provider.name}
-              checked={provider.enabled}
-              onCheckedChange={(checked) => onUpdate({ enabled: checked })}
-              className="data-checked:bg-success"
-            />
-          </div>
-        </div>
+                  // A provider that's off keeps its place but has no rank to move.
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
+                    !provider.enabled && "invisible",
+                  )}
+                  disabled={!canMoveUp || locked}
+                  onClick={() => onMove(-1)}
+                  aria-label={t("settings:market_data_page.move_up", { name })}
+                >
+                  <Icons.ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
+                    !provider.enabled && "invisible",
+                  )}
+                  disabled={!canMoveDown || locked}
+                  onClick={() => onMove(1)}
+                  aria-label={t("settings:market_data_page.move_down", { name })}
+                >
+                  <Icons.ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground h-8 w-8"
+                    aria-label={t("common:settings_for", { name })}
+                  />
+                }
+              >
+                <Icons.Settings className="h-4 w-4" />
+              </CollapsibleTrigger>
+              <Switch
+                id={`${provider.id}-enabled`}
+                aria-label={name}
+                checked={provider.enabled}
+                onCheckedChange={onEnabledChange}
+                disabled={locked}
+              />
+            </>
+          }
+        />
 
         {/* Expandable settings */}
         <CollapsibleContent>
-          <div className="bg-muted/30 border-t px-4 py-4">
+          <div className="mt-3 border-t pt-4">
             <div className="grid gap-6 md:grid-cols-2">
               {/* Left column - Capabilities */}
               <div className="space-y-4">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("settings:market_data_page.capabilities")}
                 </h4>
+                {provider.description && (
+                  <p className="text-muted-foreground text-xs">
+                    {getProviderDescription(t, provider.id, provider.description)}
+                  </p>
+                )}
                 <div className="space-y-3">
                   {provider.capabilities?.instruments && (
                     <div className="flex items-start gap-3">
@@ -325,7 +369,7 @@ function ProviderSettings({
                           {t("settings:market_data_page.instruments")}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                          {provider.capabilities.instruments}
+                          {getProviderInstruments(t, provider.capabilities.instruments)}
                         </p>
                       </div>
                     </div>
@@ -338,7 +382,7 @@ function ProviderSettings({
                           {t("settings:market_data_page.coverage")}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                          {provider.capabilities.coverage}
+                          {getProviderCoverage(t, provider.capabilities.coverage)}
                         </p>
                       </div>
                     </div>
@@ -351,15 +395,19 @@ function ProviderSettings({
                           {t("settings:market_data_page.features")}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {provider.capabilities.features.map((feature) => (
-                            <Badge
-                              key={feature}
-                              variant="secondary"
-                              className="text-2xs h-5 px-1.5 font-normal"
-                            >
-                              {feature}
-                            </Badge>
-                          ))}
+                          {provider.capabilities.features.map((feature) => {
+                            const { icon, label } = getFeatureDisplay(feature);
+                            return (
+                              <Badge
+                                key={feature}
+                                variant="secondary"
+                                className="text-2xs h-5 gap-1 px-1.5 font-normal"
+                              >
+                                {icon}
+                                {label}
+                              </Badge>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -387,8 +435,8 @@ function ProviderSettings({
 
               {/* Right column - Settings */}
               <div className="space-y-4">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                  {t("settings:market_data_page.settings")}
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  {t("common:settings")}
                 </h4>
                 <div className="space-y-4">
                   {provider.requiresApiKey && (
@@ -442,51 +490,11 @@ function ProviderSettings({
                           className="h-8"
                           disabled={provider.hasApiKey && !hasLoadedKey}
                         >
-                          {t("settings:common_save")}
+                          {t("common:save")}
                         </Button>
                       </div>
                     </div>
                   )}
-
-                  <div className="flex items-center gap-3">
-                    <Label className="text-xs font-medium">
-                      {t("settings:market_data_page.priority")}
-                    </Label>
-                    <div className="flex items-center">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 rounded-e-none"
-                        aria-label={t("settings:market_data_page.priority_decrease")}
-                        onClick={() => {
-                          const newVal = Math.max(1, (priorityValue ?? 1) - 1);
-                          onPriorityChange(String(newVal));
-                          onPrioritySave();
-                        }}
-                      >
-                        <Icons.MinusCircle className="h-3 w-3" />
-                      </Button>
-                      <div className="bg-muted flex h-7 w-10 items-center justify-center border-y text-xs font-medium">
-                        {priorityValue ?? 1}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 rounded-s-none"
-                        aria-label={t("settings:market_data_page.priority_increase")}
-                        onClick={() => {
-                          const newVal = (priorityValue ?? 1) + 1;
-                          onPriorityChange(String(newVal));
-                          onPrioritySave();
-                        }}
-                      >
-                        <Icons.PlusCircle className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <span className="text-muted-foreground text-2xs">
-                      {t("settings:market_data_page.priority_hint")}
-                    </span>
-                  </div>
 
                   {/* Sync Status */}
                   <div className="space-y-2">
@@ -504,7 +512,7 @@ function ProviderSettings({
                           </span>
                         </div>
                         {provider.lastSyncError && (
-                          <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs">
+                          <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words">
                             {provider.lastSyncError}
                           </p>
                         )}
@@ -554,7 +562,6 @@ function CustomProviderCard({
   onToggleEnabled,
   isDeleting = false,
   isToggling = false,
-  isLast = false,
 }: {
   provider: CustomProviderWithSources;
   usage: CustomProviderUsage;
@@ -563,7 +570,6 @@ function CustomProviderCard({
   onToggleEnabled: (enabled: boolean) => void;
   isDeleting?: boolean;
   isToggling?: boolean;
-  isLast?: boolean;
 }) {
   const { t } = useTranslation();
   const latestSource = provider.sources.find((s) => s.kind === "latest");
@@ -571,152 +577,149 @@ function CustomProviderCard({
   const usedBy = usageCount(usage);
 
   return (
-    <div className={cn("hover:bg-accent/30 transition-colors", !isLast && "border-b")}>
-      <div className="flex items-center gap-4 px-4 py-3">
-        <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-          <Icons.Globe className="text-muted-foreground h-5 w-5" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{provider.name}</span>
+    <div>
+      <SettingsListRow
+        media={
+          <SettingsListMedia>
+            <Icons.Globe />
+          </SettingsListMedia>
+        }
+        title={provider.name}
+        badges={
+          <>
             {!provider.enabled && (
-              <Badge variant="outline" className="text-2xs h-5 px-1.5 font-normal">
-                {t("settings:market_data_page.disabled")}
-              </Badge>
+              <Badge variant="secondary">{t("settings:market_data_page.disabled")}</Badge>
             )}
             {servesAsFallback(provider) && (
               <Badge
-                variant="outline"
-                className="border-warning/40 text-warning text-2xs h-5 px-1.5 font-normal"
+                variant="warning-subtle"
                 title={t("settings:market_data_page.fallback_badge_hint")}
               >
                 {t("settings:market_data_page.fallback_badge")}
               </Badge>
             )}
-          </div>
-          {provider.description && (
-            <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
-          )}
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            {latestSource && (
-              <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
-                <Icons.Activity2 className="h-3 w-3" />
-                {latestSource.format.toUpperCase()}
-              </span>
-            )}
-            {historicalSource && (
-              <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
-                <Icons.Clock className="h-3 w-3" />
-                {t("settings:market_data_page.historical")}
-              </span>
-            )}
-            {usedBy > 0 && (
-              <span className="text-muted-foreground text-2xs">
-                {t("settings:market_data_page.custom_used_by", { count: usedBy })}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <Switch
-            id={`${provider.id}-enabled`}
-            aria-label={provider.name}
-            checked={provider.enabled}
-            onCheckedChange={onToggleEnabled}
-            disabled={isToggling}
-            className="data-checked:bg-success"
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground h-8 w-8"
-            onClick={onEdit}
-            aria-label={t("settings:market_data_page.edit_custom_provider")}
-          >
-            <Icons.Pencil className="h-4 w-4" />
-          </Button>
-          {deleteBlockerCount(usage) > 0 ? (
-            // The backend refuses to delete a provider securities still use; say which.
-            <Popover>
-              <PopoverTrigger
-                render={
+          </>
+        }
+        meta={provider.description}
+        actions={
+          <>
+            <Switch
+              id={`${provider.id}-enabled`}
+              aria-label={provider.name}
+              checked={provider.enabled}
+              onCheckedChange={onToggleEnabled}
+              disabled={isToggling}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground h-8 w-8"
+              onClick={onEdit}
+              aria-label={t("settings:market_data_page.edit_custom_provider")}
+            >
+              <Icons.Pencil className="h-4 w-4" />
+            </Button>
+            {deleteBlockerCount(usage) > 0 ? (
+              // The backend refuses to delete a provider securities still use; say which.
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive h-8 w-8"
+                      aria-label={t("common:delete")}
+                    />
+                  }
+                >
+                  <Icons.Trash className="h-4 w-4" />
+                </PopoverTrigger>
+                <PopoverContent className="w-80 space-y-3" align="end">
+                  <h4 className="leading-none font-medium">
+                    {t("settings:market_data_page.delete_provider_in_use_title", {
+                      name: provider.name,
+                    })}
+                  </h4>
+                  {/* Changing a security's provider keeps its symbol mappings, so each group
+                      needs its own instruction. */}
+                  {usage.assigned.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-sm">
+                        {t("settings:market_data_page.delete_provider_in_use_assigned", {
+                          count: usage.assigned.length,
+                        })}
+                      </p>
+                      <CustomProviderUsageChips assets={usage.assigned} linkable />
+                    </div>
+                  )}
+                  {usage.mappedOnly.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-sm">
+                        {t("settings:market_data_page.delete_provider_in_use_mapped", {
+                          count: usage.mappedOnly.length,
+                        })}
+                      </p>
+                      <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
+                    </div>
+                  )}
+                  {usage.leftover.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-sm">
+                        {t("settings:market_data_page.delete_provider_in_use_leftover", {
+                          count: usage.leftover.length,
+                        })}
+                      </p>
+                      <CustomProviderUsageChips assets={usage.leftover} linkable />
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <ActionConfirm
+                handleConfirm={onDelete}
+                isPending={isDeleting}
+                confirmTitle={t("settings:market_data_page.delete_provider_title")}
+                confirmMessage={t("settings:market_data_page.delete_provider_message", {
+                  name: provider.name,
+                })}
+                confirmButtonText={t("common:delete")}
+                cancelButtonText={t("common:cancel")}
+                confirmButtonVariant="destructive"
+                button={
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive h-8 w-8"
-                    aria-label={t("settings:common_delete")}
-                  />
+                    aria-label={t("common:delete")}
+                  >
+                    <Icons.Trash className="h-4 w-4" />
+                  </Button>
                 }
-              >
-                <Icons.Trash className="h-4 w-4" />
-              </PopoverTrigger>
-              <PopoverContent className="w-80 space-y-3" align="end">
-                <h4 className="font-medium leading-none">
-                  {t("settings:market_data_page.delete_provider_in_use_title", {
-                    name: provider.name,
-                  })}
-                </h4>
-                {/* Changing a security's provider keeps its symbol mappings, so each group
-                    needs its own instruction. */}
-                {usage.assigned.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground text-sm">
-                      {t("settings:market_data_page.delete_provider_in_use_assigned", {
-                        count: usage.assigned.length,
-                      })}
-                    </p>
-                    <CustomProviderUsageChips assets={usage.assigned} linkable />
-                  </div>
-                )}
-                {usage.mappedOnly.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground text-sm">
-                      {t("settings:market_data_page.delete_provider_in_use_mapped", {
-                        count: usage.mappedOnly.length,
-                      })}
-                    </p>
-                    <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
-                  </div>
-                )}
-                {usage.leftover.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground text-sm">
-                      {t("settings:market_data_page.delete_provider_in_use_leftover", {
-                        count: usage.leftover.length,
-                      })}
-                    </p>
-                    <CustomProviderUsageChips assets={usage.leftover} linkable />
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
-          ) : (
-            <ActionConfirm
-              handleConfirm={onDelete}
-              isPending={isDeleting}
-              confirmTitle={t("settings:market_data_page.delete_provider_title")}
-              confirmMessage={t("settings:market_data_page.delete_provider_message", {
-                name: provider.name,
-              })}
-              confirmButtonText={t("settings:common_delete")}
-              cancelButtonText={t("settings:common_cancel")}
-              confirmButtonVariant="destructive"
-              button={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8"
-                  aria-label={t("settings:common_delete")}
-                >
-                  <Icons.Trash className="h-4 w-4" />
-                </Button>
-              }
-            />
+              />
+            )}
+          </>
+        }
+      >
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          {latestSource && (
+            <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
+              <Icons.Activity2 className="h-3 w-3" />
+              {latestSource.format.toUpperCase()}
+            </span>
+          )}
+          {historicalSource && (
+            <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
+              <Icons.Clock className="h-3 w-3" />
+              {t("settings:market_data_page.historical")}
+            </span>
+          )}
+          {usedBy > 0 && (
+            <span className="text-muted-foreground text-2xs">
+              {t("settings:market_data_page.custom_used_by", { count: usedBy })}
+            </span>
           )}
         </div>
-      </div>
+      </SettingsListRow>
     </div>
   );
 }
@@ -747,7 +750,9 @@ export default function MarketDataSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
-  const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
+  const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
+    useUpdateMarketDataProviderSettings();
+  const isSavingProvider = useIsSavingProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();
@@ -766,42 +771,44 @@ export default function MarketDataSettingsPage() {
   const deleteProvider = useDeleteCustomProvider();
   const toggleProvider = useUpdateCustomProvider();
 
-  const [priorityInputs, setPriorityInputs] = useState<Record<string, number>>({});
   const [resetHistoryOpen, setResetHistoryOpen] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
-  const [providersTab, setProvidersTab] = useState("builtin");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  // A provider just added that still needs an API key opens its settings.
+  const [expandProviderId, setExpandProviderId] = useState<string>();
+  // Providers switched off on this visit stay listed, dimmed, so the switch can be flipped back.
+  const [switchedOffIds, setSwitchedOffIds] = useState<string[]>([]);
+  // Like the custom provider switch while it saves, the order and switches wait for a move
+  // or any other provider save: a move must not race a provider being switched on.
+  const [moving, setMoving] = useState(false);
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
   const showHealthBanner = searchParams.get("healthContext") === "marketData";
 
-  // Split providers into built-in providers and the CUSTOM_SCRAPER aggregate
-  const { builtinProviders, customScraperErrors } = useMemo(() => {
-    if (!providers) return { builtinProviders: [], customScraperErrors: undefined };
-    const builtin: MarketDataProviderSetting[] = [];
-    let scraperInfo: MarketDataProviderSetting | undefined;
-    for (const p of providers) {
-      if (p.id === "CUSTOM_SCRAPER") {
-        scraperInfo = p;
-      } else {
-        builtin.push(p);
+  // Providers that are on are listed in fetch order; the rest wait in the catalog.
+  // CUSTOM_SCRAPER only carries the custom providers' sync errors.
+  const { listedProviders, activeProviders, availableProviders, customScraperErrors } =
+    useMemo(() => {
+      const listed: MarketDataProviderSetting[] = [];
+      const available: MarketDataProviderSetting[] = [];
+      let scraperInfo: MarketDataProviderSetting | undefined;
+      for (const p of providers ?? []) {
+        if (p.id === "CUSTOM_SCRAPER") {
+          scraperInfo = p;
+        } else if (p.enabled || switchedOffIds.includes(p.id)) {
+          listed.push(p);
+        } else {
+          available.push(p);
+        }
       }
-    }
-    builtin.sort((a, b) => {
-      if (a.enabled === b.enabled) return a.priority - b.priority;
-      return a.enabled ? -1 : 1;
-    });
-    return { builtinProviders: builtin, customScraperErrors: scraperInfo };
-  }, [providers]);
-
-  useEffect(() => {
-    if (providers) {
-      const initialPriorityInputs: Record<string, number> = {};
-      providers.forEach((p: MarketDataProviderSetting) => {
-        initialPriorityInputs[p.id] = p.priority;
-      });
-      setPriorityInputs(initialPriorityInputs);
-    }
-  }, [providers]);
+      listed.sort((a, b) => a.priority - b.priority);
+      return {
+        listedProviders: listed,
+        activeProviders: listed.filter((p) => p.enabled),
+        availableProviders: available,
+        customScraperErrors: scraperInfo,
+      };
+    }, [providers, switchedOffIds]);
 
   const handleUpdateSetting = (
     providerId: string,
@@ -817,16 +824,47 @@ export default function MarketDataSettingsPage() {
     });
   };
 
-  const handlePriorityInputChange = (providerId: string, value: string) => {
-    const numValue = parseInt(value, 10);
-    setPriorityInputs((prev) => ({ ...prev, [providerId]: isNaN(numValue) ? 0 : numValue }));
+  // One write at a time, since each one rebuilds the market data client. If a write
+  // fails, the ones this move already saved are put back. A failed write, the undo
+  // included, shows its error and reloads the saved settings (see the mutation hook).
+  const handleMove = async (index: number, step: -1 | 1) => {
+    const original = new Map(activeProviders.map((p) => [p.id, p.priority]));
+    const saved: string[] = [];
+    // Arrows and switches are locked while this runs, so every listed provider stays on.
+    const write = (providerId: string, priority: number) =>
+      updateSettingsAsync({ providerId, priority, enabled: true });
+    setMoving(true);
+    try {
+      for (const change of moveProvider(activeProviders, index, step)) {
+        try {
+          await write(change.id, change.priority);
+          saved.push(change.id);
+        } catch {
+          // The failed write has already rolled back and shown its error.
+          for (const id of saved.reverse()) {
+            const priority = original.get(id);
+            if (priority !== undefined) await write(id, priority).catch(() => undefined);
+          }
+          return;
+        }
+      }
+    } finally {
+      setMoving(false);
+    }
   };
 
-  const handlePrioritySave = (providerId: string) => {
-    const newPriority = priorityInputs[providerId];
-    const provider = providers?.find((p) => p.id === providerId);
-    if (provider && newPriority !== provider.priority) {
-      handleUpdateSetting(providerId, { priority: newPriority });
+  const handleEnabledChange = (providerId: string, enabled: boolean) => {
+    handleUpdateSetting(providerId, { enabled });
+    setSwitchedOffIds((ids) =>
+      enabled ? ids.filter((id) => id !== providerId) : [...ids, providerId],
+    );
+  };
+
+  const handleAddProvider = (provider: MarketDataProviderSetting) => {
+    handleUpdateSetting(provider.id, { enabled: true });
+    setCatalogOpen(false);
+    if (provider.requiresApiKey && !provider.hasApiKey) {
+      setExpandProviderId(provider.id);
     }
   };
 
@@ -834,33 +872,40 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
-        <div className="overflow-hidden rounded-lg border">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
-              <Skeleton className="h-9 w-9 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <Skeleton className="h-3 w-64" />
-                <div className="flex gap-3">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-8 w-8 rounded-md" />
-                <Skeleton className="h-5 w-9 rounded-full" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <ul
+              className="divide-y [&>li]:py-3 [&>li:first-child]:pt-0 [&>li:last-child]:pb-0"
+              aria-hidden
+            >
+              {[1, 2, 3, 4].map((i) => (
+                <li key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-64" />
+                    <div className="flex gap-3">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                    <Skeleton className="h-5 w-9 rounded-full" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -869,7 +914,7 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
@@ -888,7 +933,7 @@ export default function MarketDataSettingsPage() {
                 className="text-foreground"
               >
                 <Icons.Refresh className="me-2 h-4 w-4" />
-                {t("settings:market_data_page.retry")}
+                {t("common:retry")}
               </Button>
             </div>
           </AlertDescription>
@@ -900,7 +945,7 @@ export default function MarketDataSettingsPage() {
   return (
     <div className="text-foreground space-y-6">
       <SettingsHeader
-        heading={t("settings:market_data_page.heading")}
+        heading={t("settings:nav.items.market_data")}
         text={t("settings:market_data_page.subtitle")}
         actionsInline
       >
@@ -995,7 +1040,7 @@ export default function MarketDataSettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:common_cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => recalculatePortfolio()}>
               {t("settings:market_data_page.rebuild_confirm_button")}
             </AlertDialogAction>
@@ -1023,70 +1068,79 @@ export default function MarketDataSettingsPage() {
               )
             }
           >
-            {t("settings:health_banner_clear")}
+            {t("common:clear")}
           </Button>
         </div>
       )}
 
-      <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
-        {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:flex-1">
-            <TabsTrigger value="builtin">
-              {t("settings:market_data_page.tab_builtin")}
-              {builtinProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="text-2xs ms-1.5 h-5 px-1.5 font-normal">
-                  {builtinProviders.filter((p) => p.enabled).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="custom">
-              {t("settings:market_data_page.tab_custom")}
-              {customProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="text-2xs ms-1.5 h-5 px-1.5 font-normal">
-                  {customProviders.filter((p) => p.enabled).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Show the custom list, where the new provider will appear.
-              setProvidersTab("custom");
-              setEditingProvider(undefined);
-              setCustomFormOpen(true);
-            }}
-          >
-            <Icons.Plus className="h-4 w-4" />
-            {t("settings:market_data_page.add_provider")}
-          </Button>
-        </div>
-
-        <TabsContent value="builtin" className="mt-4">
-          {builtinProviders.length === 0 ? (
+      <Card>
+        <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+          <CardTitle role="heading" aria-level={2} className="text-lg">
+            {t("settings:market_data_page.tab_builtin")}
+          </CardTitle>
+          <CardDescription>{t("settings:market_data_page.sources_description")}</CardDescription>
+          <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-sm:w-full"
+              onClick={() => setCatalogOpen(true)}
+            >
+              <Icons.Plus className="h-4 w-4" />
+              {t("settings:market_data_page.add_provider")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {listedProviders.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              {t("settings:market_data_page.no_builtin")}
+              {t("settings:market_data_page.sources_empty")}
             </p>
           ) : (
-            <div className="overflow-hidden rounded-lg border">
-              {builtinProviders.map((provider, index, arr) => (
-                <ProviderSettings
-                  key={provider.id}
-                  provider={provider}
-                  priorityValue={priorityInputs[provider.id]}
-                  onUpdate={(settings) => handleUpdateSetting(provider.id, settings)}
-                  onPriorityChange={(value) => handlePriorityInputChange(provider.id, value)}
-                  onPrioritySave={() => handlePrioritySave(provider.id)}
-                  isLast={index === arr.length - 1}
-                />
-              ))}
-            </div>
+            <SettingsList label={t("settings:market_data_page.tab_builtin")}>
+              {listedProviders.map((provider) => {
+                const index = activeProviders.indexOf(provider);
+                return (
+                  <li key={provider.id}>
+                    <ProviderSettings
+                      provider={provider}
+                      rank={provider.enabled ? index + 1 : undefined}
+                      canMoveUp={provider.enabled && index > 0}
+                      canMoveDown={provider.enabled && index < activeProviders.length - 1}
+                      onMove={(step) => void handleMove(index, step)}
+                      onEnabledChange={(enabled) => handleEnabledChange(provider.id, enabled)}
+                      locked={moving || isSavingProvider}
+                      defaultOpen={provider.id === expandProviderId}
+                    />
+                  </li>
+                );
+              })}
+            </SettingsList>
           )}
-        </TabsContent>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="custom" className="mt-4">
+      <Card>
+        <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+          <CardTitle role="heading" aria-level={2} className="text-lg">
+            {t("settings:market_data_page.tab_custom")}
+          </CardTitle>
+          <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-sm:w-full"
+              onClick={() => {
+                setEditingProvider(undefined);
+                setCustomFormOpen(true);
+              }}
+            >
+              <Icons.Plus className="h-4 w-4" />
+              {t("settings:market_data_page.add_custom_provider")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
           {customScraperErrors && customScraperErrors.errorCount > 0 && (
             <Alert variant="destructive" className="mb-3 p-3">
               <Icons.XCircle />
@@ -1111,7 +1165,7 @@ export default function MarketDataSettingsPage() {
                     msg = msg.slice(bracketMatch[0].length);
                   }
                   return (
-                    <p key={i} className="mt-1 break-all text-xs">
+                    <p key={i} className="mt-1 text-xs break-all">
                       {providerLabel && <span className="font-medium">{providerLabel}: </span>}
                       {msg}
                     </p>
@@ -1121,41 +1175,42 @@ export default function MarketDataSettingsPage() {
             </Alert>
           )}
           {customProviders.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-center">
-              <Icons.Globe className="text-muted-foreground/50 mx-auto h-8 w-8" />
-              <p className="text-muted-foreground mt-2 text-sm">
-                {t("settings:market_data_page.custom_empty_title")}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t("settings:market_data_page.custom_empty_description")}
-              </p>
-            </div>
+            <p className="text-muted-foreground text-sm">
+              {t("settings:market_data_page.custom_empty_description")}
+            </p>
           ) : (
-            <div className="overflow-hidden rounded-lg border">
-              {customProviders.map((cp, index) => (
-                <CustomProviderCard
-                  key={cp.id}
-                  provider={cp}
-                  usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
-                  onEdit={() => {
-                    setEditingProvider(cp);
-                    setCustomFormOpen(true);
-                  }}
-                  onDelete={() => deleteProvider.mutate(cp.id)}
-                  onToggleEnabled={(enabled) =>
-                    toggleProvider.mutate({ providerId: cp.id, payload: { enabled } })
-                  }
-                  isDeleting={deleteProvider.isPending && deleteProvider.variables === cp.id}
-                  isToggling={
-                    toggleProvider.isPending && toggleProvider.variables?.providerId === cp.id
-                  }
-                  isLast={index === customProviders.length - 1}
-                />
+            <SettingsList label={t("settings:market_data_page.tab_custom")}>
+              {customProviders.map((cp) => (
+                <li key={cp.id}>
+                  <CustomProviderCard
+                    provider={cp}
+                    usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
+                    onEdit={() => {
+                      setEditingProvider(cp);
+                      setCustomFormOpen(true);
+                    }}
+                    onDelete={() => deleteProvider.mutate(cp.id)}
+                    onToggleEnabled={(enabled) =>
+                      toggleProvider.mutate({ providerId: cp.id, payload: { enabled } })
+                    }
+                    isDeleting={deleteProvider.isPending && deleteProvider.variables === cp.id}
+                    isToggling={
+                      toggleProvider.isPending && toggleProvider.variables?.providerId === cp.id
+                    }
+                  />
+                </li>
               ))}
-            </div>
+            </SettingsList>
           )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
+
+      <ProviderCatalogDialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        providers={availableProviders}
+        onAdd={handleAddProvider}
+      />
 
       <CustomProviderForm
         open={customFormOpen}

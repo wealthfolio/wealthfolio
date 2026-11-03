@@ -153,7 +153,7 @@ function mapChipLabel(
       };
     case "currencyPath":
       return {
-        label: t("settings:market_data_page.field_currency"),
+        label: t("common:currency"),
         color: "bg-amber-500",
         required: false,
       };
@@ -395,7 +395,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           }
           done={endpointConfigured}
           badge={
-            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
+            <span className="text-muted-foreground text-2xs font-semibold tracking-wide uppercase">
               {t("settings:market_data_page.required")}
             </span>
           }
@@ -408,7 +408,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
             name={`${prefix}.format`}
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                   {t("settings:market_data_page.source_type")}
                 </FormLabel>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -447,21 +447,27 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           {/* Quick start templates */}
           {templates.length > 0 && (
             <div>
-              <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+              <Label className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                 {t("settings:market_data_page.quick_start")}
               </Label>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {templates.map((t) => (
+                {templates.map((template) => (
                   <button
-                    key={t.name}
+                    key={template.name}
                     type="button"
-                    onClick={() => runtime.applyTemplate(t)}
+                    onClick={() => runtime.applyTemplate(template)}
                     className="bg-muted/30 hover:bg-muted/50 flex min-w-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs transition-colors"
                   >
                     <Icons.Globe className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 truncate">
-                      <span className="font-medium">{t.name}</span>
-                      <span className="text-muted-foreground"> · {t.description}</span>
+                      <span className="font-medium">{template.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ·{" "}
+                        {t(
+                          `settings:market_data_page.templateDescriptions.${template.descriptionKey}`,
+                        )}
+                      </span>
                     </span>
                   </button>
                 ))}
@@ -476,7 +482,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                  <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                     {t("settings:market_data_page.url_template")}
                   </FormLabel>
                   <span className="text-muted-foreground text-2xs">
@@ -520,12 +526,12 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                 name={`${prefix}.method`}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                    <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                       {t("settings:market_data_page.http_method")}
                     </FormLabel>
                     <FormControl>
                       <select
-                        className="bg-background border-input ring-offset-background focus-visible:ring-ring w-45 flex h-9 rounded-md border px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="bg-background border-input ring-offset-background focus-visible:ring-ring flex h-9 w-45 rounded-md border px-2 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         {...field}
                         onChange={(e) => {
                           field.onChange(e.target.value as "GET" | "POST");
@@ -548,7 +554,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                   name={`${prefix}.body`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                      <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                         {t("settings:market_data_page.request_body_json")}
                       </FormLabel>
                       <FormControl>
@@ -577,7 +583,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
               name={`${prefix}.pricePath`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                  <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                     {t("settings:market_data_page.css_selector")}
                   </FormLabel>
                   <FormControl>
@@ -646,7 +652,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           title={t("settings:market_data_page.map_response_fields")}
           done={mappingDone}
           badge={
-            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
+            <span className="text-muted-foreground text-2xs font-semibold tracking-wide uppercase">
               {mapHint}
             </span>
           }

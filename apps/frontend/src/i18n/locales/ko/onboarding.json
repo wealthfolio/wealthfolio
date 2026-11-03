@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "나만의 환경으로 꾸며보세요",
-    "themeLabel": "테마",
-    "fontLabel": "글꼴",
-    "themeLight": "라이트",
-    "themeDark": "다크",
-    "themeSystem": "시스템",
-    "themeLightPreviewAlt": "라이트 테마 미리보기",
-    "themeDarkPreviewAlt": "다크 테마 미리보기",
-    "themeSystemPreviewAlt": "시스템 테마 미리보기",
-    "fontSample": "명확하게 투자하세요.",
-    "fonts": {
-      "monoLabel": "모노",
-      "monoDescription": "기술적이고 정밀함",
-      "sansLabel": "산세리프",
-      "sansDescription": "깔끔하고 현대적임",
-      "serifLabel": "세리프",
-      "serifDescription": "고전적이고 우아함"
-    },
-    "navigationLabel": "내비게이션"
+    "changeLater": "설정에서 언제든지 변경할 수 있습니다."
   },
   "connect": {
     "optional": "선택사항",

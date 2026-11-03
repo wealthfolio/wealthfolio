@@ -10,6 +10,16 @@ use std::collections::{HashMap, HashSet};
 /// Trait defining the contract for Activity repository operations.
 #[async_trait]
 pub trait ActivityRepositoryTrait: Send + Sync {
+    fn has_spending_splits(&self, _activity_id: &str) -> Result<bool> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    fn preview_split_effect(&self, _update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    /// Review an unlink-only counterpart without projecting a financial edit.
+    fn preview_unchanged_split_effect(&self, _activity_id: &str) -> Result<ActivitySplitEffect> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_ids(&self, activity_ids: &[String]) -> Result<Vec<Activity>> {
@@ -209,6 +219,13 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Deletes the reviewed rows only if their stored groups contain no other
+    /// rows. The check and deletion must share the writer transaction.
+    async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Checked activity deletion is unavailable".into(),
+        ))
+    }
     /// Pairs two existing transfer activities by writing a shared `source_group_id`
     /// and clearing `metadata.flow.is_external` on both. Order of `activity_a_id` /
     /// `activity_b_id` is irrelevant; the impl resolves which is IN vs OUT.
@@ -231,6 +248,17 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         delete_ids: Vec<String>,
     ) -> Result<ActivityBulkMutationResult>;
     async fn create_activities(&self, activities: Vec<NewActivity>) -> Result<usize>;
+    /// Same insert policy/atomicity as create_activities, returning actual saved
+    /// rows in input order. Never infer persisted IDs from review UUIDs.
+    async fn create_activities_returning(
+        &self,
+        _activities: Vec<NewActivity>,
+    ) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Activity repository does not support returning inserted rows".into(),
+        ))
+    }
+
     /// Returns activities from both active and archived accounts.
     fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
         Err(crate::Error::Unexpected(
@@ -439,7 +467,41 @@ pub trait ActivityServiceTrait: Send + Sync {
     /// for the activity and a linked transfer leg, without writing anything.
     /// The asset may only be named by id: resolving a symbol may create one.
     fn preview_activity_update(&self, activity: ActivityUpdate) -> Result<ActivityUpdatePreview>;
+    fn review_activity_split_effects_batch(
+        &self,
+        activities: Vec<ActivityUpdate>,
+    ) -> Result<Vec<Vec<ActivitySplitEffect>>> {
+        activities
+            .into_iter()
+            .map(|activity| self.review_activity_split_effects(activity))
+            .collect()
+    }
+    fn review_activity_split_effects(
+        &self,
+        _activity: ActivityUpdate,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        _request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Deletes exactly the reviewed rows, rejecting newly linked/grouped rows
+    /// atomically, and returns every deleted record.
+    async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Checked activity deletion is unavailable".into(),
+        ))
+    }
+    /// Every id the stored source-group deletion cascade would remove.
+    fn get_activity_deletion_ids(&self, _activity_id: &str) -> Result<Vec<String>> {
+        Err(crate::Error::Unexpected(
+            "Activity deletion preview is unavailable".into(),
+        ))
+    }
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.
     fn get_transfer_pair_for_activity(

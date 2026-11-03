@@ -49,7 +49,7 @@ export default function SpendingBudgetPage() {
   }
 
   const headerActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <MonthSwitcher monthKey={monthKey} onChange={setMonthKey} />
       <Link
         to="/settings/spending/setup"
@@ -96,7 +96,7 @@ function MonthSwitcher({
   const current = currentMonthKey();
 
   return (
-    <div className="bg-card/40 border-border/60 shadow-xs inline-flex items-center gap-0.5 rounded-full border px-1 py-0.5">
+    <div className="bg-card/40 border-border/60 inline-flex items-center gap-0.5 rounded-full border px-1 py-0.5 shadow-xs">
       <Button
         type="button"
         variant="ghost"
@@ -114,7 +114,7 @@ function MonthSwitcher({
           value={monthKey}
           aria-label={t("spending:period.selectMonth")}
           onChange={(event) => onChange(event.target.value || current)}
-          className="text-foreground w-27.5 h-7 cursor-pointer bg-transparent text-xs outline-none"
+          className="text-foreground h-7 w-27.5 cursor-pointer bg-transparent text-xs outline-none"
         />
       </label>
       <Button

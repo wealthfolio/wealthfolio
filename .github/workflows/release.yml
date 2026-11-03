@@ -76,11 +76,11 @@ jobs:
           shared-key: release-${{ matrix.cache-key }}
           save-if: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Sync node version and setup cache
+      - name: Sync node version
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-          cache: "pnpm" # Set this to npm, yarn or pnpm.
+          # No `cache: pnpm`: later release tags can't restore a cache saved on a tag.
 
       - name: Install frontend dependencies
         # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
@@ -254,11 +254,11 @@ jobs:
       - name: pnpm setup
         uses: pnpm/action-setup@v4
 
-      - name: Sync node version and setup cache
+      - name: Sync node version
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-          cache: "pnpm"
+          # No `cache: pnpm` (see note in the release job above).
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

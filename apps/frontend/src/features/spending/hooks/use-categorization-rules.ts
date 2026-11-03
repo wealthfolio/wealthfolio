@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -10,7 +11,7 @@ import {
   listCategorizationRules,
   listRulePresets,
   removeRulePreset,
-  rerunCategorizationRules,
+  rerunCategorizationRulesDetailed,
   updateCategorizationRule,
 } from "../adapters/rules";
 import { invalidateSpendingCaches } from "../lib/invalidation";
@@ -40,9 +41,9 @@ export function useCategorizationRuleMutations() {
     mutationFn: (rule: NewCategorizationRule) => createCategorizationRule(rule),
     onSuccess: () => {
       invalidate();
-      toast.success("Rule created.");
+      toast.success(i18n.t("ai:createRule.ruleCreated"));
     },
-    onError: () => toast.error("Failed to create rule."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_create_rule")),
   });
 
   const update = useMutation({
@@ -50,29 +51,55 @@ export function useCategorizationRuleMutations() {
       updateCategorizationRule(id, patch),
     onSuccess: () => {
       invalidate();
-      toast.success("Rule updated.");
+      toast.success(i18n.t("common:notifications.rule_updated"));
     },
-    onError: () => toast.error("Failed to update rule."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_rule")),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteCategorizationRule(id),
     onSuccess: () => {
       invalidate();
-      toast.success("Rule deleted.");
+      toast.success(i18n.t("common:notifications.rule_deleted"));
     },
-    onError: () => toast.error("Failed to delete rule."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_delete_rule")),
   });
 
   const rerun = useMutation({
-    mutationFn: (onlyUncategorized: boolean) => rerunCategorizationRules(onlyUncategorized),
-    onSuccess: (count, onlyUncategorized) => {
+    mutationFn: (onlyUncategorized: boolean) => rerunCategorizationRulesDetailed(onlyUncategorized),
+    onSuccess: (summary, onlyUncategorized) => {
       // Rerun touches every cash activity's category — refresh report/budget too.
       invalidateSpendingCaches(qc);
-      const verb = onlyUncategorized ? "Categorized" : "Re-categorized";
-      toast.success(`${verb} ${count} activit${count === 1 ? "y" : "ies"}.`);
+      const details: string[] = [];
+      if (summary.incompatible > 0) {
+        details.push(i18n.t("spending:rules.runIncompatible", { count: summary.incompatible }));
+      }
+      // Uncategorized-only runs skip every categorized row by request, so only a
+      // full re-run reports the manual categories and splits it kept.
+      const protectedCount = onlyUncategorized
+        ? 0
+        : summary.protectedManual + summary.protectedSplits;
+      if (protectedCount > 0) {
+        details.push(i18n.t("spending:rules.runProtected", { count: protectedCount }));
+      }
+      if (summary.unchanged > 0) {
+        details.push(i18n.t("spending:rules.runUnchanged", { count: summary.unchanged }));
+      }
+      if (summary.withoutTarget > 0) {
+        details.push(i18n.t("spending:rules.runWithoutTarget", { count: summary.withoutTarget }));
+      }
+      const notify = summary.incompatible > 0 ? toast.warning : toast.success;
+      notify(
+        i18n.t(
+          onlyUncategorized
+            ? "spending:txTab.categorizedCount"
+            : "common:notifications.recategorized",
+          { count: summary.changed },
+        ),
+        { description: details.length > 0 ? details.join(" ") : undefined },
+      );
     },
-    onError: () => toast.error("Failed to re-run rules."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_re_run_rules")),
   });
 
   return { create, update, remove, rerun };
@@ -121,6 +148,6 @@ export function useRemoveRulePreset() {
         `Removed ${result.removed} rule${result.removed === 1 ? "" : "s"}${keptSuffix}.`,
       );
     },
-    onError: () => toast.error("Failed to remove preset."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_remove_preset")),
   });
 }

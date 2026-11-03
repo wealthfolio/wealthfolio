@@ -93,7 +93,7 @@ function TreeItem({ node, level, selectedId, onSelect, expandedIds, onToggle }: 
         </div>
 
         {hasChildren && (
-          <CollapsibleContent className="data-ending-style:h-0 data-starting-style:h-0 h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-200 ease-out">
+          <CollapsibleContent className="h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
             {node.children!.map((child) => (
               <TreeItem
                 key={child.id}

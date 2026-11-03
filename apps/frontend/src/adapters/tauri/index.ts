@@ -223,6 +223,7 @@ export {
   listAgentAccessTokens,
   createAgentAccessToken,
   deleteAgentAccessToken,
+  updateAgentAccessTokenScopes,
 } from "./agent-access";
 
 // AI Streaming (Tauri Channel-based implementation)
@@ -236,6 +237,7 @@ export {
   listenFileDropCancelled,
   listenPortfolioUpdateStart,
   listenPortfolioUpdateComplete,
+  listenGoalSummariesUpdated,
   listenDatabaseRestored,
   listenDeviceSyncRestore,
   listenPortfolioUpdateError,

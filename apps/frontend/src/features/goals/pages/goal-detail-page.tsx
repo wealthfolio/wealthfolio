@@ -33,7 +33,7 @@ import {
   useRetirementOverview,
   useSaveUpOverview,
 } from "../hooks/use-goal-detail";
-import { useGoalMutations } from "../hooks/use-goals";
+import { useGoalMutations, useGoals } from "../hooks/use-goals";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { PlannerMode, RetirementOverview } from "@/lib/types";
 import type { RetirementPlan } from "@/features/goals/retirement-planner/types";
@@ -41,7 +41,9 @@ import {
   parseSettingsJson,
   normalizeRetirementPlan,
   createDefaultRetirementPlan,
+  inferBirthYearMonthFromAge,
 } from "@/features/goals/retirement-planner/lib/plan-adapter";
+import { buildGoalMilestones } from "@/features/goals/retirement-planner/lib/goal-milestones";
 import { usePortfolioData } from "@/features/goals/retirement-planner/hooks/use-portfolio";
 import DashboardPage from "@/features/goals/retirement-planner/pages/dashboard-page";
 import RiskLabPage from "@/features/goals/retirement-planner/pages/risk-lab-page";
@@ -380,6 +382,18 @@ function RetirementDetail({
   retirementOverviewError?: Error | null;
   retirementOverviewIsFetching?: boolean;
 }) {
+  const navigate = useNavigate();
+  const { goals } = useGoals();
+  const goalMilestones = useMemo(
+    () =>
+      buildGoalMilestones(goals, {
+        birthYearMonth:
+          plan.personal.birthYearMonth ?? inferBirthYearMonthFromAge(plan.personal.currentAge),
+        startAge: plan.personal.currentAge,
+        endAge: plan.personal.planningHorizonAge,
+      }),
+    [goals, plan.personal],
+  );
   return (
     <>
       <TabsContent value="overview">
@@ -395,6 +409,8 @@ function RetirementDetail({
           retirementOverviewIsFetching={retirementOverviewIsFetching}
           goalId={goalId}
           dcLinkedAccountIds={dcLinkedAccountIds}
+          goalMilestones={goalMilestones}
+          onOpenGoal={(id) => navigate(`/goals/${id}`)}
         />
       </TabsContent>
 

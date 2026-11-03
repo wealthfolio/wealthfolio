@@ -22,8 +22,8 @@ export function AmountDisplay({
 }: AmountDisplayProps) {
   const { formatAmount } = useAmountFormatting();
   const formattedAmount = formatAmount(value, currency, displayCurrency);
-  const positive = invertColor ? "text-destructive" : "text-success";
-  const negative = invertColor ? "text-success" : "text-destructive";
+  const positive = invertColor ? "text-loss" : "text-gain";
+  const negative = invertColor ? "text-gain" : "text-loss";
   const colorClass = colorFormat ? (value >= 0 ? positive : negative) : "";
 
   return <span className={cn(colorClass, className)}>{isHidden ? "••••" : formattedAmount}</span>;

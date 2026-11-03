@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -122,6 +123,7 @@ export function DepositForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -136,7 +138,12 @@ export function DepositForm({
         </FormSection>
 
         <FormSection title={t("activity:form.section_amount")}>
-          <AmountInput name="amount" label={t("activity:form.label_amount")} currency={currency} />
+          <AmountInput
+            name="amount"
+            label={t("activity:form.label_amount")}
+            currency={currency}
+            maxDecimalPlaces={moneyDecimals}
+          />
         </FormSection>
 
         {/* Advanced options (currency, FX rate) and notes, collapsed by default */}

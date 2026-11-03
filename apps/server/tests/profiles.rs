@@ -973,6 +973,88 @@ async fn cold_profile_startup_does_not_block_cached_runtime_or_initialize_twice(
     ));
 }
 
+#[tokio::test]
+async fn cancelled_profile_startup_finishes_for_the_next_open() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let config = test_config(dir.path());
+    let state = build_state(&config).await.unwrap();
+    let root = WebProfiles::new(state, &config).unwrap();
+    let cold = root.registry.create("Cold", "clay-fluff-animated").unwrap();
+    let path = root
+        .registry
+        .paths(&root.registry.profile(cold.id).unwrap())
+        .database;
+    let database = DbAccess::plaintext(path.to_str().unwrap());
+    // A fresh WAL database whose migration history table already exists: opening
+    // it and listing pending migrations only read, so startup waits at the first
+    // migration write, inside the blocking task that holds database ownership.
+    database.prepare().unwrap();
+    let connection = database.connect_rusqlite().unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE __diesel_schema_migrations (
+                 version VARCHAR(50) PRIMARY KEY NOT NULL,
+                 run_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+             );
+             BEGIN IMMEDIATE;",
+        )
+        .unwrap();
+
+    // A client that disconnects mid-startup drops its request future.
+    let cancelled = tokio::spawn({
+        let root = root.clone();
+        async move { root.runtime(cold.id).await }
+    });
+    // On this executor, ownership is observed after startup yields at the
+    // migration task's await, having passed that task its own owner clone.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !path.with_file_name("app.db.lock").exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    cancelled.abort();
+    let outcome = cancelled.await;
+    assert!(
+        outcome.as_ref().is_err_and(|error| error.is_cancelled()),
+        "{:?}",
+        outcome.map(|result| result.err())
+    );
+
+    // An open cancelled while it waits for startup leaves nothing queued behind.
+    let references = Arc::strong_count(&root);
+    let queued = tokio::spawn({
+        let root = root.clone();
+        async move { root.runtime(cold.id).await }
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    queued.abort();
+    let outcome = queued.await;
+    assert!(
+        outcome.as_ref().is_err_and(|error| error.is_cancelled()),
+        "{:?}",
+        outcome.map(|result| result.err())
+    );
+    assert_eq!(Arc::strong_count(&root), references);
+
+    let next = root.runtime(cold.id);
+    tokio::pin!(next);
+    let next_waiting = tokio::time::timeout(Duration::from_millis(50), &mut next).await;
+    connection.execute_batch("ROLLBACK;").unwrap();
+    drop(connection);
+    assert!(
+        next_waiting.is_err(),
+        "The next open must wait for startup: {:?}",
+        next_waiting.map(|result| result.err())
+    );
+    let next = tokio::time::timeout(Duration::from_secs(10), next)
+        .await
+        .unwrap();
+    assert!(next.is_ok(), "{:?}", next.err());
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn deleting_a_starting_profile_waits_for_startup_and_rejects_queued_opens() {
     use wealthfolio_storage_sqlite::db::DbAccess;

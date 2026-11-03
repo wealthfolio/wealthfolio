@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -159,7 +160,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
                 key={tax.id}
                 taxonomyId={tax.id}
                 assetId={asset.id}
-                label={tax.name}
+                label={getTaxonomyLabel(t, tax.id, tax.name)}
               />
             ))}
 
@@ -169,7 +170,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
                 key={tax.id}
                 taxonomyId={tax.id}
                 assetId={asset.id}
-                label={tax.name}
+                label={getTaxonomyLabel(t, tax.id, tax.name)}
               />
             ))}
           </div>

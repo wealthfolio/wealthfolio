@@ -65,9 +65,9 @@ export function ContributionLimitForm({
   const updateDatesBasedOnYear = (year: number) => {
     if (!year || isNaN(year)) return;
 
-    // Set time to noon to avoid timezone issues
-    const startDate = new Date(Date.UTC(year, 0, 1, 12, 0, 0));
-    const endDate = new Date(Date.UTC(year, 11, 31, 12, 0, 0));
+    // Local midnight, as the date picker gives for a picked day
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
 
     form.setValue("startDate", startDate);
     form.setValue("endDate", endDate);
@@ -140,7 +140,7 @@ export function ContributionLimitForm({
                   name="groupName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-base font-medium leading-none">
+                      <FormLabel className="text-base leading-none font-medium">
                         {t("settings:limits_form_group_name_label")}
                       </FormLabel>
                       <FormControl>
@@ -163,7 +163,7 @@ export function ContributionLimitForm({
                   name="limitAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-base font-medium leading-none">
+                      <FormLabel className="text-base leading-none font-medium">
                         {t("settings:limits_form_limit_amount_label")}
                       </FormLabel>
                       <FormControl>
@@ -187,7 +187,7 @@ export function ContributionLimitForm({
                       name="contributionYear"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_year_label")}
                           </FormLabel>
                           <FormControl>
@@ -209,7 +209,7 @@ export function ContributionLimitForm({
                       name="startDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_start_date_label")}
                           </FormLabel>
                           <div className="h-11">
@@ -231,7 +231,7 @@ export function ContributionLimitForm({
                       name="endDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_end_date_label")}
                           </FormLabel>
                           <div className="h-11">
@@ -285,9 +285,7 @@ export function ContributionLimitForm({
               ) : (
                 <>
                   <Icons.Check className="me-2 h-4 w-4" />
-                  {defaultValues?.id
-                    ? t("settings:limits_form_update_button")
-                    : t("settings:limits_form_save_button")}
+                  {defaultValues?.id ? t("settings:limits_form_update_button") : t("common:save")}
                 </>
               )}
             </Button>

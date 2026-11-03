@@ -69,14 +69,23 @@ fn expected_bucket_fx(pipeline: &Pipeline) -> Decimal {
 }
 
 fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
-    let pipeline = Pipeline::from_scenario(&scenario(kind, cash, security));
+    let mut fixture = scenario(kind, cash, security);
+    if bounded {
+        // Leave the opening day outside the window, and move the rate
+        // change to day three so cash and investment FX remain in-period.
+        let end = "2026-01-03".parse().unwrap();
+        fixture.policy.as_of = end;
+        fixture.fx_rates[1].day = end;
+        fixture.quotes[1].day = end;
+    }
+    let pipeline = Pipeline::from_scenario(&fixture);
     assert_eq!(expected_bucket_fx(&pipeline), -cash * dec!(0.1));
     let lots = pipeline.lots();
     let inputs = pipeline.measure_inputs(&lots);
     let account = AccountId::new("acc");
     let window = Window {
-        start: bounded.then(|| "2026-01-01".parse().unwrap()),
-        end: bounded.then(|| "2026-01-02".parse().unwrap()),
+        start: bounded.then(|| "2026-01-02".parse().unwrap()),
+        end: bounded.then(|| "2026-01-03".parse().unwrap()),
     };
     let expected = -(cash + security) * dec!(0.1);
     for profile in [
@@ -107,12 +116,19 @@ fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
                 assert_eq!(result.attribution.fx_effect, expected);
                 assert_eq!(result.attribution.income, Decimal::ZERO);
                 let days = &pipeline.series[&account].days;
-                let delta = days.last().unwrap().total_value_base
-                    - if bounded {
-                        days[0].total_value_base
-                    } else {
+                let opening = window
+                    .start
+                    .and_then(|start| days.iter().find(|day| day.date == start))
+                    .map_or(Decimal::ZERO, |day| day.total_value_base);
+                let delta = days.last().unwrap().total_value_base - opening;
+                assert_eq!(
+                    result.attribution.contributions,
+                    if bounded {
                         Decimal::ZERO
-                    };
+                    } else {
+                        (cash + security) * dec!(7)
+                    }
+                );
                 assert_eq!(
                     result.attribution.contributions - result.attribution.distributions
                         + result.attribution.pnl(),
@@ -1271,6 +1287,8 @@ fn assert_bounded_cash_fx(p: &Pipeline, expected: Decimal) {
 
 #[test]
 fn small_cash_exposures_are_valued_before_combining_large_rates() {
+    // Open before the measured window to test period cash FX separately
+    // from inception contribution conversion at these extreme rates.
     let p = pipeline(
         r#"
 id: CASH-FX-SMALL-EXPOSURE
@@ -1278,10 +1296,12 @@ policy: { base_currency: CNY, timezone: UTC, as_of: 2026-01-02 }
 accounts:
   - { id: acc, currency: EUR, account_type: CASH }
 activities:
-  - { id: dep, account: acc, type: DEPOSIT, date: 2026-01-01T10:00:00Z, amount: 0.000001, currency: USD }
+  - { id: dep, account: acc, type: DEPOSIT, date: 2025-12-31T10:00:00Z, amount: 0.000001, currency: USD }
 fx_rates:
+  - { from: USD, to: EUR, day: 2025-12-31, rate: 100000000000 }
   - { from: USD, to: EUR, day: 2026-01-01, rate: 100000000000 }
   - { from: USD, to: EUR, day: 2026-01-02, rate: 100000000000 }
+  - { from: EUR, to: CNY, day: 2025-12-31, rate: 10000000000 }
   - { from: EUR, to: CNY, day: 2026-01-01, rate: 10000000000 }
   - { from: EUR, to: CNY, day: 2026-01-02, rate: 11000000000 }
 "#,

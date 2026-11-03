@@ -47,6 +47,8 @@
   "subtype_position_close": "Close Position",
   "subtype_return_of_capital": "Return of Capital",
   "subtype_notional_distribution": "Notional Distribution",
+  "subtype_conversion_out": "Conversion Out",
+  "subtype_conversion_in": "Conversion In",
   "type_buy_desc": "Purchase an asset. This increases your holding quantity and decreases your cash balance.",
   "type_sell_desc": "Sell an asset. This decreases your holding quantity and increases your cash balance.",
   "type_deposit_desc": "Increase your account balance by adding funds.",
@@ -199,6 +201,7 @@
   "mobile_type_fee_desc": "Account or transaction fee",
   "mobile_type_tax_desc": "Tax payment",
   "mobile_type_split_desc": "Stock split adjustment",
+  "mobile_type_conversion_desc": "Turn one fund or share class into another, keeping its cost",
   "mobile_date_time": "Date & Time",
   "mobile_fee_optional": "Fee (Optional)",
   "mobile_description_optional": "Description (Optional)",
@@ -315,7 +318,8 @@
   "delete_modal": {
     "title": "Delete activity?",
     "description": "This activity will be permanently deleted. This action cannot be undone.",
-    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone."
+    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone.",
+    "linked_conversion_desc": "This activity is one side of a conversion. Both sides will be permanently deleted. This action cannot be undone."
   },
   "form_renderer": {
     "select_type": "Select an activity type above to continue",
@@ -334,6 +338,7 @@
   },
   "picker": {
     "transfer": "Transfer",
+    "conversion": "Fund conversion",
     "split": "Split",
     "all_types_group": "All activity types",
     "expand_all_types": "Expand to show all types",
@@ -464,6 +469,13 @@
     "within_days_other": "Within {{count}} days"
   },
   "form": {
+    "section_conversion": "Fund conversion",
+    "section_conversion_from": "From",
+    "section_conversion_to": "To",
+    "conversion_hint": "Units of one fund or asset become units of another and keep their cost: a fund switch, a share-class or series switch, a mutual fund converted to an ETF, or a token migration. If the switch was taxed, record a sell and a buy.",
+    "button_add_conversion": "Add Fund Conversion",
+    "warn_converting_more_than_held": "You are converting {{converting}} units, but this account holds {{available}} today.",
+    "err_conversion_same_asset": "Choose a different asset to convert into.",
     "section_asset_account": "Asset & Account",
     "section_account": "Account",
     "section_amount": "Amount",
@@ -960,7 +972,15 @@
       "missingAccount": "Missing account",
       "emptySymbol": "Empty symbol",
       "accountAssignmentBlankRows_one": "Map every CSV row to an account. {{count}} row is still blank, so choose a default account in Upload or fill the account column.",
-      "accountAssignmentBlankRows_other": "Map every CSV row to an account. {{count}} rows are still blank, so choose a default account in Upload or fill the account column."
+      "accountAssignmentBlankRows_other": "Map every CSV row to an account. {{count}} rows are still blank, so choose a default account in Upload or fill the account column.",
+      "statusIncluded": "Included",
+      "skippedCount_one": "{{count}} skipped",
+      "skippedCount_other": "{{count}} skipped",
+      "allRowsSkipped": "Every row is skipped",
+      "allRowsSkippedDescription": "Include at least one row to continue.",
+      "includeRow": "Include row {{line}}",
+      "includeAllRows": "Include all rows",
+      "includeMatchingRows": "Include all matching rows"
     },
     "csvViewer": {
       "status": "Status",
@@ -1072,7 +1092,8 @@
       "willBeImportedTitle_one": "{{count}} of {{all}} activities will be imported",
       "willBeImportedTitle_other": "{{count}} of {{all}} activities will be imported",
       "activitiesCount_one": "{{count}} activity",
-      "activitiesCount_other": "{{count}} activities"
+      "activitiesCount_other": "{{count}} activities",
+      "backend_failed": "Backend validation failed. Retry validation before importing."
     },
     "status": {
       "valid": "Valid",
@@ -1348,6 +1369,57 @@
       "importing": "Importing...",
       "issuesTitle_one": "There are issues with {{count}} activity entry.",
       "issuesTitle_other": "There are issues with {{count}} activity entries."
+    },
+    "creditCard": {
+      "charge": "Charge",
+      "payment": "Payment",
+      "transfer": "Balance Transfer / Cash Advance",
+      "refund": "Refund / Credit",
+      "interest": "Interest Charge"
     }
+  },
+  "validation": {
+    "account_is_required": "Account is required",
+    "date_is_required": "Date is required",
+    "symbol_is_required_for_this_activity_type": "Symbol is required for this activity type",
+    "received_quantity_is_required": "Received quantity is required",
+    "either_income_amount_or_fmv_per_unit_is_required": "Either income amount or FMV per unit is required",
+    "fee_cannot_be_negative": "Fee cannot be negative",
+    "tax_cannot_be_negative": "Tax cannot be negative",
+    "currency_is_required": "Currency is required",
+    "symbol_is_required_for_trade_activities": "Symbol is required for trade activities",
+    "quantity_must_be_greater_than_0": "Quantity must be greater than 0",
+    "unit_price_must_be_greater_than_0": "Unit price must be greater than 0",
+    "symbol_is_required_for_drip_dividends": "Symbol is required for DRIP dividends",
+    "quantity_is_required_for_drip_shares_received": "Quantity is required for DRIP (shares received)",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "Either amount or unit price is required for DRIP dividends",
+    "symbol_is_required_for_dividend_in_kind_activities": "Symbol is required for dividend in kind activities",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "Quantity is required for dividend in kind (shares received)",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "Either amount or unit price is required for dividend in kind",
+    "amount_is_required_for_dividend_activities": "Amount is required for dividend activities",
+    "symbol_is_required_for_staking_rewards": "Symbol is required for staking rewards",
+    "quantity_is_required_for_staking_rewards_tokens_received": "Quantity is required for staking rewards (tokens received)",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "Either amount or unit price is required for staking rewards",
+    "amount_is_required_for_interest_activities": "Amount is required for interest activities",
+    "symbol_is_required_for_split_activities": "Symbol is required for split activities",
+    "amount_split_ratio_must_be_greater_than_0": "Amount (split ratio) must be greater than 0",
+    "amount_is_required_for_credit_activities": "Amount is required for credit activities",
+    "activity_type_is_required": "Activity type is required",
+    "date_not_recognized": "Date not recognized",
+    "map_type": "Map the CSV activity type before continuing",
+    "credit_card_types": "Credit card imports only support charges, payments, transfers out, refunds, fees, and interest",
+    "fee_or_amount": "Either fee or amount is required for fee activities",
+    "amount_or_fee": "Amount or fee is required for tax activities",
+    "amount_or_quantity": "Amount or quantity is required for transfer activities",
+    "final_cash": "Final cash amount is required before approval",
+    "fx_non_negative": "FX rate cannot be negative",
+    "transfer_pair": "A transfer pair needs both legs, in two currencies when they share an account",
+    "more": " (+{{remaining}} more)",
+    "amount_is_required_for_deposit_withdrawal_activities": "Amount is required for deposit/withdrawal activities"
+  },
+  "validationFields": {
+    "external": "External Transfer",
+    "direction": "Transfer Direction",
+    "mode": "Transfer Mode"
   }
 }

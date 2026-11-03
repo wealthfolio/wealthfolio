@@ -279,7 +279,7 @@ function AssetLogoDialogBody({
 
       <DialogFooter
         className={cn(
-          isMobile ? "border-t px-4 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]" : "gap-2",
+          isMobile ? "border-t px-4 py-4 pb-[calc(var(--inset-bottom)+1rem)]" : "gap-2",
         )}
       >
         {/* Mobile: full-width stack, primary on top (DialogFooter reverses column order). */}

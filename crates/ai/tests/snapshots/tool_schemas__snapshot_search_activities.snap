@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_schemas.rs
+assertion_line: 170
 expression: snapshot
 ---
 {
@@ -21,7 +22,9 @@ expression: snapshot
           "INTEREST",
           "FEE",
           "SPLIT",
-          "TAX"
+          "TAX",
+          "CREDIT",
+          "ADJUSTMENT"
         ],
         "type": "string"
       },
@@ -31,6 +34,9 @@ expression: snapshot
       "dateTo": {
         "type": "string"
       },
+      "needsReview": {
+        "type": "boolean"
+      },
       "page": {
         "default": 1,
         "type": "integer"
@@ -38,6 +44,9 @@ expression: snapshot
       "pageSize": {
         "default": 50,
         "type": "integer"
+      },
+      "query": {
+        "type": "string"
       },
       "symbol": {
         "type": "string"

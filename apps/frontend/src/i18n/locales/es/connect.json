@@ -342,5 +342,13 @@
     "description": "Vas a conectar otra cuenta u otro grupo familiar. Se conservarán los datos locales de tu cartera, pero se eliminarán sus vínculos con brókeres y la configuración de sincronización de dispositivos. La nueva cuenta podrá añadir datos de brókeres a este perfil. Vuelve a configurar la sincronización de dispositivos cuando quieras. Usa un perfil nuevo si prefieres mantener los datos separados.",
     "cancel": "Cancelar",
     "confirm": "Cambiar conexión"
+  },
+  "syncMessages": {
+    "runFailed": "No se pudo completar esta sincronización. Vuelve a intentarlo o gestiona la conexión con tu bróker.",
+    "runNeedsReview": "Debes revisar algunos elementos sincronizados antes de continuar.",
+    "accountFailed": "No se pudo sincronizar esta cuenta de bróker. Vuelve a intentarlo o gestiona la conexión con tu bróker.",
+    "accountNeedsReview": "Debes revisar algunos datos del bróker. Vuelve a sincronizar o gestiona la conexión con tu bróker.",
+    "holdingsSynced": "Las posiciones se sincronizaron, pero la sincronización de actividades requiere atención. Vuelve a intentarlo o gestiona la conexión con tu bróker.",
+    "holdingsDeferred": "La sincronización de posiciones requiere atención. Vuelve a intentarlo o gestiona la conexión con tu bróker."
   }
 }

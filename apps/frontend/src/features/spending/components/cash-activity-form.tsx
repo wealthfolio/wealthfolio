@@ -1,3 +1,6 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+
+import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -15,7 +18,13 @@ import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { invalidateSpendingCaches } from "../lib/invalidation";
-import type { Account, Activity, ActivityCreate, ActivityUpdate } from "@/lib/types";
+import type {
+  Account,
+  Activity,
+  ActivityCreate,
+  ActivityUpdate,
+  TaxonomyCategory,
+} from "@/lib/types";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 
 import {
@@ -62,9 +71,10 @@ import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSettings } from "@/hooks/use-settings";
 import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields/advanced-options-section";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 import { QuickEventPopover } from "./quick-event-popover";
-import type { CashFlowBucket } from "../types/cash-activity";
+import type { ActivitySplit, CashFlowBucket } from "../types/cash-activity";
 import {
   cashActivityFlowMetadata,
   resolveCashActivitySubtype,
@@ -168,6 +178,7 @@ interface CashActivityFormProps {
   onOpenChange: (open: boolean) => void;
   activity?: Activity & {
     cashFlowBucket?: CashFlowBucket;
+    splits?: ActivitySplit[];
     categoryAssignmentId?: string;
     categoryTaxonomyId?: string;
     categoryId?: string;
@@ -183,6 +194,7 @@ export function CashActivityForm({
   onTransferClick,
 }: CashActivityFormProps) {
   const { t } = useTranslation();
+  const reviewEdits = useActivitySplitReview();
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const isEditing = !!activity?.id;
   const isMobile = useIsMobileViewport();
@@ -210,16 +222,12 @@ export function CashActivityForm({
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
 
   const allCategoriesById = useMemo(() => {
-    const map = new Map<string, { name: string; color: string | null; parentId: string | null }>();
-    (spending.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
-    );
-    (income.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
-    );
-    (savings.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
-    );
+    const map = new Map<string, TaxonomyCategory>();
+    [
+      ...(spending.data?.categories ?? []),
+      ...(income.data?.categories ?? []),
+      ...(savings.data?.categories ?? []),
+    ].forEach((c) => map.set(c.id, c));
     return map;
   }, [spending.data?.categories, income.data?.categories, savings.data?.categories]);
 
@@ -298,14 +306,23 @@ export function CashActivityForm({
           t,
           type,
           selectedAccount?.accountType,
-          type === "CREDIT" && !isCreditCardAccountType(selectedAccount?.accountType)
-            ? "REIMBURSEMENT"
-            : undefined,
+          resolveCashActivitySubtype({
+            activityType: type,
+            accountType: selectedAccount?.accountType,
+            existingActivityType: activity?.activityType,
+            existingSubtype: activity?.subtype,
+          }),
         ),
         description: getMobileTypeDescription(type, t),
         Icon: getMobileTypeIcon(type),
       })),
-    [activityTypeOptions, selectedAccount?.accountType, t],
+    [
+      activityTypeOptions,
+      selectedAccount?.accountType,
+      activity?.activityType,
+      activity?.subtype,
+      t,
+    ],
   );
   const isIncomeType = isCashActivityIncome(
     watchType,
@@ -375,7 +392,8 @@ export function CashActivityForm({
           comment: values.notes ?? null,
           metadata: cashActivityFlowMetadata(values.activityType, subtype, activity?.metadata),
         };
-        saved = await updateActivity(update);
+        const [reviewed] = await reviewEdits([update]);
+        saved = await updateActivity(reviewed);
       } else {
         const create: ActivityCreate = {
           accountId: values.accountId,
@@ -426,6 +444,7 @@ export function CashActivityForm({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
+      if (isActivityEditCancelled(e)) return;
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });
@@ -539,7 +558,7 @@ export function CashActivityForm({
                         name="activityType"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-lg font-semibold leading-none">
+                            <FormLabel className="text-lg leading-none font-semibold">
                               {t("spending:cashForm.selectType")}
                             </FormLabel>
                             <FormControl>
@@ -604,17 +623,9 @@ export function CashActivityForm({
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {activityTypeOptions.map((type) => (
+                                  {mobileTypeOptions.map(({ type, label }) => (
                                     <SelectItem key={type} value={type}>
-                                      {getCashActivityLabel(
-                                        t,
-                                        type,
-                                        selectedAccount?.accountType,
-                                        type === "CREDIT" &&
-                                          !isCreditCardAccountType(selectedAccount?.accountType)
-                                          ? "REIMBURSEMENT"
-                                          : undefined,
-                                      )}
+                                      {label}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -723,14 +734,36 @@ export function CashActivityForm({
                         const currentParent = currentCat?.parentId
                           ? allCategoriesById.get(currentCat.parentId)
                           : null;
+                        const currentCatLabel = currentCat
+                          ? getCategoryLabel(
+                              t,
+                              currentCat.taxonomyId,
+                              currentCat.id,
+                              currentCat.name,
+                            )
+                          : "";
+                        const currentParentLabel = currentParent
+                          ? getCategoryLabel(
+                              t,
+                              currentParent.taxonomyId,
+                              currentParent.id,
+                              currentParent.name,
+                            )
+                          : "";
                         return (
                           <FormItem>
                             <FormLabel>
                               {isNeutralBucket ? t("spending:filters.category") : categoryLabel}
                             </FormLabel>
-                            {isNeutralBucket ? (
+                            {(activity?.splits?.length ?? 0) > 0 ? (
+                              <p className="text-muted-foreground rounded-md border px-3 py-2 text-sm">
+                                {t("spending:split.categoryProtected")}
+                              </p>
+                            ) : isNeutralBucket ? (
                               <div className="border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm">
-                                {t("spending:cashForm.neutralTransfer")}
+                                {watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
+                                  ? t("spending:cashForm.neutralTransfer")
+                                  : t("spending:transactions.neutral")}
                               </div>
                             ) : (
                               <QuickCategorizePopover
@@ -742,27 +775,26 @@ export function CashActivityForm({
                                   <FormControl>
                                     <button
                                       type="button"
-                                      className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                      className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
                                       aria-label={
                                         currentCat
                                           ? t("spending:transactions.changeCategory", {
-                                              name: currentCat.name,
+                                              name: currentCatLabel,
                                             })
                                           : t("spending:cashForm.pickCategory")
                                       }
                                     >
                                       {currentCat ? (
                                         <span className="flex min-w-0 items-center gap-2">
-                                          {currentCat.color && (
-                                            <span
-                                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                              style={{ backgroundColor: currentCat.color }}
-                                              aria-hidden="true"
-                                            />
-                                          )}
+                                          <CategoryIconTile
+                                            icon={currentCat.icon ?? null}
+                                            color={currentCat.color ?? null}
+                                            className="h-5 w-5"
+                                            iconClassName="h-3 w-3"
+                                          />
                                           <span className="truncate">
-                                            {currentParent ? `${currentParent.name} / ` : ""}
-                                            {currentCat.name}
+                                            {currentParent ? `${currentParentLabel} / ` : ""}
+                                            {currentCatLabel}
                                           </span>
                                         </span>
                                       ) : (
@@ -795,7 +827,7 @@ export function CashActivityForm({
                         trigger={
                           <button
                             type="button"
-                            className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                            className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
                             aria-label={
                               eventId && eventsById.get(eventId)
                                 ? t("spending:transactions.changeEvent", {

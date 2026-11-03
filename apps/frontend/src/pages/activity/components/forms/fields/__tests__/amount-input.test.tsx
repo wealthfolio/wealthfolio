@@ -96,6 +96,23 @@ describe("activity AmountInput field", () => {
     expect(screen.getByRole("status", { name: "form value" })).toHaveTextContent("12.345");
   });
 
+  it("follows the currency's decimals when no limit is given", async () => {
+    const user = userEvent.setup();
+    const typed = async (currency: string) => {
+      const { unmount } = render(<TestForm currency={currency} />);
+      const input = screen.getByRole<HTMLInputElement>("textbox", { name: "Amount" });
+      await user.type(input, "1.2356");
+      const value = input.value;
+      unmount();
+      return value;
+    };
+
+    // KWD has three decimals; JPY has none but keeps the two it always took.
+    expect(await typed("KWD")).toBe("1.235");
+    expect(await typed("USD")).toBe("1.23");
+    expect(await typed("JPY")).toBe("1.23");
+  });
+
   it("renders React Hook Form validation errors on the input", async () => {
     const user = userEvent.setup();
     render(<TestForm currency="USD" />);

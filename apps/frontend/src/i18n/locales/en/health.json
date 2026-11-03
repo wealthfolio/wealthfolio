@@ -192,7 +192,12 @@
     "to_market_data": "View Market Data",
     "to_general_settings": "Open General Settings",
     "to_connect": "Configure Accounts",
-    "review_transfers": "Review transfers"
+    "review_transfers": "Review transfers",
+    "rebuild_account_history": "Rebuild History",
+    "add_price": "Add Price",
+    "update_cost_basis": "Update Cost Basis",
+    "review_transaction": "Review Transaction",
+    "review_entry": "Review entry"
   },
   "updatedAt": "Updated {{time}}",
   "healthy": {

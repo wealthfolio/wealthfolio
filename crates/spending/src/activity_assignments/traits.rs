@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use crate::activity_splits::ActivitySplit;
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -34,11 +37,13 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
     /// Same single-select assignment semantics as `assign_many_single_select`,
-    /// but also clears split lines for the affected activities in the same
-    /// repository transaction.
+    /// but protects split lines unless the caller explicitly provides their
+    /// expected current state. Revalidation and replacement are atomic across
+    /// the entire batch, including rows that acquired splits since preview.
     async fn assign_many_single_select_clearing_splits(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
+        split_replacements: HashMap<String, Vec<ActivitySplit>>,
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
     /// Rule-rerun variant of `assign_many_single_select`.
@@ -49,6 +54,31 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
         items: Vec<NewActivityTaxonomyAssignment>,
         only_uncategorized: bool,
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
+
+    async fn assign_rules_detailed(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        let assignments = self
+            .assign_rule_many_single_select(items, only_uncategorized)
+            .await?;
+        Ok(super::RuleAssignmentResult {
+            eligible: assignments.len(),
+            changed: assignments.len(),
+            assignments,
+            ..Default::default()
+        })
+    }
+    async fn preview_rules(
+        &self,
+        _items: Vec<NewActivityTaxonomyAssignment>,
+        _only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        Err(anyhow::anyhow!(
+            "Rule preview is unavailable for this repository"
+        ))
+    }
 
     /// Remove a single assignment by id.
     async fn delete(&self, id: &str) -> Result<()>;

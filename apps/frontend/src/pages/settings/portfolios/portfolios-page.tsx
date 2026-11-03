@@ -46,6 +46,8 @@ import {
 } from "@wealthfolio/ui";
 import { SettingsHeader } from "../settings-header";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function PortfoliosPage() {
   const { t } = useTranslation();
@@ -107,7 +109,7 @@ export default function PortfoliosPage() {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:portfolios.title")}
+          heading={t("settings:nav.items.portfolios")}
           text={t("settings:portfolios.description")}
           actionsInline
         >
@@ -145,7 +147,7 @@ export default function PortfoliosPage() {
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="divide-border bg-card divide-y rounded-md border">
+          <div className={cn(cardSurfaceClassName, "divide-border divide-y")}>
             {portfolios.map((p) => {
               const missingAccountCount = p.accountIds.filter(
                 (id) => !existingAccountIds.has(id),
@@ -199,9 +201,13 @@ export default function PortfoliosPage() {
 
                   <div className="flex items-center space-x-2">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+                      {/* Named by aria-label, as in account operations: an sr-only span
+                          here is placed against the settings shell (#2252). */}
+                      <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon-xs" />}
+                        aria-label={t("settings:portfolios.operations_open")}
+                      >
                         <Icons.MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>
@@ -346,7 +352,7 @@ function PortfolioDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("settings:portfolios.accounts_label")}</Label>
+            <Label>{t("common:accounts")}</Label>
             <div className="divide-border max-h-56 overflow-y-auto rounded-md border">
               {accountOptions.length === 0 ? (
                 <p className="text-muted-foreground p-3 text-sm">

@@ -12,7 +12,6 @@
     "more": "Mais"
   },
   "securities": {
-    "heading": "Valores mobiliários",
     "subtitle": "Explore e gerencie os ativos disponíveis na sua carteira.",
     "add_security": "Adicionar ativo",
     "delete_title": "Excluir ativo",
@@ -64,12 +63,12 @@
       "symbol_required": "O símbolo é obrigatório",
       "symbol_max": "O símbolo deve ter no máximo 100 caracteres",
       "name_required": "O nome é obrigatório",
-      "name_max": "O nome deve ter no máximo 100 caracteres",
+      "name_max": "O nome deve ter no máximo 200 caracteres",
       "instrument_type_required": "O tipo de instrumento é obrigatório",
       "currency_required": "A moeda é obrigatória"
     },
     "instrumentType": {
-      "equity": "Renda variável (Ação, ETF, Fundo)",
+      "equity": "Renda variável (ação, ETF, fundo)",
       "crypto": "Criptomoeda",
       "bond": "Título",
       "option": "Opção",
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "ex.: SBER, AFLT",
+    "moex_symbol_hint": "Use um código de título da MOEX sem prefixo ou sufixo. Defina a bolsa como Moscow Exchange (MISX).",
     "identity_conflict": "Outro ativo já tem esta identidade. As alterações não foram guardadas. Utilize o ativo existente ou escolha outra bolsa.",
     "general": "Geral",
     "classification": "Classificação",
@@ -308,7 +309,7 @@
     "data_provider_sheet_description": "Selecione o provedor de dados para este mapeamento de símbolo",
     "invalid_mappings_warning": "Alguns mapeamentos de símbolo não puderam ser validados. Os preços podem não ser atualizados para essas entradas.",
     "instrumentType": {
-      "equity": "Renda variável (Ação, ETF, Fundo)",
+      "equity": "Renda variável (ação, ETF, fundo)",
       "crypto": "Criptomoeda",
       "bond": "Título",
       "option": "Opção",
@@ -701,6 +702,18 @@
       "precious_metal": "Metal precioso",
       "liability": "Passivo",
       "other": "Outro"
+    },
+    "validation": {
+      "name_is_required": "O nome é obrigatório",
+      "quantity_must_be_greater_than_0": "A quantidade deve ser maior que 0",
+      "purchase_price_must_be_greater_than_0": "O preço de compra deve ser maior que 0",
+      "notes_must_be_less_than_1000_characters": "As notas devem ter menos de 1000 caracteres",
+      "address_must_be_less_than_200_characters": "O endereço deve ter menos de 200 caracteres",
+      "interest_rate_must_be_100_or_less": "A taxa de juros deve ser 100 ou menos",
+      "name_must_be_less_than_100_characters": "O nome deve ter menos de 100 caracteres",
+      "interest_rate_must_be_0_or_greater": "A taxa de juros deve ser 0 ou superior",
+      "description_must_be_less_than_200_characters": "A descrição deve ter menos de 200 caracteres",
+      "original_amount_must_be_greater_than_0": "O valor original precisa ser maior que 0"
     }
   },
   "updateValuation": {
@@ -715,7 +728,12 @@
     "notes_placeholder": "Adicione qualquer contexto sobre esta avaliação (ex.: fonte da avaliação, condições de mercado)",
     "cancel": "Cancelar",
     "update_value": "Atualizar valor",
-    "na": "N/D"
+    "na": "N/D",
+    "validation": {
+      "number": "O valor deve ser um número.",
+      "non_negative": "O valor não pode ser negativo",
+      "notes": "As notas não devem exceder 500 caracteres"
+    }
   },
   "valueHistory": {
     "date": "Data",
@@ -1025,5 +1043,25 @@
     "payment_invalid": "Insira um pagamento maior que zero.",
     "payment_unavailable": "Não é possível calcular um pagamento com estas condições. Verifique o valor, a taxa e a amortização.",
     "fields_read_only": "As condições do empréstimo só podem ser alteradas nos detalhes do empréstimo."
+  },
+  "notifications": {
+    "profile_updated": "Perfil do ativo atualizado.",
+    "quote_mode_updated": "Modo de cotação do ativo atualizado.",
+    "profile_failed": "Não foi possível atualizar o perfil do ativo.",
+    "quote_mode_failed": "Não foi possível atualizar o modo de cotação.",
+    "quote_added": "Cotação adicionada.",
+    "quote_updated": "Cotação atualizada.",
+    "quote_deleted": "Cotação excluída.",
+    "quote_save_failed": "Não foi possível salvar a cotação.",
+    "quote_delete_failed": "Não foi possível excluir a cotação."
+  },
+  "noQuote": {
+    "manual": "O modo de cotação é manual",
+    "inactive": "O ativo está inativo",
+    "matured": "O título venceu",
+    "expired": "A opção expirou",
+    "paused": "Sincronização pausada após erros repetidos",
+    "pending": "Nenhuma cotação do provedor foi sincronizada ainda",
+    "no_data": "Ainda não há dados disponíveis do provedor"
   }
 }

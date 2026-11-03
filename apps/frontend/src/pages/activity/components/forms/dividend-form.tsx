@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -230,6 +231,7 @@ export function DividendForm({
   const { getFieldState, getValues, setValue } = form;
   const accountId = watch("accountId");
   const currency = watch("currency");
+  const symbolInstrumentType = watch("symbolInstrumentType");
   const subtype = watch("subtype");
   const quantity = watch("quantity");
   const unitPrice = watch("unitPrice");
@@ -243,11 +245,12 @@ export function DividendForm({
     const q = Number(quantity);
     const p = Number(unitPrice);
     if (amountWasEdited.current) return;
-    const computedAmount = calculateIncomeFinalAmount(
+    const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      getValues("symbolInstrumentType"),
-    );
+      instrumentType: symbolInstrumentType,
+      currency,
+    });
     if (computedAmount === undefined) return;
     const currentAmount = Number(getValues("amount"));
     const quantityIsDirty = getFieldState("quantity").isDirty;
@@ -264,7 +267,16 @@ export function DividendForm({
         });
       }
     }
-  }, [getFieldState, getValues, isAssetBacked, quantity, setValue, unitPrice]);
+  }, [
+    currency,
+    getFieldState,
+    getValues,
+    isAssetBacked,
+    quantity,
+    setValue,
+    symbolInstrumentType,
+    unitPrice,
+  ]);
 
   const handleDividendModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {
@@ -283,6 +295,7 @@ export function DividendForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -381,7 +394,7 @@ export function DividendForm({
                     : t("activity:form.label_fmv_per_unit")
                 }
                 labelHelpText={subtype === ACTIVITY_SUBTYPES.DRIP ? undefined : fmvHelpText}
-                maxDecimalPlaces={4}
+                maxDecimalPlaces={DECIMAL_PRECISION}
                 currency={currency}
               />
             </div>
@@ -400,11 +413,13 @@ export function DividendForm({
               onValueChange={() => {
                 amountWasEdited.current = true;
               }}
+              maxDecimalPlaces={moneyDecimals}
             />
             <AmountInput
               name="tax"
               label={t("activity:form.label_withholding_tax")}
               currency={currency}
+              maxDecimalPlaces={moneyDecimals}
             />
           </div>
         </FormSection>

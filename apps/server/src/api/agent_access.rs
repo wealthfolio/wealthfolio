@@ -12,7 +12,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use wealthfolio_agent_tools::{AgentScope, AgentScopeSet};
+use wealthfolio_agent_tools::scope::validate_requested_scopes;
 use wealthfolio_storage_sqlite::agent::{
     AuditFilter, McpAuditLogDB, NewPersonalAccessToken, PersonalAccessTokenDB,
 };
@@ -91,25 +91,6 @@ struct CreateTokenRequest {
     scopes: Vec<String>,
 }
 
-/// Validate the requested scope strings and return the canonical, deduped set.
-fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, ApiError> {
-    if requested.is_empty() {
-        return Err(ApiError::BadRequest(
-            "At least one scope is required".into(),
-        ));
-    }
-    let mut set = AgentScopeSet::new();
-    for scope in requested {
-        let parsed = AgentScope::parse(scope)
-            .ok_or_else(|| ApiError::BadRequest(format!("Unknown scope: {scope}")))?;
-        set.insert(parsed);
-    }
-    if let Some(err) = set.dependency_error() {
-        return Err(ApiError::BadRequest(err));
-    }
-    Ok(set.iter().map(|s| s.as_str().to_string()).collect())
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CreatedTokenResponse {
@@ -136,7 +117,7 @@ async fn create_token(
             .map_err(|_| ApiError::BadRequest("expiresAt must be an RFC 3339 timestamp".into()))?;
     }
 
-    let scopes = validate_requested_scopes(&payload.scopes)?;
+    let scopes = validate_requested_scopes(&payload.scopes).map_err(ApiError::BadRequest)?;
 
     let token = generate_token();
     let prefix = token_prefix(&token)
@@ -166,6 +147,26 @@ async fn create_token(
             expires_at: row.expires_at,
         }),
     ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateTokenScopesRequest {
+    scopes: Vec<String>,
+}
+
+async fn update_token_scopes(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateTokenScopesRequest>,
+) -> ApiResult<Json<TokenInfo>> {
+    let scopes = validate_requested_scopes(&payload.scopes).map_err(ApiError::BadRequest)?;
+    let row = state
+        .pat_repository
+        .update_scopes(&id, scopes)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(row.into()))
 }
 
 async fn delete_token(
@@ -292,7 +293,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/agent-access/status", get(status))
         .route("/agent-access/tokens", get(list_tokens).post(create_token))
-        .route("/agent-access/tokens/{id}", delete(delete_token))
+        .route(
+            "/agent-access/tokens/{id}",
+            delete(delete_token).patch(update_token_scopes),
+        )
         .route("/agent-access/audit", get(list_audit))
         .route("/agent-access/audit/purge", post(purge_audit))
 }

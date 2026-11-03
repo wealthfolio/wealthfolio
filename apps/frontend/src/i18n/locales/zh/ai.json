@@ -408,7 +408,8 @@
     "monthlyAverage": "月均",
     "byType": "按类型",
     "monthlyIncome": "月收入",
-    "sources": "来源"
+    "sources": "来源",
+    "yoyShort": "同比"
   },
   "categorizationContext": {
     "loading": "正在加载归类上下文…",
@@ -608,5 +609,29 @@
       "otherTitle": "其他",
       "otherBlurb": "杂项提供商特定选项。"
     }
+  },
+  "runtimeErrors": {
+    "settingsLink": "AI 提供方设置",
+    "thisModel": "此模型",
+    "selectedModel": "所选模型",
+    "thinkingUnsupported": "**不支持思考模式**\n\n{{modelName}} 不支持思考或推理功能。\n\n请尝试支持此功能的其他模型，或检查{{settingsLink}}。",
+    "modelUnavailable": "**模型不可用**\n\n找不到模型“{{modelName}}”。可能原因：\n- 尚未下载模型\n- 模型名称不正确\n- AI 提供方服务未运行\n\n请在{{settingsLink}}中选择其他模型或检查提供方配置。",
+    "connectionRefused": "**无法连接 AI 提供方**\n\nAI 提供方服务似乎未运行。请：\n1. 启动本地 AI 提供方（如 Ollama）\n2. 在{{settingsLink}}中核对提供方网址\n3. 重试",
+    "authentication": "**身份验证失败**\n\nAPI 密钥可能无效或缺失。请检查{{settingsLink}}，确保 API 密钥配置正确。",
+    "rateLimit": "**请求过于频繁**\n\n请求次数过多，请稍候重试。",
+    "timeout": "**请求超时**\n\nAI 提供方响应时间过长。可能是网络较慢、提供方负载过高或请求过于复杂。\n\n请重试，或在{{settingsLink}}中选择更快的模型。",
+    "provider": "**提供方错误**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。",
+    "unknown": "**出现问题**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。"
+  },
+  "importSessionErrors": {
+    "missingCsv": "没有可用的 CSV 内容。AI 工具结果可能不完整。",
+    "emptyCsv": "CSV 文件不包含数据行。",
+    "noActivities": "无法提取交易，列映射可能不正确。",
+    "prepareFailed": "无法准备 CSV 导入。",
+    "revalidateFailed": "重新验证失败。",
+    "nothing": "没有可导入的内容。",
+    "allInvalid": "所有交易都有验证错误。请修正后重试。",
+    "importFailed": "导入交易失败。",
+    "reviewAndRetry": "导入失败。请检查错误后重试。"
   }
 }

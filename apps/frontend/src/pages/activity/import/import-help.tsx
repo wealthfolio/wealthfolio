@@ -118,7 +118,7 @@ function ActivitiesHelpContent({ transactionImport }: { transactionImport: boole
       <div className="space-y-4">
         <div>
           <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
-          <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
+          <pre className="bg-muted mt-2 overflow-x-auto p-3 text-xs leading-relaxed select-all">
             <span className="text-muted-foreground">
               {t("activity:import.help.exampleStandard")}
             </span>
@@ -164,13 +164,13 @@ function ActivitiesHelpContent({ transactionImport }: { transactionImport: boole
               <li>INTEREST</li>
               <li>DEPOSIT</li>
               <li>WITHDRAWAL</li>
-              <li>TRANSFER_IN (Moves cash/assets in)</li>
-              <li>TRANSFER_OUT (Moves cash/assets out)</li>
+              <li>TRANSFER_IN ({t("common:notifications.moves_cash_assets_in")})</li>
+              <li>TRANSFER_OUT ({t("common:notifications.moves_cash_assets_out")})</li>
               <li>FEE</li>
               <li>TAX</li>
-              <li>SPLIT (Use Amount as the split ratio, e.g. 2 for 2:1)</li>
-              <li>CREDIT (Cash credits: refunds, rebates, bonuses)</li>
-              <li>ADJUSTMENT (Non-trade corrections)</li>
+              <li>SPLIT ({t("common:notifications.split_ratio_example")})</li>
+              <li>CREDIT ({t("common:notifications.cash_credits_refunds_rebates_bonuses")})</li>
+              <li>ADJUSTMENT ({t("common:notifications.non_trade_corrections")})</li>
             </ul>
           </pre>
         </div>
@@ -274,7 +274,7 @@ function HoldingsHelpContent() {
       <div className="space-y-4">
         <div>
           <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
-          <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
+          <pre className="bg-muted mt-2 overflow-x-auto p-3 text-xs leading-relaxed select-all">
             <span className="text-muted-foreground">
               {t("activity:import.help.holdingsExampleSnapshot")}
             </span>
@@ -378,7 +378,7 @@ export function ImportHelpPopover({
         >
           <Icons.HelpCircle className="h-6 w-6" />
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh]">
+        <SheetContent side="bottom" className="mx-1 h-[85vh] rounded-t-4xl">
           <SheetHeader>
             <SheetTitle>{t("activity:import.help.mobileTitle")}</SheetTitle>
           </SheetHeader>
@@ -396,7 +396,7 @@ export function ImportHelpPopover({
         <Icons.HelpCircle className="me-1 h-5 w-5" />
         {t("activity:import.help.button")}
       </PopoverTrigger>
-      <PopoverContent className="w-225 m-4 max-h-[80vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">
+      <PopoverContent className="m-4 max-h-[80vh] w-225 max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">
         {helpContent}
       </PopoverContent>
     </Popover>

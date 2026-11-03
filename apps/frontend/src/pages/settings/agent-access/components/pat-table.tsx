@@ -20,6 +20,7 @@ import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -34,6 +35,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAccessTokens } from "../hooks/use-access-tokens";
 import { matchPreset, presetLabel, scopeLabel } from "../scopes";
+import { PatEditDialog } from "./pat-edit-dialog";
 import { PatCreateDialog } from "./pat-create-dialog";
 
 type TokenStatus = "active" | "expired" | "revoked";
@@ -114,64 +116,66 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
   const { uiLocale } = useLocalizationSettings();
   const dateFnsLocale = dateFnsLocaleFor(uiLocale);
   const { t } = useTranslation();
-  const { tokens, isLoading, createMutation, deleteMutation } = useAccessTokens();
+  const { tokens, isLoading, createMutation, updateMutation, deleteMutation } = useAccessTokens();
+  const [editing, setEditing] = useState<AgentAccessToken | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<AgentAccessToken | null>(null);
 
   return (
-    <Card className="rounded-lg">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-6 pb-4">
-        <div className="min-w-0 space-y-1">
-          <CardTitle className="text-base font-semibold tracking-tight">
-            {t("settings:agentAccess.pat_title")}
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {t("settings:agentAccess.pat_description")}
-          </CardDescription>
-        </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Icons.Plus className="me-2 h-4 w-4" />
-          {t("settings:agentAccess.pat_create")}
-        </Button>
+    <Card>
+      <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+        <CardTitle role="heading" aria-level={2} className="text-lg">
+          {t("settings:agentAccess.pat_title")}
+        </CardTitle>
+        <CardDescription>{t("settings:agentAccess.pat_description")}</CardDescription>
+        <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+          <Button size="sm" className="max-sm:w-full" onClick={() => setCreateOpen(true)}>
+            <Icons.Plus className="me-2 h-4 w-4" />
+            {t("settings:agentAccess.pat_create")}
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent className="p-6 pt-0">
+      <CardContent>
         {isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-16 rounded-md" />
             <Skeleton className="h-16 rounded-md" />
           </div>
         ) : tokens.length === 0 ? (
-          <div className="text-muted-foreground rounded-md border border-dashed py-8 text-center text-xs">
+          <p className="text-muted-foreground py-8 text-center text-sm">
             {t("settings:agentAccess.pat_empty")}
-          </div>
+          </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <ul className="settings-list divide-y" aria-label={t("settings:agentAccess.pat_title")}>
             {tokens.map((token) => {
               const status = tokenStatus(token);
               const inactive = status !== "active";
               return (
-                <div
+                <li
                   key={token.id}
                   className={cn(
-                    "grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md border px-4 py-3.5 transition-colors",
-                    inactive
-                      ? "border-border border-dashed bg-transparent opacity-80"
-                      : "bg-muted/30 border-border",
+                    "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[auto_minmax(0,1fr)_auto]",
                   )}
                 >
                   <div
                     className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-md border",
-                      inactive
-                        ? "border-border/60 text-muted-foreground bg-transparent"
-                        : "bg-background border-border text-foreground",
+                      "bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg",
+                      inactive && "opacity-60",
                     )}
                   >
-                    <Icons.ShieldCheck size={18} weight="duotone" />
+                    <Icons.ShieldCheck className="size-5" weight="duotone" />
                   </div>
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">{token.name}</span>
+                      <span
+                        dir="auto"
+                        className={cn(
+                          "truncate text-sm font-medium rtl:text-right",
+                          inactive && "text-muted-foreground",
+                        )}
+                      >
+                        {token.name}
+                      </span>
                       <Badge variant="secondary" className="font-normal">
                         {t(STATUS_LABEL_KEY[status])}
                       </Badge>
@@ -182,8 +186,11 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                       {formatLastUsed(t, token.lastUsedAt, dateFnsLocale)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="col-span-2 flex flex-wrap items-center justify-end gap-3 sm:col-span-1">
                     <ScopeBadge scopes={token.scopes} />
+                    <Button variant="outline" size="sm" onClick={() => setEditing(token)}>
+                      {t("settings:agentAccess.edit_permissions")}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -193,12 +200,22 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                       {t("settings:agentAccess.pat_remove")}
                     </Button>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </CardContent>
+
+      {editing && (
+        <PatEditDialog
+          key={editing.id}
+          token={editing}
+          onClose={() => setEditing(null)}
+          onSave={(scopes) => updateMutation.mutateAsync({ id: editing.id, scopes })}
+          isSaving={updateMutation.isPending}
+        />
+      )}
 
       <PatCreateDialog
         open={createOpen}

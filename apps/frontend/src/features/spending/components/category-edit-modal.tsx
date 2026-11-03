@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -21,6 +22,8 @@ interface CategoryEditModalProps {
   showExcludeToggle?: boolean;
   initialExcluded?: boolean;
   parentExcluded?: boolean;
+  parentOptions?: CategoryNode[];
+  parentLocked?: boolean;
 }
 
 export function CategoryEditModal({
@@ -33,6 +36,8 @@ export function CategoryEditModal({
   showExcludeToggle,
   initialExcluded,
   parentExcluded,
+  parentOptions,
+  parentLocked,
 }: CategoryEditModalProps) {
   const { t } = useTranslation();
   const isEditing = !!category;
@@ -47,7 +52,11 @@ export function CategoryEditModal({
   const getDescription = () => {
     if (isEditing) return t("spending:category.editDescription");
     if (isSubcategory)
-      return t("spending:category.addSubcategoryDescription", { name: parentCategory?.name });
+      return t("spending:category.addSubcategoryDescription", {
+        name: parentCategory
+          ? getCategoryLabel(t, parentCategory.taxonomyId, parentCategory.id, parentCategory.name)
+          : undefined,
+      });
     return t("spending:category.addDescription");
   };
 
@@ -67,6 +76,8 @@ export function CategoryEditModal({
           showExcludeToggle={showExcludeToggle}
           initialExcluded={initialExcluded}
           parentExcluded={parentExcluded}
+          parentOptions={parentOptions}
+          parentLocked={parentLocked}
         />
       </DialogContent>
     </Dialog>

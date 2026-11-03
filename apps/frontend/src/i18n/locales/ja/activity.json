@@ -46,6 +46,8 @@
   "subtype_position_close": "決済",
   "subtype_return_of_capital": "資本の払い戻し",
   "subtype_notional_distribution": "みなし分配",
+  "subtype_conversion_out": "スイッチング（払出）",
+  "subtype_conversion_in": "スイッチング（受入）",
   "type_buy_desc": "資産を購入します。保有数量が増加し、現金残高が減少します。",
   "type_sell_desc": "資産を売却します。保有数量が減少し、現金残高が増加します。",
   "type_deposit_desc": "資金を追加して口座残高を増やします。",
@@ -198,6 +200,7 @@
   "mobile_type_fee_desc": "口座または取引の手数料です",
   "mobile_type_tax_desc": "税金の支払いです",
   "mobile_type_split_desc": "株式分割の調整です",
+  "mobile_type_conversion_desc": "取得原価を引き継いでファンドを乗り換えます",
   "mobile_date_time": "日時",
   "mobile_fee_optional": "手数料(任意)",
   "mobile_description_optional": "説明(任意)",
@@ -314,7 +317,8 @@
   "delete_modal": {
     "title": "取引を削除しますか?",
     "description": "この取引は完全に削除されます。この操作は元に戻せません。",
-    "linked_transfer_desc": "この取引は振替ペアにリンクされています。両方の取引が完全に削除されます。この操作は元に戻せません。"
+    "linked_transfer_desc": "この取引は振替ペアにリンクされています。両方の取引が完全に削除されます。この操作は元に戻せません。",
+    "linked_conversion_desc": "この取引はスイッチングの片側です。両方の取引が完全に削除されます。この操作は元に戻せません。"
   },
   "form_renderer": {
     "select_type": "続行するには上から取引タイプを選択してください",
@@ -331,6 +335,7 @@
     "count_other": "この日付に記録された取引は{{count}}件です"
   },
   "picker": {
+    "conversion": "スイッチング",
     "transfer": "振替",
     "split": "株式分割",
     "all_types_group": "すべての取引タイプ",
@@ -461,6 +466,13 @@
     "within_days_other": "{{count}}日以内"
   },
   "form": {
+    "section_conversion": "スイッチング",
+    "section_conversion_from": "転換元",
+    "section_conversion_to": "転換先",
+    "conversion_hint": "ある資産の口数を別の資産の口数に替え、取得原価を引き継ぎます（ファンドのスイッチング、クラスやシリーズの変更、投資信託からETFへの転換、トークンの移行など）。課税対象の乗り換えは、売却と購入として記録してください。",
+    "button_add_conversion": "スイッチングを追加",
+    "warn_converting_more_than_held": "{{converting}} 口を転換しようとしていますが、この口座の現在の保有は {{available}} です。",
+    "err_conversion_same_asset": "転換先には別の資産を選んでください。",
     "section_asset_account": "資産と口座",
     "section_account": "口座",
     "section_amount": "金額",
@@ -950,7 +962,15 @@
       "mapSymbol": "銘柄をマッピング",
       "missingAccount": "口座が未設定",
       "emptySymbol": "銘柄が空",
-      "accountAssignmentBlankRows_other": "すべてのCSV行を口座にマッピングしてください。{{count}}行がまだ未設定です。アップロードでデフォルト口座を選択するか、口座列を入力してください。"
+      "accountAssignmentBlankRows_other": "すべてのCSV行を口座にマッピングしてください。{{count}}行がまだ未設定です。アップロードでデフォルト口座を選択するか、口座列を入力してください。",
+      "statusIncluded": "インポート対象",
+      "skippedCount_one": "{{count}}行スキップ済み",
+      "skippedCount_other": "{{count}}行スキップ済み",
+      "allRowsSkipped": "すべての行がスキップされています",
+      "allRowsSkippedDescription": "続行するには、少なくとも1行を含めてください。",
+      "includeRow": "{{line}}行目を含める",
+      "includeAllRows": "すべての行を含める",
+      "includeMatchingRows": "一致するすべての行を含める"
     },
     "csvViewer": {
       "status": "ステータス",
@@ -1059,7 +1079,8 @@
       "statusValid": "有効",
       "skipReason": "スキップ済み",
       "willBeImportedTitle_other": "{{all}}件中{{count}}件の取引がインポートされます",
-      "activitiesCount_other": "{{count}}件の取引"
+      "activitiesCount_other": "{{count}}件の取引",
+      "backend_failed": "サーバー側の検証に失敗しました。インポート前に再検証してください。"
     },
     "status": {
       "valid": "有効",
@@ -1329,6 +1350,57 @@
       "cancel": "キャンセル",
       "importing": "インポート中...",
       "issuesTitle_other": "{{count}}件の取引エントリに問題があります。"
+    },
+    "creditCard": {
+      "charge": "利用",
+      "payment": "支払",
+      "transfer": "残高移行／キャッシング",
+      "refund": "返金／入金",
+      "interest": "利息請求"
     }
+  },
+  "validation": {
+    "account_is_required": "口座を選択してください。",
+    "date_is_required": "日付を選択してください。",
+    "symbol_is_required_for_this_activity_type": "銘柄を入力してください。",
+    "received_quantity_is_required": "受取数量は必須です。",
+    "either_income_amount_or_fmv_per_unit_is_required": "収入額または単位あたりFMVを入力してください。",
+    "fee_cannot_be_negative": "手数料は0以上である必要があります。",
+    "tax_cannot_be_negative": "税金は0以上である必要があります。",
+    "currency_is_required": "通貨は必須です。",
+    "symbol_is_required_for_trade_activities": "銘柄を入力してください。",
+    "quantity_must_be_greater_than_0": "数量は0より大きい値である必要があります。",
+    "unit_price_must_be_greater_than_0": "価格は0より大きい値である必要があります。",
+    "symbol_is_required_for_drip_dividends": "銘柄を入力してください。",
+    "quantity_is_required_for_drip_shares_received": "受取数量は必須です。",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "配当金額または単位あたりFMVのいずれかを入力してください。",
+    "symbol_is_required_for_dividend_in_kind_activities": "銘柄を入力してください。",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "受取数量は必須です。",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "配当金額または単位あたりFMVのいずれかを入力してください。",
+    "amount_is_required_for_dividend_activities": "金額を入力してください。",
+    "symbol_is_required_for_staking_rewards": "報酬資産を選択してください。",
+    "quantity_is_required_for_staking_rewards_tokens_received": "受取数量は必須です。",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "利息金額または単位あたりFMVのいずれかを入力してください。",
+    "amount_is_required_for_interest_activities": "金額を入力してください。",
+    "symbol_is_required_for_split_activities": "銘柄を入力してください。",
+    "amount_split_ratio_must_be_greater_than_0": "分割比率は0より大きい値である必要があります。",
+    "amount_is_required_for_credit_activities": "金額を入力してください。",
+    "activity_type_is_required": "取引種類を選択してください",
+    "date_not_recognized": "日付を認識できません",
+    "map_type": "続行する前にCSVの取引種類を対応付けてください",
+    "credit_card_types": "クレジットカードのインポートは利用、支払、出金振替、返金、手数料、利息のみ対応しています",
+    "fee_or_amount": "手数料取引には手数料または金額が必要です",
+    "amount_or_fee": "税金取引には金額または手数料が必要です",
+    "amount_or_quantity": "振替取引には金額または数量が必要です",
+    "final_cash": "承認前に最終現金額を入力してください",
+    "fx_non_negative": "為替レートは負の値にできません",
+    "transfer_pair": "振替には両側の取引が必要です。同一口座内では異なる2通貨を使用してください",
+    "more": "（他 {{remaining}} 件）",
+    "amount_is_required_for_deposit_withdrawal_activities": "金額を入力してください。"
+  },
+  "validationFields": {
+    "external": "外部振替",
+    "direction": "振替方向",
+    "mode": "振替モード"
   }
 }

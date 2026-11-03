@@ -190,17 +190,17 @@ export function PermissionDialog({
               <>
                 <Button variant="outline" onClick={onDeny}>
                   <Icons.Close className="me-2 h-4 w-4" />
-                  {t("settings:common_close")}
+                  {t("common:close")}
                 </Button>
                 <Button onClick={() => onApprove(approvedNetworkHosts)}>
                   <Icons.Check className="me-2 h-4 w-4" />
-                  {t("settings:common_save")}
+                  {t("common:save")}
                 </Button>
               </>
             ) : (
               <Button onClick={() => onApprove(approvedNetworkHosts)}>
                 <Icons.Check className="me-2 h-4 w-4" />
-                {t("settings:addon_permission_close")}
+                {t("common:close")}
               </Button>
             )
           ) : (

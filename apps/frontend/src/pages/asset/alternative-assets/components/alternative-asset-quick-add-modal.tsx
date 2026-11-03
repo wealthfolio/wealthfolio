@@ -473,7 +473,7 @@ export function AlternativeAssetQuickAddModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-140 flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0"
+        className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-140"
         mobileClassName="flex h-[90vh] flex-col"
       >
         {/* Header with progress indicator */}
@@ -600,7 +600,7 @@ export function AlternativeAssetQuickAddModal({
                         onValueChange={(v) => updateFormData("metalType", v)}
                         options={METAL_TYPES.map((metal) => ({
                           value: metal.value,
-                          label: metal.label,
+                          label: t(`asset:altContent.metalType.${metal.value}`),
                         }))}
                         placeholder={t("asset:quickAdd.select_metal")}
                         sheetTitle={t("asset:quickAdd.select_metal_title")}
@@ -628,7 +628,7 @@ export function AlternativeAssetQuickAddModal({
                           onValueChange={(v) => updateFormData("unit", v)}
                           options={WEIGHT_UNITS.map((unit) => ({
                             value: unit.value,
-                            label: unit.label,
+                            label: t(`asset:altContent.weightUnit.${unit.value}`),
                           }))}
                           placeholder={t("asset:quickAdd.select_unit")}
                           sheetTitle={t("asset:quickAdd.select_unit_title")}
@@ -649,7 +649,7 @@ export function AlternativeAssetQuickAddModal({
                       onValueChange={(v) => updateFormData("liabilityType", v)}
                       options={LIABILITY_TYPES.map((type) => ({
                         value: type.value,
-                        label: type.label,
+                        label: t(`asset:altContent.liabilityType.${type.value}`),
                       }))}
                       placeholder={t("asset:quickAdd.select_type")}
                       sheetTitle={t("asset:quickAdd.select_liability_type_title")}
@@ -837,7 +837,7 @@ export function AlternativeAssetQuickAddModal({
                           aria-expanded={moreOptions}
                           aria-controls={moreOptionsId}
                           onClick={() => setMoreOptions((shown) => !shown)}
-                          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex items-center gap-1 rounded-sm text-sm focus-visible:outline-none focus-visible:ring-2"
+                          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex items-center gap-1 rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-none"
                         >
                           <Icons.ChevronRight
                             className={cn(

@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
@@ -121,6 +122,7 @@ const normalizeMic = (mic?: string | null): string => mic?.trim().toUpperCase() 
 
 const PROVIDER_SYMBOL_HINTS: Record<string, string> = {
   YAHOO: "e.g. AAPL, LYMS.DE",
+  AMFI: "e.g. 122639, INF879O01027",
   COINGECKO: "e.g. bitcoin, ethereum",
   TWELVEDATA: "e.g. AAPL, EUR/USD",
 };
@@ -393,7 +395,7 @@ function SymbolMappingRow({
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [symbol, provider, instrumentType, exchangeMic, quoteCcy, fieldId, onValidationChange]); // eslint-disable-line react-hooks/exhaustive-deps -- initialSymbol is intentionally captured at mount time only
+  }, [symbol, provider, instrumentType, exchangeMic, quoteCcy, fieldId, onValidationChange]); // oxlint-disable-line react/exhaustive-deps -- initialSymbol is intentionally captured at mount time only
 
   return (
     <tr className="border-b last:border-b-0">
@@ -427,7 +429,11 @@ function SymbolMappingRow({
               <FormControl>
                 <div className="relative flex items-center">
                   <Input
-                    placeholder={getSymbolPlaceholder(provider ?? "")}
+                    placeholder={
+                      provider === "MOEX"
+                        ? t("asset:editSheet.moex_symbol_placeholder")
+                        : getSymbolPlaceholder(provider ?? "")
+                    }
                     {...{
                       ...symbolField,
                       value: (symbolField.value as string | undefined) ?? "",
@@ -453,6 +459,11 @@ function SymbolMappingRow({
                   </span>
                 </div>
               </FormControl>
+              {provider === "MOEX" && (
+                <p className="text-muted-foreground text-xs">
+                  {t("asset:editSheet.moex_symbol_hint")}
+                </p>
+              )}
             </FormItem>
           )}
         />
@@ -1183,7 +1194,7 @@ export function AssetEditSheet({
                       key={taxonomy.id}
                       taxonomyId={taxonomy.id}
                       assetId={asset.id}
-                      label={taxonomy.name}
+                      label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                     />
                   ))}
 
@@ -1193,7 +1204,7 @@ export function AssetEditSheet({
                       key={taxonomy.id}
                       taxonomyId={taxonomy.id}
                       assetId={asset.id}
-                      label={taxonomy.name}
+                      label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                     />
                   ))}
               </div>

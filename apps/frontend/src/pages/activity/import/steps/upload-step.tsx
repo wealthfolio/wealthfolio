@@ -64,6 +64,7 @@ import {
   mergeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
 } from "../utils/activity-import-profile";
+import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
 import { badgeVariants } from "@wealthfolio/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +84,8 @@ function CsvPreviewTable({ headers, rows, maxRows = 50 }: CsvPreviewTableProps) 
 
   return (
     <>
-      <table className="w-full">
+      {/* `allow-select` keeps the CSV text selectable under the desktop app's lockdown */}
+      <table className="allow-select w-full">
         <thead className="bg-muted sticky top-0">
           <tr>
             <th className="text-muted-foreground bg-muted w-12 border-e px-2 py-1.5 text-end font-mono text-xs">
@@ -198,7 +200,7 @@ function CsvPreviewTabs({
         <CardContent className="p-0">
           <TabsContent value="parsed" className="m-0 border-0 p-0">
             {/* `isolate` stops WebKitGTK painting the sticky header over this scrollbar inside a scrolling parent */}
-            <div className="max-h-75 isolate overflow-auto border-t">
+            <div className="isolate max-h-75 overflow-auto border-t">
               <CsvPreviewTable headers={headers} rows={rows} maxRows={50} />
             </div>
           </TabsContent>
@@ -230,7 +232,11 @@ function DateFormatPicker({
   const { t } = useTranslation();
   const DATE_FORMAT_SELECT_OPTIONS = useMemo(
     () => [
-      ...dateFormatSelectOptions,
+      ...dateFormatSelectOptions.map((option) => ({
+        ...option,
+        label:
+          option.value === "auto" ? t("activity:import.parseSettings.autoDetect") : option.label,
+      })),
       { value: "__custom__", label: t("activity:import.parseSettings.custom") },
     ],
     [t],
@@ -290,6 +296,7 @@ function formatConfigValue(t: TFunction, key: string, value: string | number | b
       ",": t("activity:import.parseSettings.valueComma"),
       ";": t("activity:import.parseSettings.valueSemicolon"),
       "\t": t("activity:import.parseSettings.valueTab"),
+      "\\t": t("activity:import.parseSettings.valueTab"),
     };
     return delimiterLabels[value as string] || String(value);
   }
@@ -427,7 +434,7 @@ function TemplateSelector({
           />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-t px-3 pb-4 pt-3">
+          <div className="border-t px-3 pt-3 pb-4">
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               {/* Header row checkbox spans full width on mobile */}
               <div className="col-span-2 flex items-center gap-2 sm:col-span-3">
@@ -614,7 +621,9 @@ export function UploadStep() {
           const result = await parseCsv(state.file, nextParseConfig);
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          dispatch(
+            setParseConfig(mergeDetectedParseConfig(nextParseConfig, result.detectedConfig)),
+          );
           headers = result.headers;
         } catch (err) {
           setParseError(
@@ -691,7 +700,9 @@ export function UploadStep() {
         .then((result) => {
           setParseError(null);
           dispatch(setParsedData(result.headers, result.rows));
-          dispatch(setParseConfig(result.detectedConfig));
+          dispatch(
+            setParseConfig(mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig)),
+          );
         })
         .catch((error) => {
           setParseError(
@@ -732,7 +743,11 @@ export function UploadStep() {
             .then((result) => {
               setParseError(null);
               dispatch(setParsedData(result.headers, result.rows));
-              dispatch(setParseConfig(result.detectedConfig));
+              dispatch(
+                setParseConfig(
+                  mergeDetectedParseConfig(baselineParseConfig, result.detectedConfig),
+                ),
+              );
             })
             .catch((error) => {
               setParseError(
@@ -757,7 +772,7 @@ export function UploadStep() {
       .catch(() => {
         /* no saved mapping — ignore */
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [
     applyTemplate,
     baselineParseConfig,
@@ -826,7 +841,7 @@ export function UploadStep() {
     onSuccess: (result) => {
       setParseError(null);
       dispatch(setParsedData(result.headers, result.rows));
-      dispatch(setParseConfig(result.detectedConfig));
+      dispatch(setParseConfig(mergeDetectedParseConfig(state.parseConfig, result.detectedConfig)));
     },
     onError: (error) => {
       setParseError(

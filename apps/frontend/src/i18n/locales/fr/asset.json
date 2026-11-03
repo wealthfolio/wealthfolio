@@ -12,7 +12,6 @@
     "more": "Plus"
   },
   "securities": {
-    "heading": "Titres",
     "subtitle": "Parcourez et gérez les titres disponibles dans votre portefeuille.",
     "add_security": "Ajouter un titre",
     "delete_title": "Supprimer le titre",
@@ -64,7 +63,7 @@
       "symbol_required": "Le symbole est requis",
       "symbol_max": "Le symbole doit comporter 100 caractères ou moins",
       "name_required": "Le nom est requis",
-      "name_max": "Le nom doit comporter 100 caractères ou moins",
+      "name_max": "Le nom doit comporter 200 caractères ou moins",
       "instrument_type_required": "Le type d'instrument est requis",
       "currency_required": "La devise est requise"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "p. ex. SBER, AFLT",
+    "moex_symbol_hint": "Utilisez un code de titre MOEX sans préfixe ni suffixe. Sélectionnez Moscow Exchange (MISX) comme place boursière.",
     "identity_conflict": "Un autre actif possède déjà cette identité. Vos modifications n’ont pas été enregistrées. Utilisez l’actif existant ou choisissez une autre place boursière.",
     "general": "Général",
     "classification": "Classification",
@@ -701,6 +702,18 @@
       "precious_metal": "Métal précieux",
       "liability": "Passif",
       "other": "Autre"
+    },
+    "validation": {
+      "name_is_required": "Le nom est requis",
+      "quantity_must_be_greater_than_0": "La quantité doit être supérieure à 0",
+      "purchase_price_must_be_greater_than_0": "Le prix d'achat doit être supérieur à 0",
+      "notes_must_be_less_than_1000_characters": "Les notes doivent comporter moins de 1 000 caractères",
+      "address_must_be_less_than_200_characters": "L'adresse doit contenir moins de 200 caractères",
+      "interest_rate_must_be_100_or_less": "Le taux d'intérêt doit être de 100 ou moins",
+      "name_must_be_less_than_100_characters": "Le nom doit comporter moins de 100 caractères",
+      "interest_rate_must_be_0_or_greater": "Le taux d'intérêt doit être égal ou supérieur à 0",
+      "description_must_be_less_than_200_characters": "La description doit comporter moins de 200 caractères",
+      "original_amount_must_be_greater_than_0": "Le montant initial doit être supérieur à 0"
     }
   },
   "updateValuation": {
@@ -715,7 +728,12 @@
     "notes_placeholder": "Ajoutez du contexte sur cette évaluation (p. ex. source d'expertise, conditions du marché)",
     "cancel": "Annuler",
     "update_value": "Mettre à jour la valeur",
-    "na": "N/D"
+    "na": "N/D",
+    "validation": {
+      "number": "La valeur doit être un nombre.",
+      "non_negative": "La valeur ne peut pas être négative",
+      "notes": "Les notes ne doivent pas dépasser 500 caractères"
+    }
   },
   "valueHistory": {
     "date": "Date",
@@ -1025,5 +1043,25 @@
     "payment_invalid": "Saisissez un paiement supérieur à zéro.",
     "payment_unavailable": "Aucun paiement ne peut être calculé avec ces conditions. Vérifiez le montant, le taux et l’amortissement.",
     "fields_read_only": "Les conditions du prêt ne peuvent être modifiées que dans les détails du prêt."
+  },
+  "notifications": {
+    "profile_updated": "Profil de l’actif mis à jour.",
+    "quote_mode_updated": "Mode de cotation de l’actif mis à jour.",
+    "profile_failed": "Impossible de mettre à jour le profil de l’actif.",
+    "quote_mode_failed": "Impossible de mettre à jour le mode de cotation.",
+    "quote_added": "Cotation ajoutée.",
+    "quote_updated": "Cotation mise à jour.",
+    "quote_deleted": "Cotation supprimée.",
+    "quote_save_failed": "Impossible d’enregistrer la cotation.",
+    "quote_delete_failed": "Impossible de supprimer la cotation."
+  },
+  "noQuote": {
+    "manual": "Le mode de cotation est manuel",
+    "inactive": "L’actif est inactif",
+    "matured": "L’obligation est arrivée à échéance",
+    "expired": "L’option a expiré",
+    "paused": "Synchronisation suspendue après des erreurs répétées",
+    "pending": "Aucune cotation du fournisseur n’a encore été synchronisée",
+    "no_data": "Aucune donnée du fournisseur n’est encore disponible"
   }
 }

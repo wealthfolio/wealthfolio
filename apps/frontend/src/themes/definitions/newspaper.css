@@ -1,0 +1,193 @@
+/* @name Newspaper */
+:root {
+  --radius: 0rem;
+  /* Square corners; rule lines instead of elevation. */
+  --button-radius: 0rem;
+  --control-radius: 0rem;
+  --control-height: 2.5rem;
+  --card-radius: 0rem;
+  --card-shadow: 0 0 #0000;
+  --popup-radius: 0rem;
+  --dialog-radius: 0rem;
+  --badge-radius: 0rem;
+  --segmented-radius: 0rem;
+  --background: #f4f2ec;
+  --foreground: #171614;
+  --card: #fbfaf6;
+  --card-foreground: #171614;
+  --popover: #ffffff;
+  --popover-foreground: #171614;
+  --primary: #171614;
+  --primary-foreground: #f4f2ec;
+  --secondary: #e2dfd6;
+  --secondary-foreground: #35332d;
+  --muted: #eae7de;
+  --muted-foreground: #4f4c45;
+  --accent: #e2dfd6;
+  --accent-foreground: #171614;
+  --destructive: #8a1c15;
+  --destructive-foreground: #ffffff;
+  --success: #2f5233;
+  --success-foreground: #ffffff;
+  --warning: #63490a;
+  --warning-foreground: #ffffff;
+  /* Badges, alerts and toasts on success or destructive: a tint of the ink on the
+     paper, so gain and loss badges match the gain and loss text beside them. */
+  --success-subtle: #e5e8e1;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #bec8bb;
+  --destructive-subtle: #f2e4de;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #e0bcb4;
+  --border: #ccc7ba;
+  --input: #b3ada0;
+  --input-bg: #fbfaf6;
+  --ring: #171614;
+  /* Monochrome ombre — the press only ran one ink. */
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+  /* Spending and Net Worth in ink. */
+  --spending-accent: #35332d;
+  --spending-deep: #35332d;
+  --spending-mid: #857f70;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: #35332d;
+  --net-worth: #35332d;
+  --sidebar: #edeae1;
+  --sidebar-foreground: #171614;
+  --sidebar-primary: #171614;
+  --sidebar-primary-foreground: #f4f2ec;
+  --sidebar-accent: #dcd8cd;
+  --sidebar-accent-foreground: #171614;
+  --sidebar-border: #ccc7ba;
+  --sidebar-ring: #171614;
+  --toast-border: #ccc7ba;
+  /* Two-colour press: everything is ink except the gain/loss column. */
+  --fi-stream-1: #35332d;
+  --fi-stream-2: #4f4c45;
+  --fi-stream-3: #6b6659;
+  --fi-stream-4: #857f70;
+  --fi-stream-5: #9e9787;
+  --heatmap-accent: #35332d;
+  --status-warn: #63490a;
+  --event-default: #35332d;
+  --event-today: #8a1c15;
+  /* Card titles as small capitals over the rule. */
+  --card-title-size: 0.75rem;
+  --card-title-tracking: 0.09em;
+  --card-title-case: uppercase;
+  /* Treemap ramps end in the gain and loss inks, so gains and losses differ in hue, not only in tone. */
+  --heatmap-positive-low: #dfe3d8;
+  --heatmap-positive-high: #2f5233;
+  --heatmap-negative-low: #ebdcd6;
+  --heatmap-negative-high: #8a1c15;
+  /* Blue losses when the Gain and loss colours setting draws them in blue: the
+     negative ramp turned to Flexoki blue's hue in OKLCH, same lightness. */
+  --heatmap-blue-low: #d8e1ec;
+  --heatmap-blue-high: #004a93;
+  /* Treemap middle stops halfway between low and high, so the ramp stays a straight
+     blend. Dark mode mixes its own low and high. */
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
+  --heatmap-label-dark: #171614;
+  --heatmap-label-light: #fbfaf6;
+}
+
+/* Night edition — the negative plate. */
+.dark {
+  --background: #141310;
+  --foreground: #e8e4d9;
+  --card: #1c1b16;
+  --card-foreground: #e8e4d9;
+  --popover: #232019;
+  --popover-foreground: #e8e4d9;
+  --primary: #e8e4d9;
+  --primary-foreground: #141310;
+  --secondary: #302d25;
+  --secondary-foreground: #bdb8aa;
+  --muted: #232019;
+  --muted-foreground: #a8a397;
+  --accent: #2a2721;
+  --accent-foreground: #e8e4d9;
+  --destructive: #d8695c;
+  --destructive-foreground: #1a0f0d;
+  --success: #9dbb96;
+  --success-foreground: #12190f;
+  --warning: #d9b96b;
+  --warning-foreground: #241c0a;
+  /* Badge text in a lighter shade of the red ink, 5.6:1 on its tint where the ink
+     reads 4.9:1, for the badges' light-weight figures. */
+  --success-subtle: #152212;
+  --success-subtle-border: #33422f;
+  --destructive-subtle: #2d1815;
+  --destructive-subtle-foreground: #e47466;
+  --destructive-subtle-border: #602a24;
+  --border: #322f27;
+  --input: #3d3930;
+  --input-bg: #1c1b16;
+  --ring: #857f70;
+  --chart-1: hsl(50 8% 88%);
+  --chart-2: hsl(49 7% 78%);
+  --chart-3: hsl(51 6% 68%);
+  --chart-4: hsl(48 5% 58%);
+  --chart-5: hsl(46 4% 48%);
+  --chart-6: hsl(44 3% 38%);
+  --chart-7: hsl(42 3% 30%);
+  --chart-8: hsl(38 2% 24%);
+  --chart-9: hsl(35 2% 18%);
+  --chart-stone: hsl(44 3% 38%);
+  --spending-accent: #c4bfb1;
+  --spending-deep: #c4bfb1;
+  --spending-mid: #7d7768;
+  --investments: #c4bfb1;
+  --net-worth: #c4bfb1;
+  --sidebar: #100f0d;
+  --sidebar-foreground: #e8e4d9;
+  --sidebar-primary: #e8e4d9;
+  --sidebar-primary-foreground: #141310;
+  --sidebar-accent: #2a2721;
+  --sidebar-accent-foreground: #e8e4d9;
+  --sidebar-border: #322f27;
+  --sidebar-ring: #857f70;
+  --toast-border: #3d3930;
+  --fi-stream-1: #e8e4d9;
+  --fi-stream-2: #c4bfb1;
+  --fi-stream-3: #a09a8c;
+  --fi-stream-4: #7d7768;
+  --fi-stream-5: #5c5749;
+  --heatmap-accent: #e8e4d9;
+  --status-warn: #d9b96b;
+  --event-default: #c4bfb1;
+  --event-today: #d8695c;
+  --heatmap-positive-low: #273c29;
+  --heatmap-positive-high: #9dbb96;
+  --heatmap-negative-low: #4a2a28;
+  --heatmap-negative-high: #d8695c;
+  --heatmap-blue-low: #1b374a;
+  --heatmap-blue-high: #1a99dc;
+  --heatmap-label-dark: #141310;
+  --heatmap-label-light: #f4f2ec;
+}
+
+/* Section heads in the serif. A class on the element still wins. */
+:root h2 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.015em;
+}

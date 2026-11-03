@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import type { AddonManifest, Permission, SidebarItemConfig } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
 import {
@@ -228,7 +229,7 @@ function notifyPermissionDenialOnce(addonId: string, method: string | undefined,
     return;
   }
   notifiedPermissionDenials.add(key);
-  toast.error("Add-on permission denied", {
+  toast.error(i18n.t("common:notifications.add_on_permission_denied"), {
     description: `'${addonId}' tried to use '${method ?? "an API"}' without permission. Updating the add-on may fix this.`,
     duration: 15000,
   });
@@ -293,7 +294,7 @@ function notifyClassifiedAddonErrorOnce(addonId: string, rawMessage: string | un
     return;
   }
   notifiedRuntimeErrors.add(key);
-  toast.error(`Add-on '${addonId}' error`, {
+  toast.error(i18n.t("common:notifications.addon_error", { addonId }), {
     description: hint,
     duration: 15000,
   });
@@ -364,6 +365,14 @@ export const ALLOWED_API_METHODS = new Set([
   "exchangeRates.add",
   "exchangeRates.getRatesForDates",
   "spending.isEnabled",
+  "spending.getContext",
+  "spending.getBudget",
+  "spending.getEvents",
+  "spending.getEventTypes",
+  "spending.assignCategory",
+  "spending.unassignCategory",
+  "spending.setEvent",
+  "spending.upsertBudgetTarget",
   "spending.searchCashActivities",
   "spending.getReport",
   "spending.getCategories",
@@ -1229,7 +1238,7 @@ export class AddonIframeManager {
 
     this.themeObserver = new MutationObserver(this.scheduleThemeBroadcast);
     this.themeObserver.observe(document.documentElement, {
-      attributeFilter: ["class", "style"],
+      attributeFilter: ["class", "style", "data-theme", "data-text-size", "data-gain-colors"],
       attributes: true,
     });
     this.themeObserver.observe(document.body, {

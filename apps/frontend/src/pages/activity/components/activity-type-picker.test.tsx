@@ -29,6 +29,12 @@ describe("ActivityTypePicker reclassification types", () => {
       screen.getByTestId(`activity-type-${ActivityType.ADJUSTMENT.toLowerCase()}`),
     ).toBeVisible();
   });
+
+  it("keeps a conversion, which is two rows, out of reclassifying one row", () => {
+    render(<ActivityTypePicker onSelect={vi.fn()} includeReclassificationTypes />);
+
+    expect(screen.queryByTestId("activity-type-conversion")).not.toBeInTheDocument();
+  });
 });
 
 describe("ActivityTypePicker grid keyboard", () => {

@@ -2,6 +2,8 @@ import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
+import type { HistoryChartMarkerTone } from "@/components/history-chart-marker";
+import { activityMarkerLabel, activityMarkerTone } from "@/pages/asset/asset-history-markers";
 import type { ActivityDetails } from "@/lib/types";
 import {
   Card,
@@ -70,6 +72,7 @@ import ActivityTableMobile from "@/pages/activity/components/activity-table/acti
 import { BulkHoldingsModal } from "@/pages/activity/components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
+import { isConversionActivity } from "@/pages/activity/utils/conversion-counterpart";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
@@ -100,6 +103,7 @@ import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { AccountContributionLimit } from "./account-contribution-limit";
+import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
 import {
@@ -390,8 +394,8 @@ const AccountPage = () => {
 
   // In TRANSACTIONS mode, fetch activity dates for markers (snapshot dates include
   // carry-forward days with no activities, so we need actual activity dates instead)
-  const { data: activityMarkerDates } = useQuery<string[], Error>({
-    queryKey: ["activities", "markerDates", id, snapshotDateFrom, snapshotDateTo],
+  const { data: activityMarkerTypes } = useQuery<Map<string, Set<ActivityType>>, Error>({
+    queryKey: ["activities", "markerTypes", id, snapshotDateFrom, snapshotDateTo],
     queryFn: async () => {
       const response = await searchActivities(
         0,
@@ -400,18 +404,38 @@ const AccountPage = () => {
         "",
         { id: "date", desc: true },
       );
-      const dates = new Set<string>();
+      const types = new Map<string, Set<ActivityType>>();
       response.data.forEach((a) => {
-        const d = typeof a.date === "string" ? a.date : a.date.toISOString();
-        dates.add(d.split("T")[0]);
+        const d = (typeof a.date === "string" ? a.date : a.date.toISOString()).split("T")[0];
+        if (!types.has(d)) types.set(d, new Set());
+        types.get(d)!.add(a.activityType);
       });
-      return [...dates];
+      return types;
     },
     enabled: showSnapshotMarkers && !isHoldingsMode && !!account,
   });
 
   // Use activity dates for TRANSACTIONS mode, snapshot dates for HOLDINGS mode
-  const markerDates = isHoldingsMode ? snapshotDates : (activityMarkerDates ?? []);
+  const markerDates = isHoldingsMode ? snapshotDates : [...(activityMarkerTypes?.keys() ?? [])];
+
+  // Mixed-type days show how many types landed on them, since one letter can't describe them
+  const markerLabels = useMemo(() => {
+    if (isHoldingsMode || !activityMarkerTypes) return undefined;
+    const labels = new Map<string, { label: string; tone: HistoryChartMarkerTone }>();
+    activityMarkerTypes.forEach((types, date) => {
+      const [type] = types;
+      labels.set(
+        date,
+        types.size === 1
+          ? {
+              label: activityMarkerLabel(type),
+              tone: activityMarkerTone(type),
+            }
+          : { label: String(types.size), tone: "default" },
+      );
+    });
+    return labels;
+  }, [isHoldingsMode, activityMarkerTypes]);
 
   // Query activities for selected date (Transactions mode marker click)
   const { data: dateActivities, isLoading: isDateActivitiesLoading } = useQuery<
@@ -897,7 +921,7 @@ const AccountPage = () => {
                     <span className="flex min-w-0 items-center gap-1.5">
                       {account?.group ? (
                         <>
-                          <span className="text-muted-foreground truncate text-base font-semibold leading-tight md:text-lg">
+                          <span className="text-muted-foreground truncate text-base leading-tight font-semibold md:text-lg">
                             {account.group}
                           </span>
                           <span className="text-muted-foreground text-sm" aria-hidden="true">
@@ -905,7 +929,7 @@ const AccountPage = () => {
                           </span>
                         </>
                       ) : null}
-                      <span className="truncate text-base font-semibold leading-tight md:text-lg">
+                      <span className="truncate text-base leading-tight font-semibold md:text-lg">
                         {account?.name ?? t("account:account")}
                       </span>
                       <Icons.ChevronDown className="text-muted-foreground size-5 shrink-0" />
@@ -962,13 +986,13 @@ const AccountPage = () => {
                     }
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-base font-semibold leading-tight">
+                      <span className="truncate text-base leading-tight font-semibold">
                         {account?.name ?? t("account:account")}
                       </span>
                       <Icons.ChevronDown className="text-muted-foreground h-5 w-5 shrink-0" />
                     </span>
                   </SheetTrigger>
-                  <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
+                  <SheetContent side="bottom" className="mx-1 h-[80vh] rounded-t-4xl p-0">
                     <SheetHeader className="border-border border-b px-6 py-4">
                       <SheetTitle>{t("account:switch_account_title")}</SheetTitle>
                       <SheetDescription>{t("account:choose_account_to_view")}</SheetDescription>
@@ -1021,11 +1045,7 @@ const AccountPage = () => {
                 </Sheet>
               </div>
             </div>
-            {!account?.group && account?.currency && (
-              <p className="text-muted-foreground text-xs leading-tight md:text-sm">
-                {account?.currency}
-              </p>
-            )}
+            <AccountHeaderDetails account={account} />
           </div>
         </div>
       </PageHeader>
@@ -1033,7 +1053,7 @@ const AccountPage = () => {
         {hasHoldings && !isHoldingsLoading ? (
           <>
             <div className="grid grid-cols-1 gap-4 pt-0 lg:grid-cols-3">
-              <Card className="col-span-1 lg:col-span-2">
+              <Card className="col-span-1 overflow-hidden lg:col-span-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-md">
                     <PortfolioUpdateTrigger
@@ -1129,8 +1149,10 @@ const AccountPage = () => {
                         <HistoryChart
                           data={chartData}
                           isLoading={false}
+                          color="var(--investments)"
                           showMarkers={showSnapshotMarkers}
                           snapshotDates={markerDates}
+                          markerLabels={markerLabels}
                           onMarkerClick={(date) => {
                             if (isHoldingsMode) {
                               // Holdings mode: open edit holdings sheet
@@ -1144,7 +1166,7 @@ const AccountPage = () => {
                           }}
                         />
                         <IntervalSelector
-                          className="relative bottom-10 end-0 start-0 z-10"
+                          className="relative start-0 end-0 bottom-10 z-10"
                           onIntervalSelect={handleIntervalSelect}
                           isLoading={isValuationHistoryLoading}
                           defaultValue={INITIAL_INTERVAL_CODE}
@@ -1256,6 +1278,7 @@ const AccountPage = () => {
         isOpen={showActivityDeleteAlert}
         isDeleting={isActivityDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
+        conversion={isConversionActivity(selectedActivity)}
         onConfirm={handleActivityDeleteConfirm}
         onCancel={handleActivityDeleteCancel}
       />

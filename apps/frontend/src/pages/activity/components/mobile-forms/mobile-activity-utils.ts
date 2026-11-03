@@ -23,5 +23,6 @@ export function hasStoredCustomTradeAmount(activity?: Partial<ActivityDetails>):
     fee: activity.fee,
     tax: activity.tax,
     contractMultiplier: activity.assetContractMultiplier,
+    currency: activity.currency,
   });
 }

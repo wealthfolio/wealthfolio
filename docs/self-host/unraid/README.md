@@ -36,6 +36,27 @@ Then **Docker → Add Container → Template → User templates → wealthfolio*
 See the website guide for required values, the password hash recipe, reverse
 proxy setup, backups, and troubleshooting.
 
+## OIDC with a private CA
+
+For an IdP using a private CA, use a server build containing
+[#2253](https://github.com/wealthfolio/wealthfolio/pull/2253). Keep
+`WF_OIDC_CA_FILE` empty for ordinary installations.
+
+In **Docker → wealthfolio → Edit**:
+
+1. Add a **Path** mapping from an existing host PEM bundle to
+   `/certs/internal-ca.pem`, with access mode **Read Only**.
+2. Set the advanced variable `WF_OIDC_CA_FILE` to `/certs/internal-ca.pem`. If
+   an older installed template does not show it, add it as a **Variable**.
+3. Ensure the bundle is readable by the configured container user (the template
+   uses `99:100`), while only trusted administrators can change it or its parent
+   directory. Click **Apply** to recreate the container.
+
+Changing the host bundle requires a container restart. A missing, unreadable, or
+invalid bundle prevents startup when OIDC is enabled. See
+[OIDC providers using a private CA](../README.md#oidc-providers-using-a-private-ca)
+for trust scope, browser requirements, and troubleshooting.
+
 ## Database encryption
 
 Optional and off by default — see

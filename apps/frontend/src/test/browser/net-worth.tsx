@@ -253,27 +253,25 @@ function Fixture() {
         )}
         <section aria-label="Monthly pace card" style={{ padding: 16, maxWidth: 384 }}>
           <VelocityCard
-            velocity={
-              computeVelocity([
-                {
-                  ...history[0],
-                  netWorth: 10000,
-                  totalAssets: 10000,
-                  portfolioValue: 5000,
-                  alternativeAssetsValue: 5000,
-                  netContribution: 5000,
-                },
-                {
-                  ...history[0],
-                  date: "2020-07-01",
-                  netWorth: 11100,
-                  totalAssets: 11100,
-                  portfolioValue: 7300,
-                  alternativeAssetsValue: 3800,
-                  netContribution: 7000,
-                },
-              ])!
-            }
+            velocity={computeVelocity([
+              {
+                ...history[0],
+                netWorth: 10000,
+                totalAssets: 10000,
+                portfolioValue: 5000,
+                alternativeAssetsValue: 5000,
+                netContribution: 5000,
+              },
+              {
+                ...history[0],
+                date: "2020-07-01",
+                netWorth: 11100,
+                totalAssets: 11100,
+                portfolioValue: 7300,
+                alternativeAssetsValue: 3800,
+                netContribution: 7000,
+              },
+            ])!}
             currency="EUR"
             periodLabel="YTD"
           />

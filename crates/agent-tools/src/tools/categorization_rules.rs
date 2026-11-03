@@ -181,11 +181,15 @@ impl AgentTool for ListCategorizationRules {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[AgentScope::ClassificationRead]
+        &[AgentScope::SpendingRead]
     }
 
     fn access_level(&self) -> AgentToolAccess {
         AgentToolAccess::Read
+    }
+
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"categorizationArguments":"[redacted]"})
     }
 
     async fn call(
@@ -193,7 +197,11 @@ impl AgentTool for ListCategorizationRules {
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: ListCategorizationRulesArgs = serde_json::from_value(args)?;
+        let args: ListCategorizationRulesArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid categorization arguments; see the input schema".into(),
+            )
+        })?;
         if let Some(origin) = args.origin.as_deref() {
             if ![ORIGIN_USER, ORIGIN_PRESET, ORIGIN_ADDON].contains(&origin) {
                 return Err(AgentToolError::InvalidInput(format!(
@@ -202,16 +210,26 @@ impl AgentTool for ListCategorizationRules {
             }
         }
 
-        let rules = env
+        let mut rules = env
             .categorization_rules_service()
             .list()
             .await
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+        rules.retain(|rule| {
+            rule.taxonomy_id.as_deref().is_none_or(|id| {
+                wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&id)
+            })
+        });
         let categories: HashMap<(String, String), (String, String)> = env
             .taxonomy_service()
             .get_taxonomies_with_categories()
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?
             .into_iter()
+            .filter(|entry| {
+                entry.taxonomy.scope == "activity"
+                    && wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
+                        .contains(&entry.taxonomy.id.as_str())
+            })
             .flat_map(|entry| entry.categories)
             .map(|cat| ((cat.taxonomy_id, cat.id), (cat.key, cat.name)))
             .collect();
@@ -228,7 +246,7 @@ impl AgentTool for ListCategorizationRules {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RerunCategorizationRulesArgs {
     #[serde(default = "default_only_uncategorized")]
     pub only_uncategorized: bool,
@@ -241,6 +259,8 @@ fn default_only_uncategorized() -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RerunCategorizationRulesOutput {
+    #[serde(flatten)]
+    pub decisions: wealthfolio_spending::activity_assignments::RuleAssignmentResult,
     pub only_uncategorized: bool,
     /// Spending accounts the rules ran over; 0 when spending tracking is off
     /// or no account is opted in.
@@ -264,10 +284,10 @@ impl AgentTool for RerunCategorizationRules {
          rules page does. By default (`onlyUncategorized: true`) only activities without a \
          category in the rule's taxonomy get one. With `onlyUncategorized: \
          false`, rule matches also replace categories set by rules, imports or \
-         AI. Categories the user chose manually are never changed. This \
+         AI. Split allocations and manual choices are always protected. Preview with preview_categorization_rules first; the run re-evaluates current state. This \
          MUTATES data — call it only after the user asked for it. Returns how \
          many spending accounts the rules ran over and how many activities a \
-         rule matched."
+         rule matched, actual changes and separate split/manual/existing/unchanged counts. Matching is distinct from changing an assignment."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -285,14 +305,15 @@ impl AgentTool for RerunCategorizationRules {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[
-            AgentScope::ClassificationSuggest,
-            AgentScope::ClassificationWrite,
-        ]
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
     }
 
     fn access_level(&self) -> AgentToolAccess {
         AgentToolAccess::Write
+    }
+
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"categorizationArguments":"[redacted]"})
     }
 
     async fn call(
@@ -300,24 +321,75 @@ impl AgentTool for RerunCategorizationRules {
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: RerunCategorizationRulesArgs = serde_json::from_value(args)?;
+        let args: RerunCategorizationRulesArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid categorization arguments; see the input schema".into(),
+            )
+        })?;
         let account_ids = env
             .cash_activity_service()
             .spending_account_ids()
             .await
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
         // `rerun_all` returns 0 without reading anything for no accounts.
-        let matched = env
+        let summary = env
             .categorization_rules_service()
-            .rerun_all(&account_ids, args.only_uncategorized)
+            .rerun_detailed(&account_ids, args.only_uncategorized)
             .await
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
         Ok(AgentToolResult {
             content: serde_json::to_value(RerunCategorizationRulesOutput {
                 only_uncategorized: args.only_uncategorized,
                 accounts: account_ids.len(),
-                matched,
+                matched: summary.matched,
+                decisions: summary.decisions,
             })?,
+        })
+    }
+}
+
+pub struct PreviewCategorizationRules;
+#[async_trait::async_trait]
+impl AgentTool for PreviewCategorizationRules {
+    fn name(&self) -> &'static str {
+        "preview_categorization_rules"
+    }
+    fn description(&self) -> &'static str {
+        "Preview reapplying native categorization rules over effective Spending accounts. Reports matched activities, eligible changes, protected split/manual rows, skipped existing assignments and already-unchanged targets. No writes or outbox. Defaults to onlyUncategorized:true. Execution re-evaluates current state; this preview is not a frozen snapshot."
+    }
+    fn input_schema(&self) -> serde_json::Value {
+        RerunCategorizationRules.input_schema()
+    }
+    fn required_scopes(&self) -> &'static [AgentScope] {
+        &[AgentScope::SpendingRead]
+    }
+    fn access_level(&self) -> AgentToolAccess {
+        AgentToolAccess::Read
+    }
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({})
+    }
+    async fn call(
+        &self,
+        env: Arc<dyn AgentEnvironment>,
+        args: serde_json::Value,
+    ) -> Result<AgentToolResult, AgentToolError> {
+        let args: RerunCategorizationRulesArgs = serde_json::from_value(args)
+            .map_err(|_| AgentToolError::InvalidInput("Invalid rule preview arguments".into()))?;
+        let ids = env
+            .cash_activity_service()
+            .spending_account_ids()
+            .await
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed("Unable to resolve Spending scope".into())
+            })?;
+        let summary = env
+            .categorization_rules_service()
+            .preview_rerun(&ids, args.only_uncategorized)
+            .await
+            .map_err(|_| AgentToolError::ExecutionFailed("Unable to preview rules".into()))?;
+        Ok(AgentToolResult {
+            content: serde_json::json!({"onlyUncategorized":args.only_uncategorized,"accounts":ids.len(),"summary":summary,"writesPerformed":false,"policy":"A later rerun re-evaluates current state and preserves split/manual choices."}),
         })
     }
 }

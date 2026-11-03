@@ -175,6 +175,7 @@
   "delete_modal": {
     "description": "سيتم حذف هذا النشاط نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
     "linked_transfer_desc": "هذا النشاط مرتبط بزوج تحويل. سيتم حذف الطرفين نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+    "linked_conversion_desc": "هذا النشاط أحد طرفي عملية تبديل. سيتم حذف الطرفين نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
     "title": "حذف النشاط؟"
   },
   "delete_selected": "حذف المحدد",
@@ -235,6 +236,13 @@
   "filter_type": "النوع",
   "fix_errors": "يرجى تصحيح الأخطاء التالية",
   "form": {
+    "section_conversion": "تبديل الصناديق",
+    "section_conversion_from": "من",
+    "section_conversion_to": "إلى",
+    "conversion_hint": "تصبح وحدات صندوق أو أصل ما وحدات أصل آخر وتحتفظ بتكلفتها: التبديل بين الصناديق، أو تغيير فئة الوحدات أو سلسلتها، أو تحويل صندوق إلى صندوق متداول، أو ترحيل رمز رقمي. إذا كان التبديل خاضعًا للضريبة، فسجّله كعملية بيع وعملية شراء.",
+    "button_add_conversion": "إضافة تبديل صناديق",
+    "warn_converting_more_than_held": "أنت تبدّل {{converting}} وحدة، لكن هذا الحساب يملك {{available}} اليوم.",
+    "err_conversion_same_asset": "اختر أصلًا مختلفًا للتبديل إليه.",
     "advanced_options": "خيارات متقدمة",
     "asset_type_bond": "سند",
     "asset_type_option": "خيار",
@@ -828,7 +836,19 @@
       "totalRows_zero": "إجمالي {{count}} صفوف",
       "transactionPreview": "معاينة المعاملات",
       "usingSelectedAccount": "استخدام الحساب المحدد",
-      "usingSelectedForAll": "استخدام الحساب المحدد لجميع الصفوف"
+      "usingSelectedForAll": "استخدام الحساب المحدد لجميع الصفوف",
+      "statusIncluded": "مضمّنة",
+      "skippedCount_zero": "تم تخطي {{count}} صف",
+      "skippedCount_one": "تم تخطي صف واحد",
+      "skippedCount_two": "تم تخطي صفين",
+      "skippedCount_few": "تم تخطي {{count}} صفوف",
+      "skippedCount_many": "تم تخطي {{count}} صفًا",
+      "skippedCount_other": "تم تخطي {{count}} صف",
+      "allRowsSkipped": "تم تخطي كل الصفوف",
+      "allRowsSkippedDescription": "ضمِّن صفًا واحدًا على الأقل للمتابعة.",
+      "includeRow": "تضمين الصف {{line}}",
+      "includeAllRows": "تضمين كل الصفوف",
+      "includeMatchingRows": "تضمين كل الصفوف المطابقة"
     },
     "page": {
       "csvDisabledDescription": "استيراد الحيازات من ملف CSV معطّل للحسابات المتصلة التي تستخدم تتبع الحيازات.",
@@ -995,7 +1015,8 @@
       "willBeImportedTitle_one": "سيتم استيراد {{count}} نشاط من أصل {{all}}",
       "willBeImportedTitle_other": "سيتم استيراد {{count}} نشاط من أصل {{all}}",
       "willBeImportedTitle_two": "سيتم استيراد نشاطين من أصل {{all}}",
-      "willBeImportedTitle_zero": "سيتم استيراد {{count}} أنشطة من أصل {{all}}"
+      "willBeImportedTitle_zero": "سيتم استيراد {{count}} أنشطة من أصل {{all}}",
+      "backend_failed": "فشل التحقق في الخادم. أعد التحقق قبل الاستيراد."
     },
     "reviewToolbar": {
       "account": "الحساب",
@@ -1153,6 +1174,13 @@
       "issuesTitle_two": "توجد مشكلات في إدخالَي نشاط.",
       "issuesTitle_zero": "توجد مشكلات في {{count}} إدخالات أنشطة.",
       "retry": "إعادة المحاولة"
+    },
+    "creditCard": {
+      "charge": "شراء",
+      "payment": "دفعة",
+      "transfer": "تحويل رصيد / سلفة نقدية",
+      "refund": "استرداد / إضافة رصيد",
+      "interest": "فوائد مستحقة"
     }
   },
   "import_activities": "استيراد الأنشطة",
@@ -1288,6 +1316,7 @@
   "mobile_type_remove_holding_desc": "إزالة الحيازات من الحساب",
   "mobile_type_sell_desc": "بيع أصل",
   "mobile_type_split_desc": "تعديل تجزئة الأسهم",
+  "mobile_type_conversion_desc": "تبديل صندوق بآخر مع الاحتفاظ بتكلفته",
   "mobile_type_tax_desc": "دفع الضريبة",
   "mobile_type_transfer_desc": "نقل النقد أو الأوراق المالية بين الحسابات",
   "mobile_type_transfer_in_desc": "تحويل من حساب آخر",
@@ -1330,6 +1359,7 @@
   "pagination_count": "{{fetched}}/{{total}} نشاط",
   "parsing_error": "خطأ في تحليل ملف CSV",
   "picker": {
+    "conversion": "تبديل الصناديق",
     "all_types_group": "جميع أنواع الأنشطة",
     "collapse": "طي",
     "expand_all_types": "وسّع لعرض جميع الأنواع",
@@ -1363,6 +1393,8 @@
   "subtype_dividend_in_kind": "توزيعات أرباح عينية",
   "subtype_drip": "إعادة استثمار توزيعات الأرباح (DRIP)",
   "subtype_notional_distribution": "توزيع اسمي",
+  "subtype_conversion_out": "تبديل (خروج)",
+  "subtype_conversion_in": "تبديل (دخول)",
   "subtype_option_expiry": "انتهاء صلاحية الخيار",
   "subtype_position_close": "إغلاق المركز",
   "subtype_position_open": "فتح مركز",
@@ -1541,5 +1573,49 @@
   "datagrid_add": "إضافة",
   "datagrid_add_transaction": "إضافة معاملة",
   "datagrid_cancel": "إلغاء",
-  "datagrid_changes_discarded": "تم تجاهل التغييرات"
+  "datagrid_changes_discarded": "تم تجاهل التغييرات",
+  "validation": {
+    "account_is_required": "يرجى اختيار حساب.",
+    "date_is_required": "يرجى اختيار تاريخ.",
+    "symbol_is_required_for_this_activity_type": "يرجى إدخال رمز.",
+    "received_quantity_is_required": "الكمية المستلمة مطلوبة.",
+    "either_income_amount_or_fmv_per_unit_is_required": "يرجى إدخال مبلغ الدخل أو القيمة السوقية العادلة للوحدة.",
+    "fee_cannot_be_negative": "يجب ألا تكون الرسوم سالبة.",
+    "tax_cannot_be_negative": "يجب ألا تكون الضريبة سالبة.",
+    "currency_is_required": "العملة مطلوبة.",
+    "symbol_is_required_for_trade_activities": "يرجى إدخال رمز.",
+    "quantity_must_be_greater_than_0": "يجب أن تكون الكمية أكبر من 0.",
+    "unit_price_must_be_greater_than_0": "يجب أن يكون السعر أكبر من 0.",
+    "symbol_is_required_for_drip_dividends": "يرجى إدخال رمز.",
+    "quantity_is_required_for_drip_shares_received": "الكمية المستلمة مطلوبة.",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "أدخل مبلغ توزيعات الأرباح أو القيمة السوقية العادلة للوحدة.",
+    "symbol_is_required_for_dividend_in_kind_activities": "يرجى إدخال رمز.",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "الكمية المستلمة مطلوبة.",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "أدخل مبلغ توزيعات الأرباح أو القيمة السوقية العادلة للوحدة.",
+    "amount_is_required_for_dividend_activities": "يرجى إدخال مبلغ.",
+    "symbol_is_required_for_staking_rewards": "يرجى اختيار أصل المكافأة.",
+    "quantity_is_required_for_staking_rewards_tokens_received": "الكمية المستلمة مطلوبة.",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "أدخل مبلغ الفائدة أو القيمة السوقية العادلة للوحدة.",
+    "amount_is_required_for_interest_activities": "يرجى إدخال مبلغ.",
+    "symbol_is_required_for_split_activities": "يرجى إدخال رمز.",
+    "amount_split_ratio_must_be_greater_than_0": "يجب أن تكون نسبة التجزئة أكبر من 0.",
+    "amount_is_required_for_credit_activities": "يرجى إدخال مبلغ.",
+    "activity_type_is_required": "يرجى اختيار نوع النشاط",
+    "date_not_recognized": "تعذر التعرف على التاريخ",
+    "map_type": "اربط نوع النشاط في CSV قبل المتابعة",
+    "credit_card_types": "يدعم استيراد بطاقات الائتمان المشتريات والمدفوعات والتحويلات الصادرة والمبالغ المستردة والرسوم والفوائد فقط",
+    "fee_or_amount": "يلزم إدخال رسم أو مبلغ لنشاط الرسوم",
+    "amount_or_fee": "يلزم إدخال مبلغ أو رسم لنشاط الضرائب",
+    "amount_or_quantity": "يلزم إدخال مبلغ أو كمية لنشاط التحويل",
+    "final_cash": "يلزم إدخال المبلغ النقدي النهائي قبل الموافقة",
+    "fx_non_negative": "لا يمكن أن يكون سعر الصرف سالبًا",
+    "transfer_pair": "يتطلب التحويل طرفيه، وبعملتين مختلفتين إذا كانا في الحساب نفسه",
+    "more": " ({{remaining}} إضافية)",
+    "amount_is_required_for_deposit_withdrawal_activities": "يرجى إدخال مبلغ."
+  },
+  "validationFields": {
+    "external": "تحويل خارجي",
+    "direction": "اتجاه التحويل",
+    "mode": "وضع التحويل"
+  }
 }

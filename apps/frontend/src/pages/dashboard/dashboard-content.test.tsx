@@ -117,6 +117,10 @@ vi.mock("@/pages/dashboard/portfolio-update-trigger", async (importOriginal) => 
   };
 });
 
+vi.mock("@/features/spending/components/spending-date-picker", () => ({
+  SpendingDatePicker: () => null,
+}));
+
 vi.mock("./accounts-summary", () => ({
   AccountsSummary: vi.fn(() => <div>accounts-summary</div>),
 }));

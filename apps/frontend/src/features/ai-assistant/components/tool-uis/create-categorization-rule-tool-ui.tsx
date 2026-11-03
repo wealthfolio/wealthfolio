@@ -4,15 +4,16 @@ import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Spinner } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
+import { unwrapSpendingResult } from "./spending-result-utils";
 import type { CreateCategorizationRuleArgs, CreateCategorizationRuleOutput } from "../../types";
 
-type CreateCategorizationRuleToolUIContentProps = ToolCallMessagePartProps<
-  CreateCategorizationRuleArgs,
-  CreateCategorizationRuleOutput
->;
+type CreateCategorizationRuleToolUIContentProps = Omit<
+  ToolCallMessagePartProps<CreateCategorizationRuleArgs, CreateCategorizationRuleOutput>,
+  "result"
+> & { result?: unknown };
 
 function formatMatchType(value?: string): string {
   return (value ?? "contains").replace(/_/g, " ");
@@ -85,11 +86,15 @@ function CreateCategorizationRuleLegacyState({
   );
 }
 
-function CreateCategorizationRuleToolUIContentImpl({
-  result,
+export function CreateCategorizationRuleToolUIContentImpl({
+  result: rawResult,
   status,
   toolCallId,
 }: CreateCategorizationRuleToolUIContentProps) {
+  const result = useMemo(
+    () => unwrapSpendingResult<CreateCategorizationRuleOutput>(rawResult),
+    [rawResult],
+  );
   const { t } = useTranslation();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;

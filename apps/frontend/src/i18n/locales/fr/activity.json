@@ -48,6 +48,8 @@
   "subtype_position_close": "Clôture de position",
   "subtype_return_of_capital": "Remboursement de capital",
   "subtype_notional_distribution": "Distribution théorique",
+  "subtype_conversion_out": "Arbitrage (sortie)",
+  "subtype_conversion_in": "Arbitrage (entrée)",
   "type_buy_desc": "Achetez un actif. Cela augmente la quantité de vos positions et diminue votre solde de liquidités.",
   "type_sell_desc": "Vendez un actif. Cela diminue la quantité de vos positions et augmente votre solde de liquidités.",
   "type_deposit_desc": "Augmentez le solde de votre compte en ajoutant des fonds.",
@@ -200,6 +202,7 @@
   "mobile_type_fee_desc": "Frais de compte ou de transaction",
   "mobile_type_tax_desc": "Paiement de taxe",
   "mobile_type_split_desc": "Ajustement de division d'actions",
+  "mobile_type_conversion_desc": "Passer d'un fonds ou d'une catégorie de parts à un autre en gardant son coût",
   "mobile_date_time": "Date et heure",
   "mobile_fee_optional": "Frais (Optionnel)",
   "mobile_description_optional": "Description (Optionnel)",
@@ -316,7 +319,8 @@
   "delete_modal": {
     "title": "Supprimer l'activité ?",
     "description": "Cette activité sera définitivement supprimée. Cette action est irréversible.",
-    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible."
+    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible.",
+    "linked_conversion_desc": "Cette activité est l'un des deux côtés d'un arbitrage. Les deux côtés seront définitivement supprimés. Cette action est irréversible."
   },
   "form_renderer": {
     "select_type": "Sélectionnez un type d'activité ci-dessus pour continuer",
@@ -336,6 +340,7 @@
   },
   "picker": {
     "transfer": "Transfert",
+    "conversion": "Arbitrage",
     "split": "Fractionnement",
     "all_types_group": "Tous les types d'activité",
     "expand_all_types": "Développer pour afficher tous les types",
@@ -469,6 +474,13 @@
     "within_days_many": "Dans les {{count}} jours"
   },
   "form": {
+    "section_conversion": "Arbitrage",
+    "section_conversion_from": "De",
+    "section_conversion_to": "Vers",
+    "conversion_hint": "Les parts d'un fonds ou d'un actif deviennent des parts d'un autre et gardent leur coût : un arbitrage entre fonds, un changement de catégorie ou de série de parts, un fonds converti en ETF ou une migration de jeton. Si l'arbitrage a été imposé, enregistrez une vente et un achat.",
+    "button_add_conversion": "Ajouter un arbitrage",
+    "warn_converting_more_than_held": "Vous convertissez {{converting}} parts, mais ce compte en détient {{available}} aujourd'hui.",
+    "err_conversion_same_asset": "Choisissez un autre actif de destination.",
     "section_asset_account": "Actif et compte",
     "section_account": "Compte",
     "section_amount": "Montant",
@@ -981,7 +993,16 @@
       "emptySymbol": "Symbole vide",
       "accountAssignmentBlankRows_one": "Associez chaque ligne du CSV à un compte. {{count}} ligne est encore vide, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
       "accountAssignmentBlankRows_other": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
-      "accountAssignmentBlankRows_many": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte."
+      "accountAssignmentBlankRows_many": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
+      "statusIncluded": "Incluses",
+      "skippedCount_one": "{{count}} ignorée",
+      "skippedCount_many": "{{count}} ignorées",
+      "skippedCount_other": "{{count}} ignorées",
+      "allRowsSkipped": "Toutes les lignes sont ignorées",
+      "allRowsSkippedDescription": "Incluez au moins une ligne pour continuer.",
+      "includeRow": "Inclure la ligne {{line}}",
+      "includeAllRows": "Inclure toutes les lignes",
+      "includeMatchingRows": "Inclure toutes les lignes correspondantes"
     },
     "csvViewer": {
       "status": "Statut",
@@ -1103,7 +1124,8 @@
       "willBeImportedTitle_many": "{{count}} activités sur {{all}} seront importées",
       "activitiesCount_one": "{{count}} activité",
       "activitiesCount_other": "{{count}} activités",
-      "activitiesCount_many": "{{count}} activités"
+      "activitiesCount_many": "{{count}} activités",
+      "backend_failed": "La validation a échoué. Réessayez avant l’importation."
     },
     "status": {
       "valid": "Valide",
@@ -1396,6 +1418,57 @@
       "issuesTitle_one": "Il y a des problèmes avec {{count}} entrée d'activité.",
       "issuesTitle_other": "Il y a des problèmes avec {{count}} entrées d'activité.",
       "issuesTitle_many": "Il y a des problèmes avec {{count}} entrées d'activité."
+    },
+    "creditCard": {
+      "charge": "Achat",
+      "payment": "Paiement",
+      "transfer": "Transfert de solde / Avance de fonds",
+      "refund": "Remboursement / Crédit",
+      "interest": "Intérêts facturés"
     }
+  },
+  "validation": {
+    "account_is_required": "Veuillez sélectionner un compte.",
+    "date_is_required": "Veuillez sélectionner une date.",
+    "symbol_is_required_for_this_activity_type": "Veuillez saisir un symbole.",
+    "received_quantity_is_required": "La quantité reçue est requise.",
+    "either_income_amount_or_fmv_per_unit_is_required": "Veuillez saisir le montant du revenu ou la JVM par unité.",
+    "fee_cannot_be_negative": "Les frais doivent être non négatifs.",
+    "tax_cannot_be_negative": "La taxe doit être non négative.",
+    "currency_is_required": "La devise est requise.",
+    "symbol_is_required_for_trade_activities": "Veuillez saisir un symbole.",
+    "quantity_must_be_greater_than_0": "La quantité doit être supérieure à 0.",
+    "unit_price_must_be_greater_than_0": "Le prix doit être supérieur à 0.",
+    "symbol_is_required_for_drip_dividends": "Veuillez saisir un symbole.",
+    "quantity_is_required_for_drip_shares_received": "La quantité reçue est requise.",
+    "either_amount_or_unit_price_is_required_for_drip_dividends": "Saisissez le montant du dividende ou la JVM par unité.",
+    "symbol_is_required_for_dividend_in_kind_activities": "Veuillez saisir un symbole.",
+    "quantity_is_required_for_dividend_in_kind_shares_received": "La quantité reçue est requise.",
+    "either_amount_or_unit_price_is_required_for_dividend_in_kind": "Saisissez le montant du dividende ou la JVM par unité.",
+    "amount_is_required_for_dividend_activities": "Veuillez saisir un montant.",
+    "symbol_is_required_for_staking_rewards": "Veuillez sélectionner un actif de récompense.",
+    "quantity_is_required_for_staking_rewards_tokens_received": "La quantité reçue est requise.",
+    "either_amount_or_unit_price_is_required_for_staking_rewards": "Saisissez le montant des intérêts ou la JVM par unité.",
+    "amount_is_required_for_interest_activities": "Veuillez saisir un montant.",
+    "symbol_is_required_for_split_activities": "Veuillez saisir un symbole.",
+    "amount_split_ratio_must_be_greater_than_0": "Le ratio de fractionnement doit être supérieur à 0.",
+    "amount_is_required_for_credit_activities": "Veuillez saisir un montant.",
+    "activity_type_is_required": "Veuillez sélectionner un type d’activité",
+    "date_not_recognized": "Date non reconnue",
+    "map_type": "Associez le type d’activité CSV avant de continuer",
+    "credit_card_types": "Les imports de cartes de crédit acceptent uniquement les achats, paiements, virements sortants, remboursements, frais et intérêts",
+    "fee_or_amount": "Indiquez des frais ou un montant pour cette activité",
+    "amount_or_fee": "Indiquez un montant ou des frais pour l’impôt",
+    "amount_or_quantity": "Indiquez un montant ou une quantité pour le transfert",
+    "final_cash": "Le montant final est requis avant approbation",
+    "fx_non_negative": "Le taux de change ne peut pas être négatif",
+    "transfer_pair": "Un transfert nécessite ses deux côtés, dans deux devises s’ils partagent le même compte",
+    "more": " (+{{remaining}} autres)",
+    "amount_is_required_for_deposit_withdrawal_activities": "Veuillez saisir un montant."
+  },
+  "validationFields": {
+    "external": "Transfert externe",
+    "direction": "Sens du transfert",
+    "mode": "Mode de transfert"
   }
 }

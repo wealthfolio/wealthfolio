@@ -12,7 +12,6 @@
     "more": "更多"
   },
   "securities": {
-    "heading": "证券",
     "subtitle": "浏览和管理您投资组合中可用的证券。",
     "add_security": "添加证券",
     "delete_title": "删除证券",
@@ -64,7 +63,7 @@
       "symbol_required": "代码为必填项",
       "symbol_max": "代码不得超过 100 个字符",
       "name_required": "名称为必填项",
-      "name_max": "名称不得超过 100 个字符",
+      "name_max": "名称不得超过 200 个字符",
       "instrument_type_required": "工具类型为必填项",
       "currency_required": "货币为必填项"
     },
@@ -235,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "例如 SBER、AFLT",
+    "moex_symbol_hint": "请使用不带前缀或后缀的 MOEX 证券代码，并将交易所设为 Moscow Exchange (MISX)。",
     "identity_conflict": "已存在具有相同标识的资产。更改未保存。请使用现有资产或选择其他交易所。",
     "general": "通用",
     "classification": "分类",
@@ -697,6 +698,18 @@
       "precious_metal": "贵金属",
       "liability": "负债",
       "other": "其他"
+    },
+    "validation": {
+      "name_is_required": "名称为必填项",
+      "quantity_must_be_greater_than_0": "数量必须大于0",
+      "purchase_price_must_be_greater_than_0": "购买价格必须大于0",
+      "notes_must_be_less_than_1000_characters": "注释必须少于 1000 个字符",
+      "address_must_be_less_than_200_characters": "地址必须少于 200 个字符",
+      "interest_rate_must_be_100_or_less": "利率必须为 100 或更低",
+      "name_must_be_less_than_100_characters": "名称必须少于 100 个字符",
+      "interest_rate_must_be_0_or_greater": "利率必须为 0 或更大",
+      "description_must_be_less_than_200_characters": "描述必须少于 200 个字符",
+      "original_amount_must_be_greater_than_0": "原始金额必须大于0"
     }
   },
   "updateValuation": {
@@ -711,7 +724,12 @@
     "notes_placeholder": "添加关于此次估值的任何背景信息（例如评估来源、市场状况）",
     "cancel": "取消",
     "update_value": "更新价值",
-    "na": "不适用"
+    "na": "不适用",
+    "validation": {
+      "number": "价值必须为数字。",
+      "non_negative": "价值不能为负数",
+      "notes": "备注不得超过 500 个字符"
+    }
   },
   "valueHistory": {
     "date": "日期",
@@ -1009,5 +1027,25 @@
     "payment_invalid": "请输入大于零的还款额。",
     "payment_unavailable": "无法根据这些条件计算还款额。请检查金额、利率和摊还期限。",
     "fields_read_only": "贷款条件只能在贷款详情中更改。"
+  },
+  "notifications": {
+    "profile_updated": "资产资料已更新。",
+    "quote_mode_updated": "资产报价模式已更新。",
+    "profile_failed": "更新资产资料时出现问题。",
+    "quote_mode_failed": "更新资产报价模式时出现问题。",
+    "quote_added": "报价已添加。",
+    "quote_updated": "报价已更新。",
+    "quote_deleted": "报价已删除。",
+    "quote_save_failed": "保存报价时出现问题。",
+    "quote_delete_failed": "删除报价时出现问题。"
+  },
+  "noQuote": {
+    "manual": "报价模式为手动",
+    "inactive": "资产未启用",
+    "matured": "债券已到期",
+    "expired": "期权已到期",
+    "paused": "同步因多次出错而暂停",
+    "pending": "尚未同步数据源报价",
+    "no_data": "数据源暂未提供数据"
   }
 }

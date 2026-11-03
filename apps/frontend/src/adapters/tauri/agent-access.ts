@@ -177,3 +177,9 @@ export const deleteAgentAccessToken = async (id: string): Promise<void> => {
     throw error;
   }
 };
+
+export const updateAgentAccessTokenScopes = (
+  id: string,
+  input: { scopes: string[] },
+): Promise<AgentAccessToken> =>
+  invoke<AgentAccessToken>("mcp_update_token_scopes", { id, scopes: input.scopes });

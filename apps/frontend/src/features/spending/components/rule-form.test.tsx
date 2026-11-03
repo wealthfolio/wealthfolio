@@ -76,6 +76,7 @@ it("offers Savings categories when editing a categorization rule", async () => {
   await user.click(screen.getByRole("button", { name: "Select category" }));
   await user.type(screen.getByPlaceholderText("Search categories..."), "Investment Contributions");
   expect(screen.getByText("Investment Contributions")).toBeInTheDocument();
+  expect(screen.getByText(/Categories follow the transaction's cash flow/)).toBeInTheDocument();
 });
 
 describe("rule form priority validation", () => {

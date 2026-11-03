@@ -266,7 +266,7 @@ const AccountSummaryComponent = React.memo(
           {gainAmountToDisplay != null && (
             <>
               <GainAmount
-                className="text-xs font-medium md:text-sm md:font-medium"
+                className="text-xs md:text-sm"
                 value={gainAmountToDisplay}
                 currency={gainDisplayCurrency}
                 displayCurrency={false}
@@ -274,10 +274,7 @@ const AccountSummaryComponent = React.memo(
               <Separator orientation="vertical" className="h-3 md:h-4" />
             </>
           )}
-          <GainPercent
-            className="text-xs font-medium md:text-sm md:font-medium"
-            value={gainPercentToDisplay}
-          />
+          <GainPercent className="text-xs md:text-sm" value={gainPercentToDisplay} />
         </>
       );
       shouldExposeSecondaryMetric = true;
@@ -288,7 +285,7 @@ const AccountSummaryComponent = React.memo(
     const content = (
       <>
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-1.5">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold leading-tight md:text-base md:font-semibold">
+          <h3 className="flex items-center gap-1.5 text-sm leading-tight font-semibold md:text-base md:font-semibold">
             <span className="truncate">{name}</span>
             {shouldShowWarning && (
               <Tooltip>
@@ -311,7 +308,7 @@ const AccountSummaryComponent = React.memo(
         </div>
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
           <div className="flex min-h-[3rem] flex-col items-end justify-center gap-1 md:gap-1.5">
-            <p className="text-sm font-semibold leading-tight md:text-base md:font-semibold">
+            <p className="text-sm leading-tight font-semibold md:text-base md:font-semibold">
               <PrivacyAmount value={totalValue} currency={currency} />
             </p>
             {secondaryMetricContent && (
@@ -560,7 +557,7 @@ export const AccountsSummary = React.memo(
           <Alert variant="destructive" className="rounded-xl p-4 md:p-5">
             <Icons.AlertTriangle />
             <AlertTitle>{t("dashboard:summary.failed_to_load")}</AlertTitle>
-            <AlertDescription className="break-words text-xs">
+            <AlertDescription className="text-xs break-words">
               <p className="mb-2">
                 {errorAccounts?.message || t("dashboard:summary.unexpected_error")}
               </p>
@@ -785,7 +782,7 @@ export const AccountsSummary = React.memo(
           <Alert variant="destructive" className="mb-2 p-3">
             <Icons.AlertTriangle />
             <AlertTitle>{t("dashboard:summary.failed_to_load_performance")}</AlertTitle>
-            <AlertDescription className="break-words text-xs">
+            <AlertDescription className="text-xs break-words">
               {performanceError?.message || t("dashboard:summary.values_without_returns")}
             </AlertDescription>
           </Alert>

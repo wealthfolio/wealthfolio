@@ -102,7 +102,7 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
-            className="focus-visible:outline-solid focus-visible:outline-ring bg-muted absolute end-4 cursor-pointer rounded-full p-2 opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none"
+            className="focus-visible:outline-ring bg-muted absolute end-4 cursor-pointer rounded-full p-2 opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid disabled:pointer-events-none"
             style={{ top: needsSafeAreaTop ? "calc(env(safe-area-inset-top, 0px) + 1rem)" : "1rem" }}
           >
             <Icons.X className="h-5 w-5 sm:h-4 sm:w-4" />
