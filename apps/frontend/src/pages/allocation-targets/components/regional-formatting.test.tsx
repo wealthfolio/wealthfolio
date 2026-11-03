@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import { createNumberFormatting, FormattingProvider } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
 import { describe, expect, it, vi } from "vitest";
@@ -54,4 +55,63 @@ describe("allocation regional formatting", () => {
       expect.objectContaining({ categoryId: "Bonds", targetBps: 6550 }),
     ]);
   });
+});
+
+function renderEditableWeights(locale = "US", direction: "ltr" | "rtl" = "ltr") {
+  const onChange = vi.fn();
+  render(
+    <DirectionProvider direction={direction}>
+      <FormattingProvider locale={locale}>
+        <TargetWeightEditor
+          categories={categories}
+          weights={[
+            { categoryId: "Equity", targetBps: 3330, isLocked: false },
+            { categoryId: "Bonds", targetBps: 6670, isLocked: false },
+          ]}
+          currentAllocation={{ Equity: 33.3, Bonds: 66.7 }}
+          colorByCategory={new Map()}
+          bandType="absolute"
+          driftBandBps={100}
+          relativeFactorBps={2000}
+          onChange={onChange}
+        />
+      </FormattingProvider>
+    </DirectionProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: locale === "US" ? "33.3" : /33,3/ }));
+  return { onChange, input: screen.getByRole("textbox", { name: "Equity Target" }) };
+}
+
+it.each([
+  { locale: "US", direction: "ltr" as const, invalid: "12%", commit: "blur" },
+  { locale: "US", direction: "ltr" as const, invalid: "12,5", commit: "Enter" },
+  { locale: "ES", direction: "rtl" as const, invalid: "12abc", commit: "blur" },
+  { locale: "ES", direction: "rtl" as const, invalid: "", commit: "Enter" },
+])(
+  "preserves target weights for unreadable $invalid in $locale on $commit",
+  ({ locale, direction, invalid, commit }) => {
+    const { input, onChange } = renderEditableWeights(locale, direction);
+    // An invalid replacement must discard any preceding valid live preview too.
+    fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.change(input, { target: { value: invalid } });
+    if (commit === "blur") fireEvent.blur(input);
+    else fireEvent.keyDown(input, { key: "Enter" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: locale === "US" ? "33.3" : /33,3/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: locale === "US" ? "66.7" : /66,7/ }),
+    ).toBeInTheDocument();
+  },
+);
+
+it("still commits an explicit zero target weight", () => {
+  const { input, onChange } = renderEditableWeights();
+  fireEvent.change(input, { target: { value: "0" } });
+  fireEvent.blur(input);
+  expect(onChange).toHaveBeenCalledWith([
+    expect.objectContaining({ categoryId: "Equity", targetBps: 0 }),
+    expect.objectContaining({ categoryId: "Bonds", targetBps: 10000 }),
+  ]);
 });

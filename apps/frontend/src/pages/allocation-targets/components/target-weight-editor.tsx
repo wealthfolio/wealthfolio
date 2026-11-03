@@ -178,8 +178,10 @@ export function TargetWeightEditor({
   function commitEdit(categoryId: string) {
     skipBlurCommitRef.current = false;
     const pct = numbers.parseNumber(editValue);
-    const bps = pct === undefined ? 0 : Math.round(Math.min(100, Math.max(0, pct)) * 100);
-    onChange(redistribute(weights, categoryId, bps));
+    if (pct !== undefined) {
+      const bps = Math.round(Math.min(100, Math.max(0, pct)) * 100);
+      onChange(redistribute(weights, categoryId, bps));
+    }
     setEditingId(null);
     setLiveBps(null);
   }

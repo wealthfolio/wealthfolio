@@ -264,3 +264,96 @@ it.each([
     );
   },
 );
+
+it.each(["ltr", "rtl"] as const)(
+  "does not save any group edits with an invalid starting balance in %s",
+  async (direction) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    vi.mocked(updateBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user } = await setup(budget, "ES", direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const name = within(dialog).getByRole("textbox", { name: zhCommon.name });
+    await user.clear(name);
+    await user.type(name, "New name");
+    const colors = within(dialog).getAllByRole("button", { name: /#/ });
+    await user.click(colors[0]);
+    const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    for (const invalid of ["12abc", "", " "]) {
+      await user.clear(balance);
+      if (invalid) await user.type(balance, invalid);
+      await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+      expect(updateBudgetGroup).not.toHaveBeenCalled();
+      expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+      expect(dialog).toBeInTheDocument();
+    }
+    // The retained draft remains correctable; explicit zero must still save.
+    await user.clear(balance);
+    await user.type(balance, "0");
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(updateBudgetGroup).toHaveBeenCalledWith(
+        NEEDS_ID,
+        expect.objectContaining({ name: "New name" }),
+        "default",
+      ),
+    );
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ startingBalance: "0", enabled: true }),
+        "default",
+      ),
+    );
+  },
+);
+
+it("can disable rollover after entering an invalid starting balance", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings = [
+    {
+      id: "rollover-needs",
+      targetType: "group",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      enabled: true,
+      startMonth: "2025-03",
+      startingBalance: "-123.5",
+      createdAt: "",
+      updatedAt: "",
+    },
+  ];
+  vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+  const { i18n, user } = await setup(budget, "ES");
+  await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+  const dialog = await screen.findByRole("dialog");
+  const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+  await user.clear(balance);
+  await user.type(balance, "12abc");
+  await user.click(
+    within(dialog).getByRole("switch", { name: i18n.t("spending:budgetEditor.enableRollover") }),
+  );
+  await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+  await waitFor(() =>
+    expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, startingBalance: "-123.5" }),
+      "default",
+    ),
+  );
+  expect(updateBudgetGroup).not.toHaveBeenCalled();
+});
