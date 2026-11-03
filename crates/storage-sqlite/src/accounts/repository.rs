@@ -71,7 +71,7 @@ impl AccountRepositoryTrait for AccountRepository {
         // Capture which optional fields were explicitly set before conversion
         let is_archived_provided = account_update.is_archived.is_some();
         let tracking_mode_provided = account_update.tracking_mode.is_some();
-        let group_update = account_update.group.clone();
+        let group_provided = account_update.group.is_some();
 
         self.writer
             .exec_tx(move |tx| {
@@ -87,7 +87,9 @@ impl AccountRepositoryTrait for AccountRepository {
                 account_db.currency = existing.currency;
                 account_db.created_at = existing.created_at;
                 account_db.updated_at = chrono::Utc::now().naive_utc();
-                account_db.group = group_update.unwrap_or(existing.group);
+                if !group_provided {
+                    account_db.group = existing.group;
+                }
 
                 // Preserve broker-managed fields (only set by broker sync, not user form)
                 account_db.provider_account_id = existing.provider_account_id;
