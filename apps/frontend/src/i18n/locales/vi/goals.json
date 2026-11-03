@@ -270,7 +270,9 @@
       "return_before_hint": "Lợi nhuận hàng năm dự kiến trong thời gian tiết kiệm, trước phí đầu tư.",
       "return_during_hint": "Lợi nhuận hàng năm dự kiến sau khi bắt đầu rút tiền, trước phí đầu tư.",
       "annual_fee_hint": "Phí danh mục ước tính hàng năm.",
-      "inflation_hint": "Mức tăng giá tiêu dùng dự kiến hàng năm."
+      "inflation_hint": "Mức tăng giá tiêu dùng dự kiến hàng năm.",
+      "savings_goals_contribution": "Savings goals also plan {{amount}}/mo",
+      "savings_goals_contribution_hint": "Your savings goals also plan {{amount}}/mo. Enter only what goes to retirement."
     },
     "spending": {
       "kicker": "Chi tiêu",
@@ -348,7 +350,8 @@
       "growth_placeholder_inflation": "Lạm phát {{pct}}%",
       "growth_placeholder_fixed": "Cố định 0.0",
       "add_income": "Thêm thu nhập nghỉ hưu",
-      "add_pension_fund": "Thêm quỹ hưu trí"
+      "add_pension_fund": "Thêm quỹ hưu trí",
+      "fund_return_hint": "Compound annual return after the fund's own fees. The plan's investment fee isn't deducted."
     },
     "assumptions": {
       "kicker": "Giả định",
@@ -595,7 +598,9 @@
       "taxable": "Chịu thuế",
       "tax_deferred": "Hoãn thuế",
       "tax_free": "Miễn thuế"
-    }
+    },
+    "retirement_share_note": "Retirement counts up to this share of each account. Shares that active savings goals set aside are left out.",
+    "counting": "Counting {{percent}}%"
   },
   "value_mode": {
     "todays_value": "Giá trị hôm nay",
@@ -628,7 +633,14 @@
     "event_retirement": "Nghỉ hưu",
     "fi_reference": "FI · {{age}} tuổi",
     "series_required": "Yêu cầu",
-    "series_projected": "Dự báo"
+    "series_projected": "Dự báo",
+    "goal_milestones": "Savings goals",
+    "goal_milestones_tip": "Each active savings goal sits at its target date, colored by its status. Savings goals keep their own money; the projection leaves it out.",
+    "goal_milestones_toggle": "Click to show or hide them.",
+    "goal_milestone_target": "{{amount}} by {{date}}",
+    "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
+    "goal_milestone_aria_no_status": "{{name}}, {{target}}",
+    "goal_milestone_not_projected": "Kept apart from this projection"
   },
   "snapshot": {
     "table": "Bảng",
@@ -715,7 +727,8 @@
     "needed": "Cần có",
     "finish": "Hoàn tất",
     "not_reached": "Chưa đạt",
-    "edit_aria": "Chỉnh sửa {{title}}"
+    "edit_aria": "Chỉnh sửa {{title}}",
+    "highReturnWarning": "High return assumption. This assumes consistently beating broad market returns."
   },
   "projection": {
     "kicker": "Dự báo",

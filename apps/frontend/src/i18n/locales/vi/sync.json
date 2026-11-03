@@ -264,7 +264,20 @@
       "show": "Hiển thị tiến độ"
     }
   },
-  "errors": {},
+  "errors": {
+    "portfolioRepair": "Sửa chữa danh mục đầu tư",
+    "fallback": "Dự phòng",
+    "restoreRequired": "Yêu cầu khôi phục",
+    "invalidCode": "Mã không hợp lệ",
+    "expired": "Đã hết hạn",
+    "cancelled": "Đã hủy",
+    "network": "Lỗi mạng",
+    "timeout": "Hết thời gian chờ",
+    "notFound": "Không tìm thấy",
+    "security": "Bảo mật",
+    "technical": "Kỹ thuật",
+    "namedPortfolioRepair": "Portfolio \"{{name}}\" contains a deleted account link. Open Settings > Portfolios, edit the portfolio, then save."
+  },
   "wizard": {
     "progressLabel": "Tiến độ thiết lập",
     "steps": {

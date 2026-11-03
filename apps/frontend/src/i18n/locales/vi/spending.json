@@ -48,7 +48,10 @@
     "deleteUndoNote": "Hành động này không thể hoàn tác.",
     "searchCategories": "Tìm kiếm danh mục...",
     "noCategoriesFound": "Không tìm thấy danh mục nào.",
-    "clearCategory": "Xóa danh mục"
+    "clearCategory": "Xóa danh mục",
+    "parent": "Danh mục cha",
+    "topLevel": "Cấp cao nhất",
+    "parentLockedByBudget": "Bị khóa bởi ngân sách"
   },
   "activityTypes": {
     "balanceTransferCashAdvance": "Chuyển số dư / Ứng tiền mặt",
@@ -133,7 +136,12 @@
     "amountChipGte": "Số tiền từ {{value}} trở lên",
     "amountChipLt": "Số tiền nhỏ hơn {{value}}",
     "amountChipLte": "Số tiền từ {{value}} trở xuống",
-    "amountChipBetween": "Số tiền trong khoảng {{value}} và {{value2}}"
+    "amountChipBetween": "Số tiền trong khoảng {{value}} và {{value2}}",
+    "categoryCompatibilityHint": "Gợi ý tương thích danh mục",
+    "runIncompatible": "Incompatible categories: {{count}}. Categories follow the transaction's cash flow. Savings categories apply only to linked transfers leaving your tracked spending accounts.",
+    "runProtected": "Existing categories or splits kept: {{count}}.",
+    "runUnchanged": "Already categorized as requested: {{count}}.",
+    "runWithoutTarget": "Matches without a category target: {{count}}."
   },
   "transactions": {
     "deleteTitle_one": "Xóa giao dịch",
@@ -169,7 +177,8 @@
     "income": "Thu nhập",
     "spending": "Chi tiêu",
     "saving": "Tiết kiệm",
-    "net": "Ròng"
+    "net": "Ròng",
+    "netSaved": "Đã lưu ròng"
   },
   "insights": {
     "stageWhere": "Tổng quan hiện tại",
@@ -425,7 +434,12 @@
     "removeLine": "Xóa dòng tách {{number}}",
     "addLine": "Thêm dòng",
     "distributeEvenly": "Phân bổ đều",
-    "clearSplit": "Xóa tách"
+    "clearSplit": "Xóa tách",
+    "staleTaxonomy": "Phân loại cũ",
+    "replaceWithCategory": "Thay thế bằng danh mục",
+    "replaceDescription_other": "Replace {{count}} split allocations with {{category}}? This removes the existing splits.",
+    "categoryProtected": "Danh mục được bảo vệ",
+    "replaceDescription_one": "Replace {{count}} split allocation with {{category}}? This removes the existing splits."
   },
   "hierarchy": {
     "noCategorizedSpending": "Không có chi tiêu được phân loại trong kỳ này.",
@@ -719,8 +733,6 @@
     "overspentBy": "Vượt chi {{pct}}",
     "noIncome": "Không có thu nhập trong các tài khoản đã chọn cho kỳ này.",
     "spent": "Đã chi",
-    "saved": "Đã tiết kiệm",
-    "setAside": "Đã để dành",
     "sortSpent": "đã chi",
     "sortChange": "thay đổi",
     "sortName": "tên",
@@ -766,7 +778,9 @@
       "refunds": "Hoàn tiền ròng",
       "surplus": "Tiền còn dư",
       "uncategorizedIncome": "Thu nhập chưa phân loại",
-      "netSpending": "Chi tiêu ròng"
+      "netSpending": "Chi tiêu ròng",
+      "fromSavings": "Từ tiết kiệm",
+      "toSavings": "Vào tiết kiệm"
     },
     "hint": {
       "total": "Tiền vào cộng hoàn tiền ròng và thiếu hụt.",
@@ -777,7 +791,8 @@
       "surplus": "Tiền vào nhưng chưa chi tiêu hoặc để dành.",
       "uncategorized": "Chi tiêu chưa được gán danh mục.",
       "net": "Chi phí của danh mục này sau khi trừ hoàn tiền.",
-      "direct": "Gán trực tiếp cho chính danh mục đó."
+      "direct": "Gán trực tiếp cho chính danh mục đó.",
+      "fromSavings": "Gợi ý từ tiết kiệm"
     },
     "groupRefunds": "Trước khi trừ {{amount}} hoàn tiền ròng.",
     "categoryRefunds": "Trước khi trừ {{refunds}} hoàn tiền ròng. Chi tiêu ròng: {{net}}."
@@ -938,8 +953,6 @@
     "uncategorizedReview": "Chưa phân loại — xem lại",
     "uncategorizedImprove": "Chưa phân loại — xem lại để cải thiện báo cáo",
     "plusMore": "+ {{count}} mục khác",
-    "down": "Giảm",
-    "up": "Tăng",
     "aboutSame": "Xấp xỉ như kỳ trước",
     "fromPriorPeriod": "so với kỳ trước",
     "intervalMtd": "tháng này",
@@ -1034,5 +1047,41 @@
     "overridesTitle_one": "Ghi đè · {{count}}",
     "overridesTitle_other": "Ghi đè · {{count}}",
     "sourceMonth": "Tháng nguồn"
+  },
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "Nhóm ngân sách 1",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "Nhóm ngân sách 2",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "Nhóm ngân sách 3",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "Nhóm ngân sách 4",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "Nhóm ngân sách 5",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "Nhóm ngân sách 6"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "Loại sự kiện 1",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "Loại sự kiện 2",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "Loại sự kiện 3",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "Loại sự kiện 4",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "Loại sự kiện 5",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Loại sự kiện 6",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Loại sự kiện 7"
+  },
+  "splitEditReview": {
+    "title": "Tiêu đề xem xét chỉnh sửa chia",
+    "hiddenCategory": "Danh mục ẩn",
+    "confirm": "Xác nhận",
+    "removed_other": "Đã xóa {{count}} mục khác",
+    "removed_one": "{{count}} entry removed."
+  },
+  "budgetErrors": {
+    "deleteGroup": "Lỗi xóa nhóm",
+    "copyPlan": "Lỗi sao chép kế hoạch"
+  },
+  "grid": {
+    "transferInForm": "Chuyển vào biểu mẫu",
+    "noCategory": "Không có danh mục",
+    "saveTypeFirst": "Lưu loại trước",
+    "saveCategoryFirst": "Lưu danh mục trước",
+    "typeNotForAccount": "Loại không cho tài khoản",
+    "amountRequired": "Yêu cầu số tiền"
   }
 }
