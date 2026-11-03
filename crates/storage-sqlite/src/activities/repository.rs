@@ -7864,6 +7864,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_checked_delete_suppresses_the_row_it_removes() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-sync");
+
+        let row = broker_upsert(
+            "provider-id-1",
+            "acc-sync",
+            Some("txn-1"),
+            Some("idemp-1"),
+            Decimal::from(100),
+        );
+        repo.bulk_upsert(vec![row.clone()])
+            .await
+            .expect("first sync");
+
+        repo.delete_activities_checked(vec!["provider-id-1".to_string()])
+            .await
+            .expect("reviewed delete");
+
+        let resync = repo.bulk_upsert(vec![row]).await.expect("re-sync");
+        assert_eq!(resync.suppressed, 1);
+        assert!(activity_ids(&mut conn, "acc-sync").is_empty());
+    }
+
+    #[tokio::test]
     async fn a_snapshot_written_before_a_new_column_is_still_restorable() {
         let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
