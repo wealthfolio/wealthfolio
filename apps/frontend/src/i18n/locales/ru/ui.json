@@ -8,7 +8,7 @@
   "currency": {
     "selectTitle": "Выбор валюты",
     "selectDescription": "Выберите валюту",
-    "placeholder": "Выбрать валюту",
+    "placeholder": "Выберите валюту",
     "popular": "Популярные",
     "more": "Ещё",
     "search": "Поиск валюты...",
@@ -54,7 +54,7 @@
     "deleteRows": "Удалить строки",
     "cellsCleared": "Очищено ячеек: {{count}}",
     "rowsDeleted": "Удалено строк: {{count}}",
-    "enterText": "Ввести текст...",
+    "enterText": "Введите текст...",
     "search": "Поиск...",
     "noOptionsFound": "Варианты не найдены.",
     "none": "Нет",
@@ -156,9 +156,9 @@
     "addRowsTitle": "Хотите добавить ещё строки?",
     "addRowsDescription": "Чтобы вставить всё из буфера обмена, нужно добавить строк: {{count}}.",
     "createNewRows": "Создать новые строки",
-    "createNewRowsDescription": "Добавить в таблицу новых строк: {{count}} и вставить все данные",
+    "createNewRowsDescription": "Добавьте в таблицу новые строки в количестве {{count}} и вставьте все данные",
     "keepCurrentRows": "Оставить текущие строки",
-    "keepCurrentRowsDescription": "Вставить только то, что помещается в текущие строки"
+    "keepCurrentRowsDescription": "Вставьте только то, что помещается в текущие строки"
   },
   "errorBoundary": {
     "title": "Что-то пошло не так",
@@ -200,7 +200,7 @@
   "search": {
     "clear": "Очистить поиск",
     "closeSearch": "Закрыть поиск",
-    "findInTable": "Найти в таблице...",
+    "findInTable": "Найдите в таблице...",
     "matchCount": "{{current}} из {{total}}",
     "nextMatch": "Следующее совпадение",
     "noOptions": "Нет доступных вариантов.",

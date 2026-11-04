@@ -202,4 +202,56 @@ describe("Russian terminology", () => {
     }
     expect(bad).toEqual([]);
   });
+  // dashboard-page.tsx joins prefix + age + suffix; the preposition lives in the prefix.
+  it.each([61, 65])("assembles the goals verdict sentences at age %i", (age) => {
+    const fill = (key: string) =>
+      (allStrings.get(`goals:dashboard.verdict.${key}`) ?? "").replaceAll("{{age}}", String(age));
+    const sentence = (prefix: string, suffix?: string) =>
+      [fill(prefix), fill("age"), suffix ? fill(suffix) : ""].join(" ").trim();
+    const gap = sentence("spending_gap_prefix", "spending_gap_suffix");
+    const depleted = sentence("depleted_prefix", "depleted_suffix");
+    const onTrack = sentence("on_track_prefix", "on_track_suffix");
+    const notReachable = sentence("not_reachable_prefix", "not_reachable_suffix");
+    expect(gap).toContain(`с возраста ${age}`);
+    expect(depleted).toContain(`исчерпается в возрасте ${age}`);
+    expect(onTrack).toContain(`на пенсию в возрасте ${age}`);
+    expect(notReachable).toContain(`к возрасту ${age}`);
+    for (const text of [gap, depleted, onTrack, notReachable]) {
+      expect(text).not.toMatch(/(?<![а-яё])(с|в|к) в возрасте/);
+      expect(text).not.toMatch(/лет по плану/);
+    }
+  });
+
+  it("never stacks a preposition on «в возрасте» or ends a plan with «лет по плану»", () => {
+    const found = [...allStrings].filter(([, value]) =>
+      /(?<![а-яё])(с|в|к) в возрасте|лет по плану/u.test(value),
+    );
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  // The count of the plural key is the account total; the other counters must not be inflected.
+  it("keeps every partialSyncing form identical and without an inflected counter", () => {
+    const forms = ["one", "few", "many", "other"].map((c) =>
+      allStrings.get(`connect:connections.partialSyncing_${c}`),
+    );
+    expect(new Set(forms).size).toBe(1);
+    expect(forms[0]).toBe("Синхронизируется: {{syncing}} из {{total}} · Исключено: {{excluded}}");
+  });
+
+  it("reads «из …» after a number on the spending and loan cards", () => {
+    for (const form of ["", "_one", "_few", "_many", "_other"]) {
+      expect(allStrings.get(`settings:spending.module.stat_accounts_unit${form}`)).toMatch(
+        /^из \{\{count\}\} /,
+      );
+    }
+    expect(allStrings.get("asset:loanOverview.of_original")).toMatch(/^из \{\{amount\}\} /);
+  });
+
+  // Hints and descriptions address the user (imperative); buttons keep the infinitive.
+  it("does not tell the user «Нажать» in a hint", () => {
+    const found = [...allStrings].filter(
+      ([, value]) => /(^|[^а-яё])Нажать(?![а-яё])/u.test(value) || value.includes("Нажать, чтобы"),
+    );
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
 });
