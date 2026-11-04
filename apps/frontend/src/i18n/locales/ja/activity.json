@@ -606,7 +606,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "{{label}}の詳細情報",
     "bulk_add_existing_title": "既存の保有銘柄を追加",
-    "bulk_add_existing_desc": "複数の保有銘柄をまとめてポートフォリオに追加します。ティッカー、株数、平均取得単価で現在のポジションを入力してください。現金残高には影響しません。",
+    "bulk_add_existing_desc": "現金残高を変更せずに、現在の保有資産を追加します。",
     "bulk_col_shares": "株数",
     "bulk_col_average_cost": "平均取得単価",
     "bulk_col_total_value": "合計額",
@@ -798,12 +798,6 @@
     "day_count_one": "{{count}}件の取引",
     "day_count_other": "{{count}}件の取引",
     "day_end_cash": "現金"
-  },
-  "mobile_type_category": {
-    "trade": "売買",
-    "cash": "現金",
-    "income": "収入",
-    "other": "その他"
   },
   "mobile_type_transfer_desc": "口座間で現金または証券を移動します",
   "mobile_type_adjustment_label": "調整",

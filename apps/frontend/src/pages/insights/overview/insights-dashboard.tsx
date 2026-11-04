@@ -360,7 +360,7 @@ export function InsightsDashboard({
           side={isMobile ? "bottom" : "inline-end"}
           className={
             isMobile
-              ? "max-h-[85dvh] overflow-y-auto rounded-t-3xl pb-[calc(var(--inset-bottom)+1.5rem)]"
+              ? "overflow-y-auto rounded-t-3xl pb-6 [--overlay-max-height:85dvh]"
               : "overflow-y-auto"
           }
         >

@@ -18,6 +18,8 @@ export interface AccountSelectOption {
   label: string;
   currency: string;
   accountType?: string;
+  /** The account's group, which a phone's account list is sorted under. */
+  group?: string;
   /** Activity restriction level based on account tracking mode. */
   restrictionLevel?: "none" | "limited" | "blocked";
 }

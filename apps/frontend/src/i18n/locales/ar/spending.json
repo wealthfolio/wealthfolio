@@ -189,8 +189,13 @@
     "spending": "الإنفاق"
   },
   "cashForm": {
+    "none": "لا شيء",
+    "addExpense": "إضافة مصروف",
+    "addIncome": "إضافة دخل",
     "accountRequired": "يرجى اختيار حساب.",
     "activityCreated": "تم إنشاء النشاط.",
+    "expenseAdded": "تمت إضافة المصروف.",
+    "incomeAdded": "تمت إضافة الدخل.",
     "activityUpdated": "تم تحديث النشاط.",
     "addDescription": "أضف معاملة جديدة على حساب إنفاق متتبَّع.",
     "addTitle": "إضافة معاملة",

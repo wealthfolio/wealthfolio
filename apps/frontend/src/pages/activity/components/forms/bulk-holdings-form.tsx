@@ -205,7 +205,7 @@ const HoldingRow = memo(
           setValue(`holdings.${index}.assetKind`, "", { shouldDirty: true });
         }
 
-        setFocus(`holdings.${index}.sharesOwned`);
+        requestAnimationFrame(() => setFocus(`holdings.${index}.sharesOwned`));
       },
       [index, setFocus, setValue],
     );
@@ -233,13 +233,15 @@ const HoldingRow = memo(
         {/* Ticker Input */}
         <div className="col-span-2 sm:col-span-5">
           <div className="flex min-w-0 items-center gap-2">
-            <TickerAvatar
-              symbol={canonicalSymbol || ticker}
-              exchangeMic={exchangeMic || undefined}
-              instrumentType={instrumentType || undefined}
-              assetId={assetId || undefined}
-              className="shrink-0"
-            />
+            {(canonicalSymbol || ticker) && (
+              <TickerAvatar
+                symbol={canonicalSymbol || ticker}
+                exchangeMic={exchangeMic || undefined}
+                instrumentType={instrumentType || undefined}
+                assetId={assetId || undefined}
+                className="shrink-0"
+              />
+            )}
             <div className="min-w-0 flex-1">
               <FormField
                 control={control}
@@ -253,7 +255,7 @@ const HoldingRow = memo(
                     }}
                     value={tickerField.value}
                     placeholder={t("activity:search_ticker_placeholder")}
-                    className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 truncate rounded-md border text-sm focus:border"
+                    className="focus:border-input focus:bg-background bg-muted/40 border-border/40 min-h-11 truncate rounded-md border text-sm focus:border sm:h-9 sm:min-h-0"
                     data-testid={`bulk-holding-ticker-${index}`}
                   />
                 )}
@@ -277,11 +279,18 @@ const HoldingRow = memo(
 
         {/* Shares Input */}
         <div className="col-start-1 sm:col-span-1">
+          <label
+            htmlFor={`bulk-holding-shares-${field.id}`}
+            className="mb-1 block text-sm sm:sr-only"
+          >
+            {t("activity:form.bulk_col_shares")}
+          </label>
           <FormField
             control={control}
             name={`holdings.${index}.sharesOwned`}
             render={({ field: sharesField }) => (
               <QuantityInput
+                id={`bulk-holding-shares-${field.id}`}
                 {...sharesField}
                 placeholder={t("activity:form.bulk_placeholder_shares")}
                 className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 rounded-md border text-sm focus:border"
@@ -294,11 +303,18 @@ const HoldingRow = memo(
 
         {/* Average Cost Input */}
         <div className="sm:col-span-2">
+          <label
+            htmlFor={`bulk-holding-cost-${field.id}`}
+            className="mb-1 block text-sm sm:sr-only"
+          >
+            {t("activity:form.bulk_col_average_cost")}
+          </label>
           <FormField
             control={control}
             name={`holdings.${index}.averageCost`}
             render={({ field: priceField }) => (
               <MoneyInput
+                id={`bulk-holding-cost-${field.id}`}
                 {...priceField}
                 placeholder={t("activity:form.bulk_placeholder_avg_cost")}
                 className="focus:border-input focus:bg-background bg-muted/40 border-border/40 h-9 rounded-md border text-sm focus:border"
@@ -421,8 +437,8 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
   return (
     <div className="space-y-6">
       {/* Holdings Table */}
-      <Card>
-        <CardContent className="space-y-4 pt-4">
+      <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+        <CardContent className="space-y-4 pt-4 max-sm:p-0">
           {/* Account and Date Selection */}
           <div className="grid grid-cols-1 gap-4 pb-4 sm:grid-cols-2">
             <FormField
@@ -475,7 +491,7 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
           </div>
 
           {/* Table Rows - Virtualization candidate for large lists */}
-          <div className="max-h-96 space-y-1 overflow-y-auto">
+          <div className="space-y-2 sm:max-h-96 sm:overflow-y-auto">
             {fields.map((field, index) => (
               <HoldingRow
                 key={field.id}

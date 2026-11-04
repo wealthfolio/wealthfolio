@@ -173,7 +173,7 @@
   "field_start_date": "Start Date",
   "tickers": "Tickers",
   "total_value": "Total value",
-  "add_another_holding": "Add Another Holding",
+  "add_another_holding": "Add another holding",
   "import_successful": "Import successful",
   "holdings_imported_successfully": "Holdings have been imported successfully.",
   "no_valid_holdings": "No valid holdings",
@@ -608,8 +608,8 @@
     "currency_hint_base": "Base currency",
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "More info about {{label}}",
-    "bulk_add_existing_title": "Add Existing Holdings",
-    "bulk_add_existing_desc": "Quickly add multiple holdings to your portfolio. Enter your current positions with ticker symbols, quantities, and average costs. This will not affect your cash balance.",
+    "bulk_add_existing_title": "Add existing holdings",
+    "bulk_add_existing_desc": "Add your current positions without changing your cash balance.",
     "bulk_col_shares": "Shares",
     "bulk_col_average_cost": "Average cost",
     "bulk_col_total_value": "Total value",
@@ -805,12 +805,6 @@
     "day_count_one": "{{count}} activity",
     "day_count_other": "{{count}} activities",
     "day_end_cash": "Cash"
-  },
-  "mobile_type_category": {
-    "trade": "Trade",
-    "cash": "Cash",
-    "income": "Income",
-    "other": "Other"
   },
   "mobile_type_transfer_desc": "Move cash or securities between accounts",
   "mobile_type_adjustment_label": "Adjustment",

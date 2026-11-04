@@ -253,7 +253,7 @@ const AccountSummaryComponent = React.memo(
     } else if (shouldRenderNestedPlaceholder) {
       secondaryMetricContent = (
         <div
-          className="text-muted-foreground text-xs font-medium md:text-sm md:font-medium"
+          className="text-muted-foreground text-sm font-medium"
           data-testid="account-summary-secondary-placeholder"
         >
           -
@@ -266,7 +266,7 @@ const AccountSummaryComponent = React.memo(
           {gainAmountToDisplay != null && (
             <>
               <GainAmount
-                className="text-xs md:text-sm"
+                className="text-sm"
                 value={gainAmountToDisplay}
                 currency={gainDisplayCurrency}
                 displayCurrency={false}
@@ -274,7 +274,7 @@ const AccountSummaryComponent = React.memo(
               <Separator orientation="vertical" className="h-3 md:h-4" />
             </>
           )}
-          <GainPercent className="text-xs md:text-sm" value={gainPercentToDisplay} />
+          <GainPercent className="text-sm" value={gainPercentToDisplay} />
         </>
       );
       shouldExposeSecondaryMetric = true;
@@ -285,7 +285,7 @@ const AccountSummaryComponent = React.memo(
     const content = (
       <>
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-1.5">
-          <h3 className="flex items-center gap-1.5 text-sm leading-tight font-semibold md:text-base md:font-semibold">
+          <h3 className="flex items-center gap-1.5 text-base leading-tight font-semibold">
             <span className="truncate">{name}</span>
             {shouldShowWarning && (
               <Tooltip>
@@ -304,11 +304,11 @@ const AccountSummaryComponent = React.memo(
               </Tooltip>
             )}
           </h3>
-          <p className="text-muted-foreground truncate text-xs md:text-sm">{subText}</p>
+          <p className="text-muted-foreground truncate text-sm">{subText}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
           <div className="flex min-h-[3rem] flex-col items-end justify-center gap-1 md:gap-1.5">
-            <p className="text-sm leading-tight font-semibold md:text-base md:font-semibold">
+            <p className="text-base leading-tight font-semibold">
               <PrivacyAmount value={totalValue} currency={currency} />
             </p>
             {secondaryMetricContent && (

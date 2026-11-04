@@ -524,6 +524,7 @@ export function CreateSecurityDialog({
                       onValueChange={field.onChange}
                       placeholder={t("asset:createSecurity.select_exchange")}
                       searchPlaceholder={t("asset:createSecurity.search_exchanges")}
+                      sheetTitle={t("asset:createSecurity.exchange")}
                     />
                   </FormControl>
                   <FormMessage />

@@ -614,7 +614,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "Plus d'informations sur {{label}}",
     "bulk_add_existing_title": "Ajouter des positions existantes",
-    "bulk_add_existing_desc": "Ajoutez rapidement plusieurs positions à votre portefeuille. Saisissez vos positions actuelles avec les symboles, les quantités et les prix de revient moyens. Cela n'affectera pas votre solde de trésorerie.",
+    "bulk_add_existing_desc": "Ajoutez vos positions actuelles sans modifier votre solde de trésorerie.",
     "bulk_col_shares": "Actions",
     "bulk_col_average_cost": "Prix de revient moyen",
     "bulk_col_total_value": "Valeur totale",
@@ -820,12 +820,6 @@
     "day_count_other": "{{count}} activités",
     "day_count_many": "{{count}} activités",
     "day_end_cash": "Liquidités"
-  },
-  "mobile_type_category": {
-    "trade": "Négociation",
-    "cash": "Espèces",
-    "income": "Revenu",
-    "other": "Autre"
   },
   "mobile_type_transfer_desc": "Déplacer des espèces ou des titres entre comptes",
   "mobile_type_adjustment_label": "Ajustement",

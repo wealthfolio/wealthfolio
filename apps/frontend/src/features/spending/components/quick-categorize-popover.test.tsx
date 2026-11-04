@@ -1,11 +1,18 @@
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
+import { Sheet, SheetContent, SheetNavigation, SheetTitle } from "@wealthfolio/ui";
 import { expect, it, vi } from "vitest";
 
 import {
   QuickCategorizePopover,
   type QuickCategorizePopoverProps,
 } from "./quick-categorize-popover";
+
+const viewport = vi.hoisted(() => ({ mobile: false }));
+vi.mock("@/hooks/use-platform", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-platform")>()),
+  useIsMobileViewport: () => viewport.mobile,
+}));
 
 vi.mock("@/hooks/use-taxonomies", () => {
   const categories = {
@@ -95,4 +102,49 @@ it("keeps the category when a search matches nothing and Enter is pressed", asyn
   expect(onClear).not.toHaveBeenCalled();
   expect(screen.queryByRole("option")).not.toBeInTheDocument();
   expect(screen.getByText("No categories found.")).toBeInTheDocument();
+});
+
+it("opens as a titled bottom sheet on phones and still selects a category", async () => {
+  viewport.mobile = true;
+  try {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderPicker({ onSelect });
+
+    await user.click(screen.getByRole("button", { name: "Pick" }));
+
+    expect(screen.getByRole("dialog", { name: "Pick a category" })).toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: "Coffee" }));
+    expect(onSelect).toHaveBeenCalledWith("spending_categories", "coffee");
+  } finally {
+    viewport.mobile = false;
+  }
+});
+
+it("opens as a screen of a phone form's sheet, not as a second sheet", async () => {
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  render(
+    <Sheet open>
+      <SheetContent side="bottom">
+        <SheetNavigation>
+          <SheetTitle>Add expense</SheetTitle>
+          <QuickCategorizePopover
+            scope="expense"
+            selectedCategoryId={null}
+            onSelect={onSelect}
+            trigger={<button type="button">Pick</button>}
+          />
+        </SheetNavigation>
+      </SheetContent>
+    </Sheet>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Pick" }));
+
+  expect(screen.getByRole("dialog", { name: "Pick a category" })).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-slot="sheet-content"]')).toHaveLength(1);
+  await user.click(screen.getByRole("option", { name: "Coffee" }));
+  expect(onSelect).toHaveBeenCalledWith("spending_categories", "coffee");
+  expect(screen.queryByRole("dialog", { name: "Pick a category" })).not.toBeInTheDocument();
 });

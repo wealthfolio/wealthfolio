@@ -852,6 +852,9 @@
     "manage": "Verwalten →"
   },
   "cashForm": {
+    "none": "Keiner",
+    "addExpense": "Ausgabe hinzufügen",
+    "addIncome": "Einnahme hinzufügen",
     "accountRequired": "Bitte wählen Sie ein Konto aus.",
     "pickDate": "Datum auswählen",
     "amountNonNegative": "Der Betrag darf nicht negativ sein.",
@@ -869,6 +872,8 @@
     "spendingCategory": "Ausgabenkategorie",
     "activityUpdated": "Aktivität aktualisiert.",
     "activityCreated": "Aktivität erstellt.",
+    "expenseAdded": "Ausgabe hinzugefügt.",
+    "incomeAdded": "Einnahme hinzugefügt.",
     "saveFailed": "Aktivität konnte nicht gespeichert werden: {{message}}",
     "editTitle": "Transaktion bearbeiten",
     "addTitle": "Transaktion hinzufügen",

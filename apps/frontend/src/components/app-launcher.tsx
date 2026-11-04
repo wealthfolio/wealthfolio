@@ -1,3 +1,9 @@
+import {
+  SPENDING_ENTRY_PATH,
+  spendingEntryNavigationOptions,
+} from "@/features/spending/lib/activity-entry";
+import { getAccountTypeIcon } from "@/lib/account-type-icons";
+import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import {
@@ -8,12 +14,7 @@ import { useHoldings } from "@/hooks/use-holdings";
 import { useNameComparator } from "@/hooks/use-name-comparator";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
-import {
-  AccountType,
-  HoldingType,
-  PORTFOLIO_ACCOUNT_TYPE,
-  PORTFOLIO_SCOPE_ID,
-} from "@/lib/constants";
+import { HoldingType, PORTFOLIO_SCOPE_ID } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { Account } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  type Icon,
   Spinner,
 } from "@wealthfolio/ui";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -67,15 +67,9 @@ interface LauncherActionItem {
   keywords?: string[];
   label?: string;
   disabled?: boolean;
+  section?: "add" | "navigation" | "appearance" | "tools";
+  searchOnly?: boolean;
 }
-
-const accountTypeIcons: Record<AccountType | typeof PORTFOLIO_ACCOUNT_TYPE, Icon> = {
-  [AccountType.SECURITIES]: Icons.Briefcase,
-  [AccountType.CASH]: Icons.DollarSign,
-  [AccountType.CREDIT_CARD]: Icons.CreditCard,
-  [AccountType.CRYPTOCURRENCY]: Icons.Bitcoin,
-  [PORTFOLIO_ACCOUNT_TYPE]: Icons.Wallet,
-};
 
 export function AppLauncher() {
   const { t } = useTranslation();
@@ -85,6 +79,7 @@ export function AppLauncher() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const navigation = useNavigation();
+  const { isEnabled: spendingEnabled } = useSpendingSettings();
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const { holdings, isLoading: isHoldingsLoading } = useHoldings({ type: "all" });
   const { isBalanceHidden, toggleBalanceVisibility } = useBalancePrivacy();
@@ -204,6 +199,24 @@ export function AppLauncher() {
 
     // Additional quick actions not in main navigation
     const quickActions: LauncherActionItem[] = [
+      ...(spendingEnabled
+        ? [
+            {
+              title: t("spending:cashForm.addExpense"),
+              href: `${SPENDING_ENTRY_PATH}?type=WITHDRAWAL`,
+              icon: <Icons.ArrowUpRight className="size-6" />,
+              keywords: ["expense", "spent", "charge", "spending", "withdrawal"],
+              label: t("spending:cashForm.addExpense"),
+            },
+            {
+              title: t("spending:cashForm.addIncome"),
+              href: `${SPENDING_ENTRY_PATH}?type=DEPOSIT`,
+              icon: <Icons.ArrowDownLeft className="size-6" />,
+              keywords: ["income", "received", "salary", "deposit"],
+              label: t("spending:cashForm.addIncome"),
+            },
+          ]
+        : []),
       // Navigation mode switch and focus mode are desktop-only
       ...(isMobileViewport
         ? []
@@ -396,8 +409,45 @@ export function AppLauncher() {
       ...(navigation.addons ?? []),
     ] as LauncherActionItem[];
 
-    return [...quickActions, ...navItems];
+    const primaryAddPaths = [
+      buildTransactionUrl(),
+      `${SPENDING_ENTRY_PATH}?type=WITHDRAWAL`,
+      `${SPENDING_ENTRY_PATH}?type=DEPOSIT`,
+      "/activities/add?tab=holdings",
+    ];
+    const groupedQuickActions = quickActions.map((action): LauncherActionItem => {
+      const isAdd =
+        action.href.startsWith("/activities/") || action.href.startsWith(SPENDING_ENTRY_PATH);
+      return {
+        ...action,
+        section: isAdd
+          ? "add"
+          : action.href.startsWith("#theme-") ||
+              [
+                "#toggle-privacy",
+                "#toggle-focus-mode",
+                "#use-sidebar-navigation",
+                "#use-launchbar-navigation",
+              ].includes(action.href)
+            ? "appearance"
+            : "tools",
+        searchOnly: isAdd && !primaryAddPaths.includes(action.href),
+      };
+    });
+    const addActions = groupedQuickActions
+      .filter((action) => action.section === "add")
+      .sort((a, b) => {
+        const rank = (href: string) =>
+          primaryAddPaths.includes(href) ? primaryAddPaths.indexOf(href) : primaryAddPaths.length;
+        return rank(a.href) - rank(b.href);
+      });
+    return [
+      ...addActions,
+      ...navItems.map((action): LauncherActionItem => ({ ...action, section: "navigation" })),
+      ...groupedQuickActions.filter((action) => action.section !== "add"),
+    ];
   }, [
+    spendingEnabled,
     isBalanceHidden,
     isLaunchBar,
     isMobileViewport,
@@ -556,7 +606,12 @@ export function AppLauncher() {
 
     setSearch("");
     setOpen(false);
-    navigate(path);
+    navigate(
+      path,
+      path.startsWith(`${SPENDING_ENTRY_PATH}?`)
+        ? spendingEntryNavigationOptions(location)
+        : undefined,
+    );
   };
 
   const handleSelectRecent = (item: RecentItem) => {
@@ -578,7 +633,12 @@ export function AppLauncher() {
         navigate(`/accounts/${item.id}`);
         break;
       case "action":
-        navigate(item.id);
+        navigate(
+          item.id,
+          item.id.startsWith(`${SPENDING_ENTRY_PATH}?`)
+            ? spendingEntryNavigationOptions(location)
+            : undefined,
+        );
         break;
     }
   };
@@ -588,7 +648,10 @@ export function AppLauncher() {
   const filteredActions = actionItems.filter((action) => {
     const displayText = (action.label ?? action.title).toLowerCase();
     const keywords = (action.keywords ?? []).map((k) => k.toLowerCase());
-    return displayText.includes(searchLower) || keywords.some((k) => k.includes(searchLower));
+    return (
+      (!action.searchOnly || !!searchLower) &&
+      (displayText.includes(searchLower) || keywords.some((k) => k.includes(searchLower)))
+    );
   });
 
   const filteredHoldings = holdingOptions.filter((holding) => {
@@ -603,9 +666,13 @@ export function AppLauncher() {
   });
 
   // Filter recent items based on search (only show when searching or when no search)
+  const recentLabel = (item: RecentItem) =>
+    item.type === "action"
+      ? (actionItems.find((action) => action.href === item.id)?.label ?? item.label)
+      : item.label;
   const filteredRecent = recentItems.filter((item) => {
     if (!searchLower) return true;
-    return item.label.toLowerCase().includes(searchLower);
+    return recentLabel(item).toLowerCase().includes(searchLower);
   });
 
   // Show recent items only when there's no search, or when searching and they match
@@ -618,6 +685,33 @@ export function AppLauncher() {
     showRecent;
 
   const renderIcon = (icon?: ReactNode) => resolveNavigationIcon(icon, iconClassName);
+
+  const renderActionGroup = (section: LauncherActionItem["section"], heading: string) => {
+    const actions = filteredActions.filter((action) => action.section === section);
+    if (!actions.length) return null;
+    return (
+      <CommandGroup heading={heading}>
+        {actions.map((action, index) => {
+          const resizedIcon = renderIcon(action.icon);
+          const displayText = action.label ?? action.title;
+
+          return (
+            <CommandItem
+              key={action.href ?? index}
+              value={displayText}
+              keywords={action.keywords ?? []}
+              disabled={action.disabled}
+              onSelect={() => handleSelectAction(action.href, displayText)}
+              className={cn(isMobileViewport ? "gap-3 py-4 text-base" : undefined)}
+            >
+              {resizedIcon}
+              <span className="font-medium">{displayText}</span>
+            </CommandItem>
+          );
+        })}
+      </CommandGroup>
+    );
+  };
 
   const commandContent = (
     <>
@@ -637,6 +731,7 @@ export function AppLauncher() {
         )}
       >
         {!hasResults && <CommandEmpty>{t("common:component.no_matches_found")}</CommandEmpty>}
+        {renderActionGroup("add", t("common:add"))}
         {showRecent && (
           <CommandGroup heading={t("common:component.recent")}>
             {(searchLower ? filteredRecent : recentItems).map((item) => {
@@ -661,7 +756,7 @@ export function AppLauncher() {
                   className={cn(isMobileViewport ? "gap-3 py-4 text-base" : undefined)}
                 >
                   {getRecentIcon()}
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{recentLabel(item)}</span>
                   <span className="text-muted-foreground ms-auto text-xs capitalize">
                     {item.type}
                   </span>
@@ -670,28 +765,9 @@ export function AppLauncher() {
             })}
           </CommandGroup>
         )}
-        {filteredActions.length > 0 && (
-          <CommandGroup heading={t("common:actions")}>
-            {filteredActions.map((action, index) => {
-              const resizedIcon = renderIcon(action.icon);
-              const displayText = action.label ?? action.title;
-
-              return (
-                <CommandItem
-                  key={action.href ?? index}
-                  value={displayText}
-                  keywords={action.keywords ?? []}
-                  disabled={action.disabled}
-                  onSelect={() => handleSelectAction(action.href, displayText)}
-                  className={cn(isMobileViewport ? "gap-3 py-4 text-base" : undefined)}
-                >
-                  {resizedIcon}
-                  <span className="font-medium">{displayText}</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        )}
+        {renderActionGroup("navigation", t("common:component.launcher_navigation"))}
+        {renderActionGroup("appearance", t("common:component.launcher_appearance"))}
+        {renderActionGroup("tools", t("common:component.launcher_tools"))}
         {(isHoldingsLoading || filteredHoldings.length > 0) && (
           <CommandGroup heading={t("common:component.holdings")}>
             {isHoldingsLoading ? (
@@ -731,7 +807,7 @@ export function AppLauncher() {
               </CommandItem>
             ) : (
               filteredAccounts.map((account) => {
-                const IconComponent = accountTypeIcons[account.accountType] ?? Icons.Wallet;
+                const IconComponent = getAccountTypeIcon(account.accountType);
                 return (
                   <CommandItem
                     key={account.id}

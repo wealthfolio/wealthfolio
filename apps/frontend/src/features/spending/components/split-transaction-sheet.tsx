@@ -531,10 +531,7 @@ export function SplitTransactionSheet({
         )}
 
         <SheetFooter
-          className={cn(
-            "border-t",
-            isMobile ? "border-border px-4 py-4 pb-[calc(var(--inset-bottom)+1rem)]" : "gap-2 pt-4",
-          )}
+          className={cn("border-t", isMobile ? "border-border px-4 py-4 pb-4" : "gap-2 pt-4")}
         >
           {isMobile ? (
             <div className="flex w-full flex-col gap-2">

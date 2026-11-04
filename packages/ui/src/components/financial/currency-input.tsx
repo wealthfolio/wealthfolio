@@ -11,6 +11,7 @@ import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { ScrollArea } from "../ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/sheet";
+import { SheetScreen, useInSheetNavigation } from "../ui/sheet-navigation";
 
 interface CurrencyInputCustomProps {
   value?: string;
@@ -73,7 +74,9 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
 
     const useIsMobileHook = useIsMobile ?? defaultUseIsMobile;
     const isMobileFromHook = useIsMobileHook();
-    const isMobile = displayMode === "mobile" || (displayMode === "auto" && isMobileFromHook);
+    // In a phone form's sheet the picker opens as a screen of that sheet.
+    const inSheetNavigation = useInSheetNavigation();
+    const isMobile = inSheetNavigation || displayMode === "mobile" || (displayMode === "auto" && isMobileFromHook);
 
     const selectedCurrency = worldCurrencies.find((currency) => currency.value === value);
     const buttonLabel = selectedCurrency
@@ -114,6 +117,115 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
             : `${selectedCurrency.value} - ${currencyLabel(selectedCurrency)}`
         : value || placeholderText;
 
+      const mobileBody = (
+        <div className={cn("flex flex-col", inSheetNavigation ? "min-h-0 flex-1" : "h-[calc(85vh-7rem)]")}>
+          <div className="border-border border-b px-6 py-4">
+            <h3 className="text-foreground mb-3 text-sm font-semibold">{t("ui:currency.popular", "Popular")}</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {popularCurrencies.map((curr) => (
+                <button
+                  key={curr}
+                  onClick={() => handleSelect(curr)}
+                  className={cn(
+                    "card-mobile flex items-center justify-center border py-3 font-semibold transition-colors",
+                    value === curr
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "hover:bg-accent active:bg-accent/80",
+                  )}
+                >
+                  {curr}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  searchInputRef.current?.focus();
+                }}
+                className="card-mobile hover:bg-accent active:bg-accent/80 flex items-center justify-center border py-3 font-semibold transition-colors"
+              >
+                <Icons.Search className="me-1 h-4 w-4" />
+                {t("ui:currency.more", "More")}
+              </button>
+            </div>
+          </div>
+          <div className="border-border border-b px-6 py-4">
+            <div className="relative">
+              <Icons.Search className="text-muted-foreground absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder={t("ui:currency.searchAll", "Search all currencies...")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="ps-12"
+              />
+            </div>
+          </div>
+          <ScrollArea className="flex-1 px-6 py-4">
+            {searchQuery.length === 0 ? (
+              <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
+                <Icons.DollarSign className="h-12 w-12 opacity-20" />
+                <span>
+                  {t("ui:currency.searchPrompt", "Search for any currency or select from popular options above.")}
+                </span>
+              </div>
+            ) : filteredCurrencies.length > 0 ? (
+              <div className="space-y-2">
+                {filteredCurrencies.map((curr) => (
+                  <button
+                    key={curr.value}
+                    onClick={() => handleSelect(curr.value)}
+                    className={cn(
+                      "card-mobile flex w-full items-center gap-3 border border-transparent text-start transition-colors",
+                      value === curr.value
+                        ? "border-primary bg-primary/10"
+                        : "hover:bg-accent active:bg-accent/80 focus:border-primary focus:outline-none",
+                    )}
+                  >
+                    <div className="bg-primary/10 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full">
+                      <Icons.DollarSign className="text-primary h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-foreground truncate font-semibold">{curr.value}</span>
+                      </div>
+                      <div className="text-muted-foreground mt-0.5 truncate text-sm">{currencyLabel(curr)}</div>
+                    </div>
+                    {value === curr.value && <Icons.Check className="text-primary h-5 w-5 flex-shrink-0" />}
+                  </button>
+                ))}
+                {customCurrencyValue && (
+                  <button
+                    onClick={() => handleSelect(customCurrencyValue)}
+                    className="text-primary w-full py-2 text-center text-sm font-medium hover:underline"
+                  >
+                    {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                      value: customCurrencyValue,
+                    })}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
+                <Icons.Search className="h-12 w-12 opacity-20" />
+                <span>
+                  {t("ui:currency.noneFound", 'No currencies found for "{{query}}".', { query: searchQuery })}
+                </span>
+                {customCurrencyValue && (
+                  <button
+                    onClick={() => handleSelect(customCurrencyValue)}
+                    className="text-primary mt-2 text-sm font-medium hover:underline"
+                  >
+                    {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                      value: customCurrencyValue,
+                    })}
+                  </button>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      );
+
       return (
         <>
           <Button
@@ -122,6 +234,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
             variant="field"
             role="combobox"
             aria-expanded={open}
+            aria-haspopup="dialog"
             className={cn(
               "h-input-height w-full justify-between truncate",
               !value && "text-muted-foreground",
@@ -131,127 +244,37 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
             {...props}
           >
             <span className="truncate">{mobileDisplayText}</span>
-            <Icons.ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+            {inSheetNavigation ? (
+              <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
+            ) : (
+              <Icons.ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
           </Button>
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetContent
-              side="bottom"
-              className="mx-1 h-[85vh] rounded-t-4xl p-0"
+          {inSheetNavigation ? (
+            <SheetScreen
+              open={open}
+              onOpenChange={setOpen}
+              title={t("ui:currency.selectTitle", "Select Currency")}
               initialFocus={autoFocusSearch ? searchInputRef : undefined}
             >
-              <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
-                <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
-                <SheetDescription>{t("ui:currency.selectDescription", "Choose a currency")}</SheetDescription>
-              </SheetHeader>
+              {mobileBody}
+            </SheetScreen>
+          ) : (
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetContent
+                side="bottom"
+                className="mx-1 h-[85vh] rounded-t-4xl p-0"
+                initialFocus={autoFocusSearch ? searchInputRef : undefined}
+              >
+                <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
+                  <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
+                  <SheetDescription>{t("ui:currency.selectDescription", "Choose a currency")}</SheetDescription>
+                </SheetHeader>
 
-              <div className="flex h-[calc(85vh-7rem)] flex-col">
-                <div className="border-border border-b px-6 py-4">
-                  <h3 className="text-foreground mb-3 text-sm font-semibold">{t("ui:currency.popular", "Popular")}</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {popularCurrencies.map((curr) => (
-                      <button
-                        key={curr}
-                        onClick={() => handleSelect(curr)}
-                        className={cn(
-                          "card-mobile flex items-center justify-center border py-3 font-semibold transition-colors",
-                          value === curr
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "hover:bg-accent active:bg-accent/80",
-                        )}
-                      >
-                        {curr}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => {
-                        searchInputRef.current?.focus();
-                      }}
-                      className="card-mobile hover:bg-accent active:bg-accent/80 flex items-center justify-center border py-3 font-semibold transition-colors"
-                    >
-                      <Icons.Search className="me-1 h-4 w-4" />
-                      {t("ui:currency.more", "More")}
-                    </button>
-                  </div>
-                </div>
-                <div className="border-border border-b px-6 py-4">
-                  <div className="relative">
-                    <Icons.Search className="text-muted-foreground absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2" />
-                    <Input
-                      ref={searchInputRef}
-                      type="text"
-                      placeholder={t("ui:currency.searchAll", "Search all currencies...")}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="ps-12"
-                    />
-                  </div>
-                </div>
-                <ScrollArea className="flex-1 px-6 py-4">
-                  {searchQuery.length === 0 ? (
-                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
-                      <Icons.DollarSign className="h-12 w-12 opacity-20" />
-                      <span>
-                        {t("ui:currency.searchPrompt", "Search for any currency or select from popular options above.")}
-                      </span>
-                    </div>
-                  ) : filteredCurrencies.length > 0 ? (
-                    <div className="space-y-2">
-                      {filteredCurrencies.map((curr) => (
-                        <button
-                          key={curr.value}
-                          onClick={() => handleSelect(curr.value)}
-                          className={cn(
-                            "card-mobile flex w-full items-center gap-3 border border-transparent text-start transition-colors",
-                            value === curr.value
-                              ? "border-primary bg-primary/10"
-                              : "hover:bg-accent active:bg-accent/80 focus:border-primary focus:outline-none",
-                          )}
-                        >
-                          <div className="bg-primary/10 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full">
-                            <Icons.DollarSign className="text-primary h-5 w-5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-foreground truncate font-semibold">{curr.value}</span>
-                            </div>
-                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{currencyLabel(curr)}</div>
-                          </div>
-                          {value === curr.value && <Icons.Check className="text-primary h-5 w-5 flex-shrink-0" />}
-                        </button>
-                      ))}
-                      {customCurrencyValue && (
-                        <button
-                          onClick={() => handleSelect(customCurrencyValue)}
-                          className="text-primary w-full py-2 text-center text-sm font-medium hover:underline"
-                        >
-                          {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
-                            value: customCurrencyValue,
-                          })}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
-                      <Icons.Search className="h-12 w-12 opacity-20" />
-                      <span>
-                        {t("ui:currency.noneFound", 'No currencies found for "{{query}}".', { query: searchQuery })}
-                      </span>
-                      {customCurrencyValue && (
-                        <button
-                          onClick={() => handleSelect(customCurrencyValue)}
-                          className="text-primary mt-2 text-sm font-medium hover:underline"
-                        >
-                          {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
-                            value: customCurrencyValue,
-                          })}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-            </SheetContent>
-          </Sheet>
+                {mobileBody}
+              </SheetContent>
+            </Sheet>
+          )}
         </>
       );
     }

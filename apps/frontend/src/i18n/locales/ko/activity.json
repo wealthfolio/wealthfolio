@@ -606,7 +606,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "{{label}}에 대한 자세한 정보",
     "bulk_add_existing_title": "기존 보유 종목 추가",
-    "bulk_add_existing_desc": "포트폴리오에 여러 보유 종목을 빠르게 추가하세요. 종목 코드, 수량, 평균 매입가로 현재 포지션을 입력하세요. 현금 잔액에는 영향을 주지 않습니다.",
+    "bulk_add_existing_desc": "현금 잔액을 변경하지 않고 현재 보유 자산을 추가하세요.",
     "bulk_col_shares": "주식 수",
     "bulk_col_average_cost": "평균 매입가",
     "bulk_col_total_value": "총 가치",
@@ -798,12 +798,6 @@
     "day_count_one": "활동 {{count}}건",
     "day_count_other": "활동 {{count}}건",
     "day_end_cash": "현금"
-  },
-  "mobile_type_category": {
-    "trade": "거래",
-    "cash": "현금",
-    "income": "수익",
-    "other": "기타"
   },
   "mobile_type_transfer_desc": "계좌 간에 현금 또는 증권 이동",
   "mobile_type_adjustment_label": "조정",

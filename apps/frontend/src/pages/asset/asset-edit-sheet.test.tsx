@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
-import { Activity, type ReactNode } from "react";
+import { Activity, useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Asset } from "@/lib/types";
@@ -301,5 +301,58 @@ describe("AssetEditSheet on a screen kept out of sight", () => {
     rerender(view(true));
     rerender(view(false));
     expect(screen.getByTestId("asset-contract-multiplier")).toHaveValue("25");
+  });
+});
+
+describe("AssetEditSheet unfinished edits", () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    mutateAsync.mockResolvedValue(undefined);
+  });
+
+  it("closes a pristine editor without prompting or saving", () => {
+    const onOpenChange = vi.fn();
+    render(<AssetEditSheet asset={buildAsset()} open onOpenChange={onOpenChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("keeps a dirty draft until the user explicitly discards it", async () => {
+    const onOpenChange = vi.fn();
+    render(<AssetEditSheet asset={buildAsset()} open onOpenChange={onOpenChange} />);
+    const name = screen.getByRole("textbox", { name: "Name" });
+    setInputValue(name, "Unfinished name");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(name).toHaveValue("Unfinished name");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("clears discarded edits even when the parent keeps the same asset object", async () => {
+    const asset = buildAsset();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Reopen editor</button>
+          <AssetEditSheet asset={asset} open={open} onOpenChange={setOpen} />
+        </>
+      );
+    }
+    render(<Harness />);
+    setInputValue(screen.getByRole("textbox", { name: "Name" }), "Discard this draft");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reopen editor" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Test Asset");
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

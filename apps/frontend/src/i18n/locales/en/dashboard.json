@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "Add Asset",
     "add_liability": "Add Liability",
-    "record_transaction": "Record Transaction",
     "sync_broker_accounts": "Sync Broker Accounts",
     "sync_devices": "Sync Devices",
     "update_prices": "Update prices",

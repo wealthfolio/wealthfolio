@@ -47,6 +47,7 @@ const PageLoader = () => (
 export default function PortfolioPage() {
   const { t } = useTranslation();
   const dashboardPortfolio = useDashboardPortfolio();
+  const { isEnabled: spendingEnabled } = useSpendingSettings();
   const { isFocusMode, toggleFocusMode } = useNavigationMode();
 
   // Alternative asset quick-add modal state
@@ -101,18 +102,21 @@ export default function PortfolioPage() {
         scope={dashboardPortfolio.scope}
         onSelect={dashboardPortfolio.setPortfolioId}
       />
-      <DashboardActions />
+      <DashboardActions spendingEnabled={spendingEnabled} />
     </>
   );
 
   const netWorthActions = (
     <>
       {commonActions}
-      <DashboardActions onAddAsset={handleAddAsset} onAddLiability={handleAddLiability} />
+      <DashboardActions
+        spendingEnabled={spendingEnabled}
+        view="net-worth"
+        onAddAsset={handleAddAsset}
+        onAddLiability={handleAddLiability}
+      />
     </>
   );
-
-  const { isEnabled: spendingEnabled } = useSpendingSettings();
 
   const views: SwipablePageView[] = useMemo(() => {
     const items: SwipablePageView[] = [
@@ -165,7 +169,12 @@ export default function PortfolioPage() {
             <SpendingTabContent />
           </Suspense>
         ),
-        actions: commonActions,
+        actions: (
+          <>
+            {commonActions}
+            <DashboardActions view="spending" spendingEnabled={spendingEnabled} />
+          </>
+        ),
       });
     }
     return items;

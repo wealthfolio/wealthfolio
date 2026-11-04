@@ -3,6 +3,11 @@ import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Button,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
   DatePickerInput,
   FormControl,
   FormField,
@@ -12,11 +17,7 @@ import {
   Icons,
   MoneyInput,
   QuantityInput,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
+  SheetScreen,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -51,6 +52,7 @@ import {
 } from "../forms/fields";
 import type { NewActivityFormValues } from "../forms/schemas";
 import { calculateIncomeFinalAmount, calculateTradeFinalCash } from "@/lib/activity-final-amount";
+import { AccountTypeIconTile } from "@/components/account-type-icon";
 
 interface MobileDetailsStepProps {
   accounts: AccountSelectOption[];
@@ -169,6 +171,15 @@ export function MobileDetailsStep({
   const transferMode = isTransfer ? ((watch("transferMode" as any) as string) ?? "cash") : null;
   const isExternal = isTransfer ? ((watch("isExternal" as any) as boolean) ?? false) : false;
   const direction = isTransfer ? ((watch("direction" as any) as string) ?? "out") : null;
+  // The field's label, which its picker screen also takes as its title.
+  const accountLabel =
+    isTransfer && isExternal
+      ? direction === "in"
+        ? t("activity:form.label_to_account")
+        : t("activity:form.label_from_account")
+      : isTransfer && !isExternal
+        ? t("activity:form.label_from_account")
+        : t("activity:field_account");
   const isSecuritiesTransfer = isTransfer && transferMode === "securities";
   const isCashTransfer = isTransfer && transferMode === "cash";
   const [toAccountSheetOpen, setToAccountSheetOpen] = useState(false);
@@ -704,13 +715,7 @@ export function MobileDetailsStep({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-base leading-none font-medium">
-                    {isTransfer && isExternal
-                      ? direction === "in"
-                        ? t("activity:form.label_to_account")
-                        : t("activity:form.label_from_account")
-                      : isTransfer && !isExternal
-                        ? t("activity:form.label_from_account")
-                        : t("activity:field_account")}
+                    {accountLabel}
                   </FormLabel>
                   <FormControl>
                     <Button
@@ -720,11 +725,13 @@ export function MobileDetailsStep({
                       className="w-full justify-between"
                       onClick={() => setAccountSheetOpen(true)}
                       type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded={accountSheetOpen}
                     >
                       <span className={!field.value ? "text-muted-foreground" : ""}>
                         {displayAccountText}
                       </span>
-                      <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+                      <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
                     </Button>
                   </FormControl>
                   <FormMessage />
@@ -755,11 +762,13 @@ export function MobileDetailsStep({
                           className="w-full justify-between"
                           onClick={() => setToAccountSheetOpen(true)}
                           type="button"
+                          aria-haspopup="dialog"
+                          aria-expanded={toAccountSheetOpen}
                         >
                           <span className={!field.value ? "text-muted-foreground" : ""}>
                             {toDisplayText}
                           </span>
-                          <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+                          <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
                         </Button>
                       </FormControl>
                       <FormMessage />
@@ -822,6 +831,7 @@ export function MobileDetailsStep({
                   existingAssetIdName="existingAssetId"
                   assetMetadataName="assetMetadata"
                   defaultCurrency={accountCurrency}
+                  labelClassName="text-base leading-none font-medium"
                 />
               ))}
           </FormSection>
@@ -838,6 +848,7 @@ export function MobileDetailsStep({
                       control={control as any}
                       name={"subtype" as any}
                       side={activityType === ActivityType.SELL ? "sell" : "buy"}
+                      labelClassName="text-base leading-none font-medium"
                     />
                   )}
                 </div>
@@ -1188,10 +1199,13 @@ export function MobileDetailsStep({
         </div>
       </ScrollArea>
 
-      {/* Hidden Account Sheets - Rendered outside scrollable area */}
+      {/* Account pickers open as screens of the form's sheet; they render there,
+          not in this hidden box. */}
       <div className="hidden">
         <MobileAccountSheet
           accounts={filteredAccounts}
+          value={accountId}
+          title={accountLabel}
           open={accountSheetOpen}
           onOpenChange={setAccountSheetOpen}
           onSelect={(accountValue) => {
@@ -1202,6 +1216,8 @@ export function MobileDetailsStep({
         {isTransfer && !isExternal && (
           <MobileAccountSheet
             accounts={toAccountOptions}
+            value={toAccountId}
+            title={t("activity:form.label_to_account")}
             open={toAccountSheetOpen}
             onOpenChange={setToAccountSheetOpen}
             onSelect={(accountValue) => {
@@ -1217,45 +1233,69 @@ export function MobileDetailsStep({
 
 interface MobileAccountSheetProps {
   accounts: AccountSelectOption[];
+  title: string;
+  value?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (accountValue: string) => void;
 }
 
-function MobileAccountSheet({ accounts, open, onOpenChange, onSelect }: MobileAccountSheetProps) {
+function MobileAccountSheet({
+  accounts,
+  title,
+  value,
+  open,
+  onOpenChange,
+  onSelect,
+}: MobileAccountSheetProps) {
   const { t } = useTranslation();
-  const handleAccountSelect = (account: AccountSelectOption) => {
-    onSelect(account.value);
-  };
+  // Sorted under their groups when they span more than one, as the expense form's are.
+  const groups = useMemo(() => {
+    const byGroup = new Map<string, AccountSelectOption[]>();
+    for (const account of accounts) {
+      const key = account.group?.trim() ?? "";
+      byGroup.set(key, [...(byGroup.get(key) ?? []), account]);
+    }
+    return byGroup.size < 2
+      ? [{ heading: undefined, items: accounts }]
+      : [...byGroup].map(([group, items]) => ({
+          heading: group || t("dashboard:uncategorized"),
+          items,
+        }));
+  }, [accounts, t]);
+  // A long list gets a search, as the category and symbol pickers have.
+  const showSearch = accounts.length > 8;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-1 h-[70vh] rounded-t-4xl p-0">
-        <SheetHeader className="border-border border-b px-6 py-4">
-          <SheetTitle>{t("activity:select_account")}</SheetTitle>
-          <SheetDescription>{t("activity:mobile_choose_account")}</SheetDescription>
-        </SheetHeader>
-        <ScrollArea className="h-[calc(70vh-5rem)] px-6 py-4">
-          <div className="space-y-2">
-            {accounts.map((account) => (
-              <button
-                key={account.value}
-                onClick={() => handleAccountSelect(account)}
-                className="card-mobile hover:bg-accent active:bg-accent/80 focus:border-primary flex w-full items-center gap-3 border border-transparent text-start transition-colors focus:outline-none"
-              >
-                <div className="bg-primary/10 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full">
-                  <Icons.Briefcase className="text-primary h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-foreground truncate font-medium">{account.label}</div>
-                  <div className="text-muted-foreground mt-0.5 text-sm">{account.currency}</div>
-                </div>
-                <Icons.ChevronRight className="text-muted-foreground h-5 w-5 flex-shrink-0 rtl:rotate-180" />
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+    <SheetScreen open={open} onOpenChange={onOpenChange} title={title}>
+      <Command className="h-auto min-h-0 flex-1 rounded-none bg-transparent [&_[data-slot=command-input-wrapper]]:shrink-0">
+        {showSearch && <CommandInput placeholder={t("common:search_accounts")} />}
+        <CommandList className="max-h-none min-h-0 flex-1">
+          {groups.map((group, index) => (
+            <CommandGroup key={group.heading ?? index} heading={group.heading}>
+              {group.items.map((account) => (
+                <CommandItem
+                  key={account.value}
+                  value={account.value}
+                  keywords={[account.label]}
+                  onSelect={() => onSelect(account.value)}
+                  className="flex items-center gap-2"
+                >
+                  <AccountTypeIconTile accountType={account.accountType} />
+                  <span className="min-w-0 flex-1 truncate">{account.label}</span>
+                  <span className="text-muted-foreground shrink-0 text-sm">{account.currency}</span>
+                  {account.value === value ? (
+                    <Icons.Check
+                      data-slot="command-item-check"
+                      className="text-muted-foreground h-4 w-4 shrink-0"
+                    />
+                  ) : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </Command>
+    </SheetScreen>
   );
 }

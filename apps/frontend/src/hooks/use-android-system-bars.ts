@@ -7,8 +7,8 @@ interface AndroidBridge {
 
 /**
  * The Android app draws edge-to-edge, but its WebView reports no bottom safe area. Its
- * bridge (MainActivity.kt, only on the app's own pages) sends the navigation bar's
- * height, kept as `--android-navigation-bar-inset` and folded into `--inset-bottom`, and
+ * bridge (MainActivity.kt, only on the app's own pages) sends the system-bar/cutout
+ * edges, folded into the shared `--inset-*` variables, and
  * takes the app's light or dark theme, so the system bar icons stay readable over it.
  */
 export function useAndroidSystemBars() {
@@ -18,9 +18,23 @@ export function useAndroidSystemBars() {
     const root = document.documentElement;
 
     bridge.onmessage = (event) => {
-      const inset = Number(event.data);
-      if (Number.isFinite(inset)) {
-        root.style.setProperty("--android-navigation-bar-inset", `${inset}px`);
+      try {
+        const value: unknown = JSON.parse(event.data);
+        // Keep compatibility with an older native shell during frontend development.
+        const insets = typeof value === "number" ? { bottom: value } : value;
+        if (!insets || typeof insets !== "object") return;
+        for (const edge of ["top", "right", "bottom", "left"] as const) {
+          const inset = (insets as Record<string, unknown>)[edge];
+          if (typeof inset === "number" && Number.isFinite(inset) && inset >= 0) {
+            root.style.setProperty(`--android-inset-${edge}`, `${inset}px`);
+          }
+        }
+        const imeBottom = (insets as Record<string, unknown>).imeBottom;
+        if (typeof imeBottom === "number" && Number.isFinite(imeBottom) && imeBottom >= 0) {
+          root.style.setProperty("--keyboard-inset-bottom", `${imeBottom}px`);
+        }
+      } catch {
+        // Ignore malformed messages at the native boundary.
       }
     };
     bridge.postMessage("insets");

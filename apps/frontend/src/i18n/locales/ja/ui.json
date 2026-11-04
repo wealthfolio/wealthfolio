@@ -116,6 +116,8 @@
   "datePicker": {
     "dateLabel": "日付",
     "pick": "日付を選択",
+    "time": "時刻",
+    "done": "完了",
     "previousMonth": "前の月",
     "nextMonth": "次の月",
     "chooseMonth": "月を選択",
@@ -206,6 +208,7 @@
     "typeToSearch": "入力して検索"
   },
   "sheet": {
+    "back": "戻る",
     "close": "閉じる"
   },
   "page": {

@@ -616,6 +616,7 @@ export const AssetProfilePage = () => {
           label: account.name,
           currency: account.currency,
           accountType: account.accountType,
+          group: account.group,
           restrictionLevel: getActivityRestrictionLevel(account),
         })),
     [accounts],

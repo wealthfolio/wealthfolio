@@ -42,7 +42,7 @@ export function MobileActivitySteps({
   }
 
   return (
-    <div className="h-full">
+    <div>
       {currentStep === 1 && (
         <MobileActivityTypeStep
           includeReclassificationTypes={needsTypeSelection}

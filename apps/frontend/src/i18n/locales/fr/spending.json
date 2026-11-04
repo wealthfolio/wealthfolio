@@ -895,6 +895,9 @@
     "manage": "Gérer →"
   },
   "cashForm": {
+    "none": "Aucun",
+    "addExpense": "Ajouter une dépense",
+    "addIncome": "Ajouter un revenu",
     "accountRequired": "Veuillez sélectionner un compte.",
     "pickDate": "Choisissez une date",
     "amountNonNegative": "Le montant doit être non négatif.",
@@ -912,6 +915,8 @@
     "spendingCategory": "Catégorie de dépense",
     "activityUpdated": "Activité mise à jour.",
     "activityCreated": "Activité créée.",
+    "expenseAdded": "Dépense ajoutée.",
+    "incomeAdded": "Revenu ajouté.",
     "saveFailed": "Échec de l'enregistrement de l'activité : {{message}}",
     "editTitle": "Modifier la transaction",
     "addTitle": "Ajouter une transaction",

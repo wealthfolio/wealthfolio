@@ -107,10 +107,7 @@ function MobileSidebar() {
         <Icons.PanelLeft className="size-4" />
         <span className="sr-only">{t("ai:shell.toggleMenu")}</span>
       </SheetTrigger>
-      <SheetContent
-        side="inline-start"
-        className="flex w-70 flex-col gap-0 px-0 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(var(--inset-bottom),0.75rem)]"
-      >
+      <SheetContent side="inline-start" className="flex w-70 flex-col gap-0 px-0 py-3">
         <SheetHeader className="sr-only">
           <SheetTitle>{t("ai:shell.conversations")}</SheetTitle>
         </SheetHeader>

@@ -99,6 +99,8 @@ class NoopObserver {
 }
 vi.stubGlobal("IntersectionObserver", NoopObserver);
 vi.stubGlobal("ResizeObserver", NoopObserver);
+// jsdom has no scrolling implementation; the selected pill scrolls into view in browsers.
+Element.prototype.scrollIntoView = vi.fn();
 
 const views = ["Alpha", "Beta", "Gamma"].map((label) => ({
   value: label.toLowerCase(),

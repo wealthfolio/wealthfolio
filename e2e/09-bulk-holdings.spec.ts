@@ -54,12 +54,12 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     await page.getByTestId("add-activities-button").click();
     await page.waitForTimeout(300);
     await page.getByTestId("transfer-holdings-action").click();
-    await expect(page.getByRole("heading", { name: "Add Existing Holdings" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /Add existing holdings/i })).toBeVisible({
       timeout: 5000,
     });
 
     // ── Select account ──
-    const dialog = page.getByRole("dialog", { name: "Add Existing Holdings" });
+    const dialog = page.getByRole("dialog", { name: /Add existing holdings/i });
     await dialog.getByRole("combobox").first().click();
     await page.waitForTimeout(300);
     const accountOption = page.getByRole("option", { name: ACCOUNT_NAME }).first();
@@ -147,7 +147,7 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     await confirmBtn.click();
 
     await expect(page.getByText(/Holdings saved/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("heading", { name: "Add Existing Holdings" })).not.toBeVisible({
+    await expect(page.getByRole("heading", { name: /Add existing holdings/i })).not.toBeVisible({
       timeout: 5000,
     });
 

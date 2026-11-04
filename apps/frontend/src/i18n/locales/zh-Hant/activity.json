@@ -609,7 +609,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "關於 {{label}} 的更多資訊",
     "bulk_add_existing_title": "新增現有持有部位",
-    "bulk_add_existing_desc": "快速將多項持有部位新增到你的投資組合中。輸入目前持有部位的股票代號、股數與平均成本。這不會影響你的現金餘額。",
+    "bulk_add_existing_desc": "新增目前持倉，不變更現金餘額。",
     "bulk_col_shares": "股數",
     "bulk_col_average_cost": "平均成本",
     "bulk_col_total_value": "總價值",
@@ -805,12 +805,6 @@
     "day_count_one": "{{count}} 筆交易紀錄",
     "day_count_other": "{{count}} 筆交易紀錄",
     "day_end_cash": "現金"
-  },
-  "mobile_type_category": {
-    "trade": "交易",
-    "cash": "現金",
-    "income": "收入",
-    "other": "其他"
   },
   "mobile_type_transfer_desc": "在帳戶之間移轉現金或有價證券",
   "mobile_type_adjustment_label": "調整",

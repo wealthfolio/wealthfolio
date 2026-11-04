@@ -82,7 +82,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
     );
   const materialLabelClassName = (isActive: boolean) =>
     cn(
-      "max-w-full truncate px-1 text-xs landscape:hidden",
+      "max-w-full truncate px-1 text-xs",
       isActive ? "font-semibold" : "text-muted-foreground font-medium",
     );
 
@@ -324,10 +324,13 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="bg-background inset-x-4 bottom-4 flex max-h-[min(82dvh,45rem)] flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pt-0 pb-[calc(var(--inset-bottom)+1.25rem)] shadow-2xl"
+          fillSafeArea={false}
+          // A card floating as far from the bottom edge as from the sides; the home
+          // indicator sits over its bottom padding.
+          className="bg-background inset-x-2 bottom-[calc(0.5rem-var(--sheet-safe-bottom,0px))] flex flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pt-0 pb-[max(1.25rem,var(--sheet-safe-bottom,0px))] shadow-2xl [--overlay-max-height:min(82dvh,45rem)]"
         >
           <div className="bg-muted mx-auto mt-4 h-1.5 w-14 shrink-0 rounded-full" />
-          <div className="flex shrink-0 items-center justify-between px-8 pt-7 pb-4">
+          <div className="flex shrink-0 items-center justify-between px-6 pt-5 pb-3">
             <div className="flex min-w-0 items-center gap-3">
               {profileView && (
                 <button
@@ -356,7 +359,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
             </button>
           </div>
 
-          <div className="scrollbar-hide min-h-0 overflow-y-auto px-8">
+          <div className="scrollbar-hide min-h-0 overflow-y-auto px-6">
             {profileView ? (
               <MobileProfileMenu onAction={closeMenu} />
             ) : (

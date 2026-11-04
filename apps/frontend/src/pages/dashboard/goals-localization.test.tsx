@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { SavingGoals } from "./goals";
 
 vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai" } }),
+  useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai", baseCurrency: "CAD" } }),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -19,7 +19,8 @@ vi.mock("@tanstack/react-query", () => ({
         statusLifecycle: "active",
         statusHealth: "at_risk",
         priority: 1,
-        currency: "CAD",
+        // Saved while the base currency was USD; amounts are in the current base currency.
+        currency: "USD",
         targetDate: "2034-08-09",
         summaryCurrentValue: 980_000,
         summaryTargetAmount: 3_433_731,
@@ -83,5 +84,18 @@ describe("SavingGoals localization", () => {
 
     expect(screen.getByText(/^29[\u00a0\u202f ]%$/)).toBeInTheDocument();
     expect(screen.getByText("7 A 11 M RESTANTS")).toBeInTheDocument();
+  });
+
+  it("formats amounts in the base currency, not the goal's saved currency", () => {
+    render(
+      <MemoryRouter>
+        <FormattingProvider locale="en-CA">
+          <SavingGoals />
+        </FormattingProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/\$980K/)).toBeInTheDocument();
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
   });
 });

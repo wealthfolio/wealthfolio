@@ -11,13 +11,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 
 // Only the app's own pages; addon frames have an opaque origin.
 private val APP_ORIGINS = setOf("http://tauri.localhost", "https://tauri.localhost")
 
 class MainActivity : TauriActivity() {
-  // The navigation bar's height (gesture handle or buttons), in CSS pixels.
-  private var navigationBarInset = 0f
+  // Physical system-bar/cutout edges in CSS pixels, including landscape bars.
+  private var systemBarInsets = "{}"
   // Where to send it: the page that last asked for it.
   private var insetReply: JavaScriptReplyProxy? = null
   // Whether the app's theme is light, as the page last reported it.
@@ -25,19 +26,35 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
-    // Edge-to-edge draws the page under the navigation bar, yet the WebView (133 here)
-    // reports no bottom safe area for it. Send the page the bar's height, so it can pad
-    // its bottom edges. Read the insets after layout rather than with an insets
+    // Older WebViews do not expose all system-bar edges through CSS env().
+    // Read the insets after layout rather than with an insets
     // listener: that would replace the WebView's own, which gives the page its top
     // safe area.
     webView.viewTreeObserver.addOnGlobalLayoutListener {
       val insets = ViewCompat.getRootWindowInsets(webView) ?: return@addOnGlobalLayoutListener
-      val inset =
-        insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom /
-          resources.displayMetrics.density
-      if (inset != navigationBarInset) {
-        navigationBarInset = inset
-        insetReply?.postMessage(inset.toString())
+      val edges = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      val density = resources.displayMetrics.density
+      // Only report the keyboard portion covering this WebView. Hosts that
+      // already resize the WebView for the IME must not reserve it twice.
+      val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      val location = IntArray(2)
+      webView.getLocationInWindow(location)
+      val keyboardOverlap = if (imeBottom > 0) {
+        (location[1] + webView.height - (webView.rootView.height - imeBottom))
+          .coerceIn(0, webView.height)
+      } else 0
+      val message = JSONObject()
+        .put("top", edges.top / density)
+        .put("right", edges.right / density)
+        .put("bottom", edges.bottom / density)
+        .put("left", edges.left / density)
+        .put("imeBottom", keyboardOverlap / density)
+        .toString()
+      if (message != systemBarInsets) {
+        systemBarInsets = message
+        insetReply?.postMessage(message)
       }
     }
     if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -49,7 +66,7 @@ class MainActivity : TauriActivity() {
         when (message.data) {
           "insets" -> {
             insetReply = replyProxy
-            replyProxy.postMessage(navigationBarInset.toString())
+            replyProxy.postMessage(systemBarInsets)
           }
           "appearance:light" -> applyAppearance(true)
           "appearance:dark" -> applyAppearance(false)
@@ -101,6 +118,11 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Compat IME detection needs resize mode before Android 11. Newer Android
+    // reports IME insets in every mode; preserve its existing input behaviour.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+      window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+    }
     applyEdgeToEdge()
     super.onCreate(savedInstanceState)
   }

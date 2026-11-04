@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "Añadir activo",
     "add_liability": "Añadir pasivo",
-    "record_transaction": "Registrar transacción",
     "sync_broker_accounts": "Sincronizar cuentas de bróker",
     "sync_devices": "Sincronizar dispositivos",
     "update_prices": "Actualizar precios",
