@@ -16,7 +16,13 @@ const data = vi.hoisted(() => ({
   },
   goals: [{ id: "house", goalType: "home", title: "House", statusLifecycle: "active" }],
   fundingRules: [{ id: "r1", goalId: "house", accountId: "acct-1", sharePercent: 20 }],
+  otherFunding: {} as Record<string, { goalId: string; accountId: string; sharePercent: number }[]>,
   mutations: { saveFundingMutation: { mutate: () => undefined, isPending: false } },
+}));
+
+vi.mock("@/adapters", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/adapters")>()),
+  getGoalFunding: (goalId: string) => Promise.resolve(data.otherFunding[goalId] ?? []),
 }));
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
@@ -101,6 +107,85 @@ it("restores the existing account share when its draft is empty", () => {
   fireEvent.blur(input);
   expect(input).toHaveValue("20");
   expect(screen.getByText("80 % left")).toBeInTheDocument();
+});
+
+it("enables Save while a valid share is still being typed", async () => {
+  const save = vi.spyOn(data.mutations.saveFundingMutation, "mutate");
+  save.mockClear();
+  const user = userEvent.setup();
+  renderEditor(false, "ES");
+  await user.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  const saveButton = screen.getByRole("button", { name: "Save" });
+  const input = screen.getByRole("textbox");
+  await user.tripleClick(input);
+  await user.keyboard("abc");
+  expect(saveButton).toBeDisabled();
+  await user.tripleClick(input);
+  await user.keyboard("7,25");
+  // Browsers drop a click on a disabled button even if the blur it causes enables it.
+  expect(saveButton).toBeEnabled();
+  await user.click(saveButton);
+  expect(save).toHaveBeenCalledWith([
+    expect.objectContaining({ accountId: "acct-1", sharePercent: 7.25 }),
+  ]);
+});
+
+it("saves the typed share even if the click arrives before the input blurs", () => {
+  const save = vi.spyOn(data.mutations.saveFundingMutation, "mutate");
+  save.mockClear();
+  renderEditor(false, "ES");
+  fireEvent.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "7,25" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(save).toHaveBeenCalledWith([
+    expect.objectContaining({ accountId: "acct-1", sharePercent: 7.25 }),
+  ]);
+});
+
+it("keeps Save disabled after Escape or when the typed share becomes invalid", async () => {
+  const user = userEvent.setup();
+  renderEditor(false, "ES");
+  await user.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+  const saveButton = screen.getByRole("button", { name: "Save" });
+  const input = screen.getByRole("textbox");
+  await user.tripleClick(input);
+  await user.keyboard("7a");
+  expect(saveButton).toBeDisabled();
+  await user.tripleClick(input);
+  await user.keyboard("30");
+  expect(saveButton).toBeEnabled();
+  await user.keyboard("{Escape}");
+  expect(input).toHaveValue("20");
+  expect(saveButton).toBeDisabled();
+});
+
+it("enables Save while typing a share that clears another goal's overage", async () => {
+  const goals = data.goals;
+  data.goals = [...goals, { id: "car", goalType: "car", title: "Car", statusLifecycle: "active" }];
+  data.otherFunding = { car: [{ goalId: "car", accountId: "acct-1", sharePercent: 50 }] };
+  const save = vi.spyOn(data.mutations.saveFundingMutation, "mutate");
+  save.mockClear();
+  try {
+    const user = userEvent.setup();
+    renderEditor(false, "ES");
+    await user.click(screen.getByRole("button", { name: "Edit Account Shares" }));
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    const input = screen.getByRole("textbox");
+    await user.tripleClick(input);
+    await user.keyboard("80{Tab}");
+    expect(await screen.findByText(/30\s%\sover/)).toBeInTheDocument();
+    expect(saveButton).toBeDisabled();
+    await user.tripleClick(input);
+    await user.keyboard("30");
+    expect(saveButton).toBeEnabled();
+    await user.click(saveButton);
+    expect(save).toHaveBeenCalledWith([
+      expect.objectContaining({ accountId: "acct-1", sharePercent: 30 }),
+    ]);
+  } finally {
+    data.goals = goals;
+    data.otherFunding = {};
+  }
 });
 
 it.each(["ltr", "rtl"] as const)(

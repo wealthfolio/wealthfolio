@@ -90,7 +90,8 @@ for (const dir of ["ltr", "rtl"] as const) {
       expect(await response.json()).toMatchObject({ formattingRegion: "US" });
       // Wait for React to apply the settings response, even though the exact draft
       // text correctly stays identical for this invariant-decimal fallback case.
-      await expect(page.getByText(/80%\u2069? left/)).toBeVisible();
+      // The label previews the typed 12.34% share.
+      await expect(page.getByText(/87\.7%\u2069? left/)).toBeVisible();
       await expect(input).toBeFocused();
       await expect(input).toHaveValue("12.34");
       await input.press("End");
