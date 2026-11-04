@@ -303,7 +303,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                             <span className="text-muted-foreground text-xs md:text-sm">
                               {label}
                             </span>
-                            <span className="text-foreground font-mono text-xs font-medium tabular-nums md:text-sm">
+                            <span className="text-foreground text-xs font-medium tabular-nums md:text-sm">
                               {formattedValue}
                             </span>
                           </div>
@@ -404,7 +404,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                                     ? t("income:cumulative")
                                     : name}
                             </span>
-                            <span className="text-foreground font-mono text-xs font-medium tabular-nums md:text-sm">
+                            <span className="text-foreground text-xs font-medium tabular-nums md:text-sm">
                               {formattedValue}
                             </span>
                           </div>
