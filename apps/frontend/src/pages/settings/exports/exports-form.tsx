@@ -84,7 +84,11 @@ export const ExportForm = () => {
         >
           {dataFormats.map((format) => (
             <div key={format.name}>
-              <RadioGroupItem value={format.name} id={format.name} className="peer sr-only" />
+              <RadioGroupItem
+                value={format.name}
+                id={format.name}
+                className="peer sr-only absolute"
+              />
               <Label
                 htmlFor={format.name}
                 className="bg-card hover:bg-accent hover:text-accent-foreground peer-data-checked:border-primary [&:has([data-checked])]:border-primary relative flex cursor-pointer flex-col items-center justify-between rounded-md border p-4 shadow-sm peer-data-checked:border-2"
