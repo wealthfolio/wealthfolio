@@ -1,0 +1,376 @@
+{
+  "opensInBrowser": "Открыть в браузере",
+  "page": {
+    "title": "Синхронизация и подключения",
+    "subtitle": "ваши устройства — всё в одном месте.",
+    "subtitleWithBrokers": "ваши брокеры и устройства — всё в одном месте.",
+    "brokerages": "Брокеры",
+    "devices": "Устройства",
+    "recentActivity": "Последние операции",
+    "manage": "Управлять",
+    "timeAgo": "назад: {{time}}",
+    "noBrokeragesConnected": "Брокеры не подключены",
+    "noBrokeragesDescription": "Привязать брокера, чтобы начать синхронизацию ваших счетов.",
+    "noDevicesSyncing": "Устройства пока не синхронизируются",
+    "noDevicesDescription": "Настроить синхронизацию устройств в настройках, чтобы сохранять ваши данные на всех устройствах.",
+    "noActivity": "Пока нет операций",
+    "noActivityDescription": "Обновления появятся здесь, когда начнётся синхронизация ваших данных.",
+    "showMore_one": "Показать ещё: {{count}}",
+    "showMore_few": "Показать ещё: {{count}}",
+    "showMore_many": "Показать ещё: {{count}}",
+    "showMore_other": "Показать ещё: {{count}}",
+    "showLess": "Показать меньше"
+  },
+  "emptyState": {
+    "optional": "Необязательно",
+    "subtitle": "Автоматически синхронизировать ваших брокеров, сохраняя конфиденциальность данных.",
+    "getStarted": "Начать работу с Connect",
+    "loginToAccount": "Войти в ваш аккаунт",
+    "learnMore": "Узнать больше о Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Подключённые счета",
+        "description": "Автоматически синхронизировать транзакции от ваших брокеров."
+      },
+      "deviceSync": {
+        "title": "Синхронизация устройств и резервное копирование",
+        "description": "Сквозное шифрование синхронизации и автоматическое облачное резервное копирование."
+      },
+      "householdView": {
+        "title": "Семейные портфели",
+        "description": "Общий вид инвестиций вашей семьи."
+      }
+    }
+  },
+  "flow": {
+    "aggregatorExample": "(например, SnapTrade)",
+    "yourDevice": "ваше устройство",
+    "localDatabase": "Локальная база данных",
+    "dataStaysHere": "Данные остаются здесь",
+    "aggregators": "Агрегаторы",
+    "brokerages": "Брокеры",
+    "banks": "Банки",
+    "crypto": "Крипто"
+  },
+  "account": {
+    "userAvatar": "Аватар пользователя",
+    "userFallback": "Пользователь",
+    "active": "Активен",
+    "signOut": "Выйти",
+    "signOutTitle": "Выйти из Wealthfolio Connect?",
+    "signOutMessage": "вам нужно будет снова войти, чтобы получить доступ к синхронизированным счётам брокеров. Локальные данные не пострадают.",
+    "signOutConfirm": "Выйти",
+    "signingOut": "Выход..."
+  },
+  "accounts": {
+    "title": "Счета",
+    "manage": "Управлять счетами",
+    "accountFallback": "Счёт",
+    "platformFallback": "Платформа",
+    "brokerFallback": "Брокер",
+    "paper": "Бумажный",
+    "shared": "Общий",
+    "sharedBy": "Совместный доступ: {{name}}",
+    "syncEnabled": "Синхронизация включена",
+    "excludedFromSync": "Исключено из синхронизации",
+    "noDataYet": "Пока нет данных",
+    "dataAsOf": "Данные на: {{date}}",
+    "emptyTitle": "Пока нет синхронизированных счетов",
+    "emptyDescription": "Подключить брокера, чтобы начать синхронизацию ваших счетов.",
+    "needsSetup": "Требуется настройка"
+  },
+  "connections": {
+    "title": "Подключения брокеров",
+    "manage": "Управлять подключениями",
+    "empty": "Пока нет подключений брокеров",
+    "connectBroker": "Подключить брокера",
+    "unknownBroker": "Неизвестный брокер",
+    "unknown": "Неизвестно",
+    "connected": "Подключено",
+    "disconnected": "Отключено",
+    "reconnect": "Переподключить",
+    "noAccountsFound": "Счета не найдены",
+    "allAccountsExcluded": "Все счета исключены",
+    "accountsSyncing_one": "{{count}} счёт синхронизируется",
+    "accountsSyncing_few": "{{count}} счёта синхронизируются",
+    "accountsSyncing_many": "{{count}} счетов синхронизируются",
+    "accountsSyncing_other": "{{count}} счетов синхронизируются",
+    "partialSyncing_one": "{{syncing}} из {{total}} счетов синхронизируются · исключён: {{excluded}} счёт",
+    "partialSyncing_few": "{{syncing}} из {{total}} счетов синхронизируются · исключено: {{excluded}} счёта",
+    "partialSyncing_many": "{{syncing}} из {{total}} счетов синхронизируются · исключено: {{excluded}} счетов",
+    "partialSyncing_other": "{{syncing}} из {{total}} счетов синхронизируются · исключено: {{excluded}} счетов",
+    "accountCount_one": "{{count}} счёт",
+    "accountCount_few": "{{count}} счёта",
+    "accountCount_many": "{{count}} счетов",
+    "accountCount_other": "{{count}} счетов",
+    "excludedCount_one": "Исключено: {{count}}",
+    "excludedCount_few": "Исключено: {{count}}",
+    "excludedCount_many": "Исключено: {{count}}",
+    "excludedCount_other": "Исключено: {{count}}"
+  },
+  "sync": {
+    "syncNow": "Синхронизировать сейчас",
+    "sync": "Синхронизировать",
+    "syncAll": "Синхронизировать всё",
+    "syncingShort": "Синхронизация...",
+    "statusTitle": "Статус синхронизации",
+    "syncingBrokerData": "Синхронизация данных брокера...",
+    "startFailed": "Не удалось запустить синхронизацию: {{error}}",
+    "needAttention_one": "Требуется внимание: {{count}} счёт",
+    "needAttention_few": "Требуется внимание: {{count}} счёта",
+    "needAttention_many": "Требуется внимание: {{count}} счетов",
+    "needAttention_other": "Требуется внимание: {{count}} счетов"
+  },
+  "status": {
+    "upToDate": "Актуально",
+    "syncing": "Синхронизация",
+    "syncingEllipsis": "Синхронизация...",
+    "needsReview": "Требуется проверка",
+    "failed": "Ошибка",
+    "notConnected": "Не подключено",
+    "lastSynced": "Последняя синхронизация: {{time}}",
+    "neverSynced": "Не синхронизировалось"
+  },
+  "runStatus": {
+    "running": "Выполняется",
+    "applied": "Применено",
+    "needsReview": "Требуется проверка",
+    "failed": "Ошибка",
+    "cancelled": "Отменено"
+  },
+  "syncRuns": {
+    "title": "Последние запуски синхронизации",
+    "empty": "Пока нет запусков синхронизации.",
+    "warningsCount_one": "{{count}} предупреждение",
+    "warningsCount_few": "{{count}} предупреждения",
+    "warningsCount_many": "{{count}} предупреждений",
+    "warningsCount_other": "{{count}} предупреждений",
+    "fetched": "Получено",
+    "inserted": "Добавлено",
+    "updated": "Обновлено",
+    "skipped": "Пропущено",
+    "warningsLabel": "Предупреждения:",
+    "andMore": "Ещё: {{count}}",
+    "reviewActivities": "Проверить операции",
+    "duration": "Длительность:",
+    "inProgress": "Выполняется...",
+    "andMore_one": "Ещё: {{count}}",
+    "andMore_few": "Ещё: {{count}}",
+    "andMore_many": "Ещё: {{count}}",
+    "andMore_other": "Ещё: {{count}}"
+  },
+  "syncHistory": {
+    "title": "История синхронизации",
+    "success": "Успех",
+    "review": "Проверка",
+    "emptyTitle": "Пока нет запусков синхронизации",
+    "emptyDescription": "ваша история синхронизации появится здесь после первой синхронизации",
+    "runCount_one": "{{count}} запуск",
+    "runCount_few": "{{count}} запуска",
+    "runCount_many": "{{count}} запусков",
+    "runCount_other": "{{count}} запусков",
+    "loadMore": "Загрузить ещё",
+    "lessThanOneSecond": "<1 с",
+    "new": "новые",
+    "updated": "обновлённые",
+    "skipped": "пропущенные",
+    "warningsCount_one": "{{count}} предупреждение",
+    "warningsCount_few": "{{count}} предупреждения",
+    "warningsCount_many": "{{count}} предупреждений",
+    "warningsCount_other": "{{count}} предупреждений",
+    "andMore": "Ещё: +{{count}}",
+    "andMore_one": "+{{count}} ещё",
+    "andMore_few": "+{{count}} ещё",
+    "andMore_many": "+{{count}} ещё",
+    "andMore_other": "+{{count}} ещё"
+  },
+  "activity": {
+    "syncingData": "Синхронизация ваших данных...",
+    "somethingWentWrong": "Что-то пошло не так",
+    "upToDate": "Всё актуально",
+    "itemsNeedReview_one": "{{count}} элемент требует вашей проверки",
+    "itemsNeedReview_few": "{{count}} элемента требуют вашей проверки",
+    "itemsNeedReview_many": "{{count}} элементов требуют вашей проверки",
+    "itemsNeedReview_other": "{{count}} элементов требуют вашей проверки",
+    "newItems": {
+      "transaction_one": "{{count}} новая транзакция",
+      "transaction_few": "{{count}} новые транзакции",
+      "transaction_many": "{{count}} новых транзакций",
+      "transaction_other": "{{count}} новых транзакций",
+      "position_one": "{{count}} новая позиция",
+      "position_few": "{{count}} новые позиции",
+      "position_many": "{{count}} новых позиций",
+      "position_other": "{{count}} новых позиций"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} транзакция обновлена",
+      "transaction_few": "{{count}} транзакции обновлены",
+      "transaction_many": "{{count}} транзакций обновлено",
+      "transaction_other": "{{count}} транзакций обновлено",
+      "position_one": "{{count}} позиция обновлена",
+      "position_few": "{{count}} позиции обновлены",
+      "position_many": "{{count}} позиций обновлено",
+      "position_other": "{{count}} позиций обновлено"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} транзакция удалена",
+      "transaction_few": "{{count}} транзакции удалены",
+      "transaction_many": "{{count}} транзакций удалено",
+      "transaction_other": "{{count}} транзакций удалено",
+      "position_one": "{{count}} позиция удалена",
+      "position_few": "{{count}} позиции удалены",
+      "position_many": "{{count}} позиций удалено",
+      "position_other": "{{count}} позиций удалено"
+    }
+  },
+  "attention": {
+    "title": "Синхронизация с брокером требует внимания",
+    "description_one": "{{count}} счёт требует повторной попытки или проверки брокера.",
+    "description_few": "{{count}} счёта требуют повторной попытки или проверки брокера.",
+    "description_many": "{{count}} счетов требуют повторной попытки или проверки брокера.",
+    "description_other": "{{count}} счетов требуют повторной попытки или проверки брокера.",
+    "heading": "Требуется внимание",
+    "connectionLost": "Подключение потеряно",
+    "accountsNotSyncing_one": "{{count}} счёт не синхронизируется",
+    "accountsNotSyncing_few": "{{count}} счёта не синхронизируются",
+    "accountsNotSyncing_many": "{{count}} счетов не синхронизируются",
+    "accountsNotSyncing_other": "{{count}} счетов не синхронизируются",
+    "syncFailed": "Последняя синхронизация не удалась"
+  },
+  "setup": {
+    "newAccountsTitle": "Настройка новых счетов",
+    "newAccountsDescription_one": "{{count}} счёт нуждается в быстрой настройке, чтобы начать синхронизацию.",
+    "newAccountsDescription_few": "{{count}} счёта нуждаются в быстрой настройке, чтобы начать синхронизацию.",
+    "newAccountsDescription_many": "{{count}} счетов нуждаются в быстрой настройке, чтобы начать синхронизацию.",
+    "newAccountsDescription_other": "{{count}} счетов нуждаются в быстрой настройке, чтобы начать синхронизацию.",
+    "reviewAccounts": "Проверить счета",
+    "setUp": "Настроить"
+  },
+  "devices": {
+    "thisDevice": "Это устройство",
+    "activeNow": "Активно сейчас",
+    "lastSeen": "Последняя активность: {{time}}",
+    "online": "В сети",
+    "never": "Никогда",
+    "showInactive_one": "Показать {{count}} неактивное устройство",
+    "showInactive_few": "Показать {{count}} неактивных устройства",
+    "showInactive_many": "Показать {{count}} неактивных устройств",
+    "showInactive_other": "Показать {{count}} неактивных устройств",
+    "hideInactive": "Скрыть неактивные устройства",
+    "platforms": {
+      "server": "Сервер",
+      "web": "Веб"
+    }
+  },
+  "deviceStatus": {
+    "syncError": "Ошибка синхронизации",
+    "syncPaused": "Синхронизация приостановлена",
+    "upToDate": "Актуально",
+    "syncing": "Синхронизация"
+  },
+  "serviceUnavailable": {
+    "title": "Сервис временно недоступен",
+    "description": "Не удаётся подключиться к Wealthfolio Connect. Обычно это временно и скоро пройдёт.",
+    "retrying": "Повторная попытка...",
+    "tryAgain": "Попробовать снова"
+  },
+  "upgrade": {
+    "title": "Тариф для синхронизации брокерских счетов",
+    "description": "Подключите свои брокерские счета для автоматической синхронизации портфеля.",
+    "button": "Улучшить"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect не хранит ваши брокерские учётные данные и финансовые данные. Всё синхронизируется безопасно через агрегатор в вашу локальную базу данных. Синхронизация устройств использует сквозное шифрование. <privacyLink>Подробнее</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Продолжить через Google",
+    "continueWithApple": "Продолжить через Apple",
+    "continueWithEmail": "Продолжить через email",
+    "lastUsed": "Последнее использование"
+  },
+  "subscription": {
+    "copySupportEmail": "Скопировать email поддержки",
+    "syncPausedTooltip": "Синхронизация приостановлена — требуется активная подписка",
+    "syncPausedTitle": "Синхронизация приостановлена",
+    "syncPausedDescription": "Для синхронизации требуется активная подписка. Ваши локальные данные и ожидающие изменения сохранены.",
+    "comingSoon": "Скоро",
+    "getStarted": "Начать",
+    "perMonthShort": "мес",
+    "perYearShort": "год",
+    "savings": "Экономия: {{percent}}% по сравнению с ежемесячным тарифом",
+    "choosePlan": "Выбор тарифа",
+    "choosePlanDescription": "Оформите подписку, чтобы разблокировать синхронизацию с брокером и облачные функции.",
+    "monthly": "Ежемесячно",
+    "yearly": "Ежегодно",
+    "monthlyBilling": "Ежемесячная оплата",
+    "yearlyBilling": "Ежегодная оплата",
+    "alreadySubscribed": "Уже оформили подписку?",
+    "connectionIssueTitle": "Проблема с подключением",
+    "connectionIssueDescription": "Не удаётся подключиться к вашему аккаунту. Это может произойти, если срок действия сеанса истёк.",
+    "unableToLoadTitle": "Не удалось загрузить тарифы",
+    "unableToLoadDescription": "Не удалось получить тарифы подписки. Обычно это временная проблема.",
+    "contactSupport": "Связаться с поддержкой",
+    "emailCopied": "Email скопирован в буфер обмена",
+    "reconnecting": "Повторное подключение...",
+    "reconnect": "Переподключиться",
+    "refreshPage": "Обновить страницу"
+  },
+  "authCallback": {
+    "processing": "Обработка аутентификации...",
+    "completing": "Завершение входа..."
+  },
+  "authErrors": {
+    "noSessionReturned": "Сеанс не возвращён после завершения входа.",
+    "completeSignInFailed": "Не удалось завершить вход",
+    "signInFailed": "Не удалось войти",
+    "signUpFailed": "Не удалось зарегистрироваться",
+    "confirmEmail": "Проверьте, пожалуйста, свою почту, чтобы подтвердить свой аккаунт.",
+    "oauthFailed": "Не удалось войти через OAuth",
+    "magicLinkFailed": "Не удалось отправить ссылку для входа",
+    "invalidVerificationCode": "Неверный код подтверждения",
+    "signOutFailed": "Не удалось выйти",
+    "fetchUserInfoFailed": "Не удалось получить данные пользователя"
+  },
+  "newAccounts": {
+    "title": "Найдены новые счета",
+    "description": "Выберите, как отслеживать каждый счёт. Это можно изменить позже.",
+    "trackingInfo": "<strong>Транзакции</strong> — режим отслеживает каждую сделку для полной аналитики доходности. <strong>Позиции</strong> — режим импортирует только снимки с ограниченными метриками. <docsLink>Подробнее</docsLink>",
+    "accountName": "Название счёта",
+    "group": "Группа (необязательно)",
+    "groupPlaceholder": "напр., Выход на пенсию",
+    "trackingMode": "Режим отслеживания",
+    "transactions": "Транзакции",
+    "transactionsDescription": "Полная аналитика доходности",
+    "holdings": "Позиции",
+    "holdingsDescription": "Только снимки",
+    "holdingsWarning": "Метрики доходности будут ограничены без истории транзакций.",
+    "notNow": "Не сейчас",
+    "saving": "Сохранение...",
+    "saveAndSync": "Сохранить и синхронизировать",
+    "configured": "Счета настроены",
+    "configuredDescription": "Запуск синхронизации с выбранными настройками...",
+    "saveFailed": "Не удалось сохранить счета"
+  },
+  "errors": {
+    "unknown": "Неизвестная ошибка"
+  },
+  "session": {
+    "restoring": "Восстановление Connect…",
+    "unavailable": "Connect временно недоступен",
+    "localAvailable": "Локальный портфель доступен. Повторите попытку подключения."
+  },
+  "rebind": {
+    "title": "Изменить подключение Connect этого профиля?",
+    "description": "Подключается другой аккаунт или домохозяйство. Данные вашего локального портфеля сохранятся, но существующие связи с брокером и настройка синхронизации устройств будут удалены. Новый аккаунт сможет добавить брокерские данные в этот профиль. Настройте синхронизацию устройств снова, когда будете готовы. Используйте новый профиль, если хотите сохранить данные отдельно.",
+    "cancel": "Отменить",
+    "confirm": "Изменить подключение"
+  },
+  "syncMessages": {
+    "runFailed": "Не удалось завершить этот запуск синхронизации. Повторите синхронизацию или проверьте подключение к брокеру, пожалуйста.",
+    "runNeedsReview": "Некоторым синхронизированным элементам требуется ваша проверка, чтобы синхронизация могла продолжиться.",
+    "accountFailed": "Не удалось синхронизировать этот счёт у брокера. Повторите синхронизацию или проверьте подключение к брокеру, пожалуйста.",
+    "accountNeedsReview": "Некоторые брокерские данные требуют проверки. Повторите синхронизацию или проверьте подключение к брокеру, пожалуйста.",
+    "holdingsSynced": "Позиции синхронизированы, но синхронизация операций требует внимания. Повторите синхронизацию или проверьте подключение к брокеру, пожалуйста.",
+    "holdingsDeferred": "Синхронизация позиций требует внимания. Повторите синхронизацию или проверьте подключение к брокеру, пожалуйста."
+  }
+}
