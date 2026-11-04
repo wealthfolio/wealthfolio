@@ -198,7 +198,8 @@
     "deleteConfirmMany_one": "Вы уверены, что хотите удалить {{count}} транзакцию?",
     "deleteConfirmMany_few": "Вы уверены, что хотите удалить {{count}} транзакции?",
     "deleteConfirmMany_many": "Вы уверены, что хотите удалить {{count}} транзакций?",
-    "deleteConfirmMany_other": "Вы уверены, что хотите удалить {{count}} транзакции?"
+    "deleteConfirmMany_other": "Вы уверены, что хотите удалить {{count}} транзакции?",
+    "convertToTransfer": "Сделать переводом..."
   },
   "cashFlow": {
     "income": "Доход",

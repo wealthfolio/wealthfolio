@@ -330,7 +330,8 @@
   "operations": {
     "more_details": "Подробнее",
     "unlink_transfer": "Отвязать перевод",
-    "link_transfer": "Связать перевод..."
+    "link_transfer": "Связать перевод...",
+    "convert_to_transfer": "Сделать переводом..."
   },
   "date_sheet": {
     "title": "Операции: {{date}}",
@@ -476,7 +477,17 @@
     "within_days_one": "В пределах {{count}} дня",
     "within_days_few": "В пределах {{count}} дней",
     "within_days_many": "В пределах {{count}} дней",
-    "within_days_other": "В пределах {{count}} дней"
+    "within_days_other": "В пределах {{count}} дней",
+    "convert_title": "Создание перевода",
+    "convert_desc": "Превратите эту операцию в перевод между вашими счетами. Выберите совпадающую операцию в другом счёте или создайте её там.",
+    "convert_no_matches": "Нет совпадающих операций за 7 дней.",
+    "convert_new": "Создать в другом счёте",
+    "convert_removes_split": "Преобразование в перевод удаляет разделение.",
+    "convert_account": "Другой счёт",
+    "convert_amount": "Сумма: {{currency}}",
+    "convert_button": "Преобразовать в перевод",
+    "convert_success": "Преобразовано в перевод",
+    "convert_error": "Не удалось преобразовать в перевод"
   },
   "form": {
     "section_conversion": "Конвертация фонда",
@@ -1007,8 +1018,8 @@
       "defaultAccount": "Счёт по умолчанию",
       "skipped": "Пропущено",
       "skip": "ПРОПУСТИТЬ",
-      "mapType": "Сопоставить тип",
-      "mapSymbol": "Сопоставить тикер",
+      "mapType": "Выберите тип",
+      "mapSymbol": "Выберите тикер",
       "missingAccount": "Нет счёта",
       "emptySymbol": "Пустой тикер",
       "accountAssignmentBlankRows_one": "Сопоставьте каждую строку CSV со счётом. Осталась незаполненной {{count}} строка, поэтому выберите счёт по умолчанию в загрузке или заполните столбец счетов.",
