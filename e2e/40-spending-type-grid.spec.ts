@@ -88,7 +88,7 @@ for (const scenario of [
     }, scenario);
     const account = dialog.getByRole("combobox", { name: copy.account, exact: true });
     await account.click();
-    await page.getByRole("option", { name: "Grid bank (USD)", exact: true }).click();
+    await page.getByRole("option", { name: /^Grid bank\b/ }).click();
     const grid = dialog.getByRole("radiogroup");
     const bankHeight = (await dialog.boundingBox())!.height;
     await expect(grid.getByRole("radio")).toHaveCount(6);
@@ -149,7 +149,7 @@ for (const scenario of [
     expect(writes).toHaveLength(0);
 
     await account.click();
-    await page.getByRole("option", { name: "Grid card (USD)", exact: true }).click();
+    await page.getByRole("option", { name: /^Grid card\b/ }).click();
     await expect(grid.getByRole("radio")).toHaveCount(4);
     if (!scenario.largeText)
       expect((await dialog.boundingBox())!.height).toBeLessThan(bankHeight - 32);

@@ -397,6 +397,23 @@ describe("CashActivityForm direct entry", () => {
     );
   });
 
+  it("still asks before discarding after a save fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createActivity).mockRejectedValue(new Error("offline"));
+    const onOpenChange = vi.fn();
+    render(<CashActivityForm open onOpenChange={onOpenChange} intent="expense" />, { wrapper });
+    await chooseAccount(user, /WS Visa Infinite/);
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(createActivity).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("records income only in an eligible bank account", async () => {
     const user = userEvent.setup();
     render(<CashActivityForm open onOpenChange={vi.fn()} intent="income" />, { wrapper });
