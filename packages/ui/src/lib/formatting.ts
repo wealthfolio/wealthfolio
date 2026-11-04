@@ -453,8 +453,10 @@ const INVARIANT_NUMBER_PATTERN =
   /^[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function normalizeCurrencyGrouping(input: FinancialNumberInput, locale: string): string {
-  const { value, hasCurrencyAffix } = input;
+  const { hasCurrencyAffix } = input;
   const { decimal, group } = separators(locale);
+  // Apostrophe grouping (de-CH, de-LI…) is ' or ’ depending on the engine's locale data.
+  const value = group === "'" || group === "’" ? input.value.replace(/['’]/g, group) : input.value;
   // A currency affix or localized decimal mark disambiguates the input.
   // In de-AT, currency amounts group with dots while decimals group with spaces.
   if (!hasCurrencyAffix && !value.includes(decimal)) return value;
