@@ -121,9 +121,14 @@ function SheetScreen({ open, onOpenChange, title, children, className, initialFo
     return () => {
       covered.forEach((element) => element.removeAttribute("inert"));
       unregister();
-      // The content is inert until the count above re-renders.
+      // The content is inert until the count above re-renders. Focus goes back to the
+      // opener only if it was lost with the screen: a choice may have moved it on.
       requestAnimationFrame(() => {
-        if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
+        const active = document.activeElement;
+        const focusLost = !active || active === document.body || !active.isConnected;
+        if (focusLost && opener instanceof HTMLElement && opener.isConnected) {
+          opener.focus({ preventScroll: true });
+        }
       });
     };
   }, [open, navigation, initialFocus]);

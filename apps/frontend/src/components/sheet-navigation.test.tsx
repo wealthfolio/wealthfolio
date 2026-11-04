@@ -241,6 +241,44 @@ describe("Select in a phone form's sheet", () => {
   });
 });
 
+describe("SheetScreen focus on close", () => {
+  function PickAndMoveOn() {
+    const [open, setOpen] = useState(false);
+    return (
+      <SheetNavigation>
+        <button type="button" onClick={() => setOpen(true)}>
+          Symbol
+        </button>
+        <input aria-label="Shares" />
+        <SheetScreen open={open} onOpenChange={setOpen} title="Select symbol">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              requestAnimationFrame(() =>
+                document.querySelector<HTMLInputElement>("input[aria-label=Shares]")!.focus(),
+              );
+            }}
+          >
+            VFV
+          </button>
+        </SheetScreen>
+      </SheetNavigation>
+    );
+  }
+
+  it("keeps the focus a choice moved on, instead of returning it to the opener", async () => {
+    const user = userEvent.setup();
+    render(<PickAndMoveOn />);
+    await user.click(screen.getByRole("button", { name: "Symbol" }));
+    const picker = await screen.findByRole("dialog", { name: "Select symbol" });
+    await user.click(within(picker).getByRole("button", { name: "VFV" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Shares" })).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole("textbox", { name: "Shares" })).toHaveFocus();
+  });
+});
+
 describe("Nested SheetScreens", () => {
   function NestedScreens() {
     const [outer, setOuter] = useState(false);

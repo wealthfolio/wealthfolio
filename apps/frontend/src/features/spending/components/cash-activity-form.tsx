@@ -295,6 +295,7 @@ export function CashActivityForm({
   // placeholder until something is typed, and again once it is cleared.
   const [amountTyped, setAmountTyped] = useState(false);
   const [amountTapped, setAmountTapped] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
@@ -334,6 +335,11 @@ export function CashActivityForm({
       });
       setEventId(activity?.eventId ?? null);
       setCurrentStep(activity?.id || isQuickEntry ? 2 : 1);
+      // A new session starts on the form, with the amount's placeholder showing.
+      setMoreOptionsOpen(false);
+      setConfirmDiscard(false);
+      setAmountTyped(false);
+      setAmountTapped(false);
     }
   }, [open, activity, spendingAccounts, form, initialType, isQuickEntry]);
 
@@ -526,10 +532,12 @@ export function CashActivityForm({
   // Read during render so the form tracks them for the close check below.
   // A successful save closes the sheet itself; a failed one leaves the input to protect.
   const { dirtyFields } = form.formState;
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const handleSheetOpenChange = (next: boolean) => {
-    // Typed input is kept unless the user says to drop it; the type alone is not input.
-    const hasUnsavedInput = Object.keys(dirtyFields).some((field) => field !== "activityType");
+    // Typed input is kept unless the user says to drop it. Picking the type of a new
+    // entry is not input; changing an existing one's type, or its event, is.
+    const hasUnsavedInput =
+      Object.keys(dirtyFields).some((field) => isEditing || field !== "activityType") ||
+      eventId !== (activity?.eventId ?? null);
     if (!next && hasUnsavedInput) {
       setConfirmDiscard(true);
       return;
