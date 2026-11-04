@@ -1,3 +1,4 @@
+import { TouchControlsFixture } from "./touch-controls";
 import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -99,6 +100,7 @@ import {
   Icons,
 } from "@wealthfolio/ui";
 import "@/globals.css";
+import { OverlaySafeAreaFixture } from "./overlay-safe-area";
 
 // Synthetic fixture for the UI-primitive guardrails: every primitive in
 // @wealthfolio/ui in its key states, each overlay opened from a named trigger.
@@ -582,7 +584,13 @@ function Fixture() {
 void i18next.changeLanguage("en").then(() => {
   createRoot(document.getElementById("root")!).render(
     <AppDirectionProvider>
-      <Fixture />
+      {params.has("touchControls") ? (
+        <TouchControlsFixture />
+      ) : params.has("safeArea") ? (
+        <OverlaySafeAreaFixture />
+      ) : (
+        <Fixture />
+      )}
     </AppDirectionProvider>,
   );
 });

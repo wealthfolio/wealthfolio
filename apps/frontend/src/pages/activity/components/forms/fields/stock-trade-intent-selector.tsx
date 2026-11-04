@@ -16,6 +16,8 @@ interface StockTradeIntentSelectorProps<TFieldValues extends FieldValues = Field
   className?: string;
   /** Hide the "Trade Type" label and render a compact toggle (for card headers) */
   hideLabel?: boolean;
+  /** Matches the label to the surrounding form's labels. */
+  labelClassName?: string;
 }
 
 export function StockTradeIntentSelector<TFieldValues extends FieldValues = FieldValues>({
@@ -24,6 +26,7 @@ export function StockTradeIntentSelector<TFieldValues extends FieldValues = Fiel
   side,
   className,
   hideLabel = false,
+  labelClassName,
 }: StockTradeIntentSelectorProps<TFieldValues>) {
   const { t } = useTranslation(["activity"]);
   const { field } = useController({
@@ -69,7 +72,9 @@ export function StockTradeIntentSelector<TFieldValues extends FieldValues = Fiel
       aria-label={t("activity:form.trade_type")}
       className={cn("space-y-2", className)}
     >
-      <span className="text-sm font-medium">{t("activity:form.trade_type")}</span>
+      <span className={cn("text-sm font-medium", labelClassName)}>
+        {t("activity:form.trade_type")}
+      </span>
       <AnimatedToggleGroup
         value={selectedValue}
         onValueChange={(value) => field.onChange(value === NORMAL ? null : value)}

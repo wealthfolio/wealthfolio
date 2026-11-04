@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "資産を追加",
     "add_liability": "負債を追加",
-    "record_transaction": "取引を記録",
     "sync_broker_accounts": "証券口座を同期",
     "sync_devices": "デバイスを同期",
     "update_prices": "価格を更新",

@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/components/discard-changes-dialog";
 import { isActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
 import { getTransferRate } from "../../hooks/use-internal-transfer-currencies";
 import { logger } from "@/adapters";
@@ -515,12 +516,26 @@ export function MobileActivityForm({
       : accounts;
 
   // Handle sheet close - reset form and step
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setCurrentStep(shouldStartOnDetails ? 2 : 1);
-      form.reset(defaultValues);
-    }
+  // Read during render so the form tracks them for the close check below.
+  const { dirtyFields, isSubmitSuccessful } = form.formState;
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const closeSheet = () => {
+    setCurrentStep(shouldStartOnDetails ? 2 : 1);
+    form.reset(defaultValues);
     onClose?.();
+  };
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      onClose?.();
+      return;
+    }
+    // Picking a type alone is not worth asking about; anything typed after it is.
+    const hasUnsavedInput = Object.keys(dirtyFields).some((field) => field !== "activityType");
+    if (hasUnsavedInput && !isSubmitSuccessful) {
+      setConfirmDiscard(true);
+      return;
+    }
+    closeSheet();
   };
 
   const isLoading =
@@ -992,107 +1007,118 @@ export function MobileActivityForm({
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom" className="mx-1 flex h-[90vh] flex-col rounded-t-4xl p-0">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex flex-col items-center space-y-2">
-            <SheetTitle>
-              {activity?.id
-                ? t("activity:mobile_update_activity")
-                : t("activity:mobile_add_activity")}
-            </SheetTitle>
-            {!shouldStartOnDetails && (
-              <div className="flex gap-1.5">
-                {[1, 2].map((step) => (
-                  <div
-                    key={step}
-                    className={`h-1.5 w-10 rounded-full transition-colors ${
-                      step === currentStep
-                        ? "bg-primary"
-                        : step < currentStep
-                          ? "bg-primary/50"
-                          : "bg-muted"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-            {activity?.id ? (
-              <SheetDescription>{t("activity:mobile_form.update_details")}</SheetDescription>
-            ) : (
-              // Always describe the dialog for a11y; the add flow shows step dots
-              // instead of visible description text, so keep it screen-reader only.
-              <SheetDescription className="sr-only">
-                {t("activity:mobile_form.add_details")}
-              </SheetDescription>
-            )}
-          </div>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
-            <Form {...form}>
-              <form onSubmit={handleValidatedSubmit} className="flex h-full flex-col">
-                <MobileActivitySteps
-                  currentStep={currentStep}
-                  accounts={effectiveAccounts}
-                  isEditing={!!activity?.id}
-                  needsTypeSelection={needsTypeSelection}
-                  amountWasEdited={amountWasEdited}
-                  onSelectConversion={() => setRecordsConversion(true)}
-                />
-              </form>
-            </Form>
-          </div>
-        </div>
-
-        <SheetFooter className="mt-auto border-t px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-          <div className="flex w-full gap-3">
-            {currentStep > 1 && !shouldStartOnDetails && (
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={handleBack}
-                className="flex-1"
-              >
-                <Icons.ArrowLeft className="me-2 h-4 w-4 rtl:rotate-180" />
-                {t("activity:mobile_back")}
-              </Button>
-            )}
-
-            {currentStep < 2 ? (
-              <Button
-                type="button"
-                size="default"
-                onClick={handleNext}
-                className="flex-1 font-medium"
-                disabled={!form.watch("activityType") && currentStep === 1}
-              >
-                {t("activity:mobile_next")}
-                <Icons.ArrowRight className="ms-2 h-4 w-4 rtl:rotate-180" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="default"
-                onClick={handleValidatedSubmit}
-                className="flex-1 font-medium"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Spinner className="me-2 h-4 w-4" />
-                ) : (
-                  <Icons.Check className="me-2 h-4 w-4" />
-                )}
+    <>
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="bottom"
+          className="mx-1 flex flex-col overflow-hidden rounded-t-4xl p-0 [--overlay-max-height:90dvh]"
+        >
+          <SheetHeader floating className="shrink-0 px-6 py-4">
+            <div className="flex flex-col items-center space-y-2">
+              <SheetTitle>
                 {activity?.id
                   ? t("activity:mobile_update_activity")
                   : t("activity:mobile_add_activity")}
-              </Button>
-            )}
+              </SheetTitle>
+              {!shouldStartOnDetails && (
+                <div className="flex gap-1.5">
+                  {[1, 2].map((step) => (
+                    <div
+                      key={step}
+                      className={`h-1.5 w-10 rounded-full transition-colors ${
+                        step === currentStep
+                          ? "bg-primary"
+                          : step < currentStep
+                            ? "bg-primary/50"
+                            : "bg-muted"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+              {activity?.id ? (
+                <SheetDescription>{t("activity:mobile_form.update_details")}</SheetDescription>
+              ) : (
+                // Always describe the dialog for a11y; the add flow shows step dots
+                // instead of visible description text, so keep it screen-reader only.
+                <SheetDescription className="sr-only">
+                  {t("activity:mobile_form.add_details")}
+                </SheetDescription>
+              )}
+            </div>
+          </SheetHeader>
+
+          {/* The header floats over this scroll area, which starts below it. */}
+          <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) overflow-y-auto pt-(--sheet-header-height)">
+            <div className="p-4">
+              <Form {...form}>
+                <form onSubmit={handleValidatedSubmit} className="flex flex-col">
+                  <MobileActivitySteps
+                    currentStep={currentStep}
+                    accounts={effectiveAccounts}
+                    isEditing={!!activity?.id}
+                    needsTypeSelection={needsTypeSelection}
+                    amountWasEdited={amountWasEdited}
+                    onSelectConversion={() => setRecordsConversion(true)}
+                  />
+                </form>
+              </Form>
+            </div>
           </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+
+          <SheetFooter className="shrink-0 border-t px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div className="flex w-full gap-3">
+              {currentStep > 1 && !shouldStartOnDetails && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  onClick={handleBack}
+                  className="flex-1"
+                >
+                  <Icons.ArrowLeft className="me-2 h-4 w-4 rtl:rotate-180" />
+                  {t("activity:mobile_back")}
+                </Button>
+              )}
+
+              {currentStep < 2 ? (
+                <Button
+                  type="button"
+                  size="default"
+                  onClick={handleNext}
+                  className="flex-1 font-medium"
+                  disabled={!form.watch("activityType") && currentStep === 1}
+                >
+                  {t("activity:mobile_next")}
+                  <Icons.ArrowRight className="ms-2 h-4 w-4 rtl:rotate-180" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="default"
+                  onClick={handleValidatedSubmit}
+                  className="flex-1 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Spinner className="me-2 h-4 w-4" />
+                  ) : (
+                    <Icons.Check className="me-2 h-4 w-4" />
+                  )}
+                  {activity?.id
+                    ? t("activity:mobile_update_activity")
+                    : t("activity:mobile_add_activity")}
+                </Button>
+              )}
+            </div>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <DiscardChangesDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        onDiscard={closeSheet}
+      />
+    </>
   );
 }

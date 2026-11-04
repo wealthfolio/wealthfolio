@@ -275,6 +275,7 @@ export function EnterCode({
           >
             <DialogContent
               showCloseButton={false}
+              safeArea={false}
               finalFocus={scanButtonRef}
               className="qr-overlay fixed inset-0 start-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,var(--inset-bottom))] text-white shadow-none duration-0 data-closed:animate-none data-open:animate-none"
             >

@@ -614,7 +614,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "Mais informações sobre {{label}}",
     "bulk_add_existing_title": "Adicionar posições existentes",
-    "bulk_add_existing_desc": "Adicione rapidamente várias posições à sua carteira. Insira suas posições atuais com símbolos de ticker, quantidades e custos médios. Isso não afetará seu saldo em caixa.",
+    "bulk_add_existing_desc": "Adicione as suas posições atuais sem alterar o saldo de caixa.",
     "bulk_col_shares": "Ações",
     "bulk_col_average_cost": "Custo médio",
     "bulk_col_total_value": "Valor total",
@@ -820,12 +820,6 @@
     "day_count_other": "{{count}} atividades",
     "day_count_many": "{{count}} atividades",
     "day_end_cash": "Caixa"
-  },
-  "mobile_type_category": {
-    "trade": "Operação",
-    "cash": "Dinheiro",
-    "income": "Rendimentos",
-    "other": "Outros"
   },
   "mobile_type_transfer_desc": "Mover dinheiro ou valores entre contas",
   "mobile_type_adjustment_label": "Ajuste",

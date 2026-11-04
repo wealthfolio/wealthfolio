@@ -220,9 +220,6 @@ export function AllocationDetailSheet({
       <SheetContent
         className="flex w-full flex-col overflow-hidden sm:max-w-xl"
         initialFocus={titleRef}
-        style={{
-          paddingTop: "max(env(safe-area-inset-top, 0px), 1.5rem)",
-        }}
       >
         <SheetHeader className="mt-4">
           <SheetTitle ref={titleRef} tabIndex={-1} className="outline-none">

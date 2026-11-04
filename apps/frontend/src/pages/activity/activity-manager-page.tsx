@@ -139,6 +139,7 @@ const ActivityManagerPage = () => {
       label: account.name,
       currency: account.currency,
       accountType: account.accountType,
+      group: account.group,
     }));
   }, [activeAccounts, selectedType]);
 

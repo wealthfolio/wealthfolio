@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateActivity } from "@/adapters";
+import { createActivity, updateActivity } from "@/adapters";
 import type { Activity } from "@/lib/types";
 import { CashActivityForm } from "./cash-activity-form";
 
@@ -363,3 +363,64 @@ vi.mock("@/features/spending/components/activity-split-review-provider", () => (
   useActivitySplitReview: () => async (updates: unknown[]) => updates,
   isActivityEditCancelled: () => false,
 }));
+
+describe("CashActivityForm direct entry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createActivity).mockResolvedValue({ id: "quick-created" } as Activity);
+  });
+
+  it("requires an explicit expense account and places the amount first", async () => {
+    const user = userEvent.setup();
+    render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+    const account = screen.getByRole("combobox", { name: "Account" });
+    expect(account).toHaveTextContent("Select an account");
+    expect(screen.queryByRole("combobox", { name: "Type" })).not.toBeInTheDocument();
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+    expect(amount.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByText("Please select an account.")).toBeVisible();
+    expect(createActivity).not.toHaveBeenCalled();
+    await chooseAccount(user, /WS Visa Infinite/);
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(createActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: "card",
+          activityType: "WITHDRAWAL",
+          amount: 12.5,
+          currency: "CAD",
+        }),
+      ),
+    );
+  });
+
+  it("records income only in an eligible bank account", async () => {
+    const user = userEvent.setup();
+    render(<CashActivityForm open onOpenChange={vi.fn()} intent="income" />, { wrapper });
+    await user.click(screen.getByRole("combobox", { name: "Account" }));
+    expect(screen.queryByRole("option", { name: /WS Visa/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: /WS Chequing/ }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(createActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: "chequing",
+          activityType: "DEPOSIT",
+          currency: "CAD",
+        }),
+      ),
+    );
+  });
+
+  it("keeps an existing transaction's type when an intent is also supplied", () => {
+    render(
+      <CashActivityForm open onOpenChange={vi.fn()} intent="income" activity={foreignCharge} />,
+      { wrapper },
+    );
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Charge");
+    expect(screen.getByRole("combobox", { name: "Account" })).toHaveTextContent("WS Visa Infinite");
+  });
+});

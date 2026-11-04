@@ -852,6 +852,9 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "none": "無",
+    "addExpense": "新增支出",
+    "addIncome": "新增收入",
     "accountRequired": "請選取一個帳戶。",
     "pickDate": "選取日期",
     "amountNonNegative": "金額不能為負數。",
@@ -869,6 +872,8 @@
     "spendingCategory": "支出類別",
     "activityUpdated": "活動已更新。",
     "activityCreated": "活動已建立。",
+    "expenseAdded": "已新增支出。",
+    "incomeAdded": "已新增收入。",
     "saveFailed": "儲存活動失敗：{{message}}",
     "editTitle": "編輯交易",
     "addTitle": "新增交易",

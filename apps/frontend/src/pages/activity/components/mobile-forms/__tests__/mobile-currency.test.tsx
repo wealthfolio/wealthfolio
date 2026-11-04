@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { baseActivitySchema } from "../../forms/schemas";
 import { useActivityMutations } from "../../../hooks/use-activity-mutations";
+import { SheetNavigation } from "@wealthfolio/ui";
 
 const updateActivity = vi.hoisted(() => vi.fn());
 vi.mock("@/adapters", async (importOriginal) => ({
@@ -21,6 +22,11 @@ vi.mock("@/adapters", async (importOriginal) => ({
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { baseCurrency: "CAD" } }),
 }));
+
+// The account picker's command list scrolls its highlighted row into view.
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => undefined;
+}
 
 const accounts: AccountSelectOption[] = [
   { value: "cad-account", label: "CAD account", currency: "CAD" },
@@ -52,19 +58,22 @@ function TestForm({
     },
   });
   const amountWasEdited = useRef(false);
+  // The form's phone sheet, where the account picker opens as a screen.
   return (
-    <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <MobileDetailsStep
-          accounts={options}
-          activityType={ActivityType.DEPOSIT}
-          isEditing={isEditing}
-          amountWasEdited={amountWasEdited}
-        />
-        <output data-testid="currency">{form.watch("currency")}</output>
-        <button type="submit">Save test activity</button>
-      </form>
-    </FormProvider>
+    <SheetNavigation>
+      <FormProvider {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <MobileDetailsStep
+            accounts={options}
+            activityType={ActivityType.DEPOSIT}
+            isEditing={isEditing}
+            amountWasEdited={amountWasEdited}
+          />
+          <output data-testid="currency">{form.watch("currency")}</output>
+          <button type="submit">Save test activity</button>
+        </form>
+      </FormProvider>
+    </SheetNavigation>
   );
 }
 
@@ -92,7 +101,7 @@ describe("mobile activity currency backfill", () => {
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole("combobox", { name: "Account" }));
-    await user.click(screen.getByRole("button", { name: /Other CAD account/ }));
+    await user.click(screen.getByRole("option", { name: /Other CAD account/ }));
     await user.click(screen.getByRole("button", { name: "Save test activity" }));
     await waitFor(() => expect(updateActivity).toHaveBeenCalled());
     expect(JSON.parse(JSON.stringify(updateActivity.mock.calls[0][0]))).toMatchObject({
@@ -118,7 +127,7 @@ describe("mobile activity currency backfill", () => {
       render(<TestForm currency="USD" isEditing={isEditing} onSubmit={onSubmit} />);
       const user = userEvent.setup();
       await user.click(screen.getByRole("combobox", { name: "Account" }));
-      await user.click(screen.getByRole("button", { name: /Other CAD account/ }));
+      await user.click(screen.getByRole("option", { name: /Other CAD account/ }));
       await user.click(screen.getByRole("button", { name: "Save test activity" }));
       await waitFor(() => expect(onSubmit).toHaveBeenCalled());
       expect(onSubmit.mock.calls[0][0].accountId).toBe("other-account");

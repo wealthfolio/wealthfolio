@@ -22,7 +22,7 @@ function Tabs({ className, ...props }: TabsProps) {
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list text-muted-foreground group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col h-10 inline-flex items-center justify-center rounded-md p-1 data-[variant=line]:rounded-none",
+  "group/tabs-list text-muted-foreground group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col h-10 inline-flex items-center justify-center rounded-md p-1 data-[variant=line]:rounded-none pointer-coarse:min-h-13 max-lg:min-h-13",
   {
     variants: {
       variant: {
@@ -68,6 +68,7 @@ function TabsTrigger({ className, children, ...props }: TabsTriggerProps) {
         // The line variant underlines the active tab instead of drawing the pill.
         "after:bg-foreground group-data-[variant=line]/tabs-list:data-active:after:opacity-100 group-data-horizontal/tabs:after:-bottom-1.25 group-data-horizontal/tabs:after:inset-x-0 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-end-1 group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:w-0.5 after:absolute after:opacity-0 after:transition-opacity",
         "isolate overflow-hidden group-data-[variant=line]/tabs-list:overflow-visible",
+        "pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
         className,
       )}
       render={(tabProps, state) => (

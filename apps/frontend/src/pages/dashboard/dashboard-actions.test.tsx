@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   rebuild: vi.fn(),
   verify: vi.fn(),
 }));
-vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => mocks.navigate,
+  useLocation: () => ({ pathname: "/", search: "?tab=spending", key: "origin" }),
+}));
 vi.mock("@/components/action-palette", () => ({
   ActionPalette: ({ groups }: { groups: ActionPaletteGroup[] }) => (
     <div>
@@ -64,4 +67,41 @@ it("preserves the Investments menu", () => {
   expect(screen.queryByRole("button", { name: "Manage" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Refresh full history/i }));
   expect(mocks.rebuild).toHaveBeenCalledOnce();
+});
+
+it.each(["investments", "net-worth", "spending"] as const)(
+  "opens expense and income from the %s overflow menu",
+  (view) => {
+    render(<DashboardActions view={view} spendingEnabled />);
+    for (const [label, type] of [
+      ["Add expense", "WITHDRAWAL"],
+      ["Add income", "DEPOSIT"],
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      expect(mocks.navigate).toHaveBeenLastCalledWith(`/spending/transactions/new?type=${type}`, {
+        replace: false,
+        state: {
+          backgroundLocation: expect.objectContaining({ pathname: "/", search: "?tab=spending" }),
+        },
+      });
+    }
+  },
+);
+
+it("hides expense and income when Spending is disabled", () => {
+  render(<DashboardActions />);
+  expect(screen.queryByRole("button", { name: "Add expense" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add income" })).not.toBeInTheDocument();
+});
+
+it("keeps the full Spending picker and paired Transfer form available", () => {
+  render(<DashboardActions view="spending" spendingEnabled />);
+  fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+  expect(mocks.navigate).toHaveBeenLastCalledWith(
+    "/spending/transactions/new?type=TRANSFER",
+    expect.any(Object),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Add transaction" }));
+  expect(mocks.navigate).toHaveBeenLastCalledWith("/spending/transactions/new", expect.any(Object));
+  expect(screen.queryByRole("button", { name: /Refresh full history/i })).not.toBeInTheDocument();
 });

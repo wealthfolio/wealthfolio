@@ -248,7 +248,7 @@
     "asset_type_option": "خيار",
     "asset_type_stock": "سهم",
     "available_amount": "المتاح: {{amount}}",
-    "bulk_add_existing_desc": "أضف عدة حيازات إلى محفظتك بسرعة. أدخل مراكزك الحالية مع رموز الأسهم والكميات ومتوسط التكاليف. لن يؤثر ذلك على رصيدك النقدي.",
+    "bulk_add_existing_desc": "أضف مراكزك الحالية دون تغيير رصيدك النقدي.",
     "bulk_add_existing_title": "إضافة الحيازات الحالية",
     "bulk_col_average_cost": "متوسط التكلفة",
     "bulk_col_shares": "الأسهم",
@@ -1303,12 +1303,6 @@
   "mobile_type_adjustment_desc": "تصحيح أو تعديل غير متعلق بالتداول",
   "mobile_type_adjustment_label": "تعديل",
   "mobile_type_buy_desc": "شراء أصل",
-  "mobile_type_category": {
-    "cash": "نقد",
-    "income": "دخل",
-    "other": "أخرى",
-    "trade": "تداول"
-  },
   "mobile_type_deposit_desc": "إضافة أموال إلى الحساب",
   "mobile_type_dividend_desc": "استلام دفعة من توزيعات الأرباح",
   "mobile_type_fee_desc": "رسوم الحساب أو المعاملة",

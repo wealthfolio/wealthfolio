@@ -889,7 +889,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       >
         <DialogContent
           className="sm:max-w-md"
-          mobileClassName="h-auto max-h-[85dvh] overflow-y-auto"
+          mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
           showCloseButton={!busy && !recoveryCode}
         >
           <DialogHeader className="pe-6 text-start">

@@ -895,6 +895,9 @@
     "manage": "Gestisci →"
   },
   "cashForm": {
+    "none": "Nessuno",
+    "addExpense": "Aggiungi spesa",
+    "addIncome": "Aggiungi entrata",
     "accountRequired": "Seleziona un conto.",
     "pickDate": "Scegli una data",
     "amountNonNegative": "L'importo non può essere negativo.",
@@ -912,6 +915,8 @@
     "spendingCategory": "Categoria di spesa",
     "activityUpdated": "Movimento aggiornato.",
     "activityCreated": "Movimento creato.",
+    "expenseAdded": "Spesa aggiunta.",
+    "incomeAdded": "Entrata aggiunta.",
     "saveFailed": "Impossibile salvare il movimento: {{message}}",
     "editTitle": "Modifica transazione",
     "addTitle": "Aggiungi transazione",

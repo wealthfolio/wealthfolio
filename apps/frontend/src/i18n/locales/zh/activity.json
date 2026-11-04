@@ -606,7 +606,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "关于 {{label}} 的更多信息",
     "bulk_add_existing_title": "添加现有持仓",
-    "bulk_add_existing_desc": "快速将多项持仓添加到您的投资组合中。输入您当前的持仓，包括股票代码、数量和平均成本。这不会影响您的现金余额。",
+    "bulk_add_existing_desc": "添加当前持仓，不改变现金余额。",
     "bulk_col_shares": "股数",
     "bulk_col_average_cost": "平均成本",
     "bulk_col_total_value": "总价值",
@@ -798,12 +798,6 @@
     "day_count_one": "{{count}} 条活动",
     "day_count_other": "{{count}} 条活动",
     "day_end_cash": "现金"
-  },
-  "mobile_type_category": {
-    "trade": "交易",
-    "cash": "现金",
-    "income": "收入",
-    "other": "其他"
   },
   "mobile_type_transfer_desc": "在账户之间转移现金或证券",
   "mobile_type_adjustment_label": "调整",

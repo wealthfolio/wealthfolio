@@ -88,7 +88,10 @@ export function BackupExportDialog({ filename, displayName, onClose }: BackupExp
         if (!open) close();
       }}
     >
-      <DialogContent className="sm:max-w-md" mobileClassName="h-auto max-h-[85dvh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-md"
+        mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
+      >
         <DialogHeader className="text-start">
           <DialogTitle>{t("settings:backup_export_dialog_title")}</DialogTitle>
           <DialogDescription>{t("settings:backup_export_description")}</DialogDescription>

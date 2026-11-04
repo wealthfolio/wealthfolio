@@ -25,14 +25,17 @@ export const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-(--control-size) px-5 py-2.5 has-[>svg]:px-4",
-        xs: "h-8 gap-1 px-2.5 has-[>svg]:px-2",
-        sm: "h-9 gap-1.5 px-4 has-[>svg]:px-3",
+        default:
+          "h-(--control-size) px-5 py-2.5 has-[>svg]:px-4 pointer-coarse:min-h-11 max-lg:min-h-11",
+        xs: "h-8 gap-1 px-2.5 has-[>svg]:px-2 pointer-coarse:min-h-11 max-lg:min-h-11",
+        sm: "h-9 gap-1.5 px-4 has-[>svg]:px-3 pointer-coarse:min-h-11 max-lg:min-h-11",
         lg: "h-11 px-7 has-[>svg]:px-5",
-        icon: "size-10",
+        icon: "size-10 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
 
-        "icon-xs": "size-8",
-        "icon-sm": "size-9",
+        "icon-xs":
+          "size-8 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
+        "icon-sm":
+          "size-9 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
         "icon-lg": "size-11",
       },
     },

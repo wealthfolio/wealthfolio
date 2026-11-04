@@ -65,7 +65,8 @@ it("closes the new security dialog when its save ends while the screen is out of
   );
   const saveStatus = () => client.getMutationCache().getAll()[0]?.state.status;
   const { rerender } = render(page(false));
-  fireEvent.click(screen.getByRole("button", { name: "Add security" }));
+  // The icon-only phone button and the labelled one; jsdom applies neither's breakpoint.
+  fireEvent.click(screen.getAllByRole("button", { name: "Add security" })[0]);
   fireEvent.click(screen.getByRole("button", { name: "Create ACME" }));
   await waitFor(() => expect(saveStatus()).toBe("pending"));
 

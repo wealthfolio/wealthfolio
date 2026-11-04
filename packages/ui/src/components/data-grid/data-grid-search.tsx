@@ -143,7 +143,7 @@ function DataGridSearchImpl({
     <div
       role="search"
       data-slot="grid-search"
-      className="fade-in-0 slide-in-from-top-2 animate-in bg-background absolute end-4 top-4 z-50 flex flex-col gap-2 rounded-lg border p-2 shadow-lg"
+      className="fade-in-0 slide-in-from-top-2 animate-in bg-background absolute end-4 top-4 z-50 inline-flex flex-col gap-2 rounded-lg border p-2 shadow-lg max-lg:w-96 max-lg:max-w-[calc(100%-2rem)]! pointer-coarse:w-96 pointer-coarse:max-w-[calc(100%-2rem)]!"
     >
       <div className="flex items-center gap-2">
         <Input
@@ -152,7 +152,7 @@ function DataGridSearchImpl({
           autoCapitalize="off"
           spellCheck={false}
           placeholder={t("ui:search.findInTable", "Find in table...")}
-          className="h-8 w-64"
+          className="h-8 w-64 max-lg:min-w-0 max-lg:flex-1 pointer-coarse:min-w-0 pointer-coarse:flex-1"
           ref={inputRef}
           value={searchQuery}
           onChange={onChange}

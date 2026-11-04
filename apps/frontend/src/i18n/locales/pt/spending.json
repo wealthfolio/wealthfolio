@@ -895,6 +895,9 @@
     "manage": "Gerenciar →"
   },
   "cashForm": {
+    "none": "Nenhum",
+    "addExpense": "Adicionar despesa",
+    "addIncome": "Adicionar receita",
     "accountRequired": "Selecione uma conta.",
     "pickDate": "Escolha uma data",
     "amountNonNegative": "O valor não pode ser negativo.",
@@ -912,6 +915,8 @@
     "spendingCategory": "Categoria de gasto",
     "activityUpdated": "Atividade atualizada.",
     "activityCreated": "Atividade criada.",
+    "expenseAdded": "Despesa adicionada.",
+    "incomeAdded": "Receita adicionada.",
     "saveFailed": "Não foi possível salvar a atividade: {{message}}",
     "editTitle": "Editar transação",
     "addTitle": "Adicionar transação",
