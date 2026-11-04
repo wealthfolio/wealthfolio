@@ -432,6 +432,12 @@ describe("Russian words inserted into sentences", () => {
     "spending:rules.selectActivityType",
     "spending:rules.selectMatchType",
     "activity:form.placeholder_select_account",
+    // Found through ternaries, `??` and shared variables: provider-settings-card.tsx:448,
+    // profile-shell.tsx:1041, mapping-table-cells.tsx:96, template-picker.tsx:34.
+    "ai:providerSettings.enterApiKey",
+    "common:profiles.enterPassword",
+    "activity:import.mapping.selectColumn",
+    "activity:import.template.selectFormat",
     "settings:tz_select_placeholder",
     "ui:select.placeholder",
     "asset:mobileTable.search_placeholder",

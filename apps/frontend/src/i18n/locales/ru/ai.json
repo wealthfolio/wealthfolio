@@ -635,7 +635,7 @@
     "apiKeyRequired": "Требуется ключ API",
     "apiKey": "Ключ API",
     "getApiKey": "Получить ключ API",
-    "enterApiKey": "Ввести ключ API",
+    "enterApiKey": "Введите ключ API",
     "hideApiKey": "Скрыть ключ API",
     "showApiKey": "Показать ключ API",
     "save": "Сохранить",
