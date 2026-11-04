@@ -193,7 +193,8 @@
     "linkTransfer": "Vincular transferencia...",
     "deleteConfirmMany_one": "¿Seguro que quieres eliminar {{count}} transacción?",
     "deleteConfirmMany_other": "¿Seguro que quieres eliminar {{count}} transacciones?",
-    "deleteConfirmMany_many": "¿Seguro que quieres eliminar {{count}} transacciones?"
+    "deleteConfirmMany_many": "¿Seguro que quieres eliminar {{count}} transacciones?",
+    "convertToTransfer": "Convertir en transferencia..."
   },
   "cashFlow": {
     "income": "Ingresos",

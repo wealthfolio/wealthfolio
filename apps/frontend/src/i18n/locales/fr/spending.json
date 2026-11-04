@@ -193,7 +193,8 @@
     "linkTransfer": "Associer un virement...",
     "deleteConfirmMany_one": "Voulez-vous vraiment supprimer {{count}} transaction ?",
     "deleteConfirmMany_other": "Voulez-vous vraiment supprimer {{count}} transactions ?",
-    "deleteConfirmMany_many": "Voulez-vous vraiment supprimer {{count}} transactions ?"
+    "deleteConfirmMany_many": "Voulez-vous vraiment supprimer {{count}} transactions ?",
+    "convertToTransfer": "Convertir en virement..."
   },
   "cashFlow": {
     "income": "Revenus",
