@@ -530,8 +530,11 @@ export function MobileActivityForm({
       onClose?.();
       return;
     }
-    // Picking a type alone is not worth asking about; anything typed after it is.
-    const hasUnsavedInput = Object.keys(dirtyFields).some((field) => field !== "activityType");
+    // Picking the type of a new activity alone is not worth asking about; anything
+    // typed after it is, and so is changing an existing activity's type.
+    const hasUnsavedInput = Object.keys(dirtyFields).some(
+      (field) => Boolean(activity?.id) || field !== "activityType",
+    );
     if (hasUnsavedInput) {
       setConfirmDiscard(true);
       return;

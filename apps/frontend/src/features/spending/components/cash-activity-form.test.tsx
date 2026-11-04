@@ -17,6 +17,18 @@ import { createActivity, updateActivity } from "@/adapters";
 import type { Activity } from "@/lib/types";
 import { CashActivityForm } from "./cash-activity-form";
 
+// jsdom has neither; the phone layout's lists use both.
+if (typeof ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+}
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => undefined;
+}
+
 async function chooseAccount(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await user.click(screen.getByRole("combobox", { name: "Account" }));
   await user.click(await screen.findByRole("option", { name }));
@@ -49,7 +61,8 @@ vi.mock("@/hooks/use-settings", () => {
   const data = { baseCurrency: "CAD" };
   return { useSettings: () => ({ data }) };
 });
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
+const platform = vi.hoisted(() => ({ isMobile: false }));
+vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => platform.isMobile }));
 vi.mock("@/hooks/use-taxonomies", () => {
   const result = { data: null };
   return { useTaxonomy: vi.fn(() => result) };
@@ -395,6 +408,46 @@ describe("CashActivityForm direct entry", () => {
         }),
       ),
     );
+  });
+
+  it("asks before discarding a changed type on an existing transaction", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<CashActivityForm open onOpenChange={onOpenChange} activity={foreignCharge} />, {
+      wrapper,
+    });
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    const options = await screen.findAllByRole("option");
+    const other = options.find((option) => option.getAttribute("aria-selected") !== "true");
+    await user.click(other!);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("reopens on the form, not on the screen it was closed on", async () => {
+    const user = userEvent.setup();
+    platform.isMobile = true;
+    const innerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+    try {
+      const { rerender } = render(
+        <CashActivityForm open onOpenChange={vi.fn()} activity={foreignCharge} />,
+        { wrapper },
+      );
+      // Matched loosely: the label may still be its key while translations load.
+      await user.click(await screen.findByRole("button", { name: /advanced/i }));
+      expect(await screen.findByRole("dialog", { name: /advanced/i })).toBeInTheDocument();
+
+      rerender(<CashActivityForm open={false} onOpenChange={vi.fn()} activity={foreignCharge} />);
+      rerender(<CashActivityForm open onOpenChange={vi.fn()} activity={foreignCharge} />);
+      await screen.findByRole("dialog", { name: /edit/i });
+      expect(screen.queryByRole("dialog", { name: /advanced/i })).not.toBeInTheDocument();
+    } finally {
+      platform.isMobile = false;
+      Object.defineProperty(window, "innerWidth", { value: innerWidth, configurable: true });
+    }
   });
 
   it("still asks before discarding after a save fails", async () => {
