@@ -185,7 +185,7 @@
     "record_dividend": "配当を追加",
     "record_deposit": "入金を追加",
     "record_withdrawal": "出金を追加",
-    "add_holding": "既存の保有資産を追加",
+    "add_holding": "保有銘柄を追加",
     "record_interest": "利息を追加",
     "add_transaction": "取引を追加",
     "import_activities": "取引をインポート",
