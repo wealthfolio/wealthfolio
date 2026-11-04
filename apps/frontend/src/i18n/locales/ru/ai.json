@@ -434,7 +434,7 @@
     "importTitle_few": "Импорт CSV · {{count}} строки",
     "importTitle_many": "Импорт CSV · {{count}} строк",
     "importTitle_other": "Импорт CSV · {{count}} строки",
-    "selectTargetAccount": "Выбрать целевой счёт",
+    "selectTargetAccount": "Выберите целевой счёт",
     "statsSummary": "Валидных {{valid}} · с предупреждениями {{warning}} · с ошибками {{errors}} · дубликатов {{duplicates}}",
     "revalidate": "Перепроверить",
     "import_one": "Импортировать {{count}} операцию",

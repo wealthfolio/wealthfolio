@@ -392,6 +392,57 @@ describe("Russian words inserted into sentences", () => {
     expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
   });
 
+  // Every key below is used as a `placeholder=` in the app: a hint tells the user what to do, so it is
+  // imperative («Выберите…», «Найдите…»), not the infinitive of a button. «Поиск…» is also fine.
+  const placeholderKeys = [
+    "activity:form.placeholder_select_currency",
+    "activity:form.placeholder_select_subtype",
+    "activity:import.parseSettings.selectDateFormat",
+    "activity:import.parseSettings.selectDelimiter",
+    "activity:import.parseSettings.selectSeparator",
+    "ai:importCsv.selectTargetAccount",
+    "allocation:worksheet.findAccount",
+    "asset:assetForm.select_quote_mode",
+    "asset:createSecurity.select_currency",
+    "asset:createSecurity.select_exchange",
+    "asset:createSecurity.select_type",
+    "asset:detailsSheet.select_asset_to_link",
+    "asset:detailsSheet.select_collectible_type",
+    "asset:detailsSheet.select_liability_type",
+    "asset:detailsSheet.select_metal",
+    "asset:detailsSheet.select_property_type",
+    "asset:detailsSheet.select_unit",
+    "asset:detailsSheet.select_vehicle_type",
+    "asset:editSheet.select_currency",
+    "asset:editSheet.select_exchange",
+    "asset:editSheet.select_frequency",
+    "asset:editSheet.select_provider",
+    "asset:editSheet.select_type",
+    "asset:loanPayments.choose_loan",
+    "asset:quickAdd.select_asset_to_link",
+    "asset:quickAdd.select_currency",
+    "asset:quickAdd.select_metal",
+    "asset:quickAdd.select_type",
+    "asset:quickAdd.select_unit",
+    "common:component.select_type",
+    "common:search_symbol",
+    "holdings:select_currency",
+    "settings:fx_select_data_source",
+    "spending:cashForm.selectAccount",
+    "spending:rules.selectActivityType",
+    "spending:rules.selectMatchType",
+    "activity:form.placeholder_select_account",
+    "settings:tz_select_placeholder",
+    "ui:select.placeholder",
+    "asset:mobileTable.search_placeholder",
+  ];
+
+  it.each(placeholderKeys)("writes the placeholder %s as an imperative", (key) => {
+    const value = allStrings.get(key);
+    expect(value, key).toBeDefined();
+    expect(value).not.toMatch(/^(Выбрать|Искать|Найти|Ввести|Указать|Добавить|Задать)(?![а-яё])/u);
+  });
+
   it.each([
     ["settings:tz_select_placeholder", "Выберите часовой пояс"],
     ["ui:select.placeholder", "Выберите вариант"],

@@ -415,7 +415,7 @@
     "blockedTitle": "Перед расчётом",
     "selectedAccountCount": "Выбрано: {{selected}} из {{total}}",
     "ledgerHint": "Каждый счёт финансирует только собственные изменения. Между счетами ничего не перемещается.",
-    "findAccount": "Найти счёт",
+    "findAccount": "Найдите счёт",
     "clearAccounts": "Очистить",
     "noMatchingAccounts": "Нет подходящего счёта.",
     "otherAccounts": "Другие счета",
