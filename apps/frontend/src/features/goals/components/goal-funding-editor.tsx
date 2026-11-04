@@ -68,14 +68,18 @@ function SharePercentInput({
   label,
   value,
   onChange,
+  onDraftChange,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  /** The valid value being typed, or undefined when there is none to preview. */
+  onDraftChange: (value: number | undefined) => void;
 }) {
   const draft = useNumericDraft(value, { acceptPercent: true, maximumFractionDigits: 1 });
   const commitDraftValue = () => {
     const result = draft.commit();
+    onDraftChange(undefined);
     if (result.status === "valid") onChange(result.value);
   };
 
@@ -86,6 +90,10 @@ function SharePercentInput({
         inputMode="decimal"
         aria-label={label}
         {...draft.inputProps}
+        onChange={(event) => {
+          const result = draft.setText(event.currentTarget.value);
+          onDraftChange(result.status === "valid" ? result.value : undefined);
+        }}
         onBlur={commitDraftValue}
         className="text-foreground min-w-0 flex-1 bg-transparent text-end text-sm tabular-nums outline-none"
       />
@@ -98,6 +106,10 @@ function formatShare(value: number, numbers: NumberFormatting): string {
   if (!Number.isFinite(value)) return numbers.formatPercent(0, { digits: 0 });
   const rounded = Math.abs(value) < SHARE_EPSILON ? 0 : value;
   return numbers.formatDecimal(rounded / 100, { style: "percent", maximumFractionDigits: 1 });
+}
+
+function clampShare(value: number): number {
+  return Math.max(0, Math.min(100, value));
 }
 
 function allocationLabel(
@@ -154,6 +166,9 @@ export function GoalFundingEditor({
   );
 
   const [sharePercents, setSharePercents] = useState<Map<string, number>>(new Map());
+  // Shares still being typed. Save and the overage check use them so the click
+  // that blurs a share input is not dropped on a still-disabled Save button.
+  const [typedShares, setTypedShares] = useState<Map<string, number>>(new Map());
   const [taxBuckets, setTaxBuckets] = useState<Map<string, string>>(new Map());
   const [dirty, setDirty] = useState(false);
   const [internalEditing, setInternalEditing] = useState(false);
@@ -178,6 +193,7 @@ export function GoalFundingEditor({
       if (rule.taxBucket) tbMap.set(rule.accountId, rule.taxBucket);
     }
     setSharePercents(spMap);
+    setTypedShares(new Map());
     setTaxBuckets(tbMap);
     setDirty(false);
   }, [fundingRules]);
@@ -230,7 +246,7 @@ export function GoalFundingEditor({
     return activeAccounts
       .map((account) => {
         const otherAllocations = otherFundingRules.filter((rule) => rule.accountId === account.id);
-        const thisShare = sharePercents.get(account.id) ?? 0;
+        const thisShare = typedShares.get(account.id) ?? sharePercents.get(account.id) ?? 0;
         return {
           account,
           thisShare,
@@ -244,7 +260,14 @@ export function GoalFundingEditor({
         };
       })
       .filter((row) => sharePercents.has(row.account.id) || row.total > SHARE_EPSILON);
-  }, [activeAccounts, isRetirement, otherFundingRules, retirementGoalIds, sharePercents]);
+  }, [
+    activeAccounts,
+    isRetirement,
+    otherFundingRules,
+    retirementGoalIds,
+    sharePercents,
+    typedShares,
+  ]);
 
   const allocationByAccountId = useMemo(
     () => new Map(allocationRows.map((row) => [row.account.id, row])),
@@ -259,6 +282,9 @@ export function GoalFundingEditor({
     [allocationRows, sharePercents],
   );
   const hasInvalidAllocations = invalidAllocationRows.length > 0;
+  const hasTypedChanges = Array.from(typedShares).some(
+    ([accountId, percent]) => percent !== sharePercents.get(accountId),
+  );
 
   const addAccount = (accountId: string) => {
     const maxForThisGoal = isRetirement
@@ -283,8 +309,17 @@ export function GoalFundingEditor({
   }, []);
 
   const updateSharePercent = useCallback((accountId: string, value: number) => {
-    setSharePercents((prev) => new Map(prev).set(accountId, Math.max(0, Math.min(100, value))));
+    setSharePercents((prev) => new Map(prev).set(accountId, clampShare(value)));
     setDirty(true);
+  }, []);
+
+  const updateTypedShare = useCallback((accountId: string, value: number | undefined) => {
+    setTypedShares((prev) => {
+      const next = new Map(prev);
+      if (value === undefined) next.delete(accountId);
+      else next.set(accountId, clampShare(value));
+      return next;
+    });
   }, []);
 
   const cycleTaxBucket = useCallback((accountId: string) => {
@@ -305,7 +340,8 @@ export function GoalFundingEditor({
     for (const [accountId, percent] of sharePercents) {
       rules.push({
         accountId,
-        sharePercent: percent,
+        // A WebView may deliver the click before the share input's blur commits.
+        sharePercent: typedShares.get(accountId) ?? percent,
         taxBucket: isRetirement ? taxBuckets.get(accountId) : undefined,
       });
     }
@@ -315,6 +351,7 @@ export function GoalFundingEditor({
   }, [
     hasInvalidAllocations,
     sharePercents,
+    typedShares,
     taxBuckets,
     isRetirement,
     saveFundingMutation,
@@ -380,7 +417,11 @@ export function GoalFundingEditor({
                 size="sm"
                 className="h-7 text-xs"
                 onClick={handleSave}
-                disabled={saveFundingMutation.isPending || !dirty || hasInvalidAllocations}
+                disabled={
+                  saveFundingMutation.isPending ||
+                  !(dirty || hasTypedChanges) ||
+                  hasInvalidAllocations
+                }
               >
                 {saveFundingMutation.isPending ? t("goals:funding.saving") : t("common:save")}
               </Button>
@@ -421,8 +462,10 @@ export function GoalFundingEditor({
                   {includedAccounts.map((a) => {
                     const isDcLinked = dcLinkedSet.has(a.id);
                     const tb = taxBuckets.get(a.id);
-                    const percent = sharePercents.get(a.id) ?? 100;
+                    const committedPercent = sharePercents.get(a.id) ?? 100;
                     const allocation = allocationByAccountId.get(a.id);
+                    // Includes a share still being typed, like the allocation labels.
+                    const percent = allocation?.thisShare ?? committedPercent;
                     const overBy = allocation?.overBy ?? 0;
                     const maxForThisGoal = allocation?.maxForThisGoal ?? 100;
                     const otherTotal = allocation?.otherReserved ?? 0;
@@ -483,8 +526,9 @@ export function GoalFundingEditor({
                           {!isDcLinked && (
                             <SharePercentInput
                               label={a.name}
-                              value={percent}
+                              value={committedPercent}
                               onChange={(value) => updateSharePercent(a.id, value)}
+                              onDraftChange={(value) => updateTypedShare(a.id, value)}
                             />
                           )}
 
