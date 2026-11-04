@@ -141,7 +141,7 @@ describe("Arabic financial terminology", () => {
     ["income:dividends", "توزيعات الأرباح"],
     ["activity:import.page.titleHoldings", "استيراد الحيازات"],
     ["common:nav.label_holdings", "عرض الحيازات"],
-    ["common:component.add_holding", "إضافة حيازات حالية"],
+    ["common:component.add_holding", "إضافة حيازة"],
     ["holdings:instrument_types.FUTURE", "العقود المستقبلية"],
     ["activity:type_credit", "إضافة رصيد"],
     ["activity:subtype_return_of_capital", "رد رأس المال"],

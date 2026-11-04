@@ -185,7 +185,7 @@
     "record_dividend": "배당 추가",
     "record_deposit": "입금 추가",
     "record_withdrawal": "출금 추가",
-    "add_holding": "기존 보유 자산 추가",
+    "add_holding": "보유 종목 추가",
     "record_interest": "이자 추가",
     "add_transaction": "거래 추가",
     "import_activities": "활동 가져오기",
