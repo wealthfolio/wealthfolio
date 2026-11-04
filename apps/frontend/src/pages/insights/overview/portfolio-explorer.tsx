@@ -61,7 +61,7 @@ function sumOfCategories(allocation: TaxonomyAllocation | undefined): number {
   return (allocation?.categories ?? []).reduce((s, c) => s + (c.value > 0 ? c.value : 0), 0);
 }
 
-/** Rows kept before the rest collapse into one "Other" row. */
+/** Rows kept before the rest collapse into one "Other" row; the labels count rows, not underlying items. */
 const COLLAPSED_TOP_N = 5;
 
 function sumValue(nodes: BreakdownNode[]): number {
@@ -166,6 +166,7 @@ function accountsLens(label: string, unit: string, nodes: BreakdownNode[]): Lens
   };
 }
 
+/** Lens-based breakdown of the portfolio: allocation, accounts, sectors, regions, risk, types, currency, custom groups. */
 export function PortfolioExplorer({
   allocations,
   holdings,

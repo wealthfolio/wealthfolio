@@ -30,9 +30,9 @@
       "unit_types": "个类型",
       "unit_currencies": "种货币",
       "unit_groups": "个分组",
-      "other_units": "其他 {{count}} {{unit}}",
+      "other_units": "其他 {{count}} 项",
       "breakdown": "明细",
-      "top_units": "前 {{count}} {{unit}}",
+      "top_units": "前 {{count}} 项",
       "show_less": "收起",
       "show_all": "显示全部"
     },
