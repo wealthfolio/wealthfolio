@@ -72,13 +72,14 @@ for (const direction of ["ltr", "rtl"] as const) {
     await expect(dialog.getByRole("radiogroup")).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);
     const account = dialog.getByRole("combobox", { name: "Account", exact: true });
-    await expect(account).toHaveText("Select an account");
+    await expect(account).toContainText("Select an account");
     const amount = dialog.getByRole("textbox", { name: "Amount", exact: true });
     expect((await amount.boundingBox())!.y).toBeLessThan((await account.boundingBox())!.y);
-    const save = dialog.getByRole("button", { name: "Create Transaction" });
-    await expect(save).toBeDisabled();
+    // Enabled from the start: a missing account is reported on its row instead.
+    const save = dialog.getByRole("button", { name: "Add expense", exact: true });
+    await expect(save).toBeEnabled();
     await account.click();
-    await page.getByRole("option", { name: "Grid card (USD)", exact: true }).click();
+    await page.getByRole("option", { name: /^Grid card\b/ }).click();
     await amount.fill("12.50");
     const created = page.waitForResponse(
       (response) =>
@@ -98,12 +99,12 @@ for (const direction of ["ltr", "rtl"] as const) {
     await page.getByRole("button", { name: "Add income", exact: true }).click();
     dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "Add income" })).toBeVisible();
-    await expect(dialog.getByRole("combobox", { name: "Account", exact: true })).toHaveText(
-      "Grid bank (USD)",
+    await expect(dialog.getByRole("combobox", { name: "Account", exact: true })).toContainText(
+      "Grid bank",
     );
     await dialog.getByRole("combobox", { name: "Account", exact: true }).click();
-    await expect(page.getByRole("option", { name: "Grid card (USD)", exact: true })).toHaveCount(0);
-    await page.getByRole("option", { name: "Grid bank (USD)", exact: true }).click();
+    await expect(page.getByRole("option", { name: /^Grid card\b/ })).toHaveCount(0);
+    await page.getByRole("option", { name: /^Grid bank\b/ }).click();
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page).not.toHaveURL(/transactions\/new/);
 

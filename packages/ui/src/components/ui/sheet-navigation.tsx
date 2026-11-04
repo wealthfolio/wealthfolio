@@ -107,8 +107,19 @@ function SheetScreen({ open, onOpenChange, title, children, className, initialFo
     if (!open || !navigation) return;
     const opener = document.activeElement;
     const unregister = navigation.register();
-    (initialFocus?.current ?? screenRef.current)?.focus({ preventScroll: true });
+    // A list's keys (arrows, Enter) are handled on its command root, so a screen with
+    // one focuses it rather than itself; neither opens the keyboard on touch.
+    const commandRoot = screenRef.current?.querySelector<HTMLElement>("[cmdk-root]");
+    // A screen opened from another screen covers it; the covered one leaves the tab
+    // order and the accessibility tree until this one closes.
+    const self = screenRef.current;
+    const covered = Array.from(self?.parentElement?.children ?? []).filter(
+      (element) => element !== self && element.hasAttribute("data-sheet-screen") && !element.hasAttribute("inert"),
+    );
+    covered.forEach((element) => element.setAttribute("inert", ""));
+    (initialFocus?.current ?? commandRoot ?? screenRef.current)?.focus({ preventScroll: true });
     return () => {
+      covered.forEach((element) => element.removeAttribute("inert"));
       unregister();
       // The content is inert until the count above re-renders.
       requestAnimationFrame(() => {

@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ResponsiveSelect } from "@wealthfolio/ui/components/ui/responsive-select";
 import { DatePickerInput } from "@wealthfolio/ui/components/ui/date-picker-input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
-import { SheetNavigation } from "@wealthfolio/ui/components/ui/sheet-navigation";
+import { SheetNavigation, SheetScreen } from "@wealthfolio/ui/components/ui/sheet-navigation";
+import { useState } from "react";
 import {
   Select,
   SelectContent,
@@ -205,5 +206,75 @@ describe("Select in a phone form's sheet", () => {
     await user.click(within(quoteScreen).getByRole("option", { name: "Market" }));
     expect(onValueChange).toHaveBeenCalledWith("MARKET");
     expect(screen.queryByRole("dialog", { name: "Quote mode" })).not.toBeInTheDocument();
+  });
+
+  it("can be chosen from with the keyboard alone", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    const items = [
+      { value: "MANUAL", label: "Manual" },
+      { value: "MARKET", label: "Market" },
+    ];
+    render(
+      <SheetNavigation>
+        <label htmlFor="quote-mode-keys">Quote mode</label>
+        <Select items={items} value="MANUAL" onValueChange={onValueChange}>
+          <SelectTrigger id="quote-mode-keys">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SheetNavigation>,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Quote mode" }));
+    await screen.findByRole("dialog", { name: "Quote mode" });
+    // No search field: the list itself takes the keys.
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onValueChange).toHaveBeenCalledWith("MARKET");
+  });
+});
+
+describe("Nested SheetScreens", () => {
+  function NestedScreens() {
+    const [outer, setOuter] = useState(false);
+    const [inner, setInner] = useState(false);
+    return (
+      <SheetNavigation>
+        <button type="button" onClick={() => setOuter(true)}>
+          Advanced options
+        </button>
+        <SheetScreen open={outer} onOpenChange={setOuter} title="Advanced options">
+          <button type="button" onClick={() => setInner(true)}>
+            Currency
+          </button>
+          <SheetScreen open={inner} onOpenChange={setInner} title="Currency">
+            <p>USD</p>
+          </SheetScreen>
+        </SheetScreen>
+      </SheetNavigation>
+    );
+  }
+
+  it("takes the covered screen out of reach until the top one closes", async () => {
+    const user = userEvent.setup();
+    render(<NestedScreens />);
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
+    const outer = await screen.findByRole("dialog", { name: "Advanced options" });
+    await user.click(within(outer).getByRole("button", { name: "Currency" }));
+    await screen.findByRole("dialog", { name: "Currency" });
+    expect(outer).toHaveAttribute("inert");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Currency" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("dialog", { name: "Advanced options" })).not.toHaveAttribute("inert");
   });
 });

@@ -517,7 +517,8 @@ export function MobileActivityForm({
 
   // Handle sheet close - reset form and step
   // Read during render so the form tracks them for the close check below.
-  const { dirtyFields, isSubmitSuccessful } = form.formState;
+  // A successful save resets the form and closes it itself; a failed one keeps the input.
+  const { dirtyFields } = form.formState;
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const closeSheet = () => {
     setCurrentStep(shouldStartOnDetails ? 2 : 1);
@@ -531,7 +532,7 @@ export function MobileActivityForm({
     }
     // Picking a type alone is not worth asking about; anything typed after it is.
     const hasUnsavedInput = Object.keys(dirtyFields).some((field) => field !== "activityType");
-    if (hasUnsavedInput && !isSubmitSuccessful) {
+    if (hasUnsavedInput) {
       setConfirmDiscard(true);
       return;
     }

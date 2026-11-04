@@ -524,12 +524,13 @@ export function CashActivityForm({
   };
 
   // Read during render so the form tracks them for the close check below.
-  const { dirtyFields, isSubmitSuccessful } = form.formState;
+  // A successful save closes the sheet itself; a failed one leaves the input to protect.
+  const { dirtyFields } = form.formState;
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const handleSheetOpenChange = (next: boolean) => {
     // Typed input is kept unless the user says to drop it; the type alone is not input.
     const hasUnsavedInput = Object.keys(dirtyFields).some((field) => field !== "activityType");
-    if (!next && hasUnsavedInput && !isSubmitSuccessful) {
+    if (!next && hasUnsavedInput) {
       setConfirmDiscard(true);
       return;
     }
