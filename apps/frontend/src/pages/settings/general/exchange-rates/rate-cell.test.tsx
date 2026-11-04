@@ -79,3 +79,28 @@ it("rejects an empty exchange-rate draft without saving zero", () => {
   expect(onUpdate).not.toHaveBeenCalled();
   expect(input).toHaveValue("");
 });
+
+it("saves an edited rate on Enter", () => {
+  const onUpdate = vi.fn();
+  render(
+    <FormattingProvider locale="FR">
+      <RateCell
+        rate={{
+          id: "USD_EUR",
+          fromCurrency: "USD",
+          toCurrency: "EUR",
+          rate: 1.234,
+          source: "MANUAL",
+          timestamp: "2026-11-02",
+        }}
+        onUpdate={onUpdate}
+      />
+    </FormattingProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "0,9876" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ rate: 0.9876 }));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});

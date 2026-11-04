@@ -16,7 +16,7 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
   const { t } = useTranslation();
   const numbers = useNumberFormatting();
   const [isEditing, setIsEditing] = useState(false);
-  const rateDraft = useNumericDraft(rate.rate);
+  const rateDraft = useNumericDraft(rate.rate, { onEnter: () => handleSubmit() });
   const isManual = rate.source === "MANUAL";
 
   const handleEdit = () => {
