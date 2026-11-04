@@ -219,7 +219,7 @@
     "pending": "Выполняется..."
   },
   "select": {
-    "placeholder": "Выбрать вариант"
+    "placeholder": "Выберите вариант"
   },
   "progress": {
     "title": "Обработка",

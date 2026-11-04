@@ -158,7 +158,7 @@
   "income": "Доход",
   "classify": "Классифицировать",
   "allocation": "Распределение",
-  "holdings_in_category": "Позиции в <1>{{category}}</1>",
+  "holdings_in_category": "Позиции в категории <1>{{category}}</1>",
   "could_not_load_holdings": "Не удалось загрузить позиции для этой категории.",
   "no_holdings_in_category": "Позиции в этой категории не найдены.",
   "cash_with_currency": "Деньги ({{currency}})",

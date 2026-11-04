@@ -825,7 +825,7 @@
     "preview_data_rows_few": "Предпросмотр данных ({{count}} строки)",
     "preview_data_rows_many": "Предпросмотр данных ({{count}} строк)",
     "preview_data_rows_other": "Предпросмотр данных ({{count}} строки)",
-    "review_first_rows_one": "Проверьте первую строку данных CSV",
+    "review_first_rows_one": "Проверьте первую {{count}} строку данных CSV",
     "review_first_rows_few": "Проверьте первые {{count}} строки данных CSV",
     "review_first_rows_many": "Проверьте первые {{count}} строк данных CSV",
     "review_first_rows_other": "Проверьте первые {{count}} строки данных CSV",
@@ -1387,7 +1387,7 @@
   "tax_name_required": "Введите название",
   "tax_key_required": "Введите ключ",
   "tax_color_required": "Выберите цвет",
-  "tz_select_placeholder": "Выбрать часовой пояс",
+  "tz_select_placeholder": "Выберите часовой пояс",
   "tz_search_placeholder": "Найдите часовой пояс...",
   "tz_none_found": "Часовой пояс не найден.",
   "ai_providers_empty_title": "Нет доступных поставщиков ИИ",
@@ -1417,7 +1417,8 @@
       "italy": "Италия",
       "austria": "Австрия",
       "romania": "Румыния",
-      "bulgaria": "Болгария"
+      "bulgaria": "Болгария",
+      "russia": "Россия"
     }
   },
   "currencyFormats": {

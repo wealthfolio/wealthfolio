@@ -54,3 +54,18 @@ it("distinguishes Arabic dual forms from an unnumbered plural", async () => {
   expect(categoryNoun(t, "regions", "Regions", 11)).toBe("منطقة");
   expect(categoryNoun(t, "regions", "Regions")).toBe("المناطق");
 });
+
+it.each([
+  [1, "1 класс активов вне цели"],
+  [2, "2 класса активов вне цели"],
+  [5, "5 классов активов вне цели"],
+  [21, "21 класс активов вне цели"],
+])("agrees the noun in the outside-target sentence in ru for %s", async (n, sentence) => {
+  const t = await translate("ru");
+  expect(
+    t("allocation:overview.outsideTarget", {
+      n,
+      categories: categoryNoun(t, "asset_classes", "Asset Classes", n),
+    }),
+  ).toBe(sentence);
+});

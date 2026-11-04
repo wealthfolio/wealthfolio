@@ -14,7 +14,7 @@ import {
   parseLocalizedNumber,
   resolveFormattingLocale,
 } from "@wealthfolio/ui";
-import { format } from "date-fns";
+import { format, formatDistance } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { describe, expect, it, vi } from "vitest";
 import { formatOptionSubtitle } from "./occ-symbol";
@@ -34,6 +34,7 @@ describe("locale formatting", () => {
     expect(resolveFormattingLocale("AT", "en")).toBe("de-AT");
     expect(resolveFormattingLocale("RO", "en")).toBe("ro-RO");
     expect(resolveFormattingLocale("BG", "en")).toBe("bg-BG");
+    expect(resolveFormattingLocale("RU", "en")).toBe("ru-RU");
     expect(resolveFormattingLocale("en-US", "fr")).toBe("en-US");
   });
 
@@ -103,6 +104,12 @@ describe("locale formatting", () => {
     expect(dateFnsLocaleFor("es-MX").localize.month(0)).toBe("enero");
     expect(dateFnsLocaleFor("es-MX").options?.weekStartsOn).toBe(0);
     expect(() => dateFnsLocaleFor(undefined)).toThrow("A resolved formatting locale is required");
+  });
+
+  it("gives ru-RU Russian calendar text", () => {
+    const locale = dateFnsLocaleFor("ru-RU");
+    expect(format(new Date(2026, 0, 15), "d MMMM", { locale })).toBe("15 января");
+    expect(formatDistance(new Date(2026, 0, 1), new Date(2026, 0, 3), { locale })).toMatch(/[а-я]/);
   });
 
   it.each(["zh-TW", "zh-Hant", "zh-Hant-TW", "zh-HK", "zh-MO"])(

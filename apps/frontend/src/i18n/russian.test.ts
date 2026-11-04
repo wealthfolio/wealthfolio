@@ -1,3 +1,4 @@
+import { createInstance } from "i18next";
 import { describe, expect, it } from "vitest";
 import { NAMESPACES } from "./locales";
 
@@ -253,5 +254,152 @@ describe("Russian terminology", () => {
       ([, value]) => /(^|[^а-яё])Нажать(?![а-яё])/u.test(value) || value.includes("Нажать, чтобы"),
     );
     expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+});
+
+const i18n = createInstance();
+await i18n.init({
+  lng: "ru",
+  fallbackLng: false,
+  interpolation: { escapeValue: false },
+  ns: ["asset", "sync", "health"],
+  resources: {
+    ru: Object.fromEntries(
+      Object.entries(russian).map(([path, catalog]) => [
+        path.replace("./locales/ru/", "").replace(".json", ""),
+        catalog,
+      ]),
+    ),
+  },
+});
+
+describe("Russian plural output", () => {
+  it.each([
+    [1, "год", "месяц"],
+    [2, "года", "месяца"],
+    [5, "лет", "месяцев"],
+    [11, "лет", "месяцев"],
+    [21, "год", "месяц"],
+    [22, "года", "месяца"],
+    [25, "лет", "месяцев"],
+    [111, "лет", "месяцев"],
+    [1.5, "года", "месяца"],
+  ])("renders the CLDR form of a %s-unit duration", (count, year, month) => {
+    expect(i18n.t("asset:loanActions.duration_year", { count })).toBe(`${count} ${year}`);
+    expect(i18n.t("asset:loanActions.duration_month", { count })).toBe(`${count} ${month}`);
+  });
+
+  it.each([
+    [1, "день"],
+    [2, "дня"],
+    [5, "дней"],
+    [21, "день"],
+    [22, "дня"],
+    [111, "дней"],
+  ])("agrees the noun in sync:status.daysAgo for %s", (count, day) => {
+    expect(i18n.t("sync:status.daysAgo", { count })).toContain(`${count} ${day}`);
+  });
+
+  // English `_one` of these families has no number ("Missing rate"), but Russian `one` is also 21 and 31.
+  const countless = [...englishStrings.keys()].filter((key) => {
+    if (!key.endsWith("_one")) return false;
+    const other = englishStrings.get(`${key.slice(0, -4)}_other`);
+    return other?.includes("{{count}}") && !englishStrings.get(key)!.includes("{{count}}");
+  });
+
+  it("finds the families whose English singular carries no count", () => {
+    expect(countless).toContain("health:issues.data_unknown_performance_flow_source.title_one");
+    expect(countless.length).toBeGreaterThanOrEqual(25);
+  });
+
+  it("keeps the count in every such `one` form", () => {
+    const bad = countless.filter((key) => !allStrings.get(key)?.includes("{{count}}"));
+    expect(bad).toEqual([]);
+  });
+
+  it.each([1, 21, 31, 101])("shows %s in the unknown-flow-source title", (count) => {
+    const text = i18n.t("health:issues.data_unknown_performance_flow_source.title", { count });
+    expect(text).toContain(String(count));
+  });
+
+  it.each([
+    [21, "21"],
+    [22, "22"],
+    [25, "25"],
+  ])("states the count %s in a countless-English family", (count, shown) => {
+    expect(i18n.t("health:issues.data_unknown_performance_flow_source.title", { count })).toContain(
+      shown,
+    );
+  });
+
+  it("never leads with a bare count outside a plural family", () => {
+    const bad = [...allStrings].filter(
+      ([key, value]) =>
+        !/_(zero|one|two|few|many|other)$/.test(key) && /^\{\{count\}\}\s+\p{L}/u.test(value),
+    );
+    expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+});
+
+describe("Russian words inserted into sentences", () => {
+  it("keeps the embedded loan durations in a label form", () => {
+    expect(i18n.t("asset:loanOverview.early_by", { duration: "2 года" })).toBe(
+      "Опережение графика: 2 года",
+    );
+    expect(i18n.t("asset:loanOverview.term_left", { duration: "2 года" })).toBe("Осталось: 2 года");
+  });
+
+  it("agrees the loan term count while the elapsed duration stays fixed", () => {
+    expect(i18n.t("asset:loanOverview.term_elapsed_years", { count: 5, elapsed: "2 года" })).toBe(
+      "Прошло 2 года из срока в 5 лет.",
+    );
+    expect(i18n.t("asset:loanOverview.term_elapsed_years", { count: 21, elapsed: "2 года" })).toBe(
+      "Прошло 2 года из срока в 21 год.",
+    );
+  });
+
+  it.each([
+    [
+      "ai:createRule.draftedRule",
+      'Черновик правила: всё совпадающее с "{{pattern}}" будет «{{category}}».',
+    ],
+    ["holdings:holdings_in_category", "Позиции в категории <1>{{category}}</1>"],
+    [
+      "activity:date_list.cash_negative_after",
+      "Деньги впервые ушли в минус после операции «{{type}}».",
+    ],
+    ["activity:transfer_match.only_type_searched", "Ищутся только операции типа «{{type}}»."],
+    [
+      "spending:transactions.deleteConfirmSingle",
+      "Удалить операцию «{{type}}» на сумму {{amount}}?",
+    ],
+    ["spending:whatChanged.headlineMoreSuffix", " больше, чем {{priorLabel}}."],
+    [
+      "ai:assetTaxonomy.loadedCategories_one",
+      "Загружена {{count}} категория · таксономия: {{taxonomy}}",
+    ],
+  ])("keeps the inserted word in %s out of a case-governing position", (key, expected) => {
+    expect(allStrings.get(key)).toBe(expected);
+  });
+
+  it("writes search placeholders in the imperative «Найдите…»", () => {
+    const bad = [...allStrings].filter(
+      ([key, value]) =>
+        /search/i.test(key) &&
+        /(\.\.\.|…)$/u.test(value) &&
+        /^(Ищите|Найти)(?![а-яё])/u.test(value),
+    );
+    expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it.each([
+    ["settings:tz_select_placeholder", "Выберите часовой пояс"],
+    ["ui:select.placeholder", "Выберите вариант"],
+  ])("writes the placeholder %s in the imperative", (key, expected) => {
+    expect(allStrings.get(key)).toBe(expected);
+  });
+
+  it("names Russia in the region list", () => {
+    expect(allStrings.get("settings:formattingRegion.options.russia")).toBe("Россия");
   });
 });
