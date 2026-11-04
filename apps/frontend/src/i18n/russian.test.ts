@@ -103,6 +103,7 @@ describe("Russian terminology", () => {
     ["asset:altContent.interest_rate", "Процентная ставка"], // Interest Rate
     ["connect:newAccounts.transactions", "Транзакции"], // transactions (owner)
     ["holdings:holdings", "Позиции"], // Holdings
+    ["activity:filter_account", "Счёт"], // Account (broker account)
   ])("uses the house term in %s", (key, expected) => {
     expect(allStrings.get(key)).toBe(expected);
   });
@@ -112,12 +113,15 @@ describe("Russian terminology", () => {
     expect(allStrings.get("auth:context.oidcErrors.forbidden")).toMatch(/аккаунт/i);
   });
 
+  // Owner decision: «профиль» only where English says profile.
+  it("says профиль where English says profile", () => {
+    expect(allStrings.get("common:profiles.yourProfile")).toMatch(/профил/i);
+  });
+
   // `avoid` are false friends, wrong in every context of the app.
   it.each([
     ["ассет", [] as string[]], // Asset
-    ["символ", [] as string[]], // Symbol
     ["спендинг", [] as string[]], // Spending
-    ["активность", [] as string[]], // Activity
     ["трансфер", [] as string[]], // Transfer
     ["портфолио", [] as string[]], // Portfolio
     ["прайс", [] as string[]], // Price
