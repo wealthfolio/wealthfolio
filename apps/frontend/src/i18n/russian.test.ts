@@ -157,4 +157,49 @@ describe("Russian terminology", () => {
       expect(tags(allStrings.get(key) ?? ""), key).toEqual(tags(source));
     }
   });
+
+  // `other` is the fractional category ("1,5 года"): it takes the form of `few`, not of `many`.
+  it("does not copy `many` into `other` where `few` differs", () => {
+    const bad: string[] = [];
+    for (const [key, other] of allStrings) {
+      if (!key.endsWith("_other")) continue;
+      const base = key.slice(0, -"_other".length);
+      const few = allStrings.get(`${base}_few`);
+      const many = allStrings.get(`${base}_many`);
+      if (few !== undefined && many !== undefined && few !== many && other === many) {
+        bad.push(`${key} = ${other}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  // Owner decision: only a lone Cash is «деньги»; Cash Balance is «денежный баланс», Cash Account «денежный счёт».
+  it.each([
+    ["баланс денег", /баланс\w* (ваших )?денег/iu],
+    ["счёт денег", /сч[её]т\w* денег/iu],
+  ])("rejects the compound %s", (_label, pattern) => {
+    const found = [...allStrings].filter(([, value]) => pattern.test(value));
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  // «счёт» loses the ё in the plural and keeps it in the singular ("1,5 счёта").
+  it("spells the plural of счёт without ё", () => {
+    const bad = /(?<![а-яё])счёт(ов|ам|ами|ах)(?![а-яё])|Все счёта/iu;
+    const found = [...allStrings].filter(([, value]) => bad.test(value));
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it("writes ещё with ё", () => {
+    const found = [...allStrings].filter(([, value]) => /(?<![а-яё])еще(?![а-яё])/iu.test(value));
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it("starts a sentence with a capital where English does", () => {
+    const bad: string[] = [];
+    for (const [key, source] of englishStrings) {
+      const value = allStrings.get(key) ?? "";
+      if (/^[A-Z]/.test(source) && /^[а-яё]/.test(value)) bad.push(`${key} = ${value}`);
+    }
+    expect(bad).toEqual([]);
+  });
 });

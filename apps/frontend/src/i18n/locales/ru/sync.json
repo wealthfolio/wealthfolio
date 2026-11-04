@@ -41,15 +41,15 @@
     "minutesAgo_one": "{{count}} минуту назад",
     "minutesAgo_few": "{{count}} минуты назад",
     "minutesAgo_many": "{{count}} минут назад",
-    "minutesAgo_other": "{{count}} минут назад",
+    "minutesAgo_other": "{{count}} минуты назад",
     "hoursAgo_one": "{{count}} час назад",
     "hoursAgo_few": "{{count}} часа назад",
     "hoursAgo_many": "{{count}} часов назад",
-    "hoursAgo_other": "{{count}} часов назад",
+    "hoursAgo_other": "{{count}} часа назад",
     "daysAgo_one": "{{count}} день назад",
     "daysAgo_few": "{{count}} дня назад",
     "daysAgo_many": "{{count}} дней назад",
-    "daysAgo_other": "{{count}} дней назад"
+    "daysAgo_other": "{{count}} дня назад"
   },
   "engine": {
     "pauseSync": "Приостановить синхронизацию",
@@ -81,7 +81,7 @@
     "enterCodeFromDevices_one": "Введите код с вашего {{count}} другого подключённого устройства.",
     "enterCodeFromDevices_few": "Введите код с одного из ваших {{count}} других подключённых устройства.",
     "enterCodeFromDevices_many": "Введите код с одного из ваших {{count}} других подключённых устройств.",
-    "enterCodeFromDevices_other": "Введите код с одного из ваших {{count}} других подключённых устройств.",
+    "enterCodeFromDevices_other": "Введите код с одного из ваших {{count}} других подключённых устройства.",
     "enterCodeGeneric": "Введите код с вашего другого подключённого устройства, чтобы синхронизировать ваши данные.",
     "connectThisDevice": "Подключить это устройство",
     "connectToStartSyncing": "Подключите это устройство, чтобы начать синхронизацию."
@@ -221,7 +221,7 @@
       "title": "Замена данных в этом профиле?",
       "titleNamed": "Замена данных в профиле: \"{{profile}}\"?",
       "description": "Данные с вашего другого устройства заменят данные на этом устройстве.",
-      "descriptionDated": "Данные с вашего другого устройства (копия: {{date}}) заменят данные на этом устройстве.",
+      "descriptionDated": "Данные с вашего другого устройства (копия от {{date}}) заменят данные на этом устройстве.",
       "replace": "Заменить данные",
       "backupLabel": "Сначала создать резервную копию этого профиля",
       "backupAndReplace": "Создать копию и заменить",

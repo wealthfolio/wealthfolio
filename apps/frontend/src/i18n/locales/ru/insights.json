@@ -58,21 +58,21 @@
     },
     "value_strip": {
       "portfolio_value": "Стоимость портфеля",
-      "cash_balance": "Баланс денег",
+      "cash_balance": "Денежный баланс",
       "invested": "Инвестировано",
       "book_cost": "Балансовая себестоимость",
       "pnl_current_holdings": "Текущие позиции",
-      "no_cash_balance": "Нет баланса денег",
+      "no_cash_balance": "Нет денежного баланса",
       "of_portfolio": "Доля портфеля: {{percent}}",
       "available_cash": "Доступные деньги",
       "holdings_count_one": "{{count}} позиция",
       "holdings_count_few": "{{count}} позиции",
       "holdings_count_many": "{{count}} позиций",
-      "holdings_count_other": "{{count}} позиций",
+      "holdings_count_other": "{{count}} позиции",
       "accounts_count_one": "{{count}} счёт",
       "accounts_count_few": "{{count}} счёта",
       "accounts_count_many": "{{count}} счетов",
-      "accounts_count_other": "{{count}} счетов"
+      "accounts_count_other": "{{count}} счёта"
     }
   },
   "networth": {
@@ -109,7 +109,7 @@
       "net_worth": "Чистый капитал"
     },
     "category_sheet": {
-      "over_period": "за период: {{period}}",
+      "over_period": "за {{period}}",
       "trend_period": "Тренд · {{period}}",
       "items": "Элементы"
     },
@@ -126,7 +126,7 @@
     },
     "velocity": {
       "monthly_pace": "Месячный темп",
-      "since": "с даты: {{date}}",
+      "since": "с {{date}}",
       "trailing_pace": " · {{multiple}}× вашего среднего за 12 месяцев",
       "drivers_of_change": "Факторы изменения",
       "investment_gains": "Прибыль от инвестиций",

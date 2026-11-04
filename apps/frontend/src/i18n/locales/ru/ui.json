@@ -74,10 +74,10 @@
     "fileSizeExceeds": "Размер файла превышает: {{size}}",
     "fileTypeNotAccepted": "Тип файла не поддерживается",
     "maxFilesAllowed": "Максимум файлов: {{count}}",
-    "fileRejected": "Отклонен файл: \"{{name}}\"",
-    "filesRejected": "Отклонены файлы: \"{{name}}\" и еще: {{count}}",
+    "fileRejected": "Отклонён файл: \"{{name}}\"",
+    "filesRejected": "Отклонены файлы: \"{{name}}\" и ещё: {{count}}",
     "uploadFailed": "Не удалось загрузить файлов: {{count}}",
-    "deleteFailed": "Не удалось удалить файл: {{name}}",
+    "deleteFailed": "Не удалось удалить «{{name}}»",
     "deleteFilesFailed": "Не удалось удалить файлы",
     "searchSymbol": "Поиск тикера или компании...",
     "loading": "Загрузка...",
@@ -92,7 +92,7 @@
     "cellsSkipped_one": "{{count}} ячейка пропущена при вставке из-за неверных данных",
     "cellsSkipped_few": "{{count}} ячейки пропущены при вставке из-за неверных данных",
     "cellsSkipped_many": "{{count}} ячеек пропущено при вставке из-за неверных данных",
-    "cellsSkipped_other": "{{count}} ячеек пропущено при вставке из-за неверных данных"
+    "cellsSkipped_other": "{{count}} ячейки пропущено при вставке из-за неверных данных"
   },
   "dataTable": {
     "noResults": "Нет результатов",
