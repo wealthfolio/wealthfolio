@@ -47,7 +47,8 @@ interface RecentItem {
   timestamp: number;
 }
 
-const MAX_RECENT_ITEMS = 5;
+// The last two picks, above the Add actions.
+const MAX_RECENT_ITEMS = 2;
 const RECENT_ITEMS_KEY = "app-launcher-recent-items";
 
 interface LauncherHoldingItem {
@@ -670,13 +671,15 @@ export function AppLauncher() {
     item.type === "action"
       ? (actionItems.find((action) => action.href === item.id)?.label ?? item.label)
       : item.label;
-  const filteredRecent = recentItems.filter((item) => {
+  // Lists saved when more were kept are cut to the current limit.
+  const latestRecent = recentItems.slice(0, MAX_RECENT_ITEMS);
+  const filteredRecent = latestRecent.filter((item) => {
     if (!searchLower) return true;
     return recentLabel(item).toLowerCase().includes(searchLower);
   });
 
   // Show recent items only when there's no search, or when searching and they match
-  const showRecent = !searchLower ? recentItems.length > 0 : filteredRecent.length > 0;
+  const showRecent = filteredRecent.length > 0;
 
   const hasResults =
     filteredActions.length > 0 ||
@@ -731,10 +734,9 @@ export function AppLauncher() {
         )}
       >
         {!hasResults && <CommandEmpty>{t("common:component.no_matches_found")}</CommandEmpty>}
-        {renderActionGroup("add", t("common:add"))}
         {showRecent && (
           <CommandGroup heading={t("common:component.recent")}>
-            {(searchLower ? filteredRecent : recentItems).map((item) => {
+            {filteredRecent.map((item) => {
               const getRecentIcon = () => {
                 switch (item.type) {
                   case "holding":
@@ -765,6 +767,7 @@ export function AppLauncher() {
             })}
           </CommandGroup>
         )}
+        {renderActionGroup("add", t("common:add"))}
         {renderActionGroup("navigation", t("common:component.launcher_navigation"))}
         {renderActionGroup("appearance", t("common:component.launcher_appearance"))}
         {renderActionGroup("tools", t("common:component.launcher_tools"))}

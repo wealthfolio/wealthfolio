@@ -1,8 +1,8 @@
 import { FormControl, FormField, FormItem } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
+import { RadioGroup } from "@wealthfolio/ui/components/ui/radio-group";
+import { TypeChoice } from "@/components/type-choice";
 import { ActivityType } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import { useId } from "react";
 import { useFormContext } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -136,44 +136,17 @@ export function MobileActivityTypeStep({
                 }
                 value={field.value as string}
               >
-                {activityTypes.map((type) => {
-                  const Icon = Icons[type.icon];
-                  const optionId = `${pickerId}-${type.value}`;
-                  return (
-                    <div key={type.value} className="relative min-w-0">
-                      <RadioGroupItem
-                        value={type.value}
-                        id={optionId}
-                        aria-describedby={`${optionId}-description`}
-                        className="peer sr-only absolute"
-                      />
-                      <label
-                        htmlFor={optionId}
-                        className={cn(
-                          "relative flex h-full min-h-16 cursor-pointer items-center gap-2 rounded-xl border px-3 py-3 text-sm transition-colors",
-                          "hover:bg-muted/50",
-                          "peer-data-checked:border-primary peer-data-checked:bg-primary/5",
-                          "peer-focus-visible:outline-ring peer-focus-visible:outline-solid peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-2",
-                        )}
-                      >
-                        <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
-                        <span className="min-w-0 font-medium break-words whitespace-normal">
-                          {type.label}
-                        </span>
-                        {/* Inline at the end: in the card's corner the rounding clipped it. */}
-                        {field.value === type.value && (
-                          <Icons.Check
-                            className="text-primary ms-auto size-4 shrink-0"
-                            aria-hidden
-                          />
-                        )}
-                      </label>
-                      <span id={`${optionId}-description`} className="sr-only">
-                        {type.description}
-                      </span>
-                    </div>
-                  );
-                })}
+                {activityTypes.map((type) => (
+                  <TypeChoice
+                    key={type.value}
+                    id={`${pickerId}-${type.value}`}
+                    value={type.value}
+                    label={type.label}
+                    description={type.description}
+                    icon={Icons[type.icon]}
+                    selected={field.value === type.value}
+                  />
+                ))}
               </RadioGroup>
             </FormControl>
           </FormItem>

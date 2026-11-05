@@ -16,6 +16,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport, usePlatform } from "@/hooks/use-platform";
 import { accountPickerItems } from "@/components/account-picker-items";
 import { DiscardChangesDialog } from "@/components/discard-changes-dialog";
+import { TypeChoice } from "@/components/type-choice";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,6 @@ import {
   Icons,
   MoneyInput,
   RadioGroup,
-  RadioGroupItem,
   Select,
   SelectContent,
   SelectItem,
@@ -145,13 +145,13 @@ interface FormValues {
 function getMobileTypeIcon(type: FormValues["activityType"]) {
   switch (type) {
     case "DEPOSIT":
-      return Icons.ArrowDown;
+      return Icons.ArrowDownLeft;
     case "WITHDRAWAL":
-      return Icons.ArrowUp;
+      return Icons.ArrowUpRight;
     case "INTEREST":
       return Icons.Percent;
     case "CREDIT":
-      return Icons.RefreshCw;
+      return Icons.Coins;
     case "FEE":
       return Icons.DollarSign;
     case "TAX":
@@ -635,42 +635,17 @@ export function CashActivityForm({
               onValueChange={field.onChange}
               value={field.value}
             >
-              {mobileTypeOptions.map(({ type, label, description, Icon }) => {
-                const optionId = `${pickerId}-${type}`;
-                return (
-                  <div key={type} className="relative min-w-0">
-                    <RadioGroupItem
-                      value={type}
-                      id={optionId}
-                      aria-describedby={`${optionId}-description`}
-                      className="peer sr-only absolute"
-                    />
-                    <label
-                      htmlFor={optionId}
-                      className={cn(
-                        "relative flex h-full min-h-16 cursor-pointer items-center gap-2 rounded-xl border px-3 py-3 pe-5 text-sm transition-colors",
-                        "hover:bg-muted/50",
-                        "peer-data-checked:border-primary peer-data-checked:bg-primary/5",
-                        "peer-focus-visible:outline-ring peer-focus-visible:outline-solid peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-2",
-                      )}
-                    >
-                      <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
-                      <span className="min-w-0 font-medium break-words whitespace-normal">
-                        {label}
-                      </span>
-                      {field.value === type && (
-                        <Icons.Check
-                          className="text-primary absolute end-1 top-1 size-3"
-                          aria-hidden
-                        />
-                      )}
-                    </label>
-                    <span id={`${optionId}-description`} className="sr-only">
-                      {description}
-                    </span>
-                  </div>
-                );
-              })}
+              {mobileTypeOptions.map(({ type, label, description, Icon }) => (
+                <TypeChoice
+                  key={type}
+                  id={`${pickerId}-${type}`}
+                  value={type}
+                  label={label}
+                  description={description}
+                  icon={Icon}
+                  selected={field.value === type}
+                />
+              ))}
             </RadioGroup>
           </FormControl>
           <FormMessage />
