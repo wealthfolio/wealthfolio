@@ -80,7 +80,6 @@ export default function PortfolioPage() {
 
   const commonActions = (
     <>
-      <HealthStatusIndicator />
       {isFocusMode && (
         <Button
           variant="secondary"
@@ -131,9 +130,12 @@ export default function PortfolioPage() {
             ) : dashboardPortfolio.error ? (
               <div role="alert" className="space-y-3 p-6">
                 <p>{t("dashboard:portfolio_filter.load_error")}</p>
-                <Button variant="outline" onClick={() => void dashboardPortfolio.refetch()}>
-                  {t("common:retry")}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => void dashboardPortfolio.refetch()}>
+                    {t("common:retry")}
+                  </Button>
+                  <HealthStatusIndicator />
+                </div>
               </div>
             ) : (
               <DashboardContent

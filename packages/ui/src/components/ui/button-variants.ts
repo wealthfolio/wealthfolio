@@ -32,8 +32,10 @@ export const buttonVariants = cva(
         lg: "h-11 px-7 has-[>svg]:px-5",
         icon: "size-10 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
 
+        // On phones it grows only to 36px (page headers); an invisible layer gives it a
+        // 48px tap area, the Android minimum and above iOS's 44pt.
         "icon-xs":
-          "size-8 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
+          "relative size-8 pointer-coarse:size-9 max-lg:size-9 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 max-lg:after:absolute max-lg:after:-inset-1.5",
         "icon-sm":
           "size-9 pointer-coarse:min-h-11 max-lg:min-h-11 pointer-coarse:min-w-11 max-lg:min-w-11",
         "icon-lg": "size-11",

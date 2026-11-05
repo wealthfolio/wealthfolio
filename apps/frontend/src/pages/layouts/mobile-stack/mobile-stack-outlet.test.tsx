@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileStackContext, type MobileStackContextValue } from "./mobile-stack-contexts";
+import { focusScreen } from "./focus-screen";
 import { MobileStackOutlet } from "./mobile-stack-outlet";
 import { applyNavigation, coldStart, type StackConfig, type StackState } from "./stack-model";
 
@@ -257,5 +258,33 @@ describe("a back swipe in the iOS app", () => {
     );
     rerender(outletFor(sectionChanged));
     expect(under()).not.toBe("none");
+  });
+});
+
+describe("focus on a pushed screen", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  function pushedScreen() {
+    document.body.innerHTML = `
+      <div id="stack"><div data-stack-screen="dashboard:1"><h1>Dashboard</h1></div></div>
+      <div data-portal-scope="dashboard:1"><input aria-label="Amount" /></div>
+      <div data-portal-scope="dashboard:0"><input aria-label="Other" /></div>`;
+    return document.getElementById("stack");
+  }
+
+  it("leaves focus in a popup the screen's page opened", () => {
+    const container = pushedScreen();
+    screen.getByLabelText("Amount").focus();
+    focusScreen(container, "dashboard:1", undefined);
+    expect(screen.getByLabelText("Amount")).toHaveFocus();
+  });
+
+  it("moves focus to the heading from another screen's popup", () => {
+    const container = pushedScreen();
+    screen.getByLabelText("Other").focus();
+    focusScreen(container, "dashboard:1", undefined);
+    expect(screen.getByRole("heading", { name: "Dashboard" })).toHaveFocus();
   });
 });
