@@ -707,7 +707,7 @@ impl FxServiceTrait for MockFxService {
 
 struct MockValuationRepository {
     valuations: Vec<DailyAccountValuation>,
-    /// Threads that read an account's history.
+    /// Threads that read stored valuations.
     readers: std::sync::Mutex<Vec<std::thread::ThreadId>>,
 }
 
@@ -797,6 +797,10 @@ impl ValuationRepositoryTrait for MockValuationRepository {
         account_ids: &[String],
         date: NaiveDate,
     ) -> Result<Vec<DailyAccountValuation>> {
+        self.readers
+            .lock()
+            .unwrap()
+            .push(std::thread::current().id());
         let filtered: Vec<_> = self
             .valuations
             .iter()
@@ -2540,6 +2544,47 @@ async fn test_history_reads_valuations_off_the_async_worker() {
     assert!(
         !readers.contains(&std::thread::current().id()),
         "the history read valuations on the async worker"
+    );
+}
+
+/// Net worth on a date reads stored valuations and every asset's quote
+/// history, so like the history it must not run on the async worker (Health
+/// Center's full check calls it too).
+#[tokio::test]
+async fn test_net_worth_reads_valuations_off_the_async_worker() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let account_repo = Arc::new(MockAccountRepository::new(vec![create_test_account(
+        "account-1",
+        account_types::SECURITIES,
+        "USD",
+    )]));
+    let valuations = Arc::new(MockValuationRepository::new(vec![create_total_valuation(
+        d1,
+        dec!(100),
+        dec!(100),
+    )]));
+    let service = NetWorthService::new(
+        Arc::new(RwLock::new("USD".to_string())),
+        account_repo.clone(),
+        Arc::new(MockAssetRepository::new(vec![])),
+        Arc::new(SnapshotService::new(
+            Arc::new(RwLock::new("UTC".to_string())),
+            account_repo,
+            Arc::new(MockSnapshotRepository::new(vec![])),
+            Arc::new(InMemoryActivityRepository::new(Vec::new(), HashSet::new())),
+        )),
+        Arc::new(MockMarketDataRepository::new(vec![])),
+        valuations.clone(),
+        Arc::new(MockFxService::new("USD")),
+    );
+
+    service.get_net_worth(d1).await.unwrap();
+
+    let readers = valuations.readers.lock().unwrap();
+    assert!(!readers.is_empty(), "net worth must read valuations");
+    assert!(
+        !readers.contains(&std::thread::current().id()),
+        "net worth read valuations on the async worker"
     );
 }
 

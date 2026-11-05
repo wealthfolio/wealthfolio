@@ -257,8 +257,12 @@ function isPriceDateDiagnostic(diagnostic: HealthDiagnostic): boolean {
   );
 }
 
+// The date labels the backend sends. Other labels can be user-entered asset names,
+// which may contain the word "date", so match exactly.
+const DATE_EVIDENCE_LABELS = new Set(["Date", "Trade date"]);
+
 function isDateEvidence(label: string): boolean {
-  return /date/i.test(label);
+  return DATE_EVIDENCE_LABELS.has(label);
 }
 
 function getEvidenceDisplay(row: HealthDiagnostic["evidence"][number]): {

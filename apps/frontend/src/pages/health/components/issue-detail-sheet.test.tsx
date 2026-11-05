@@ -695,4 +695,44 @@ describe("IssueDetailSheet", () => {
     expect(screen.getByText("ALT — Private Fund")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Rebuild History/i })).toBeInTheDocument();
   });
+
+  it("keeps an asset whose name contains 'date' as its own row", () => {
+    renderIssueSheet({
+      ...baseIssue,
+      id: "manual_valuation:stale:hash",
+      category: "PRICE_STALENESS",
+      code: "price_manual_valuation_stale",
+      params: { count: 2, name: "Updated home", days: 90 },
+      title: "Valuations not updated for 2 assets",
+      message: "Some manually valued assets haven't been updated in over 90 days.",
+      affectedCount: 2,
+      navigateAction: undefined,
+      diagnostics: [
+        {
+          ...diagnosticMeta,
+          domain: "marketData",
+          code: "STALE_MANUAL_VALUATION",
+          title: "Valuation not updated",
+          explanation: "These values were entered by hand.",
+          evidence: [
+            {
+              label: "Updated home",
+              value: "last valued 2026-06-01 · 157 days ago",
+              route: "/holdings/home?tab=history",
+            },
+            {
+              label: "Car",
+              value: "last valued 2026-03-01 · 249 days ago",
+              route: "/holdings/car?tab=history",
+            },
+          ],
+          actions: [],
+        },
+      ],
+    });
+
+    expect(screen.getByText("Updated home")).toBeInTheDocument();
+    expect(screen.getByText("last valued 2026-06-01 · 157 days ago")).toBeInTheDocument();
+    expect(screen.getByText("Car")).toBeInTheDocument();
+  });
 });
