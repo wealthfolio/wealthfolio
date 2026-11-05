@@ -379,8 +379,10 @@ impl PriceStalenessCheck {
 
     /// Reports manually valued assets whose latest value is older than Net
     /// worth's staleness threshold. The caller passes Net worth's stale list,
-    /// already narrowed to manually priced assets. The issue identity is the set
-    /// of assets, so a dismissal holds until an asset joins or leaves the list.
+    /// already narrowed to manually priced assets. The issue identity is each
+    /// asset with the date of its last value, not its age, so a dismissal holds
+    /// as days pass and ends when an asset joins or leaves the list or gets a
+    /// new value that later goes stale again.
     pub fn analyze_stale_manual_valuations(
         &self,
         stale_valuations: &[StaleAssetInfo],
@@ -391,11 +393,11 @@ impl PriceStalenessCheck {
         let count = stale_valuations.len();
         let label =
             |asset: &StaleAssetInfo| asset.name.clone().unwrap_or_else(|| asset.asset_id.clone());
-        let asset_ids: Vec<String> = stale_valuations
+        let valued_assets: Vec<String> = stale_valuations
             .iter()
-            .map(|asset| asset.asset_id.clone())
+            .map(|asset| format!("{}@{}", asset.asset_id, asset.valuation_date))
             .collect();
-        let data_hash = compute_data_hash(&asset_ids, Severity::Warning, 0.0);
+        let data_hash = compute_data_hash(&valued_assets, Severity::Warning, 0.0);
 
         let mut diagnostic = HealthDiagnostic::new(
             "STALE_MANUAL_VALUATION",
@@ -406,7 +408,10 @@ impl PriceStalenessCheck {
                  worth today."
             ),
         )
-        .domain(DiagnosticDomain::MarketData);
+        .domain(DiagnosticDomain::MarketData)
+        // The issue id comes from its diagnostics' fingerprints, which by
+        // default cover only the assets; add the value dates.
+        .fingerprint(data_hash.clone());
         for asset in stale_valuations {
             let route = format!(
                 "/holdings/{}?tab=history",
@@ -1033,6 +1038,15 @@ mod tests {
 
         assert_eq!(today[0].id, tomorrow[0].id);
         assert_eq!(today[0].data_hash, tomorrow[0].data_hash);
+        // A new value that goes stale again is a new issue.
+        let revalued = check.analyze_stale_manual_valuations(&[
+            StaleAssetInfo {
+                valuation_date: NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+                ..stale_valuation("house", Some("Home"), 95)
+            },
+            stale_valuation("car", None, 96),
+        ]);
+        assert_ne!(today[0].id, revalued[0].id);
         assert_eq!(today[0].params["count"], 2);
         // Several assets: each row links to its own values, with no single target.
         assert!(primary_navigate(&today[0]).is_none());

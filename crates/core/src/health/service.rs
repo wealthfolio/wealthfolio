@@ -3736,4 +3736,25 @@ mod tests {
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].affected_count, 2);
     }
+
+    #[tokio::test]
+    async fn stale_valuation_dismissal_ends_with_a_new_value() {
+        let service = HealthService::new(Arc::new(MockDismissalStore::new()));
+        let issues = stale_valuation_issues(&service, &[stale("house", 120)]).await;
+        service
+            .dismiss_issue(&issues[0].id, &issues[0].data_hash)
+            .await
+            .unwrap();
+
+        // The house gets a new value (no issue while it is fresh), and that
+        // value goes stale too. The earlier dismissal must not hide it.
+        assert!(stale_valuation_issues(&service, &[]).await.is_empty());
+        let restaled = StaleAssetInfo {
+            valuation_date: NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+            ..stale("house", 95)
+        };
+        let issues = stale_valuation_issues(&service, &[restaled]).await;
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].affected_count, 1);
+    }
 }
