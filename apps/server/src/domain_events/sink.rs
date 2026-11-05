@@ -75,9 +75,6 @@ impl WebDomainEventSink {
         fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
         secret_store: Arc<dyn SecretStore>,
         token_lifecycle: Arc<TokenLifecycleState>,
-        profile_binding: Arc<
-            std::sync::OnceLock<(Arc<wealthfolio_core::profiles::ProfileRegistry>, uuid::Uuid)>,
-        >,
         spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
         categorization_rules_service: Arc<
             wealthfolio_spending::categorization_rules::CategorizationRulesService,
@@ -97,7 +94,6 @@ impl WebDomainEventSink {
             fx_service,
             secret_store,
             token_lifecycle,
-            profile_binding,
             spending_settings_service,
             categorization_rules_service,
         });
