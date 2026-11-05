@@ -26,6 +26,7 @@ import {
   SheetTitle,
   useAmountFormatting,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 
 import {
@@ -128,6 +129,7 @@ export function SplitTransactionSheet({
 }: SplitTransactionSheetProps) {
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const isMobile = useIsMobileViewport();
   const activity = row?.activity ?? null;
   const taxonomyId = taxonomyForBucket(activity?.cashFlowBucket);
@@ -451,7 +453,9 @@ export function SplitTransactionSheet({
                         </div>
 
                         <span className="bg-muted/60 text-muted-foreground inline-flex h-8 items-center rounded-md px-2 text-xs font-medium tabular-nums">
-                          {linePercentage(amountUnits, totalAbsUnits)}%
+                          {numbers.formatPercent(linePercentage(amountUnits, totalAbsUnits) / 100, {
+                            digits: 0,
+                          })}
                         </span>
                         <div className="relative w-24">
                           <span className="text-muted-foreground pointer-events-none absolute start-2 top-1/2 -translate-y-1/2 text-xs">

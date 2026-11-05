@@ -131,7 +131,10 @@ export function ChangeRateSheet({ open, onOpenChange, metadata, onSubmit }: Chan
             {!dateInvalid && (
               <p className="text-muted-foreground text-xs">
                 {t("asset:loanActions.rate_in_effect", {
-                  rate: `${formatDecimal(currentRate, { maximumFractionDigits: RATE_DECIMALS })}%`,
+                  rate: formatDecimal(currentRate / 100, {
+                    style: "percent",
+                    maximumFractionDigits: RATE_DECIMALS,
+                  }),
                 })}
               </p>
             )}

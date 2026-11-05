@@ -1,3 +1,4 @@
+import { useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import type { AllocationTarget, DriftReport } from "@/lib/types";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
@@ -23,6 +24,7 @@ export function OverviewTab({
   onWorksheetClick,
 }: OverviewTabProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { data: taxonomy } = useTaxonomy(taxonomyId);
   const resolvedReport = resolveDriftReportCategories(report, taxonomy?.categories);
   const taxonomyName = taxonomy?.taxonomy.name;
@@ -42,14 +44,15 @@ export function OverviewTab({
     const isHybrid = target.bandType === "hybrid";
     const typeName = isHybrid ? t("allocation:band.hybrid") : t("allocation:band.absolute");
     const requiredRows = resolvedReport.rows.filter((r) => r.isRequired && r.targetBps > 0);
-    if (!requiredRows.length) return `${typeName} · ${formatTolerance(target.driftBandBps)}`;
+    if (!requiredRows.length)
+      return `${typeName} · ${formatTolerance(target.driftBandBps, numbers)}`;
     const bands = requiredRows.map((r) => r.effectiveBandBps);
     const minBand = Math.min(...bands);
     const maxBand = Math.max(...bands);
     const range =
       minBand === maxBand
-        ? formatTolerance(minBand)
-        : `±${(minBand / 100).toFixed(1)}–${(maxBand / 100).toFixed(1)}%`;
+        ? formatTolerance(minBand, numbers)
+        : `±${numbers.formatPercent(minBand / 10000, { digits: 1 })}–${numbers.formatPercent(maxBand / 10000, { digits: 1 })}`;
     return `${typeName} · ${range}`;
   })();
 

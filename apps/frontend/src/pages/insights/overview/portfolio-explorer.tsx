@@ -9,7 +9,14 @@ import type {
   TaxonomyAllocation,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Card, CardTitle, Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
+import {
+  Card,
+  CardTitle,
+  Icons,
+  PrivacyAmount,
+  Skeleton,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -81,6 +88,7 @@ function collapseWeights(
 }
 
 function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
+  const numbers = useNumberFormatting();
   // Each label takes the theme's dark or light label colour, whichever reads better on
   // its segment, as the treemap's tiles do; both follow the theme and mode.
   const palette = useSyncExternalStore(
@@ -107,7 +115,7 @@ function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
             background: node.color,
             boxShadow: index === 0 ? undefined : "inset 2px 0 0 var(--card)",
           }}
-          title={`${node.name} · ${node.percentage.toFixed(1)}%`}
+          title={`${node.name} · ${numbers.formatPercent(node.percentage / 100, { digits: 1 })}`}
         >
           {node.percentage >= 8 && (
             <span
@@ -166,6 +174,7 @@ export function PortfolioExplorer({
   onOpenAllocation,
 }: PortfolioExplorerProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const [activeKey, setActiveKey] = useState("allocation");
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -336,7 +345,7 @@ export function PortfolioExplorer({
           </span>
         </span>
         <span className="text-foreground w-15.5 text-end text-sm font-bold tabular-nums">
-          {node.percentage.toFixed(1)}%
+          {numbers.formatPercent(node.percentage / 100, { digits: 1 })}
         </span>
         <span className="text-muted-foreground w-21 text-end text-xs tabular-nums">
           <PrivacyAmount value={node.value} currency={currency} />

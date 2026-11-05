@@ -580,7 +580,8 @@ interface PillModel {
 function describePill(
   d: ChangeDescriptor,
   t: TFunction,
-  formatting: Pick<FormattingApi, "formatPercent">,
+  formatting: Pick<FormattingApi, "formatPercent" | "formatCompactAmount">,
+  currency: string,
 ): PillModel | null {
   switch (d.kind) {
     case "no_activity":
@@ -608,18 +609,14 @@ function describePill(
       }
       // valid but pct suppressed → label with dollar delta
       if (d.absDelta > 0) {
-        return { label: `${arrow} ${formatCompactDelta(d.absDelta)}`, tone };
+        return {
+          label: `${arrow} ${formatting.formatCompactAmount(d.absDelta, currency, false)}`,
+          tone,
+        };
       }
       return null;
     }
   }
-}
-
-/** Compact $-delta for pills (one decimal, K/M suffix), currency-agnostic. */
-function formatCompactDelta(amount: number): string {
-  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
-  if (amount >= 1_000) return `${(amount / 1_000).toFixed(1)}K`;
-  return amount.toFixed(0);
 }
 
 const SparklineRow = memo(function SparklineRow({
@@ -641,7 +638,9 @@ const SparklineRow = memo(function SparklineRow({
   const tintBg = row.color ? `${row.color}14` : "var(--muted)";
   const gradId = `wc-spark-${row.id.replace(/[^a-z0-9]/gi, "_")}`;
   const pill =
-    showPill && row.descriptor ? describePill(row.descriptor, t, numberFormatting) : null;
+    showPill && row.descriptor
+      ? describePill(row.descriptor, t, { ...numberFormatting, ...formatting }, currency)
+      : null;
   const clickable = !!onCategoryClick;
   return (
     <Card

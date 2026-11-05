@@ -99,7 +99,11 @@ export const newAccountSchema = z
       .max(50, {
         message: "common:validation.accountNameMax",
       }),
-    group: z.string().optional(),
+    group: z
+      .string()
+      .nullable()
+      .transform((value) => (value === "" ? null : value))
+      .optional(),
     // Blank clears the stored number; left out, the stored number stays.
     accountNumber: z
       .string()

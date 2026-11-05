@@ -21,6 +21,7 @@ import {
   type FormattingApi,
   buttonVariants,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
@@ -470,6 +471,7 @@ export function IssueDetailSheet({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
 
   if (!issue) return null;
 
@@ -572,7 +574,7 @@ export function IssueDetailSheet({
                     {issue.affectedMvPct != null && issue.affectedMvPct > 0 && (
                       <div>
                         <p className="text-2xl font-semibold tabular-nums">
-                          {(issue.affectedMvPct * 100).toFixed(1)}%
+                          {numbers.formatPercent(issue.affectedMvPct, { digits: 1 })}
                         </p>
                         <p className="text-muted-foreground text-xs">
                           {t("health:detail.portfolioImpact")}

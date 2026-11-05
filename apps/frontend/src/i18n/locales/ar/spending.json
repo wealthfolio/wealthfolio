@@ -960,7 +960,7 @@
     "noRulesSet": "لم يتم تعيين قواعد تصنيف.",
     "noSpendingInPeriod": "لا يوجد إنفاق في هذه الفترة",
     "openSpendingSettings": "فتح إعدادات الإنفاق ←",
-    "pctAbove": "أعلى بنسبة {{pct}}%",
+    "pctAbove": "أعلى بنسبة {{pct}}",
     "plusMore": "+ {{count}} أخرى",
     "plusMore_few": "+ {{count}} أخرى",
     "plusMore_many": "+ {{count}} أخرى",
@@ -1074,7 +1074,8 @@
     "splitLines_zero": "مقسّمة · {{count}} بند",
     "splitTransaction": "تقسيم المعاملة",
     "tagEvent": "وسم الحدث",
-    "unlinkTransfer": "إلغاء ربط التحويل"
+    "unlinkTransfer": "إلغاء ربط التحويل",
+    "convertToTransfer": "جعله تحويلاً..."
   },
   "txTab": {
     "addFirst": "أضف معاملتك الأولى للبدء.",
