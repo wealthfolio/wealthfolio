@@ -101,3 +101,19 @@ pub async fn authenticate(repo: &PatRepository, presented: &str) -> Option<Authe
         fingerprint: format!("sha256:{}", &presented_hash[..16]),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn golden_token_hash_and_fingerprint() {
+        // Stored token hashes must keep matching after a sha2 upgrade. Synthetic token;
+        // never regenerate these values to make an upgrade pass.
+        let token = "wfp_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
+        assert_eq!(token_prefix(token), Some("AAECAwQFBgcI"));
+        let hash = "9309065465d70c06db77b4db692a67fa79c5c3b2497da20794aa0e55d67a4bd7";
+        assert_eq!(hash_token(token), hash);
+        assert_eq!(crate::token_fingerprint(token), format!("sha256:{hash}"));
+    }
+}

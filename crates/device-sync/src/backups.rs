@@ -1097,4 +1097,41 @@ mod tests {
             expected
         );
     }
+    #[test]
+    fn golden_backup_key_derivation_and_trusted_envelope() {
+        // Today's outputs for fixed synthetic inputs; recovery packages are pinned above by
+        // the frozen fixture. Never regenerate these to make an upgrade pass.
+        const ROOT: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+        const USER: &str = "6f1d2c3b-4a59-4e68-8f7a-0b1c2d3e4f50";
+        const KEY_ID: &str = "0e9a8b7c-6d5e-4f30-9a1b-2c3d4e5f6a7b";
+        const TEAM: &str = "team-golden";
+        let master: [u8; 32] = std::array::from_fn(|i| 0x80 + i as u8);
+
+        let database_aad = backup_aad(&BackupContext {
+            format: 1,
+            user_id: USER.into(),
+            key_id: KEY_ID.into(),
+            backup_id: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            hex(&derive(&master, &database_aad)),
+            "08339665ceabff095f03fb50b00b043301c19eb78e46385e19441c003f17df80"
+        );
+        let trusted_aad = context(&["trusted", "1", USER, TEAM, "3", KEY_ID]);
+        assert_eq!(
+            hex(&derive(&decode_key(ROOT).unwrap(), &trusted_aad)),
+            "7e29aeb4f614ed0531b7bf9a2cb5ab647b48e397f6fd848287c47564396746ac"
+        );
+
+        // The backup master key wrapped for a trusted device under the sync root key.
+        let envelope = TrustedEnvelope {
+            format: 1,
+            team_id: TEAM.into(),
+            sync_key_version: 3,
+            ciphertext: "Im5rYIY2IQ3IM1aGtPACxxO2SdcQ6y08SKWtSButh2FYN19A/LHDpxvH+njJA7CKjYHNo7aUUSu240pazjdrFvHUmsod5tTT".into(),
+        };
+        let unwrapped = unwrap_trusted(&envelope, ROOT, USER, KEY_ID, TEAM, 3).unwrap();
+        assert_eq!(unwrapped.0, master);
+    }
 }

@@ -979,6 +979,23 @@ mod tests {
     }
 
     #[test]
+    fn golden_tx_cookie_still_decrypts() {
+        // Made today with the key derived from a fixed synthetic WF_SECRET_KEY. Never
+        // regenerate this cookie to make a dependency upgrade pass.
+        let master =
+            crate::auth::decode_secret_key("CzBVep/E6Q4zWH2ix+wRNluApcrvFDleg6jN8hc8YYY=").unwrap();
+        let (_, key) = crate::auth::derive_keys(&master);
+        let tx = decrypt_tx(
+            &key,
+            "d_k9lyUm_64lGYmHKIy_kp8hUHQheUQNjTdROutpCJtawx8p-IxgDrLnFmdPeiEswS2KxWrNHKjkpcxjdO50eS2d30RlAMjhZS6InRg9C7FE6NAJqdiBvKPa3cFcsCKVb3tRLYptudRu4dkY-ctczA",
+        )
+        .unwrap();
+        assert_eq!(tx.pkce_verifier, "golden-pkce-verifier");
+        assert_eq!(tx.nonce, "golden-nonce");
+        assert_eq!(tx.csrf, "golden-csrf");
+    }
+
+    #[test]
     fn end_session_url_includes_hint_and_redirect() {
         let url = build_end_session_url(
             "https://idp.example.com/logout",
