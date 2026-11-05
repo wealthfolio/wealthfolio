@@ -480,6 +480,12 @@ pub async fn ensure_profile_access_token(
     let profile = registry
         .profile(profile_id)
         .map_err(|error| TokenLifecycleError::Unauthorized(error.to_string()))?;
+    if profile.connect.is_none() && profile.legacy_database.is_none() {
+        return Err(TokenLifecycleError::Unauthorized(
+            "CONNECT_REBIND_REQUIRED: Reconnect Wealthfolio Connect and confirm this profile's account before syncing."
+                .into(),
+        ));
+    }
     if profile.connect.is_none() && profile.legacy_database.is_some() {
         let config = config.ok_or_else(|| {
             TokenLifecycleError::NotConfigured("Connect auth configuration is missing".into())
@@ -1181,11 +1187,11 @@ mod tests {
 
     #[tokio::test]
     async fn legacy_binding_skips_signed_out_and_nonlegacy_profiles() {
-        for legacy in [false, true] {
+        for (legacy, has_session) in [(false, false), (false, true), (true, false)] {
             let (root, store, registry) = migration_registry(legacy);
             let id = registry.default_id().unwrap();
             let state = TokenLifecycleState::new();
-            if !legacy {
+            if has_session {
                 state
                     .store_session(store.as_ref(), "existing-refresh")
                     .await
@@ -1203,7 +1209,12 @@ mod tests {
                 id,
             )
             .await;
-            assert_eq!(result.is_ok(), !legacy);
+            let error = result.unwrap_err().to_string();
+            if has_session {
+                assert!(error.starts_with("CONNECT_REBIND_REQUIRED"));
+            } else {
+                assert!(error.contains("No refresh token configured"));
+            }
             assert!(registry.profile(id).unwrap().connect.is_none());
             assert_eq!(calls.load(Ordering::SeqCst), 0);
             server.abort();
