@@ -17,8 +17,9 @@ use wealthfolio_core::{
         ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ConvertToTransferRequest,
         ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
         ImportTemplateScope, InternalTransferPairRequest, InternalTransferPairResponse,
-        NewActivity, SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
-        TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
+        LinkTransferPairsResult, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
+        TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReview,
+        TransferPairLinkRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
@@ -510,6 +511,10 @@ impl ActivityServiceTrait for MockActivityService {
         Ok(UnlinkedTransfers::default())
     }
 
+    async fn review_transfer_matches(&self) -> CoreResult<TransferMatchReview> {
+        Ok(TransferMatchReview::default())
+    }
+
     fn get_first_activity_date(
         &self,
         _account_ids: Option<&[String]>,
@@ -575,6 +580,13 @@ impl ActivityServiceTrait for MockActivityService {
         _activity_b_id: String,
     ) -> CoreResult<(Activity, Activity)> {
         unimplemented!("MockActivityService::link_transfer_activities")
+    }
+
+    async fn link_transfer_pairs(
+        &self,
+        _pairs: Vec<TransferPairLinkRequest>,
+    ) -> CoreResult<LinkTransferPairsResult> {
+        unimplemented!("MockActivityService::link_transfer_pairs")
     }
 
     async fn unlink_transfer_activities(

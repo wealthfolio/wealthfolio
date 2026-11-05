@@ -4,9 +4,9 @@ pub(crate) mod tests {
     use crate::activities::activities_model::*;
     use crate::activities::{
         ActivityRepositoryTrait, ActivityService, ActivityServiceTrait, ImportRun,
-        ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT,
-        ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-        ACTIVITY_TYPE_WITHDRAWAL,
+        ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, TransferPairResolution,
+        ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN,
+        ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
     };
     use crate::assets::{
         normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
@@ -13185,6 +13185,545 @@ pub(crate) mod tests {
             assert_eq!(linked.counterpart_id, counterpart);
             assert_eq!(linked.link_state, TransferLinkState::Linked);
         }
+    }
+
+    /// A posted cash leg with no external marker, as broker syncs leave them.
+    fn review_leg(
+        id: &str,
+        account_id: &str,
+        activity_type: &str,
+        date: &str,
+        amount: Decimal,
+    ) -> Activity {
+        let mut leg =
+            create_cash_transfer_activity(id, account_id, activity_type, date, amount, "USD");
+        leg.metadata = None;
+        leg
+    }
+
+    fn review_service(
+        activities: Vec<Activity>,
+    ) -> (
+        ActivityService,
+        Arc<MockActivityRepository>,
+        Arc<MockDomainEventSink>,
+    ) {
+        let account_service = Arc::new(MockAccountService::new());
+        for id in ["acc-a", "acc-b", "acc-c"] {
+            account_service.add_account(create_test_account(id, "USD"));
+        }
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        for activity in activities {
+            activity_repository.add_activity(activity);
+        }
+        let event_sink = Arc::new(MockDomainEventSink::new());
+        let service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+        .with_event_sink(event_sink.clone());
+        (service, activity_repository, event_sink)
+    }
+
+    /// Each certain pair's two ids, sorted, in review order.
+    fn certain_pairs(review: &TransferMatchReview) -> Vec<[String; 2]> {
+        review
+            .certain
+            .iter()
+            .map(|row| {
+                assert_eq!(row.candidates.len(), 1, "{}", row.activity.id);
+                assert_eq!(row.candidates[0].confidence, "high");
+                let mut pair = [
+                    row.activity.id.clone(),
+                    row.candidates[0].activity.id.clone(),
+                ];
+                pair.sort();
+                pair
+            })
+            .collect()
+    }
+
+    /// Each row needing a look, with its candidates' ids.
+    fn review_rows(review: &TransferMatchReview) -> Vec<(&str, Vec<&str>)> {
+        review
+            .needs_review
+            .iter()
+            .map(|row| {
+                (
+                    row.activity.id.as_str(),
+                    row.candidates
+                        .iter()
+                        .map(|candidate| candidate.activity.id.as_str())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn pair(left: &str, right: &str) -> [String; 2] {
+        let mut pair = [left.to_string(), right.to_string()];
+        pair.sort();
+        pair
+    }
+
+    /// Wealthsimple books both legs of an internal transfer at the same
+    /// millisecond, which tells two identical same-day transfers apart.
+    #[tokio::test]
+    async fn review_pairs_identical_same_day_transfers_by_sub_second_time() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T14:05:09.123Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-01T14:05:09.123Z",
+                dec!(500),
+            ),
+            review_leg(
+                "out-2",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T16:30:00.456Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-2",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-03-01T16:30:00.456Z",
+                dec!(500),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert_eq!(
+            certain_pairs(&review),
+            vec![pair("in-2", "out-2"), pair("in-1", "out-1")]
+        );
+        assert!(review.needs_review.is_empty());
+        let candidate = &review.certain[0].candidates[0];
+        assert!(candidate
+            .reason_codes
+            .contains(&TransferMatchReason::SameTime));
+        assert!(candidate.reasons.contains(&"Same time".to_string()));
+        assert!(candidate.warning_codes.is_empty());
+    }
+
+    /// Whole-second times may be dates entered without a time, so identical
+    /// ones are no evidence: two identical same-day transfers stay ambiguous.
+    #[tokio::test]
+    async fn review_keeps_identical_transfers_without_sub_second_time_for_a_look() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "out-2",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-2",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert!(review.certain.is_empty());
+        // in-1 and out-1 are each other's best candidate and share a row.
+        assert_eq!(
+            review_rows(&review),
+            vec![
+                ("in-1", vec!["out-1", "out-2"]),
+                ("in-2", vec!["out-1", "out-2"]),
+                ("out-2", vec!["in-1", "in-2"]),
+            ]
+        );
+        for candidate in review.needs_review.iter().flat_map(|row| &row.candidates) {
+            assert_eq!(candidate.confidence, "medium");
+            assert_eq!(
+                candidate.warning_codes,
+                vec![TransferMatchWarning::AnotherMatch]
+            );
+        }
+    }
+
+    /// A same-day match is certain only when it is one-to-one in both
+    /// directions; the Link Transfer dialog's candidates carry the same rating.
+    #[tokio::test]
+    async fn review_links_same_day_matches_only_when_one_to_one_both_ways() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            // out-2 has two same-day matches; each of them has only out-2.
+            review_leg(
+                "out-2",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-05T00:00:00Z",
+                dec!(700),
+            ),
+            review_leg(
+                "in-2",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-05T00:00:00Z",
+                dec!(700),
+            ),
+            review_leg(
+                "in-3",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-03-05T00:00:00Z",
+                dec!(700),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert_eq!(certain_pairs(&review), vec![pair("in-1", "out-1")]);
+        assert_eq!(
+            review_rows(&review),
+            vec![("in-2", vec!["out-2"]), ("in-3", vec!["out-2"]),]
+        );
+        assert!(review
+            .needs_review
+            .iter()
+            .flat_map(|row| &row.candidates)
+            .all(|candidate| candidate.confidence == "medium"
+                && candidate
+                    .warning_codes
+                    .contains(&TransferMatchWarning::AnotherMatch)));
+
+        let dialog = |activity_id: &str| {
+            service
+                .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                    activity_id: activity_id.to_string(),
+                    window_days: Some(7),
+                    limit: Some(25),
+                })
+                .expect("candidates")
+                .into_iter()
+                .map(|candidate| (candidate.activity.id, candidate.confidence))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            dialog("out-1"),
+            vec![("in-1".to_string(), "high".to_string())]
+        );
+        assert_eq!(
+            dialog("in-2"),
+            vec![("out-2".to_string(), "medium".to_string())]
+        );
+    }
+
+    /// An exact sub-second match is certain even when another transfer
+    /// matches on the day; that other one keeps its row, without the legs of
+    /// the certain pair as candidates.
+    #[tokio::test]
+    async fn review_prefers_a_sub_second_match_over_a_same_day_rival() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T10:00:00.250Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-01T10:00:00.250Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-2",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-03-01T18:00:00Z",
+                dec!(500),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert_eq!(certain_pairs(&review), vec![pair("in-1", "out-1")]);
+        assert_eq!(review_rows(&review), vec![("in-2", vec![])]);
+    }
+
+    /// Converting a deposit or withdrawal needs a look, and a leg marked
+    /// external may be the user's call, so neither is ever certain. A
+    /// deposit and a withdrawal with no transfer leg are not reviewed.
+    #[tokio::test]
+    async fn review_never_links_look_alikes_or_external_legs_together() {
+        let mut deposit = review_leg(
+            "dep-1",
+            "acc-b",
+            "DEPOSIT",
+            "2024-04-01T00:00:00Z",
+            dec!(300),
+        );
+        deposit.source_system = Some("CSV".to_string());
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-04-01T00:00:00Z",
+                dec!(300),
+            ),
+            deposit,
+            review_leg(
+                "out-2",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-04-02T00:00:00Z",
+                dec!(400),
+            ),
+            // The fixture marks the leg external.
+            create_cash_transfer_activity(
+                "in-ext",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-04-02T00:00:00Z",
+                dec!(400),
+                "USD",
+            ),
+            review_leg(
+                "wd-1",
+                "acc-a",
+                "WITHDRAWAL",
+                "2024-04-03T00:00:00Z",
+                dec!(900),
+            ),
+            review_leg(
+                "dep-2",
+                "acc-b",
+                "DEPOSIT",
+                "2024-04-03T00:00:00Z",
+                dec!(900),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert!(review.certain.is_empty());
+        assert_eq!(
+            review_rows(&review),
+            vec![("out-2", vec!["in-ext"]), ("out-1", vec!["dep-1"])]
+        );
+        for candidate in review.needs_review.iter().flat_map(|row| &row.candidates) {
+            assert_eq!(candidate.confidence, "medium");
+            assert!(candidate.warning_codes.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn review_shares_one_row_for_transfers_that_are_each_others_best_match() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-05-01T00:00:00Z",
+                dec!(250),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-05-03T00:00:00Z",
+                dec!(250),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert!(review.certain.is_empty());
+        assert_eq!(review_rows(&review), vec![("in-1", vec!["out-1"])]);
+        assert_eq!(
+            review.needs_review[0].candidates[0].warning_codes,
+            vec![TransferMatchWarning::DatesDiffer { days: 2 }]
+        );
+    }
+
+    #[tokio::test]
+    async fn link_transfer_pairs_links_each_pair_and_emits_one_event() {
+        let mut draft = review_leg(
+            "in-3",
+            "acc-b",
+            "TRANSFER_IN",
+            "2024-03-03T00:00:00Z",
+            dec!(9),
+        );
+        draft.status = ActivityStatus::Draft;
+        let (service, repository, event_sink) = review_service(vec![
+            review_leg(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-01T00:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "out-2",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-02-01T00:00:00Z",
+                dec!(70),
+            ),
+            review_leg(
+                "in-2",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-02-02T00:00:00Z",
+                dec!(70),
+            ),
+            review_leg(
+                "out-3",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-03T00:00:00Z",
+                dec!(9),
+            ),
+            draft,
+        ]);
+        let request = |a: &str, b: &str| TransferPairLinkRequest {
+            activity_a_id: a.to_string(),
+            activity_b_id: b.to_string(),
+        };
+
+        let result = service
+            .link_transfer_pairs(vec![
+                request("out-1", "in-1"),
+                request("out-3", "in-3"),
+                request("in-2", " out-2 "),
+                request("missing", "in-1"),
+            ])
+            .await
+            .expect("batch");
+
+        assert_eq!(
+            result
+                .linked
+                .iter()
+                .map(|pair| (pair.transfer_out_id.as_str(), pair.transfer_in_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("out-1", "in-1"), ("out-2", "in-2")]
+        );
+        assert_eq!(
+            result
+                .errors
+                .iter()
+                .map(|error| error.index)
+                .collect::<Vec<_>>(),
+            vec![1, 3]
+        );
+        assert!(result.errors[0].message.contains("not posted"));
+
+        let stored = repository.get_activities().expect("activities");
+        let resolution = TransferPairResolution::from_activities(&stored);
+        for id in ["out-1", "in-1", "out-2", "in-2"] {
+            let activity = stored.iter().find(|activity| activity.id == id).unwrap();
+            assert_eq!(
+                resolution.link_state(activity),
+                Some(TransferLinkState::Linked),
+                "{id}"
+            );
+        }
+        for id in ["out-3", "in-3"] {
+            assert!(resolution.pair_for_activity(id).is_none(), "{id}");
+        }
+
+        let events = event_sink.events();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            DomainEvent::ActivitiesChanged {
+                account_ids,
+                currencies,
+                earliest_activity_at_utc,
+                ..
+            } => {
+                let mut account_ids = account_ids.clone();
+                account_ids.sort();
+                assert_eq!(account_ids, vec!["acc-a", "acc-b", "acc-c"]);
+                assert_eq!(currencies, &vec!["USD".to_string()]);
+                assert_eq!(
+                    *earliest_activity_at_utc,
+                    Some(parse_test_activity_datetime("2024-02-01T00:00:00Z"))
+                );
+            }
+            event => panic!("expected ActivitiesChanged event, got {event:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn link_transfer_pairs_rejects_oversized_batches_and_skips_the_event_without_links() {
+        let (service, _, event_sink) = review_service(Vec::new());
+        let request = |index: usize| TransferPairLinkRequest {
+            activity_a_id: format!("out-{index}"),
+            activity_b_id: format!("in-{index}"),
+        };
+
+        let oversized = service
+            .link_transfer_pairs((0..501).map(request).collect())
+            .await;
+        assert!(oversized.is_err());
+
+        let result = service
+            .link_transfer_pairs(vec![request(0)])
+            .await
+            .expect("batch");
+        assert!(result.linked.is_empty());
+        assert_eq!(result.errors.len(), 1);
+        assert!(event_sink.events().is_empty());
     }
 
     #[test]
