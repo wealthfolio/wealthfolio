@@ -20,6 +20,9 @@ import type {
   InternalTransferPairResponse,
   TransferMatchCandidate,
   TransferMatchCandidateRequest,
+  TransferMatchReview,
+  TransferPairLinkRequest,
+  LinkTransferPairsResult,
   BrokerSyncProfileData,
   SaveBrokerSyncProfileRulesRequest,
 } from "@/lib/types";
@@ -279,6 +282,27 @@ export const linkTransferActivities = async (
     });
   } catch (err) {
     logger.error("Error linking transfer activities.");
+    throw err;
+  }
+};
+
+export const reviewTransferMatches = async (): Promise<TransferMatchReview> => {
+  try {
+    return await invoke<TransferMatchReview>("review_transfer_matches");
+  } catch (err) {
+    logger.error("Error reviewing transfer matches.");
+    throw err;
+  }
+};
+
+/** Links each pair on its own; failures come back in `errors`, by index. */
+export const linkTransferPairs = async (
+  pairs: TransferPairLinkRequest[],
+): Promise<LinkTransferPairsResult> => {
+  try {
+    return await invoke<LinkTransferPairsResult>("link_transfer_pairs", { pairs });
+  } catch (err) {
+    logger.error("Error linking transfer pairs.");
     throw err;
   }
 };

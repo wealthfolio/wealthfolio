@@ -27,6 +27,7 @@ export function translateHealthAction(t: TFunction, action: FixAction | Navigate
   const routeKeys: Record<string, string> = {
     "/holdings": "activity:import.steps.reviewHoldings",
     "/activities": "activity:import.steps.reviewTransactions",
+    "/activities/transfers": "activity:transfer_review.title",
     "/settings/accounts": "to_accounts",
     "/settings/taxonomies": "to_taxonomies",
     "/settings/market-data": "to_market_data",

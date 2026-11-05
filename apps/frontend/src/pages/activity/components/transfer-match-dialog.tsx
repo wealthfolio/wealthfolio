@@ -296,7 +296,8 @@ function activitySortKey(activity: TransferDialogActivity): string {
   return `${new Date(getActivityDate(activity)).getTime()}-${activity.id}`;
 }
 
-function externalTransferUpdatePayload(
+/** The update that marks a transfer as money moving into or out of the portfolio. */
+export function externalTransferUpdatePayload(
   activity: TransferDialogActivity,
 ): NewActivityFormValues & { id: string; currentAssetId?: string } {
   const amount = parseNumber(activity.amount);
@@ -308,7 +309,11 @@ function externalTransferUpdatePayload(
   return {
     id: activity.id,
     accountId: activity.accountId,
-    activityType: activity.activityType as Extract<ActivityType, "TRANSFER_IN" | "TRANSFER_OUT">,
+    // The displayed type: echoing it keeps a broker row's type override.
+    activityType: getEffectiveType(activity) as Extract<
+      ActivityType,
+      "TRANSFER_IN" | "TRANSFER_OUT"
+    >,
     activityDate: getActivityDate(activity),
     currency: activity.currency,
     amount,
@@ -323,7 +328,7 @@ function externalTransferUpdatePayload(
   } as NewActivityFormValues & { id: string; currentAssetId?: string };
 }
 
-function ActivitySummaryRow({
+export function ActivitySummaryRow({
   activity,
   accountMap,
   className,
