@@ -1428,6 +1428,100 @@ async fn convert_to_transfer_pairs_a_withdrawal_with_another_account() {
     assert_eq!(transfer_issue_legs(&server, &cookie).await, 0);
 }
 
+/// The Match transfers review over REST: a pair booked at the same
+/// millisecond is certain and links in one batch, which also clears the
+/// Health Center's report of both legs; a pair two days apart needs a look.
+#[tokio::test]
+async fn transfer_review_links_certain_pairs_in_one_batch() {
+    let server = spawn_server(false, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let tfsa = create_eur_account(&server, &cookie, "TFSA").await;
+    let rrsp = create_eur_account(&server, &cookie, "RRSP").await;
+    let transfer = |account: &serde_json::Value, activity_type: &str, date: &str, amount: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": date, "currency": "EUR", "amount": amount
+            }),
+        )
+    };
+    let out_id =
+        transfer(&tfsa, "TRANSFER_OUT", "2026-04-01T14:05:09.123Z", "100").await["id"].clone();
+    let in_id =
+        transfer(&rrsp, "TRANSFER_IN", "2026-04-01T14:05:09.123Z", "100").await["id"].clone();
+    let late_out =
+        transfer(&tfsa, "TRANSFER_OUT", "2026-04-06T12:00:00Z", "250").await["id"].clone();
+    let late_in = transfer(&rrsp, "TRANSFER_IN", "2026-04-08T12:00:00Z", "250").await["id"].clone();
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 4);
+
+    let review = || async {
+        let response = server
+            .client
+            .get(format!("{}/api/v1/activities/transfer-review", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success(), "{}", response.status());
+        response.json::<serde_json::Value>().await.unwrap()
+    };
+    let before = review().await;
+    let certain = before["certain"].as_array().unwrap();
+    assert_eq!(certain.len(), 1, "{before}");
+    let pair = [
+        certain[0]["activity"]["id"].clone(),
+        certain[0]["candidates"][0]["activity"]["id"].clone(),
+    ];
+    assert!(pair.contains(&out_id) && pair.contains(&in_id), "{before}");
+    assert_eq!(certain[0]["candidates"][0]["confidence"], "high");
+    assert!(certain[0]["candidates"][0]["reasonCodes"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("same_time")));
+    // The later pair is each other's best match, so it shares one row.
+    let needs_review = before["needsReview"].as_array().unwrap();
+    assert_eq!(needs_review.len(), 1, "{before}");
+    assert_eq!(needs_review[0]["activity"]["id"], late_in, "{before}");
+    assert_eq!(
+        needs_review[0]["candidates"][0]["activity"]["id"], late_out,
+        "{before}"
+    );
+    assert_eq!(
+        needs_review[0]["candidates"][0]["warningCodes"][0],
+        serde_json::json!({ "code": "dates_differ", "days": 2 })
+    );
+
+    let linked = api_post(
+        &server,
+        &cookie,
+        "activities/link-pairs",
+        serde_json::json!({ "pairs": [
+            { "activityAId": pair[0], "activityBId": pair[1] },
+            { "activityAId": late_out, "activityBId": "missing" }
+        ]}),
+    )
+    .await;
+    assert_eq!(linked["linked"][0]["transferOutId"], out_id, "{linked}");
+    assert_eq!(linked["linked"][0]["transferInId"], in_id, "{linked}");
+    assert_eq!(linked["errors"][0]["index"], 1, "{linked}");
+
+    let after = review().await;
+    assert!(after["certain"].as_array().unwrap().is_empty(), "{after}");
+    assert_eq!(after["needsReview"].as_array().unwrap().len(), 1, "{after}");
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 2);
+    // Like a manual link, so later broker updates leave the pair alone.
+    let stored = stored_activities(&server, &cookie, &tfsa).await;
+    let linked_out = stored
+        .iter()
+        .find(|activity| activity["id"] == out_id)
+        .unwrap_or_else(|| panic!("{stored:?}"));
+    assert_eq!(linked_out["isUserModified"], true, "{linked_out}");
+}
+
 #[tokio::test]
 async fn convert_to_transfer_removes_splits_only_with_a_current_review() {
     let server = spawn_server(false, false).await;
