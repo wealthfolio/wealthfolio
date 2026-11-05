@@ -396,10 +396,16 @@ Candidate credentials are verified through `/user/me` before explicit login or
 account changes bind them to a profile. Serialized identity reservation prevents
 the same issuer/user ID from attaching to multiple local profiles. A different
 account or team presented during explicit login requires confirmation and the
-existing cleanup. An adopted legacy profile establishes its binding at its first
-verified login without clearing existing broker links or device enrollment.
+existing cleanup. A signed-in adopted legacy profile without a saved binding
+initializes that binding on its first cloud token acquisition. This one-time
+`/user/me` lookup saves the verified issuer/user/team in the existing registry
+without clearing broker links or device enrollment. Token acquisition, binding,
+login and logout share the existing token-lifecycle lock, so concurrent startup
+operations perform one successful initialization. A failed lookup leaves the
+session and local data intact and can be attempted again on the next cloud use.
+Signed-out legacy profiles establish their binding at explicit login.
 
-Routine cloud operations use the selected profile's stored token, refreshing it
+After binding, routine cloud operations use the selected profile's stored token, refreshing it
 through the existing token lifecycle when needed. They do not call `/user/me` to
 recheck identity, household membership or subscription. The cloud API's existing
 authentication, current membership, subscription and resource ownership checks

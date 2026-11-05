@@ -462,6 +462,44 @@ pub async fn ensure_valid_access_token(
     config: Option<&TokenLifecycleConfig>,
 ) -> Result<String, TokenLifecycleError> {
     let _refresh_guard = state.refresh_lock.lock().await;
+    ensure_valid_access_token_locked(secret_store, state, config).await
+}
+
+/// Initialize an adopted legacy profile's account reservation on first cloud use.
+/// Bound profiles continue using their token without another identity lookup.
+pub async fn ensure_profile_access_token(
+    secret_store: &dyn SecretStore,
+    state: &TokenLifecycleState,
+    config: Option<&TokenLifecycleConfig>,
+    api_url: &str,
+    registry: &wealthfolio_core::profiles::ProfileRegistry,
+    profile_id: uuid::Uuid,
+) -> Result<String, TokenLifecycleError> {
+    let _refresh_guard = state.refresh_lock.lock().await;
+    let token = ensure_valid_access_token_locked(secret_store, state, config).await?;
+    let profile = registry
+        .profile(profile_id)
+        .map_err(|error| TokenLifecycleError::Unauthorized(error.to_string()))?;
+    if profile.connect.is_none() && profile.legacy_database.is_some() {
+        let config = config.ok_or_else(|| {
+            TokenLifecycleError::NotConfigured("Connect auth configuration is missing".into())
+        })?;
+        let binding = verified_profile_binding(&token, config, api_url)
+            .await
+            .map_err(TokenLifecycleError::Unauthorized)?;
+        registry
+            .bind_connect(profile_id, binding)
+            .map_err(|error| TokenLifecycleError::Unauthorized(error.to_string()))?;
+    }
+    Ok(token)
+}
+
+// Caller owns the existing refresh/login/logout lock.
+async fn ensure_valid_access_token_locked(
+    secret_store: &dyn SecretStore,
+    state: &TokenLifecycleState,
+    config: Option<&TokenLifecycleConfig>,
+) -> Result<String, TokenLifecycleError> {
     if state.terminated.load(Ordering::SeqCst) {
         return Err(TokenLifecycleError::Unauthorized(
             "Cloud session has ended. Please sign in again.".to_string(),
@@ -920,6 +958,257 @@ mod tests {
         }
         fn is_sync_enabled(&self) -> wealthfolio_core::errors::Result<bool> {
             unreachable!()
+        }
+    }
+
+    async fn serve_legacy_binding_responses(
+        responses: Vec<(u16, &'static str)>,
+    ) -> (
+        String,
+        Arc<std::sync::atomic::AtomicUsize>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let count = calls.clone();
+        let server = tokio::spawn(async move {
+            let mut responses = responses.into_iter();
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    assert!(stream.read_buf(&mut request).await.unwrap() > 0);
+                }
+                assert!(request.starts_with(b"GET /api/v1/user/me "));
+                count.fetch_add(1, Ordering::SeqCst);
+                let (status, body) = responses
+                    .next()
+                    .unwrap_or((500, r#"{"message":"Unexpected profile lookup"}"#));
+                stream.write_all(format!(
+                    "HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()
+                ).as_bytes()).await.unwrap();
+            }
+        });
+        (url, calls, server)
+    }
+
+    fn migration_registry(
+        legacy: bool,
+    ) -> (
+        std::path::PathBuf,
+        Arc<MemorySecrets>,
+        wealthfolio_core::profiles::ProfileRegistry,
+    ) {
+        let root = std::env::temp_dir().join(format!("wf-legacy-binding-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        if legacy {
+            std::fs::write(root.join("db"), b"existing database").unwrap();
+        }
+        let store = Arc::new(MemorySecrets::default());
+        let registry = wealthfolio_core::profiles::ProfileRegistry::open(
+            root.clone(),
+            root.join("db"),
+            store.clone(),
+        )
+        .unwrap();
+        (root, store, registry)
+    }
+
+    async fn cache_migration_token(state: &TokenLifecycleState) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let token = fake_jwt_with_exp(now + 3600);
+        write_cache(
+            state,
+            token.clone(),
+            Instant::now() + Duration::from_secs(300),
+        )
+        .await;
+        token
+    }
+
+    #[tokio::test]
+    async fn legacy_binding_initializes_once_and_reserves_account_without_resetting_sync() {
+        use wealthfolio_core::profiles::{ConnectBinding, ProfileError, PROFILE_AVATARS};
+        let (root, store, registry) = migration_registry(true);
+        let id = registry.default_id().unwrap();
+        let state = TokenLifecycleState::new();
+        state
+            .store_session(store.as_ref(), "existing-refresh")
+            .await
+            .unwrap();
+        let preserved = [
+            SYNC_IDENTITY_KEY,
+            LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
+        ];
+        for key in preserved {
+            store.set_secret(key, "preserved").unwrap();
+        }
+        let token = cache_migration_token(&state).await;
+        let (url, calls, server) = serve_legacy_binding_responses(vec![(
+            200,
+            r#"{"id":"internal-user","team":{"id":"household"}}"#,
+        )])
+        .await;
+        let config = TokenLifecycleConfig::new("issuer".into(), "test-key".into());
+        let (first, second, third) = tokio::join!(
+            ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id),
+            ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id),
+            ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id),
+        );
+        server.abort();
+        let _ = server.await;
+        for result in [first, second, third] {
+            assert_eq!(result.unwrap(), token);
+        }
+        let binding = ConnectBinding {
+            issuer: "issuer".into(),
+            user_id: "internal-user".into(),
+            team_id: Some("household".into()),
+        };
+        assert_eq!(registry.profile(id).unwrap().connect, Some(binding.clone()));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        // The API is closed: bound profiles must work without an identity request,
+        // including after the token cache receives a new access token.
+        let next_expiry = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            + 7200;
+        let next_token = fake_jwt_with_exp(next_expiry);
+        assert_ne!(next_token, token);
+        write_cache(
+            &state,
+            next_token.clone(),
+            Instant::now() + Duration::from_secs(300),
+        )
+        .await;
+        assert_eq!(
+            ensure_profile_access_token(store.as_ref(), &state, None, &url, &registry, id)
+                .await
+                .unwrap(),
+            next_token,
+        );
+        let other = registry.create("Other", PROFILE_AVATARS[0]).unwrap().id;
+        assert!(
+            matches!(registry.bind_connect(other, binding.clone()), Err(ProfileError::DuplicateIdentity(owner)) if owner == id)
+        );
+        let other_store = registry.secret_store(&registry.profile(other).unwrap());
+        let settings = BindingSettings {
+            required: AtomicBool::new(false),
+        };
+        let rejected = TokenLifecycleState::new()
+            .commit_profile_login(
+                ProfileLoginContext {
+                    store: other_store.as_ref(),
+                    settings: &settings,
+                    registry: &registry,
+                    profile_id: other,
+                },
+                "candidate",
+                "candidate-refresh".into(),
+                binding.clone(),
+                false,
+                || async { Ok(()) },
+            )
+            .await
+            .unwrap_err();
+        assert!(rejected.starts_with("CONNECT_PROFILE_EXISTS"));
+        assert!(other_store
+            .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            store
+                .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("existing-refresh")
+        );
+        for key in preserved {
+            assert_eq!(store.get_secret(key).unwrap().as_deref(), Some("preserved"));
+        }
+        drop(registry);
+        let reopened =
+            wealthfolio_core::profiles::ProfileRegistry::open(root.clone(), root.join("db"), store)
+                .unwrap();
+        assert_eq!(reopened.profile(id).unwrap().connect, Some(binding));
+        drop(reopened);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn legacy_binding_failure_preserves_session_and_retries_on_next_use() {
+        let (root, store, registry) = migration_registry(true);
+        let id = registry.default_id().unwrap();
+        let state = TokenLifecycleState::new();
+        state
+            .store_session(store.as_ref(), "existing-refresh")
+            .await
+            .unwrap();
+        store.set_secret(SYNC_IDENTITY_KEY, "preserved").unwrap();
+        cache_migration_token(&state).await;
+        let (url, calls, server) = serve_legacy_binding_responses(vec![
+            (503, r#"{"message":"Unavailable"}"#),
+            (200, r#"{"id":"internal-user","team":{"id":"household"}}"#),
+        ])
+        .await;
+        let config = TokenLifecycleConfig::new("issuer".into(), "test-key".into());
+        let failed =
+            ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id)
+                .await;
+        assert!(failed.is_err());
+        assert!(registry.profile(id).unwrap().connect.is_none());
+        assert!(state.is_session_configured(store.as_ref()).unwrap());
+        assert_eq!(
+            store.get_secret(SYNC_IDENTITY_KEY).unwrap().as_deref(),
+            Some("preserved")
+        );
+        ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id)
+            .await
+            .unwrap();
+        assert!(registry.profile(id).unwrap().connect.is_some());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        server.abort();
+        drop(registry);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn legacy_binding_skips_signed_out_and_nonlegacy_profiles() {
+        for legacy in [false, true] {
+            let (root, store, registry) = migration_registry(legacy);
+            let id = registry.default_id().unwrap();
+            let state = TokenLifecycleState::new();
+            if !legacy {
+                state
+                    .store_session(store.as_ref(), "existing-refresh")
+                    .await
+                    .unwrap();
+                cache_migration_token(&state).await;
+            }
+            let (url, calls, server) = serve_legacy_binding_responses(vec![]).await;
+            let config = TokenLifecycleConfig::new(url.clone(), "test-key".into());
+            let result = ensure_profile_access_token(
+                store.as_ref(),
+                &state,
+                Some(&config),
+                &url,
+                &registry,
+                id,
+            )
+            .await;
+            assert_eq!(result.is_ok(), !legacy);
+            assert!(registry.profile(id).unwrap().connect.is_none());
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+            server.abort();
+            drop(registry);
+            std::fs::remove_dir_all(root).unwrap();
         }
     }
 

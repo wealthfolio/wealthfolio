@@ -1123,6 +1123,7 @@ async fn initialize_profile_state(
         fx_service.clone(),
         secret_store.clone(),
         token_lifecycle.clone(),
+        profile_binding.clone(),
         spending_settings_service.clone(),
         categorization_rules_service.clone(),
     )?);

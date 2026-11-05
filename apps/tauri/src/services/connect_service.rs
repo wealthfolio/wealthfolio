@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use wealthfolio_connect::{
-    default_cloud_api_url, ensure_valid_access_token, ConnectApiClient, TokenLifecycleConfig,
-    TokenLifecycleState,
+    default_cloud_api_url, ensure_profile_access_token, ensure_valid_access_token,
+    ConnectApiClient, TokenLifecycleConfig, TokenLifecycleState,
 };
 use wealthfolio_core::{secrets::SecretStore, settings::SettingsServiceTrait};
 
@@ -103,14 +103,33 @@ impl ConnectService {
             return Err("Reconnect Wealthfolio Connect after restoring this backup.".into());
         }
         let config = token_lifecycle_config();
-        let token = ensure_valid_access_token(
-            self.secret_store.as_ref(),
-            self.token_lifecycle.as_ref(),
-            config.as_ref(),
-        )
-        .await
-        .map_err(|err| err.to_string())?;
-        Ok(token)
+        let binding = self
+            .binding
+            .read()
+            .map_err(|_| "Profile binding unavailable")?
+            .clone();
+        let token = match binding {
+            Some((registry, id)) => {
+                ensure_profile_access_token(
+                    self.secret_store.as_ref(),
+                    self.token_lifecycle.as_ref(),
+                    config.as_ref(),
+                    &cloud_api_base_url().ok_or("Connect unavailable")?,
+                    registry.as_ref(),
+                    id,
+                )
+                .await
+            }
+            None => {
+                ensure_valid_access_token(
+                    self.secret_store.as_ref(),
+                    self.token_lifecycle.as_ref(),
+                    config.as_ref(),
+                )
+                .await
+            }
+        };
+        token.map_err(|err| err.to_string())
     }
 
     pub fn is_session_configured(&self) -> Result<bool, String> {
