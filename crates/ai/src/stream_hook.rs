@@ -169,7 +169,7 @@ impl WealthfolioStreamHook {
 
 /// The arguments with object keys sorted at every level, so a call matches
 /// its repeats however the model ordered the keys. serde_json keeps insertion
-/// order in this build, because rig enables its `preserve_order` feature.
+/// order in this build, because this crate enables its `preserve_order` feature.
 fn canonical_args(args: &str) -> String {
     fn sorted(value: serde_json::Value) -> serde_json::Value {
         match value {
@@ -206,14 +206,14 @@ impl AgentHook for WealthfolioStreamHook {
             // streamed reasoning in the UI, but omit it from provider requests.
             let mut history = event.history.to_vec();
             for message in &mut history {
-                if let Message::Assistant(assistant) = message {
+                if let Message::Assistant(assistant) = Arc::make_mut(message) {
                     assistant.content.retain(|part| {
                         !matches!(part, rig::message::AssistantContent::Reasoning(_))
                     });
                 }
             }
             history.retain(
-                |message| !matches!(message, Message::Assistant(assistant) if assistant.content.is_empty()),
+                |message| !matches!(message.as_ref(), Message::Assistant(assistant) if assistant.content.is_empty()),
             );
             patch.history = Some(history);
         }

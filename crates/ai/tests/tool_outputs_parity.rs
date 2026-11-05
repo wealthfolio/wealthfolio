@@ -37,7 +37,7 @@ use wealthfolio_core::taxonomies::{
 use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::CashActivity;
 
-/// A JSON snapshot with sorted keys. Rig enables serde_json's
+/// A JSON snapshot with sorted keys. wealthfolio-ai enables serde_json's
 /// `preserve_order`, so keys would otherwise follow insertion order.
 macro_rules! assert_sorted_json_snapshot {
     ($value:expr) => {
@@ -945,7 +945,7 @@ async fn live_ollama_each_assistant_tool() {
         message::ToolName,
         providers::ollama::wire::OllamaConfig,
         streaming::{Item, StreamEvent},
-        tool::{DynamicTool, PortableTool, ToolOutput},
+        tool::{DynamicTool, Tool, ToolContext, ToolOutput},
         AgentBuilder,
     };
     use std::sync::Mutex;
@@ -1017,17 +1017,17 @@ async fn live_ollama_each_assistant_tool() {
                 data: "Date,Type,Amount\n2024-06-15,DEPOSIT,100\n".into(),
             }],
         ));
-        let def = rig::completion::ToolDefinition {
-            name: ToolName::new("import_csv").unwrap(),
-            description: csv.description(),
-            parameters: csv.parameters(),
-        };
+        let def = rig::completion::ToolDefinition::new(
+            ToolName::new("import_csv").unwrap(),
+            csv.description(),
+            csv.parameters(),
+        );
         let observed = observations.clone();
         tools.push(DynamicTool::new(def.name,def.description,def.parameters,move |args| {
             let csv=csv.clone();let observed=observed.clone();
             Box::pin(async move {
                 let parsed=serde_json::from_value(args).map_err(rig::tool::ToolExecutionError::from_error)?;
-                let result=csv.call(parsed).await.map_err(rig::tool::ToolExecutionError::from_error);
+                let result=csv.call(&mut ToolContext::new(), parsed).await.map_err(rig::tool::ToolExecutionError::from_error);
                 observed.lock().unwrap().push(serde_json::json!({"tool":"import_csv","ok":result.is_ok(),"result":result.as_ref().ok(),"error":result.as_ref().err().map(ToString::to_string)}));
                 result.map(|r| ToolOutput::json(serde_json::to_value(r).unwrap()))
             })

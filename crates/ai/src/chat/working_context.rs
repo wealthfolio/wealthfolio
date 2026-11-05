@@ -341,8 +341,8 @@ mod tests {
         assert_eq!(context.accounts.len(), 2);
         assert_eq!(context.accounts[0].name, "Test");
         let rendered = context.render().unwrap();
-        // rig enables serde_json's `preserve_order`, so keys keep the order
-        // they are written in.
+        // This crate enables serde_json's `preserve_order`, so keys keep the
+        // order they are written in.
         assert!(rendered.contains(r#"{"id":"acct-test","name":"Test","currency":"USD"}"#));
         assert!(rendered.contains("do not re-fetch them unless fresh data is needed"));
     }
