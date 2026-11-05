@@ -257,7 +257,9 @@ export function CompactAllocationStrip({
                   }}
                 />
                 <span className="text-muted-foreground">{category.label}</span>
-                <span className="text-foreground font-medium">{Math.round(category.percent)}%</span>
+                <span className="text-foreground font-medium">
+                  {formatting.formatPercent(category.percent / 100, { digits: 0 })}
+                </span>
               </div>
             );
           })}

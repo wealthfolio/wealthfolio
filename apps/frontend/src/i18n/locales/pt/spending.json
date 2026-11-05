@@ -193,7 +193,8 @@
     "linkTransfer": "Vincular transferência...",
     "deleteConfirmMany_one": "Tem certeza que deseja excluir {{count}} transação?",
     "deleteConfirmMany_other": "Tem certeza que deseja excluir {{count}} transações?",
-    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?"
+    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?",
+    "convertToTransfer": "Converter em transferência..."
   },
   "cashFlow": {
     "income": "Receitas",
@@ -984,7 +985,7 @@
     "stageWhenLabel": "Quando e onde",
     "stageWhenSub": "Quando você gasta e eventos de gasto",
     "spendingAbovePrefix": "Os gastos estão",
-    "pctAbove": "{{pct}}% acima",
+    "pctAbove": "{{pct}} acima",
     "thePriorPeriod": "do período anterior.",
     "moreThan": "{{more}} mais que {{prior}}",
     "uncategorizedCount_one": "{{count}} transação sem categoria",

@@ -20,6 +20,7 @@ import {
   isTransferCashActivity,
   type TransactionRowVM,
 } from "../lib/transactions-helpers";
+import { canConvertToTransfer } from "@/pages/activity/components/transfer-link-utils";
 
 export interface TransactionRowActionsProps {
   row: TransactionRowVM;
@@ -112,6 +113,12 @@ export function TransactionRowActions({
               {t("spending:transactions.linkTransfer")}
             </DropdownMenuItem>
           ) : null
+        ) : null}
+        {onLinkTransfer && canConvertToTransfer(a) ? (
+          <DropdownMenuItem onClick={() => onLinkTransfer(row)}>
+            <Icons.ArrowLeftRight className="me-2 h-4 w-4" aria-hidden="true" />
+            {t("spending:transactions.convertToTransfer")}
+          </DropdownMenuItem>
         ) : null}
         {canPayLoan && (
           <DropdownMenuItem onClick={() => onLoanPayment(row)}>

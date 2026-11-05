@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Más detalles",
     "unlink_transfer": "Desvincular transferencia",
-    "link_transfer": "Vincular transferencia..."
+    "link_transfer": "Vincular transferencia...",
+    "convert_to_transfer": "Convertir en transferencia..."
   },
   "date_sheet": {
     "title": "Actividades del {{date}}",
@@ -471,7 +472,17 @@
     "error_search": "No se pudieron buscar las actividades.",
     "within_days_one": "Dentro de {{count}} día",
     "within_days_other": "Dentro de {{count}} días",
-    "within_days_many": "Dentro de {{count}} días"
+    "within_days_many": "Dentro de {{count}} días",
+    "convert_title": "Convertir en transferencia",
+    "convert_desc": "Convierte esta actividad en una transferencia entre tus cuentas. Elige la actividad correspondiente en la otra cuenta o créala allí.",
+    "convert_no_matches": "No hay actividad coincidente en 7 días.",
+    "convert_new": "Crearla en otra cuenta",
+    "convert_removes_split": "Al convertirla en transferencia se elimina la división.",
+    "convert_account": "Otra cuenta",
+    "convert_amount": "Importe en {{currency}}",
+    "convert_button": "Convertir en transferencia",
+    "convert_success": "Convertida en transferencia",
+    "convert_error": "No se pudo convertir en transferencia"
   },
   "form": {
     "section_conversion": "Traspaso",

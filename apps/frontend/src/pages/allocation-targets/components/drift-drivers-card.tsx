@@ -10,6 +10,7 @@ import {
   CardTitle,
   useAmountFormatting,
   type FormattingApi,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { useMemo } from "react";
@@ -29,22 +30,21 @@ interface DriftDriversCardProps {
   onWorksheetClick?: () => void;
 }
 
-function formatPercent(bps: number, decimals = 1): string {
-  const pct = bps / 100;
-  return Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(decimals);
-}
-
 function buildDriver(
   row: DriftRow,
   currency: string,
   t: TFunction,
-  formatting: Pick<FormattingApi, "formatRoundedAmount">,
+  formatting: Pick<FormattingApi, "formatRoundedAmount" | "formatPercent">,
 ) {
-  const current = formatPercent(row.currentBps);
-  const target = formatPercent(row.targetBps);
+  const current = formatting.formatPercent(row.currentBps / 10000, {
+    digits: Number.isInteger(row.currentBps / 100) ? 0 : 1,
+  });
+  const target = formatting.formatPercent(row.targetBps / 10000, {
+    digits: Number.isInteger(row.targetBps / 100) ? 0 : 1,
+  });
   const absDelta = Math.abs(row.valueDelta);
   const amount = formatRoundedCurrency(absDelta, currency, formatting);
-  const drift = formatPp(row.driftBps);
+  const drift = formatPp(row.driftBps, formatting);
 
   if (row.status === "not_targeted") {
     return {
@@ -79,6 +79,7 @@ export function DriftDriversCard({
   onWorksheetClick,
 }: DriftDriversCardProps) {
   const amountFormatting = useAmountFormatting();
+  const numbers = useNumberFormatting();
 
   const { t } = useTranslation();
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
@@ -118,7 +119,7 @@ export function DriftDriversCard({
                 },
                 report.baseCurrency,
                 t,
-                amountFormatting,
+                { ...amountFormatting, ...numbers },
               );
               const rowColor = allocationTargetColorForRow(row, colorByCategory, index);
               return (
@@ -164,7 +165,7 @@ export function DriftDriversCard({
                 <span className="px-1.5">·</span>
                 {remainingRows
                   .map((row) => {
-                    return `${getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)} ${formatPp(row.driftBps)}`;
+                    return `${getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)} ${formatPp(row.driftBps, numbers)}`;
                   })
                   .join(" · ")}
               </li>

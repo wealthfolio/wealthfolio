@@ -882,6 +882,7 @@ function MonteCarloFanChart({
           tick={{ fill: CHART.muted, fontSize: "0.75rem" }}
         />
         <YAxis
+          width="auto"
           axisLine={false}
           tickLine={false}
           tick={{ fill: CHART.muted, fontSize: "0.75rem" }}
@@ -1714,7 +1715,7 @@ function SorrChart({
           tick={{ fill: CHART.muted, fontSize: "0.75rem" }}
         />
         <YAxis
-          width={54}
+          width="auto"
           axisLine={false}
           tickLine={false}
           tick={{ fill: CHART.muted, fontSize: "0.75rem" }}

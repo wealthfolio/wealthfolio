@@ -30,7 +30,8 @@ export function useLoanFormat(currency: string) {
     shortDate: (value: string) =>
       dates.formatCalendarDate(value, { day: "numeric", month: "short" }),
     month: (value: string) => dates.formatCalendarDate(value, { month: "short", year: "numeric" }),
-    rate: (value: number) => `${numbers.formatDecimal(value, { maximumFractionDigits: 2 })}%`,
+    rate: (value: number) =>
+      numbers.formatDecimal(value / 100, { style: "percent", maximumFractionDigits: 2 }),
     duration: (months: number) => {
       const years =
         months >= 12

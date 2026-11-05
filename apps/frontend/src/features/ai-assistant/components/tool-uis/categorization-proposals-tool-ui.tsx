@@ -21,6 +21,7 @@ import {
   useAmountFormatting,
   useDateFormatting,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useEffect, useMemo, useState } from "react";
@@ -62,10 +63,6 @@ function confidenceVariant(confidence: number) {
   return "outline";
 }
 
-function confidenceLabel(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
-
 function ProposalsLoadingState() {
   const { t } = useTranslation();
   return (
@@ -99,6 +96,7 @@ export function CategorizationProposalsContentImpl({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
@@ -405,7 +403,7 @@ export function CategorizationProposalsContentImpl({
                 )}
                 title={row.explanation}
               >
-                {confidenceLabel(row.confidence)}
+                {numbers.formatPercent(row.confidence, { digits: 0 })}
               </Badge>
             </div>
           ))}

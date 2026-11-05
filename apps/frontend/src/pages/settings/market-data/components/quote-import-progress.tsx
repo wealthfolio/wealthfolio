@@ -1,3 +1,4 @@
+import { useNumberFormatting } from "@wealthfolio/ui";
 import {
   Card,
   CardContent,
@@ -29,6 +30,7 @@ export function QuoteImportProgress({
   onCancel,
 }: QuoteImportProgressProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   // If not importing, show 100% progress (import completed)
   const displayProgress = isImporting ? progress : 100;
   return (
@@ -48,7 +50,7 @@ export function QuoteImportProgress({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>{t("settings:market_data_page.progress")}</span>
-            <span>{Math.round(displayProgress)}%</span>
+            <span>{numbers.formatPercent(displayProgress / 100, { digits: 0 })}</span>
           </div>
           <Progress value={displayProgress} className="w-full" />
         </div>

@@ -28,15 +28,19 @@ export function targetLabel(t: TFunction, targetName: string | undefined) {
   return targetName?.trim() || t("allocation:editor.savedTarget");
 }
 
-export function formatPp(bps: number, decimals = 1) {
-  const pp = bps / 100;
-  return `${pp > 0 ? "+" : ""}${pp.toFixed(decimals)}%`;
+export function formatPp(
+  bps: number,
+  formatting: Pick<FormattingApi, "formatPercent">,
+  decimals = 1,
+) {
+  return formatting.formatPercent(bps / 10000, {
+    digits: decimals,
+    signDisplay: bps > 0 ? "always" : "auto",
+  });
 }
 
-export function formatTolerance(bps: number) {
-  const pp = bps / 100;
-  const value = Number.isInteger(pp) ? pp.toFixed(0) : pp.toFixed(1);
-  return `±${value}%`;
+export function formatTolerance(bps: number, formatting: Pick<FormattingApi, "formatPercent">) {
+  return `±${formatting.formatPercent(bps / 10000, { digits: Number.isInteger(bps / 100) ? 0 : 1 })}`;
 }
 
 export function formatRoundedCurrency(

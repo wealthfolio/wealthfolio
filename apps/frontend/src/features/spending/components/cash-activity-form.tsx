@@ -70,6 +70,7 @@ import {
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSettings } from "@/hooks/use-settings";
 import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields/advanced-options-section";
+import { canConvertToTransfer } from "@/pages/activity/components/transfer-link-utils";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -185,6 +186,8 @@ interface CashActivityFormProps {
   };
   /** Called when user selects Transfer in creation mode; receives the selected spending account id */
   onTransferClick?: (accountId: string) => void;
+  /** Called to pair the saved deposit or withdrawal with another account as a transfer. */
+  onConvertToTransfer?: () => void;
 }
 
 export function CashActivityForm({
@@ -192,6 +195,7 @@ export function CashActivityForm({
   onOpenChange,
   activity,
   onTransferClick,
+  onConvertToTransfer,
 }: CashActivityFormProps) {
   const { t } = useTranslation();
   const reviewEdits = useActivitySplitReview();
@@ -652,6 +656,24 @@ export function CashActivityForm({
                             >
                               <Icons.ArrowLeftRight className="h-4 w-4" />
                               {transferActionLabel}
+                            </Button>
+                          </FormItem>
+                        )}
+
+                        {isEditing && onConvertToTransfer && canConvertToTransfer(activity) && (
+                          <FormItem>
+                            <FormLabel>{t("spending:cashForm.transfer")}</FormLabel>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-start gap-2"
+                              onClick={() => {
+                                onOpenChange(false);
+                                onConvertToTransfer();
+                              }}
+                            >
+                              <Icons.ArrowLeftRight className="h-4 w-4" />
+                              {t("spending:transactions.convertToTransfer")}
                             </Button>
                           </FormItem>
                         )}
