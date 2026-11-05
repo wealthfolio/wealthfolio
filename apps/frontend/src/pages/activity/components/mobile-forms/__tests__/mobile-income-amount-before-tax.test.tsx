@@ -42,6 +42,7 @@ function TestForm({
   const amountWasEdited = useRef(false);
   const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   const [showDetails, setShowDetails] = useState(true);
+  const [type, setType] = useState(activityType);
   return (
     <QueryClientProvider client={new QueryClient()}>
       <FormProvider {...form}>
@@ -49,13 +50,23 @@ function TestForm({
         <button type="button" onClick={() => setShowDetails((shown) => !shown)}>
           Toggle details step
         </button>
+        {/* What the type step does when another type is picked. */}
+        <button
+          type="button"
+          onClick={() => {
+            form.setValue("activityType", ActivityType.DIVIDEND);
+            setType(ActivityType.DIVIDEND);
+          }}
+        >
+          Make it a dividend
+        </button>
         <output aria-label="Changed fields">
           {Object.keys(form.formState.dirtyFields).join(",")}
         </output>
         {showDetails && (
           <MobileDetailsStep
             accounts={accounts}
-            activityType={activityType}
+            activityType={type}
             isEditing={saved !== undefined}
             amountWasEdited={amountWasEdited}
             incomeAmountTypedLast={incomeAmountTypedLast}
@@ -138,6 +149,22 @@ describe("mobile income amount before tax", () => {
 
     expect(field("Amount before tax")).toHaveValue("10");
     expect(field("Received amount")).toHaveValue("0");
+  });
+
+  it("drops interest's fee from the received amount when the entry becomes a dividend", async () => {
+    render(<TestForm activityType={ActivityType.INTEREST} />);
+    await retype("Amount before tax", "100");
+    await retype("Withholding tax (Optional)", "15");
+    await retype("Fee (Optional)", "10");
+    expect(field("Received amount")).toHaveValue("75");
+
+    await userEvent.click(screen.getByRole("button", { name: "Toggle details step" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make it a dividend" }));
+    await userEvent.click(screen.getByRole("button", { name: "Toggle details step" }));
+
+    // A dividend shows no fee, so nothing hidden comes off.
+    expect(field("Amount before tax")).toHaveValue("100");
+    expect(field("Received amount")).toHaveValue("85");
   });
 
   it("keeps a typed received amount fixed after leaving the step and coming back", async () => {
