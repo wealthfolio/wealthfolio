@@ -1,5 +1,6 @@
-import { isTauri, getPlatform } from "@/adapters";
+import { isTauri, getPlatform, openUrlInBrowser } from "@/adapters";
 import React from "react";
+import { ExternalLinkProvider } from "@wealthfolio/ui/components/ui/external-link";
 import { StartupBoundary } from "@/components/startup-boundary";
 import { StartupScreen } from "@/components/startup-screen";
 import ReactDOM from "react-dom/client";
@@ -45,7 +46,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         boundary prevents a cold-load suspend from blanking the app. */}
     <StartupBoundary>
       <React.Suspense fallback={<StartupScreen />}>
-        <App />
+        <ExternalLinkProvider openUrl={openUrlInBrowser}>
+          <App />
+        </ExternalLinkProvider>
       </React.Suspense>
     </StartupBoundary>
   </React.StrictMode>,

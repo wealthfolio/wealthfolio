@@ -25,6 +25,7 @@ export * from "./components/ui/dialog";
 export * from "./components/ui/direction";
 export * from "./components/ui/dropdown-menu";
 export * from "./components/ui/empty";
+export * from "./components/ui/external-link";
 // Deprecated: kept so addons built against earlier SDKs still load.
 export * from "./components/ui/empty-placeholder";
 export * from "./components/ui/faceted-filter";
