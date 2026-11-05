@@ -207,6 +207,47 @@ export function isStoredTradeAmountCustom({
   return !withinScaled(toScaledDecimal(stored), toScaledDecimal(calculated), tolerance);
 }
 
+interface IncomeChargeInputs {
+  tax: unknown;
+  /** Only a fee the form shows; a stored fee the form hides stays out. */
+  fee?: unknown;
+}
+
+/** A form amount as an exact decimal, or undefined while it is blank. */
+function toScaledAmount(value: unknown): ScaledDecimal | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? toScaledDecimal(number) : undefined;
+}
+
+/**
+ * The cash a dividend or interest payment leaves once its withholding tax (and
+ * a fee the form shows) is taken off the amount before tax. Exact, so 2.63 −
+ * 0.33 is 2.3 rather than a float near it. Negative when the charges exceed
+ * the amount before tax.
+ */
+export function calculateIncomeReceivedAmount({
+  grossAmount,
+  tax,
+  fee,
+}: IncomeChargeInputs & { grossAmount: unknown }): number | undefined {
+  const gross = toScaledAmount(grossAmount);
+  if (gross === undefined) return undefined;
+  const charges = addScaled(toScaledCharge(tax), toScaledCharge(fee));
+  return toStoredNumber(addScaled(gross, negateScaled(charges)));
+}
+
+/** The amount before tax that a saved received amount and its charges add up to. */
+export function calculateIncomeGrossAmount({
+  receivedAmount,
+  tax,
+  fee,
+}: IncomeChargeInputs & { receivedAmount: unknown }): number | undefined {
+  const received = toScaledAmount(receivedAmount);
+  if (received === undefined) return undefined;
+  return toStoredNumber(addScaled(addScaled(received, toScaledCharge(tax)), toScaledCharge(fee)));
+}
+
 interface IncomeCashInputs {
   quantity: unknown;
   unitPrice: unknown;

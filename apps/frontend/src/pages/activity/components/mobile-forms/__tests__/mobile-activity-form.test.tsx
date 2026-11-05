@@ -77,6 +77,25 @@ vi.mock("../mobile-details-step", async () => {
           >
             Enter a trade with its own total
           </button>
+          {[
+            { label: "Enter a dividend before tax", grossAmount: 100, tax: 15, amount: 85 },
+            { label: "Enter a tax above the dividend", grossAmount: 10, tax: 15, amount: 0 },
+          ].map(({ label, grossAmount, tax, amount }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                form.setValue("accountId", "acc_1");
+                form.setValue("currency", "USD");
+                form.setValue("assetId", "AAPL");
+                form.setValue("grossAmount", grossAmount);
+                form.setValue("tax", tax);
+                form.setValue("amount", amount);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       );
     },
@@ -360,6 +379,35 @@ describe("a trade total typed on a phone screen left for another tab", () => {
         expect.objectContaining({ activityType: ActivityType.BUY, amount: 60 }),
       ),
     );
+  });
+});
+
+describe("a dividend entered before tax on a phone", () => {
+  async function enterDividend(button: string) {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<MobileActivityForm accounts={accounts} open onClose={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: /^Dividend\b/i }));
+    await user.click(screen.getByRole("button", { name: /Next/i }));
+    await user.click(await screen.findByRole("button", { name: button }));
+    await user.click(screen.getByRole("button", { name: "Add Activity" }));
+  }
+
+  it("saves the received amount and not the amount before tax", async () => {
+    await enterDividend("Enter a dividend before tax");
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    const saved = noopMutation.mutateAsync.mock.calls[0][0];
+    expect(saved).toMatchObject({ activityType: ActivityType.DIVIDEND, amount: 85, tax: 15 });
+    expect(saved).not.toHaveProperty("grossAmount");
+  });
+
+  it("is refused when the tax is more than the amount before tax", async () => {
+    await enterDividend("Enter a tax above the dividend");
+
+    // The details step stays open instead of saving.
+    expect(await screen.findByTestId("details-step")).toBeInTheDocument();
+    expect(noopMutation.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

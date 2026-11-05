@@ -57,6 +57,7 @@ import {
   type AssetType,
 } from "../forms/fields";
 import type { NewActivityFormValues } from "../forms/schemas";
+import { useIncomeAmounts } from "../forms/use-income-amounts";
 import { calculateIncomeFinalAmount, calculateTradeFinalCash } from "@/lib/activity-final-amount";
 import { AccountTypeIconTile } from "@/components/account-type-icon";
 
@@ -394,6 +395,11 @@ export function MobileDetailsStep({
       isInterestActivity &&
       isLiabilityAccountType(accounts.find((acc) => acc.value === accountId)?.accountType)
     );
+  // Cash income is entered before tax; interest also shows a fee, which comes off too.
+  const incomeAmounts = useIncomeAmounts(form, {
+    enabled: isReceivedIncome,
+    includeFee: needsFee,
+  });
   const destinationAccount = filteredAccounts.find((acc) => acc.value === toAccountId);
   const accountCurrency = selectedAccount?.currency;
   const effectiveSourceCurrency = sourceCurrency || accountCurrency || currency;
@@ -595,7 +601,13 @@ export function MobileDetailsStep({
             {t("activity:mobile_fee_optional")}
           </FormLabel>
           <FormControl>
-            <MoneyInput {...field} />
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onChargeChange();
+              }}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -614,7 +626,88 @@ export function MobileDetailsStep({
               : t("activity:mobile_form.tax_optional")}
           </FormLabel>
           <FormControl>
-            <MoneyInput {...field} />
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onChargeChange();
+              }}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const amountField = (
+    <FormField
+      control={control}
+      name="amount"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-base leading-none font-medium">
+            {isReceivedIncome
+              ? t("activity:form.received_amount")
+              : activityType === ActivityType.DIVIDEND
+                ? t("activity:field_dividend_amount")
+                : activityType === ActivityType.INTEREST
+                  ? t("activity:field_interest_amount")
+                  : isTaxActivity
+                    ? t("activity:field_tax_amount")
+                    : isCreditActivity
+                      ? t("activity:mobile_form.credit_amount")
+                      : t("activity:form.label_amount")}
+          </FormLabel>
+          <FormControl>
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (!isUserEdit) return;
+                amountWasEdited.current = true;
+                if (isReceivedIncome) incomeAmounts.onReceivedAmountChange(value);
+              }}
+            />
+          </FormControl>
+          {isReceivedIncome && (
+            <FormDescription className="text-xs">
+              {t("activity:form.help_total_credit")}
+            </FormDescription>
+          )}
+          {isBuyOrSell && amountWasEdited.current && calculatedTradeAmount !== undefined && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              onClick={applyCalculatedTradeTotal}
+            >
+              {t("activity:form.use_calculated_total", {
+                amount: formatAmount(calculatedTradeAmount, currency ?? "", Boolean(currency)),
+              })}
+            </button>
+          )}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+  const grossAmountField = (
+    <FormField
+      control={control}
+      name={"grossAmount" as any}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-base leading-none font-medium">
+            {t("activity:form.label_amount_before_tax")}
+          </FormLabel>
+          <FormControl>
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onGrossAmountChange(value);
+              }}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -967,62 +1060,9 @@ export function MobileDetailsStep({
                 </div>
               )}
 
-              {/* Amount */}
-              {needsAmount && (
-                <FormField
-                  control={control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-base leading-none font-medium">
-                        {isReceivedIncome
-                          ? t("activity:form.received_amount")
-                          : activityType === ActivityType.DIVIDEND
-                            ? t("activity:field_dividend_amount")
-                            : activityType === ActivityType.INTEREST
-                              ? t("activity:field_interest_amount")
-                              : isTaxActivity
-                                ? t("activity:field_tax_amount")
-                                : isCreditActivity
-                                  ? t("activity:mobile_form.credit_amount")
-                                  : t("activity:form.label_amount")}
-                      </FormLabel>
-                      <FormControl>
-                        <MoneyInput
-                          {...field}
-                          onValueChange={(value, isUserEdit) => {
-                            field.onChange(value);
-                            if (isUserEdit) amountWasEdited.current = true;
-                          }}
-                        />
-                      </FormControl>
-                      {isReceivedIncome && (
-                        <FormDescription className="text-xs">
-                          {t("activity:form.help_total_credit")}
-                        </FormDescription>
-                      )}
-                      {isBuyOrSell &&
-                        amountWasEdited.current &&
-                        calculatedTradeAmount !== undefined && (
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-                            onClick={applyCalculatedTradeTotal}
-                          >
-                            {t("activity:form.use_calculated_total", {
-                              amount: formatAmount(
-                                calculatedTradeAmount,
-                                currency ?? "",
-                                Boolean(currency),
-                              ),
-                            })}
-                          </button>
-                        )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              {/* Amount; cash income asks for it before tax here and shows the
+                  received amount after the tax */}
+              {needsAmount && (isReceivedIncome ? grossAmountField : amountField)}
 
               {needsInternalCashTransferAmounts && (
                 <div className="space-y-3">
@@ -1157,6 +1197,7 @@ export function MobileDetailsStep({
                   {needsTax && taxField}
                 </>
               )}
+              {needsAmount && isReceivedIncome && amountField}
               {isFeeActivity && (
                 <FormField
                   control={control}
