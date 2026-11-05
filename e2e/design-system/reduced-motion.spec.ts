@@ -50,3 +50,32 @@ test("an accordion opens without growing when the system asks for reduced motion
   await settle(page);
   expect((await motion()).filter((record) => record.moved > 0.5)).toEqual([]);
 });
+
+test("the performance chart draws without animating when the system asks for reduced motion", async ({
+  page,
+}) => {
+  // Counts writes to dash patterns from the first render on.
+  await page.addInitScript(() => {
+    const counter = window as unknown as { dashWrites: number };
+    counter.dashWrites = 0;
+    new MutationObserver((records) => {
+      counter.dashWrites += records.length;
+    }).observe(document, {
+      attributes: true,
+      attributeFilter: ["stroke-dasharray"],
+      subtree: true,
+    });
+  });
+  const dashWrites = async (reducedMotion: "reduce" | "no-preference") => {
+    await page.emulateMedia({ reducedMotion });
+    await page.goto("/e2e/design-system/?chart");
+    await expect(page.locator("path.recharts-line-curve")).toHaveCount(2);
+    // The lines draw in over 300 ms.
+    await page.waitForTimeout(1000);
+    return page.evaluate(() => (window as unknown as { dashWrites: number }).dashWrites);
+  };
+  // Without the setting both lines draw in, the benchmark by rewriting its dash
+  // list every frame.
+  expect(await dashWrites("no-preference")).toBeGreaterThan(5);
+  expect(await dashWrites("reduce")).toBe(0);
+});

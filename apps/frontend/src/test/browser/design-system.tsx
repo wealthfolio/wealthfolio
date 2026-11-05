@@ -101,6 +101,7 @@ import {
 } from "@wealthfolio/ui";
 import "@/globals.css";
 import { OverlaySafeAreaFixture } from "./overlay-safe-area";
+import { PerformanceChartFixture } from "./performance-chart";
 
 // Synthetic fixture for the UI-primitive guardrails: every primitive in
 // @wealthfolio/ui in its key states, each overlay opened from a named trigger.
@@ -588,6 +589,8 @@ void i18next.changeLanguage("en").then(() => {
         <TouchControlsFixture />
       ) : params.has("safeArea") ? (
         <OverlaySafeAreaFixture />
+      ) : params.has("chart") ? (
+        <PerformanceChartFixture />
       ) : (
         <Fixture />
       )}
