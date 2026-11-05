@@ -10,8 +10,9 @@ use std::sync::Arc;
 
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock, ErrorData as McpError, Implementation,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool, ToolAnnotations,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData as McpError,
+    Implementation, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    Tool, ToolAnnotations,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use wealthfolio_agent_tools::{
@@ -63,7 +64,9 @@ impl WealthfolioMcpHandler {
             })
     }
 
-    /// MCP session id for audit grouping (`Mcp-Session-Id` header).
+    /// MCP session id for audit grouping (`Mcp-Session-Id` header). Protocol
+    /// 2026-07-28 has no sessions, so those calls record `"stateless"`; the
+    /// actor fingerprint still names the token.
     fn session_id(ctx: &RequestContext<RoleServer>) -> String {
         ctx.extensions
             .get::<http::request::Parts>()
@@ -135,12 +138,12 @@ fn tool_title(name: &str) -> String {
 }
 
 impl ServerHandler for WealthfolioMcpHandler {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut server_info = Implementation::default();
         server_info.name = "wealthfolio".into();
         server_info.version = env!("CARGO_PKG_VERSION").into();
 
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.server_info = server_info;
         info.instructions = self.instructions.clone();
@@ -173,7 +176,7 @@ impl ServerHandler for WealthfolioMcpHandler {
         &self,
         request: CallToolRequestParams,
         ctx: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let auth = Self::auth_context(&ctx)?;
         let session_id = Self::session_id(&ctx);
         let name = request.name.as_ref();
@@ -219,7 +222,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     serde_json::to_string(&output.content).unwrap_or_else(|_| "{}".to_string());
                 let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
                 result.structured_content = Some(output.content);
-                Ok(result)
+                Ok(result.into())
             }
             Err(err @ AgentToolError::ScopeDenied { .. }) => {
                 let message = err.to_string();
@@ -232,7 +235,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     Some(message.clone()),
                 ))
                 .await;
-                Ok(CallToolResult::error(vec![ContentBlock::text(message)]))
+                Ok(CallToolResult::error(vec![ContentBlock::text(message)]).into())
             }
             Err(err) => {
                 let message = err.to_string();
@@ -245,7 +248,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     Some(message.clone()),
                 ))
                 .await;
-                Ok(CallToolResult::error(vec![ContentBlock::text(message)]))
+                Ok(CallToolResult::error(vec![ContentBlock::text(message)]).into())
             }
         }
     }
