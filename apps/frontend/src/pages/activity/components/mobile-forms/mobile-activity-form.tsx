@@ -564,6 +564,8 @@ export function MobileActivityForm({
         expirationDate: _expiration,
         optionType: _optType,
         contractMultiplier: _multiplier,
+        // Cash income's amount before tax is input only; the received amount is saved.
+        grossAmount: _grossAmount,
         id,
         ...submitData
       } = data as any;
@@ -585,6 +587,13 @@ export function MobileActivityForm({
       const assetIncomeError = validateAssetBackedIncomeFields(submitData, t);
       if (assetIncomeError) {
         form.setError(assetIncomeError.field as any, { message: assetIncomeError.message });
+        return;
+      }
+
+      // The schema drops the input-only amount before tax, so read the form.
+      const grossAmount = form.getValues("grossAmount" as any) as number | undefined;
+      if (grossAmount != null && Number(submitData.tax ?? 0) > grossAmount) {
+        form.setError("tax", { message: t("activity:form.err_withholding_tax_exceeds_amount") });
         return;
       }
 
