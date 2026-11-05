@@ -5,6 +5,11 @@
       "title_other": "Missing manual valuations for {{count}} holdings",
       "message": "Manual/custom holdings need a manual valuation before they can be included as valued performance positions."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valuation not updated for {{name}}",
+      "title_other": "Valuations not updated for {{count}} assets",
+      "message": "Some manually valued assets haven't been updated in over {{days}} days, so your net worth may be out of date."
+    },
     "price_no_market_data": {
       "title_one": "No market data for {{symbol}}",
       "title_other": "No market data for {{count}} holdings",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "Rebuild History",
     "add_price": "Add Price",
     "update_cost_basis": "Update Cost Basis",
+    "update_value": "Update Value",
     "review_transaction": "Review Transaction",
     "review_entry": "Review entry"
   },

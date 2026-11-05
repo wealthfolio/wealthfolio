@@ -82,7 +82,6 @@
       "link_explanation": "Collegare un immobile esistente non modifica il patrimonio netto."
     },
     "failed_to_load": "Impossibile caricare il patrimonio netto",
-    "stale_valuations_tooltip": "Valutazioni obsolete (oltre 90 giorni):",
     "days_ago": "{{count}}g fa",
     "no_history_data": "Nessun dato storico disponibile",
     "breakdown": "Ripartizione",

@@ -364,6 +364,18 @@ impl NavigateAction {
         }
     }
 
+    /// Creates a navigate action to an asset's recorded values, where a manual
+    /// value is updated: the Values tab of a standalone asset (property, vehicle,
+    /// loan), or the quotes tab of a held one.
+    pub fn to_asset_valuations(asset_id: impl Into<String>) -> Self {
+        let id = asset_id.into();
+        Self {
+            route: format!("/holdings/{}", urlencoding::encode(&id)),
+            query: Some(serde_json::json!({ "tab": "history" })),
+            label: "Update Value".to_string(),
+        }
+    }
+
     /// Creates a navigate action to an asset's holdings-snapshot editor
     /// (snapshots tab), where cost basis is set for HOLDINGS-tracked accounts.
     pub fn to_asset_snapshots(asset_id: impl Into<String>) -> Self {

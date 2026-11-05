@@ -10,10 +10,10 @@ vi.mock("@/hooks/use-health", () => ({
   useHealthStatus: () => ({ data: health.status, isLoading: false }),
 }));
 
-function renderBadge(figureNotice?: React.ReactNode) {
+function renderBadge() {
   return render(
     <MemoryRouter>
-      <HealthStatusIndicator figureNotice={figureNotice} />
+      <HealthStatusIndicator />
     </MemoryRouter>,
   );
 }
@@ -23,7 +23,7 @@ describe("HealthStatusIndicator", () => {
     health.status = { issueCounts: {} };
   });
 
-  it("renders nothing without health issues or a figure notice", () => {
+  it("renders nothing without health issues", () => {
     const { container } = renderBadge();
     expect(container).toBeEmptyDOMElement();
   });
@@ -34,17 +34,9 @@ describe("HealthStatusIndicator", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", "/health");
   });
 
-  it("shows a figure notice alone as a warning badge that does not navigate", () => {
-    const { container } = renderBadge(<p>Stale valuations</p>);
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    // Keyboard and screen-reader users can still reach it.
-    expect(screen.getByRole("button", { name: /data status/i })).toBeInTheDocument();
-    expect(container.firstElementChild).toHaveClass("text-warning-subtle-foreground");
-  });
-
-  it("keeps the health severity colour when both are present", () => {
-    health.status = { issueCounts: { CRITICAL: 1 } };
-    renderBadge(<p>Stale valuations</p>);
+  it("takes the colour of the most severe issue", () => {
+    health.status = { issueCounts: { WARNING: 1, CRITICAL: 1 } };
+    renderBadge();
     expect(screen.getByRole("link")).toHaveClass("text-destructive-subtle-foreground");
   });
 });

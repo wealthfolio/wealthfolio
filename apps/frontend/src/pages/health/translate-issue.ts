@@ -39,6 +39,7 @@ export function translateHealthAction(t: TFunction, action: FixAction | Navigate
   if (action.route.startsWith("/holdings/") && action.query) {
     const tabKeys: Record<string, string> = {
       quotes: "add_price",
+      history: "update_value",
       snapshots: "update_cost_basis",
       activities: "activity:import.steps.reviewTransactions",
     };

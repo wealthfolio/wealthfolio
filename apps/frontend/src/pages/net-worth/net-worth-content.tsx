@@ -177,7 +177,6 @@ export function NetWorthContent() {
     parsedHistory[parsedHistory.length - 1].netWorth >= 0;
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
-  const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
   const periodLabel = periodCode ?? period.label;
   const localizedPeriodLabel = period.label;
 
@@ -228,30 +227,7 @@ export function NetWorthContent() {
                 compact={isMobile}
               />
               <PrivacyToggle variant="ghost" />
-              <HealthStatusIndicator
-                figureNotice={
-                  hasStaleValuations ? (
-                    <div>
-                      <p className="mb-2 text-xs font-medium">
-                        {t("insights:networth.stale_valuations_tooltip")}
-                      </p>
-                      <ul className="space-y-1 text-xs">
-                        {netWorthData?.staleAssets.map((asset) => (
-                          <li
-                            key={asset.assetId}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span className="truncate">{asset.name ?? asset.assetId}</span>
-                            <span className="text-background/70 shrink-0">
-                              {t("insights:networth.days_ago", { count: asset.daysStale })}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : undefined
-                }
-              />
+              <HealthStatusIndicator />
             </div>
             <div className="text-md flex space-x-3">
               {isHistoryLoading ? (

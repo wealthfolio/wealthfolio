@@ -2828,6 +2828,37 @@ async fn automated_loan_net_worth_and_history_use_the_same_as_of_balance() {
     );
 }
 
+/// An automatic loan is valued on the as-of date, so only a manual one goes stale.
+#[tokio::test]
+async fn automated_loan_is_never_stale_but_a_manual_one_is() {
+    let recorded = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let as_of = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+    let mut automatic = create_test_asset("LIAB-automatic", AssetKind::Liability, "USD");
+    automatic.metadata = Some(serde_json::json!({
+        "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"}
+    }));
+    let manual = create_test_asset("LIAB-manual", AssetKind::Liability, "USD");
+    let service = create_net_worth_service(
+        vec![],
+        vec![automatic, manual],
+        vec![],
+        vec![
+            create_test_quote("LIAB-automatic", dec!(1200), recorded, "USD"),
+            create_test_quote("LIAB-manual", dec!(5000), recorded, "USD"),
+        ],
+    );
+
+    let result = service.get_net_worth(as_of).await.unwrap();
+
+    assert_eq!(result.liabilities.total, dec!(5700));
+    let stale: Vec<_> = result
+        .stale_assets
+        .iter()
+        .map(|asset| asset.asset_id.as_str())
+        .collect();
+    assert_eq!(stale, vec!["LIAB-manual"]);
+}
+
 #[tokio::test]
 async fn loan_history_before_first_confirmation_matches_point_in_time() {
     let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();

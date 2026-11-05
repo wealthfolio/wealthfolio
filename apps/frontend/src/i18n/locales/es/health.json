@@ -6,6 +6,12 @@
       "title_many": "Faltan valoraciones manuales de {{count}} posiciones",
       "message": "Las posiciones manuales o personalizadas necesitan una valoración manual antes de poder incluirse como posiciones de rendimiento valoradas."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valoración sin actualizar de {{name}}",
+      "title_other": "Valoraciones sin actualizar de {{count}} activos",
+      "title_many": "Valoraciones sin actualizar de {{count}} activos",
+      "message": "Algunos activos valorados manualmente no se han actualizado en más de {{days}} días, por lo que tu patrimonio neto puede estar desactualizado."
+    },
     "price_no_market_data": {
       "title_one": "Sin datos de mercado para {{symbol}}",
       "title_other": "Sin datos de mercado para {{count}} posiciones",
@@ -226,6 +232,7 @@
     "rebuild_account_history": "Reconstruir historial",
     "add_price": "Añadir precio",
     "update_cost_basis": "Actualizar base de coste",
+    "update_value": "Actualizar valor",
     "review_transaction": "Revisar transacción",
     "review_entry": "Revisar entrada"
   },
