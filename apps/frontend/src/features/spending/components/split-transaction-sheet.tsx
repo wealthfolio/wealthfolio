@@ -33,6 +33,7 @@ import {
   canDistributeSplitUnits,
   distributeEvenlyUnits,
   distributeRemainingUnits,
+  significantDecimals,
   splitUnitsToAmount,
   toSplitUnits,
 } from "../lib/split-utils";
@@ -135,9 +136,13 @@ export function SplitTransactionSheet({
   const taxonomyId = taxonomyForBucket(activity?.cashFlowBucket);
   const currency = activity?.currency || "USD";
   const currencySymbol = formatting.formatCurrencySymbol(currency);
-  // Splits are summed in the currency's fraction digits, but never fewer than two,
-  // so a total with cents in a currency without minor units can still be split.
-  const splitDecimals = Math.max(2, formatting.currencyFractionDigits(currency));
+  // Keep at least cents, the currency's fraction digits, and the total's own decimals
+  // so the split lines can add up to the stored amount.
+  const splitDecimals = Math.max(
+    2,
+    formatting.currencyFractionDigits(currency),
+    significantDecimals(activity?.amount),
+  );
   const totalUnits = toSplitUnits(activity?.amount, splitDecimals);
   const totalAmount = splitUnitsToAmount(Math.abs(totalUnits), splitDecimals);
 
