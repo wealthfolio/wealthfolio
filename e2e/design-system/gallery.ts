@@ -138,6 +138,69 @@ export function settle(page: Page) {
   );
 }
 
+export interface Motion {
+  /** The animated element's role, or its tag when it has none. */
+  element: string;
+  /** The keyframes' name, or the transitioned property. */
+  name: string;
+  /** How far, in px, the element's box shifts or grows between first and last frame. */
+  moved: number;
+  /** Whether the element is see-through at its first or last frame. */
+  faded: boolean;
+}
+
+/**
+ * Records every animation and transition that starts from now on: each is
+ * caught as it starts, measured at its first and last frame, then finished.
+ * Returns a function that reads what was recorded since.
+ */
+export async function recordMotion(page: Page) {
+  await page.evaluate(() => {
+    const records: Motion[] = [];
+    (window as unknown as { motionRecords: Motion[] }).motionRecords = records;
+    const probe = (event: Event) => {
+      const element = event.target;
+      if (!(element instanceof Element)) return;
+      for (const animation of element.getAnimations()) {
+        const timing = animation.effect?.getComputedTiming();
+        if (animation.playState === "finished" || !timing || timing.iterations === Infinity)
+          continue;
+        animation.pause();
+        animation.currentTime = 0;
+        const first = element.getBoundingClientRect();
+        const firstOpacity = Number(getComputedStyle(element).opacity);
+        animation.currentTime = Math.max(0, Number(timing.endTime) - 1);
+        const last = element.getBoundingClientRect();
+        const lastOpacity = Number(getComputedStyle(element).opacity);
+        animation.finish();
+        records.push({
+          element: element.getAttribute("role") ?? element.tagName.toLowerCase(),
+          name:
+            animation instanceof CSSTransition
+              ? animation.transitionProperty
+              : animation instanceof CSSAnimation
+                ? animation.animationName
+                : "animation",
+          moved: Math.max(
+            Math.abs(first.left - last.left),
+            Math.abs(first.top - last.top),
+            Math.abs(first.width - last.width),
+            Math.abs(first.height - last.height),
+          ),
+          faded: Math.min(firstOpacity, lastOpacity) < 1,
+        });
+      }
+    };
+    document.addEventListener("animationstart", probe, true);
+    document.addEventListener("transitionrun", probe, true);
+  });
+  return () =>
+    page.evaluate(() => {
+      const records = (window as unknown as { motionRecords: Motion[] }).motionRecords;
+      return records.splice(0, records.length);
+    });
+}
+
 /** Lets the browser deliver pending events, such as a scroll, over two frames. */
 export function nextFrames(page: Page) {
   return page.evaluate(

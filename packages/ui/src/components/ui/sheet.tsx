@@ -47,8 +47,10 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
   );
 }
 
+// With reduced motion the panel fades in place instead of sliding; the side
+// variants' translate is overridden (!) whatever their direction variants.
 const sheetVariants = cva(
-  "pointer-events-auto max-h-[min(100%,var(--overlay-max-height,100%))] fixed z-50 gap-4 overflow-y-auto border-(color:--overlay-border) bg-(--sheet-bg) p-6 shadow-(--overlay-shadow) transition-transform ease-in-out data-closed:duration-300 data-open:duration-500",
+  "pointer-events-auto max-h-[min(100%,var(--overlay-max-height,100%))] fixed z-50 gap-4 overflow-y-auto border-(color:--overlay-border) bg-(--sheet-bg) p-6 shadow-(--overlay-shadow) transition-transform ease-in-out data-closed:duration-300 data-open:duration-500 motion-reduce:transition-opacity motion-reduce:data-starting-style:translate-none! motion-reduce:data-ending-style:translate-none! motion-reduce:data-starting-style:opacity-0 motion-reduce:data-ending-style:opacity-0",
   {
     variants: {
       side: {
