@@ -357,7 +357,11 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             // come from the shared agent-tools catalog above (via RigAgentTool).
             // Only import_csv still implements rig's Tool trait directly.
 
-            let mut builder = AgentBuilder::new($model)
+            // rig 0.46 fails a stream that sends nothing for five minutes. A
+            // local model can stay silent that long while it loads or reads a
+            // long prompt, so chat streams keep waiting until the user stops
+            // the run, as before.
+            let mut builder = AgentBuilder::new($model.with_idle_timeout(None))
                 .preamble(&preamble)
                 .dynamic_tools(allowed_tools)
                 .tool_choice(ToolChoice::Auto);
@@ -413,7 +417,8 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             build_without_tools_and_stream!($model, $thinking_params, None::<u64>)
         };
         ($model:expr, $thinking_params:expr, $max_tokens:expr) => {{
-            let mut builder = AgentBuilder::new($model).preamble(&preamble);
+            // No idle timeout, as with tools above.
+            let mut builder = AgentBuilder::new($model.with_idle_timeout(None)).preamble(&preamble);
 
             if let Some(temp) = temperature {
                 builder = builder.temperature(temp);
