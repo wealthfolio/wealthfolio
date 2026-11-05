@@ -69,7 +69,8 @@ pub use service::HealthService;
 
 // Re-export fix types
 pub use fixes::{
-    get_migration_status, migrate_legacy_classifications, MigrationResult, MigrationStatus,
+    get_migration_status, merge_split_assets, migrate_legacy_classifications, MigrationResult,
+    MigrationStatus,
 };
 
 // Re-export data gathering functions from checks

@@ -5,6 +5,7 @@ mod logo_model;
 mod logo_repository;
 mod model;
 mod repository;
+mod split_merge;
 
 pub use alternative_repository::AlternativeAssetRepository;
 pub use logo_model::AssetLogoDB;
