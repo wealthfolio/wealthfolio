@@ -6,6 +6,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import type { NewActivityFormValues } from "../../forms/schemas";
+import type { IncomeAmountTypedLast } from "../../forms/use-income-amounts";
 import { MobileDetailsStep } from "../mobile-details-step";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,6 +59,7 @@ function TestForm({
     },
   });
   const amountWasEdited = useRef(false);
+  const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   // The form's phone sheet, where the account picker opens as a screen.
   return (
     <SheetNavigation>
@@ -68,6 +70,7 @@ function TestForm({
             activityType={ActivityType.DEPOSIT}
             isEditing={isEditing}
             amountWasEdited={amountWasEdited}
+            incomeAmountTypedLast={incomeAmountTypedLast}
           />
           <output data-testid="currency">{form.watch("currency")}</output>
           <button type="submit">Save test activity</button>

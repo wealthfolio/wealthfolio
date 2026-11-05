@@ -57,7 +57,7 @@ import {
   type AssetType,
 } from "../forms/fields";
 import type { NewActivityFormValues } from "../forms/schemas";
-import { useIncomeAmounts } from "../forms/use-income-amounts";
+import { useIncomeAmounts, type IncomeAmountTypedLast } from "../forms/use-income-amounts";
 import { calculateIncomeFinalAmount, calculateTradeFinalCash } from "@/lib/activity-final-amount";
 import { AccountTypeIconTile } from "@/components/account-type-icon";
 
@@ -67,6 +67,8 @@ interface MobileDetailsStepProps {
   isEditing?: boolean;
   /** Owned by the form root; true for a stored or session-entered custom amount. */
   amountWasEdited: RefObject<boolean>;
+  /** Owned by the form root; which cash income amount the user typed last. */
+  incomeAmountTypedLast: RefObject<IncomeAmountTypedLast>;
 }
 
 const INCOME_MODE_CASH = "CASH";
@@ -134,6 +136,7 @@ export function MobileDetailsStep({
   activityType,
   isEditing,
   amountWasEdited,
+  incomeAmountTypedLast,
 }: MobileDetailsStepProps) {
   const { t } = useTranslation();
   const form = useFormContext<NewActivityFormValues>();
@@ -399,6 +402,7 @@ export function MobileDetailsStep({
   const incomeAmounts = useIncomeAmounts(form, {
     enabled: isReceivedIncome,
     includeFee: needsFee,
+    typedLast: incomeAmountTypedLast,
   });
   const destinationAccount = filteredAccounts.find((acc) => acc.value === toAccountId);
   const accountCurrency = selectedAccount?.currency;

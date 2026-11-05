@@ -673,7 +673,7 @@
     "err_split_ratio_gt_zero": "A razão de desdobramento deve ser maior que 0.",
     "err_withholding_tax_number": "A retenção na fonte deve ser um número.",
     "err_withholding_tax_non_negative": "A retenção na fonte não pode ser negativa.",
-    "err_withholding_tax_exceeds_amount": "A retenção na fonte não pode ser superior ao valor antes de impostos.",
+    "err_charges_exceed_amount_before_tax": "Os impostos e as taxas não podem ser superiores ao valor antes de impostos.",
     "err_fmv_number": "O valor justo de mercado por unidade deve ser um número.",
     "err_fmv_gt_zero": "O valor justo de mercado por unidade deve ser maior que 0.",
     "err_received_quantity_number": "A quantidade recebida deve ser um número.",

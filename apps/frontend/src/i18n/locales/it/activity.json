@@ -673,7 +673,7 @@
     "err_split_ratio_gt_zero": "Il rapporto di frazionamento deve essere maggiore di 0.",
     "err_withholding_tax_number": "La ritenuta d'acconto deve essere un numero.",
     "err_withholding_tax_non_negative": "La ritenuta d'acconto non può essere negativa.",
-    "err_withholding_tax_exceeds_amount": "La ritenuta d'acconto non può superare l'importo lordo.",
+    "err_charges_exceed_amount_before_tax": "Imposte e commissioni non possono superare l'importo lordo.",
     "err_fmv_number": "Il valore equo di mercato per unità deve essere un numero.",
     "err_fmv_gt_zero": "Il valore equo di mercato per unità deve essere maggiore di 0.",
     "err_received_quantity_number": "La quantità ricevuta deve essere un numero.",

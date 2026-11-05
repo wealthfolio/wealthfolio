@@ -41,6 +41,8 @@ import { isConversionActivity } from "../../utils/conversion-counterpart";
 import { ActivityForm } from "../activity-form";
 import { showValidationToast, type AccountSelectOption } from "../forms/fields";
 import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
+import type { IncomeAmountTypedLast } from "../forms/use-income-amounts";
+import { calculateIncomeReceivedAmount } from "@/lib/activity-final-amount";
 import { MobileActivitySteps } from "./mobile-activity-steps";
 import { getMobileActivityAssetId, hasStoredCustomTradeAmount } from "./mobile-activity-utils";
 import { Spinner } from "@wealthfolio/ui";
@@ -354,6 +356,9 @@ export function MobileActivityForm({
   // the amount field. Owned here so step navigation cannot reset it before
   // submit reads it.
   const amountWasEdited = useRef(false);
+  // Which cash income amount (before tax or received) the user typed last;
+  // owned here for the same reason.
+  const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   const {
     addActivityMutation,
     updateActivityMutation,
@@ -491,6 +496,7 @@ export function MobileActivityForm({
       : { ...defaultValues, activityDate: new Date() };
 
     amountWasEdited.current = storedAmountIsCustom;
+    incomeAmountTypedLast.current = "gross";
     reset(nextDefaultValues);
     setCurrentStep(shouldStartOnDetails ? 2 : 1);
     setRecordsConversion(false);
@@ -591,9 +597,14 @@ export function MobileActivityForm({
       }
 
       // The schema drops the input-only amount before tax, so read the form.
-      const grossAmount = form.getValues("grossAmount" as any) as number | undefined;
-      if (grossAmount != null && Number(submitData.tax ?? 0) > grossAmount) {
-        form.setError("tax", { message: t("activity:form.err_withholding_tax_exceeds_amount") });
+      // Interest shows a fee next to the tax here, and it comes off too.
+      const receivedBeforeClamp = calculateIncomeReceivedAmount({
+        grossAmount: form.getValues("grossAmount" as any),
+        tax: submitData.tax,
+        fee: submitData.activityType === ActivityType.INTEREST ? submitData.fee : undefined,
+      });
+      if (receivedBeforeClamp !== undefined && receivedBeforeClamp < 0) {
+        form.setError("tax", { message: t("activity:form.err_charges_exceed_amount_before_tax") });
         return;
       }
 
@@ -1072,6 +1083,7 @@ export function MobileActivityForm({
                     isEditing={!!activity?.id}
                     needsTypeSelection={needsTypeSelection}
                     amountWasEdited={amountWasEdited}
+                    incomeAmountTypedLast={incomeAmountTypedLast}
                     onSelectConversion={() => setRecordsConversion(true)}
                   />
                 </form>

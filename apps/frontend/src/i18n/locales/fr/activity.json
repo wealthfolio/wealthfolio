@@ -673,7 +673,7 @@
     "err_split_ratio_gt_zero": "Le ratio de fractionnement doit être supérieur à 0.",
     "err_withholding_tax_number": "La retenue à la source doit être un nombre.",
     "err_withholding_tax_non_negative": "La retenue à la source doit être non négative.",
-    "err_withholding_tax_exceeds_amount": "La retenue à la source ne peut pas dépasser le montant avant impôts.",
+    "err_charges_exceed_amount_before_tax": "Les impôts et frais ne peuvent pas dépasser le montant avant impôts.",
     "err_fmv_number": "La JVM par unité doit être un nombre.",
     "err_fmv_gt_zero": "La JVM par unité doit être supérieure à 0.",
     "err_received_quantity_number": "La quantité reçue doit être un nombre.",

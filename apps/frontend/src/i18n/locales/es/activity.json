@@ -673,7 +673,7 @@
     "err_split_ratio_gt_zero": "El ratio de división debe ser mayor que 0.",
     "err_withholding_tax_number": "La retención fiscal debe ser un número.",
     "err_withholding_tax_non_negative": "La retención fiscal no puede ser negativa.",
-    "err_withholding_tax_exceeds_amount": "La retención fiscal no puede superar el importe antes de impuestos.",
+    "err_charges_exceed_amount_before_tax": "Los impuestos y las comisiones no pueden superar el importe antes de impuestos.",
     "err_fmv_number": "El valor justo de mercado por unidad debe ser un número.",
     "err_fmv_gt_zero": "El valor justo de mercado por unidad debe ser mayor que 0.",
     "err_received_quantity_number": "La cantidad recibida debe ser un número.",

@@ -668,7 +668,7 @@
     "err_split_ratio_gt_zero": "Split ratio must be greater than 0.",
     "err_withholding_tax_number": "Withholding tax must be a number.",
     "err_withholding_tax_non_negative": "Withholding tax must be non-negative.",
-    "err_withholding_tax_exceeds_amount": "Withholding tax can't be more than the amount before tax.",
+    "err_charges_exceed_amount_before_tax": "Tax and fees can't be more than the amount before tax.",
     "err_fmv_number": "FMV per unit must be a number.",
     "err_fmv_gt_zero": "FMV per unit must be greater than 0.",
     "err_received_quantity_number": "Received quantity must be a number.",

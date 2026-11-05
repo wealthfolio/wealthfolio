@@ -2,11 +2,12 @@ import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
 import { render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import type { NewActivityFormValues } from "../../forms/schemas";
+import type { IncomeAmountTypedLast } from "../../forms/use-income-amounts";
 import { MobileDetailsStep } from "../mobile-details-step";
 
 vi.mock("@/lib/settings-provider", () => ({
@@ -39,18 +40,35 @@ function TestForm({
     } as NewActivityFormValues,
   });
   const amountWasEdited = useRef(false);
+  const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
+  const [showDetails, setShowDetails] = useState(true);
   return (
     <QueryClientProvider client={new QueryClient()}>
       <FormProvider {...form}>
-        <MobileDetailsStep
-          accounts={accounts}
-          activityType={activityType}
-          isEditing={saved !== undefined}
-          amountWasEdited={amountWasEdited}
-        />
+        {/* The form root keeps the values while the steps come and go. */}
+        <button type="button" onClick={() => setShowDetails((shown) => !shown)}>
+          Toggle details step
+        </button>
+        <output aria-label="Changed fields">
+          {Object.keys(form.formState.dirtyFields).join(",")}
+        </output>
+        {showDetails && (
+          <MobileDetailsStep
+            accounts={accounts}
+            activityType={activityType}
+            isEditing={saved !== undefined}
+            amountWasEdited={amountWasEdited}
+            incomeAmountTypedLast={incomeAmountTypedLast}
+          />
+        )}
       </FormProvider>
     </QueryClientProvider>
   );
+}
+
+async function leaveAndReturn() {
+  await userEvent.click(screen.getByRole("button", { name: "Toggle details step" }));
+  await userEvent.click(screen.getByRole("button", { name: "Toggle details step" }));
 }
 
 const field = (label: string) => screen.getByLabelText(label);
@@ -107,6 +125,30 @@ describe("mobile income amount before tax", () => {
     render(<TestForm activityType={ActivityType.DIVIDEND} saved={{ amount: 85, tax: 15 }} />);
 
     await waitFor(() => expect(field("Amount before tax")).toHaveValue("100"));
+    // Showing the rebuilt amount is not an edit to discard on close.
+    expect(screen.getByLabelText("Changed fields")).toHaveTextContent(/^$/);
+  });
+
+  it("keeps a too-large tax refused after leaving the step and coming back", async () => {
+    render(<TestForm activityType={ActivityType.DIVIDEND} />);
+    await retype("Amount before tax", "10");
+    await retype("Withholding tax (Optional)", "15");
+
+    await leaveAndReturn();
+
+    expect(field("Amount before tax")).toHaveValue("10");
+    expect(field("Received amount")).toHaveValue("0");
+  });
+
+  it("keeps a typed received amount fixed after leaving the step and coming back", async () => {
+    render(<TestForm activityType={ActivityType.DIVIDEND} />);
+    await retype("Received amount", "85");
+
+    await leaveAndReturn();
+    await retype("Withholding tax (Optional)", "15");
+
+    expect(field("Received amount")).toHaveValue("85");
+    expect(field("Amount before tax")).toHaveValue("100");
   });
 
   it("leaves a reinvested dividend's amount as it is", () => {

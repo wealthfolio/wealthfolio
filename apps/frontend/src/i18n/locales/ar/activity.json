@@ -359,7 +359,7 @@
     "err_ticker_required": "رمز السهم مطلوب",
     "err_underlying_required": "رمز الأصل الأساسي مطلوب.",
     "err_withholding_tax_non_negative": "يجب ألا تكون ضريبة الاستقطاع سالبة.",
-    "err_withholding_tax_exceeds_amount": "لا يمكن أن تتجاوز ضريبة الاستقطاع المبلغ قبل الضريبة.",
+    "err_charges_exceed_amount_before_tax": "لا يمكن أن تتجاوز الضرائب والرسوم المبلغ قبل الضريبة.",
     "err_withholding_tax_number": "يجب أن تكون ضريبة الاستقطاع رقمًا.",
     "expiration": "انتهاء الصلاحية",
     "external_transfer": "تحويل خارجي",

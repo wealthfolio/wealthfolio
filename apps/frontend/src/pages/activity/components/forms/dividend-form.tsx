@@ -129,8 +129,8 @@ export const createDividendFormSchema = (t?: TFunction) =>
           path: ["tax"],
           message: msg(
             t,
-            "activity:form.err_withholding_tax_exceeds_amount",
-            "Withholding tax can't be more than the amount before tax.",
+            "activity:form.err_charges_exceed_amount_before_tax",
+            "Tax and fees can't be more than the amount before tax.",
           ),
         });
       }

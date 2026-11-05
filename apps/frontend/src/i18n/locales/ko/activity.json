@@ -665,7 +665,7 @@
     "err_split_ratio_gt_zero": "분할 비율은 0보다 커야 합니다.",
     "err_withholding_tax_number": "원천징수세는 숫자여야 합니다.",
     "err_withholding_tax_non_negative": "원천징수세는 음수가 될 수 없습니다.",
-    "err_withholding_tax_exceeds_amount": "원천징수세는 세전 금액을 초과할 수 없습니다.",
+    "err_charges_exceed_amount_before_tax": "세금과 수수료는 세전 금액을 초과할 수 없습니다.",
     "err_fmv_number": "단위당 공정시장가치는 숫자여야 합니다.",
     "err_fmv_gt_zero": "단위당 공정시장가치는 0보다 커야 합니다.",
     "err_received_quantity_number": "수령 수량은 숫자여야 합니다.",

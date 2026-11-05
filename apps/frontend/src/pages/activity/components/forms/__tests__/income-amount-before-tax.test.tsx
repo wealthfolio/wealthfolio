@@ -130,7 +130,7 @@ describe("dividend amount before tax", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /add dividend/i }));
     expect(
-      await screen.findByText("Withholding tax can't be more than the amount before tax."),
+      await screen.findByText("Tax and fees can't be more than the amount before tax."),
     ).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
