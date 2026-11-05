@@ -665,7 +665,7 @@
     "err_split_ratio_gt_zero": "拆股比例必须大于 0。",
     "err_withholding_tax_number": "预扣税必须为数字。",
     "err_withholding_tax_non_negative": "预扣税不能为负数。",
-    "err_withholding_tax_exceeds_amount": "预扣税不能超过税前金额。",
+    "err_charges_exceed_amount_before_tax": "税款和费用不能超过税前金额。",
     "err_fmv_number": "每单位公允市值必须为数字。",
     "err_fmv_gt_zero": "每单位公允市值必须大于 0。",
     "err_received_quantity_number": "收到数量必须为数字。",

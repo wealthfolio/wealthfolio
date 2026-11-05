@@ -565,7 +565,7 @@
     "err_split_ratio_gt_zero": "Das Split-Verhältnis muss größer als 0 sein.",
     "err_withholding_tax_number": "Die Quellensteuer muss eine Zahl sein.",
     "err_withholding_tax_non_negative": "Die Quellensteuer darf nicht negativ sein.",
-    "err_withholding_tax_exceeds_amount": "Die Quellensteuer darf den Betrag vor Steuern nicht übersteigen.",
+    "err_charges_exceed_amount_before_tax": "Steuern und Gebühren dürfen den Betrag vor Steuern nicht übersteigen.",
     "err_fmv_number": "Der Marktwert pro Einheit muss eine Zahl sein.",
     "err_fmv_gt_zero": "Der Marktwert pro Einheit muss größer als 0 sein.",
     "err_received_quantity_number": "Die erhaltene Menge muss eine Zahl sein.",

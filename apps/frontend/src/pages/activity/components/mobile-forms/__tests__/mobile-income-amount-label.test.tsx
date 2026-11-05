@@ -6,6 +6,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import type { NewActivityFormValues } from "../../forms/schemas";
+import type { IncomeAmountTypedLast } from "../../forms/use-income-amounts";
 import { MobileDetailsStep } from "../mobile-details-step";
 
 vi.mock("@/lib/settings-provider", () => ({
@@ -43,6 +44,7 @@ function TestForm({
     } as NewActivityFormValues,
   });
   const amountWasEdited = useRef(false);
+  const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   return (
     <QueryClientProvider client={new QueryClient()}>
       <FormProvider {...form}>
@@ -50,6 +52,7 @@ function TestForm({
           accounts={accounts}
           activityType={activityType}
           amountWasEdited={amountWasEdited}
+          incomeAmountTypedLast={incomeAmountTypedLast}
         />
       </FormProvider>
     </QueryClientProvider>

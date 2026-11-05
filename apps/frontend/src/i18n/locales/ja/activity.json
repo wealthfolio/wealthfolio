@@ -665,7 +665,7 @@
     "err_split_ratio_gt_zero": "分割比率は0より大きい値である必要があります。",
     "err_withholding_tax_number": "源泉徴収税は数値である必要があります。",
     "err_withholding_tax_non_negative": "源泉徴収税は0以上である必要があります。",
-    "err_withholding_tax_exceeds_amount": "源泉徴収税は税引前金額を超えることはできません。",
+    "err_charges_exceed_amount_before_tax": "税金と手数料の合計は税引前金額を超えることはできません。",
     "err_fmv_number": "単位あたりFMVは数値である必要があります。",
     "err_fmv_gt_zero": "単位あたりFMVは0より大きい値である必要があります。",
     "err_received_quantity_number": "受取数量は数値である必要があります。",
