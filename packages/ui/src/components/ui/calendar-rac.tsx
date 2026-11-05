@@ -47,7 +47,8 @@ function CalendarHeader({ large = false }: { large?: boolean }) {
 
 function CalendarGridComponent({ isRange = false, large = false }: { isRange?: boolean; large?: boolean }) {
   const now = today(getLocalTimeZone());
-  const largeCell = large && "mx-auto size-11 rounded-full text-base";
+  // Up to 44px, and narrower when seven columns don't fit (a 320px screen leaves 288px).
+  const largeCell = large && "mx-auto aspect-square size-auto w-full max-w-11 rounded-full text-base";
 
   return (
     <CalendarGridRac className={cn(large && "w-full")}>

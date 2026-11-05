@@ -37,6 +37,8 @@ describe("HealthStatusIndicator", () => {
   it("shows a figure notice alone as a warning badge that does not navigate", () => {
     const { container } = renderBadge(<p>Stale valuations</p>);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    // Keyboard and screen-reader users can still reach it.
+    expect(screen.getByRole("button", { name: /data status/i })).toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass("text-warning-subtle-foreground");
   });
 
