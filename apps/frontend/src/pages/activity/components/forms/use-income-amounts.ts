@@ -54,11 +54,30 @@ export function useIncomeAmounts<T extends FieldValues>(
     return received === undefined ? undefined : Math.max(received, 0);
   };
 
+  // Brings the amount the user did not type last in line with the charges that
+  // apply now, writing only what changes.
+  const reconcile = () => {
+    const writeIfChanged = (name: "amount" | "grossAmount", value: number | undefined) => {
+      if (read(name) !== value) write(name, value);
+    };
+    if (typedLast.current === "received") {
+      const receivedAmount = read("amount");
+      if (receivedAmount == null) return;
+      writeIfChanged("grossAmount", calculateIncomeGrossAmount({ receivedAmount, ...charges() }));
+    } else {
+      const grossAmount = read("grossAmount");
+      if (grossAmount == null) return;
+      writeIfChanged("amount", receivedFrom(grossAmount));
+    }
+  };
+
   // When the fields appear (opening a saved row, or switching to a cash
   // payment), rebuild the amount before tax from the received amount as the
   // field's starting value, so showing it is not an edit to discard on close.
-  // An amount already there stays: a phone step shown again remounts this, and
-  // what the user typed must survive. Hidden, the amount is cleared.
+  // An amount already there stays, as what the user typed: a phone step shown
+  // again remounts this, possibly for another type whose charges differ (only
+  // interest shows a fee), so the other amount is brought back in line.
+  // Hidden, the amount is cleared.
   useEffect(() => {
     const current = read("grossAmount");
     if (!enabled) {
@@ -70,7 +89,10 @@ export function useIncomeAmounts<T extends FieldValues>(
       }
       return;
     }
-    if (current != null) return;
+    if (current != null) {
+      reconcile();
+      return;
+    }
     typedLast.current = "gross";
     const rebuilt = calculateIncomeGrossAmount({ receivedAmount: read("amount"), ...charges() });
     if (rebuilt !== undefined) {
@@ -94,16 +116,7 @@ export function useIncomeAmounts<T extends FieldValues>(
 
   /** Call after the tax or fee field has stored its new value. */
   const onChargeChange = () => {
-    if (!enabled) return;
-    if (typedLast.current === "received") {
-      const receivedAmount = read("amount");
-      if (receivedAmount == null) return;
-      write("grossAmount", calculateIncomeGrossAmount({ receivedAmount, ...charges() }));
-    } else {
-      const grossAmount = read("grossAmount");
-      if (grossAmount == null) return;
-      write("amount", receivedFrom(grossAmount));
-    }
+    if (enabled) reconcile();
   };
 
   return { onGrossAmountChange, onReceivedAmountChange, onChargeChange };
