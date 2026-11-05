@@ -27,6 +27,25 @@ const serverProxy = enableProxy
 // TAURI_DEV_HOST is only set for mobile/network dev, so we can't rely on it
 const buildTarget = process.env.BUILD_TARGET || "tauri";
 
+// Modules that are imported both statically and with import(), on purpose:
+// addons-core breaks its import cycle with addons-loader, i18n.ts loads every
+// catalog lazily while a few English catalogs are needed synchronously, and the
+// Tauri adapter imports these Tauri APIs statically. Vite warns that such an
+// import() can't split the module out; the warning stays on for other module paths.
+const intendedMixedImports = [
+  "/@tauri-apps/api/core.js",
+  "/@tauri-apps/api/event.js",
+  "/@tauri-apps/plugin-dialog/dist-js/index.js",
+  "/@tauri-apps/plugin-fs/dist-js/index.js",
+  "/src/addons/addons-loader.ts",
+  "/src/i18n/locales/en/activity.json",
+  "/src/i18n/locales/en/settings.json",
+  "/src/i18n/locales/en/spending.json",
+  "/src/i18n/locales/en/taxonomies.json",
+];
+const mixedImportWarning =
+  /\(!\) (.+?) is dynamically imported by .* dynamic import will not move module into another chunk/s;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   envDir: "../..",
@@ -104,6 +123,12 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "index.html"),
         "addon-sandbox": path.resolve(__dirname, "addon-sandbox.html"),
+      },
+      onwarn(warning, warn) {
+        if (warning.plugin !== "vite:reporter") return warn(warning);
+        const id = warning.message.match(mixedImportWarning)?.[1];
+        if (id && intendedMixedImports.some((suffix) => id.endsWith(suffix))) return;
+        warn(warning);
       },
     },
     // don't minify for debug builds
