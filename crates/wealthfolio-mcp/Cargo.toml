@@ -28,6 +28,7 @@ wealthfolio-storage-sqlite = { workspace = true }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"] }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = "0.7"
 wealthfolio-core = { workspace = true }
 wealthfolio-spending = { workspace = true }
 
