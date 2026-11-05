@@ -301,7 +301,7 @@ export function AllocationDetailSheet({
                     {/* Children rows */}
                     {hasChildren && (
                       <div
-                        className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+                        className={`grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none ${
                           isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                         }`}
                       >
