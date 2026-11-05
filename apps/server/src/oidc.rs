@@ -9,7 +9,8 @@
 //! a short-lived **encrypted** cookie rather than server memory, so the flow is
 //! stateless and survives restarts.
 
-use reqwest_oidc as reqwest;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::RwLock;
 use std::time::Duration;
 
@@ -28,8 +29,9 @@ use chacha20poly1305::{
 };
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient, CoreIdTokenClaims, CoreProviderMetadata},
-    AuthorizationCode, ClaimsVerificationError, ClientId, ClientSecret, CsrfToken, IssuerUrl,
-    Nonce as OidcNonce, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
+    AsyncHttpClient, AuthorizationCode, ClaimsVerificationError, ClientId, ClientSecret, CsrfToken,
+    HttpClientError, HttpRequest, HttpResponse, IssuerUrl, Nonce as OidcNonce, PkceCodeChallenge,
+    PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
 };
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -172,8 +174,40 @@ pub struct OidcManager {
     end_session_endpoint: Option<String>,
     post_logout_redirect_url: Option<String>,
     rp_logout: bool,
-    http_client: reqwest::Client,
+    http_client: OidcHttpClient,
     encryption_key: [u8; 32],
+}
+
+/// openidconnect's HTTP transport on the workspace reqwest. openidconnect 4 only
+/// ships a client for reqwest 0.12; this is the same code (oauth2's
+/// `reqwest_client.rs`, also published as `oauth2-reqwest`) for our version.
+struct OidcHttpClient(reqwest::Client);
+
+impl<'c> AsyncHttpClient<'c> for OidcHttpClient {
+    type Error = HttpClientError<reqwest::Error>;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<HttpResponse, Self::Error>> + Send + Sync + 'c>>;
+
+    fn call(&'c self, request: HttpRequest) -> Self::Future {
+        Box::pin(async move {
+            let response = self
+                .0
+                .execute(request.try_into().map_err(Box::new)?)
+                .await
+                .map_err(Box::new)?;
+
+            let mut builder = openidconnect::http::Response::builder()
+                .status(response.status())
+                .version(response.version());
+            for (name, value) in response.headers() {
+                builder = builder.header(name, value);
+            }
+
+            builder
+                .body(response.bytes().await.map_err(Box::new)?.to_vec())
+                .map_err(HttpClientError::Http)
+        })
+    }
 }
 
 impl OidcManager {
@@ -182,14 +216,13 @@ impl OidcManager {
         // Disallow redirects: discovery and token endpoints must be hit directly.
         // Bounded timeouts so a slow/unreachable IdP can't hang startup discovery
         // or tie up a worker during the token exchange in `oidc_callback`.
-        let mut builder = reqwest::ClientBuilder::new()
+        // The bundled roots every client uses; `WF_OIDC_CA_FILE` adds to them.
+        let mut builder = wealthfolio_http::client_builder()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(10));
         if let Some(path) = config.ca_file.as_deref() {
-            for cert in load_extra_roots(path)? {
-                builder = builder.add_root_certificate(cert);
-            }
+            builder = builder.tls_certs_merge(load_extra_roots(path)?);
         }
         // `load_extra_roots` only splits the PEM blocks; the certificates inside
         // are parsed here, so a corrupt one surfaces as a build error.
@@ -202,6 +235,7 @@ impl OidcManager {
                 ),
                 None => e.into(),
             })?;
+        let http_client = OidcHttpClient(http_client);
 
         let issuer = IssuerUrl::new(config.issuer_url.clone())
             .map_err(|e| anyhow::anyhow!("Invalid WF_OIDC_ISSUER_URL: {e}"))?;
@@ -226,7 +260,7 @@ impl OidcManager {
         // not part of CoreProviderMetadata, so read it from the discovery doc
         // directly. Best-effort: absence just means logout stays local-only.
         let end_session_endpoint = if config.rp_logout {
-            fetch_end_session_endpoint(&http_client, &config.issuer_url).await
+            fetch_end_session_endpoint(&http_client.0, &config.issuer_url).await
         } else {
             None
         };
@@ -865,8 +899,8 @@ mod tests {
         // A reqwest error whose rustls cause sits in `source()`, wrapped the way
         // `discover_async` returns transport failures.
         let cert = reqwest::Certificate::from_pem(CORRUPT_CERT.as_bytes()).unwrap();
-        let transport = reqwest::ClientBuilder::new()
-            .add_root_certificate(cert)
+        let transport = wealthfolio_http::client_builder()
+            .tls_certs_merge([cert])
             .build()
             .unwrap_err()
             .with_url(
@@ -893,8 +927,8 @@ mod tests {
     #[test]
     fn error_message_drops_a_url_query() {
         let cert = reqwest::Certificate::from_pem(CORRUPT_CERT.as_bytes()).unwrap();
-        let transport = reqwest::ClientBuilder::new()
-            .add_root_certificate(cert)
+        let transport = wealthfolio_http::client_builder()
+            .tls_certs_merge([cert])
             .build()
             .unwrap_err()
             .with_url("https://idp.example/jwks?token=s3cret".parse().unwrap());
