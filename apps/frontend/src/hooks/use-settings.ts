@@ -11,7 +11,9 @@ export function useSettings() {
 
   return useQuery<Settings, Error>({
     queryKey: [QueryKeys.SETTINGS],
-    queryFn: isWeb ? () => fetchWebCurrencySettings(queryClient, getSettings) : getSettings,
+    queryFn: isWeb
+      ? ({ signal }) => fetchWebCurrencySettings(queryClient, getSettings, signal)
+      : getSettings,
     enabled: !statusLoading && isAuthenticated,
   });
 }

@@ -22,6 +22,38 @@ describe("web currency cache transition", () => {
     client.clear();
   });
 
+  it("does not reset caches when a settings fetch is cancelled after saving", async () => {
+    const client = new QueryClient();
+    const controller = new AbortController();
+    client.setQueryData([QueryKeys.SETTINGS], { baseCurrency: "CAD" });
+    let finish!: (settings: Settings) => void;
+    const pending = fetchWebCurrencySettings(
+      client,
+      () =>
+        new Promise<Settings>((resolve) => {
+          finish = resolve;
+        }),
+      controller.signal,
+    );
+    controller.abort();
+    client.setQueryData([QueryKeys.SETTINGS], { baseCurrency: "USD" });
+    client.setQueryData([QueryKeys.HOLDINGS], { amount: 500 });
+    finish({ baseCurrency: "CAD" } as Settings);
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(client.getQueryData<Settings>([QueryKeys.SETTINGS])?.baseCurrency).toBe("USD");
+    expect(client.getQueryData([QueryKeys.HOLDINGS])).toEqual({ amount: 500 });
+    client.clear();
+  });
+
+  it("preserves financial caches for a same-currency settings fetch", async () => {
+    const client = new QueryClient();
+    client.setQueryData([QueryKeys.SETTINGS], { baseCurrency: "CAD" });
+    client.setQueryData([QueryKeys.HOLDINGS], { amount: 100 });
+    await fetchWebCurrencySettings(client, async () => ({ baseCurrency: "CAD" }) as Settings);
+    expect(client.getQueryData([QueryKeys.HOLDINGS])).toEqual({ amount: 100 });
+    client.clear();
+  });
+
   it("recognizes only an explicit currency completion event", () => {
     expect(isWebCurrencyCompletion({ baseCurrencyChanged: true })).toBe(true);
     for (const payload of [

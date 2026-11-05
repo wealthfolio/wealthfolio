@@ -27,13 +27,15 @@ use wealthfolio_core::{
 use crate::{
     api::shared::{PortfolioJobConfig, ServerJobObserver},
     error::{ApiError, ApiResult},
-    events::{ServerEvent, PORTFOLIO_UPDATE_COMPLETE},
+    events::{
+        ServerEvent, PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+    },
     main_lib::AppState,
 };
 
 #[derive(Default)]
 pub(crate) struct CurrencyTransition {
-    settings: tokio::sync::Mutex<()>,
+    settings: Arc<tokio::sync::Mutex<()>>,
     blocked: AtomicBool,
     revision: AtomicU64,
 }
@@ -83,14 +85,22 @@ pub(crate) async fn spawn_startup_update(
         return Ok(());
     }
 
+    let settings = state
+        .currency_transition
+        .settings
+        .clone()
+        .lock_owned()
+        .await;
     state.currency_transition.begin();
+    publish_start(&state);
     tokio::spawn(async move {
-        let _settings = state.currency_transition.settings.lock().await;
-        state.currency_transition.begin();
+        let _settings = settings;
         let result = rebuild(&state).await;
         state.currency_transition.finish(result.is_ok());
         if result.is_ok() {
             publish_completion(&state).await;
+        } else if let Err(error) = result {
+            publish_error(&state, &error);
         }
     });
     Ok(())
@@ -101,6 +111,20 @@ async fn publish_completion(state: &AppState) {
     state.event_bus.publish(ServerEvent::with_payload(
         PORTFOLIO_UPDATE_COMPLETE,
         serde_json::json!({ "baseCurrencyChanged": true }),
+    ));
+}
+
+fn publish_start(state: &AppState) {
+    state.event_bus.publish(ServerEvent::with_payload(
+        PORTFOLIO_UPDATE_START,
+        serde_json::json!({ "baseCurrencyChanged": true }),
+    ));
+}
+
+fn publish_error(state: &AppState, error: &ApiError) {
+    state.event_bus.publish(ServerEvent::with_payload(
+        PORTFOLIO_UPDATE_ERROR,
+        serde_json::json!(error.to_string()),
     ));
 }
 
@@ -121,9 +145,9 @@ impl JobObserver for CurrencyObserver {
         self.0.market_sync_failed(message);
     }
 
-    fn update_started(&self) {
-        self.0.update_started();
-    }
+    // The transition publishes a tagged start event when it begins blocking
+    // reads, before the coordinator starts its backfill.
+    fn update_started(&self) {}
 
     fn update_failed(&self, failure: &AccountFailure) {
         self.0.update_failed(failure);
@@ -161,14 +185,20 @@ pub(super) async fn rebuild(state: &Arc<AppState>) -> ApiResult<()> {
     Ok(())
 }
 
-/// Keep the rebuild alive if the browser disconnects or the request times out.
-/// The success response is produced only after the complete history is ready.
+/// Save settings synchronously, then keep the currency rebuild alive in the
+/// background if the browser disconnects or the request times out. The owned
+/// settings guard serializes base-currency writes until the rebuild finishes.
 pub(super) async fn update_settings(
     Extension(state): Extension<Arc<AppState>>,
     Json(payload): Json<SettingsUpdate>,
 ) -> ApiResult<Json<Settings>> {
     let task = tokio::spawn(async move {
-        let _settings = state.currency_transition.settings.lock().await;
+        let settings = state
+            .currency_transition
+            .settings
+            .clone()
+            .lock_owned()
+            .await;
         let previous = state.base_currency()?;
         let blocked = state.currency_transition.blocked.load(Ordering::SeqCst);
         let changed = payload
@@ -181,23 +211,34 @@ pub(super) async fn update_settings(
         }
 
         let result = super::update_settings(Extension(state.clone()), Json(payload)).await;
-        let result = match result {
-            Ok(settings) if transition && !changed => rebuild(&state).await.map(|()| settings),
-            result => result,
-        };
-
-        if transition {
-            // A validation error before persistence leaves the old history
-            // valid and readable. A failed persisted change remains blocked.
-            let unchanged = !blocked && state.base_currency().is_ok_and(|base| base == previous);
-            state
-                .currency_transition
-                .finish(result.is_ok() || unchanged);
-            if result.is_ok() {
-                publish_completion(&state).await;
+        match result {
+            Ok(settings_response) if transition => {
+                publish_start(&state);
+                let state_for_rebuild = state.clone();
+                tokio::spawn(async move {
+                    let _settings = settings;
+                    let result = rebuild(&state_for_rebuild).await;
+                    state_for_rebuild.currency_transition.finish(result.is_ok());
+                    match result {
+                        Ok(()) => publish_completion(&state_for_rebuild).await,
+                        Err(error) => publish_error(&state_for_rebuild, &error),
+                    }
+                });
+                Ok(settings_response)
+            }
+            result => {
+                if transition {
+                    // A validation error before persistence leaves the old history
+                    // valid and readable. A failed persisted change remains blocked.
+                    let unchanged =
+                        !blocked && state.base_currency().is_ok_and(|base| base == previous);
+                    state
+                        .currency_transition
+                        .finish(result.is_ok() || unchanged);
+                }
+                result
             }
         }
-        result
     });
 
     task.await.map_err(|_| {
@@ -259,8 +300,7 @@ async fn guard_transition(
         .path()
         .strip_prefix("/api/v1")
         .unwrap_or(request.uri().path());
-    let settings_read = path == "/settings" && request.method() == axum::http::Method::GET;
-    if !settings_read && !financial_path(path) {
+    if !guarded_read(path, request.method()) {
         return next.run(request).await;
     }
 
@@ -274,6 +314,39 @@ async fn guard_transition(
     } else {
         unavailable()
     }
+}
+
+fn guarded_read(path: &str, method: &axum::http::Method) -> bool {
+    let settings_read = path == "/settings";
+    let safe_method = matches!(*method, axum::http::Method::GET | axum::http::Method::HEAD);
+    if settings_read {
+        return safe_method;
+    }
+    if !financial_path(path) {
+        return false;
+    }
+    safe_method || (*method == axum::http::Method::POST && post_read_path(path))
+}
+
+fn post_read_path(path: &str) -> bool {
+    matches!(
+        path,
+        "/holdings/query"
+            | "/holdings/list/query"
+            | "/valuations/history/query"
+            | "/valuations/current/query"
+            | "/allocations/query"
+            | "/allocations/holdings/query"
+            | "/performance/accounts/simple"
+            | "/performance/history"
+            | "/performance/summary"
+            | "/performance/summaries"
+            | "/income/summary/query"
+            | "/spending/cash-activities/search"
+            | "/spending/report"
+            | "/spending/insight"
+            | "/spending/event-spending-summaries"
+    )
 }
 
 impl CurrencyTransition {
@@ -294,8 +367,36 @@ impl CurrencyTransition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, middleware, routing::get, Router};
+    use crate::config::Config;
+    use axum::{
+        body::Body,
+        middleware,
+        routing::{get, post},
+        Router,
+    };
+    use std::time::Duration;
     use tower::ServiceExt;
+    use wealthfolio_core::settings::SettingsUpdate;
+
+    fn test_config(root: &std::path::Path) -> Config {
+        Config {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            db_path: root.join("app.db").to_string_lossy().into_owned(),
+            addons_root: root.join("addons").to_string_lossy().into_owned(),
+            static_dir: root.join("static").to_string_lossy().into_owned(),
+            cors_allow: vec![],
+            request_timeout: Duration::from_secs(10),
+            raw_secret_key: vec![7; 32],
+            secrets_encryption_key: [8; 32],
+            database_key: [9; 32],
+            db_encryption_required: false,
+            auth: None,
+            oidc: None,
+            mcp_enabled: false,
+            mcp_audit_enabled: false,
+            mcp_allowed_hosts: None,
+        }
+    }
 
     #[test]
     fn currency_rebuild_covers_every_account_from_genesis() {
@@ -311,12 +412,132 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn transition_guard_only_covers_read_routes() {
+        assert!(guarded_read("/settings", &axum::http::Method::GET));
+        assert!(guarded_read("/settings", &axum::http::Method::HEAD));
+        assert!(!guarded_read("/settings", &axum::http::Method::PUT));
+        assert!(guarded_read("/holdings/query", &axum::http::Method::POST));
+        assert!(guarded_read(
+            "/performance/summary",
+            &axum::http::Method::POST
+        ));
+        assert!(!guarded_read("/holdings", &axum::http::Method::POST));
+        assert!(!guarded_read(
+            "/spending/rules/upsert",
+            &axum::http::Method::POST
+        ));
+    }
+
+    struct PausedJob {
+        entered: tokio::sync::Notify,
+        release: tokio::sync::Notify,
+    }
+
+    #[async_trait::async_trait]
+    impl JobObserver for PausedJob {
+        async fn update_completed(&self) {
+            self.entered.notify_one();
+            self.release.notified().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn changed_currency_returns_after_scheduling_background_rebuild() {
+        let root = tempfile::tempdir().unwrap();
+        let state = crate::build_state(&test_config(root.path())).await.unwrap();
+        let pause = Arc::new(PausedJob {
+            entered: tokio::sync::Notify::new(),
+            release: tokio::sync::Notify::new(),
+        });
+        let running = tokio::spawn({
+            let state = state.clone();
+            let pause = pause.clone();
+            async move {
+                state.portfolio_coordinator.run_job(
+                    PortfolioJobConfig::default().into_request(), pause.as_ref(),
+                ).await.unwrap();
+            }
+        });
+        tokio::time::timeout(Duration::from_secs(10), pause.entered.notified())
+            .await.unwrap();
+        let mut events = state.event_bus.subscribe();
+
+        let response = tokio::time::timeout(Duration::from_secs(2), update_settings(
+            Extension(state.clone()),
+            Json(SettingsUpdate {
+                theme_id: None,
+                gain_colors: None,
+                theme: None,
+                font: None,
+                text_size: None,
+                language: None,
+                formatting_region: None,
+                currency_formatting_regions: None,
+                base_currency: Some("EUR".to_string()),
+                timezone: None,
+                onboarding_completed: None,
+                auto_update_check_enabled: None,
+                menu_bar_visible: None,
+                sync_enabled: None,
+                default_return_metric: None,
+                insights_overview_layout: None,
+            }),
+        ))
+        .await
+        .expect("saving must not wait for the busy coordinator")
+        .unwrap();
+        assert_eq!(response.0.base_currency, "EUR");
+        assert!(state.currency_transition.blocked.load(Ordering::SeqCst));
+        assert!(state.currency_transition.settings.try_lock().is_err());
+        pause.release.notify_one();
+        running.await.unwrap();
+
+        let start = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let event = events.recv().await.unwrap();
+                if event.name == PORTFOLIO_UPDATE_START
+                    && event.payload.as_ref().is_some_and(|payload| {
+                        payload["baseCurrencyChanged"] == serde_json::Value::Bool(true)
+                    })
+                {
+                    break event;
+                }
+            }
+        })
+        .await
+        .expect("currency rebuild should be scheduled after the save");
+        assert_eq!(start.name, PORTFOLIO_UPDATE_START);
+
+        let completion = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let event = events.recv().await.unwrap();
+                if event.name == PORTFOLIO_UPDATE_COMPLETE
+                    && event.payload.as_ref().is_some_and(|payload| {
+                        payload["baseCurrencyChanged"] == serde_json::Value::Bool(true)
+                    })
+                {
+                    break event;
+                }
+            }
+        })
+        .await
+        .expect("background currency rebuild should complete");
+        assert_eq!(completion.name, PORTFOLIO_UPDATE_COMPLETE);
+        assert!(!state.currency_transition.blocked.load(Ordering::SeqCst));
+    }
+
     fn test_router(transition: Arc<CurrencyTransition>) -> Router {
         Router::new()
             .route(
                 "/valuations/history/query",
                 get(|| async { "old-currency amounts" }),
             )
+            .route(
+                "/holdings/query",
+                post(|| async { "old-currency amounts" }),
+            )
+            .route("/holdings", post(|| async { "write accepted" }))
             .route(
                 "/settings",
                 get(|| async { "settings" }).put(|| async { "retry accepted" }),
@@ -332,15 +553,31 @@ mod tests {
         let transition = Arc::new(CurrencyTransition::default());
         let router = test_router(transition.clone());
         transition.begin();
-        for path in ["/valuations/history/query", "/settings"] {
+        for (method, path) in [
+            ("GET", "/valuations/history/query"),
+            ("POST", "/holdings/query"),
+            ("GET", "/settings"),
+        ] {
             let response = router
                 .clone()
-                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::CONFLICT);
             assert_eq!(response.headers()[header::RETRY_AFTER], "2");
         }
+        let write = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/holdings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(write.status(), StatusCode::OK);
         let retry = router
             .clone()
             .oneshot(
@@ -354,6 +591,27 @@ mod tests {
             .unwrap();
         assert_eq!(retry.status(), StatusCode::OK);
         transition.finish(true);
+    }
+
+    #[tokio::test]
+    async fn committed_write_response_survives_a_transition() {
+        let transition = Arc::new(CurrencyTransition::default());
+        let app = Router::new()
+            .route("/holdings", post({
+                let transition = transition.clone();
+                move || async move {
+                    transition.begin();
+                    transition.finish(true);
+                    StatusCode::CREATED
+                }
+            }))
+            .layer(middleware::from_fn(move |request, next| {
+                let transition = transition.clone();
+                async move { guard_transition(&transition, request, next).await }
+            }));
+        let response = app.oneshot(Request::builder().method("POST")
+            .uri("/holdings").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 
     #[test]

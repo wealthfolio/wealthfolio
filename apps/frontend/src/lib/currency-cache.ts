@@ -1,4 +1,4 @@
-// A web currency change is acknowledged only after the server rebuilds history.
+// A web currency save starts a background history rebuild.
 // Cancel old in-flight responses and clear financial amounts before accepting
 // the new settings label.
 import { notifyManager, type QueryClient } from "@tanstack/react-query";
@@ -44,12 +44,15 @@ const currencyKeys = new Set<string>([
 export async function resetWebCurrencyQueries(
   queryClient: QueryClient,
   authoritativeSettings?: Settings,
+  options: { signal?: AbortSignal; refetch?: boolean } = {},
 ): Promise<void> {
   const filter = {
     predicate: (query: { queryKey: readonly unknown[] }) =>
       typeof query.queryKey[0] === "string" && currencyKeys.has(query.queryKey[0]),
   };
+  options.signal?.throwIfAborted();
   await queryClient.cancelQueries(filter);
+  options.signal?.throwIfAborted();
   const queries = queryClient.getQueryCache().findAll(filter);
   notifyManager.batch(() => {
     // Query.reset() is the cache operation used by resetQueries, without its
@@ -59,7 +62,7 @@ export async function resetWebCurrencyQueries(
       queryClient.setQueryData([QueryKeys.SETTINGS], authoritativeSettings);
     }
   });
-  if (authoritativeSettings) {
+  if (authoritativeSettings && options.refetch !== false) {
     await queryClient.refetchQueries({ ...filter, type: "active" });
   }
 }
@@ -76,11 +79,14 @@ export function isWebCurrencyCompletion(payload: unknown): boolean {
 export async function fetchWebCurrencySettings(
   queryClient: QueryClient,
   fetchSettings: () => Promise<Settings>,
+  signal?: AbortSignal,
 ): Promise<Settings> {
   const next = await fetchSettings();
+  // Query cancellation cannot stop an adapter promise or its side effects.
+  signal?.throwIfAborted();
   const previous = queryClient.getQueryData<Settings>([QueryKeys.SETTINGS]);
   if (previous && previous.baseCurrency !== next.baseCurrency) {
-    await resetWebCurrencyQueries(queryClient, next);
+    await resetWebCurrencyQueries(queryClient, next, { signal });
   }
   return next;
 }

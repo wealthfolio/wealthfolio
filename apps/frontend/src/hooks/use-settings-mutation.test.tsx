@@ -6,6 +6,7 @@ import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import i18n from "i18next";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchWebCurrencySettings } from "@/lib/currency-cache";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsMutation } from "./use-settings-mutation";
 
@@ -23,17 +24,22 @@ afterEach(() => {
 });
 
 describe("useSettingsMutation", () => {
-  it("an old settings response cannot restore its label while new amounts refetch", async () => {
+  it("a background currency save returns before amounts refetch and rejects old settings", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData([QueryKeys.SETTINGS], { baseCurrency: "CAD" });
     let finishOld!: (value: Settings) => void;
     const oldSettings = client
       .fetchQuery({
         queryKey: [QueryKeys.SETTINGS],
-        queryFn: () =>
-          new Promise<Settings>((resolve) => {
-            finishOld = resolve;
-          }),
+        queryFn: ({ signal }) =>
+          fetchWebCurrencySettings(
+            client,
+            () =>
+              new Promise<Settings>((resolve) => {
+                finishOld = resolve;
+              }),
+            signal,
+          ),
       })
       .catch(() => undefined);
     const valuationKey = [QueryKeys.CURRENT_VALUATION, "portfolio:all"];
@@ -60,14 +66,17 @@ describe("useSettingsMutation", () => {
     act(() => {
       save = result.current.mutateAsync({ baseCurrency: "CNY" });
     });
-    await waitFor(() => expect(finishValuation).toBeTypeOf("function"));
+    await act(async () => {
+      await save;
+    });
     await act(async () => {
       finishOld({ baseCurrency: "CAD" } as Settings);
       await oldSettings;
     });
     expect(client.getQueryData<Settings>([QueryKeys.SETTINGS])?.baseCurrency).toBe("CNY");
+    expect(client.getQueryData(valuationKey)).toBeUndefined();
     await act(async () => {
-      finishValuation({ amount: 500 });
+      finishValuation?.({ amount: 500 });
       await save;
     });
     unsubscribe();

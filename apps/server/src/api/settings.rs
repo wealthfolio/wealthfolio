@@ -66,7 +66,8 @@ async fn update_settings(
             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
             updated_settings.base_currency.clone();
 
-        // The web wrapper owns the currency rebuild and waits for it.
+        // The web wrapper owns the currency rebuild and schedules it after the
+        // settings response is ready.
     } else if timezone_changed {
         let state_for_job = state.clone();
         tokio::spawn(async move {

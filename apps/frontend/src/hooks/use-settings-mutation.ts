@@ -31,7 +31,8 @@ export function useSettingsMutation(
         // A settings read sent before the transition may still be in flight.
         // Do not let its old label overwrite the canonical save response.
         await queryClient.cancelQueries({ queryKey: [QueryKeys.SETTINGS] });
-        await resetWebCurrencyQueries(queryClient, updatedSettings);
+        // Completion events refetch amounts once the background rebuild is ready.
+        await resetWebCurrencyQueries(queryClient, updatedSettings, { refetch: false });
       }
       queryClient.invalidateQueries({ queryKey: [QueryKeys.SETTINGS] });
       if (

@@ -19,7 +19,7 @@ import {
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
-import { isWebCurrencyCompletion } from "@/lib/currency-cache";
+import { isWebCurrencyCompletion, resetWebCurrencyQueries } from "@/lib/currency-cache";
 import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAfterAssetClassificationsChanged,
@@ -157,7 +157,10 @@ const useGlobalEventListener = () => {
       logger.error("Market sync error: " + errorMsg);
     };
 
-    const handlePortfolioUpdateStart = () => {
+    const handlePortfolioUpdateStart = async (event: { payload: unknown }) => {
+      if (isWeb && isWebCurrencyCompletion(event.payload)) {
+        await resetWebCurrencyQueries(queryClientRef.current);
+      }
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setPortfolioCalculating();
       } else {
