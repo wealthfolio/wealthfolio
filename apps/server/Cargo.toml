@@ -41,9 +41,9 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"]
 dotenvy = "0.15"
 utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
 serde_urlencoded = "0.7"
-base64 = "0.21"
+base64 = "0.22"
 argon2 = { version = "0.5", features = ["std"] }
-jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 hkdf = "0.12"
 sha2 = "0.10"
