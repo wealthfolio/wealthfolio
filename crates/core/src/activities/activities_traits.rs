@@ -230,7 +230,8 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     }
     /// Drops the tombstones and puts the recorded rows back, so the next sync
     /// updates them in place rather than inserting duplicates. Passing every id
-    /// is how a user asks for the whole feed again.
+    /// is how a user asks for the whole feed again. A linked group comes back
+    /// whole; a row whose asset is gone is left for the next sync to re-import.
     async fn restore_suppressed_activities(
         &self,
         deletion_ids: Vec<String>,
@@ -541,7 +542,10 @@ pub trait ActivityServiceTrait: Send + Sync {
         account_ids: Option<Vec<String>>,
     ) -> Result<Vec<SuppressedActivity>>;
     /// Un-suppresses them, putting the recorded rows back. Passing every id is
-    /// how a user asks for the whole feed again.
+    /// how a user asks for the whole feed again. A row deleted with a linked
+    /// group comes back with the whole group. A row whose asset has since been
+    /// deleted is not put back; its tombstone is dropped, so the next sync
+    /// imports it again.
     async fn restore_suppressed_activities(
         &self,
         deletion_ids: Vec<String>,

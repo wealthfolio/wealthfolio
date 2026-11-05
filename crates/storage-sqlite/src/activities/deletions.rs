@@ -18,7 +18,7 @@ use wealthfolio_core::{Error, Result};
 
 use super::model::ActivityDB;
 use crate::errors::StorageError;
-use crate::schema::{activities, activity_deletions};
+use crate::schema::{activities, activity_deletions, assets, import_runs};
 
 /// A recorded deletion, carrying the row that was removed so the suppression
 /// list can describe it and a restore can put it back unchanged.
@@ -214,12 +214,63 @@ pub(crate) fn list_activity_deletions_tx(
     Ok(deletions)
 }
 
+/// Adds the tombstones of every row that shares a `source_group_id` with a
+/// requested one. A delete removes a linked group together, so a restore must
+/// put it back together: one leg on its own is half a transfer.
+pub(crate) fn expand_to_source_groups_tx(
+    conn: &mut SqliteConnection,
+    deletion_ids: &[String],
+) -> Result<Vec<String>> {
+    let mut groups = HashSet::new();
+    for chunk in crate::utils::chunk_for_sqlite(deletion_ids) {
+        let snapshots: Vec<String> = activity_deletions::table
+            .filter(activity_deletions::id.eq_any(chunk))
+            .select(activity_deletions::activity_snapshot)
+            .load(conn)
+            .map_err(StorageError::from)?;
+        for snapshot in snapshots {
+            if let Some(group_id) = parse_activity_snapshot(&snapshot)?.source_group_id {
+                groups.insert(group_id);
+            }
+        }
+    }
+
+    let mut expanded = deletion_ids.to_vec();
+    if groups.is_empty() {
+        return Ok(expanded);
+    }
+
+    // The group id lives only in the snapshot, and a transfer's legs can sit in
+    // different accounts, so every tombstone is a candidate.
+    let all: Vec<(String, String)> = activity_deletions::table
+        .select((
+            activity_deletions::id,
+            activity_deletions::activity_snapshot,
+        ))
+        .load(conn)
+        .map_err(StorageError::from)?;
+    let mut seen: HashSet<String> = expanded.iter().cloned().collect();
+    for (id, snapshot) in all {
+        let in_group = parse_activity_snapshot(&snapshot)?
+            .source_group_id
+            .is_some_and(|group_id| groups.contains(&group_id));
+        if in_group && seen.insert(id.clone()) {
+            expanded.push(id);
+        }
+    }
+    Ok(expanded)
+}
+
 /// Drops the tombstone and puts the recorded row back, so the next sync updates
 /// it in place instead of inserting a duplicate.
+///
+/// Returns `None` when the snapshot's asset has since been deleted. The snapshot
+/// cannot go back without it, but with the tombstone gone the next sync imports
+/// the record again and resolves its asset afresh.
 pub(crate) fn restore_activity_deletion_tx(
     conn: &mut SqliteConnection,
     deletion_id: &str,
-) -> Result<ActivityDB> {
+) -> Result<Option<ActivityDB>> {
     let row = activity_deletions::table
         .find(deletion_id)
         .select(ActivityDeletionDB::as_select())
@@ -232,11 +283,32 @@ pub(crate) fn restore_activity_deletion_tx(
             )))
         })?;
 
-    let snapshot = parse_activity_snapshot(&row.activity_snapshot)?;
+    let mut snapshot = parse_activity_snapshot(&row.activity_snapshot)?;
 
     diesel::delete(activity_deletions::table.find(&row.id))
         .execute(conn)
         .map_err(StorageError::from)?;
+
+    // Nothing references an asset once its last activity is deleted, so the
+    // user can delete it too.
+    if let Some(asset_id) = snapshot.asset_id.as_deref() {
+        let asset_exists: bool = diesel::select(diesel::dsl::exists(assets::table.find(asset_id)))
+            .get_result(conn)
+            .map_err(StorageError::from)?;
+        if !asset_exists {
+            return Ok(None);
+        }
+    }
+    // The column is ON DELETE SET NULL; do what the delete would have done.
+    if let Some(import_run_id) = snapshot.import_run_id.as_deref() {
+        let run_exists: bool =
+            diesel::select(diesel::dsl::exists(import_runs::table.find(import_run_id)))
+                .get_result(conn)
+                .map_err(StorageError::from)?;
+        if !run_exists {
+            snapshot.import_run_id = None;
+        }
+    }
 
     diesel::insert_or_ignore_into(activities::table)
         .values(&snapshot)
@@ -247,6 +319,7 @@ pub(crate) fn restore_activity_deletion_tx(
         .find(&snapshot.id)
         .select(ActivityDB::as_select())
         .first::<ActivityDB>(conn)
+        .map(Some)
         .map_err(StorageError::from)
         .map_err(Error::from)
 }

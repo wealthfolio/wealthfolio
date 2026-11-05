@@ -906,7 +906,9 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     }
     case "list_suppressed_activities": {
       const { accountIds } = payload as { accountIds?: string[] };
-      if (accountIds?.length) {
+      // An empty list means no accounts, as it does on desktop. Omitting the
+      // parameter would ask the server for every account instead.
+      if (accountIds) {
         const params = new URLSearchParams();
         params.set("accountIds", accountIds.join(","));
         url += `?${params.toString()}`;

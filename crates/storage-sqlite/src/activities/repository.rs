@@ -29,8 +29,8 @@ use wealthfolio_core::limits::ContributionActivity;
 use wealthfolio_core::{Error, Result};
 
 use super::deletions::{
-    list_activity_deletions_tx, load_suppressed_activity_keys_tx, record_activity_deletion_tx,
-    restore_activity_deletion_tx,
+    expand_to_source_groups_tx, list_activity_deletions_tx, load_suppressed_activity_keys_tx,
+    record_activity_deletion_tx, restore_activity_deletion_tx,
 };
 use super::model::{
     ActivityDB, ActivityDetailsDB, CashLedgerActivityDB, ImportAccountTemplateDB, ImportTemplateDB,
@@ -1625,12 +1625,14 @@ impl ActivityRepositoryTrait for ActivityRepository {
 
         self.writer
             .exec_tx(move |tx| -> Result<Vec<Activity>> {
-                deletion_ids
-                    .iter()
-                    .map(|deletion_id| {
-                        restore_activity_deletion_tx(tx.conn(), deletion_id).map(Activity::from)
-                    })
-                    .collect()
+                let deletion_ids = expand_to_source_groups_tx(tx.conn(), &deletion_ids)?;
+                let mut restored = Vec::new();
+                for deletion_id in &deletion_ids {
+                    if let Some(row) = restore_activity_deletion_tx(tx.conn(), deletion_id)? {
+                        restored.push(Activity::from(row));
+                    }
+                }
+                Ok(restored)
             })
             .await
     }
@@ -8102,6 +8104,153 @@ mod tests {
             .await
             .expect("older snapshots stay restorable");
         assert_eq!(activity_ids(&mut conn, "acc-sync"), vec!["provider-id-1"]);
+    }
+
+    #[tokio::test]
+    async fn restoring_one_leg_of_a_deleted_transfer_restores_both() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-out");
+        insert_account(&mut conn, "acc-in");
+
+        let mut out_leg = broker_upsert(
+            "out-1",
+            "acc-out",
+            Some("txn-out"),
+            Some("idemp-out"),
+            Decimal::from(100),
+        );
+        out_leg.activity_type = "TRANSFER_OUT".to_string();
+        out_leg.source_group_id = Some("group-1".to_string());
+        let mut in_leg = broker_upsert(
+            "in-1",
+            "acc-in",
+            Some("txn-in"),
+            Some("idemp-in"),
+            Decimal::from(100),
+        );
+        in_leg.activity_type = "TRANSFER_IN".to_string();
+        in_leg.source_group_id = Some("group-1".to_string());
+        repo.bulk_upsert(vec![out_leg, in_leg])
+            .await
+            .expect("first sync");
+
+        repo.delete_activity("out-1".to_string())
+            .await
+            .expect("deleting one leg deletes the pair");
+        let suppressed = repo.list_suppressed_activities(None).expect("list");
+        assert_eq!(suppressed.len(), 2);
+        let out_deletion = suppressed
+            .iter()
+            .find(|s| s.activity.id == "out-1")
+            .expect("out leg tombstoned")
+            .id
+            .clone();
+
+        let restored = repo
+            .restore_suppressed_activities(vec![out_deletion])
+            .await
+            .expect("restore");
+        let mut restored_ids: Vec<String> = restored.into_iter().map(|a| a.id).collect();
+        restored_ids.sort();
+        assert_eq!(restored_ids, vec!["in-1", "out-1"]);
+        assert!(repo
+            .list_suppressed_activities(None)
+            .expect("list")
+            .is_empty());
+        assert_eq!(activity_ids(&mut conn, "acc-in"), vec!["in-1"]);
+    }
+
+    #[tokio::test]
+    async fn restoring_a_row_whose_asset_was_deleted_lets_the_next_sync_import_it() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-sync");
+        diesel::sql_query(
+            "INSERT INTO assets
+             (id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+              instrument_type, instrument_symbol, created_at, updated_at)
+             VALUES
+             ('asset-gone', 'INVESTMENT', 'Gone Inc', 'GONE', 1, 'MARKET', 'USD',
+              'EQUITY', 'GONE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        )
+        .execute(&mut conn)
+        .expect("insert asset");
+
+        let mut row = broker_upsert(
+            "provider-id-1",
+            "acc-sync",
+            Some("txn-1"),
+            Some("idemp-1"),
+            Decimal::from(100),
+        );
+        row.asset_id = Some("asset-gone".to_string());
+        repo.bulk_upsert(vec![row.clone()])
+            .await
+            .expect("first sync");
+        repo.delete_activity("provider-id-1".to_string())
+            .await
+            .expect("user deletes the row");
+        // With its last activity gone, nothing stops the user deleting the asset.
+        diesel::sql_query("DELETE FROM assets WHERE id = 'asset-gone'")
+            .execute(&mut conn)
+            .expect("user deletes the asset");
+
+        let deletion_id = repo.list_suppressed_activities(None).expect("list")[0]
+            .id
+            .clone();
+        let restored = repo
+            .restore_suppressed_activities(vec![deletion_id])
+            .await
+            .expect("a missing asset does not fail the restore");
+        assert!(restored.is_empty());
+        assert!(repo
+            .list_suppressed_activities(None)
+            .expect("list")
+            .is_empty());
+
+        // The next sync imports the record again, resolving its asset afresh.
+        row.asset_id = None;
+        let resync = repo.bulk_upsert(vec![row]).await.expect("re-sync");
+        assert_eq!(resync.suppressed, 0);
+        assert_eq!(resync.created, 1);
+        assert_eq!(activity_ids(&mut conn, "acc-sync"), vec!["provider-id-1"]);
+    }
+
+    #[tokio::test]
+    async fn restoring_a_row_whose_import_run_was_deleted_clears_the_reference() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_broker_account_and_import_run(&mut conn);
+
+        let mut row = broker_upsert(
+            "provider-id-1",
+            "broker-local-account",
+            Some("txn-1"),
+            Some("idemp-1"),
+            Decimal::from(100),
+        );
+        row.import_run_id = Some("local-import-run".to_string());
+        repo.bulk_upsert(vec![row]).await.expect("first sync");
+        repo.delete_activity("provider-id-1".to_string())
+            .await
+            .expect("user deletes the row");
+        diesel::sql_query("DELETE FROM import_runs WHERE id = 'local-import-run'")
+            .execute(&mut conn)
+            .expect("delete import run");
+
+        let deletion_id = repo.list_suppressed_activities(None).expect("list")[0]
+            .id
+            .clone();
+        let restored = repo
+            .restore_suppressed_activities(vec![deletion_id])
+            .await
+            .expect("a missing import run does not fail the restore");
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].import_run_id, None);
     }
     fn qa_floor_new_activity(activity_type: &str) -> NewActivity {
         NewActivity {
