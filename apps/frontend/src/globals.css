@@ -1022,17 +1022,26 @@ number-flow-react.muted-fraction::part(fraction) {
   animation: subtle-pulse 1.2s ease-in-out infinite;
 }
 
-/* Reduced motion: animations and transitions still run, so code waiting for
-   them (Base UI's exit animations) completes, but they take no time and
-   repeat once. Motion components follow the same setting through
-   MotionConfig in App.tsx. */
+/* Reduced motion: nothing slides, zooms or spins into place. Fades, colour
+   changes and activity indicators (spinners, skeleton pulses, progress bars)
+   still run. Popups and dialogs enter and leave through tw-animate-css, whose
+   movement comes from these variables, so they fade in place; this rule is
+   unlayered, so it wins over the zoom-in-* and slide-in-* utilities.
+   Components that move by transition (sheet, sidebar, accordion, tree view)
+   handle it with motion-reduce:, Motion components follow MotionConfig in
+   App.tsx, and Recharts stops animating on its own. */
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
   ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
     scroll-behavior: auto !important;
   }
 }
