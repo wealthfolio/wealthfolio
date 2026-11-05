@@ -19,7 +19,10 @@ eval = ["test-utils", "dep:toml", "dep:regex", "dep:env_logger"]
 # Workspace dependencies
 tokio = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+# rig-core enabled these until 0.46. Keep them: tool schemas, tool results and
+# prompt JSON follow insertion order, and floats parse exactly. Cargo unifies
+# features, so every build that includes this crate gets them, as before.
+serde_json = { workspace = true, features = ["preserve_order", "float_roundtrip"] }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
@@ -31,7 +34,7 @@ reqwest = { workspace = true }
 sha2 = { workspace = true }
 
 # LLM orchestration facade (portable contracts + agent runtime)
-rig = { version = "0.44.0", default-features = false, features = ["agent", "reqwest"] }
+rig = { version = "0.46", default-features = false, features = ["agent", "reqwest"] }
 wealthfolio-http = { workspace = true }
 
 # Lazy static initialization

@@ -15,8 +15,8 @@ use rig::{
     agent::MultiTurnStreamItem,
     completion::{Message, PromptError, Usage},
     message::{
-        AssistantContent, AssistantMessage, Text, ToolCall as RigToolCall, ToolChoice,
-        ToolResultContent, UserContent,
+        AssistantContent, AssistantMessage, DocumentSourceKind, Text, ToolCall as RigToolCall,
+        ToolChoice, ToolResultContent, UserContent,
     },
     providers::anthropic::Messages,
     streaming::{Item, Part, StreamEvent},
@@ -1059,9 +1059,12 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                     let content_to_string = |content: ToolResultContent| -> String {
                         match content {
                             ToolResultContent::Text(Text { text, .. }) => text,
-                            ToolResultContent::Image(image) => {
-                                image.data.try_into_inner().unwrap_or_default()
-                            }
+                            ToolResultContent::Image(image) => match image.data {
+                                DocumentSourceKind::Url(data)
+                                | DocumentSourceKind::Base64(data)
+                                | DocumentSourceKind::FileId(data) => data,
+                                _ => String::new(),
+                            },
                             ToolResultContent::Json { value } => value.to_string(),
                         }
                     };

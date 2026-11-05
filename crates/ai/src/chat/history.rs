@@ -54,7 +54,7 @@ pub(super) fn build_user_prompt(user_message: &str, attachments: &[MessageAttach
             }
             "application/pdf" => {
                 parts.push(UserContent::Document(Document {
-                    data: DocumentSourceKind::Base64(att.data.clone()),
+                    data: DocumentSourceKind::Base64(att.data.clone()).into(),
                     media_type: Some(DocumentMediaType::PDF),
                     additional_params: None,
                 }));
