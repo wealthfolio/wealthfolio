@@ -10,7 +10,6 @@ wealthfolio-core = { path = "../core" }
 
 # HTTP client
 reqwest = { workspace = true }
-urlencoding = "2"
 
 # Serialization
 serde = { workspace = true }
