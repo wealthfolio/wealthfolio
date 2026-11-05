@@ -237,7 +237,7 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
                         <span className="text-muted-foreground">{itemConfig?.label || item.name}</span>
                       </div>
                       {item.value && (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
+                        <span className="text-foreground font-medium tabular-nums">
                           {typeof item.value === "number" ? formatting.formatDecimal(item.value) : item.value}
                         </span>
                       )}
