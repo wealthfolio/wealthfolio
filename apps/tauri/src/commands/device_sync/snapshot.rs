@@ -115,10 +115,6 @@ pub async fn generate_snapshot_now_internal(
     context: Arc<ServiceContext>,
 ) -> Result<SyncSnapshotUploadResult, String> {
     context
-        .connect_service()
-        .ensure_device_sync_subscription()
-        .await?;
-    context
         .device_sync_runtime()
         .snapshot_upload_cancelled
         .store(false, Ordering::Relaxed);

@@ -29,25 +29,6 @@ use crate::context::ServiceContext;
 pub async fn run_startup_sync(handle: &AppHandle, context: &Arc<ServiceContext>) {
     info!("Running startup broker sync...");
 
-    // Check if user's plan includes broker sync
-    match context.connect_service().has_broker_sync().await {
-        Ok(true) => {
-            // User has broker sync, proceed
-        }
-        Ok(false) => {
-            debug!("Startup sync skipped: plan does not include broker sync");
-            return;
-        }
-        Err(e) => {
-            // If we can't check (no token, network error, etc.), skip silently
-            debug!(
-                "Startup sync skipped: could not verify broker sync access ({})",
-                e
-            );
-            return;
-        }
-    }
-
     // Perform sync (orchestrator emits broker:sync-start and broker:sync-complete events)
     match perform_broker_sync(context, Some(handle)).await {
         Ok(result) => {
@@ -99,6 +80,7 @@ pub async fn run_startup_sync(handle: &AppHandle, context: &Arc<ServiceContext>)
             if e.contains("No access token")
                 || e.contains("not authenticated")
                 || e.contains("Broker sync already running")
+                || wealthfolio_connect::is_subscription_denial(&e)
             {
                 debug!("Startup sync skipped: {}", e);
             } else {

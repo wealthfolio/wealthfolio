@@ -89,26 +89,6 @@ impl ConnectService {
     ) {
         *self.binding.write().expect("binding initialization") = Some((registry, id));
     }
-    async fn verify_binding(&self, token: &str) -> Result<(), String> {
-        let binding_owner = self
-            .binding
-            .read()
-            .map_err(|_| "Profile binding unavailable")?
-            .clone();
-        if let Some((registry, id)) = binding_owner {
-            let config = token_lifecycle_config().ok_or("Connect auth is unavailable")?;
-            wealthfolio_connect::token_lifecycle::admit_profile_binding(
-                token,
-                &config,
-                &cloud_api_base_url().ok_or("Connect unavailable")?,
-                registry.as_ref(),
-                id,
-            )
-            .await?;
-        }
-        Ok(())
-    }
-
     /// Returns a valid access token, refreshing it through Supabase when needed.
     pub async fn get_valid_access_token(&self) -> Result<String, String> {
         if !is_cloud_sync_enabled() {
@@ -130,7 +110,6 @@ impl ConnectService {
         )
         .await
         .map_err(|err| err.to_string())?;
-        self.verify_binding(&token).await?;
         Ok(token)
     }
 
@@ -211,31 +190,5 @@ impl ConnectService {
         let access_token = self.get_valid_access_token().await?;
 
         ConnectApiClient::new(&cloud_api_base_url, &access_token).map_err(|e| e.to_string())
-    }
-
-    pub async fn has_device_sync(&self) -> Result<bool, String> {
-        let token = self.get_valid_access_token().await?;
-        let url = cloud_api_base_url().ok_or("Cloud sync is disabled")?;
-        ConnectApiClient::new(&url, &token)
-            .map_err(|err| err.to_string())?
-            .has_device_sync()
-            .await
-            .map_err(|err| err.to_string())
-    }
-
-    pub async fn ensure_device_sync_subscription(&self) -> Result<(), String> {
-        if !self.has_device_sync().await? {
-            return Err("Device sync is paused: an active subscription is required.".to_string());
-        }
-        Ok(())
-    }
-
-    /// Check if the current user's plan includes broker sync.
-    ///
-    /// Returns `Ok(true)` only when the user has an active subscription
-    /// on a plan that includes broker sync (i.e. not "basic").
-    pub async fn has_broker_sync(&self) -> Result<bool, String> {
-        let client = self.get_api_client().await?;
-        client.has_broker_sync().await.map_err(|e| e.to_string())
     }
 }

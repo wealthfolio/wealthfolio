@@ -13,3 +13,6 @@ mod queue_worker;
 mod sink;
 
 pub use sink::WebDomainEventSink;
+
+#[cfg(test)]
+pub(crate) use queue_worker::perform_broker_sync_with_client;
