@@ -753,7 +753,7 @@ export function AppLauncher() {
               return (
                 <CommandItem
                   key={`${item.type}-${item.id}`}
-                  value={`recent-${item.label}`}
+                  value={`recent-${recentLabel(item)}`}
                   onSelect={() => handleSelectRecent(item)}
                   className={cn(isMobileViewport ? "gap-3 py-4 text-base" : undefined)}
                 >

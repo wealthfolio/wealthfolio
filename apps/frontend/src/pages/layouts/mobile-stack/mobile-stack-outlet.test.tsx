@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileStackContext, type MobileStackContextValue } from "./mobile-stack-contexts";
-import { focusScreen } from "./focus-screen";
 import { MobileStackOutlet } from "./mobile-stack-outlet";
 import { applyNavigation, coldStart, type StackConfig, type StackState } from "./stack-model";
 
@@ -261,30 +260,30 @@ describe("a back swipe in the iOS app", () => {
   });
 });
 
-describe("focus on a pushed screen", () => {
+describe("focus after a push", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    pages.withPopup = false;
   });
 
-  function pushedScreen() {
-    document.body.innerHTML = `
-      <div id="stack"><div data-stack-screen="dashboard:1"><h1>Dashboard</h1></div></div>
-      <div data-portal-scope="dashboard:1"><input aria-label="Amount" /></div>
-      <div data-portal-scope="dashboard:0"><input aria-label="Other" /></div>`;
-    return document.getElementById("stack");
-  }
+  it("leaves focus in a dialog the pushed screen's page opened", async () => {
+    pages.withPopup = true;
+    const { container, rerender } = render(outletFor(stackOf(1)));
+    rerender(outletFor(stackOf(2)));
+    // Found through its screen's portal: a role query would also match dialogs
+    // other tests in this file left open.
+    const dialog = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(
+        '[data-portal-scope="holdings:1"] [role="dialog"]',
+      );
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
 
-  it("leaves focus in a popup the screen's page opened", () => {
-    const container = pushedScreen();
-    screen.getByLabelText("Amount").focus();
-    focusScreen(container, "dashboard:1", undefined);
-    expect(screen.getByLabelText("Amount")).toHaveFocus();
-  });
-
-  it("moves focus to the heading from another screen's popup", () => {
-    const container = pushedScreen();
-    screen.getByLabelText("Other").focus();
-    focusScreen(container, "dashboard:1", undefined);
-    expect(screen.getByRole("heading", { name: "Dashboard" })).toHaveFocus();
+    // The push settles once the screen underneath is hidden; then the stack moves
+    // focus unless the page already put it somewhere, as this dialog did.
+    const under = container.querySelector<HTMLElement>('[data-stack-screen="holdings:0"]')!;
+    await waitFor(() => expect(under).not.toBeVisible());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 });

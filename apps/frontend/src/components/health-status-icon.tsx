@@ -78,7 +78,12 @@ export function HealthStatusIndicator({ figureNotice }: HealthStatusIndicatorPro
                 className={badgeClassName}
               />
             ) : (
-              <div className={badgeClassName} />
+              // A button, so keyboard and screen-reader users reach the notice too.
+              <button
+                type="button"
+                aria-label={t("common:component.data_status")}
+                className={badgeClassName}
+              />
             )
           }
         >
