@@ -405,14 +405,15 @@ operations perform one successful initialization. A failed lookup leaves the
 session and local data intact and can be attempted again on the next cloud use.
 Signed-out legacy profiles establish their binding at explicit login.
 
-After binding, routine cloud operations use the selected profile's stored token, refreshing it
-through the existing token lifecycle when needed. They do not call `/user/me` to
-recheck identity, household membership or subscription. The cloud API's existing
-authentication, current membership, subscription and resource ownership checks
-are authoritative on the actual request. Profiles remain local: no expected
-profile/user/household headers or capability negotiation are added. This removes
-the previous guarantee that automatic work compares current household membership
-against a saved local binding; explicit login still validates binding changes.
+After binding, routine cloud operations use the selected profile's stored token,
+refreshing it through the existing token lifecycle when needed. They do not call
+`/user/me` to recheck identity, household membership or subscription. The cloud
+API's existing authentication, current membership, subscription and resource
+ownership checks are authoritative on the actual request. Profiles remain local:
+no expected profile/user/household headers or capability negotiation are added.
+This removes the previous guarantee that automatic work compares current
+household membership against a saved local binding; explicit login still
+validates binding changes.
 
 Profile UI refreshes share one in-flight request per session generation,
 including local session reconciliation. Automatic profile polling pauses while
