@@ -454,36 +454,42 @@ mod tests {
             let state = state.clone();
             let pause = pause.clone();
             async move {
-                state.portfolio_coordinator.run_job(
-                    PortfolioJobConfig::default().into_request(), pause.as_ref(),
-                ).await.unwrap();
+                state
+                    .portfolio_coordinator
+                    .run_job(PortfolioJobConfig::default().into_request(), pause.as_ref())
+                    .await
+                    .unwrap();
             }
         });
         tokio::time::timeout(Duration::from_secs(10), pause.entered.notified())
-            .await.unwrap();
+            .await
+            .unwrap();
         let mut events = state.event_bus.subscribe();
 
-        let response = tokio::time::timeout(Duration::from_secs(2), update_settings(
-            Extension(state.clone()),
-            Json(SettingsUpdate {
-                theme_id: None,
-                gain_colors: None,
-                theme: None,
-                font: None,
-                text_size: None,
-                language: None,
-                formatting_region: None,
-                currency_formatting_regions: None,
-                base_currency: Some("EUR".to_string()),
-                timezone: None,
-                onboarding_completed: None,
-                auto_update_check_enabled: None,
-                menu_bar_visible: None,
-                sync_enabled: None,
-                default_return_metric: None,
-                insights_overview_layout: None,
-            }),
-        ))
+        let response = tokio::time::timeout(
+            Duration::from_secs(2),
+            update_settings(
+                Extension(state.clone()),
+                Json(SettingsUpdate {
+                    theme_id: None,
+                    gain_colors: None,
+                    theme: None,
+                    font: None,
+                    text_size: None,
+                    language: None,
+                    formatting_region: None,
+                    currency_formatting_regions: None,
+                    base_currency: Some("EUR".to_string()),
+                    timezone: None,
+                    onboarding_completed: None,
+                    auto_update_check_enabled: None,
+                    menu_bar_visible: None,
+                    sync_enabled: None,
+                    default_return_metric: None,
+                    insights_overview_layout: None,
+                }),
+            ),
+        )
         .await
         .expect("saving must not wait for the busy coordinator")
         .unwrap();
@@ -533,10 +539,7 @@ mod tests {
                 "/valuations/history/query",
                 get(|| async { "old-currency amounts" }),
             )
-            .route(
-                "/holdings/query",
-                post(|| async { "old-currency amounts" }),
-            )
+            .route("/holdings/query", post(|| async { "old-currency amounts" }))
             .route("/holdings", post(|| async { "write accepted" }))
             .route(
                 "/settings",
@@ -560,7 +563,13 @@ mod tests {
         ] {
             let response = router
                 .clone()
-                .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::CONFLICT);
@@ -597,20 +606,31 @@ mod tests {
     async fn committed_write_response_survives_a_transition() {
         let transition = Arc::new(CurrencyTransition::default());
         let app = Router::new()
-            .route("/holdings", post({
-                let transition = transition.clone();
-                move || async move {
-                    transition.begin();
-                    transition.finish(true);
-                    StatusCode::CREATED
-                }
-            }))
+            .route(
+                "/holdings",
+                post({
+                    let transition = transition.clone();
+                    move || async move {
+                        transition.begin();
+                        transition.finish(true);
+                        StatusCode::CREATED
+                    }
+                }),
+            )
             .layer(middleware::from_fn(move |request, next| {
                 let transition = transition.clone();
                 async move { guard_transition(&transition, request, next).await }
             }));
-        let response = app.oneshot(Request::builder().method("POST")
-            .uri("/holdings").body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/holdings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
     }
 
