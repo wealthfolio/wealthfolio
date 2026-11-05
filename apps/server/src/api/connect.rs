@@ -31,7 +31,7 @@ use wealthfolio_connect::{
         BrokerApiClient, PlansResponse, SyncAccountsResponse, SyncActivitiesResponse,
         SyncConnectionsResponse, UserInfo,
     },
-    ensure_valid_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
+    ensure_profile_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
     ConnectApiClient, PostLoginBootstrapReason, PostLoginBootstrapResult,
     PostLoginBootstrapSyncResult, PostLoginBrokerBootstrapDecision, SyncConfig, SyncOrchestrator,
     SyncProgressPayload, SyncProgressReporter, SyncResult, TokenLifecycleConfig,
@@ -547,10 +547,17 @@ pub(crate) async fn mint_access_token(state: &AppState) -> ApiResult<String> {
         ));
     }
     let config = token_lifecycle_config();
-    let token = ensure_valid_access_token(
+    let (registry, id) = state
+        .profile_binding
+        .get()
+        .ok_or_else(|| ApiError::Forbidden("Profile binding unavailable".into()))?;
+    let token = ensure_profile_access_token(
         state.secret_store.as_ref(),
         state.token_lifecycle.as_ref(),
         config.as_ref(),
+        &cloud_api_base_url()?,
+        registry.as_ref(),
+        *id,
     )
     .await
     .map_err(map_token_lifecycle_error)?;
