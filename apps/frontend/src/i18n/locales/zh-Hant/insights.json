@@ -79,7 +79,6 @@
       "link_explanation": "關聯現有房產不會改變您的淨資產。"
     },
     "failed_to_load": "載入淨資產失敗",
-    "stale_valuations_tooltip": "過期估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
     "no_history_data": "尚無可用的歷史資料",
     "breakdown": "明細",

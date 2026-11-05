@@ -6,6 +6,12 @@
       "title_many": "Valorisations manuelles manquantes pour {{count}} positions",
       "message": "Les positions manuelles/personnalisées nécessitent une valorisation manuelle avant de pouvoir être incluses comme positions de performance valorisées."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valorisation de {{name}} non mise à jour",
+      "title_other": "Valorisations de {{count}} actifs non mises à jour",
+      "title_many": "Valorisations de {{count}} actifs non mises à jour",
+      "message": "Certains actifs valorisés manuellement n'ont pas été mis à jour depuis plus de {{days}} jours ; votre patrimoine net n'est donc peut-être plus à jour."
+    },
     "price_no_market_data": {
       "title_one": "Aucune donnée de marché pour {{symbol}}",
       "title_other": "Aucune donnée de marché pour {{count}} positions",
@@ -226,6 +232,7 @@
     "rebuild_account_history": "Reconstruire l’historique",
     "add_price": "Ajouter un prix",
     "update_cost_basis": "Mettre à jour le prix de revient",
+    "update_value": "Actualiser la valeur",
     "review_transaction": "Vérifier la transaction",
     "review_entry": "Examiner l’entrée"
   },

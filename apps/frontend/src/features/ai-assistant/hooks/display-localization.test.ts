@@ -120,6 +120,13 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     const navigation = { route: "/holdings/asset-1", label: "Add Price", query: { tab: "quotes" } };
     expect(translateHealthAction(i18n.t, navigation)).toBe("添加价格");
     expect(navigation.route).toBe("/holdings/asset-1");
+    expect(
+      translateHealthAction(i18n.t, {
+        ...navigation,
+        label: "Update Value",
+        query: { tab: "history" },
+      }),
+    ).toBe("更新估值");
     const snapshot = {
       route: "/accounts/account-1",
       label: "Review entry",

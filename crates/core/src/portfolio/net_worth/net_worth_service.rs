@@ -28,7 +28,7 @@ use crate::utils::time_utils::{
 };
 
 /// Number of days after which a valuation is considered stale.
-const STALENESS_THRESHOLD_DAYS: i64 = 90;
+pub const STALENESS_THRESHOLD_DAYS: i64 = 90;
 
 /// Key prefix for a credit-card liability, in the breakdown and the history.
 const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";

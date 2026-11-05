@@ -82,7 +82,6 @@
       "link_explanation": "Vincular una propiedad existente no cambia tu patrimonio neto."
     },
     "failed_to_load": "No se pudo cargar el patrimonio neto",
-    "stale_valuations_tooltip": "Valoraciones desactualizadas (más de 90 días):",
     "days_ago": "hace {{count}} d",
     "no_history_data": "No hay datos de historial disponibles",
     "breakdown": "Desglose",
