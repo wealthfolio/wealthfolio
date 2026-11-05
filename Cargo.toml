@@ -83,9 +83,6 @@ rmcp = { version = "3.9", default-features = false, features = ["server", "trans
 log = "0.4"
 
 # Crypto
-chacha20poly1305 = { version = "0.10", features = ["std"] }
-x25519-dalek = { version = "2", features = ["static_secrets"] }
-hkdf = "0.12"
 zeroize = "1"
 hex = "0.4"
 sha2 = "0.10"

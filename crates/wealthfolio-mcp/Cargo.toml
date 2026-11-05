@@ -14,11 +14,9 @@ http = "1"
 log = { workspace = true }
 rand = { workspace = true }
 rmcp = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 subtle = "2"
-thiserror = { workspace = true }
 tokio = { workspace = true }
 
 wealthfolio-agent-tools = { workspace = true }

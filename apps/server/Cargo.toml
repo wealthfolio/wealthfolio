@@ -40,7 +40,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
 dotenvy = "0.15"
 utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
-serde_with = "3"
 serde_urlencoded = "0.7"
 base64 = "0.21"
 argon2 = { version = "0.5", features = ["std"] }
@@ -49,7 +48,6 @@ chacha20poly1305 = { version = "0.10", features = ["std"] }
 hkdf = "0.12"
 sha2 = "0.10"
 rand = "0.8"
-urlencoding = "2"
 tower_governor = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"

@@ -1626,16 +1626,6 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
-dependencies = [
- "darling_core 0.20.11",
- "darling_macro 0.20.11",
-]
-
-[[package]]
-name = "darling"
 version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
@@ -1652,20 +1642,6 @@ checksum = "ed17f5901b6630b993ca003def43f2f8ef4014fc13b047b57aad617ff32bc2ec"
 dependencies = [
  "darling_core 0.24.1",
  "darling_macro 0.24.1",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -1693,17 +1669,6 @@ dependencies = [
  "quote",
  "strsim",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "darling_macro"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
-dependencies = [
- "darling_core 0.20.11",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -1850,37 +1815,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507dfb09ea8b7fa618fcf76e953f4f5e192547945816d5358edffe39f6f94947"
-dependencies = [
- "derive_builder_macro",
-]
-
-[[package]]
-name = "derive_builder_core"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d5bcf7b024d6835cfb3d473887cd966994907effbe9227e8c8219824d06c4e8"
-dependencies = [
- "darling 0.20.11",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "derive_builder_macro"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
-dependencies = [
- "derive_builder_core",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -2874,17 +2808,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "getset"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cf442baaabe4213ce7d1239afc26c039180b6456da2cededa316ae2c8a77a77"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "gio"
 version = "0.18.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3213,17 +3136,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
 dependencies = [
  "digest 0.11.3",
-]
-
-[[package]]
-name = "hostname"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c731c3e10504cc8ed35cfe2f1db4c9274c3d35fa486e3b31df46f068ef3e867"
-dependencies = [
- "libc",
- "match_cfg",
- "winapi",
 ]
 
 [[package]]
@@ -4071,17 +3983,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
-name = "local-ip-address"
-version = "0.6.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa08fb2b1ec3ea84575e94b489d06d4ce0cbf052d12acd515838f50e3c3d63e3"
-dependencies = [
- "libc",
- "neli",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4150,12 +4051,6 @@ dependencies = [
  "tendril 0.5.1",
  "web_atoms",
 ]
-
-[[package]]
-name = "match_cfg"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
 
 [[package]]
 name = "match_token"
@@ -4360,36 +4255,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873"
 dependencies = [
  "jni-sys 0.3.1",
-]
-
-[[package]]
-name = "neli"
-version = "0.7.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b152f4f18819e638ea350a740b16de75099302b5ec3a58f4f8766ef2fcf695d"
-dependencies = [
- "bitflags 2.13.2",
- "byteorder",
- "derive_builder",
- "getset",
- "libc",
- "linux-raw-sys 0.12.1",
- "log",
- "neli-proc-macros",
- "parking_lot 0.12.5",
-]
-
-[[package]]
-name = "neli-proc-macros"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05d8d08c6e98f20a62417478ebf7be8e1425ec9acecc6f63e22da633f6b71609"
-dependencies = [
- "either",
- "proc-macro2",
- "quote",
- "serde",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -8989,27 +8854,19 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "block2",
- "chacha20poly1305",
  "chrono",
- "diesel",
  "dotenvy",
  "futures",
- "hkdf 0.12.4",
- "hostname",
  "keyring",
  "keyring-core",
- "local-ip-address",
  "log",
  "objc2-app-kit",
  "objc2-foundation",
- "rand 0.8.8",
  "reqwest",
  "rmcp",
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.9",
- "subtle",
  "tauri",
  "tauri-build",
  "tauri-plugin-barcode-scanner",
@@ -9027,7 +8884,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
- "urlencoding",
  "uuid",
  "wealthfolio-agent-tools",
  "wealthfolio-ai",
@@ -9041,7 +8897,6 @@ dependencies = [
  "webkit2gtk",
  "windows-native-keyring-store",
  "windows-sys 0.61.2",
- "x25519-dalek",
  "zbus 5.19.0",
  "zbus-secret-service-keyring-store",
  "zeroize",
@@ -9078,31 +8933,25 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "csv",
- "dashmap",
  "diesel",
- "diesel_migrations",
  "encoding_rs",
  "fs2",
  "futures",
  "hex",
- "insta",
  "jsonpath-rust",
  "log",
  "num-traits",
  "proptest",
- "r2d2",
  "rand 0.8.8",
  "rand_distr",
  "rayon",
  "regex",
  "reqwest",
- "rusqlite",
  "rust_decimal",
  "rust_decimal_macros",
  "scraper",
  "serde",
  "serde_json",
- "serde_with",
  "serde_yaml",
  "sha2 0.10.9",
  "subtle",
@@ -9138,7 +8987,6 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 1.0.69",
  "tokio",
- "urlencoding",
  "uuid",
  "wealthfolio-core",
  "wealthfolio-http",
@@ -9193,11 +9041,9 @@ dependencies = [
  "rand 0.8.8",
  "reqwest",
  "rmcp",
- "serde",
  "serde_json",
  "sha2 0.10.9",
  "subtle",
- "thiserror 1.0.69",
  "tokio",
  "tokio-util",
  "wealthfolio-agent-tools",
@@ -9247,7 +9093,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "serde_with",
  "sha2 0.10.9",
  "subtle",
  "tempfile",
@@ -9259,7 +9104,6 @@ dependencies = [
  "tower_governor",
  "tracing",
  "tracing-subscriber",
- "urlencoding",
  "utoipa",
  "uuid",
  "wealthfolio-agent-tools",
