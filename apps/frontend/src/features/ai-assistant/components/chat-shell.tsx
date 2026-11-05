@@ -83,7 +83,7 @@ function Sidebar({ collapsed }: { collapsed?: boolean }) {
   return (
     <aside
       className={cn(
-        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200",
+        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200 motion-reduce:transition-opacity",
         collapsed ? "w-0 overflow-hidden opacity-0" : "w-65 opacity-100",
       )}
     >
