@@ -21,6 +21,9 @@ vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-health", () => ({
+  useHealthStatus: () => ({ data: undefined, isLoading: false }),
+}));
 vi.mock("@/components/privacy-toggle", () => ({
   PrivacyToggle: () => <button onClick={uiMocks.togglePrivacy}>Hide Balance</button>,
 }));

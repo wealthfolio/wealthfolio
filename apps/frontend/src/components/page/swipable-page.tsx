@@ -129,7 +129,8 @@ function MobileNavigation({
             type="button"
             onClick={() => onViewChange(item.value)}
             className={cn(
-              "rounded-(--segmented-radius) relative flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
+              // The tap area fills the strip's height; the pill keeps its compact size.
+              "rounded-(--segmented-radius) relative flex shrink-0 cursor-pointer after:absolute after:inset-x-0 after:-inset-y-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
               compact ? "px-2" : "px-3",
               isActive ? "text-foreground" : "text-muted-foreground",
@@ -284,15 +285,12 @@ export function SwipablePage({
               ref={mobileHeaderRef}
               className="pt-safe from-background/70 to-background/25 absolute inset-x-0 top-0 z-20 flex flex-col gap-2 bg-linear-to-b px-3 pb-2 backdrop-blur-sm backdrop-saturate-150"
             >
-              <div className="flex min-w-0 items-center justify-center gap-2">
-                {/* The strip is inline-flex, so its auto margins don't centre it in the
-                    space beside the actions; this wrapper does. */}
-                <div
-                  className={cn(
-                    "min-w-0 max-w-full",
-                    mobileActionsInHeader && "flex flex-1 justify-center",
-                  )}
-                >
+              {/* Equal side columns centre the strip on the header; the actions column never
+                  drops below its content, so wider actions push the strip aside, and on a
+                  very narrow screen the strip shrinks and scrolls. */}
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,max-content)_minmax(max-content,1fr)] items-center gap-2">
+                <div />
+                <div className="min-w-0">
                   <MobileNavigation
                     views={views}
                     currentView={shownView}
@@ -300,11 +298,9 @@ export function SwipablePage({
                     compact={mobileActionsInHeader}
                   />
                 </div>
-                {mobileActionsInHeader && currentActions && (
-                  <div className="flex shrink-0 items-center justify-end gap-2">
-                    {currentActions}
-                  </div>
-                )}
+                <div className="flex min-w-max items-center justify-end gap-2">
+                  {mobileActionsInHeader && currentActions}
+                </div>
               </div>
               {currentActions && !mobileActionsInHeader && (
                 <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">

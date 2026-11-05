@@ -11,7 +11,7 @@ import { act, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createActivity, updateActivity } from "@/adapters";
 import type { Activity } from "@/lib/types";
@@ -61,8 +61,11 @@ vi.mock("@/hooks/use-settings", () => {
   const data = { baseCurrency: "CAD" };
   return { useSettings: () => ({ data }) };
 });
-const platform = vi.hoisted(() => ({ isMobile: false }));
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => platform.isMobile }));
+const platform = vi.hoisted(() => ({ isMobile: false, isIOS: false }));
+vi.mock("@/hooks/use-platform", () => ({
+  useIsMobileViewport: () => platform.isMobile,
+  usePlatform: () => ({ isIOS: platform.isIOS }),
+}));
 vi.mock("@/hooks/use-taxonomies", () => {
   const result = { data: null };
   return { useTaxonomy: vi.fn(() => result) };
@@ -448,6 +451,62 @@ describe("CashActivityForm direct entry", () => {
       platform.isMobile = false;
       Object.defineProperty(window, "innerWidth", { value: innerWidth, configurable: true });
     }
+  });
+
+  describe("amount caret on a phone", () => {
+    const innerWidth = window.innerWidth;
+    beforeEach(() => {
+      platform.isMobile = true;
+      Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+    });
+    afterEach(() => {
+      platform.isMobile = false;
+      platform.isIOS = false;
+      Object.defineProperty(window, "innerWidth", { value: innerWidth, configurable: true });
+    });
+
+    it("opens a new entry on the amount, using the real caret", async () => {
+      const { container } = render(
+        <CashActivityForm open onOpenChange={vi.fn()} intent="expense" />,
+        { wrapper },
+      );
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(amount).toHaveFocus());
+      expect(amount).toHaveAttribute("placeholder", "");
+      expect(container.ownerDocument.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("draws a caret on iOS until the amount is tapped", async () => {
+      platform.isIOS = true;
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(document.querySelector("[data-amount-caret]")).not.toBeNull());
+      await user.click(amount);
+      expect(document.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("drops the iOS caret once another field takes focus", async () => {
+      platform.isIOS = true;
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await user.click(amount);
+      await user.click(screen.getByRole("textbox", { name: /notes/i }));
+      expect(amount).not.toHaveFocus();
+      expect(document.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("focuses the amount on moving on from the type step", async () => {
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} />, { wrapper });
+      expect(screen.queryByRole("textbox", { name: "Amount" })).not.toBeInTheDocument();
+      await chooseAccount(user, /WS Visa Infinite/);
+      await user.click(screen.getAllByRole("radio")[0]);
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(amount).toHaveFocus());
+    });
   });
 
   it("still asks before discarding after a save fails", async () => {

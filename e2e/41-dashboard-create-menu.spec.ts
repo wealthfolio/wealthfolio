@@ -1,4 +1,4 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Locator, type Page } from "@playwright/test";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
@@ -7,6 +7,20 @@ test.use({
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
   hasTouch: true,
 });
+
+// Header icon buttons look 36px on phones; an invisible ::after layer gives them a
+// larger tap area. Measure that area, not the visible circle.
+async function tapArea(control: Locator) {
+  return control.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const layer = getComputedStyle(element, "::after");
+    const covers = layer.position === "absolute";
+    return {
+      width: Math.max(rect.width, covers ? parseFloat(layer.width) : 0),
+      height: Math.max(rect.height, covers ? parseFloat(layer.height) : 0),
+    };
+  });
+}
 
 async function seedAccounts(page: Page) {
   await page.evaluate(async () => {
@@ -62,7 +76,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     await gotoAppPath(page, `/?tab=spending&dir=${direction}`);
     const add = page.getByRole("button", { name: "More options", exact: true }).first();
     await expect(add).toBeInViewport();
-    const bounds = (await add.boundingBox())!;
+    const bounds = await tapArea(add);
     expect(bounds.width).toBeGreaterThanOrEqual(44);
     expect(bounds.height).toBeGreaterThanOrEqual(44);
     await add.click();
@@ -152,7 +166,7 @@ test("compact dashboard tabs share a row with square actions and keep swipe navi
         const box = (await action.boundingBox())!;
         const tab = (await investments.boundingBox())!;
         expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
-        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect((await tapArea(action)).width).toBeGreaterThanOrEqual(44);
         expect(Math.abs(box.y + box.height / 2 - (tab.y + tab.height / 2))).toBeLessThan(2);
       }
       if (width === 402 && direction === "ltr") {

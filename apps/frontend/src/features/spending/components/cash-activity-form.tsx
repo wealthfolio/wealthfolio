@@ -1,7 +1,7 @@
 import { getCategoryLabel } from "@/lib/taxonomy-labels";
 
 import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -13,8 +13,8 @@ import { toast } from "sonner";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { createActivity, updateActivity } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useIsMobileViewport } from "@/hooks/use-platform";
-import { AccountTypeIconTile } from "@/components/account-type-icon";
+import { useIsMobileViewport, usePlatform } from "@/hooks/use-platform";
+import { accountPickerItems } from "@/components/account-picker-items";
 import { DiscardChangesDialog } from "@/components/discard-changes-dialog";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
@@ -243,24 +243,10 @@ export function CashActivityForm({
   // group when the accounts span more than one. Keyed on the label string, not `t`,
   // so the items keep their identity across renders.
   const uncategorizedLabel = t("dashboard:uncategorized");
-  const accountScreenItems = useMemo(() => {
-    const toItem = (acc: Account) => ({
-      value: acc.id,
-      label: acc.name,
-      icon: <AccountTypeIconTile accountType={acc.accountType} />,
-      meta: acc.currency,
-    });
-    const groups = new Map<string, Account[]>();
-    for (const acc of spendingAccounts) {
-      const key = acc.group?.trim() ?? "";
-      groups.set(key, [...(groups.get(key) ?? []), acc]);
-    }
-    if (groups.size < 2) return spendingAccounts.map(toItem);
-    return [...groups].map(([group, list]) => ({
-      value: group || uncategorizedLabel,
-      items: list.map(toItem),
-    }));
-  }, [spendingAccounts, uncategorizedLabel]);
+  const accountScreenItems = useMemo(
+    () => accountPickerItems(spendingAccounts, uncategorizedLabel),
+    [spendingAccounts, uncategorizedLabel],
+  );
 
   // Used only to look up the selected category's name/color for the trigger label.
   // QuickCategorizePopover loads its own data internally.
@@ -291,10 +277,15 @@ export function CashActivityForm({
   // via setActivityEvent rather than the activity create/update payload).
   const [eventId, setEventId] = useState<string | null>(activity?.eventId ?? null);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-  // The amount starts at 0 in the form, but shows as an empty field with a "0"
-  // placeholder until something is typed, and again once it is cleared.
+  // The amount starts at 0 in the form, but shows as an empty field with a grey "0"
+  // hint until something is typed, and again once it is cleared.
   const [amountTyped, setAmountTyped] = useState(false);
+  const [amountFocused, setAmountFocused] = useState(false);
+  // iOS shows no caret for a field focused without a tap, so while the amount has
+  // focus but has not been tapped, a drawn caret stands in for it.
   const [amountTapped, setAmountTapped] = useState(false);
+  const amountInputRef = useRef<HTMLInputElement>(null);
+  const { isIOS } = usePlatform();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const form = useForm<FormValues>({
@@ -523,6 +514,14 @@ export function CashActivityForm({
   const isMobileCreate = isMobile && !isEditing;
   const showChoiceFields = isQuickEntry || !isMobileCreate || currentStep === 1;
   const showDetailsFields = isQuickEntry || !isMobileCreate || currentStep === 2;
+  const focusAmountOnShow = open && isMobileCreate && (isQuickEntry || currentStep === 2);
+
+  // A new entry on a phone opens on the amount with its caret showing. Moving on
+  // from the type step removes the focused Next button; focusing the amount in the
+  // same commit keeps the sheet from moving focus to itself.
+  useLayoutEffect(() => {
+    if (focusAmountOnShow) amountInputRef.current?.focus({ preventScroll: true });
+  }, [focusAmountOnShow]);
 
   const handleMobileNext = async () => {
     const isValid = await form.trigger(["accountId", "activityType"]);
@@ -1010,33 +1009,49 @@ export function CashActivityForm({
           <FormLabel className="sr-only">{t("common:amount")}</FormLabel>
           <div
             className="font-heading relative w-full text-[length:var(--text-display)] leading-[1.1] tracking-[-0.03em] tabular-nums"
-            // The sheet focuses the amount on open, which shows no caret on a phone
-            // until it is tapped; the drawn one stands in until then.
             onPointerDown={() => setAmountTapped(true)}
+            onFocus={() => setAmountFocused(true)}
           >
             <FormControl>
               <MoneyInput
+                ref={amountInputRef}
                 value={field.value === 0 && !amountTyped ? undefined : field.value}
                 onValueChange={(v: number | undefined) => {
                   setAmountTyped(v !== undefined);
                   field.onChange(v ?? 0);
                 }}
-                placeholder="0"
+                placeholder=""
                 onBlur={() => {
+                  setAmountFocused(false);
                   setAmountTapped(false);
                   field.onBlur();
                 }}
-                className="font-heading placeholder:text-muted-foreground/60 h-auto border-0 bg-transparent px-0 text-center text-[length:var(--text-display)] leading-[1.1] tracking-[-0.03em] tabular-nums shadow-none focus-visible:outline-none dark:bg-transparent"
+                className="font-heading h-auto border-0 bg-transparent px-0 text-center text-[length:var(--text-display)] leading-[1.1] tracking-[-0.03em] tabular-nums shadow-none focus-visible:outline-none dark:bg-transparent"
               />
             </FormControl>
-            {/* A blinking caret beside the placeholder says the amount is typed here. */}
-            {field.value === 0 && !amountTyped && !amountTapped && (
+            {/* The "0" hint sits beside the field rather than in it: an empty centred
+                field puts its caret at the centre, so while a caret shows the hint
+                moves just before it instead of under it. */}
+            {field.value === 0 && !amountTyped && (
               <span
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 flex items-center justify-center"
               >
-                <span className="invisible">0</span>
-                <span className="bg-primary ms-1 h-[0.8em] w-0.5 animate-[caret-blink_1.1s_step-end_infinite] rounded-full motion-reduce:animate-none" />
+                <span
+                  className={cn(
+                    "text-muted-foreground/60",
+                    amountFocused &&
+                      "-translate-x-[calc(50%+0.06em)] rtl:translate-x-[calc(50%+0.06em)]",
+                  )}
+                >
+                  0
+                </span>
+                {isIOS && amountFocused && !amountTapped && (
+                  <span
+                    data-amount-caret
+                    className="bg-primary absolute start-1/2 h-[0.8em] w-0.5 animate-[caret-blink_1.1s_step-end_infinite] rounded-full motion-reduce:animate-none"
+                  />
+                )}
               </span>
             )}
           </div>
@@ -1167,6 +1182,9 @@ export function CashActivityForm({
       <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent
           side={isMobile ? "bottom" : "inline-end"}
+          // Opening focuses the sheet's first control, which would take focus from
+          // the amount; the effect above covers moving on from the type step.
+          initialFocus={focusAmountOnShow ? amountInputRef : undefined}
           className={cn(
             isMobile
               ? "rounded-t-4xl mx-1 flex flex-col overflow-hidden p-0 [--overlay-max-height:90dvh]"
