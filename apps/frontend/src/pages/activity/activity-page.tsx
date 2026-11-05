@@ -619,6 +619,16 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
             : []),
         ],
       },
+      {
+        items: [
+          {
+            icon: Icons.ArrowLeftRight,
+            label: t("activity:transfer_review.title"),
+            testId: "match-transfers-action",
+            onClick: () => navigate("/activities/transfers"),
+          },
+        ],
+      },
     ],
     [handleEdit, navigate, showConnectAccountLink, t],
   );

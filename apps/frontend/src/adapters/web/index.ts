@@ -109,6 +109,8 @@ export {
   getAccountImportMapping,
   linkAccountTemplate,
   linkTransferActivities,
+  linkTransferPairs,
+  reviewTransferMatches,
   unlinkTransferActivities,
   getActivities,
   importActivities,

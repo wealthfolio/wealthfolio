@@ -11,7 +11,6 @@
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde_json::json;
 
 use crate::errors::Result;
 use crate::health::model::{
@@ -48,6 +47,9 @@ impl InvalidTransferGroupInfo {
     }
 }
 
+/// The Match transfers review page.
+const TRANSFER_REVIEW_ROUTE: &str = "/activities/transfers";
+
 /// Health check that detects incomplete / invalid transfer groups.
 pub struct TransferIntegrityCheck;
 
@@ -83,20 +85,12 @@ impl TransferIntegrityCheck {
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        // Deeplink: transfers filtered to the affected date window.
-        let all_dates: Vec<NaiveDate> = groups
-            .iter()
-            .flat_map(|g| g.legs.iter().map(|l| l.date))
-            .collect();
-        let mut query = json!({ "types": "TRANSFER_IN,TRANSFER_OUT", "healthContext": "activity" });
-        if let (Some(from), Some(to)) = (all_dates.iter().min(), all_dates.iter().max()) {
-            query["from"] = json!(from.format("%Y-%m-%d").to_string());
-            query["to"] = json!(to.format("%Y-%m-%d").to_string());
-        }
+        // The Match transfers review lists every reported transfer with its
+        // likely other side; each affected item still opens its own leg.
         let navigate = NavigateAction {
-            route: "/activities".to_string(),
-            query: Some(query),
-            label: "Review Transactions".to_string(),
+            route: TRANSFER_REVIEW_ROUTE.to_string(),
+            query: None,
+            label: "Match transfers".to_string(),
         };
 
         let title = if count == 1 {
@@ -324,7 +318,9 @@ mod tests {
         assert_eq!(issue.severity, Severity::Error);
         assert_eq!(issue.category, HealthCategory::DataConsistency);
         assert_eq!(issue.affected_count, 1);
-        assert!(issue.navigate_action.is_some());
+        let navigate = issue.navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, "/activities/transfers");
+        assert!(navigate.query.is_none());
 
         // The technical group_id must never leak into user-facing text.
         let id = "wf-transfer-80RGYWMp5UoNHnwO98ymz";

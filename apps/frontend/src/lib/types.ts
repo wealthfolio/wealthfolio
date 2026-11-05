@@ -444,13 +444,66 @@ export interface TransferMatchCandidateRequest {
   limit?: number;
 }
 
+export type TransferMatchReason =
+  | "same_asset"
+  | "same_quantity"
+  | "same_amount"
+  | "same_currency"
+  | "same_date"
+  | "same_time"
+  | "same_account"
+  | "cash_fx_conversion";
+
+export type TransferMatchWarning =
+  | { code: "dates_differ"; days: number }
+  | { code: "currencies_differ"; source: string; candidate: string }
+  | { code: "prices_differ" }
+  | { code: "another_match" };
+
 export interface TransferMatchCandidate {
   activity: Activity;
   matchKind: "cash" | "security" | "cash_fx_conversion";
+  /** "high" only for a certain match, which the core decides. */
   confidence: "high" | "medium" | "low";
   score: number;
   reasons: string[];
   warnings: string[];
+  /** `reasons` as codes to translate, in the same order. */
+  reasonCodes?: TransferMatchReason[];
+  /** `warnings` as codes to translate, in the same order. */
+  warningCodes?: TransferMatchWarning[];
+}
+
+export type TransferLinkState =
+  | "linked"
+  | "linked_but_marked_external"
+  | "external"
+  | "needs_counterpart"
+  | "broken_link";
+
+/** A posted transfer with no linked other side, and its best candidates. */
+export interface UnlinkedTransfer {
+  activity: Activity;
+  linkState: TransferLinkState;
+  candidates: TransferMatchCandidate[];
+}
+
+/** The Match transfers review, newest first. */
+export interface TransferMatchReview {
+  /** Pairs certain enough to link together; the only candidate is the other side. */
+  certain: UnlinkedTransfer[];
+  /** The rest, each with its best candidates (possibly none). */
+  needsReview: UnlinkedTransfer[];
+}
+
+export interface TransferPairLinkRequest {
+  activityAId: string;
+  activityBId: string;
+}
+
+export interface LinkTransferPairsResult {
+  linked: { transferInId: string; transferOutId: string }[];
+  errors: { index: number; message: string }[];
 }
 export type ActivityImport = z.infer<typeof importActivitySchema>;
 export type ImportMappingData = z.infer<typeof importMappingSchema>;

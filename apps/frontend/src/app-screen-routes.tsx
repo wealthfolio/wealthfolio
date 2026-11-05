@@ -13,6 +13,7 @@ import ConnectPage from "@/features/wealthfolio-connect/pages/connect-page";
 import ActivityManagerPage from "@/pages/activity/activity-manager-page";
 import ActivityPage from "@/pages/activity/activity-page";
 import ActivityImportPage from "@/pages/activity/import/activity-import-page";
+import { TransferReviewPage } from "@/pages/activity/transfer-review/transfer-review-page";
 import AssetsPage from "@/pages/asset/assets-page";
 import PortfolioPage from "@/pages/dashboard/portfolio-page";
 import HoldingsPage from "@/pages/holdings/holdings-page";
@@ -96,6 +97,7 @@ export const AppScreenRoutes = memo(function AppScreenRoutes({ location }: AppSc
         element={<ActivityPage key="transfer-holdings" initialAction="transfer-holdings" />}
       />
       <Route path="activities/manage" element={<ActivityManagerPage />} />
+      <Route path="activities/transfers" element={<TransferReviewPage />} />
       <Route path="holdings" element={<HoldingsPage />} />
       <Route path="holdings/:assetId" element={<AssetProfilePage />} />
       <Route path="import" element={<ActivityImportPage />} />

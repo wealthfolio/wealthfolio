@@ -121,6 +121,8 @@ export const COMMANDS: CommandMap = {
     path: "/activities/convert-to-transfer/split-effects",
   },
   link_transfer_activities: { method: "POST", path: "/activities/link" },
+  link_transfer_pairs: { method: "POST", path: "/activities/link-pairs" },
+  review_transfer_matches: { method: "GET", path: "/activities/transfer-review" },
   unlink_transfer_activities: { method: "POST", path: "/activities/unlink" },
   // Activity import
   check_activities_import: { method: "POST", path: "/activities/import/check" },
@@ -926,6 +928,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         activityBId: string;
       };
       body = JSON.stringify({ activityAId, activityBId });
+      break;
+    }
+    case "link_transfer_pairs": {
+      const { pairs } = payload as { pairs: unknown[] };
+      body = JSON.stringify({ pairs });
       break;
     }
     case "unlink_transfer_activities": {
