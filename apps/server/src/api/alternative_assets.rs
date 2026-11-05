@@ -230,6 +230,8 @@ async fn update_alternative_asset_valuation(
         .alternative_asset_service
         .update_valuation(core_request)
         .await?;
+    // A new value can end a stale valuation in Health Center.
+    state.health_service.clear_cache().await;
 
     // Trigger portfolio recalculation
     enqueue_portfolio_job(

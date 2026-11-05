@@ -21,6 +21,9 @@ export const useQuoteMutations = (
 
   const invalidateQuoteQueries = useCallback(async () => {
     invalidatePerformanceCaches(queryClient);
+    // A new value can end a stale valuation in Health Center. Not awaited: a
+    // full health check should not hold the save.
+    void queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] }),
       queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY, assetId] }),

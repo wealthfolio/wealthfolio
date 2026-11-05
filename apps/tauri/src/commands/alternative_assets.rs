@@ -18,6 +18,7 @@ use wealthfolio_core::assets::{
     LinkLiabilityRequest as CoreLinkRequest, UpdateAssetDetailsRequest as CoreUpdateDetailsRequest,
     UpdateValuationRequest as CoreValuationRequest,
 };
+use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::portfolio::net_worth::{NetWorthHistoryPoint, NetWorthResponse};
 use wealthfolio_core::quotes::MarketSyncMode;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
@@ -211,6 +212,8 @@ pub async fn update_alternative_asset_valuation(
             error!("Failed to update valuation: {}", e);
             format!("Failed to update valuation: {}", e)
         })?;
+    // A new value can end a stale valuation in Health Center.
+    context.health_service().clear_cache().await;
 
     Ok(UpdateValuationResponse {
         quote_id: response.quote_id,
