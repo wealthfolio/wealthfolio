@@ -72,11 +72,10 @@ export function buildAssetClassificationApplyPlan(
 
 export function formatBasisPoints(
   weightBasisPoints: number,
-  formatting: Pick<FormattingApi, "formatDecimal">,
+  formatting: Pick<FormattingApi, "formatPercent">,
 ): string {
   const percent = weightBasisPoints / 100;
-  return `${formatting.formatDecimal(percent, {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: Number.isInteger(percent) ? 0 : 2,
-  })}%`;
+  return formatting.formatPercent(weightBasisPoints / 10000, {
+    digits: Number.isInteger(percent) ? 0 : 2,
+  });
 }

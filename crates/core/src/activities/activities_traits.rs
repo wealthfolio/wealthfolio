@@ -247,6 +247,22 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         updates: Vec<ActivityUpdate>,
         delete_ids: Vec<String>,
     ) -> Result<ActivityBulkMutationResult>;
+    /// Applies `creates` and `updates`, drops the spending and income
+    /// categories of both legs, then links `activity_id` with `counterpart_id`
+    /// (the first created activity when `None`), in one transaction: a failed
+    /// link leaves none of the writes behind. Returns `(transfer_in,
+    /// transfer_out)` like `link_transfer_activities`.
+    async fn mutate_and_link_transfer(
+        &self,
+        _creates: Vec<NewActivity>,
+        _updates: Vec<ActivityUpdate>,
+        _activity_id: String,
+        _counterpart_id: Option<String>,
+    ) -> Result<(Activity, Activity)> {
+        Err(crate::Error::Unexpected(
+            "Activity repository does not support linking in the same transaction".into(),
+        ))
+    }
     async fn create_activities(&self, activities: Vec<NewActivity>) -> Result<usize>;
     /// Same insert policy/atomicity as create_activities, returning actual saved
     /// rows in input order. Never infer persisted IDs from review UUIDs.
@@ -488,6 +504,13 @@ pub trait ActivityServiceTrait: Send + Sync {
     ) -> Result<Vec<ActivitySplitEffect>> {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
+    /// Split effects of the rows `convert_to_internal_transfer` would retype.
+    async fn review_convert_to_transfer_split_effects(
+        &self,
+        _request: ConvertToTransferRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Deletes exactly the reviewed rows, rejecting newly linked/grouped rows
     /// atomically, and returns every deleted record.
@@ -523,6 +546,10 @@ pub trait ActivityServiceTrait: Send + Sync {
     async fn save_internal_transfer_pair(
         &self,
         request: InternalTransferPairRequest,
+    ) -> Result<InternalTransferPairResponse>;
+    async fn convert_to_internal_transfer(
+        &self,
+        request: ConvertToTransferRequest,
     ) -> Result<InternalTransferPairResponse>;
     async fn link_transfer_activities(
         &self,

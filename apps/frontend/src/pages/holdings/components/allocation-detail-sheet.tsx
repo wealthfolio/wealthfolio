@@ -8,7 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
-import { AmountDisplay, chartSliceColor, Skeleton } from "@wealthfolio/ui";
+import { AmountDisplay, chartSliceColor, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -52,6 +52,7 @@ export function AllocationDetailSheet({
 }: AllocationDetailSheetProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const numberFormatting = useNumberFormatting();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { isBalanceHidden } = useBalancePrivacy();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -296,7 +297,7 @@ export function AllocationDetailSheet({
                         className="shrink-0 text-sm"
                       />
                       <span className="text-muted-foreground w-12 shrink-0 text-end text-xs tabular-nums">
-                        {category.percentage.toFixed(1)}%
+                        {numberFormatting.formatPercent(category.percentage / 100, { digits: 1 })}
                       </span>
                     </div>
 
@@ -353,7 +354,9 @@ export function AllocationDetailSheet({
                                     className="text-muted-foreground shrink-0 text-xs"
                                   />
                                   <span className="text-muted-foreground w-12 shrink-0 text-end text-xs tabular-nums">
-                                    {child.percentage.toFixed(1)}%
+                                    {numberFormatting.formatPercent(child.percentage / 100, {
+                                      digits: 1,
+                                    })}
                                   </span>
                                 </div>
                               );
@@ -474,7 +477,9 @@ export function AllocationDetailSheet({
                               className="text-sm font-medium"
                             />
                             <p className="text-muted-foreground text-xs">
-                              {holding.weightInCategory.toFixed(1)}%
+                              {numberFormatting.formatPercent(holding.weightInCategory / 100, {
+                                digits: 1,
+                              })}
                             </p>
                           </div>
                         </div>

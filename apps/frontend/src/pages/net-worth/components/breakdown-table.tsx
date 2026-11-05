@@ -73,6 +73,7 @@ function BreakdownRow({
   negative,
   onClick,
 }: RowProps) {
+  const formatting = useNumberFormatting();
   // The hover is a layer reaching 8px past the row on each side, so the row, its
   // subgrid columns and its divider stay put (the layout guard keeps rows inside
   // their parent).
@@ -103,7 +104,7 @@ function BreakdownRow({
         </span>
       </div>
       <span className="text-muted-foreground/70 hidden text-end text-sm tabular-nums @min-[40rem]/breakdown:block">
-        {percentOfSection.toFixed(1)}%
+        {formatting.formatPercent(percentOfSection / 100, { digits: 1 })}
       </span>
       <span className={`text-foreground ${AMOUNT_CELL} inline-flex items-baseline justify-end`}>
         {negative && value !== 0 ? "-" : ""}

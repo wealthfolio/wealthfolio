@@ -1,3 +1,4 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import {
   Alert,
   AlertDescription,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
   useDateFormatting,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
@@ -46,10 +48,10 @@ type DialogState =
   | { status: "ready"; candidate: NormalizedLogoImage; originalBytes: number }
   | { status: "error"; code: LogoImageErrorCode };
 
-const formatBytes = (bytes: number) =>
+const formatBytes = (bytes: number, numbers: NumberFormatting) =>
   bytes < 1024 * 1024
-    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    ? `${numbers.formatDecimal(Math.max(1, Math.round(bytes / 1024)))} KB`
+    : `${numbers.formatDecimal(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
 
 export function AssetLogoDialog({ open, onOpenChange, ...bodyProps }: AssetLogoDialogProps) {
   const isMobile = useIsMobileViewport();
@@ -112,6 +114,7 @@ function AssetLogoDialogBody({
   onClose,
 }: AssetLogoDialogBodyProps) {
   const { t } = useTranslation("asset");
+  const numbers = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const override = useAssetLogoOverride({ assetId });
   const hasCustom = !!override.ref;
@@ -235,8 +238,8 @@ function AssetLogoDialogBody({
                 {t("logo.preview_meta", {
                   width: state.candidate.width,
                   height: state.candidate.height,
-                  size: formatBytes(state.candidate.blob.size),
-                  original: formatBytes(state.originalBytes),
+                  size: formatBytes(state.candidate.blob.size, numbers),
+                  original: formatBytes(state.originalBytes, numbers),
                 })}
               </span>
               <Button

@@ -187,7 +187,8 @@
     "duplicate": "复制",
     "unlinkTransfer": "取消关联转账",
     "linkTransfer": "关联转账……",
-    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？"
+    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？",
+    "convertToTransfer": "转为转账..."
   },
   "cashFlow": {
     "income": "收入",
@@ -926,7 +927,7 @@
     "stageWhenLabel": "何时与何地",
     "stageWhenSub": "何时消费及支出事件",
     "spendingAbovePrefix": "支出",
-    "pctAbove": "高出 {{pct}}%",
+    "pctAbove": "高出 {{pct}}",
     "thePriorPeriod": "较上一周期。",
     "moreThan": "比 {{prior}} 多 {{more}}",
     "uncategorizedCount_one": "{{count}} 笔未归类交易",

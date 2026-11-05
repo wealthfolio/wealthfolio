@@ -395,6 +395,7 @@ export function AccountForm({
                         <Input
                           placeholder={t("settings:accounts_form_group_placeholder")}
                           {...field}
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <AccountFormMessage />

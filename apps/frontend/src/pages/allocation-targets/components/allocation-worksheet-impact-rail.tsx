@@ -1,5 +1,13 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import { useChangeArrow, worksheetCategoryLabel } from "./allocation-worksheet-labels";
-import { Button, Card, CardContent, Icons, useAmountFormatting } from "@wealthfolio/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  Icons,
+  useAmountFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -60,17 +68,12 @@ interface ImpactRailProps {
   describeWarning: (warning: WorksheetWarning) => string;
 }
 
-function formatWeight(bps: number): string {
-  return (bps / 100).toFixed(1);
+function formatShare(bps: number, numbers: NumberFormatting): string {
+  return numbers.formatPercent(bps / 10000, { digits: 0 });
 }
 
-function formatShare(bps: number): string {
-  return `${Math.round(bps / 100)}%`;
-}
-
-function formatFraction(fraction: number): string {
-  const percent = fraction * 100;
-  return `${percent.toFixed(percent < 10 ? 1 : 0)}%`;
+function formatFraction(fraction: number, numbers: NumberFormatting): string {
+  return numbers.formatPercent(fraction, { digits: fraction * 100 < 10 ? 1 : 0 });
 }
 
 /**
@@ -83,6 +86,7 @@ function shareOfClass(
   item: ImpactClass,
   weightBps: number,
   arrow: string,
+  numbers: NumberFormatting,
 ): string | undefined {
   const valueNow = row.valueIn[item.categoryId] ?? 0;
   const delta = changeInCategory(row.change, weightBps);
@@ -91,8 +95,9 @@ function shareOfClass(
     Math.abs(delta) >= AMOUNT_EPSILON && item.projectedValue > 0
       ? Math.max(0, valueNow + delta) / item.projectedValue
       : undefined;
-  if (after !== undefined) return `${formatFraction(now ?? 0)} ${arrow} ${formatFraction(after)}`;
-  return now === undefined ? undefined : formatFraction(now);
+  if (after !== undefined)
+    return `${formatFraction(now ?? 0, numbers)} ${arrow} ${formatFraction(after, numbers)}`;
+  return now === undefined ? undefined : formatFraction(now, numbers);
 }
 
 export function ImpactRail({
@@ -115,6 +120,7 @@ export function ImpactRail({
 }: ImpactRailProps) {
   const { t } = useTranslation();
   const arrow = useChangeArrow();
+  const numbers = useNumberFormatting();
   const { formatAmount } = useAmountFormatting();
   const pointedOrSelected = useHighlight((state) => activeTarget(state));
   const selected = useHighlight((state) => state.selected);
@@ -154,7 +160,7 @@ export function ImpactRail({
     : unclassifiedBps >= 10_000
       ? t("allocation:worksheet.rowUnclassified", { symbol: activeRow.symbol })
       : t("allocation:worksheet.rowPartlyClassified", {
-          share: formatShare(unclassifiedBps),
+          share: formatShare(unclassifiedBps, numbers),
           symbol: activeRow.symbol,
         });
   const unresolvedByCategory = new Map(unresolved.map((item) => [item.categoryId, item]));
@@ -276,7 +282,7 @@ export function ImpactRail({
                 shareText={(() => {
                   const inClass =
                     activeRow && share
-                      ? shareOfClass(activeRow, item, share.weightBps, arrow)
+                      ? shareOfClass(activeRow, item, share.weightBps, arrow, numbers)
                       : undefined;
                   return activeRow && inClass
                     ? t("allocation:worksheet.rowShareOfClass", {
@@ -439,6 +445,7 @@ function ImpactClassRow({
 }: ImpactClassRowProps) {
   const { t } = useTranslation();
   const arrow = useChangeArrow();
+  const numbers = useNumberFormatting();
   const { point, unpoint, toggleSelected } = useHighlightActions();
   const target: HighlightTarget = { kind: "category", categoryId: item.categoryId };
 
@@ -479,7 +486,11 @@ function ImpactClassRow({
           className="text-muted-foreground text-2xs shrink-0 font-mono tabular-nums"
           title={t("allocation:worksheet.classFiguresTitle")}
         >
-          {formatWeight(item.currentBps)} {arrow}{" "}
+          {numbers.formatDecimal(item.currentBps / 100, {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          })}{" "}
+          {arrow}{" "}
           <span
             data-outside-range={isOutsideRange || undefined}
             className={cn(
@@ -487,9 +498,16 @@ function ImpactClassRow({
               isOutsideRange ? "text-warning-subtle-foreground" : "text-foreground",
             )}
           >
-            {formatWeight(item.projectedBps)}
+            {numbers.formatDecimal(item.projectedBps / 100, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
           </span>{" "}
-          / {formatWeight(item.targetBps)}
+          /{" "}
+          {numbers.formatDecimal(item.targetBps / 100, {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          })}
         </span>
       </span>
       <span className="relative mt-1.5 block h-3" aria-hidden>

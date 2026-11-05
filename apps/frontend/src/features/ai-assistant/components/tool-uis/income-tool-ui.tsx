@@ -1,3 +1,4 @@
+import type { FormattingApi } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { UnconvertedCurrenciesNotice } from "@/pages/income/unconverted-currencies-notice";
 import { Alert, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
@@ -19,6 +20,7 @@ import {
   TooltipTrigger,
   useAmountFormatting,
   useNumberFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { memo, useMemo } from "react";
@@ -171,30 +173,12 @@ function getTypeLabel(type: string, t: TFunction): string {
   }
 }
 
-function formatMonthLabel(key: string): string {
-  // key format: "2024-01" or "2024-1" or "Jan 2024"
-  const parts = key.split("-");
-  if (parts.length === 2) {
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const monthIndex = parseInt(parts[1], 10) - 1;
-    if (monthIndex >= 0 && monthIndex < 12) {
-      return monthNames[monthIndex];
-    }
-  }
-  return key;
+function formatMonthLabel(key: string, dates: Pick<FormattingApi, "formatCalendarDate">): string {
+  const match = /^(\d{4})-(\d{1,2})$/.exec(key);
+  if (!match) return key;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return key;
+  return dates.formatCalendarDate({ year: Number(match[1]), month, day: 1 }, { month: "short" });
 }
 
 // ============================================================================
@@ -215,6 +199,7 @@ const IncomeContent = memo(IncomeContentImpl);
 export function IncomeContentImpl({ args, result, status }: IncomeContentProps) {
   const amountFormatting = useAmountFormatting();
   const formatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const parsed = normalizeResult(result);
@@ -249,10 +234,10 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, value]) => ({
         month,
-        label: formatMonthLabel(month),
+        label: formatMonthLabel(month, dateFormatting),
         income: value,
       }));
-  }, [parsed?.byMonth]);
+  }, [parsed?.byMonth, dateFormatting]);
 
   // Top assets with percentage of total
   const topAssetsSlice = useMemo(() => {
@@ -395,7 +380,7 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
                   <div key={item.type} className="flex items-center justify-between text-xs">
                     <span className="text-sm font-semibold">{item.label}</span>
                     <span className="text-muted-foreground tabular-nums">
-                      {item.percentage.toFixed(0)}%
+                      {formatting.formatPercent(item.percentage / 100, { digits: 0 })}
                     </span>
                   </div>
                 ))}
