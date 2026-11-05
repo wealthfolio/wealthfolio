@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { Activity } from "react";
@@ -138,4 +139,125 @@ it("keeps an edited target as it was when its phone screen comes back", async ()
 
   expect(screen.getByPlaceholderText("Target name")).toHaveValue("Retirement mix");
   expect(screen.getByRole("button", { name: "Save target" })).toBeEnabled();
+});
+
+it.each(["ltr", "rtl"] as const)(
+  "displays and saves a Spain turnover cap in %s",
+  async (direction) => {
+    const cappedTarget = { ...target, maxTurnoverBps: 1250 };
+    saveTarget.mockReset().mockResolvedValue({ target: cappedTarget, weights });
+    saveConstraints.mockReset().mockResolvedValue([]);
+    render(
+      <DirectionProvider direction={direction}>
+        <FormattingProvider locale="ES">
+          <TooltipProvider>
+            <TargetsTab
+              targets={[cappedTarget]}
+              selectedTargetId={target.id}
+              accountScope={{ type: "all" }}
+              onTargetChange={vi.fn()}
+            />
+          </TooltipProvider>
+        </FormattingProvider>
+      </DirectionProvider>,
+    );
+    const user = userEvent.setup();
+    const input = screen.getByPlaceholderText("No limit");
+    expect(input).toHaveValue("12,5");
+    await user.click(input);
+    await user.keyboard("{End}{Backspace}6");
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await waitFor(() =>
+      expect(saveTarget).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ maxTurnoverBps: 1260 }),
+        }),
+      ),
+    );
+  },
+);
+
+it.each(["101", "-1", "invalid"])("does not save invalid turnover cap %s", async (value) => {
+  saveTarget.mockReset();
+  render(
+    <FormattingProvider locale="ES">
+      <TooltipProvider>
+        <TargetsTab
+          targets={[target]}
+          selectedTargetId={target.id}
+          accountScope={{ type: "all" }}
+          onTargetChange={vi.fn()}
+        />
+      </TooltipProvider>
+    </FormattingProvider>,
+  );
+  const user = userEvent.setup();
+  const input = screen.getByPlaceholderText("No limit");
+  await user.type(input, value);
+  expect(screen.getByRole("button", { name: "Save target" })).toBeDisabled();
+  expect(saveTarget).not.toHaveBeenCalled();
+});
+
+it("preserves an edited turnover cap across a region change", async () => {
+  const cappedTarget = { ...target, maxTurnoverBps: 1250 };
+  const targets = [cappedTarget];
+  const scope = { type: "all" as const };
+  const onTargetChange = vi.fn();
+  saveTarget.mockReset().mockResolvedValue({ target: cappedTarget, weights });
+  saveConstraints.mockReset().mockResolvedValue([]);
+  const tab = (locale: string) => (
+    <FormattingProvider locale={locale}>
+      <TooltipProvider>
+        <TargetsTab
+          targets={targets}
+          selectedTargetId={target.id}
+          accountScope={scope}
+          onTargetChange={onTargetChange}
+        />
+      </TooltipProvider>
+    </FormattingProvider>
+  );
+  const { rerender } = render(tab("ES"));
+  const user = userEvent.setup();
+  const input = screen.getByPlaceholderText("No limit");
+  await user.click(input);
+  await user.keyboard("{End}{Backspace}6");
+  rerender(tab("US"));
+  expect(input).toHaveValue("12.6");
+  await user.click(screen.getByRole("button", { name: "Save target" }));
+  await waitFor(() =>
+    expect(saveTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ maxTurnoverBps: 1260 }),
+      }),
+    ),
+  );
+});
+
+it("clears a turnover cap instead of saving zero when its draft is empty", async () => {
+  const cappedTarget = { ...target, maxTurnoverBps: 1250 };
+  saveTarget.mockReset().mockResolvedValue({ target: cappedTarget, weights });
+  saveConstraints.mockReset().mockResolvedValue([]);
+  render(
+    <FormattingProvider locale="ES">
+      <TooltipProvider>
+        <TargetsTab
+          targets={[cappedTarget]}
+          selectedTargetId={target.id}
+          accountScope={{ type: "all" }}
+          onTargetChange={vi.fn()}
+        />
+      </TooltipProvider>
+    </FormattingProvider>,
+  );
+  const user = userEvent.setup();
+  await user.clear(screen.getByPlaceholderText("No limit"));
+  await user.click(screen.getByRole("button", { name: "Save target" }));
+  await waitFor(() =>
+    expect(saveTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ maxTurnoverBps: null }),
+      }),
+    ),
+  );
 });

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { Activity } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
+import { PrivacyAmount, useDateFormatting, useAmountFormatting } from "@wealthfolio/ui";
 
 import { getVisibleSpendingAmount } from "../../lib/constants";
 
@@ -73,6 +73,7 @@ export function SpendingRhythmHeatmap({
             cells={row}
             max={max}
             accent={accent}
+            currency={currency}
             isBalanceHidden={isBalanceHidden}
             weekLabel={t("spending:rhythm.week", { number: wi + 1 })}
             noSpendLabel={t("spending:rhythm.noSpend")}
@@ -101,6 +102,7 @@ function RhythmRow({
   isBalanceHidden,
   weekLabel,
   noSpendLabel,
+  currency,
 }: {
   weekIndex: number;
   cells: Cell[];
@@ -109,8 +111,10 @@ function RhythmRow({
   isBalanceHidden: boolean;
   weekLabel: string;
   noSpendLabel: string;
+  currency: string;
 }) {
   const formatting = useDateFormatting();
+  const amounts = useAmountFormatting();
   return (
     <>
       <div className="text-muted-foreground/70 text-2xs self-center pe-1 text-end">{weekLabel}</div>
@@ -127,7 +131,11 @@ function RhythmRow({
               month: cell.date.getMonth() + 1,
               day: cell.date.getDate(),
             })} · ${
-              cell.amount > 0 ? (isBalanceHidden ? "••••" : cell.amount.toFixed(2)) : noSpendLabel
+              cell.amount > 0
+                ? isBalanceHidden
+                  ? "••••"
+                  : amounts.formatAmount(cell.amount, currency)
+                : noSpendLabel
             }`}
           />
         );

@@ -835,8 +835,8 @@ export default function SpendingTabContent() {
             {t("spending:tabContent.spendingAbovePrefix")}{" "}
             <span className="font-semibold">
               {t("spending:tabContent.pctAbove", {
-                pct: numberFormatting.formatDecimal(deltaPct * 100, {
-                  maximumFractionDigits: 0,
+                pct: numberFormatting.formatPercent(deltaPct, {
+                  digits: 0,
                 }),
               })}
             </span>{" "}

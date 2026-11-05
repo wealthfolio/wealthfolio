@@ -105,6 +105,8 @@ export {
   getImportTemplate,
   getBrokerSyncProfile,
   findTransferMatchCandidates,
+  convertToInternalTransfer,
+  reviewConvertToTransferSplitEffects,
   getTransferPairForActivity,
   getAccountImportMapping,
   linkAccountTemplate,

@@ -140,3 +140,35 @@ describe("WhatChangedStage localization", () => {
     expect(screen.getByText(/^61[\u00a0\u202f ]%$/)).toBeInTheDocument();
   });
 });
+
+it("uses the currency's region for compact amount deltas in category pills", () => {
+  const category = (categoryId: string, amount: number) => ({
+    taxonomyId: "spending_categories",
+    categoryId,
+    amount,
+    count: 1,
+  });
+  const previous = report(1000, 2, [category("shopping", 1), category("food", 999)]);
+  const current = report(2000, 2, [category("shopping", 1234.5), category("food", 765.5)]);
+  render(
+    <MemoryRouter>
+      <FormattingProvider locale="ES" currencyFormattingRegions={{ USD: "US" }}>
+        <WhatChangedStage
+          range={range}
+          priorRange={priorRange}
+          timezone="UTC"
+          currentReport={current}
+          priorReport={previous}
+          months={[
+            { iso: "2026-07-01", label: "Jul", report: previous, isLoading: false },
+            { iso: "2026-08-01", label: "Aug", report: current, isLoading: false },
+          ]}
+          taxonomyCategories={categories}
+          currency="USD"
+          isLoading={false}
+        />
+      </FormattingProvider>
+    </MemoryRouter>,
+  );
+  expect(screen.getByText(/↑\s1\.2K/)).toBeInTheDocument();
+});
