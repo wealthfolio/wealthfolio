@@ -337,7 +337,7 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
             },
             "amount": {
                 "type": "number",
-                "description": "Final cash that moved: a buy's total including charges, a sell's proceeds after them. For DIVIDEND and INTEREST, the cash received after withholding tax, with the withheld tax in `tax` (a 100 dividend with 15 withheld is amount 85, tax 15). For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, the value received; provide either amount or unitPrice"
+                "description": "Final cash that moved: a buy's total including charges, a sell's proceeds after them. For DIVIDEND and INTEREST, the cash received after withholding tax, with the withheld tax in `tax` (a 100 dividend with 15 withheld is amount 85, tax 15). For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, the value of the shares or tokens received; provide either amount or unitPrice. For SPLIT, the split ratio (2 for a 2-for-1 split)"
             },
             "fee": {
                 "type": "number",
