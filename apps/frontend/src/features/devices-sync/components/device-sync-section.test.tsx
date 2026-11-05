@@ -17,6 +17,7 @@ const hookMocks = vi.hoisted(() => ({
 type RestoreHandler = (event: { payload: RestoreOperation }) => void;
 
 const adapterMocks = vi.hoisted(() => ({
+  openUrlInBrowser: vi.fn().mockResolvedValue(undefined),
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), trace: vi.fn() },
   getDeviceSyncRestore: vi.fn(),
   startDeviceSyncRestore: vi.fn(),
