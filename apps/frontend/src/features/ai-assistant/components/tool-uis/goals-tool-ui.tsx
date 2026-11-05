@@ -284,7 +284,7 @@ function GoalCard({
           variant={goal.isAchieved ? "default" : "secondary"}
           className={cn("text-xs", goal.isAchieved && "bg-success text-success-foreground")}
         >
-          {goal.progressPercent.toFixed(0)}%
+          {formatting.formatPercent(goal.progressPercent / 100, { digits: 0 })}
         </Badge>
       </div>
 

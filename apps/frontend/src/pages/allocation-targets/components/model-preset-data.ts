@@ -1,3 +1,4 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { getCategoryLabel } from "@/lib/taxonomy-labels";
 
@@ -36,7 +37,10 @@ export const CATEGORY_LABELS: Record<string, string> = {
   R50: "Oceania",
 };
 
-function formattedPct(value: number): string {
+function formattedPct(value: number, numbers?: NumberFormatting): string {
+  if (numbers)
+    return numbers.formatPercent(value / 100, { digits: Number.isInteger(value) ? 0 : 1 });
+  // Suggested persisted names keep their canonical spelling; displays pass a formatter.
   return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
 }
 
@@ -48,6 +52,7 @@ export function modelPresetTitle(
   preset: ModelPreset,
   categories: { id: string; name: string; sortOrder?: number }[],
   t?: TFunction,
+  numbers?: NumberFormatting,
 ): string {
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const entries = Object.entries(preset.weights)
@@ -62,7 +67,7 @@ export function modelPresetTitle(
     });
   const visible = entries.slice(0, 3).map(([categoryId, pct]) => {
     const label = categoryById.get(categoryId)?.name ?? CATEGORY_LABELS[categoryId] ?? categoryId;
-    return `${formattedPct(pct)} ${t ? getCategoryLabel(t, preset.taxonomyId, categoryId, label) : label}`;
+    return `${formattedPct(pct, numbers)} ${t ? getCategoryLabel(t, preset.taxonomyId, categoryId, label) : label}`;
   });
   if (entries.length > visible.length) visible.push(`+${entries.length - visible.length}`);
   return visible.join(" / ");

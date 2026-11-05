@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import type { TaxonomyAllocation } from "@/lib/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Activity } from "react";
+import { FormattingProvider } from "@wealthfolio/ui";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { AllocationDetailSheet } from "./allocation-detail-sheet";
@@ -79,4 +80,34 @@ describe("AllocationDetailSheet on a kept screen", () => {
 
     expect(screen.getByRole("heading", { name: "Holdings in Europe" })).toBeInTheDocument();
   });
+});
+
+it("formats allocation percentages using the selected region", () => {
+  render(
+    <FormattingProvider locale="ES">
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient()}>
+          <AllocationDetailSheet
+            isOpen
+            onOpenChange={vi.fn()}
+            allocation={{
+              ...allocation,
+              categories: [
+                {
+                  categoryId: "R20",
+                  categoryName: "Americas",
+                  value: 33.3,
+                  percentage: 33.3,
+                  color: "var(--chart-1)",
+                },
+              ],
+            }}
+            accountFilter={{ type: "all" }}
+            baseCurrency="USD"
+          />
+        </QueryClientProvider>
+      </MemoryRouter>
+    </FormattingProvider>,
+  );
+  expect(screen.getByText("33,3 %")).toBeInTheDocument();
 });

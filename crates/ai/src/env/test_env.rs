@@ -14,10 +14,10 @@ use wealthfolio_core::{
     activities::{
         Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
         ActivityImport, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityServiceTrait,
-        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ImportAssetCandidate,
-        ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, ImportTemplateScope,
-        InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-        SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
+        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ConvertToTransferRequest,
+        ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
+        ImportTemplateScope, InternalTransferPairRequest, InternalTransferPairResponse,
+        NewActivity, SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
         TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
@@ -560,6 +560,13 @@ impl ActivityServiceTrait for MockActivityService {
         _request: InternalTransferPairRequest,
     ) -> CoreResult<InternalTransferPairResponse> {
         unimplemented!("MockActivityService::save_internal_transfer_pair")
+    }
+
+    async fn convert_to_internal_transfer(
+        &self,
+        _request: ConvertToTransferRequest,
+    ) -> CoreResult<InternalTransferPairResponse> {
+        unimplemented!("MockActivityService::convert_to_internal_transfer")
     }
 
     async fn link_transfer_activities(

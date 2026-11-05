@@ -487,6 +487,16 @@ describe("de-CH formatting", () => {
     expect(parseLocalizedDecimalString(grouped, "de-CH")).toBe("1234.56");
   });
 
+  it("accepts either apostrophe as the Swiss group separator", () => {
+    // Engines disagree on ' and ’, and text copied from elsewhere may use the other one.
+    for (const grouped of ["1'234.56", "1’234.56"]) {
+      expect(parseLocalizedNumber(grouped, "de-CH")).toBe(1234.56);
+      expect(parseLocalizedDecimalString(grouped, "de-CH")).toBe("1234.56");
+    }
+    expect(parseLocalizedNumber("1’23.5", "de-CH")).toBeUndefined();
+    expect(parseLocalizedNumber("1’234.56", "en-US")).toBeUndefined();
+  });
+
   it("uses German calendar text with a Monday week start", () => {
     const locale = dateFnsLocaleFor(resolveFormattingLocale("CH"));
 

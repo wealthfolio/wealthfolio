@@ -432,8 +432,8 @@ export function RetirementChart({
   }, [data, retirementLabel]);
 
   const placedMilestones = useMemo(() => {
-    // Markers closer than their own width move up a row. The plot spans the chart
-    // minus the Y axis (the side margins cancel out).
+    // Markers closer than their own width move up a row. Estimate the plot
+    // width after allowing space for the amount axis and chart margins.
     const yearWidth = Math.max(1, chartWidth - 48) / Math.max(1, data.length - 1);
     const minGapYears = (2 * MILESTONE_RADIUS + 4) / yearWidth;
     const rowLastAge: number[] = [];
@@ -504,7 +504,7 @@ export function RetirementChart({
   return (
     <div className="relative">
       <ResponsiveContainer width="100%" height={320} onResize={(width) => setChartWidth(width)}>
-        <AreaChart data={data} margin={{ top: 24, right: 12, left: -12, bottom: 38 }}>
+        <AreaChart data={data} margin={{ top: 24, right: 12, left: 0, bottom: 38 }}>
           <defs>
             <linearGradient id="retirementPortfolio" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={projectedPalette.fill} stopOpacity={0.3} />
@@ -530,7 +530,7 @@ export function RetirementChart({
           <YAxis
             tick={{ fontSize: "0.6875rem", fill: CHART_COLORS.muted }}
             tickFormatter={(v: number) => formatting.formatCompactAmount(v, currency)}
-            width={48}
+            width="auto"
             axisLine={false}
             tickLine={false}
             domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.22)]}

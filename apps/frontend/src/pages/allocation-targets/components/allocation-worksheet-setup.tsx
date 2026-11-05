@@ -981,7 +981,7 @@ function CashToDeploy({
 }: WorksheetSetupProps) {
   const { t } = useTranslation();
   const { formatAmount, currencyFractionDigits } = useAmountFormatting();
-  const { decimalSeparator, groupSeparator } = useNumberFormatting();
+  const { decimalSeparator, groupSeparator, formatPercent } = useNumberFormatting();
   const fractionDigits = currencyFractionDigits(currency);
   const [isTyping, setIsTyping] = useState(false);
   const count = selectedAccountIds.length;
@@ -1033,7 +1033,7 @@ function CashToDeploy({
     </span>
   ) : cash.isKnown && share !== null && count > 0 && !isPresetShare ? (
     // A preset already says which share applies; a typed total says it here.
-    t("allocation:worksheet.cashShare", { percent: formatDecimalInput(share * 100, 1) })
+    t("allocation:worksheet.cashShare", { percent: formatPercent(share, { digits: 1 }) })
   ) : contributions > 0 ? (
     t("allocation:worksheet.cashPlusContribution", {
       amount: formatAmount(contributions, currency),
@@ -1072,7 +1072,9 @@ function CashToDeploy({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {fraction === 1 ? t("allocation:worksheet.allCash") : `${fraction * 100}%`}
+                {fraction === 1
+                  ? t("allocation:worksheet.allCash")
+                  : formatPercent(fraction, { digits: 0 })}
               </button>
             );
           })}

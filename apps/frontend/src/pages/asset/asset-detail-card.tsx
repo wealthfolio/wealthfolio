@@ -379,7 +379,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                   <span className="text-sm font-medium">
                     {bondSpec.couponFrequency === "ZERO"
                       ? t("asset:detailCard.zero_coupon")
-                      : `${(bondSpec.couponRate * 100).toFixed(3)}%`}
+                      : numberFormatting.formatPercent(bondSpec.couponRate, { digits: 3 })}
                     {bondSpec.couponFrequency &&
                       bondSpec.couponFrequency !== "ZERO" &&
                       ` ${bondSpec.couponFrequency.replace("_", " ").toLowerCase()}`}

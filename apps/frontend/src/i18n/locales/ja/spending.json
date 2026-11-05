@@ -187,7 +187,8 @@
     "duplicate": "複製",
     "unlinkTransfer": "振替のリンクを解除",
     "linkTransfer": "振替をリンク...",
-    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?"
+    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?",
+    "convertToTransfer": "振替に変換..."
   },
   "cashFlow": {
     "income": "収入",
@@ -926,7 +927,7 @@
     "stageWhenLabel": "いつ・どこで",
     "stageWhenSub": "支出のタイミングと支出イベント",
     "spendingAbovePrefix": "支出は",
-    "pctAbove": "{{pct}}%増",
+    "pctAbove": "{{pct}}増",
     "thePriorPeriod": "(前期間比)",
     "moreThan": "{{prior}}より{{more}}多い",
     "uncategorizedCount_one": "未分類の取引{{count}}件",
