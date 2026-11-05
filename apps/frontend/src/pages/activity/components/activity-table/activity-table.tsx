@@ -5,6 +5,7 @@ import {
   calculateActivityValue,
   formatSplitRatio,
   isAssetBackedIncomeActivity,
+  isAssetBackedIncomeSubtype,
   isCashActivity,
   isCashTransfer,
   isConversionRow,
@@ -483,11 +484,9 @@ export const ActivityTable = ({
               ? currencyVal
               : row.original.accountCurrency || "USD";
           const assetSymbol = String(row.getValue("assetSymbol"));
-          const isAssetBackedIncome = isAssetBackedIncomeActivity(
-            activityType,
-            assetSymbol,
-            row.original.assetId,
-          );
+          // A cash dividend names its paying asset too; only the subtype says
+          // the income arrived as units with a price.
+          const isIncomeInKind = isAssetBackedIncomeSubtype(activityType, row.original.subtype);
 
           if (activityType === "FEE" || isConversionRow(row.original)) {
             return <div className="pe-4 text-end">-</div>;
@@ -501,10 +500,10 @@ export const ActivityTable = ({
           }
           if (
             (isCashActivity(activityType) &&
-              !isAssetBackedIncome &&
+              !isIncomeInKind &&
               !isSecuritiesTransfer(activityType, assetSymbol, row.original.assetId)) ||
             isCashTransfer(activityType, assetSymbol, row.original.assetId) ||
-            (isIncomeActivity(activityType) && !isAssetBackedIncome)
+            (isIncomeActivity(activityType) && !isIncomeInKind)
           ) {
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
