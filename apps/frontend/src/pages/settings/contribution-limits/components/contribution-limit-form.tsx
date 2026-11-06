@@ -56,15 +56,17 @@ export function ContributionLimitForm({
 
   const schema = useMemo(() => createContributionLimitSchema(t), [t]);
 
-  // A saved limit keeps its own dates; one without dates starts with its year's.
+  // A saved limit keeps each date it has; one without dates starts with its year's.
+  const savedStart = defaultValues?.startDate;
+  const savedEnd = defaultValues?.endDate;
   const form = useForm<NewContributionLimit>({
     resolver: zodResolver(schema) as Resolver<NewContributionLimit>,
     defaultValues: {
       ...defaultValues,
-      ...(defaultValues?.startDate && defaultValues.endDate
+      ...(savedStart || savedEnd
         ? {
-            startDate: new Date(defaultValues.startDate),
-            endDate: new Date(defaultValues.endDate),
+            startDate: savedStart ? new Date(savedStart) : undefined,
+            endDate: savedEnd ? new Date(savedEnd) : undefined,
           }
         : defaultValues?.contributionYear
           ? yearStartAndEnd(defaultValues.contributionYear)
