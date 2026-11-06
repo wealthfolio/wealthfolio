@@ -97,7 +97,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "i18next": "^26.7.2",
     "react-i18next": "^17.1.13",
-    "tsup": "^8.5.1",
+    "tsup": "^9.0.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "^7.3.7"
   }

@@ -97,7 +97,8 @@
   },
   "devDependencies": {
     "@tanstack/eslint-plugin-query": "^5.106.1",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
     "@types/css-tree": "^3.2.0",
