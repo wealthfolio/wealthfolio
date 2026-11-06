@@ -290,6 +290,7 @@ export function useLoanActions(
               metadata={metadata}
               eventIndex={editingEvent.index}
               originationDate={loanOriginationDate}
+              today={today}
               onClose={() => setEditingEvent(null)}
               onSave={handleEditEvent}
             />
@@ -314,6 +315,7 @@ export function useLoanActions(
                 note: loanBalanceUserNote(editingBalance.notes),
               }}
               originationDate={loanOriginationDate}
+              today={today}
               onClose={() => setEditingBalance(null)}
               onSave={handleEditBalance}
             />
@@ -321,6 +323,7 @@ export function useLoanActions(
           <CloseLoanDialog
             open={closeLoanOpen}
             onOpenChange={setCloseLoanOpen}
+            today={today}
             onSubmit={handleCloseLoan}
             originationDate={loanOriginationDate ? parseISO(loanOriginationDate) : null}
           />
@@ -328,6 +331,7 @@ export function useLoanActions(
             open={changeRateOpen}
             onOpenChange={setChangeRateOpen}
             metadata={metadata}
+            today={today}
             onSubmit={handleChangeRate}
           />
           <RecalculateScheduleDialog
@@ -339,6 +343,7 @@ export function useLoanActions(
             assetId={assetId}
             metadata={metadata}
             quoteHistory={quoteHistory}
+            today={today}
             onSubmit={handleRecalculateSchedule}
           />
           <RenewLoanDialog
@@ -355,6 +360,7 @@ export function useLoanActions(
                 : null
             }
             mortgage={isMortgage}
+            today={today}
             onSubmit={handleRenewLoan}
           />
           <LoanBalanceEventDialog
@@ -364,6 +370,7 @@ export function useLoanActions(
             currentBalance={currentBalance}
             currency={holding.currency}
             confirmations={confirmedLoanBalances(quoteHistory, today)}
+            today={today}
             onSubmit={(date, amount) => handleBalanceEvent("balance_correction", date, amount)}
           />
           <LoanBalanceEventDialog
@@ -374,6 +381,7 @@ export function useLoanActions(
             currency={holding.currency}
             paidFrom={storedProjection ? paidFrom : undefined}
             confirmations={confirmedLoanBalances(quoteHistory, today)}
+            today={today}
             onSubmit={(date, amount) => handleBalanceEvent("extra_repayment", date, amount)}
           />
         </>
