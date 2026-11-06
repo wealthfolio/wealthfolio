@@ -793,6 +793,9 @@ export function AssetReviewStep() {
                         key: item.key,
                         symbol,
                         mode: "create",
+                        initialAsset: item.draft
+                          ? { ...item.draft, quoteMode: "MANUAL" }
+                          : undefined,
                       })
                     }
                   />
