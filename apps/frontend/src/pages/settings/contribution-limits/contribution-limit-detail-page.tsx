@@ -145,7 +145,7 @@ export function ContributionLimitDetailPage() {
       <Progress
         value={percentage}
         aria-label={t("settings:limits_detail.counted")}
-        className={over ? "bg-destructive/20" : undefined}
+        className={over ? "bg-destructive-subtle" : undefined}
       />
       <details className="rounded-lg border p-4">
         <summary className="cursor-pointer text-sm font-medium">
