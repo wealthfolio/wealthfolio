@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { SellForm } from "../sell-form";
-import { ACTIVITY_SUBTYPES } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityStatus, ActivityType } from "@/lib/constants";
 import type { AccountSelectOption } from "../fields";
-import type { Holding } from "@/lib/types";
+import type { ActivityDetails, Holding } from "@/lib/types";
 
 interface UseHoldingsResult {
   holdings: Holding[];
   isLoading: boolean;
+  isError?: boolean;
 }
 
 const holdingsHook = vi.hoisted(() => ({
@@ -84,16 +85,26 @@ vi.mock("../fields", async () => {
         </div>
       );
     },
-    QuantityInput: ({ name, label }: { name: string; label: string }) => {
+    QuantityInput: ({
+      name,
+      label,
+      action,
+    }: {
+      name: string;
+      label: string;
+      action?: React.ReactNode;
+    }) => {
       const { register } = useFormContext();
 
       return (
         <div>
           <label htmlFor={name}>{label}</label>
+          {action}
           <input
             data-testid={`input-${name}`}
             type="number"
             id={name}
+            step="any"
             {...register(name, { valueAsNumber: true })}
           />
         </div>
@@ -246,6 +257,14 @@ const baseSellDefaults = {
   unitPrice: 1,
   fee: 0,
   currency: "USD",
+};
+
+const postedSale: Partial<ActivityDetails> = {
+  id: "sale-1",
+  activityType: ActivityType.SELL,
+  status: ActivityStatus.POSTED,
+  accountId: "acc-1",
+  quantity: "100000",
 };
 
 function createHolding(symbol: string, quantity: number, assetId = symbol): Holding {
@@ -506,11 +525,141 @@ describe("SellForm", () => {
   });
 
   describe("Holdings Warning", () => {
+    it.each([
+      { activityType: ActivityType.UNKNOWN, status: ActivityStatus.POSTED },
+      { activityType: ActivityType.SELL, status: ActivityStatus.DRAFT },
+      { activityType: ActivityType.SELL, status: ActivityStatus.PENDING },
+      { activityType: ActivityType.SELL, status: ActivityStatus.VOID },
+    ])("does not restore units from an original $status $activityType row", async (original) => {
+      const user = userEvent.setup();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 10)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{
+            accountId: "acc-1",
+            assetId: "AAPL",
+            quantity: 2,
+            unitPrice: 10,
+            currency: "USD",
+          }}
+          isEditing
+          originalActivity={{ ...postedSale, ...original, quantity: "2" }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      expect(screen.getByTestId("input-quantity")).toHaveValue(10);
+    });
+
+    it("adds back an edited fractional sale at the supported precision", async () => {
+      const user = userEvent.setup();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 0.1)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{
+            accountId: "acc-1",
+            assetId: "AAPL",
+            quantity: 0.2,
+            unitPrice: 10,
+            currency: "USD",
+          }}
+          isEditing
+          originalActivity={{ ...postedSale, quantity: "0.2" }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      expect(screen.getByTestId("input-quantity")).toHaveValue(0.3);
+      expect(screen.getByText("Available: 0.3")).toBeInTheDocument();
+    });
+
+    it("fills and submits all eight fractional digits without submitting on Sell all", async () => {
+      const user = userEvent.setup();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 1.12345678)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{ accountId: "acc-1", assetId: "AAPL", unitPrice: 10, currency: "USD" }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      expect(screen.getByTestId("input-quantity")).toHaveValue(1.12345678);
+      expect(mockOnSubmit).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: /add sell/i }));
+      await waitFor(() =>
+        expect(mockOnSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ accountId: "acc-1", quantity: 1.12345678 }),
+        ),
+      );
+    });
+
+    it("clears a Sell all quantity when the account changes, but preserves a manually changed quantity", async () => {
+      const user = userEvent.setup();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 1.12345678)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{ accountId: "acc-1", assetId: "AAPL" }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      await user.selectOptions(screen.getByTestId("select-accountId"), "acc-2");
+      expect(screen.getByTestId("input-quantity")).toHaveValue(null);
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      await user.clear(screen.getByTestId("input-quantity"));
+      await user.type(screen.getByTestId("input-quantity"), "0.5");
+      await user.selectOptions(screen.getByTestId("select-accountId"), "acc-1");
+      expect(screen.getByTestId("input-quantity")).toHaveValue(0.5);
+    });
+
+    it.each([
+      { quantity: 0, isLoading: false, isError: false },
+      { quantity: -1, isLoading: false, isError: false },
+      { quantity: 1, isLoading: true, isError: false },
+      { quantity: 1, isLoading: false, isError: true },
+      { quantity: 0.000000001, isLoading: false, isError: false },
+    ])(
+      "disables Sell all for unavailable holdings: %j",
+      async ({ quantity, isLoading, isError }) => {
+        holdingsHook.useHoldings.mockReturnValue({
+          holdings: [createHolding("AAPL", quantity)],
+          isLoading,
+          isError,
+        });
+        render(
+          <SellForm
+            accounts={mockAccounts}
+            defaultValues={{ accountId: "acc-1", assetId: "AAPL" }}
+            onSubmit={mockOnSubmit}
+          />,
+        );
+        expect(screen.getByRole("button", { name: "Sell all" })).toBeDisabled();
+      },
+    );
+
     it("does not warn when editing a sell that fully closed the holding", () => {
       render(
         <SellForm
           accounts={mockAccounts}
           defaultValues={baseSellDefaults}
+          originalActivity={postedSale}
           onSubmit={mockOnSubmit}
           isEditing={true}
         />,
@@ -531,6 +680,7 @@ describe("SellForm", () => {
         <SellForm
           accounts={mockAccounts}
           defaultValues={{ ...baseSellDefaults, quantity: 40 }}
+          originalActivity={{ ...postedSale, quantity: "40" }}
           onSubmit={mockOnSubmit}
           isEditing={true}
         />,
@@ -558,6 +708,7 @@ describe("SellForm", () => {
         <SellForm
           accounts={mockAccounts}
           defaultValues={{ ...baseSellDefaults, quantity: 40 }}
+          originalActivity={{ ...postedSale, quantity: "40" }}
           onSubmit={mockOnSubmit}
           isEditing={true}
         />,
@@ -630,6 +781,7 @@ describe("SellForm", () => {
         <SellForm
           accounts={mockAccounts}
           defaultValues={{ ...baseSellDefaults, quantity: 40 }}
+          originalActivity={{ ...postedSale, quantity: "40" }}
           onSubmit={mockOnSubmit}
           isEditing={true}
         />,

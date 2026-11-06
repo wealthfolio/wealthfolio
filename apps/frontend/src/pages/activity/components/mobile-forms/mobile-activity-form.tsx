@@ -443,6 +443,9 @@ export function MobileActivityForm({
         isTransferType && !isSecurityTransferActivity
           ? undefined
           : getMobileActivityAssetId(activity),
+      ...(activity?.activityType === ActivityType.SELL &&
+        !isOptionActivity &&
+        activity.assetId && { existingAssetId: activity.assetId }),
       activityDate: activity?.date ? new Date(activity.date) : new Date(),
       currency: activity?.currency ?? "",
       quoteMode:
@@ -1081,6 +1084,7 @@ export function MobileActivityForm({
                     currentStep={currentStep}
                     accounts={effectiveAccounts}
                     isEditing={!!activity?.id}
+                    originalActivity={activity}
                     needsTypeSelection={needsTypeSelection}
                     amountWasEdited={amountWasEdited}
                     incomeAmountTypedLast={incomeAmountTypedLast}

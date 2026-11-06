@@ -590,6 +590,7 @@
     "sent_amount": "Importo inviato",
     "received_amount": "Importo ricevuto",
     "contract_multiplier": "Moltiplicatore del contratto",
+    "sell_all": "Vendi tutto",
     "available_amount": "Disponibile: {{amount}}",
     "total_debit": "Addebito totale",
     "total_credit": "Accredito totale",

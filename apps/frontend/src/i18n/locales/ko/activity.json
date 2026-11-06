@@ -582,6 +582,7 @@
     "sent_amount": "보낸 금액",
     "received_amount": "받은 금액",
     "contract_multiplier": "계약 승수",
+    "sell_all": "전량 매도",
     "available_amount": "사용 가능: {{amount}}",
     "total_debit": "총 결제금액",
     "total_credit": "총 수령금액",

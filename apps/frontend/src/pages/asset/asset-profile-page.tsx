@@ -12,7 +12,10 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useQuoteHistory } from "@/hooks/use-quote-history";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useAssetTaxonomyAssignments, useTaxonomy } from "@/hooks/use-taxonomies";
-import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
+import {
+  accountSupportsActivityType,
+  getActivityRestrictionLevel,
+} from "@/lib/activity-restrictions";
 import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -606,6 +609,16 @@ export const AssetProfilePage = () => {
   });
 
   const { accounts } = useAccounts({ filterActive: false });
+  const sourceHolding = (location.state as { holding?: Holding } | null)?.holding;
+  const sellAccountId =
+    sourceHolding?.instrument?.id === assetId
+      ? accounts.find(
+          (account) =>
+            account.id === sourceHolding.accountId &&
+            !account.isArchived &&
+            accountSupportsActivityType(account, "SELL"),
+        )?.id
+      : undefined;
 
   const activityFormAccounts = useMemo<AccountSelectOption[]>(
     () =>
@@ -1483,7 +1496,7 @@ export const AssetProfilePage = () => {
                               label: t("asset:profile.sell"),
                               onClick: () =>
                                 navigate(
-                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL`,
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL${sellAccountId ? `&account=${encodeURIComponent(sellAccountId)}` : ""}`,
                                 ),
                             },
                             {

@@ -67,6 +67,7 @@ export interface ActivityFormComponentProps<T> {
   onCancel?: () => void;
   isLoading?: boolean;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
 }
 
 // Config for each activity type
@@ -231,6 +232,11 @@ export const ACTIVITY_FORM_CONFIG: Record<
       const base = {
         ...getBaseDefaults(activity, accounts),
         assetId: activity?.assetSymbol ?? activity?.assetId ?? "",
+        ...selectedExistingAsset(
+          activity?.assetSymbol,
+          activity?.assetId,
+          activity?.instrumentType,
+        ),
         symbolInstrumentType: activity?.instrumentType ?? undefined,
         symbolQuoteCcy: activity?.assetQuoteCcy ?? activity?.currency ?? undefined,
         quantity: absNum(activity?.quantity),

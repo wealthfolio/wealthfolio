@@ -585,6 +585,7 @@
     "sent_amount": "Sent amount",
     "received_amount": "Received amount",
     "contract_multiplier": "Contract Multiplier",
+    "sell_all": "Sell all",
     "available_amount": "Available: {{amount}}",
     "total_debit": "Total Debit",
     "total_credit": "Total Credit",
