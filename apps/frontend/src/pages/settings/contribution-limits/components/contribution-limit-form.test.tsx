@@ -182,4 +182,19 @@ describe("ContributionLimitForm dates", () => {
       endDate: new Date(2026, 11, 31).toISOString(),
     });
   });
+
+  it("keeps a saved limit's only date instead of filling in its year", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm defaultValues={{ ...taxYear, endDate: null }} />
+      </Dialog>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    const { updatedLimit } = mocks.updateLimit.mock.calls[0][0];
+    expect(updatedLimit.startDate).toBe(taxYear.startDate);
+    expect(updatedLimit.endDate ?? null).toBeNull();
+  });
 });
