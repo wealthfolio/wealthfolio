@@ -311,7 +311,7 @@ function RouteList({
             <span className="truncate">{name(route.toAccountId)}</span>
           </span>
           <span className="text-muted-foreground">{routeDates(route)}</span>
-          <span className="w-20 text-end font-medium tabular-nums">
+          <span className="ms-auto w-20 text-end font-medium tabular-nums">
             {t("activity:transfer_review.pair_count", { count: route.count })}
           </span>
         </li>
