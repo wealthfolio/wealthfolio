@@ -482,6 +482,7 @@
     "sent_amount": "Gesendeter Betrag",
     "received_amount": "Erhaltener Betrag",
     "contract_multiplier": "Kontraktmultiplikator",
+    "sell_all": "Alles verkaufen",
     "available_amount": "Verfügbar: {{amount}}",
     "total_debit": "Gesamtbelastung",
     "total_credit": "Gesamtgutschrift",

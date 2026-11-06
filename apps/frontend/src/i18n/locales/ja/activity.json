@@ -582,6 +582,7 @@
     "sent_amount": "送金額",
     "received_amount": "受取額",
     "contract_multiplier": "契約乗数",
+    "sell_all": "全数量を売却",
     "available_amount": "利用可能: {{amount}}",
     "total_debit": "出金合計",
     "total_credit": "入金合計",

@@ -1,4 +1,6 @@
 import { restrictionAllowsType } from "@/lib/activity-restrictions";
+import { cn } from "@/lib/utils";
+import type { ActivityDetails } from "@/lib/types";
 import {
   ACTIVITY_SUBTYPES,
   ActivityType,
@@ -37,7 +39,9 @@ import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { useFormContext } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useAmountFormatting } from "@wealthfolio/ui";
+import { useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
+import { useSellHoldings } from "../../hooks/use-sell-holdings";
+import { SellAllButton } from "../forms/fields/sell-all-button";
 import {
   getCalculationRate,
   getTransferRate,
@@ -65,6 +69,7 @@ interface MobileDetailsStepProps {
   accounts: AccountSelectOption[];
   activityType: string;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
   /** Owned by the form root; true for a stored or session-entered custom amount. */
   amountWasEdited: RefObject<boolean>;
   /** Owned by the form root; which cash income amount the user typed last. */
@@ -135,6 +140,7 @@ export function MobileDetailsStep({
   accounts,
   activityType,
   isEditing,
+  originalActivity,
   amountWasEdited,
   incomeAmountTypedLast,
 }: MobileDetailsStepProps) {
@@ -195,6 +201,23 @@ export function MobileDetailsStep({
   const [toAccountSheetOpen, setToAccountSheetOpen] = useState(false);
 
   const subtype = watch("subtype");
+  const sellAssetId = watch("existingAssetId") || watch("assetId") || "";
+  const sellExchangeMic = watch("exchangeMic");
+  const sellDefaults = form.formState.defaultValues;
+  const isLongSell =
+    activityType === ActivityType.SELL && !isOption && subtype !== ACTIVITY_SUBTYPES.POSITION_OPEN;
+  const sellHoldings = useSellHoldings({
+    accountId: accountId ?? "",
+    assetId: sellAssetId,
+    exchangeMic: sellExchangeMic,
+    originalActivity,
+    originalAssetId:
+      sellDefaults?.existingAssetId ||
+      (sellDefaults && "assetId" in sellDefaults ? sellDefaults.assetId : "") ||
+      "",
+    enabled: isLongSell,
+  });
+  const numberFormatting = useNumberFormatting();
   const isDividendActivity = activityType === ActivityType.DIVIDEND;
   const isInterestActivity = activityType === ActivityType.INTEREST;
   const isDividendAssetIncome =
@@ -974,12 +997,50 @@ export function MobileDetailsStep({
                       name="quantity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base leading-none font-medium">
-                            {quantityLabel}
-                          </FormLabel>
+                          <div
+                            className={cn(
+                              "flex flex-wrap items-center justify-between gap-2",
+                              isLongSell ? "min-h-11" : "min-h-7",
+                            )}
+                          >
+                            <FormLabel className="text-base leading-none font-medium">
+                              {quantityLabel}
+                            </FormLabel>
+                            <SellAllButton
+                              availableQuantity={sellHoldings.availableQuantity}
+                              holdingKey={JSON.stringify([
+                                accountId,
+                                sellAssetId,
+                                sellExchangeMic,
+                                subtype,
+                                activityType,
+                              ])}
+                              hidden={!isLongSell}
+                              disabled={
+                                !accountId ||
+                                !sellAssetId ||
+                                sellHoldings.isLoading ||
+                                sellHoldings.isFetching ||
+                                sellHoldings.isError
+                              }
+                            />
+                          </div>
                           <FormControl>
                             <QuantityInput {...field} />
                           </FormControl>
+                          {isLongSell &&
+                            accountId &&
+                            sellAssetId &&
+                            !sellHoldings.isLoading &&
+                            !sellHoldings.isError && (
+                              <FormDescription>
+                                {t("activity:form.available_amount", {
+                                  amount: numberFormatting.formatQuantity(
+                                    sellHoldings.availableQuantity,
+                                  ),
+                                })}
+                              </FormDescription>
+                            )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -990,13 +1051,20 @@ export function MobileDetailsStep({
                         name="unitPrice"
                         render={({ field }) => (
                           <FormItem>
-                            {isFmvPriceLabel ? (
-                              <FmvPerUnitLabel />
-                            ) : (
-                              <FormLabel className="text-base leading-none font-medium">
-                                {priceLabel}
-                              </FormLabel>
-                            )}
+                            <div
+                              className={cn(
+                                "flex items-center",
+                                isLongSell ? "min-h-11" : "min-h-7",
+                              )}
+                            >
+                              {isFmvPriceLabel ? (
+                                <FmvPerUnitLabel />
+                              ) : (
+                                <FormLabel className="text-base leading-none font-medium">
+                                  {priceLabel}
+                                </FormLabel>
+                              )}
+                            </div>
                             <FormControl>
                               <MoneyInput {...field} />
                             </FormControl>

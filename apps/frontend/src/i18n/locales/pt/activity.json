@@ -590,6 +590,7 @@
     "sent_amount": "Valor enviado",
     "received_amount": "Valor recebido",
     "contract_multiplier": "Multiplicador do contrato",
+    "sell_all": "Vender tudo",
     "available_amount": "Disponível: {{amount}}",
     "total_debit": "Débito total",
     "total_credit": "Crédito total",

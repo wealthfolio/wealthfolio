@@ -590,6 +590,7 @@
     "sent_amount": "Montant envoyé",
     "received_amount": "Montant reçu",
     "contract_multiplier": "Multiplicateur de contrat",
+    "sell_all": "Tout vendre",
     "available_amount": "Disponible : {{amount}}",
     "total_debit": "Débit total",
     "total_credit": "Crédit total",

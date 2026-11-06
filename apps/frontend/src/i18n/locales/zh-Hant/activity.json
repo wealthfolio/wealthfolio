@@ -585,6 +585,7 @@
     "sent_amount": "轉出金額",
     "received_amount": "收到金額",
     "contract_multiplier": "合約乘數",
+    "sell_all": "全部賣出",
     "available_amount": "可用：{{amount}}",
     "total_debit": "應付總額",
     "total_credit": "應收總額",

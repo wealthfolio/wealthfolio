@@ -247,6 +247,7 @@
     "asset_type_bond": "سند",
     "asset_type_option": "خيار",
     "asset_type_stock": "سهم",
+    "sell_all": "بيع الكل",
     "available_amount": "المتاح: {{amount}}",
     "bulk_add_existing_desc": "أضف مراكزك الحالية دون تغيير رصيدك النقدي.",
     "bulk_add_existing_title": "إضافة الحيازات الحالية",
