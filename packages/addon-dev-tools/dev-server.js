@@ -619,7 +619,10 @@ class AddonDevServer {
   }
 
   start() {
-    this.app.listen(this.config.port, () => {
+    this.app.listen(this.config.port, (error) => {
+      // Express 5 passes listen errors (such as a port in use) here instead of
+      // emitting them; rethrow so the server stops, as it did on Express 4.
+      if (error) throw error;
       console.log(`🚀 Addon dev server running on http://localhost:${this.config.port}`);
       console.log(`📁 Serving from: ${this.config.addonPath}`);
       console.log(`📋 Manifest: ${this.config.manifestPath}`);
