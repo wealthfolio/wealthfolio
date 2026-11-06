@@ -4,10 +4,45 @@ import { ActivityType } from "@/lib/constants";
 import {
   getEffectiveType,
   type Activity,
+  type Asset,
   type TransferMatchCandidate,
   type TransferMatchReason,
+  type TransferMatchReview,
   type UnlinkedTransfer,
 } from "@/lib/types";
+
+/**
+ * The review's activities carry only an asset id, a UUID. Adds each one's
+ * ticker as `assetSymbol`, as searched activities have, so rows name the
+ * security. Matching still keys on the asset id.
+ */
+export function withAssetSymbols(
+  review: TransferMatchReview,
+  assets: readonly Asset[],
+): TransferMatchReview {
+  const symbols = new Map<string, string>();
+  for (const asset of assets) {
+    if (asset.displayCode?.trim()) symbols.set(asset.id, asset.displayCode);
+  }
+  if (symbols.size === 0) return review;
+  const named = <T extends Activity>(activity: T): T => {
+    const assetSymbol = activity.assetId ? symbols.get(activity.assetId) : undefined;
+    return assetSymbol ? { ...activity, assetSymbol } : activity;
+  };
+  const withNames = (row: UnlinkedTransfer): UnlinkedTransfer => ({
+    ...row,
+    activity: named(row.activity),
+    candidates: row.candidates.map((candidate) => ({
+      ...candidate,
+      activity: named(candidate.activity),
+    })),
+  });
+  return {
+    ...review,
+    certain: review.certain.map(withNames),
+    needsReview: review.needsReview.map(withNames),
+  };
+}
 
 /**
  * Pairs per Link all call, under the core's limit of 500. Small enough that
