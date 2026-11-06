@@ -14,6 +14,7 @@ use log::{debug, error, warn};
 use rig::{
     agent::MultiTurnStreamItem,
     completion::{Message, PromptError, Usage},
+    error::ErrorReport,
     message::{
         AssistantContent, AssistantMessage, DocumentSourceKind, Text, ToolCall as RigToolCall,
         ToolChoice, ToolResultContent, UserContent,
@@ -23,7 +24,11 @@ use rig::{
     tool::DynamicTool,
     Agent, AgentBuilder, Model,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use tokio::sync::mpsc;
 
 use crate::env::AiEnvironment;
@@ -890,13 +895,17 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
 
         while let Some(chunk) = stream.next().await {
             if let Err(error) = &chunk {
-                if !streamed && !retried && is_transient(error) {
-                    retried = true;
-                    let message = redact_secret(error.to_string(), provider_secret.as_deref());
-                    warn!("Transient provider error before any output, retrying once: {message}");
-                    tokio::time::sleep(FIRST_CALL_RETRY_DELAY).await;
-                    stream = start();
-                    continue;
+                if !streamed && !retried {
+                    if let Some(wait) = retry_wait(error) {
+                        retried = true;
+                        let message = redact_secret(error.to_string(), provider_secret.as_deref());
+                        warn!(
+                            "Transient provider error before any output, retrying once in {wait:?}: {message}"
+                        );
+                        tokio::time::sleep(wait).await;
+                        stream = start();
+                        continue;
+                    }
                 }
             }
             streamed = true;
@@ -1145,7 +1154,7 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                 Err(error) => {
                     let message = redact_secret(error.to_string(), provider_secret.as_deref());
                     error!("Stream error: {}", message);
-                    stream_error = Some(message);
+                    stream_error = Some((stream_error_code(&error), message));
                     break;
                 }
             }
@@ -1165,7 +1174,7 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
 
         // Keep what the user already saw, ending with the error. Text the
         // think parser still holds back was never shown, so it is dropped.
-        if let Some(message) = stream_error {
+        if let Some((code, message)) = stream_error {
             flush_pending_content(
                 &mut content_parts,
                 &mut accumulated_reasoning,
@@ -1177,7 +1186,7 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
             });
             if shown {
                 content_parts.push(ChatMessagePart::Error {
-                    code: "STREAM_ERROR".to_string(),
+                    code: code.to_string(),
                     message: message.clone(),
                 });
                 if let Err(e) = repo.create_message(assistant_message(content_parts)).await {
@@ -1191,7 +1200,7 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                 &thread_id,
                 &run_id,
                 Some(&message_id),
-                "STREAM_ERROR",
+                code,
                 &message,
             ))
             .await
@@ -1299,8 +1308,17 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
     }
 }
 
-/// Wait before retrying a transient provider error that came before any output.
-const FIRST_CALL_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
+/// Wait before retrying a transient provider error that came before any
+/// output, when the provider asks for no wait of its own.
+const FIRST_CALL_RETRY_DELAY: Duration = Duration::from_secs(1);
+
+/// Longest wait a provider may ask for before the retry. A longer wait fails
+/// the turn at once, since retrying sooner would fail again.
+const MAX_RETRY_WAIT: Duration = Duration::from_secs(10);
+
+/// Error code of a turn that failed because the chat no longer fits the
+/// model's context window.
+const CONTEXT_OVERFLOW: &str = "CONTEXT_OVERFLOW";
 
 /// Rate limits, server errors, dropped connections and cut-off replies.
 fn is_transient(error: &PromptError) -> bool {
@@ -1308,6 +1326,38 @@ fn is_transient(error: &PromptError) -> bool {
         PromptError::Provider(error) => error.is_retryable(),
         PromptError::Report(report) => report.retryable,
         _ => false,
+    }
+}
+
+/// The provider's report of a failed call, with its status, headers and body.
+fn provider_report(error: &PromptError) -> Option<ErrorReport> {
+    match error {
+        PromptError::Provider(error) => Some(error.report()),
+        PromptError::Report(report) => Some(report.clone()),
+        _ => None,
+    }
+}
+
+/// How long to wait before retrying `error` once: the wait the provider asks
+/// for, and at least [`FIRST_CALL_RETRY_DELAY`]. `None` when the error is not
+/// transient or the provider asks for more than [`MAX_RETRY_WAIT`].
+fn retry_wait(error: &PromptError) -> Option<Duration> {
+    if !is_transient(error) {
+        return None;
+    }
+    let asked = provider_report(error).and_then(|report| report.retry_after(SystemTime::now()));
+    match asked {
+        Some(wait) if wait > MAX_RETRY_WAIT => None,
+        asked => Some(asked.unwrap_or_default().max(FIRST_CALL_RETRY_DELAY)),
+    }
+}
+
+/// The code a failed turn's error is sent and saved with.
+fn stream_error_code(error: &PromptError) -> &'static str {
+    if provider_report(error).is_some_and(|report| report.is_context_overflow()) {
+        CONTEXT_OVERFLOW
+    } else {
+        "STREAM_ERROR"
     }
 }
 
