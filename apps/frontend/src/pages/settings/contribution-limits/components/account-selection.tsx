@@ -1,6 +1,7 @@
 import { AccountPurpose, accountSupportsPurpose } from "@/lib/constants";
 import { Account, ContributionLimit, DepositsCalculation } from "@/lib/types";
 import { useAmountFormatting } from "@wealthfolio/ui";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Toggle } from "@wealthfolio/ui/components/ui/toggle";
@@ -44,11 +45,7 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
       <h3 className="font-semibold">{t("settings:limits_select_accounts")}</h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {accounts
-          ?.filter(
-            (account) =>
-              account.isActive &&
-              accountSupportsPurpose(account, AccountPurpose.CONTRIBUTION_LIMITS),
-          )
+          ?.filter((account) => accountSupportsPurpose(account, AccountPurpose.CONTRIBUTION_LIMITS))
           .map((account) => {
             const accountDeposit = deposits?.byAccount[account.id];
             return (
@@ -68,7 +65,14 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
                     )}
                   </div>
                   <div className="flex flex-col items-start">
-                    <span className="font-medium">{account.name}</span>
+                    <span className="flex flex-wrap items-center gap-2 font-medium">
+                      {account.name}
+                      {!account.isActive && (
+                        <Badge variant="warning-subtle">
+                          {t("settings:accounts.badge_hidden")}
+                        </Badge>
+                      )}
+                    </span>
                     {isLoading ? (
                       <span className="text-muted-foreground text-xs">
                         {t("settings:limits_loading")}
