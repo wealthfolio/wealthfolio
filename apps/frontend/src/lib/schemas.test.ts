@@ -10,6 +10,19 @@ import {
 
 describe("schemas", () => {
   describe("newContributionLimitSchema", () => {
+    it.each([1899, 10000, 2147483647])(
+      "rejects unsupported contribution year %s",
+      (contributionYear) => {
+        expect(
+          newContributionLimitSchema.safeParse({
+            groupName: "TFSA",
+            contributionYear,
+            limitAmount: 7000,
+          }).success,
+        ).toBe(false);
+      },
+    );
+
     it("accepts date strings with or without seconds", () => {
       for (const date of ["2024-01-01T12:00Z", "2024-01-01T12:00:00.000Z"]) {
         const result = newContributionLimitSchema.safeParse({

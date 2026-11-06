@@ -843,7 +843,8 @@
   "limits_projected_badge": "متوقع",
   "limits_projected_description": "تم إنشاؤه تلقائيًا من حدك المتكرر لعام {{year}}. أضفه لتخصيص مبلغ هذه السنة.",
   "limits_projected_add_button": "إضافة هذه السنة",
-  "limits_projected_add_aria": "إضافة {{group}} لسنة {{year}}",
+  "limits_projected_add_aria": "إضافة {{group}} لسنة {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "لم يتم تحديد حسابات",
   "market_data": "بيانات السوق",
   "market_data_page": {
     "add_custom_provider": "إضافة مزوّد مخصص",

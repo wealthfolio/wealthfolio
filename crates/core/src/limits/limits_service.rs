@@ -14,7 +14,7 @@ use crate::utils::time_utils::{
 
 use super::limits_model::{
     AccountDeposit, ContributionActivity, ContributionLimit, DepositsCalculation,
-    NewContributionLimit,
+    NewContributionLimit, MAX_CONTRIBUTION_YEAR, MIN_CONTRIBUTION_YEAR,
 };
 use super::limits_traits::{ContributionLimitRepositoryTrait, ContributionLimitServiceTrait};
 use async_trait::async_trait;
@@ -27,6 +27,15 @@ pub struct ContributionLimitService {
 }
 
 impl ContributionLimitService {
+    fn validate_year(year: i32) -> Result<()> {
+        if !(MIN_CONTRIBUTION_YEAR..=MAX_CONTRIBUTION_YEAR).contains(&year) {
+            return Err(Error::Validation(ValidationError::InvalidInput(format!(
+                "Contribution year must be between {MIN_CONTRIBUTION_YEAR} and {MAX_CONTRIBUTION_YEAR}"
+            ))));
+        }
+        Ok(())
+    }
+
     pub fn new(
         fx_service: Arc<dyn FxServiceTrait>,
         limit_repository: Arc<dyn ContributionLimitRepositoryTrait>,
@@ -204,6 +213,7 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
         &self,
         new_limit: NewContributionLimit,
     ) -> Result<ContributionLimit> {
+        Self::validate_year(new_limit.contribution_year)?;
         self.limit_repository
             .create_contribution_limit(new_limit)
             .await
@@ -214,6 +224,7 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
         id: &str,
         updated_limit: NewContributionLimit,
     ) -> Result<ContributionLimit> {
+        Self::validate_year(updated_limit.contribution_year)?;
         self.limit_repository
             .update_contribution_limit(id, updated_limit)
             .await
@@ -661,6 +672,38 @@ mod tests {
             Arc::new(MockLimitRepository::default()),
             Arc::new(MockActivityRepository::new(activities)),
         )
+    }
+
+    #[tokio::test]
+    async fn unsupported_contribution_years_are_rejected_before_persistence() {
+        let service = make_service(Vec::new());
+        for year in [
+            MIN_CONTRIBUTION_YEAR - 1,
+            MAX_CONTRIBUTION_YEAR + 1,
+            i32::MAX,
+        ] {
+            let limit = NewContributionLimit {
+                id: None,
+                group_name: "TFSA".to_string(),
+                contribution_year: year,
+                limit_amount: 7000.0,
+                account_ids: None,
+                start_date: None,
+                end_date: None,
+                is_recurring: false,
+            };
+            assert!(matches!(
+                service.create_contribution_limit(limit.clone()).await,
+                Err(Error::Validation(ValidationError::InvalidInput(_)))
+            ));
+            assert!(matches!(
+                service.update_contribution_limit("limit", limit).await,
+                Err(Error::Validation(ValidationError::InvalidInput(_)))
+            ));
+        }
+        for year in [MIN_CONTRIBUTION_YEAR, MAX_CONTRIBUTION_YEAR] {
+            assert!(ContributionLimitService::validate_year(year).is_ok());
+        }
     }
 
     fn make_service_with_timezone(

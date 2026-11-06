@@ -1123,7 +1123,9 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::AiThread => Some(("ai_threads", "id")),
         SyncEntity::AiMessage => Some(("ai_messages", "id")),
         SyncEntity::AiThreadTag => Some(("ai_thread_tags", "id")),
-        SyncEntity::ContributionLimit => Some(("contribution_limits", "id")),
+        SyncEntity::ContributionLimit | SyncEntity::ContributionLimitV2 => {
+            Some(("contribution_limits", "id"))
+        }
         SyncEntity::Platform => Some(("platforms", "id")),
         SyncEntity::Snapshot => Some(("holdings_snapshots", "id")),
         SyncEntity::CustomProvider => Some(("market_data_custom_providers", "id")),
@@ -1551,7 +1553,7 @@ fn upsert_entity_metadata_tx(
     op: SyncOperation,
     seq: i64,
 ) -> Result<()> {
-    let entity_db = enum_to_db(&entity)?;
+    let entity_db = enum_to_db(&entity.conflict_entity())?;
     let op_db = enum_to_db(&op)?;
     diesel::insert_into(sync_entity_metadata::table)
         .values(SyncEntityMetadataDB {
@@ -1586,7 +1588,7 @@ fn upsert_entity_metadata_preserving_seq_tx(
     client_timestamp: &str,
     op: SyncOperation,
 ) -> Result<()> {
-    let entity_db = enum_to_db(&entity)?;
+    let entity_db = enum_to_db(&entity.conflict_entity())?;
     let op_db = enum_to_db(&op)?;
     diesel::insert_into(sync_entity_metadata::table)
         .values(SyncEntityMetadataDB {
@@ -2299,6 +2301,7 @@ fn apply_remote_event_lww_tx(
     seq_value: i64,
     payload_json: serde_json::Value,
 ) -> Result<bool> {
+    let entity = entity.conflict_entity();
     let already_applied = sync_applied_events::table
         .find(&event_id_value)
         .first::<SyncAppliedEventDB>(conn)
@@ -3035,7 +3038,7 @@ impl AppSyncRepository {
         self.writer
             .exec(move |conn| {
                 let row = SyncEntityMetadataDB {
-                    entity: enum_to_db(&metadata.entity)?,
+                    entity: enum_to_db(&metadata.entity.conflict_entity())?,
                     entity_id: metadata.entity_id.clone(),
                     last_event_id: metadata.last_event_id.clone(),
                     last_client_timestamp: metadata.last_client_timestamp.clone(),
@@ -3070,7 +3073,7 @@ impl AppSyncRepository {
         entity_id_value: &str,
     ) -> Result<Option<SyncEntityMetadata>> {
         let mut conn = get_connection(&self.pool)?;
-        let entity_value = enum_to_db(&entity)?;
+        let entity_value = enum_to_db(&entity.conflict_entity())?;
         let row = sync_entity_metadata::table
             .find((entity_value, entity_id_value))
             .first::<SyncEntityMetadataDB>(&mut conn)
@@ -3975,6 +3978,214 @@ mod tests {
         assert!(filter.contains("income_sources"));
         assert!(filter.contains("savings_categories"));
         assert!(filter.contains("id NOT LIKE 'cat_%'"));
+    }
+
+    #[tokio::test]
+    async fn contribution_limit_events_support_legacy_and_recurring_clients() {
+        use crate::limits::ContributionLimitRepository;
+        use wealthfolio_core::limits::{ContributionLimitRepositoryTrait, NewContributionLimit};
+
+        let (pool, writer, _dir) = setup_db();
+        let limits = ContributionLimitRepository::new(pool.clone(), writer.clone());
+        let sync = AppSyncRepository::new(pool, writer);
+        let (target_pool, target_writer, _target_dir) = setup_db();
+        let target_limits =
+            ContributionLimitRepository::new(target_pool.clone(), target_writer.clone());
+        let target = AppSyncRepository::new(target_pool, target_writer);
+        let mut legacy = SqliteConnection::establish(":memory:").unwrap();
+        legacy
+            .batch_execute(
+                "CREATE TABLE old_contribution_limits (
+            id TEXT PRIMARY KEY NOT NULL, group_name TEXT NOT NULL,
+            contribution_year INTEGER NOT NULL, limit_amount DOUBLE NOT NULL,
+            account_ids TEXT, created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL, start_date TIMESTAMP, end_date TIMESTAMP
+        );",
+            )
+            .unwrap();
+
+        for is_recurring in [false, true] {
+            let input = NewContributionLimit {
+                id: None,
+                group_name: "TFSA".into(),
+                contribution_year: 2026,
+                limit_amount: 7000.0,
+                account_ids: None,
+                start_date: None,
+                end_date: None,
+                is_recurring,
+            };
+            let limit = limits
+                .create_contribution_limit(input.clone())
+                .await
+                .unwrap();
+            limits
+                .update_contribution_limit(
+                    &limit.id,
+                    NewContributionLimit {
+                        limit_amount: 8000.0,
+                        is_recurring: !is_recurring,
+                        ..input
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        let events = sync.list_pending_outbox(100).unwrap();
+        assert_eq!(
+            events.len(),
+            8,
+            "each create/update emits compatible and versioned rows"
+        );
+        for (index, event) in events.iter().enumerate() {
+            let payload: serde_json::Value = serde_json::from_str(&event.payload).unwrap();
+            if event.entity == SyncEntity::ContributionLimit {
+                assert!(payload.get("is_recurring").is_none());
+                // The legacy schema can apply the complete ordinary limit change.
+                upsert_json_row(
+                    &mut legacy,
+                    "old_contribution_limits",
+                    &["id"],
+                    payload.as_object().unwrap(),
+                )
+                .unwrap();
+            } else {
+                assert_eq!(event.entity, SyncEntity::ContributionLimitV2);
+                assert!(payload["is_recurring"].is_boolean());
+            }
+            assert!(target
+                .apply_remote_event_lww(
+                    event.entity,
+                    event.entity_id.clone(),
+                    event.op,
+                    event.event_id.clone(),
+                    event.client_timestamp.clone(),
+                    index as i64 + 1,
+                    payload
+                )
+                .await
+                .unwrap());
+            if event.entity == SyncEntity::ContributionLimitV2 {
+                let saved = target_limits
+                    .get_contribution_limit(&event.entity_id)
+                    .unwrap();
+                let expected: serde_json::Value = serde_json::from_str(&event.payload).unwrap();
+                assert_eq!(
+                    saved.is_recurring,
+                    expected["is_recurring"].as_bool().unwrap()
+                );
+                assert_eq!(
+                    saved.limit_amount,
+                    expected["limit_amount"].as_f64().unwrap()
+                );
+                assert_eq!(
+                    target
+                        .get_entity_metadata(event.entity, &event.entity_id)
+                        .unwrap()
+                        .unwrap()
+                        .entity,
+                    SyncEntity::ContributionLimit
+                );
+            }
+        }
+        #[derive(QueryableByName)]
+        struct LegacyRow {
+            #[diesel(sql_type = diesel::sql_types::Double)]
+            limit_amount: f64,
+        }
+        let rows = diesel::sql_query("SELECT limit_amount FROM old_contribution_limits")
+            .load::<LegacyRow>(&mut legacy)
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|row| row.limit_amount == 8000.0));
+        assert!(
+            target.list_pending_outbox(100).unwrap().is_empty(),
+            "replay does not echo writes"
+        );
+    }
+
+    #[tokio::test]
+    async fn contribution_limit_wire_versions_share_conflict_and_delete_precedence() {
+        use crate::limits::ContributionLimitRepository;
+        use wealthfolio_core::limits::ContributionLimitRepositoryTrait;
+        let (pool, writer, _dir) = setup_db();
+        let limits = ContributionLimitRepository::new(pool.clone(), writer.clone());
+        let repo = AppSyncRepository::new(pool, writer);
+        let id = "recurring-limit";
+        let recurring = serde_json::json!({
+            "id": id, "group_name": "TFSA", "contribution_year": 2026,
+            "limit_amount": 7000, "is_recurring": true,
+            "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"
+        });
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::ContributionLimitV2,
+                id.into(),
+                SyncOperation::Create,
+                "v2-create".into(),
+                "2026-01-01T00:00:00Z".into(),
+                1,
+                recurring.clone()
+            )
+            .await
+            .unwrap());
+        // An older client can edit a limit without erasing the recurrence it cannot read.
+        let mut legacy = recurring.clone();
+        legacy.as_object_mut().unwrap().remove("is_recurring");
+        legacy["limit_amount"] = serde_json::json!(9000);
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::ContributionLimit,
+                id.into(),
+                SyncOperation::Update,
+                "legacy-update".into(),
+                "2027-01-01T00:00:00Z".into(),
+                2,
+                legacy
+            )
+            .await
+            .unwrap());
+        let saved = limits.get_contribution_limit(id).unwrap();
+        assert!(saved.is_recurring);
+        assert_eq!(saved.limit_amount, 9000.0);
+        assert!(!repo
+            .apply_remote_event_lww(
+                SyncEntity::ContributionLimitV2,
+                id.into(),
+                SyncOperation::Update,
+                "stale-v2".into(),
+                "2026-06-01T00:00:00Z".into(),
+                3,
+                recurring.clone()
+            )
+            .await
+            .unwrap());
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::ContributionLimit,
+                id.into(),
+                SyncOperation::Delete,
+                "legacy-delete".into(),
+                "2028-01-01T00:00:00Z".into(),
+                4,
+                serde_json::json!({"id": id})
+            )
+            .await
+            .unwrap());
+        assert!(!repo
+            .apply_remote_event_lww(
+                SyncEntity::ContributionLimitV2,
+                id.into(),
+                SyncOperation::Update,
+                "late-v2".into(),
+                "2029-01-01T00:00:00Z".into(),
+                5,
+                recurring
+            )
+            .await
+            .unwrap());
+        assert!(limits.get_contribution_limit(id).is_err());
     }
 
     #[tokio::test]

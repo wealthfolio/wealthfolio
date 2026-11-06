@@ -128,6 +128,7 @@ const SettingsContributionLimitPage = () => {
                   <ContributionLimitProjectedItem
                     key={limit.id}
                     limit={limit}
+                    accounts={accounts ?? []}
                     onAdd={handleAddProjectedLimit}
                   />
                 ) : (
@@ -170,6 +171,7 @@ const SettingsContributionLimitPage = () => {
                     <ContributionLimitProjectedItem
                       key={limit.id}
                       limit={limit}
+                      accounts={accounts ?? []}
                       onAdd={handleAddProjectedLimit}
                     />
                   ) : (

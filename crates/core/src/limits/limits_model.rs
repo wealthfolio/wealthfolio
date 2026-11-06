@@ -5,6 +5,9 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub const MIN_CONTRIBUTION_YEAR: i32 = 1900;
+pub const MAX_CONTRIBUTION_YEAR: i32 = 9999;
+
 /// Domain model for contribution limit
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

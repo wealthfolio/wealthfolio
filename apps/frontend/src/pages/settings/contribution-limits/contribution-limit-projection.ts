@@ -1,4 +1,5 @@
 import { fromAbsolute } from "@internationalized/date";
+import { MAX_CONTRIBUTION_YEAR } from "@/lib/constants";
 import type { ContributionLimit } from "@/lib/types";
 
 export interface ProjectedContributionLimit extends ContributionLimit {
@@ -36,7 +37,7 @@ function accountScope(limit: ContributionLimit): string {
 /**
  * Combines real limits with virtual, non-persisted projections for recurring
  * limits that don't yet have an explicit row for a given year. Each missing
- * year from `referenceYear` to `yearsAhead` past the latest limit uses the
+ * year from `referenceYear` to `yearsAhead` past the reference year uses the
  * group's (matched by groupName and accounts) closest earlier limit as its template, when
  * that limit has `isRecurring: true`. Dates move by the years between them in
  * `timezone`, the timezone the saved dates are read in.
@@ -68,7 +69,12 @@ export function withProjectedRecurringLimits(
     const existingYears = [...new Set(groupLimits.map((limit) => limit.contributionYear))].sort(
       (a, b) => a - b,
     );
-    const lastProjectedYear = Math.max(referenceYear, ...existingYears) + yearsAhead;
+    // Saved rows outside the planning window remain visible, but cannot expand
+    // synchronous projection work (including rows written by older clients).
+    const lastProjectedYear = Math.min(
+      referenceYear + Math.max(0, Math.min(yearsAhead, FUTURE_PROJECTION_YEARS)),
+      MAX_CONTRIBUTION_YEAR,
+    );
 
     // Only project forward from today — an old, unrenewed recurring limit
     // shouldn't backfill placeholders for years the user simply never visited.
