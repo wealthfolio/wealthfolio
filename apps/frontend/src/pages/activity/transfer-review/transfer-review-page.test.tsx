@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   convertToInternalTransfer,
+  getAssets,
   linkTransferPairs,
   reviewConvertToTransferSplitEffects,
   reviewTransferMatches,
@@ -14,6 +15,7 @@ import { ActivityStatus } from "@/lib/constants";
 import type {
   Account,
   Activity,
+  Asset,
   LinkTransferPairsResult,
   TransferMatchCandidate,
   TransferMatchReview,
@@ -28,6 +30,7 @@ const { updateActivity } = vi.hoisted(() => ({ updateActivity: vi.fn() }));
 vi.mock("@/adapters", () => ({
   convertToInternalTransfer: vi.fn(),
   findTransferMatchCandidates: vi.fn().mockResolvedValue([]),
+  getAssets: vi.fn().mockResolvedValue([]),
   getTransferPairForActivity: vi.fn(),
   linkTransferPairs: vi.fn(),
   reviewActivitiesSplitEffects: vi.fn(),
@@ -436,6 +439,45 @@ describe("Match transfers review", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Find match" }));
 
     expect(await screen.findByText("Link transfer")).toBeInTheDocument();
+  });
+
+  it("names a security by its ticker, not its asset id", async () => {
+    const assetId = "7f3c2a1e-9b4d-4c6a-8e2f-1a2b3c4d5e6f";
+    vi.mocked(getAssets).mockResolvedValueOnce([{ id: assetId, displayCode: "VFV" } as Asset]);
+    const source: Activity = {
+      ...leg("in-sec", "tfsa", "TRANSFER_IN"),
+      amount: undefined,
+      assetId,
+      quantity: "10",
+    };
+    renderPage({ certain: [], needsReview: [row(source, [])] });
+
+    expect(await screen.findByText("10 VFV")).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(assetId))).not.toBeInTheDocument();
+  });
+
+  it("points a row's arrow the way the money moved", async () => {
+    renderPage({
+      certain: [],
+      needsReview: [
+        row(leg("in-1", "rrsp", "TRANSFER_IN", "300"), [
+          candidate(leg("out-1", "tfsa", "TRANSFER_OUT", "300"), {
+            warningCodes: [{ code: "another_match" }],
+          }),
+        ]),
+        row(leg("out-2", "tfsa", "TRANSFER_OUT", "400"), [
+          candidate(leg("in-2", "rrsp", "TRANSFER_IN", "400"), {
+            warningCodes: [{ code: "another_match" }],
+          }),
+        ]),
+      ],
+    });
+
+    const rows = await screen.findAllByTestId("transfer-review-row");
+    const direction = (index: number) =>
+      within(rows[index]).getByTestId("transfer-flow-arrow").getAttribute("data-direction");
+    expect(direction(0)).toBe("backward");
+    expect(direction(1)).toBe("forward");
   });
 
   it("says when nothing is left to match", async () => {
