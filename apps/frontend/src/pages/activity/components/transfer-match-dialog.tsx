@@ -167,7 +167,8 @@ function normalizeActivity(
     accountName: getAccountName(activity, accountMap),
     accountType: account?.accountType ?? "",
     accountCurrency: getAccountCurrency(activity, accountMap),
-    activityType: activity.activityType,
+    // The displayed type, so a broker row overridden to a transfer can be linked.
+    activityType: getEffectiveType(activity),
     date: getActivityDate(activity),
     amount: activity.amount,
     quantity: activity.quantity,
