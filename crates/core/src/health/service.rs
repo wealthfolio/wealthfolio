@@ -1026,6 +1026,7 @@ fn invalid_transfer_groups_from_activities(
             (!legs.is_empty()).then(|| InvalidTransferGroupInfo {
                 group_id: group.group_id.clone(),
                 legs,
+                in_transfer_review: true,
             })
         })
         .collect();
@@ -1035,6 +1036,7 @@ fn invalid_transfer_groups_from_activities(
             groups.push(InvalidTransferGroupInfo {
                 group_id: format!("ungrouped:{}", activity.id),
                 legs: vec![transfer_leg_detail(activity, account_names, tz)],
+                in_transfer_review: true,
             });
         }
     }
@@ -1045,6 +1047,7 @@ fn invalid_transfer_groups_from_activities(
                 groups.push(InvalidTransferGroupInfo {
                     group_id: format!("conflicting_external_marker:{}", activity.id),
                     legs: vec![transfer_leg_detail(activity, account_names, tz)],
+                    in_transfer_review: false,
                 });
             }
         }
@@ -3325,6 +3328,14 @@ mod tests {
         assert_eq!(groups[0].group_id, "conflicting_external_marker:paired-out");
         assert_eq!(groups[0].legs.len(), 1);
         assert_eq!(groups[0].legs[0].account_name, "Cash");
+
+        // The Match transfers review lists no linked pair, so the issue opens
+        // the transfers instead of a review with nothing to fix.
+        assert!(!groups[0].in_transfer_review);
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let issues = TransferIntegrityCheck::new().analyze(&groups, &ctx);
+        let navigate = issues[0].navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, "/activities");
     }
 
     #[test]
