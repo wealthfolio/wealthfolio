@@ -7,6 +7,7 @@ import type { EventCallback, UnlistenFn } from "@/adapters";
 import type {
   Account,
   AccountValuation,
+  NetWorthResponse,
   Activity,
   ActivityBulkMutationRequest,
   ActivityBulkMutationResult,
@@ -196,6 +197,7 @@ export interface InternalHostAPI {
     endDate?: string,
   ): Promise<AccountValuation[]>;
   getLatestValuations(accountIds: string[]): Promise<AccountValuation[]>;
+  getNetWorth(date?: string): Promise<NetWorthResponse>;
   calculatePerformanceHistory(
     itemType: "account" | "symbol",
     itemId: string,
@@ -537,6 +539,7 @@ export function createSDKHostAPIBridge(
       getIncomeSummary: internalAPI.getIncomeSummary,
       getHistoricalValuations: internalAPI.getHistoricalValuations,
       getLatestValuations: internalAPI.getLatestValuations,
+      getNetWorth: (date?: string) => internalAPI.getNetWorth(date),
     },
     "portfolio",
     guard,
