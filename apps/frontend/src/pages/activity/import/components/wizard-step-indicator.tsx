@@ -83,7 +83,7 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
       </div>
 
       {/* Full labels need room inside the card, including with an expanded sidebar. */}
-      <div className="@min-[72rem]:flex hidden w-full items-center justify-center">
+      <div className="hidden w-full items-center justify-center @min-[72rem]:flex">
         {steps.map((step, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = step.id === currentStep;
