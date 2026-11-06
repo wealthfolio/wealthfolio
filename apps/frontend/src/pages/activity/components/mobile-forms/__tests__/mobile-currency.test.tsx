@@ -1,7 +1,7 @@
 import { ActivityType } from "@/lib/constants";
 import { render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
-import { useRef } from "react";
+import { useRef, type ReactElement } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
@@ -33,6 +33,15 @@ const accounts: AccountSelectOption[] = [
   { value: "cad-account", label: "CAD account", currency: "CAD" },
   { value: "other-account", label: "Other CAD account", currency: "CAD" },
 ];
+
+function renderWithQueries(ui: ReactElement) {
+  const queryClient = new QueryClient();
+  return render(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 function TestForm({
   currency,
@@ -97,11 +106,7 @@ function TestEdit({ options }: { options: AccountSelectOption[] }) {
 describe("mobile activity currency backfill", () => {
   it.each(["CAD", "EUR"])("submits the correct FX patch for an account in %s", async (currency) => {
     updateActivity.mockReset().mockResolvedValue({ id: "synthetic-mobile" });
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <TestEdit options={[accounts[0], { ...accounts[1], currency }]} />
-      </QueryClientProvider>,
-    );
+    renderWithQueries(<TestEdit options={[accounts[0], { ...accounts[1], currency }]} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("combobox", { name: "Account" }));
     await user.click(screen.getByRole("option", { name: /Other CAD account/ }));
@@ -127,7 +132,7 @@ describe("mobile activity currency backfill", () => {
     "handles an explicit account change with isEditing=%s",
     async (isEditing) => {
       const onSubmit = vi.fn();
-      render(<TestForm currency="USD" isEditing={isEditing} onSubmit={onSubmit} />);
+      renderWithQueries(<TestForm currency="USD" isEditing={isEditing} onSubmit={onSubmit} />);
       const user = userEvent.setup();
       await user.click(screen.getByRole("combobox", { name: "Account" }));
       await user.click(screen.getByRole("option", { name: /Other CAD account/ }));
@@ -139,20 +144,20 @@ describe("mobile activity currency backfill", () => {
   );
   it("preserves a stored activity currency when saving without edits", async () => {
     const onSubmit = vi.fn();
-    render(<TestForm currency="USD" onSubmit={onSubmit} />);
+    renderWithQueries(<TestForm currency="USD" onSubmit={onSubmit} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Save test activity" }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0].currency).toBe("USD");
   });
 
   it("preserves the stored currency when account options arrive later", async () => {
-    const { rerender } = render(<TestForm currency="USD" options={[]} />);
+    const { rerender } = renderWithQueries(<TestForm currency="USD" options={[]} />);
     rerender(<TestForm currency="USD" />);
     await waitFor(() => expect(screen.getByTestId("currency")).toHaveTextContent("USD"));
   });
 
   it("still fills an empty currency when account options arrive later", async () => {
-    const { rerender } = render(<TestForm currency="" options={[]} />);
+    const { rerender } = renderWithQueries(<TestForm currency="" options={[]} />);
     rerender(<TestForm currency="" />);
     await waitFor(() => expect(screen.getByTestId("currency")).toHaveTextContent("CAD"));
   });
