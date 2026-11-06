@@ -65,6 +65,7 @@ const savedTarget: AllocationTarget = {
   name: "My saved target",
   scopeType: "all",
   taxonomyId: "asset_classes",
+  targetType: "category",
   triggerType: "threshold",
   driftBandBps: 100,
   bandType: "absolute",

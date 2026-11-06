@@ -401,6 +401,7 @@ export const COMMANDS: CommandMap = {
   archive_allocation_target: { method: "POST", path: "/allocation-targets" },
   delete_allocation_target: { method: "DELETE", path: "/allocation-targets" },
   list_allocation_target_weights: { method: "GET", path: "/allocation-targets" },
+  list_allocation_target_asset_weights: { method: "GET", path: "/allocation-targets" },
   save_allocation_target_weights: { method: "POST", path: "/allocation-targets" },
   save_allocation_target_with_weights: {
     method: "POST",
@@ -2021,6 +2022,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(targetId)}/weights`;
       break;
     }
+    case "list_allocation_target_asset_weights": {
+      const { targetId } = payload as { targetId: string };
+      url += `/${encodeURIComponent(targetId)}/asset-weights`;
+      break;
+    }
     case "save_allocation_target_weights": {
       const { targetId, weights } = payload as { targetId: string; weights: unknown[] };
       url += `/${encodeURIComponent(targetId)}/weights`;
@@ -2028,12 +2034,13 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "save_allocation_target_with_weights": {
-      const { id, input, weights } = payload as {
+      const { id, input, weights, assetWeights } = payload as {
         id: string | null;
         input: Record<string, unknown>;
         weights: unknown[];
+        assetWeights?: unknown[];
       };
-      body = JSON.stringify({ id, input, weights });
+      body = JSON.stringify({ id, input, weights, assetWeights: assetWeights ?? [] });
       break;
     }
     case "get_allocation_target_drift": {

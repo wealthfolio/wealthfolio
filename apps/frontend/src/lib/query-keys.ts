@@ -149,8 +149,13 @@ export const QueryKeys = {
   // Allocation Targets
   ALLOCATION_TARGETS: "allocationTargets",
   ALLOCATION_TARGET_WEIGHTS: "allocationTargetWeights",
+  ALLOCATION_TARGET_ASSET_WEIGHTS: "allocationTargetAssetWeights",
   ALLOCATION_TARGET_DRIFT: "allocationTargetDrift",
   allocationTargetWeights: (targetId: string) => [QueryKeys.ALLOCATION_TARGET_WEIGHTS, targetId],
+  allocationTargetAssetWeights: (targetId: string) => [
+    QueryKeys.ALLOCATION_TARGET_ASSET_WEIGHTS,
+    targetId,
+  ],
   allocationTargetDrift: (targetId: string, scope: unknown, includeHoldings = false) => [
     QueryKeys.ALLOCATION_TARGET_DRIFT,
     targetId,

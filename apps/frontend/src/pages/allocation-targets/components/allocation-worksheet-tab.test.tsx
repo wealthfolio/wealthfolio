@@ -188,6 +188,7 @@ const profile: AllocationTarget = {
   name: "Balanced",
   scopeType: "all",
   taxonomyId: "asset_classes",
+  targetType: "category",
   triggerType: "manual",
   driftBandBps: 500,
   bandType: "absolute",
