@@ -102,6 +102,7 @@ import {
 import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { isContributionLimitCurrent } from "@/pages/settings/contribution-limits/contribution-limit-dates";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
@@ -230,7 +231,6 @@ const AccountPage = () => {
     account,
     AccountPurpose.CONTRIBUTION_LIMITS,
   );
-  const currentContributionYear = today.getFullYear();
 
   const { data: contributionLimits, isLoading: isContributionLimitsLoading } = useQuery<
     ContributionLimit[],
@@ -241,8 +241,13 @@ const AccountPage = () => {
     enabled: supportsContributionLimits,
   });
 
+  // Match the deposit service's UTC fallback when the setting is unset.
+  const contributionTimezone = appTimezone ?? "UTC";
+  const contributionToday = formatZonedDateKey(new Date(), contributionTimezone);
   const currentContributionLimit = contributionLimits?.find(
-    (limit) => limit.accountIds?.includes(id) && limit.contributionYear === currentContributionYear,
+    (limit) =>
+      limit.accountIds?.includes(id) &&
+      isContributionLimitCurrent(limit, contributionToday, contributionTimezone),
   );
   const showContributionLimitCard =
     supportsContributionLimits && (isContributionLimitsLoading || !!currentContributionLimit);
