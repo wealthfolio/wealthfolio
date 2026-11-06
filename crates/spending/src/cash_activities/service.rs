@@ -874,9 +874,10 @@ impl CashActivityService {
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
         let mut activity_ids = HashSet::new();
         let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
-        // Read once for the whole batch: it loads every activity on the
-        // Spending accounts, which costs too much to repeat for each row.
-        let bucket_context = self.bucket_context().await?;
+        // Read at most once for the whole batch, when the first row gets this
+        // far: it loads every activity on the Spending accounts, which costs
+        // too much to repeat for each row.
+        let mut bucket_context = None;
         for item in items {
             if !activity_ids.insert(&item.activity_id) {
                 return Err(SpendingError::InvalidInput {
@@ -887,7 +888,11 @@ impl CashActivityService {
             let activity = self
                 .ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id)
                 .await?;
-            ensure_assignment_bucket(&activity, &item.taxonomy_id, &bucket_context)?;
+            let context = match &bucket_context {
+                Some(context) => context,
+                None => bucket_context.insert(self.bucket_context().await?),
+            };
+            ensure_assignment_bucket(&activity, &item.taxonomy_id, context)?;
             categories_by_taxonomy
                 .entry(item.taxonomy_id.clone())
                 .or_default()
@@ -3625,8 +3630,9 @@ mod tests {
     }
 
     /// Each row's bucket check needs every activity on the Spending accounts.
-    /// A batch reads that history once, not once per row (#2509), and still
-    /// checks every row against it.
+    /// A batch reads that history at most once, not once per row (#2509),
+    /// still checks every row against it, and skips the read when no row
+    /// reaches the bucket check.
     #[tokio::test]
     async fn bulk_assignment_reads_the_spending_history_once_per_batch() {
         let activity_repo = Arc::new(MockActivityRepo {
@@ -3654,6 +3660,20 @@ mod tests {
                 })
                 .collect()
         };
+
+        assert!(service
+            .bulk_assign_categories(&[])
+            .await
+            .unwrap()
+            .is_empty());
+        let mut wrong_taxonomy = batch(&["a", "b"]);
+        wrong_taxonomy[0].taxonomy_id = "not_a_taxonomy".to_string();
+        let error = service
+            .bulk_assign_categories(&wrong_taxonomy)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("not assignable"));
+        assert_eq!(activity_repo.account_loads.load(Ordering::SeqCst), 0);
 
         let error = service
             .bulk_assign_categories(&batch(&["a", "neutral", "b"]))
