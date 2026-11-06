@@ -245,6 +245,7 @@ test("overlays fade in place when the system asks for reduced motion", async ({ 
     const item = overlay(name);
     await item.open(page);
     await expect(item.content(page)).toBeVisible();
+    const role = await item.content(page).getAttribute("role");
     // A transition starts a frame after the overlay mounts at opacity 0;
     // closing earlier would skip it.
     await nextFrames(page);
@@ -256,8 +257,9 @@ test("overlays fade in place when the system asks for reduced motion", async ({ 
       records.filter((record) => record.moved > 0.5),
       name,
     ).toEqual([]);
+    // The panel itself fades, not only its backdrop.
     expect(
-      records.some((record) => record.faded),
+      records.some((record) => record.faded && record.element === role),
       `${name} fades`,
     ).toBe(true);
   }

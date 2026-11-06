@@ -143,7 +143,11 @@ export interface Motion {
   element: string;
   /** The keyframes' name, or the transitioned property. */
   name: string;
-  /** How far, in px, the element's box shifts or grows between first and last frame. */
+  /**
+   * How far, in px, the element's box shifts or grows at any measured frame
+   * compared with its last. A square that turns half a circle ends where it
+   * started, so it shows only part-way, as a wider box.
+   */
   moved: number;
   /** Whether the element is see-through at its first or last frame. */
   faded: boolean;
@@ -151,8 +155,9 @@ export interface Motion {
 
 /**
  * Records every animation and transition that starts from now on: each is
- * caught as it starts, measured at its first and last frame, then finished.
- * Returns a function that reads what was recorded since.
+ * caught as it starts, measured at its first frame, three frames between and
+ * its last, then finished. Returns a function that reads what was recorded
+ * since.
  */
 export async function recordMotion(page: Page) {
   await page.evaluate(() => {
@@ -166,13 +171,16 @@ export async function recordMotion(page: Page) {
         if (animation.playState === "finished" || !timing || timing.iterations === Infinity)
           continue;
         animation.pause();
-        animation.currentTime = 0;
-        const first = element.getBoundingClientRect();
-        const firstOpacity = Number(getComputedStyle(element).opacity);
-        animation.currentTime = Math.max(0, Number(timing.endTime) - 1);
-        const last = element.getBoundingClientRect();
-        const lastOpacity = Number(getComputedStyle(element).opacity);
+        const end = Math.max(0, Number(timing.endTime) - 1);
+        const frames = [0, 0.25, 0.5, 0.75, 1].map((at) => {
+          animation.currentTime = end * at;
+          return {
+            box: element.getBoundingClientRect(),
+            opacity: Number(getComputedStyle(element).opacity),
+          };
+        });
         animation.finish();
+        const last = frames[frames.length - 1];
         records.push({
           element: element.getAttribute("role") ?? element.tagName.toLowerCase(),
           name:
@@ -182,12 +190,16 @@ export async function recordMotion(page: Page) {
                 ? animation.animationName
                 : "animation",
           moved: Math.max(
-            Math.abs(first.left - last.left),
-            Math.abs(first.top - last.top),
-            Math.abs(first.width - last.width),
-            Math.abs(first.height - last.height),
+            ...frames.map(({ box }) =>
+              Math.max(
+                Math.abs(box.left - last.box.left),
+                Math.abs(box.top - last.box.top),
+                Math.abs(box.width - last.box.width),
+                Math.abs(box.height - last.box.height),
+              ),
+            ),
           ),
-          faded: Math.min(firstOpacity, lastOpacity) < 1,
+          faded: Math.min(frames[0].opacity, last.opacity) < 1,
         });
       }
     };
