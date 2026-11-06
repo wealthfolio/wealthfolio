@@ -438,6 +438,44 @@ describe("IssueDetailSheet", () => {
     expect(rrspUrl.searchParams.get("healthContext")).toBe("activity");
   });
 
+  it("keeps a one-section issue's action in the footer, below a long list", () => {
+    const legs = Array.from({ length: 41 }, (_, index) => ({
+      label: "Transaction",
+      value: `Transfer In · ${index + 1} USD`,
+      route: `/activities?id=leg-${index}`,
+    }));
+    renderIssueSheet({
+      ...baseIssue,
+      severity: "ERROR",
+      category: "DATA_CONSISTENCY",
+      title: "41 incomplete transfers detected",
+      navigateAction: { route: "/activities/transfers", label: "Match transfers" },
+      diagnostics: [
+        {
+          ...diagnosticMeta,
+          domain: "ledger",
+          code: "INVALID_TRANSFER_GROUP",
+          title: "Transfer needs review",
+          explanation: "This transfer is missing the other side of the move.",
+          evidence: legs,
+          actions: [
+            {
+              primary: true,
+              kind: "navigate",
+              route: "/activities/transfers",
+              label: "Match transfers",
+            },
+          ],
+        },
+      ],
+    });
+
+    const links = screen.getAllByRole("link", { name: /Match transfers/i });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/activities/transfers");
+    expect(screen.getByTestId("scroll-area")).not.toContainElement(links[0]);
+  });
+
   it("runs the primary fix action from the diagnostic action button", async () => {
     const user = userEvent.setup();
     const onRunFixAction = vi.fn();

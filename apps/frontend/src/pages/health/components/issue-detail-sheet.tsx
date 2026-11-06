@@ -445,6 +445,48 @@ export function IssueDetailSheet({
   );
   const hasFallbackDiagnostic = isFallbackDiagnosticIssue(issue, diagnostics);
   const shouldRenderDetails = !hasActivityEvidence && (!hasDiagnostics || hasFallbackDiagnostic);
+  // With one section, its actions sit in the footer, where a long list of
+  // affected items cannot push them out of view.
+  const footerActionEntries =
+    diagnosticGroups.length === 1 && !isGroupedPrice
+      ? getDiagnosticActionEntries(
+          diagnosticGroups[0].diagnostics,
+          diagnosticGroups[0].diagnostics.length === 1,
+        )
+      : [];
+  const renderDiagnosticAction = ({ key, action }: DiagnosticActionEntry, inFooter: boolean) =>
+    action.kind === "navigate" ? (
+      <Link
+        to={buildDiagnosticRoute(action)}
+        key={key}
+        className={cn(
+          buttonVariants({ variant: "outline", size: inFooter ? "default" : "sm" }),
+          inFooter && "w-full",
+        )}
+      >
+        <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
+        {translateHealthAction(t, action)}
+      </Link>
+    ) : (
+      <Button
+        key={key}
+        type="button"
+        variant={action.primary ? "default" : "outline"}
+        size={inFooter ? "default" : "sm"}
+        className={inFooter ? "w-full" : undefined}
+        disabled={isFixing}
+        onClick={() =>
+          onRunFixAction({
+            id: action.id,
+            label: action.label,
+            payload: action.payload,
+          })
+        }
+      >
+        {isFixing ? <Spinner className="me-2 h-4 w-4" /> : <Icons.Wand2 className="me-2 h-4 w-4" />}
+        {translateHealthAction(t, action)}
+      </Button>
+    );
   const detailItems =
     issue.details
       ?.split(/\n\s*\n/)
@@ -554,9 +596,13 @@ export function IssueDetailSheet({
                   const priceAssetGroups = shouldGroupByAsset
                     ? buildPriceAssetGroups(group.diagnostics)
                     : [];
-                  const actionEntries = shouldGroupByAsset
-                    ? []
-                    : getDiagnosticActionEntries(group.diagnostics, group.diagnostics.length === 1);
+                  const actionEntries =
+                    shouldGroupByAsset || footerActionEntries.length > 0
+                      ? []
+                      : getDiagnosticActionEntries(
+                          group.diagnostics,
+                          group.diagnostics.length === 1,
+                        );
 
                   return (
                     <div key={group.key} className="space-y-3">
@@ -682,40 +728,7 @@ export function IssueDetailSheet({
 
                       {actionEntries.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {actionEntries.map(({ key, action }) =>
-                            action.kind === "navigate" ? (
-                              <Link
-                                to={buildDiagnosticRoute(action)}
-                                key={key}
-                                className={buttonVariants({ variant: "outline", size: "sm" })}
-                              >
-                                <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
-                                {translateHealthAction(t, action)}
-                              </Link>
-                            ) : (
-                              <Button
-                                key={key}
-                                type="button"
-                                variant={action.primary ? "default" : "outline"}
-                                size="sm"
-                                disabled={isFixing}
-                                onClick={() =>
-                                  onRunFixAction({
-                                    id: action.id,
-                                    label: action.label,
-                                    payload: action.payload,
-                                  })
-                                }
-                              >
-                                {isFixing ? (
-                                  <Spinner className="me-2 h-4 w-4" />
-                                ) : (
-                                  <Icons.Wand2 className="me-2 h-4 w-4" />
-                                )}
-                                {translateHealthAction(t, action)}
-                              </Button>
-                            ),
-                          )}
+                          {actionEntries.map((entry) => renderDiagnosticAction(entry, false))}
                         </div>
                       )}
                     </div>
@@ -800,6 +813,8 @@ export function IssueDetailSheet({
         </ScrollArea>
 
         <div className="shrink-0 space-y-2 border-t pt-4">
+          {footerActionEntries.map((entry) => renderDiagnosticAction(entry, true))}
+
           {issue.fixAction && !hasDiagnosticActions && (
             <Button onClick={onFix} disabled={isFixing} className="w-full">
               {isFixing ? (
