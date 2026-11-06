@@ -482,12 +482,10 @@ impl PortfolioCoordinator {
                         .invalidate(MarkerScope::Account(account.clone()), GENESIS)
                         .await?;
                 }
-                let consumed = markers
-                    .into_iter()
-                    .filter(|marker| {
-                        !matches!(&marker.scope, MarkerScope::Account(id) if excluded.contains(id))
-                    })
-                    .collect();
+                let mut consumed = completion.consumed.clone();
+                consumed.extend(markers.into_iter().filter(|marker| {
+                    !matches!(&marker.scope, MarkerScope::Account(id) if excluded.contains(id))
+                }));
                 self.deps
                     .projections
                     .complete_run(crate::portfolio::projection::RunCompletion {

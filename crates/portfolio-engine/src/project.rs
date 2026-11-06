@@ -2289,6 +2289,8 @@ impl Projector<'_> {
                 realized_pnl: (stored_proceeds - stored_cost).round_dp(STORED_PRECISION),
                 proceeds_base: stored_proceeds_base,
                 cost_basis_base: stored_cost_base,
+                proceeds_base_known: proceeds_base.is_some(),
+                cost_basis_base_known: cost_base.is_some(),
                 realized_pnl_base: if proceeds_base.is_some() && cost_base.is_some() {
                     (stored_proceeds_base - stored_cost_base).round_dp(STORED_PRECISION)
                 } else {
@@ -3001,6 +3003,8 @@ impl Projector<'_> {
                 realized_pnl: (stored_proceeds - stored_cost).round_dp(STORED_PRECISION),
                 proceeds_base: stored_proceeds_base,
                 cost_basis_base: stored_cost_base,
+                proceeds_base_known: proceeds_base.is_some(),
+                cost_basis_base_known: cost_basis_base.is_some(),
                 realized_pnl_base,
                 currency: position_currency.clone(),
                 fx_rate_to_base: disposal_rate,

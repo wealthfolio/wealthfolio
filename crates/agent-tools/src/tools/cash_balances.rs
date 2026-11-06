@@ -163,22 +163,16 @@ impl AgentTool for GetCashBalances {
 
             let raw_total: Decimal = balances.iter().map(|b| b.amount).sum();
             let all_in_account_currency = balances.iter().all(|b| b.currency == account_currency);
-            let all_in_base_currency = balances.iter().all(|b| b.currency == base_currency);
             let valuation = valuation_by_account.get(account_id);
 
-            let total_base: Decimal = cash_holdings.iter().map(|h| h.market_value.base).sum();
-            let effective_base = if total_base != Decimal::ZERO {
-                total_base
-            } else if let Some(valuation) = valuation {
-                valuation.cash_balance * valuation.fx_rate_to_base
-            } else if all_in_base_currency {
-                raw_total
-            } else {
-                return Err(AgentToolError::ExecutionFailed(format!(
-                    "Cash balance for account '{}' includes currencies that cannot be converted to base currency.",
-                    account_id
-                )));
-            };
+            let total_base = cash_holdings
+                .iter()
+                .map(|h| h.market_value.base)
+                .sum::<Option<Decimal>>()
+                .ok_or_else(|| {
+                    AgentToolError::ExecutionFailed("Cash valuation is incomplete".into())
+                })?;
+            let effective_base = total_base;
 
             let total_account_currency = if let Some(valuation) = valuation {
                 valuation.cash_balance

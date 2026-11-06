@@ -194,7 +194,19 @@ test.describe("Holdings and Performance Pages", () => {
     await expect(page.getByText(/something went wrong/i)).not.toBeVisible();
   });
 
-  test("6. Dashboard: total value > 0 and account tiles visible", async () => {
+  test("6. Holdings remain readable in RTL", async () => {
+    await page.goto(`${BASE_URL}/holdings?dir=rtl`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.getByRole("row").filter({ hasText: "AAPL" }).first()).toBeVisible({
+      timeout: 15000,
+    });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("7. Dashboard: total value > 0 and account tiles visible", async () => {
     test.setTimeout(60000);
 
     await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });

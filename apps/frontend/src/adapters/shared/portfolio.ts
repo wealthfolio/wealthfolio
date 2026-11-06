@@ -2,6 +2,7 @@
 import type {
   AccountScope,
   Holding,
+  HoldingsListResponse,
   AllocationHoldings,
   IncomeSummary,
   AccountValuation,
@@ -36,8 +37,8 @@ export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
 export const getHoldingsList = async (
   filter: AccountScope,
   options: { includeClosed?: boolean } = {},
-): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_holdings_list", {
+): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_holdings_list", {
     filter,
     ...(options.includeClosed ? { includeClosed: true } : {}),
   });

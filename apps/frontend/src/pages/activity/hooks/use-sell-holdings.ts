@@ -20,7 +20,7 @@ export function useSellHoldings({
   originalAssetId,
   enabled = true,
 }: SellHoldingSelection) {
-  const { holdings, isLoading, isFetching, isError } = useHoldings(
+  const { holdings, isLoading, isFetching, isError, isUpdating } = useHoldings(
     { type: "account", accountId },
     { enabled },
   );
@@ -52,5 +52,5 @@ export function useSellHoldings({
       ? Number(((holding?.quantity ?? 0) + Math.abs(original)).toFixed(DECIMAL_PRECISION))
       : (holding?.quantity ?? 0);
 
-  return { availableQuantity, isLoading, isFetching, isError };
+  return { availableQuantity, isLoading: isLoading || isUpdating, isFetching, isError };
 }

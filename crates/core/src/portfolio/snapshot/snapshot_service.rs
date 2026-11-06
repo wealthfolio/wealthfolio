@@ -117,6 +117,15 @@ pub trait SnapshotServiceTrait: Send + Sync {
             })?;
         let date = NaiveDate::parse_from_str(&metadata.snapshot_date, "%Y-%m-%d")
             .map_err(|error| Error::Repository(error.to_string()))?;
+        if self
+            .get_snapshot_metadata(account_id, Some(date), Some(date))?
+            .len()
+            != 1
+        {
+            return Err(Error::Repository(
+                "Deleting a snapshot with same-date siblings requires row-ID support".into(),
+            ));
+        }
         self.delete_snapshot_for_account(account_id, &[date]).await
     }
 }
@@ -168,6 +177,28 @@ impl SplitCarry {
 /// stored, for a switch back, but is not read.
 fn is_read(mode: TrackingMode, snapshot: &AccountStateSnapshot) -> bool {
     (mode == TrackingMode::Holdings) != (snapshot.source == SnapshotSource::Calculated)
+}
+
+/// The captured holdings read uses the same recorded split rule as ordinary
+/// snapshot reads, without opening repositories after its read transaction.
+pub(crate) fn carry_snapshot_splits(
+    snapshot: &mut AccountStateSnapshot,
+    splits: &[engine::SplitEvent],
+    day: NaiveDate,
+) -> Result<()> {
+    for position in snapshot.positions.values_mut() {
+        let factor = engine::split_quantity_factor(
+            splits,
+            &engine::model::AssetId::new(&position.asset_id),
+            snapshot.snapshot_date,
+            day,
+        );
+        let (quantity, average_cost) = carried(position.quantity, position.average_cost, factor)
+            .ok_or_else(|| Error::Repository("snapshot split factor is out of range".into()))?;
+        position.quantity = quantity;
+        position.average_cost = average_cost;
+    }
+    Ok(())
 }
 
 /// A quantity and its unit cost carried by `factor`: units multiply, unit
@@ -362,7 +393,7 @@ impl SnapshotService {
 
     fn create_initial_snapshot(account: &Account, date: NaiveDate) -> AccountStateSnapshot {
         AccountStateSnapshot {
-            id: AccountStateSnapshot::stable_id(&account.id, date),
+            id: AccountStateSnapshot::calculated_id(&account.id, date),
             account_id: account.id.clone(),
             snapshot_date: date,
             currency: account.currency.clone(),
@@ -373,6 +404,7 @@ impl SnapshotService {
             net_contribution_base: Decimal::ZERO,
             cash_total_account_currency: Decimal::ZERO,
             cash_total_base_currency: Decimal::ZERO,
+            base_currency: None,
             calculated_at: crate::utils::clock::now().naive_utc(),
             source: SnapshotSource::Calculated,
         }
@@ -698,7 +730,9 @@ impl SnapshotServiceTrait for SnapshotService {
             Some(snapshot.snapshot_date),
         )?;
 
-        if let Some(existing) = same_date_snapshots.into_iter().next() {
+        if let Some(existing) = same_date_snapshots.into_iter().find(|existing| {
+            existing.id == snapshot.id && existing.source != SnapshotSource::Calculated
+        }) {
             if existing.is_content_equal(&snapshot) {
                 debug!(
                     "Snapshot content unchanged for account {} on {}, skipping save",

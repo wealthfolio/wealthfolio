@@ -71,7 +71,7 @@ vi.mock("../hooks/use-allocation-worksheet", () => ({
 }));
 vi.mock("@/adapters", () => ({
   getHoldingsList: vi.fn((filter: { accountId: string }) =>
-    Promise.resolve(holdingsFor(filter.accountId)),
+    Promise.resolve({ holdings: holdingsFor(filter.accountId), incompleteAccounts: [] }),
   ),
   getAssetTaxonomyAssignments: vi.fn(() => Promise.resolve([])),
   listTargetConstraints: vi.fn(() => Promise.resolve(constraintsRef.current)),

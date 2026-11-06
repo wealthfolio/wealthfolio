@@ -5,6 +5,7 @@ import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
@@ -88,7 +89,8 @@ export function DashboardContent({
   const { code: selectedInterval, range: dateRange } = period;
   const isAllTime = selectedInterval === "ALL";
 
-  const { holdings: allHoldings, isLoading: isHoldingsLoading } = useHoldings(scope);
+  const holdingsQuery = useHoldings(scope);
+  const { holdings: allHoldings, isLoading: isHoldingsLoading } = holdingsQuery;
   const {
     currentValuation: portfolioCurrentValuation,
     isLoading: isCurrentValuationLoading,
@@ -298,11 +300,14 @@ export function DashboardContent({
               />
             </div>
             <div className="space-y-6">
-              <TopHoldings
-                holdings={holdings}
-                isLoading={isHoldingsLoading}
-                baseCurrency={baseCurrency}
-              />
+              <HoldingsScopeNotice {...holdingsQuery} />
+              {(holdingsQuery.isComplete || isHoldingsLoading) && (
+                <TopHoldings
+                  holdings={holdings}
+                  isLoading={isHoldingsLoading}
+                  baseCurrency={baseCurrency}
+                />
+              )}
               <SavingGoals />
             </div>
           </div>

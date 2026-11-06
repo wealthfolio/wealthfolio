@@ -765,6 +765,7 @@ impl Scenario {
                     cash_total_account_currency: cash_in_account_currency,
                     cash_total_base_currency: Decimal::ZERO,
                     calculated_at: stamp_utc.naive_utc(),
+                    base_currency: None,
                     source: parse_enum::<SnapshotSource>(&spec.source, "source"),
                 }
             })

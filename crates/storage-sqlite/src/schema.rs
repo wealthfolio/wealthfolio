@@ -318,6 +318,7 @@ diesel::table! {
         cash_total_account_currency -> Text,
         cash_total_base_currency -> Text,
         source -> Text,
+        base_currency -> Nullable<Text>,
     }
 }
 
@@ -363,6 +364,8 @@ diesel::table! {
         fx_rate_to_base -> Text,
         cost_basis_method -> Text,
         created_at -> Text,
+        proceeds_base_known -> Nullable<Bool>,
+        cost_basis_base_known -> Nullable<Bool>,
     }
 }
 

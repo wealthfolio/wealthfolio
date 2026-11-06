@@ -10,6 +10,7 @@ function holding(assetId: string, symbol: string): Holding {
     id: assetId,
     accountId: "account-1",
     holdingType: HoldingType.SECURITY,
+    marketValue: { local: 100, base: 100 },
     instrument: {
       id: assetId,
       symbol,

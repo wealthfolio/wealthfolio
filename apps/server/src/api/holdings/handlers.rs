@@ -10,7 +10,7 @@ use wealthfolio_core::{
     lots::AssetLotView,
     portfolio::{
         allocation::{AllocationHoldings, PortfolioAllocations},
-        holdings::{Holding, HoldingListItem},
+        holdings::{Holding, HoldingsListResponse, HoldingsScope},
         snapshot::{
             check_holdings_import as validate_holdings_import, holdings_import_data_source,
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
@@ -104,11 +104,11 @@ pub async fn get_holdings(
 pub async fn get_holdings_list(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<FilterBody>,
-) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let holdings =
-        load_holdings_for_filter(state.as_ref(), &body.filter, body.include_closed).await?;
+) -> ApiResult<Json<HoldingsListResponse>> {
     Ok(Json(
-        holdings.into_iter().map(HoldingListItem::from).collect(),
+        load_holdings_scope_for_filter(state.as_ref(), &body.filter, body.include_closed)
+            .await?
+            .into(),
     ))
 }
 
@@ -117,6 +117,18 @@ async fn load_holdings_for_filter(
     filter: &AccountScope,
     include_closed: bool,
 ) -> ApiResult<Vec<Holding>> {
+    Ok(
+        load_holdings_scope_for_filter(state, filter, include_closed)
+            .await?
+            .require_complete()?,
+    )
+}
+
+async fn load_holdings_scope_for_filter(
+    state: &AppState,
+    filter: &AccountScope,
+    include_closed: bool,
+) -> ApiResult<HoldingsScope> {
     let base = state
         .base_currency
         .read()
@@ -124,25 +136,13 @@ async fn load_holdings_for_filter(
         .clone();
     let resolved = resolve_scope(filter, state)?;
     let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
-    let holdings = if account_ids.is_empty() {
-        Vec::new()
-    } else if account_ids.len() == 1 {
-        state
-            .holdings_service
-            .get_holdings_with_options(&account_ids[0], &base, include_closed)
-            .await?
-    } else {
-        state
-            .holdings_service
-            .get_holdings_for_accounts_with_options(
-                &account_ids,
-                &base,
-                &resolved.scope_id,
-                include_closed,
-            )
-            .await?
-    };
-    Ok(holdings)
+    if account_ids.is_empty() {
+        return Ok(HoldingsScope::default());
+    }
+    Ok(state
+        .holdings_service
+        .get_holdings_scope(&account_ids, &base, &resolved.scope_id, include_closed)
+        .await?)
 }
 
 /// GET /holdings?accountId=... — simple single-account scope
@@ -170,22 +170,17 @@ pub async fn get_holdings_for_account(
 pub async fn get_holdings_list_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AccountIdQuery>,
-) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let base = state
-        .base_currency
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .clone();
-    let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
-    if account_ids.is_empty() {
-        return Ok(Json(Vec::new()));
-    }
-    let holdings = state
-        .holdings_service
-        .get_holdings_with_options(&account_ids[0], &base, q.include_closed)
-        .await?;
+) -> ApiResult<Json<HoldingsListResponse>> {
     Ok(Json(
-        holdings.into_iter().map(HoldingListItem::from).collect(),
+        load_holdings_scope_for_filter(
+            state.as_ref(),
+            &AccountScope::Account {
+                account_id: q.account_id,
+            },
+            q.include_closed,
+        )
+        .await?
+        .into(),
     ))
 }
 
@@ -274,10 +269,10 @@ pub async fn get_asset_holdings(
         if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
             continue;
         }
-        if let Ok(Some(holding)) = state
+        if let Some(holding) = state
             .holdings_service
             .get_holding(&account.id, &q.asset_id, &base)
-            .await
+            .await?
         {
             result.push(holding);
         }
@@ -571,7 +566,10 @@ pub async fn delete_snapshot_handler(
             q.snapshot_id
                 .as_deref()
                 .map(|snapshot_id| snapshot.id == snapshot_id)
-                .unwrap_or(snapshot.snapshot_date == q.date)
+                .unwrap_or(
+                    snapshot.snapshot_date == q.date
+                        && snapshot.source != SnapshotSource::Calculated.as_str(),
+                )
         })
         .ok_or_else(|| anyhow::anyhow!("No snapshot found for date {}", q.date))?;
 
@@ -599,21 +597,10 @@ pub async fn delete_snapshot_handler(
     }
 
     // Delete via the service so snapshot deletion stays behind one entry point.
-    if let Some(snapshot_id) = q.snapshot_id.as_deref() {
-        state
-            .snapshot_service
-            .delete_snapshot_for_account_by_id(&q.account_id, snapshot_id)
-            .await?;
-    } else if let Some(target_date) = target_date {
-        state
-            .snapshot_service
-            .delete_snapshot_for_account(&q.account_id, &[target_date])
-            .await?;
-    } else {
-        return Err(
-            anyhow::anyhow!("snapshotId is required to delete a malformed snapshot").into(),
-        );
-    }
+    state
+        .snapshot_service
+        .delete_snapshot_for_account_by_id(&q.account_id, &snapshot.id)
+        .await?;
 
     tracing::info!(
         "Deleted {:?} snapshot for account {} on date {}",

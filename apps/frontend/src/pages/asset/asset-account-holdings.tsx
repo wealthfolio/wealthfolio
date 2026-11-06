@@ -9,17 +9,12 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
+import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import type { Account, Holding, SnapshotInfo } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AmountDisplay,
-  GainAmount,
-  GainPercent,
-  QuantityDisplay,
-  useDateFormatting,
-} from "@wealthfolio/ui";
+import { AmountDisplay, GainAmount, QuantityDisplay, useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,7 +84,11 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
   const { accounts } = useAccounts();
   const isMobile = useIsMobileViewport();
 
-  const { data: assetHoldings = [], isLoading } = useQuery<Holding[]>({
+  const {
+    data: assetHoldings = [],
+    isLoading,
+    isError,
+  } = useQuery<Holding[]>({
     queryKey: [QueryKeys.ASSET_HOLDINGS, assetId],
     queryFn: () => getAssetHoldings(assetId),
     enabled: !!assetId,
@@ -97,6 +96,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
 
   const accountsMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
+  if (isError) return <p role="status">{t("holdings:scope_unavailable")}</p>;
   if (isLoading || assetHoldings.length === 0) return null;
 
   if (isMobile) {
@@ -104,8 +104,8 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
       <div className="space-y-2">
         {assetHoldings.map((h) => {
           const account = accountsMap.get(h.accountId);
-          const gainAmount = h.totalGain?.local ?? 0;
-          const gainPct = h.totalGainPct ?? 0;
+          const gainAmount = h.totalGain?.local;
+          const gainPct = h.totalGainPct;
           const currency = h.localCurrency ?? baseCurrency;
           return (
             <div key={h.accountId} className="flex items-center gap-3 rounded-lg border p-3">
@@ -137,7 +137,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                     displayCurrency={false}
                     className="text-xs"
                   />
-                  <GainPercent value={gainPct} className="text-xs" />
+                  <HoldingPerformancePercent value={gainPct} className="text-xs" />
                 </div>
               </div>
             </div>
@@ -162,8 +162,8 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
         <TableBody>
           {assetHoldings.map((h) => {
             const account = accountsMap.get(h.accountId);
-            const gainAmount = h.totalGain?.local ?? 0;
-            const gainPct = h.totalGainPct ?? 0;
+            const gainAmount = h.totalGain?.local;
+            const gainPct = h.totalGainPct;
             return (
               <TableRow key={h.accountId}>
                 <TableCell className="font-medium">
@@ -188,7 +188,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                 </TableCell>
                 <TableCell className="text-end">
                   <AmountDisplay
-                    value={h.costBasis?.local ?? 0}
+                    value={h.costBasis?.local}
                     currency={h.localCurrency ?? baseCurrency}
                     isHidden={isBalanceHidden}
                   />
@@ -200,7 +200,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                       currency={h.localCurrency ?? baseCurrency}
                       displayCurrency={false}
                     />
-                    <GainPercent value={gainPct} variant="badge" />
+                    <HoldingPerformancePercent value={gainPct} variant="badge" />
                   </div>
                 </TableCell>
               </TableRow>

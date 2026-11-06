@@ -367,7 +367,8 @@ impl HealthService {
                     let mv = holding
                         .market_value
                         .base
-                        .to_string()
+                        .map(|value| value.to_string())
+                        .unwrap_or_default()
                         .parse::<f64>()
                         .unwrap_or(0.0)
                         .abs();
@@ -388,7 +389,8 @@ impl HealthService {
                     let market_value_f64 = holding
                         .market_value
                         .base
-                        .to_string()
+                        .map(|value| value.to_string())
+                        .unwrap_or_default()
                         .parse::<f64>()
                         .unwrap_or(0.0);
                     total_portfolio_value += market_value_f64;

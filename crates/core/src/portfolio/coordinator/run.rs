@@ -220,6 +220,19 @@ pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunComp
     let mut started: BTreeSet<AccountId> = BTreeSet::new();
     let mut written: BTreeSet<String> = BTreeSet::new();
 
+    // Day advancement and transfer closure can discover a refold without a
+    // persisted dirty marker. Fence those writes using the existing markers.
+    let fenced = context
+        .projections
+        .ensure_refold_markers(
+            &plan
+                .refold
+                .iter()
+                .map(|(id, from)| (id.clone(), *from))
+                .collect::<Vec<_>>(),
+        )
+        .await?;
+
     for window in windows(context.cadence, range, &starts) {
         let refold = writers(&plan.refold, window, &mut written);
         let revalue = writers(&plan.revalue, window, &mut written);
@@ -282,7 +295,10 @@ pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunComp
         state = Some(folded.final_state);
     }
 
-    let mut completion = RunCompletion::default();
+    let mut completion = RunCompletion {
+        consumed: fenced,
+        ..RunCompletion::default()
+    };
     let Some(final_state) = state else {
         return Ok(completion);
     };
@@ -604,6 +620,7 @@ fn refold_rows(
                 &frames,
                 &writer.account,
                 &account.currency,
+                resolved.facts.policy().base_currency.as_str(),
             )),
             valuations: series
                 .get(&id)

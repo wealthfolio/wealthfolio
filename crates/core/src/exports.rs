@@ -69,8 +69,8 @@ pub struct HoldingExportRow {
     pub local_currency: String,
     pub base_currency: String,
     pub fx_rate: Option<Decimal>,
-    pub market_value_local: Decimal,
-    pub market_value_base: Decimal,
+    pub market_value_local: Option<Decimal>,
+    pub market_value_base: Option<Decimal>,
     pub cost_basis_local: Option<Decimal>,
     pub cost_basis_base: Option<Decimal>,
     pub average_price: Option<Decimal>,
@@ -96,7 +96,7 @@ pub struct HoldingExportRow {
     pub day_change_pct: Option<Decimal>,
     pub prev_close_value_local: Option<Decimal>,
     pub prev_close_value_base: Option<Decimal>,
-    pub weight: Decimal,
+    pub weight: Option<Decimal>,
     pub as_of_date: NaiveDate,
     pub source_account_ids: Vec<String>,
 }
@@ -165,31 +165,43 @@ impl From<HoldingListItem> for HoldingExportRow {
             fx_rate: holding.fx_rate,
             market_value_local: holding.market_value.local,
             market_value_base: holding.market_value.base,
-            cost_basis_local: holding.cost_basis.as_ref().map(|value| value.local),
-            cost_basis_base: holding.cost_basis.as_ref().map(|value| value.base),
+            cost_basis_local: holding.cost_basis.as_ref().and_then(|value| value.local),
+            cost_basis_base: holding.cost_basis.as_ref().and_then(|value| value.base),
             average_price,
             price: holding.price,
-            unrealized_gain_local: holding.unrealized_gain.as_ref().map(|value| value.local),
-            unrealized_gain_base: holding.unrealized_gain.as_ref().map(|value| value.base),
+            unrealized_gain_local: holding
+                .unrealized_gain
+                .as_ref()
+                .and_then(|value| value.local),
+            unrealized_gain_base: holding
+                .unrealized_gain
+                .as_ref()
+                .and_then(|value| value.base),
             unrealized_gain_pct: holding.unrealized_gain_pct,
-            realized_gain_local: holding.realized_gain.as_ref().map(|value| value.local),
-            realized_gain_base: holding.realized_gain.as_ref().map(|value| value.base),
+            realized_gain_local: holding.realized_gain.as_ref().and_then(|value| value.local),
+            realized_gain_base: holding.realized_gain.as_ref().and_then(|value| value.base),
             realized_gain_pct: holding.realized_gain_pct,
-            total_gain_local: holding.total_gain.as_ref().map(|value| value.local),
-            total_gain_base: holding.total_gain.as_ref().map(|value| value.base),
+            total_gain_local: holding.total_gain.as_ref().and_then(|value| value.local),
+            total_gain_base: holding.total_gain.as_ref().and_then(|value| value.base),
             total_gain_pct: holding.total_gain_pct,
-            income_local: holding.income.as_ref().map(|value| value.local),
-            income_base: holding.income.as_ref().map(|value| value.base),
-            total_return_local: holding.total_return.as_ref().map(|value| value.local),
-            total_return_base: holding.total_return.as_ref().map(|value| value.base),
+            income_local: holding.income.as_ref().and_then(|value| value.local),
+            income_base: holding.income.as_ref().and_then(|value| value.base),
+            total_return_local: holding.total_return.as_ref().and_then(|value| value.local),
+            total_return_base: holding.total_return.as_ref().and_then(|value| value.base),
             total_return_pct: holding.total_return_pct,
-            return_basis_local: holding.return_basis.as_ref().map(|value| value.local),
-            return_basis_base: holding.return_basis.as_ref().map(|value| value.base),
-            day_change_local: holding.day_change.as_ref().map(|value| value.local),
-            day_change_base: holding.day_change.as_ref().map(|value| value.base),
+            return_basis_local: holding.return_basis.as_ref().and_then(|value| value.local),
+            return_basis_base: holding.return_basis.as_ref().and_then(|value| value.base),
+            day_change_local: holding.day_change.as_ref().and_then(|value| value.local),
+            day_change_base: holding.day_change.as_ref().and_then(|value| value.base),
             day_change_pct: holding.day_change_pct,
-            prev_close_value_local: holding.prev_close_value.as_ref().map(|value| value.local),
-            prev_close_value_base: holding.prev_close_value.as_ref().map(|value| value.base),
+            prev_close_value_local: holding
+                .prev_close_value
+                .as_ref()
+                .and_then(|value| value.local),
+            prev_close_value_base: holding
+                .prev_close_value
+                .as_ref()
+                .and_then(|value| value.base),
             weight: holding.weight,
             as_of_date: holding.as_of_date,
             source_account_ids: holding.source_account_ids,
@@ -203,7 +215,7 @@ fn average_price(
     contract_multiplier: Decimal,
     symbol: Option<&str>,
 ) -> Option<Decimal> {
-    let cost_basis = cost_basis?.local;
+    let cost_basis = cost_basis?.local?;
     if quantity == Decimal::ZERO {
         return None;
     }
@@ -469,14 +481,8 @@ mod tests {
             local_currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate: Some(dec!(1)),
-            market_value: MonetaryValue {
-                local: dec!(2000),
-                base: dec!(2000),
-            },
-            cost_basis: Some(MonetaryValue {
-                local: dec!(1000),
-                base: dec!(1000),
-            }),
+            market_value: MonetaryValue::new(dec!(2000), dec!(2000)),
+            cost_basis: Some(MonetaryValue::new(dec!(1000), dec!(1000))),
             price: Some(dec!(200)),
             unrealized_gain: None,
             unrealized_gain_pct: None,
@@ -491,7 +497,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: dec!(1),
+            weight: Some(dec!(1)),
             as_of_date: NaiveDate::from_ymd_opt(2026, 6, 25).unwrap(),
             source_account_ids: vec!["account-1".to_string()],
         }
@@ -514,10 +520,7 @@ mod tests {
 
     #[test]
     fn average_price_uses_option_contract_multiplier() {
-        let cost_basis = MonetaryValue {
-            local: dec!(1000),
-            base: dec!(1000),
-        };
+        let cost_basis = MonetaryValue::new(dec!(1000), dec!(1000));
 
         assert_eq!(
             average_price(

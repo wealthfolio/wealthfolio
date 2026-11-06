@@ -20,11 +20,12 @@ function compareText(a: string, b: string): number {
 }
 
 export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
+  if (holdings.some((holding) => holding.marketValue.base == null)) return [];
   const rows = holdings
     .filter((holding) => holding.holdingType.toLowerCase() !== "cash")
     .flatMap((holding): EligibleHolding[] => {
       const instrument = holding.instrument;
-      if (!instrument?.id) return [];
+      if (!instrument?.id || holding.marketValue.base == null) return [];
       return [
         {
           assetId: instrument.id,
@@ -34,7 +35,7 @@ export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
           exchangeMic: instrument.exchangeMic,
           instrumentType: instrument.instrumentType,
           accountIds: [holding.accountId],
-          value: holding.marketValue?.base ?? 0,
+          value: holding.marketValue.base,
         },
       ];
     })

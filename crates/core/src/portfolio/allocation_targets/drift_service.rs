@@ -397,7 +397,7 @@ impl DriftService {
             let holdings = holdings_service
                 .get_holdings_for_accounts(account_ids, base_currency, aggregated_account_id)
                 .await?;
-            tracked_cash(&holdings)
+            tracked_cash(&holdings)?
         } else {
             Decimal::ZERO
         };
@@ -549,11 +549,9 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: currency.to_string(),
             base_currency: currency.to_string(),
+            translate_observed_basis: false,
             fx_rate: None,
-            market_value: MonetaryValue {
-                local: amount,
-                base: amount,
-            },
+            market_value: MonetaryValue::new(amount, amount),
             cost_basis: None,
             price: None,
             purchase_price: None,
@@ -570,7 +568,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: Decimal::ZERO,
+            weight: Some(Decimal::ZERO),
             as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
             metadata: None,
             source_account_ids: vec![],

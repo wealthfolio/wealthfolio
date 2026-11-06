@@ -17,6 +17,7 @@ pub struct CurrencyConverter {
     /// Value: BTreeMap<Date, Rate>
     /// Using BTreeMap allows O(log N) lookup for dates.
     rates: HashMap<(String, String), BTreeMap<NaiveDate, Decimal>>,
+    observations: HashSet<(String, String, NaiveDate)>,
 }
 
 impl CurrencyConverter {
@@ -25,6 +26,7 @@ impl CurrencyConverter {
         let mut converter = CurrencyConverter {
             adj: HashMap::new(),
             rates: HashMap::new(),
+            observations: HashSet::new(),
         };
         converter.add_historical_rates(exchange_rates);
         Ok(converter)
@@ -35,7 +37,7 @@ impl CurrencyConverter {
     /// Automatically handles inverses and graph connectivity.
     pub fn add_historical_rates(&mut self, rates: Vec<ExchangeRate>) {
         for rate in rates {
-            if rate.from_currency == rate.to_currency {
+            if rate.from_currency == rate.to_currency || rate.rate <= Decimal::ZERO {
                 continue;
             }
 
@@ -43,6 +45,9 @@ impl CurrencyConverter {
             let forward_pair = (rate.from_currency.clone(), rate.to_currency.clone());
             let inverse_pair = (rate.to_currency.clone(), rate.from_currency.clone());
             let forward_rate = rate.rate;
+
+            self.observations
+                .insert((rate.from_currency.clone(), rate.to_currency.clone(), date));
 
             // 1. Store Forward Rate
             self.rates
@@ -56,7 +61,13 @@ impl CurrencyConverter {
                 .insert(rate.to_currency.clone());
 
             // 2. Store Inverse Rate (if valid)
-            if !forward_rate.is_zero() {
+            if !forward_rate.is_zero()
+                && !self.observations.contains(&(
+                    rate.to_currency.clone(),
+                    rate.from_currency.clone(),
+                    date,
+                ))
+            {
                 let inverse_rate = Decimal::ONE / forward_rate;
                 self.rates
                     .entry(inverse_pair)
@@ -212,6 +223,50 @@ mod tests {
             source: "MANUAL".to_string(),
             timestamp: date_time,
         }
+    }
+
+    #[test]
+    fn direct_observations_win_over_inverses_across_incremental_batches() {
+        let day = NaiveDate::from_ymd_opt(2023, 10, 25).unwrap();
+        for reverse in [false, true] {
+            let mut observations = vec![
+                make_rate("USD", "CAD", 2.0, 2023, 10, 25),
+                make_rate("CAD", "USD", 0.4, 2023, 10, 25),
+            ];
+            if reverse {
+                observations.reverse();
+            }
+            let mut converter = CurrencyConverter::new(Vec::new()).unwrap();
+            for observation in observations {
+                converter.add_historical_rates(vec![observation]);
+            }
+            assert_eq!(
+                converter.get_rate("USD", "CAD", day).unwrap(),
+                Decimal::from(2)
+            );
+            assert_eq!(
+                converter.get_rate("CAD", "USD", day).unwrap(),
+                Decimal::from_f64_retain(0.4).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn nonpositive_observations_do_not_create_rates_or_overwrite_valid_rates() {
+        let day = NaiveDate::from_ymd_opt(2023, 10, 25).unwrap();
+        let mut converter = CurrencyConverter::new(vec![
+            make_rate("USD", "CAD", 0.0, 2023, 10, 25),
+            make_rate("EUR", "CAD", -2.0, 2023, 10, 25),
+        ])
+        .unwrap();
+        assert!(converter.get_rate("USD", "CAD", day).is_err());
+        assert!(converter.get_rate("EUR", "CAD", day).is_err());
+        converter.add_historical_rates(vec![make_rate("USD", "CAD", 2.0, 2023, 10, 25)]);
+        converter.add_historical_rates(vec![make_rate("USD", "CAD", 0.0, 2023, 10, 25)]);
+        assert_eq!(
+            converter.get_rate("USD", "CAD", day).unwrap(),
+            Decimal::from(2)
+        );
     }
 
     #[test]

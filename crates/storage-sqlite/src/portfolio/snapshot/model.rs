@@ -47,6 +47,8 @@ pub struct AccountStateSnapshotDB {
     pub cash_total_base_currency: String,
     #[diesel(sql_type = Text)]
     pub source: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub base_currency: Option<String>,
 }
 
 impl From<&AccountStateSnapshotDB> for SnapshotMetadata {
@@ -107,6 +109,7 @@ impl TryFrom<AccountStateSnapshotDB> for AccountStateSnapshot {
                 );
                 Utc::now().naive_utc()
             }),
+            base_currency: db.base_currency,
             source: serde_json::from_str(&format!("\"{}\"", db.source))
                 .unwrap_or(SnapshotSource::Calculated),
         })
@@ -154,6 +157,7 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
                 .calculated_at
                 .format("%Y-%m-%dT%H:%M:%S%.fZ")
                 .to_string(),
+            base_currency: domain.base_currency,
             source: serde_json::to_string(&domain.source)
                 .unwrap_or_else(|_| "\"CALCULATED\"".to_string())
                 .trim_matches('"')
