@@ -376,7 +376,6 @@ export function HistoryChart({
           domain={scaleConfig.domain}
         />
         <Area
-          isAnimationActive={true}
           animationDuration={300}
           animationEasing="ease-out"
           connectNulls={true}
@@ -397,7 +396,6 @@ export function HistoryChart({
         />
         {scaleConfig.showNetContribution && (
           <Area
-            isAnimationActive={true}
             animationDuration={300}
             animationEasing="ease-out"
             connectNulls={true}

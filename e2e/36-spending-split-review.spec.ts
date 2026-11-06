@@ -20,9 +20,11 @@ async function spendingSession(page: Page) {
     expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
     return response.json();
   };
-  await api(
+  const settings = await api(
     "settings",
     {
+      baseCurrency: "USD",
+      timezone: "UTC",
       onboardingCompleted: true,
       language: "en",
       theme: "light",
@@ -31,6 +33,7 @@ async function spendingSession(page: Page) {
     },
     "PUT",
   );
+  expect(settings).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
   return api;
 }
 

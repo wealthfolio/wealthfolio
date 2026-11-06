@@ -404,4 +404,89 @@ mod tests {
         assert!(title.ends_with("..."));
         assert!(title.len() <= 53);
     }
+
+    /// Groq shut down `groq/compound`. Groq titles go to a model it still
+    /// serves, and take the answer, not the reasoning gpt-oss sends with it.
+    #[tokio::test]
+    async fn groq_title_uses_a_served_model_and_skips_its_reasoning() {
+        use crate::chat::provider_clients::transport_tests::read_request;
+        use crate::env::test_env::MockEnvironment;
+        use crate::provider_model::AI_PROVIDER_SETTINGS_KEY;
+        use std::sync::Mutex;
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let models = Arc::new(Mutex::new(Vec::new()));
+        let requested = models.clone();
+        let server = tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_request(&mut socket).await;
+                let (_, body) = request.split_once("\r\n\r\n").unwrap();
+                let body: serde_json::Value = serde_json::from_str(body).unwrap();
+                let model = body["model"].as_str().unwrap().to_string();
+                requested.lock().unwrap().push(model.clone());
+                let (status, reply) = if model == "groq/compound" {
+                    (
+                        "400 Bad Request",
+                        serde_json::json!({"error": {
+                            "message": "The model `groq/compound` has been decommissioned",
+                            "type": "invalid_request_error", "code": "model_decommissioned"
+                        }}),
+                    )
+                } else {
+                    (
+                        "200 OK",
+                        serde_json::json!({
+                            "id": "fixture", "object": "chat.completion", "created": 1,
+                            "model": model, "choices": [{"index": 0, "message": {
+                                "role": "assistant",
+                                "reasoning": "The user asks about allocation.\nA short title fits.",
+                                "content": "Portfolio Allocation Review"
+                            }, "finish_reason": "stop"}],
+                            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+                        }),
+                    )
+                };
+                let reply = reply.to_string();
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                    reply.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+
+        let env = Arc::new(MockEnvironment::new().with_secret("ai_groq", "fixture-key"));
+        env.settings_service
+            .set_setting_value(
+                AI_PROVIDER_SETTINGS_KEY,
+                &serde_json::json!({"schemaVersion": 2, "providers": {"groq": {"customUrl": url}}})
+                    .to_string(),
+            )
+            .await
+            .unwrap();
+        let generator = TitleGenerator::new(env, TitleGeneratorConfig::default());
+        let title = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            generator.generate_title(
+                "How is my portfolio allocated?",
+                "groq",
+                "openai/gpt-oss-120b",
+            ),
+        )
+        .await
+        .unwrap();
+        server.abort();
+
+        assert_eq!(
+            (title.as_str(), models.lock().unwrap().as_slice()),
+            (
+                "Portfolio Allocation Review",
+                ["openai/gpt-oss-20b".to_string()].as_slice()
+            )
+        );
+    }
 }

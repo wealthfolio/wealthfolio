@@ -35,6 +35,7 @@ export function useHoldings(accountFilter: AccountScope, options: UseHoldingsOpt
     data: holdings = [],
     dataUpdatedAt,
     isLoading,
+    isFetching,
     isError,
     error,
   } = useQuery<Holding[], Error>({
@@ -43,7 +44,7 @@ export function useHoldings(accountFilter: AccountScope, options: UseHoldingsOpt
     enabled: isEnabled,
   });
 
-  return { holdings, dataUpdatedAt, isLoading, isError, error };
+  return { holdings, dataUpdatedAt, isLoading, isFetching, isError, error };
 }
 
 export function useHoldingsWithClosedProbe(

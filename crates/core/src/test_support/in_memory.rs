@@ -1436,8 +1436,9 @@ impl QuoteServiceTrait for InMemoryQuoteService {
         not_needed!("QuoteServiceTrait::add_quote")
     }
 
-    async fn update_quote(&self, _quote: Quote) -> Result<Quote> {
-        not_needed!("QuoteServiceTrait::update_quote")
+    async fn update_quote(&self, quote: Quote) -> Result<Quote> {
+        self.add_quotes(vec![quote.clone()]);
+        Ok(quote)
     }
 
     async fn delete_quote(&self, _quote_id: &str) -> Result<()> {

@@ -81,6 +81,11 @@
     "editTitle": "编辑规则",
     "addTitle": "添加规则",
     "editDescription": "按名称模式自动标记活动。当多条规则匹配时，优先级较高的规则生效。",
+    "categoryCompatibilityHint": "分类遵循交易的现金流类型。储蓄分类仅适用于已关联且转出支出跟踪账户范围的转账。",
+    "runIncompatible": "不兼容的分类：{{count}}。分类遵循交易的现金流类型。储蓄分类仅适用于已关联且转出支出跟踪账户范围的转账。",
+    "runProtected": "保留现有分类或拆分：{{count}}。",
+    "runUnchanged": "已按要求分类：{{count}}。",
+    "runWithoutTarget": "无目标分类的匹配项：{{count}}。",
     "matchContains": "包含",
     "matchStartsWith": "开头为",
     "matchExact": "精确",
@@ -182,7 +187,8 @@
     "duplicate": "复制",
     "unlinkTransfer": "取消关联转账",
     "linkTransfer": "关联转账……",
-    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？"
+    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？",
+    "convertToTransfer": "转为转账..."
   },
   "cashFlow": {
     "income": "收入",
@@ -838,6 +844,9 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "none": "无",
+    "addExpense": "添加支出",
+    "addIncome": "添加收入",
     "accountRequired": "请选择一个账户。",
     "pickDate": "选择日期",
     "amountNonNegative": "金额不能为负数。",
@@ -855,6 +864,8 @@
     "spendingCategory": "支出类别",
     "activityUpdated": "活动已更新。",
     "activityCreated": "活动已创建。",
+    "expenseAdded": "已添加支出。",
+    "incomeAdded": "已添加收入。",
     "saveFailed": "保存活动失败：{{message}}",
     "editTitle": "编辑交易",
     "addTitle": "添加交易",
@@ -921,7 +932,7 @@
     "stageWhenLabel": "何时与何地",
     "stageWhenSub": "何时消费及支出事件",
     "spendingAbovePrefix": "支出",
-    "pctAbove": "高出 {{pct}}%",
+    "pctAbove": "高出 {{pct}}",
     "thePriorPeriod": "较上一周期。",
     "moreThan": "比 {{prior}} 多 {{more}}",
     "uncategorizedCount_one": "{{count}} 笔未归类交易",

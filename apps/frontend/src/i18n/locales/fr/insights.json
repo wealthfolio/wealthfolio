@@ -82,7 +82,6 @@
       "link_explanation": "Associer un bien existant ne modifie pas votre patrimoine net."
     },
     "failed_to_load": "Échec du chargement de la valeur nette",
-    "stale_valuations_tooltip": "Valorisations obsolètes (90+ jours) :",
     "days_ago": "il y a {{count}}j",
     "no_history_data": "Aucune donnée d'historique disponible",
     "breakdown": "Répartition",

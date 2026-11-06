@@ -111,22 +111,15 @@ impl SyncProgressReporter for TauriProgressReporter {
 #[tauri::command]
 pub async fn sync_broker_data(app: AppHandle, state: ConnectAccess) -> Result<(), String> {
     let context = state.context()?;
-    // Check plan entitlement before starting sync
-    match context.connect_service().has_broker_sync().await {
-        Ok(true) => {}
-        Ok(false) => {
-            info!("[Connect] Broker sync skipped: plan does not include broker sync");
-            return Err("Plan does not include broker sync".to_string());
-        }
-        Err(e) => {
-            return Err(format!("Could not verify broker sync entitlement: {}", e));
-        }
-    }
-
+    let client = context.connect_service().get_api_client().await?;
     let Some(guard) = try_acquire_broker_sync_guard(context.as_ref()) else {
         info!("[Connect] Broker sync skipped: sync already running");
         return Err("Broker sync already running".to_string());
     };
+
+    // The first real protected operation preserves synchronous rejection. Its
+    // result belongs to this run and is passed into the background worker.
+    let connections = client.list_connections().await.map_err(|e| e.to_string())?;
 
     info!("[Connect] Starting broker data sync ...");
 
@@ -136,7 +129,14 @@ pub async fn sync_broker_data(app: AppHandle, state: ConnectAccess) -> Result<()
 
     // Spawn background task
     tauri::async_runtime::spawn(async move {
-        match perform_broker_sync_with_guard(&cloned_context, Some(&app_handle), guard).await {
+        match perform_broker_sync_with_guard(
+            &cloned_context,
+            Some(&app_handle),
+            guard,
+            Some(connections),
+        )
+        .await
+        {
             Ok(_result) => {
                 info!("[Connect] Broker sync completed successfully");
                 // Events are emitted by the orchestrator via TauriProgressReporter
@@ -172,13 +172,14 @@ pub async fn perform_broker_sync(
 ) -> Result<SyncResult, String> {
     let guard = try_acquire_broker_sync_guard(context)
         .ok_or_else(|| "Broker sync already running".to_string())?;
-    perform_broker_sync_with_guard(context, app, guard).await
+    perform_broker_sync_with_guard(context, app, guard, None).await
 }
 
 pub(crate) async fn perform_broker_sync_with_guard(
     context: &Arc<ServiceContext>,
     app: Option<&AppHandle>,
     _guard: BrokerSyncRunGuard,
+    connections: Option<Vec<BrokerConnection>>,
 ) -> Result<SyncResult, String> {
     info!("Starting broker data sync...");
 
@@ -192,6 +193,11 @@ pub(crate) async fn perform_broker_sync_with_guard(
         }
     };
 
+    let connections = match connections {
+        Some(connections) => connections,
+        None => client.list_connections().await.map_err(|e| e.to_string())?,
+    };
+
     // Create progress reporter and orchestrator
     // Use TauriProgressReporter if we have an AppHandle, otherwise use NoOp
     if let Some(app_handle) = app {
@@ -201,12 +207,16 @@ pub(crate) async fn perform_broker_sync_with_guard(
         ));
         let orchestrator =
             SyncOrchestrator::new(context.sync_service(), reporter, SyncConfig::default());
-        orchestrator.sync_all(&client).await
+        orchestrator
+            .sync_all_with_connections(&client, Some(connections))
+            .await
     } else {
         let reporter = Arc::new(wealthfolio_connect::NoOpProgressReporter);
         let orchestrator =
             SyncOrchestrator::new(context.sync_service(), reporter, SyncConfig::default());
-        orchestrator.sync_all(&client).await
+        orchestrator
+            .sync_all_with_connections(&client, Some(connections))
+            .await
     }
 }
 

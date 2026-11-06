@@ -703,6 +703,47 @@ impl AutoClassificationService {
         Ok(result)
     }
 
+    /// Classify a newly created asset. An instrument label its creator supplied (e.g.
+    /// `MUTUALFUND`) is finer than the `InstrumentType` it collapses into (`Equity`),
+    /// so a label naming an instrument type classifies the asset as a provider
+    /// profile with that quote type and name would. Other labels fall back to
+    /// `classify_from_spec`.
+    pub async fn classify_new_asset(
+        &self,
+        asset_id: &str,
+        instrument_type: Option<&InstrumentType>,
+        instrument_type_label: Option<&str>,
+        name: Option<&str>,
+        kind: &AssetKind,
+    ) {
+        // `InstrumentType::from_external_str` also accepts `MUTUAL_FUND`, which
+        // the quote-type mapping does not know.
+        let label = instrument_type_label
+            .map(str::trim)
+            .map(|label| {
+                if label.eq_ignore_ascii_case("MUTUAL_FUND") {
+                    "MUTUALFUND"
+                } else {
+                    label
+                }
+            })
+            .filter(|label| map_quote_type_to_instrument_type(label, name).is_some());
+        let Some(label) = label else {
+            self.classify_from_spec(asset_id, instrument_type, kind)
+                .await;
+            return;
+        };
+
+        let input = ClassificationInput {
+            quote_type: Some(label.to_string()),
+            name: name.map(str::to_string),
+            ..Default::default()
+        };
+        if let Err(e) = self.classify_asset(asset_id, &input).await {
+            debug!("Initial classification of {} failed: {}", asset_id, e);
+        }
+    }
+
     /// Classify a newly created asset using InstrumentType and AssetKind.
     /// This is a lightweight classification at creation time, before any provider data is available.
     /// Only assigns instrument_type and asset_class taxonomies.
@@ -1615,6 +1656,87 @@ mod tests {
         assert_eq!(resolve_country_category("   ", &regions), None);
         // An ISO code with no node must not be minted as country_ZZ.
         assert_eq!(resolve_country_category("ZZ", &regions), None);
+    }
+
+    #[tokio::test]
+    async fn new_asset_label_classifies_a_fund_the_canonical_type_calls_equity() {
+        let cases = [
+            ("MUTUALFUND", "Example Debt Fund", "FUND_MUTUAL", "EQUITY"),
+            (
+                " mutualfund ",
+                "Example Corporate Bond Fund",
+                "FUND_MUTUAL",
+                "FIXED_INCOME",
+            ),
+            (
+                "MUTUAL_FUND",
+                "Example Corporate Bond Fund",
+                "FUND_MUTUAL",
+                "FIXED_INCOME",
+            ),
+            (
+                "mutual_fund",
+                "Example Equity Fund",
+                "FUND_MUTUAL",
+                "EQUITY",
+            ),
+            (
+                "Mutual Fund",
+                "Example Equity Fund",
+                "FUND_MUTUAL",
+                "EQUITY",
+            ),
+            ("ETF", "Example Equity ETF", "ETF", "EQUITY"),
+        ];
+        for (label, name, instrument_type, asset_class) in cases {
+            let service = Arc::new(MockTaxonomyService::default());
+            let classifier = AutoClassificationService::new(service.clone());
+
+            classifier
+                .classify_new_asset(
+                    "fund-1",
+                    Some(&InstrumentType::Equity),
+                    Some(label),
+                    Some(name),
+                    &AssetKind::Investment,
+                )
+                .await;
+
+            let instrument_types = service.assignments_for("fund-1", INSTRUMENT_TYPE_TAXONOMY);
+            assert_eq!(instrument_types.len(), 1, "{label}");
+            assert_eq!(instrument_types[0].category_id, instrument_type, "{label}");
+            let asset_classes = service.assignments_for("fund-1", ASSET_CLASSES_TAXONOMY);
+            assert_eq!(asset_classes.len(), 1, "{label}");
+            assert_eq!(asset_classes[0].category_id, asset_class, "{label}");
+        }
+    }
+
+    #[tokio::test]
+    async fn new_asset_label_without_an_instrument_type_falls_back_to_the_canonical_type() {
+        for label in [None, Some("STOCK"), Some("ECNQUOTE")] {
+            let service = Arc::new(MockTaxonomyService::default());
+            let classifier = AutoClassificationService::new(service.clone());
+
+            classifier
+                .classify_new_asset(
+                    "bond-1",
+                    Some(&InstrumentType::Bond),
+                    label,
+                    Some("Example Bond"),
+                    &AssetKind::Investment,
+                )
+                .await;
+
+            let instrument_types = service.assignments_for("bond-1", INSTRUMENT_TYPE_TAXONOMY);
+            assert_eq!(instrument_types.len(), 1, "{label:?}");
+            assert_eq!(
+                instrument_types[0].category_id, "DEBT_SECURITY",
+                "{label:?}"
+            );
+            let asset_classes = service.assignments_for("bond-1", ASSET_CLASSES_TAXONOMY);
+            assert_eq!(asset_classes.len(), 1, "{label:?}");
+            assert_eq!(asset_classes[0].category_id, "FIXED_INCOME", "{label:?}");
+        }
     }
 
     #[tokio::test]

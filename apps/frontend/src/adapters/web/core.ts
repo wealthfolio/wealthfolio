@@ -115,6 +115,11 @@ export const COMMANDS: CommandMap = {
   get_transfer_pair_for_activity: { method: "GET", path: "/activities" },
   find_transfer_match_candidates: { method: "POST", path: "/activities/transfer-match-candidates" },
   save_internal_transfer_pair: { method: "POST", path: "/activities/transfer-pair" },
+  convert_to_internal_transfer: { method: "POST", path: "/activities/convert-to-transfer" },
+  review_convert_to_transfer_split_effects: {
+    method: "POST",
+    path: "/activities/convert-to-transfer/split-effects",
+  },
   link_transfer_activities: { method: "POST", path: "/activities/link" },
   unlink_transfer_activities: { method: "POST", path: "/activities/unlink" },
   // Activity import
@@ -235,6 +240,7 @@ export const COMMANDS: CommandMap = {
   upsert_categorization_rule: { method: "POST", path: "/spending/rules/upsert" },
   delete_categorization_rule: { method: "DELETE", path: "/spending/rules" },
   rerun_categorization_rules: { method: "POST", path: "/spending/rules/rerun" },
+  rerun_categorization_rules_detailed: { method: "POST", path: "/spending/rules/rerun/detailed" },
   list_rule_presets: { method: "GET", path: "/spending/rule-presets" },
   import_rule_preset: { method: "POST", path: "/spending/rule-presets" },
   remove_rule_preset: { method: "DELETE", path: "/spending/rule-presets" },
@@ -907,7 +913,9 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "review_internal_transfer_pair_split_effects":
-    case "save_internal_transfer_pair": {
+    case "save_internal_transfer_pair":
+    case "convert_to_internal_transfer":
+    case "review_convert_to_transfer_split_effects": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
       break;
@@ -1510,7 +1518,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(id)}`;
       break;
     }
-    case "rerun_categorization_rules": {
+    case "rerun_categorization_rules":
+    case "rerun_categorization_rules_detailed": {
       const { onlyUncategorized } = payload as { onlyUncategorized: boolean };
       body = JSON.stringify({ onlyUncategorized });
       break;

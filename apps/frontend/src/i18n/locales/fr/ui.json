@@ -118,6 +118,8 @@
   "datePicker": {
     "dateLabel": "Date",
     "pick": "Choisir une date",
+    "time": "Heure",
+    "done": "Terminé",
     "previousMonth": "Mois précédent",
     "nextMonth": "Mois suivant",
     "chooseMonth": "Choisir le mois",
@@ -208,6 +210,7 @@
     "typeToSearch": "Tapez pour rechercher"
   },
   "sheet": {
+    "back": "Retour",
     "close": "Fermer"
   },
   "page": {

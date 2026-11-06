@@ -5,6 +5,7 @@ use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use crate::constants::{DEFAULT_VALUATIONS_DAYS, MAX_VALUATIONS_POINTS};
 use crate::env::AgentEnvironment;
@@ -103,11 +104,20 @@ impl AgentTool for GetValuationHistory {
         let account_id = args.account_id.as_deref().filter(|id| !id.is_empty());
 
         // Parse dates with defaults
-        let end_date = args
+        let end_date = match args
             .end_date
             .as_ref()
             .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .unwrap_or_else(|| chrono::Utc::now().date_naive());
+        {
+            Some(date) => date,
+            None => {
+                let settings = env
+                    .settings_service()
+                    .get_settings()
+                    .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+                user_today(parse_user_timezone_or_default(&settings.timezone))
+            }
+        };
 
         let start_date = args
             .start_date

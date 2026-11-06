@@ -14,10 +14,19 @@ async function openSettings(page: Page, path: string, direction: string) {
       data: { profileId: state.profiles[0].id },
     })
   ).json();
-  await page.request.put(`${BASE_URL}/api/v1/settings`, {
+  const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
     headers: { "x-wf-profile-scope": session.scopeId },
-    data: { onboardingCompleted: true, language: "en", theme: "light", syncEnabled: false },
+    data: {
+      baseCurrency: "USD",
+      timezone: "UTC",
+      onboardingCompleted: true,
+      language: "en",
+      theme: "light",
+      syncEnabled: false,
+    },
   });
+  expect(settings.ok()).toBeTruthy();
+  expect(await settings.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
   await page.goto(`${BASE_URL}${path}?dir=${direction}`);
 }
 

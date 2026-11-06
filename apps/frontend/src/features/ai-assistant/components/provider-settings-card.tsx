@@ -911,7 +911,8 @@ const PRIMARY_FIELDS: Record<"temperature" | "maxTokens" | "maxTokensThinking", 
       descriptionKey: "ai:providerSettings.field.temperatureDescription",
       group: "sampling",
       bounds: { min: 0, max: 2, step: 0.05 },
-      format: (v) => v.toFixed(2),
+      format: (v, formatting) =>
+        formatting.formatDecimal(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     },
     maxTokens: {
       labelKey: "ai:providerSettings.field.maxTokens",

@@ -54,9 +54,9 @@ pub struct TransportError {
 
 impl TransportError {
     pub fn is_subscription_blocked(&self) -> bool {
-        self.error_code
-            .as_deref()
-            .is_some_and(|code| code.starts_with("SUBSCRIPTION_"))
+        self.error_code.as_deref().is_some_and(|code| {
+            code.starts_with("SUBSCRIPTION_") || code == "PLAN_UPGRADE_REQUIRED"
+        })
     }
 }
 
@@ -154,7 +154,6 @@ pub trait SyncTransport: Send + Sync {
 #[async_trait]
 pub trait CredentialStore: Send + Sync {
     fn has_cloud_session(&self) -> Result<bool, String>;
-    async fn is_sync_allowed(&self) -> Result<bool, String>;
     fn get_sync_identity(&self) -> Option<SyncIdentity>;
     // Keep token waits cancellable: logout may hold the token mutex while joining this worker.
     async fn get_access_token(&self) -> Result<String, String>;

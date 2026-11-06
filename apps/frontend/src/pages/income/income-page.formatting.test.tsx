@@ -14,8 +14,16 @@ const { summary } = vi.hoisted(() => ({
     yoyGrowth: null,
     unconvertedCurrencies: [],
     byMonth: {},
-    byType: {},
-    byAsset: {},
+    byType: { DIVIDEND: 412355.9633, INTEREST: 824711.9267 },
+    byAsset: {
+      example: {
+        assetId: "example",
+        kind: "INVESTMENT",
+        symbol: "EXAMPLE",
+        name: "Example company",
+        income: 137451.9878,
+      },
+    },
     byAccount: {},
     byCurrency: { INR: 1234567.8912, USD: 2500, JPY: 1234.5 },
     byCurrencyBase: { INR: 14814.81, USD: 2500, JPY: 8.27 },
@@ -73,4 +81,19 @@ describe("IncomePage currency tooltip", () => {
     expect(tooltip.getByText("1,234,567.891")).toBeInTheDocument();
     expect(tooltip.getByText("2,500")).toBeInTheDocument();
   });
+});
+
+it("uses the selected region for income source percentages and updates immediately", () => {
+  const page = (locale: string) => (
+    <FormattingProvider locale={locale}>
+      <IncomePage />
+    </FormattingProvider>
+  );
+  const { rerender } = render(page("ES"));
+  expect(screen.getByText("33,3 %")).toBeInTheDocument();
+  expect(screen.getByText("66,7 %")).toBeInTheDocument();
+  expect(screen.getByText("33,3 % of total")).toBeInTheDocument();
+  rerender(page("US"));
+  expect(screen.getByText("33.3%")).toBeInTheDocument();
+  expect(screen.getByText("66.7%")).toBeInTheDocument();
 });

@@ -1,10 +1,24 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@wealthfolio/ui/components/ui/sheet";
 import { searchTicker } from "@/adapters";
 import { getExchangeDisplayName } from "@/lib/constants";
 import { debounce } from "@/lib/debounce";
 import { SymbolSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useAmountFormatting } from "@wealthfolio/ui";
+import {
+  SheetScreen,
+  SheetScreenTrigger,
+  useAmountFormatting,
+  useInSheetNavigation,
+} from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Command,
@@ -109,6 +123,13 @@ const SearchResults = memo(
           </CommandPrimitive.Loading>
         ) : null}
 
+        {/* Before a search, say what the empty list is for. */}
+        {!isLoading && !query.trim() && (
+          <div className="text-muted-foreground px-2 py-6 text-center text-sm">
+            {t("ui:search.typeToSearch")}
+          </div>
+        )}
+
         {/* No results message */}
         {showNoResults && (
           <div className="text-muted-foreground px-2 py-3 text-center text-sm">
@@ -129,17 +150,26 @@ const SearchResults = memo(
                 key={itemKey}
                 onSelect={() => onSelect(ticker)}
                 value={itemKey}
-                className="flex items-center justify-between rounded-none py-2"
+                className="flex items-center justify-between gap-3 rounded-none py-2"
               >
-                <div className="flex flex-col">
-                  <span className="font-mono text-xs font-semibold uppercase">{ticker.symbol}</span>
-                  <span className="text-muted-foreground line-clamp-1 text-xs">{displayName}</span>
+                {/* The name gives way to a long exchange; on a phone screen both read larger. */}
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-mono text-xs font-semibold uppercase in-[[data-sheet-screen]]:text-base">
+                    {ticker.symbol}
+                  </span>
+                  <span className="text-muted-foreground line-clamp-1 text-xs in-[[data-sheet-screen]]:text-sm">
+                    {displayName}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <div className="flex flex-col items-end">
-                    <span className="text-muted-foreground text-xs">{exchangeDisplay}</span>
+                    <span className="text-muted-foreground text-xs in-[[data-sheet-screen]]:text-sm">
+                      {exchangeDisplay}
+                    </span>
                     {ticker.currency && (
-                      <span className="text-muted-foreground text-2xs">{ticker.currency}</span>
+                      <span className="text-muted-foreground text-2xs in-[[data-sheet-screen]]:text-xs">
+                        {ticker.currency}
+                      </span>
                     )}
                   </div>
                   {isSelected && <Icons.Check className="size-4" />}
@@ -148,8 +178,8 @@ const SearchResults = memo(
             );
           })}
 
-        {/* Create custom asset option - always visible unless hidden */}
-        {!isLoading && !hideCustomCreate && (
+        {/* A custom asset starts with a symbol, rather than an empty placeholder. */}
+        {!isLoading && !hideCustomCreate && !!query.trim() && (
           <>
             {hasResults && <CommandSeparator />}
             <CommandItem
@@ -159,10 +189,10 @@ const SearchResults = memo(
             >
               <Icons.PlusCircle className="text-muted-foreground size-4" />
               <div className="flex flex-col">
-                <span className="font-mono text-xs font-semibold uppercase">
-                  {query.trim().toUpperCase() || "..."}
+                <span className="font-mono text-xs font-semibold uppercase in-[[data-sheet-screen]]:text-base">
+                  {query.trim().toUpperCase()}
                 </span>
-                <span className="text-muted-foreground text-xs">
+                <span className="text-muted-foreground text-xs in-[[data-sheet-screen]]:text-sm">
                   {t("common:component.create_custom_manual")}
                 </span>
               </div>
@@ -231,6 +261,9 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
     ref,
   ) => {
     const amountFormatting = useAmountFormatting();
+    const isMobile = useIsMobileViewport();
+    const inSheetNavigation = useInSheetNavigation();
+    const fillsSheet = isMobile || inSheetNavigation;
     const { t } = useTranslation();
     const resolvedPlaceholder = placeholder ?? t("common:component.select_symbol");
     const isControlled = openProp !== undefined;
@@ -470,126 +503,181 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       [tabCloseDirection],
     );
 
-    return (
+    const triggerContent = (
       <>
-        <Popover
-          open={open}
-          onOpenChange={handleOpenChange}
-          onOpenChangeComplete={handleOpenChangeComplete}
-        >
-          <PopoverTrigger
-            render={
-              <Button
-                id={id}
-                variant="field"
-                role="combobox"
-                className={cn(
-                  "min-h-input-height h-auto w-full justify-between px-3 py-2",
-                  open && "ring-ring ring-2",
-                  className,
-                )}
-                ref={composedTriggerRef}
-                aria-expanded={open}
-                aria-haspopup="listbox"
-                aria-label={ariaLabel}
-                data-testid={testId}
-              />
-            }
-          >
-            {selectedTicker ? (
-              <div className="flex w-full min-w-0 items-center gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  {/* Row 1: Symbol + Name (left) — Clear (right) */}
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="shrink-0 text-sm font-semibold tracking-tight">
-                      {selectedTicker.symbol}
-                    </span>
-                    {selectedTicker.name && (
-                      <span className="text-muted-foreground truncate text-sm">
-                        {selectedTicker.name}
-                      </span>
-                    )}
-                  </div>
-                  {/* Row 2: Exchange (left) — Price + Currency (right) */}
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    {selectedTicker.exchangeDisplay ? (
-                      <span className="text-muted-foreground shrink-0 uppercase">
-                        {selectedTicker.exchangeDisplay}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <div className="flex shrink-0 items-center gap-1">
-                      {quoteInfo?.isLoading ? (
-                        <Skeleton className="h-3 w-12" />
-                      ) : (
-                        quoteInfo?.price != null && (
-                          <span className="tabular-nums">
-                            {amountFormatting.formatPrice(
-                              quoteInfo.price,
-                              quoteInfo.currency ?? "USD",
-                              false,
-                            )}
-                          </span>
-                        )
-                      )}
-                      {quoteInfo?.currency && !quoteInfo.isLoading && (
-                        <span className="text-muted-foreground font-light">
-                          {quoteInfo.currency}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {onClear && (
-                  <span
-                    onMouseDown={handleClearMouseDown}
-                    onClick={handleClearClick}
-                    className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5"
-                  >
-                    <Icons.Close className="size-3.5" />
+        {selectedTicker ? (
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              {/* Row 1: Symbol + Name (left) — Clear (right) */}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="shrink-0 text-sm font-semibold tracking-tight">
+                  {selectedTicker.symbol}
+                </span>
+                {selectedTicker.name && (
+                  <span className="text-muted-foreground truncate text-sm">
+                    {selectedTicker.name}
                   </span>
                 )}
               </div>
-            ) : (
-              <>
-                <span className="text-muted-foreground">{resolvedPlaceholder}</span>
-                <Icons.Search className="ms-2 h-4 w-4 shrink-0 opacity-50" />
-              </>
+              {/* Row 2: Exchange (left) — Price + Currency (right) */}
+              <div className="flex items-center justify-between gap-2 text-xs">
+                {selectedTicker.exchangeDisplay ? (
+                  <span className="text-muted-foreground shrink-0 uppercase">
+                    {selectedTicker.exchangeDisplay}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <div className="flex shrink-0 items-center gap-1">
+                  {quoteInfo?.isLoading ? (
+                    <Skeleton className="h-3 w-12" />
+                  ) : (
+                    quoteInfo?.price != null && (
+                      <span className="tabular-nums">
+                        {amountFormatting.formatPrice(
+                          quoteInfo.price,
+                          quoteInfo.currency ?? "USD",
+                          false,
+                        )}
+                      </span>
+                    )
+                  )}
+                  {quoteInfo?.currency && !quoteInfo.isLoading && (
+                    <span className="text-muted-foreground font-light">{quoteInfo.currency}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            {onClear && (
+              <span
+                onMouseDown={handleClearMouseDown}
+                onClick={handleClearClick}
+                className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5"
+              >
+                <Icons.Close className="size-3.5" />
+              </span>
             )}
-          </PopoverTrigger>
+          </div>
+        ) : (
+          <>
+            <span className="text-muted-foreground">{resolvedPlaceholder}</span>
+            <Icons.Search className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+          </>
+        )}
+      </>
+    );
+    const triggerButton = (
+      <Button
+        id={id}
+        variant="field"
+        role="combobox"
+        className={cn(
+          "min-h-input-height h-auto w-full justify-between px-3 py-2",
+          open && "ring-ring ring-2",
+          className,
+        )}
+        ref={composedTriggerRef}
+        aria-expanded={open}
+        aria-haspopup={isMobile ? "dialog" : "listbox"}
+        aria-label={ariaLabel}
+        data-testid={testId}
+      >
+        {triggerContent}
+      </Button>
+    );
+    const commandContent = (
+      <Command
+        shouldFilter={false}
+        className={cn(
+          "border-none",
+          fillsSheet &&
+            "h-auto min-h-0 flex-auto rounded-none bg-transparent [&_[data-slot=command-input-wrapper]]:shrink-0 [&_[data-slot=command-list]]:max-h-none [&_[data-slot=command-list]]:min-h-0 [&_[data-slot=command-list]]:flex-auto",
+        )}
+      >
+        <CommandInput
+          ref={inputRef}
+          autoFocus={autoFocusSearch}
+          value={searchQuery}
+          onValueChange={handleSearchChange}
+          placeholder={t("common:search_symbol")}
+          // In a sheet's screen, Tab stays in the screen: the form behind is inert.
+          onKeyDown={inSheetNavigation ? undefined : handleInputKeyDown}
+        />
 
-          <PopoverContent
-            side="bottom"
-            align="start"
-            className="h-auto w-(--anchor-width) min-w-70 p-0"
-            initialFocus={autoFocusSearch ? inputRef : undefined}
-            finalFocus={tabCloseDirection === null}
-            onWheel={(e) => e.stopPropagation()}
+        <SearchResults
+          isLoading={isLoading}
+          isError={isError}
+          query={searchQuery}
+          results={sortedTickers}
+          selectedResult={selectedResult}
+          onSelect={handleSelectResult}
+          onCreateCustomAsset={handleCreateCustomAsset}
+          hideCustomCreate={hideCustomCreate}
+        />
+      </Command>
+    );
+
+    return (
+      <>
+        {inSheetNavigation ? (
+          // A phone form's sheet shows the search as a screen of that sheet.
+          <>
+            <SheetScreenTrigger
+              render={triggerButton}
+              open={open}
+              onOpenChange={handleOpenChange}
+            />
+            <SheetScreen
+              open={open}
+              onOpenChange={handleOpenChange}
+              title={t("common:component.select_symbol_title")}
+              initialFocus={inputRef}
+            >
+              {commandContent}
+            </SheetScreen>
+          </>
+        ) : isMobile ? (
+          <Sheet
+            open={open}
+            onOpenChange={handleOpenChange}
+            onOpenChangeComplete={handleOpenChangeComplete}
           >
-            <Command shouldFilter={false} className="border-none">
-              <CommandInput
-                ref={inputRef}
-                autoFocus={autoFocusSearch}
-                value={searchQuery}
-                onValueChange={handleSearchChange}
-                placeholder={t("common:search_symbol")}
-                onKeyDown={handleInputKeyDown}
-              />
+            <SheetTrigger render={triggerButton} />
+            <SheetContent
+              side="bottom"
+              className="mx-1 flex flex-col gap-0 overflow-hidden rounded-t-4xl p-0 [--overlay-max-height:85dvh]"
+              initialFocus={inputRef}
+              finalFocus={tabCloseDirection === null}
+            >
+              <SheetHeader className="shrink-0 border-b px-4 py-4 pe-16 text-start">
+                <SheetTitle>{t("common:component.select_symbol_title")}</SheetTitle>
+                <SheetDescription>
+                  {t("common:component.search_symbol_description")}
+                </SheetDescription>
+              </SheetHeader>
+              {commandContent}
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Popover
+            open={open}
+            onOpenChange={handleOpenChange}
+            onOpenChangeComplete={handleOpenChangeComplete}
+          >
+            <PopoverTrigger render={triggerButton} />
 
-              <SearchResults
-                isLoading={isLoading}
-                isError={isError}
-                query={searchQuery}
-                results={sortedTickers}
-                selectedResult={selectedResult}
-                onSelect={handleSelectResult}
-                onCreateCustomAsset={handleCreateCustomAsset}
-                hideCustomCreate={hideCustomCreate}
-              />
-            </Command>
-          </PopoverContent>
-        </Popover>
+            <PopoverContent
+              side="bottom"
+              align="start"
+              className="h-auto w-(--anchor-width) min-w-70 p-0"
+              initialFocus={autoFocusSearch ? inputRef : undefined}
+              finalFocus={tabCloseDirection === null}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {commandContent}
+            </PopoverContent>
+          </Popover>
+        )}
 
         {/* Custom Asset Creation Dialog */}
         <CreateCustomAssetDialog

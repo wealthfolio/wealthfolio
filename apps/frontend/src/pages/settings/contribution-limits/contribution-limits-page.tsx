@@ -28,7 +28,7 @@ const SettingsContributionLimitPage = () => {
   const [selectedLimit, setSelectedLimit] = useState<ContributionLimit | null>(null);
   const [showPreviousYears, setShowPreviousYears] = useState(false);
 
-  const { accounts } = useAccounts();
+  const { accounts } = useAccounts({ filterActive: false });
 
   const { data: limits, isLoading } = useQuery<ContributionLimit[], Error>({
     queryKey: [QueryKeys.CONTRIBUTION_LIMITS],

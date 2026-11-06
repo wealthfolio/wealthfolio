@@ -28,6 +28,7 @@ import {
   GainPercent,
   PrivacyAmount,
   useAmountFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -84,6 +85,7 @@ export default function IncomePage() {
   const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
   const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
 
   const accountFilter = useAccountScopeStore((state) => state.scope);
   const setAccountScope = useAccountScopeStore((state) => state.setScope);
@@ -317,7 +319,7 @@ export default function IncomePage() {
                                   />
                                   <div className="flex flex-1 items-center justify-between gap-2 leading-none">
                                     <span className="text-muted-foreground">{name}</span>
-                                    <span className="text-foreground font-mono font-medium tabular-nums">
+                                    <span className="text-foreground font-medium tabular-nums">
                                       {isBalanceHidden
                                         ? "••••"
                                         : amountFormatting.formatDecimalAmount(
@@ -429,7 +431,11 @@ export default function IncomePage() {
                               backgroundColor: chartColor,
                             }}
                           >
-                            {source.percentage > 0 ? `${source.percentage.toFixed(1)}%` : ""}
+                            {source.percentage > 0
+                              ? numberFormatting.formatPercent(source.percentage / 100, {
+                                  digits: 1,
+                                })
+                              : ""}
                           </div>
                         </div>
                       </div>
@@ -532,7 +538,9 @@ export default function IncomePage() {
                                 </div>
                                 <div className="text-muted-foreground text-xs">
                                   {t("income:percent_of_total", {
-                                    percent: percentage.toFixed(1),
+                                    percent: numberFormatting.formatPercent(percentage / 100, {
+                                      digits: 1,
+                                    }),
                                   })}
                                 </div>
                                 {/* Tooltip arrow */}

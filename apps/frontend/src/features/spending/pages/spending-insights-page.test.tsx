@@ -12,6 +12,9 @@ import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import type { TaxonomyCategory } from "@/lib/types";
+import { FormattingProvider, stripBidiControls } from "@wealthfolio/ui";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
+import type { SpendingInsight } from "../types/insight";
 import SpendingInsightsPage from "./spending-insights-page";
 
 const { insightQuery, eventsQuery, cashQuery, testSettings, taxonomyData } = vi.hoisted(() => ({
@@ -19,7 +22,7 @@ const { insightQuery, eventsQuery, cashQuery, testSettings, taxonomyData } = vi.
   insightQuery: vi.fn(),
   eventsQuery: vi.fn(),
   cashQuery: vi.fn(),
-  testSettings: { timezone: "America/Toronto" },
+  testSettings: { timezone: "America/Toronto", hidden: false },
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({
@@ -27,7 +30,7 @@ vi.mock("@/lib/settings-provider", () => ({
   }),
 }));
 vi.mock("@/hooks/use-balance-privacy", () => ({
-  useBalancePrivacy: () => ({ isBalanceHidden: false }),
+  useBalancePrivacy: () => ({ isBalanceHidden: testSettings.hidden }),
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
 vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: taxonomyData }) }));
@@ -42,8 +45,7 @@ vi.mock("../hooks/use-cash-activities", () => ({
 }));
 vi.mock("../hooks/use-spending-insight", () => ({
   useSpendingInsight: (request: unknown, enabled?: boolean) => {
-    insightQuery(request, enabled);
-    return {};
+    return insightQuery(request, enabled) ?? {};
   },
 }));
 vi.mock("../hooks/use-spending-events", () => ({
@@ -105,6 +107,8 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   testSettings.timezone = "America/Toronto";
+  testSettings.hidden = false;
+  insightQuery.mockReset();
   taxonomyData.categories = [];
 });
 
@@ -389,4 +393,80 @@ describe("period shared with the dashboard", () => {
     // Back/forward can only revive what is in the URL, so a pick never goes there.
     expect(screen.getByTestId("location")).not.toHaveTextContent("period=");
   });
+});
+
+function foreignCurrencyInsight(nativeOutflowByCurrency: Record<string, number>): SpendingInsight {
+  const period = {
+    start: "2025-03-08T00:00:00Z",
+    end: "2025-03-10T23:59:59Z",
+    months: ["2025-03"],
+    dayCount: 3,
+  };
+  return {
+    period,
+    prior: period,
+    currency: "USD",
+    foreignCurrencies: Object.keys(nativeOutflowByCurrency),
+    nativeOutflowByCurrency,
+    headline: {
+      spent: 0,
+      income: 0,
+      saved: 0,
+      netCashflow: 0,
+      budget: 0,
+      remaining: 0,
+      priorSpent: 0,
+      deltaVsPriorPct: null,
+      status: "on_track",
+      pace: {
+        dailyAvg: 0,
+        daysElapsed: 3,
+        daysRemaining: 0,
+        projectedSpend: 0,
+        expectedSpendToDate: 0,
+      },
+    },
+    groups: [],
+    uncategorized: {
+      spent: 0,
+      priorSpent: 0,
+      deltaVsPriorPct: null,
+      pctOfTotalSpent: null,
+      txnCount: 0,
+    },
+    incomeBreakdown: [],
+    savingsBreakdown: [],
+    byDay: [],
+    byDayByCategory: [],
+    byMonth: [],
+  };
+}
+
+it.each(["ltr", "rtl"] as const)(
+  "retains custom currency labels and Spain rounding in %s source totals",
+  (direction) => {
+    insightQuery.mockReturnValue({
+      data: foreignCurrencyInsight({ USDT: -12345.6, MyCoin: 6789.4 }),
+    });
+    render(
+      <DirectionProvider direction={direction}>
+        <FormattingProvider locale="ES">
+          <MemoryRouter>
+            <SpendingInsightsPage />
+          </MemoryRouter>
+        </FormattingProvider>
+      </DirectionProvider>,
+    );
+    const notice = screen.getByText("Multi-currency:").parentElement!;
+    expect(stripBidiControls(notice.textContent ?? "")).toContain("12.346 USDT + 6789 MyCoin");
+  },
+);
+
+it("hides custom currency source amounts with balance privacy", () => {
+  testSettings.hidden = true;
+  insightQuery.mockReturnValue({ data: foreignCurrencyInsight({ USDT: 12345.6 }) });
+  setup();
+  const notice = screen.getByText("Multi-currency:").parentElement!;
+  expect(notice).toHaveTextContent("••••");
+  expect(notice).not.toHaveTextContent("12346");
 });

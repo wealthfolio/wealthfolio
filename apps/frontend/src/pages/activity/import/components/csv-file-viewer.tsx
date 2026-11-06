@@ -201,7 +201,7 @@ export function CSVFileViewer({ data, className, maxHeight }: CSVFileViewerProps
         </div>
 
         <div style={{ maxHeight }} className="min-h-0 flex-1 overflow-auto">
-          <Table>
+          <Table containerClassName="overflow-visible">
             <TableBody className="text-xs">
               {table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row, index) => (

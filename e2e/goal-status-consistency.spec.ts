@@ -20,6 +20,7 @@ test("saved goal health reaches a mounted list and agrees with detail in both di
   const settings = await page.request.put(`${api}/settings`, {
     headers,
     data: {
+      baseCurrency: "USD",
       onboardingCompleted: true,
       language: "en",
       timezone: "UTC",
@@ -28,6 +29,7 @@ test("saved goal health reaches a mounted list and agrees with detail in both di
     },
   });
   expect(settings.ok()).toBeTruthy();
+  expect(await settings.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
   await gotoAppPath(page, "/goals");
   const created = await page.request.post(`${api}/goals`, {
     headers,

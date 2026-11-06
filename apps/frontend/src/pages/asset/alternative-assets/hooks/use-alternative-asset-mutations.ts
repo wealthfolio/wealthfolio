@@ -30,6 +30,9 @@ interface UseAlternativeAssetMutationsOptions {
 
 export async function invalidateAlternativeAssetQueries(queryClient: QueryClient): Promise<void> {
   invalidatePerformanceCaches(queryClient);
+  // A new value can end a stale valuation in Health Center. Not awaited: a
+  // full health check should not hold the save.
+  void queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] }),
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] }),

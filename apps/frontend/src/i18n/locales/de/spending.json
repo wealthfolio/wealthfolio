@@ -81,6 +81,11 @@
     "editTitle": "Regel bearbeiten",
     "addTitle": "Regel hinzufügen",
     "editDescription": "Aktivitäten automatisch nach Namensmuster kennzeichnen. Bei mehreren Treffern gewinnen Regeln mit höherer Priorität.",
+    "categoryCompatibilityHint": "Kategorien richten sich nach dem Geldfluss der Transaktion. Sparkategorien gelten nur für verknüpfte Überweisungen aus Ihren für Ausgaben erfassten Konten.",
+    "runIncompatible": "Unpassende Kategorien: {{count}}. Kategorien richten sich nach dem Geldfluss der Transaktion. Sparkategorien gelten nur für verknüpfte Überweisungen aus Ihren für Ausgaben erfassten Konten.",
+    "runProtected": "Bestehende Kategorien oder Aufteilungen beibehalten: {{count}}.",
+    "runUnchanged": "Bereits wie gewünscht kategorisiert: {{count}}.",
+    "runWithoutTarget": "Treffer ohne Zielkategorie: {{count}}.",
     "matchContains": "enthält",
     "matchStartsWith": "beginnt mit",
     "matchExact": "exakt",
@@ -183,7 +188,8 @@
     "unlinkTransfer": "Überweisung trennen",
     "linkTransfer": "Überweisung verknüpfen...",
     "deleteConfirmMany_one": "Möchten Sie wirklich {{count}} Transaktion löschen?",
-    "deleteConfirmMany_other": "Möchten Sie wirklich {{count}} Transaktionen löschen?"
+    "deleteConfirmMany_other": "Möchten Sie wirklich {{count}} Transaktionen löschen?",
+    "convertToTransfer": "In Überweisung umwandeln..."
   },
   "cashFlow": {
     "income": "Einnahmen",
@@ -846,6 +852,9 @@
     "manage": "Verwalten →"
   },
   "cashForm": {
+    "none": "Keiner",
+    "addExpense": "Ausgabe hinzufügen",
+    "addIncome": "Einnahme hinzufügen",
     "accountRequired": "Bitte wählen Sie ein Konto aus.",
     "pickDate": "Datum auswählen",
     "amountNonNegative": "Der Betrag darf nicht negativ sein.",
@@ -863,6 +872,8 @@
     "spendingCategory": "Ausgabenkategorie",
     "activityUpdated": "Aktivität aktualisiert.",
     "activityCreated": "Aktivität erstellt.",
+    "expenseAdded": "Ausgabe hinzugefügt.",
+    "incomeAdded": "Einnahme hinzugefügt.",
     "saveFailed": "Aktivität konnte nicht gespeichert werden: {{message}}",
     "editTitle": "Transaktion bearbeiten",
     "addTitle": "Transaktion hinzufügen",
@@ -929,7 +940,7 @@
     "stageWhenLabel": "Wann und wo",
     "stageWhenSub": "Wann Sie ausgeben & Ausgabenereignisse",
     "spendingAbovePrefix": "Die Ausgaben liegen",
-    "pctAbove": "{{pct}} % über",
+    "pctAbove": "{{pct}} über",
     "thePriorPeriod": "dem vorherigen Zeitraum.",
     "moreThan": "{{more}} mehr als {{prior}}",
     "uncategorizedCount_one": "{{count}} nicht kategorisierte Transaktion",

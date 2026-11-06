@@ -6,7 +6,7 @@ import { Input } from "@wealthfolio/ui/components/ui/input";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Spinner } from "@wealthfolio/ui";
+import { Spinner, useNumberFormatting } from "@wealthfolio/ui";
 
 interface QuoteImportFormProps {
   file: File | null;
@@ -24,6 +24,7 @@ export function QuoteImportForm({
   onValidate,
 }: QuoteImportFormProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -237,7 +238,13 @@ export function QuoteImportForm({
                     className="space-y-0"
                   >
                     <p className="text-destructive font-medium">{file.name}</p>
-                    <p className="text-destructive text-xs">{(file.size / 1024).toFixed(2)} KB</p>
+                    <p className="text-destructive text-xs">
+                      {numbers.formatDecimal(file.size / 1024, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      KB
+                    </p>
                   </motion.div>
                 ) : file ? (
                   <motion.div
@@ -250,7 +257,11 @@ export function QuoteImportForm({
                   >
                     <p className="text-xs font-medium">{file.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {(file.size / 1024).toFixed(2)} KB
+                      {numbers.formatDecimal(file.size / 1024, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      KB
                     </p>
                   </motion.div>
                 ) : (

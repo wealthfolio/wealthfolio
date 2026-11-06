@@ -128,6 +128,7 @@ impl ManualSnapshotService {
                     .instrument_type
                     .as_deref()
                     .and_then(InstrumentType::from_external_str),
+                instrument_type_label: holding.instrument_type.clone(),
                 requested_quote_ccy: holding.quote_ccy.clone(),
                 provider_config: None,
                 provider_id: holding.provider_id.clone(),
@@ -161,13 +162,16 @@ impl ManualSnapshotService {
                 }
             }
 
-            // Create a quote from the snapshot price as a fallback.
-            // Only for MANUAL-mode assets: average cost is a cost basis, not a market
-            // price, and writing it for MARKET-mode assets would overwrite provider
-            // quotes for the snapshot date.
+            // Give a MANUAL-mode asset without a price its first one from the
+            // average cost. The average cost is a cost basis, not a price: it
+            // must not replace a provider quote or a price the user entered, so
+            // only write it when the asset has no quote on or before this date.
             let is_manual_mode = asset.quote_mode == QuoteMode::Manual
                 || matches!(quote_mode.as_deref(), Some(DATA_SOURCE_MANUAL));
-            if is_manual_mode && !holding.average_cost.is_zero() {
+            if is_manual_mode
+                && !holding.average_cost.is_zero()
+                && !self.has_quote_on_or_before(&asset.id, request.snapshot_date)
+            {
                 let source = DATA_SOURCE_MANUAL.to_string();
                 self.create_quote_from_snapshot(
                     &asset.id,
@@ -319,6 +323,24 @@ impl ManualSnapshotService {
         total
     }
 
+    /// Whether the asset has a quote on or before `date`. A failed lookup
+    /// counts as yes, so a price the lookup missed is never replaced.
+    fn has_quote_on_or_before(&self, asset_id: &str, date: NaiveDate) -> bool {
+        match self
+            .quote_service
+            .get_latest_quotes_as_of(&[asset_id.to_string()], date)
+        {
+            Ok(quotes) => quotes.contains_key(asset_id),
+            Err(e) => {
+                warn!(
+                    "Failed to look up quotes for asset {} on {}: {}. Skipping the snapshot price.",
+                    asset_id, date, e
+                );
+                true
+            }
+        }
+    }
+
     /// Creates a quote from snapshot data to serve as a price fallback.
     /// Uses `DataSource::Manual` for MANUAL-mode assets, `DataSource::Broker` for others.
     async fn create_quote_from_snapshot(
@@ -370,5 +392,169 @@ impl ManualSnapshotService {
                 debug!("Failed to create quote for asset {}: {}", asset_id, e);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use rust_decimal_macros::dec;
+
+    use super::*;
+    use crate::accounts::{Account, AccountRepositoryTrait};
+    use crate::activities::ActivityRepositoryTrait;
+    use crate::assets::{Asset, AssetRepositoryTrait, AssetService};
+    use crate::fx::FxService;
+    use crate::portfolio::snapshot::{SnapshotRepositoryTrait, SnapshotService};
+    use crate::test_support::in_memory::{
+        InMemoryAccountRepository, InMemoryActivityRepository, InMemoryAssetRepository,
+        InMemoryFxRepository, InMemoryQuoteService, InMemorySnapshotRepository,
+    };
+
+    const ACCOUNT_ID: &str = "acc-1";
+    const ASSET_ID: &str = "manual-asset";
+
+    fn day(raw: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(raw, "%Y-%m-%d").expect("valid test date")
+    }
+
+    fn manual_quote(date: NaiveDate, price: Decimal) -> Quote {
+        Quote {
+            id: format!("{}_{}", date.format("%Y%m%d"), ASSET_ID.to_uppercase()),
+            asset_id: ASSET_ID.to_string(),
+            timestamp: Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).expect("valid time")),
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            adjclose: price,
+            currency: "USD".to_string(),
+            data_source: DATA_SOURCE_MANUAL.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn service(quotes: Vec<Quote>) -> (ManualSnapshotService, Arc<InMemoryQuoteService>) {
+        let asset = Asset {
+            id: ASSET_ID.to_string(),
+            display_code: Some("MANUAL".to_string()),
+            quote_mode: QuoteMode::Manual,
+            quote_ccy: "USD".to_string(),
+            is_active: true,
+            ..Default::default()
+        };
+        let account = Account {
+            id: ACCOUNT_ID.to_string(),
+            currency: "USD".to_string(),
+            is_active: true,
+            ..Default::default()
+        };
+        let quote_service = Arc::new(InMemoryQuoteService::new(quotes, vec![asset.clone()]));
+        let asset_repo: Arc<dyn AssetRepositoryTrait> =
+            Arc::new(InMemoryAssetRepository::new(vec![asset]));
+        let asset_service = Arc::new(
+            AssetService::new(asset_repo, quote_service.clone()).expect("asset service builds"),
+        );
+        let fx_service = Arc::new(FxService::new(Arc::new(InMemoryFxRepository::new(
+            Vec::new(),
+        ))));
+        let account_repo: Arc<dyn AccountRepositoryTrait> =
+            Arc::new(InMemoryAccountRepository::new(vec![account]));
+        let snapshot_repo: Arc<dyn SnapshotRepositoryTrait> =
+            Arc::new(InMemorySnapshotRepository::new(HashSet::new()));
+        let activity_repo: Arc<dyn ActivityRepositoryTrait> =
+            Arc::new(InMemoryActivityRepository::new(Vec::new(), HashSet::new()));
+        let snapshot_service = Arc::new(SnapshotService::new(
+            Arc::new(std::sync::RwLock::new("UTC".to_string())),
+            account_repo,
+            snapshot_repo,
+            activity_repo,
+        ));
+        let service = ManualSnapshotService::new(
+            asset_service,
+            fx_service,
+            snapshot_service,
+            quote_service.clone(),
+        )
+        .with_timezone("UTC".to_string());
+        (service, quote_service)
+    }
+
+    fn request(date: NaiveDate) -> ManualSnapshotRequest {
+        ManualSnapshotRequest {
+            account_id: ACCOUNT_ID.to_string(),
+            account_currency: "USD".to_string(),
+            snapshot_date: date,
+            positions: vec![ManualHoldingInput {
+                asset_id: Some(ASSET_ID.to_string()),
+                symbol: "MANUAL".to_string(),
+                exchange_mic: None,
+                quantity: dec!(10),
+                currency: "USD".to_string(),
+                average_cost: dec!(100),
+                name: None,
+                data_source: None,
+                asset_kind: None,
+                quote_ccy: None,
+                instrument_type: None,
+                provider_id: None,
+                provider_symbol: None,
+            }],
+            cash_balances: Vec::new(),
+            base_currency: None,
+            source: SnapshotSource::ManualEntry,
+        }
+    }
+
+    fn closes(quotes: &InMemoryQuoteService) -> Vec<(NaiveDate, Decimal)> {
+        let mut closes: Vec<_> = quotes
+            .all_quotes()
+            .into_iter()
+            .map(|quote| (quote.timestamp.date_naive(), quote.close))
+            .collect();
+        closes.sort();
+        closes
+    }
+
+    #[tokio::test]
+    async fn keeps_a_manual_price_entered_for_the_snapshot_date() {
+        let date = day("2026-01-15");
+        let (service, quotes) = service(vec![manual_quote(date, dec!(150))]);
+
+        service
+            .save_manual_snapshot(request(date))
+            .await
+            .expect("snapshot saves");
+
+        assert_eq!(closes(&quotes), vec![(date, dec!(150))]);
+    }
+
+    #[tokio::test]
+    async fn keeps_an_earlier_manual_price_as_the_latest() {
+        let earlier = day("2026-01-10");
+        let date = day("2026-01-15");
+        let (service, quotes) = service(vec![manual_quote(earlier, dec!(150))]);
+
+        service
+            .save_manual_snapshot(request(date))
+            .await
+            .expect("snapshot saves");
+
+        assert_eq!(closes(&quotes), vec![(earlier, dec!(150))]);
+    }
+
+    #[tokio::test]
+    async fn prices_an_unpriced_manual_asset_at_its_average_cost() {
+        let date = day("2026-01-15");
+        let later = day("2026-01-20");
+        let (service, quotes) = service(vec![manual_quote(later, dec!(150))]);
+
+        service
+            .save_manual_snapshot(request(date))
+            .await
+            .expect("snapshot saves");
+
+        assert_eq!(closes(&quotes), vec![(date, dec!(100)), (later, dec!(150))]);
     }
 }

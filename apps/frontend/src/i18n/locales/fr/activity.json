@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Plus de détails",
     "unlink_transfer": "Dissocier le transfert",
-    "link_transfer": "Lier le transfert..."
+    "link_transfer": "Lier le transfert...",
+    "convert_to_transfer": "Convertir en virement..."
   },
   "date_sheet": {
     "title": "Activités du {{date}}",
@@ -471,7 +472,17 @@
     "error_search": "Impossible de rechercher les activités.",
     "within_days_one": "Dans un délai de {{count}} jour",
     "within_days_other": "Dans les {{count}} jours",
-    "within_days_many": "Dans les {{count}} jours"
+    "within_days_many": "Dans les {{count}} jours",
+    "convert_title": "Convertir en virement",
+    "convert_desc": "Transformez cette activité en virement entre vos comptes. Choisissez l'activité correspondante dans l'autre compte ou créez-la.",
+    "convert_no_matches": "Aucune activité correspondante dans les 7 jours.",
+    "convert_new": "La créer dans un autre compte",
+    "convert_removes_split": "La conversion en virement supprime la ventilation.",
+    "convert_account": "Autre compte",
+    "convert_amount": "Montant en {{currency}}",
+    "convert_button": "Convertir en virement",
+    "convert_success": "Converti en virement",
+    "convert_error": "Échec de la conversion en virement"
   },
   "form": {
     "section_conversion": "Arbitrage",
@@ -506,6 +517,7 @@
     "label_cost_basis": "Prix de revient",
     "label_split_ratio": "Ratio de fractionnement",
     "label_acquisition_date": "Date d'acquisition",
+    "label_amount_before_tax": "Montant avant impôts",
     "label_withholding_tax": "Retenue à la source",
     "label_dividend_amount": "Montant du dividende",
     "label_interest_amount": "Montant des intérêts",
@@ -578,6 +590,7 @@
     "sent_amount": "Montant envoyé",
     "received_amount": "Montant reçu",
     "contract_multiplier": "Multiplicateur de contrat",
+    "sell_all": "Tout vendre",
     "available_amount": "Disponible : {{amount}}",
     "total_debit": "Débit total",
     "total_credit": "Crédit total",
@@ -603,7 +616,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "Plus d'informations sur {{label}}",
     "bulk_add_existing_title": "Ajouter des positions existantes",
-    "bulk_add_existing_desc": "Ajoutez rapidement plusieurs positions à votre portefeuille. Saisissez vos positions actuelles avec les symboles, les quantités et les prix de revient moyens. Cela n'affectera pas votre solde de trésorerie.",
+    "bulk_add_existing_desc": "Ajoutez vos positions actuelles sans modifier votre solde de trésorerie.",
     "bulk_col_shares": "Actions",
     "bulk_col_average_cost": "Prix de revient moyen",
     "bulk_col_total_value": "Valeur totale",
@@ -661,6 +674,7 @@
     "err_split_ratio_gt_zero": "Le ratio de fractionnement doit être supérieur à 0.",
     "err_withholding_tax_number": "La retenue à la source doit être un nombre.",
     "err_withholding_tax_non_negative": "La retenue à la source doit être non négative.",
+    "err_charges_exceed_amount_before_tax": "Les impôts et frais ne peuvent pas dépasser le montant avant impôts.",
     "err_fmv_number": "La JVM par unité doit être un nombre.",
     "err_fmv_gt_zero": "La JVM par unité doit être supérieure à 0.",
     "err_received_quantity_number": "La quantité reçue doit être un nombre.",
@@ -809,12 +823,6 @@
     "day_count_other": "{{count}} activités",
     "day_count_many": "{{count}} activités",
     "day_end_cash": "Liquidités"
-  },
-  "mobile_type_category": {
-    "trade": "Négociation",
-    "cash": "Espèces",
-    "income": "Revenu",
-    "other": "Autre"
   },
   "mobile_type_transfer_desc": "Déplacer des espèces ou des titres entre comptes",
   "mobile_type_adjustment_label": "Ajustement",

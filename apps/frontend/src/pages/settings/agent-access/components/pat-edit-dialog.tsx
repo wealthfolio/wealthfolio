@@ -44,7 +44,7 @@ export function PatEditDialog({ token, onClose, onSave, isSaving }: PatEditDialo
         if (!open && !isSaving) onClose();
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="overflow-y-auto [--overlay-max-height:85vh] sm:max-w-3xl">
         <DialogTitle>{t("settings:agentAccess.edit_title", { name: token.name })}</DialogTitle>
         <DialogDescription>{t("settings:agentAccess.edit_description")}</DialogDescription>
         <ScopeSelector

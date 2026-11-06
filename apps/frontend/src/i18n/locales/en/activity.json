@@ -173,7 +173,7 @@
   "field_start_date": "Start Date",
   "tickers": "Tickers",
   "total_value": "Total value",
-  "add_another_holding": "Add Another Holding",
+  "add_another_holding": "Add another holding",
   "import_successful": "Import successful",
   "holdings_imported_successfully": "Holdings have been imported successfully.",
   "no_valid_holdings": "No valid holdings",
@@ -328,7 +328,8 @@
   "operations": {
     "more_details": "More details",
     "unlink_transfer": "Unlink transfer",
-    "link_transfer": "Link transfer..."
+    "link_transfer": "Link transfer...",
+    "convert_to_transfer": "Make it a transfer..."
   },
   "date_sheet": {
     "title": "Activities on {{date}}",
@@ -466,7 +467,17 @@
     "error_load_pair": "Could not load the linked transfer pair.",
     "error_search": "Could not search activities.",
     "within_days_one": "Within {{count}} day",
-    "within_days_other": "Within {{count}} days"
+    "within_days_other": "Within {{count}} days",
+    "convert_title": "Make it a transfer",
+    "convert_desc": "Turn this activity into a transfer between your accounts. Pick the matching activity in the other account, or create it there.",
+    "convert_no_matches": "No matching activity within 7 days.",
+    "convert_new": "Create it in another account",
+    "convert_removes_split": "Converting it to a transfer removes the split.",
+    "convert_account": "Other account",
+    "convert_amount": "Amount in {{currency}}",
+    "convert_button": "Convert to transfer",
+    "convert_success": "Converted into a transfer",
+    "convert_error": "Failed to convert into a transfer"
   },
   "form": {
     "section_conversion": "Fund conversion",
@@ -501,6 +512,7 @@
     "label_cost_basis": "Cost Basis",
     "label_split_ratio": "Split Ratio",
     "label_acquisition_date": "Acquisition Date",
+    "label_amount_before_tax": "Amount before tax",
     "label_withholding_tax": "Withholding tax",
     "label_dividend_amount": "Dividend amount",
     "label_interest_amount": "Interest amount",
@@ -573,6 +585,7 @@
     "sent_amount": "Sent amount",
     "received_amount": "Received amount",
     "contract_multiplier": "Contract Multiplier",
+    "sell_all": "Sell all",
     "available_amount": "Available: {{amount}}",
     "total_debit": "Total Debit",
     "total_credit": "Total Credit",
@@ -597,8 +610,8 @@
     "currency_hint_base": "Base currency",
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "More info about {{label}}",
-    "bulk_add_existing_title": "Add Existing Holdings",
-    "bulk_add_existing_desc": "Quickly add multiple holdings to your portfolio. Enter your current positions with ticker symbols, quantities, and average costs. This will not affect your cash balance.",
+    "bulk_add_existing_title": "Add existing holdings",
+    "bulk_add_existing_desc": "Add your current positions without changing your cash balance.",
     "bulk_col_shares": "Shares",
     "bulk_col_average_cost": "Average cost",
     "bulk_col_total_value": "Total value",
@@ -656,6 +669,7 @@
     "err_split_ratio_gt_zero": "Split ratio must be greater than 0.",
     "err_withholding_tax_number": "Withholding tax must be a number.",
     "err_withholding_tax_non_negative": "Withholding tax must be non-negative.",
+    "err_charges_exceed_amount_before_tax": "Tax and fees can't be more than the amount before tax.",
     "err_fmv_number": "FMV per unit must be a number.",
     "err_fmv_gt_zero": "FMV per unit must be greater than 0.",
     "err_received_quantity_number": "Received quantity must be a number.",
@@ -794,12 +808,6 @@
     "day_count_one": "{{count}} activity",
     "day_count_other": "{{count}} activities",
     "day_end_cash": "Cash"
-  },
-  "mobile_type_category": {
-    "trade": "Trade",
-    "cash": "Cash",
-    "income": "Income",
-    "other": "Other"
   },
   "mobile_type_transfer_desc": "Move cash or securities between accounts",
   "mobile_type_adjustment_label": "Adjustment",

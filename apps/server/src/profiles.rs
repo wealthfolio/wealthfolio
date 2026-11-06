@@ -787,7 +787,7 @@ pub async fn instance_logout(
                 if let Ok(claims) = auth.validate_token(&token) {
                     use sha2::Digest;
                     let owner = if claims.sid.is_empty() {
-                        format!("{:x}", sha2::Sha256::digest(token.as_bytes()))
+                        hex::encode(sha2::Sha256::digest(token.as_bytes()))
                     } else {
                         claims.sid
                     };

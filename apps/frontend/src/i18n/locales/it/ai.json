@@ -675,6 +675,7 @@
     "connectionRefused": "**Impossibile connettersi al fornitore IA**\n\nIl servizio sembra non essere in esecuzione. Procedi così:\n1. Avvia il fornitore IA locale (ad esempio Ollama)\n2. Verifica il suo URL nelle {{settingsLink}}\n3. Riprova",
     "authentication": "**Autenticazione non riuscita**\n\nLa chiave API sembra mancante o non valida. Controlla le {{settingsLink}} e la configurazione della chiave API.",
     "rateLimit": "**Limite di richieste superato**\n\nHai effettuato troppe richieste. Attendi un momento e riprova.",
+    "contextOverflow": "**Conversazione troppo lunga**\n\nQuesta chat non rientra più nella finestra di contesto del modello. Avvia una nuova chat o scegli un modello con una finestra di contesto più ampia nelle {{settingsLink}}.",
     "timeout": "**Tempo della richiesta scaduto**\n\nIl fornitore IA ha impiegato troppo tempo a rispondere. Le cause possono essere una connessione lenta, un sovraccarico o una richiesta complessa.\n\nRiprova o scegli un modello più veloce nelle {{settingsLink}}.",
     "provider": "**Errore del fornitore**\n\n{{error}}\n\nSe il problema persiste, controlla le {{settingsLink}}.",
     "unknown": "**Si è verificato un problema**\n\n{{error}}\n\nSe il problema persiste, controlla le {{settingsLink}}."

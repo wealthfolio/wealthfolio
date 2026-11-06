@@ -5,8 +5,8 @@
   "description": "{{description}}",
   "author": "{{author}}",
   "main": "dist/addon.js",
-  "sdkVersion": "3.11.0",
-  "minWealthfolioVersion": "3.11.0",
+  "sdkVersion": "3.12.0",
+  "minWealthfolioVersion": "3.12.0",
   "enabled": true,
   "contributes": {
     "routes": [{ "id": "{{addonId}}" }],
@@ -24,8 +24,8 @@
   },
   "hostDependencies": {
     "@tanstack/react-query": "^5.90.0",
-    "@wealthfolio/addon-sdk": "^3.11.0",
-    "@wealthfolio/ui": "^3.11.0",
+    "@wealthfolio/addon-sdk": "^3.12.0",
+    "@wealthfolio/ui": "^3.12.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.561.0",
     "react": "^19.2.0",

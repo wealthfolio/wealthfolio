@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "新增資產",
     "add_liability": "新增負債",
-    "record_transaction": "記錄交易",
     "sync_broker_accounts": "同步券商帳戶",
     "sync_devices": "同步裝置",
     "update_prices": "更新價格",

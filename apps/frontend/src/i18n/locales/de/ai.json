@@ -637,6 +637,7 @@
     "connectionRefused": "**Keine Verbindung zum KI-Anbieter**\n\nDer KI-Anbieter scheint nicht zu laufen. Bitte:\n1. Starten Sie Ihren lokalen KI-Anbieter (z. B. Ollama)\n2. Prüfen Sie die Anbieter-URL in den {{settingsLink}}\n3. Versuchen Sie es erneut",
     "authentication": "**Authentifizierung fehlgeschlagen**\n\nIhr API-Schlüssel fehlt oder ist ungültig. Prüfen Sie die {{settingsLink}} und die Konfiguration Ihres API-Schlüssels.",
     "rateLimit": "**Anfragelimit überschritten**\n\nSie haben zu viele Anfragen gestellt. Warten Sie einen Moment und versuchen Sie es erneut.",
+    "contextOverflow": "**Unterhaltung zu lang**\n\nDieser Chat passt nicht mehr in das Kontextfenster des Modells. Starten Sie einen neuen Chat oder wählen Sie in den {{settingsLink}} ein Modell mit größerem Kontextfenster.",
     "timeout": "**Zeitüberschreitung**\n\nDer KI-Anbieter antwortet zu langsam. Mögliche Ursachen sind eine langsame Verbindung, Überlastung oder eine komplexe Anfrage.\n\nVersuchen Sie es erneut oder wählen Sie in den {{settingsLink}} ein schnelleres Modell.",
     "provider": "**Anbieterfehler**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}.",
     "unknown": "**Ein Fehler ist aufgetreten**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}."

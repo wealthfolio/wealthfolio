@@ -26,12 +26,14 @@ import {
   SheetTitle,
   useAmountFormatting,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 
 import {
   canDistributeSplitUnits,
   distributeEvenlyUnits,
   distributeRemainingUnits,
+  significantDecimals,
   splitUnitsToAmount,
   toSplitUnits,
 } from "../lib/split-utils";
@@ -128,14 +130,19 @@ export function SplitTransactionSheet({
 }: SplitTransactionSheetProps) {
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const isMobile = useIsMobileViewport();
   const activity = row?.activity ?? null;
   const taxonomyId = taxonomyForBucket(activity?.cashFlowBucket);
   const currency = activity?.currency || "USD";
   const currencySymbol = formatting.formatCurrencySymbol(currency);
-  // Splits are summed in the currency's fraction digits, but never fewer than two,
-  // so a total with cents in a currency without minor units can still be split.
-  const splitDecimals = Math.max(2, formatting.currencyFractionDigits(currency));
+  // Keep at least cents, the currency's fraction digits, and the total's own decimals
+  // so the split lines can add up to the stored amount.
+  const splitDecimals = Math.max(
+    2,
+    formatting.currencyFractionDigits(currency),
+    significantDecimals(activity?.amount),
+  );
   const totalUnits = toSplitUnits(activity?.amount, splitDecimals);
   const totalAmount = splitUnitsToAmount(Math.abs(totalUnits), splitDecimals);
 
@@ -451,7 +458,9 @@ export function SplitTransactionSheet({
                         </div>
 
                         <span className="bg-muted/60 text-muted-foreground inline-flex h-8 items-center rounded-md px-2 text-xs font-medium tabular-nums">
-                          {linePercentage(amountUnits, totalAbsUnits)}%
+                          {numbers.formatPercent(linePercentage(amountUnits, totalAbsUnits) / 100, {
+                            digits: 0,
+                          })}
                         </span>
                         <div className="relative w-24">
                           <span className="text-muted-foreground pointer-events-none absolute start-2 top-1/2 -translate-y-1/2 text-xs">
@@ -527,10 +536,7 @@ export function SplitTransactionSheet({
         )}
 
         <SheetFooter
-          className={cn(
-            "border-t",
-            isMobile ? "border-border px-4 py-4 pb-[calc(var(--inset-bottom)+1rem)]" : "gap-2 pt-4",
-          )}
+          className={cn("border-t", isMobile ? "border-border px-4 py-4 pb-4" : "gap-2 pt-4")}
         >
           {isMobile ? (
             <div className="flex w-full flex-col gap-2">

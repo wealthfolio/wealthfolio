@@ -299,7 +299,7 @@ const COMPACT_HISTORY_LIMIT = 3;
 
 /** List variant of the summary for the Connect page's side column: status line, latest copies. */
 export function CloudBackupCompactSummary() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const formatting = useDateFormatting();
   const localization = useLocalizationSettings();
   const { available, status } = useCloudBackups();
@@ -354,7 +354,7 @@ export function CloudBackupCompactSummary() {
                 const date = backupDate(point.publishedAt);
                 const details = [
                   date && formatting.formatTime(date, { timeStyle: "short" }),
-                  formatBackupSize(point.sizeBytes, i18n.language),
+                  formatBackupSize(point.sizeBytes, localization.locale),
                   point.metadata?.device_name,
                 ].filter(Boolean);
                 return (
@@ -412,7 +412,8 @@ export function CloudBackupCard() {
 }
 
 function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackups> }) {
-  const { t, i18n } = useTranslation();
+  const localization = useLocalizationSettings();
+  const { t } = useTranslation();
   const formatting = useDateFormatting();
   const { status, profile, isMobile } = backup;
   const canRestore = isTauri && !isMobile;
@@ -831,7 +832,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                     }
                     meta={[
                       date && formatting.formatTime(date, { timeStyle: "short" }),
-                      formatBackupSize(point.sizeBytes, i18n.language),
+                      formatBackupSize(point.sizeBytes, localization.locale),
                     ]}
                     details={[point.metadata?.device_name, point.metadata?.profile_name]}
                     actions={
@@ -888,7 +889,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       >
         <DialogContent
           className="sm:max-w-md"
-          mobileClassName="h-auto max-h-[85dvh] overflow-y-auto"
+          mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
           showCloseButton={!busy && !recoveryCode}
         >
           <DialogHeader className="pe-6 text-start">

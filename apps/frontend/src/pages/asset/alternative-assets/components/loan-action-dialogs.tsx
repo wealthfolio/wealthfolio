@@ -125,7 +125,8 @@ export function RecalculateScheduleDialog({
   quoteHistory,
   onSubmit,
 }: RecalculateScheduleDialogProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dates = useDateFormatting();
   const [effectiveDate, setEffectiveDate] = useState(() => new Date());
   const rateInputId = useId();
   const [newRate, setNewRate] = useState<string>(() => String(interestRate));
@@ -223,7 +224,7 @@ export function RecalculateScheduleDialog({
               <>
                 <span className="text-muted-foreground">{t("asset:altContent.end_date")}</span>
                 <span className="text-end font-medium">
-                  {endDate.toLocaleDateString(i18n.language, {
+                  {dates.formatCalendarDate(formatDateISO(endDate), {
                     month: "short",
                     year: "numeric",
                   })}

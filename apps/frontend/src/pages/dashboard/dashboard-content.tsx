@@ -18,6 +18,7 @@ import { SpendingDatePicker } from "@/features/spending/components/spending-date
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
+import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import type { AccountScope } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
@@ -199,6 +200,7 @@ export function DashboardContent({
               />
             </PortfolioUpdateTrigger>
             <PrivacyToggle variant="ghost" />
+            <HealthStatusIndicator />
           </div>
           <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (

@@ -15,7 +15,9 @@ export function createBaseConfig(options = {}) {
             files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
             languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } },
             plugins: { react },
-            settings: { react: { version: "detect" } },
+            // "detect" crashes eslint-plugin-react 7.37 on ESLint 10 (it calls
+            // the removed context.getFilename). Keep in step with React.
+            settings: { react: { version: "19.2" } },
             rules: {
               "react/no-deprecated": "error",
               // Preserve ESLint's handling of TypeScript assertions around optional chains.

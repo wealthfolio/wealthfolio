@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/ui",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "type": "module",
   "description": "Wealthfolio UI components based on shadcn/ui and Tailwind CSS",
   "main": "dist/index.js",
@@ -82,7 +82,7 @@
     "react-dropzone": "^14.4.1",
     "react-hook-form": "^7.71.1",
     "react-number-format": "^5.4.4",
-    "recharts": "^3.7.0",
+    "recharts": "^3.10.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0"
   },

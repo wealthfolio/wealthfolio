@@ -82,6 +82,11 @@
     "editTitle": "Modifica regola",
     "addTitle": "Aggiungi regola",
     "editDescription": "Etichetta automaticamente i movimenti in base al pattern del nome. Le regole con priorità più alta prevalgono quando più regole corrispondono.",
+    "categoryCompatibilityHint": "Le categorie seguono il flusso di cassa della transazione. Le categorie di risparmio si applicano solo ai trasferimenti collegati in uscita dai conti monitorati per le spese.",
+    "runIncompatible": "Categorie incompatibili: {{count}}. Le categorie seguono il flusso di cassa della transazione. Le categorie di risparmio si applicano solo ai trasferimenti collegati in uscita dai conti monitorati per le spese.",
+    "runProtected": "Categorie o suddivisioni esistenti mantenute: {{count}}.",
+    "runUnchanged": "Già categorizzate come richiesto: {{count}}.",
+    "runWithoutTarget": "Corrispondenze senza categoria di destinazione: {{count}}.",
     "matchContains": "contiene",
     "matchStartsWith": "inizia con",
     "matchExact": "esatto",
@@ -188,7 +193,8 @@
     "linkTransfer": "Collega trasferimento...",
     "deleteConfirmMany_one": "Sei sicuro di voler eliminare {{count}} transazione?",
     "deleteConfirmMany_many": "Sei sicuro di voler eliminare {{count}} transazioni?",
-    "deleteConfirmMany_other": "Sei sicuro di voler eliminare {{count}} transazioni?"
+    "deleteConfirmMany_other": "Sei sicuro di voler eliminare {{count}} transazioni?",
+    "convertToTransfer": "Converti in trasferimento..."
   },
   "cashFlow": {
     "income": "Entrate",
@@ -889,6 +895,9 @@
     "manage": "Gestisci →"
   },
   "cashForm": {
+    "none": "Nessuno",
+    "addExpense": "Aggiungi spesa",
+    "addIncome": "Aggiungi entrata",
     "accountRequired": "Seleziona un conto.",
     "pickDate": "Scegli una data",
     "amountNonNegative": "L'importo non può essere negativo.",
@@ -906,6 +915,8 @@
     "spendingCategory": "Categoria di spesa",
     "activityUpdated": "Movimento aggiornato.",
     "activityCreated": "Movimento creato.",
+    "expenseAdded": "Spesa aggiunta.",
+    "incomeAdded": "Entrata aggiunta.",
     "saveFailed": "Impossibile salvare il movimento: {{message}}",
     "editTitle": "Modifica transazione",
     "addTitle": "Aggiungi transazione",
@@ -979,7 +990,7 @@
     "stageWhenLabel": "Quando e dove",
     "stageWhenSub": "Quando spendi ed eventi di spesa",
     "spendingAbovePrefix": "La spesa è",
-    "pctAbove": "{{pct}}% sopra",
+    "pctAbove": "{{pct}} sopra",
     "thePriorPeriod": "il periodo precedente.",
     "moreThan": "{{more}} in più rispetto a {{prior}}",
     "uncategorizedCount_one": "{{count}} transazione non categorizzata",

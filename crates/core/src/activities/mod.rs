@@ -33,13 +33,14 @@ pub use activities_model::{
     ActivitySearchResponseMeta, ActivitySplitEffect, ActivityStatus, ActivityType, ActivityUpdate,
     ActivityUpdatePreview, ActivityUpsert, AssetResolutionInput, BrokerActivityProfileConfig,
     BrokerProfileScope, BrokerSyncProfileData, BulkUpsertResult, CashBalanceScope,
-    FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping, ImportMappingData,
-    ImportTemplate, ImportTemplateData, ImportTemplateScope, ImportedActivityIdentity, IncomeData,
-    InternalTransferPairRequest, InternalTransferPairResponse, LinkedTransfer, NewActivity,
-    PrepareActivitiesResult, PreviewedActivityUpdate, SaveBrokerSyncProfileRulesRequest, Sort,
-    TemplateKind, TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfer,
-    UnlinkedTransfers, UnlinkedTransfersRequest,
+    ConvertToTransferRequest, FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary,
+    ImportAssetCandidate, ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping,
+    ImportMappingData, ImportTemplate, ImportTemplateData, ImportTemplateScope,
+    ImportedActivityIdentity, IncomeData, InternalTransferPairRequest,
+    InternalTransferPairResponse, LinkedTransfer, NewActivity, PrepareActivitiesResult,
+    PreviewedActivityUpdate, SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind,
+    TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfer, UnlinkedTransfers,
+    UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
 pub use activities_traits::{ActivityRepositoryTrait, ActivityServiceTrait};

@@ -5,6 +5,11 @@
       "title_other": "{{count}} 项持仓缺少手动估值",
       "message": "手动/自定义持仓需要先提供手动估值，才能作为已估值的业绩持仓纳入统计。"
     },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}} 的估值未更新",
+      "title_other": "{{count}} 项资产的估值未更新",
+      "message": "部分手动估值的资产已超过 {{days}} 天未更新，净资产可能不是最新的。"
+    },
     "price_no_market_data": {
       "title_one": "{{symbol}} 没有市场数据",
       "title_other": "{{count}} 项持仓没有市场数据",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "重建历史",
     "add_price": "添加价格",
     "update_cost_basis": "更新成本基础",
+    "update_value": "更新估值",
     "review_transaction": "检查交易",
     "review_entry": "查看记录"
   },

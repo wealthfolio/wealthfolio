@@ -114,7 +114,12 @@ pub struct AccountUpdate {
     pub id: Option<String>,
     pub name: String,
     pub account_type: String,
-    pub group: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "core_accounts::deserialize_account_group",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub group: Option<Option<String>>,
     pub is_default: bool,
     pub is_active: bool,
     pub is_archived: Option<bool>,
@@ -143,5 +148,27 @@ impl From<AccountUpdate> for core_accounts::AccountUpdate {
             provider: a.provider,
             provider_account_id: a.provider_account_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AccountUpdate;
+
+    #[test]
+    fn account_update_group_preserves_presence() {
+        let mut body = serde_json::json!({
+            "name": "Brokerage", "accountType": "SECURITIES",
+            "isDefault": false, "isActive": true
+        });
+        let read = |value| {
+            let update = serde_json::from_value::<AccountUpdate>(value).unwrap();
+            wealthfolio_core::accounts::AccountUpdate::from(update).group
+        };
+        assert_eq!(read(body.clone()), None);
+        body["group"] = serde_json::Value::Null;
+        assert_eq!(read(body.clone()), Some(None));
+        body["group"] = serde_json::json!("Retirement");
+        assert_eq!(read(body), Some(Some("Retirement".to_string())));
     }
 }

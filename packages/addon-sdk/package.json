@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/addon-sdk",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "type": "module",
   "description": "TypeScript SDK for building Wealthfolio addons with enhanced functionality and type safety",
   "main": "dist/index.js",

@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalLink } from "../ui/external-link";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Calendar } from "../ui/calendar";
@@ -749,7 +750,7 @@ export function UrlCell<TData>({
     >
       {!isEditing && displayValue ? (
         <div data-slot="grid-cell-content" className="size-full overflow-hidden">
-          <a
+          <ExternalLink
             data-focused={isFocused && !isDangerousUrl ? "" : undefined}
             data-invalid={isDangerousUrl ? "" : undefined}
             href={urlHref}
@@ -759,7 +760,7 @@ export function UrlCell<TData>({
             onClick={onLinkClick}
           >
             {displayValue}
-          </a>
+          </ExternalLink>
         </div>
       ) : (
         <div
@@ -1826,12 +1827,12 @@ export function DateTimeCell<TData>({
   );
 }
 
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number, formatting: ReturnType<typeof useNumberFormatting>): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
+  return `${formatting.formatDecimal(bytes / k ** i, { maximumFractionDigits: 1 })} ${sizes[i]}`;
 }
 
 function getFileIcon(type: string) {
@@ -1861,6 +1862,7 @@ export function FileCell<TData>({
   cellState,
 }: DataGridCellProps<TData>) {
   const { t } = useTranslation();
+  const formatting = useNumberFormatting();
   const cellValue = React.useMemo(() => (cell.getValue() as FileCellData[]) ?? [], [cell]);
 
   const cellKey = getCellKey(rowIndex, columnId);
@@ -1915,7 +1917,7 @@ export function FileCell<TData>({
     (file: File): string | null => {
       if (maxFileSize && file.size > maxFileSize) {
         return t("ui:dataGrid.fileSizeExceeds", "File size exceeds {{size}}", {
-          size: formatFileSize(maxFileSize),
+          size: formatFileSize(maxFileSize, formatting),
         });
       }
       if (acceptedTypes) {
@@ -1936,7 +1938,7 @@ export function FileCell<TData>({
       }
       return null;
     },
-    [maxFileSize, acceptedTypes, t],
+    [maxFileSize, acceptedTypes, formatting, t],
   );
 
   const addFiles = React.useCallback(
@@ -2382,10 +2384,12 @@ export function FileCell<TData>({
                   {maxFileSize
                     ? maxFiles
                       ? t("ui:dataGrid.maxSizeAndFiles", "Max size: {{size}} • Max {{count}} files", {
-                          size: formatFileSize(maxFileSize),
+                          size: formatFileSize(maxFileSize, formatting),
                           count: maxFiles,
                         })
-                      : t("ui:dataGrid.maxSize", "Max size: {{size}}", { size: formatFileSize(maxFileSize) })
+                      : t("ui:dataGrid.maxSize", "Max size: {{size}}", {
+                          size: formatFileSize(maxFileSize, formatting),
+                        })
                     : maxFiles
                       ? t("ui:dataGrid.maxFiles", "Max {{count}} files", { count: maxFiles })
                       : t("ui:dataGrid.selectFilesToUpload", "Select files to upload")}
@@ -2439,7 +2443,7 @@ export function FileCell<TData>({
                                 ? t("ui:dataGrid.uploading", "Uploading...")
                                 : isFileDeleting
                                   ? t("ui:dataGrid.deleting", "Deleting...")
-                                  : formatFileSize(file.size)}
+                                  : formatFileSize(file.size, formatting)}
                             </p>
                           </div>
                           <Button

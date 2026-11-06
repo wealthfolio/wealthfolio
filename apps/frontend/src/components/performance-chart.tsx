@@ -133,7 +133,6 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
             <ChartLegend content={<ChartLegendContent payload={[]} />} />
             {data.map((series, seriesIndex) => (
               <Line
-                isAnimationActive={true}
                 animationDuration={300}
                 connectNulls={true}
                 key={series.id}

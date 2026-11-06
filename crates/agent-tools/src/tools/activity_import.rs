@@ -652,7 +652,7 @@ fn activity_row_schema() -> serde_json::Value {
             "providerSymbol": { "type": "string", "description": "Provider-native symbol returned during review." },
             "quantity": { "type": "number" },
             "unitPrice": { "type": "number" },
-            "amount": { "type": "number" },
+            "amount": { "type": "number", "description": "Final cash that moved, as the statement booked it. For DIVIDEND and INTEREST, the cash received after withholding tax; for INTEREST on a credit card, the interest charged. For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, the value of the shares or tokens received. For SPLIT, the split ratio (2 for a 2-for-1 split)." },
             "fee": { "type": "number" },
             "tax": { "type": "number", "description": "Tax withheld, such as dividend withholding tax." },
             "fxRate": { "type": "number", "description": "Rate from the statement converting the activity currency into the account currency. Omit to use the market rate." },

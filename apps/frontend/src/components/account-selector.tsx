@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
 import { Account, TrackingMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Icons, type Icon } from "@wealthfolio/ui";
+import { getAccountTypeIcon } from "@/lib/account-type-icons";
 import { Fragment, forwardRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -30,15 +31,6 @@ import { AnimatePresence, motion } from "motion/react";
 
 // Custom type for UI purposes that extends the standard AccountType
 type UIAccountType = AccountType | typeof PORTFOLIO_ACCOUNT_TYPE;
-
-// Map account types to icons for visual distinction
-const accountTypeIcons: Record<string, Icon> = {
-  SECURITIES: Icons.Briefcase,
-  CASH: Icons.DollarSign,
-  CREDIT_CARD: Icons.CreditCard,
-  CRYPTOCURRENCY: Icons.Bitcoin,
-  [PORTFOLIO_ACCOUNT_TYPE]: Icons.Wallet,
-};
 
 interface AccountSelectorProps {
   selectedAccount?: Account | null;
@@ -277,8 +269,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     >
                       <motion.div variants={iconVariants} initial="initial" animate="animate">
                         {(() => {
-                          const IconComponent =
-                            accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
+                          const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
                           return <IconComponent className="text-success h-4 w-4" />;
                         })()}
                       </motion.div>
@@ -356,7 +347,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                   const IconComponent = CustomIcon
                     ? CustomIcon
                     : selectedAccount
-                      ? (accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard)
+                      ? getAccountTypeIcon(selectedAccount.accountType)
                       : Icons.Wallet;
                   return <IconComponent className="h-4 w-4 shrink-0" />;
                 })()
@@ -366,8 +357,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     {selectedAccount ? (
                       <>
                         {(() => {
-                          const IconComponent =
-                            accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
+                          const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
                           return <IconComponent className="h-4 w-4 shrink-0 opacity-70" />;
                         })()}
                         <span>{selectedAccount.name}</span>
@@ -400,8 +390,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                 {selectedAccount ? (
                   <>
                     {(() => {
-                      const IconComponent =
-                        accountTypeIcons[selectedAccount.accountType] ?? Icons.CreditCard;
+                      const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
                       return <IconComponent className="h-4 w-4 shrink-0 opacity-70" />;
                     })()}
                     <span className="truncate">{selectedAccount.name}</span>
@@ -505,8 +494,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                           <Fragment key={type}>
                             <CommandGroup heading={type}>
                               {typeAccounts.map((account) => {
-                                const IconComponent =
-                                  accountTypeIcons[account.accountType] ?? Icons.CreditCard;
+                                const IconComponent = getAccountTypeIcon(account.accountType);
                                 return (
                                   <CommandItem
                                     key={account.id}

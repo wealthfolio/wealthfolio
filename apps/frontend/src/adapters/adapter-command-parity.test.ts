@@ -215,6 +215,22 @@ describe("calculated worksheet transport", () => {
 });
 
 describe("adapter command parity", () => {
+  it("routes detailed rule reruns without changing the numeric legacy response", async () => {
+    const summary = { matched: 1, changed: 0, incompatible: 1 };
+    const mock = stubFetch(summary);
+    expect(
+      await invoke("rerun_categorization_rules_detailed", { onlyUncategorized: false }),
+    ).toEqual(summary);
+    expect(lastCall(mock)).toEqual({
+      url: "/api/v1/spending/rules/rerun/detailed",
+      method: "POST",
+      body: JSON.stringify({ onlyUncategorized: false }),
+    });
+
+    stubFetch(1);
+    expect(await invoke("rerun_categorization_rules", { onlyUncategorized: true })).toBe(1);
+  });
+
   it("registers every command reachable from the web adapter", () => {
     const files = [
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/shared")),

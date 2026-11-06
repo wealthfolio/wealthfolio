@@ -1619,7 +1619,7 @@ mod tests {
     /// carries the file as the app sends it.
     async fn import_trace(case: &Case, model_args: Value) -> ToolTrace {
         use crate::tools::import_csv::{ImportCsvArgs, ImportCsvTool};
-        use rig::tool::PortableTool;
+        use rig::tool::{Tool, ToolContext};
 
         let attachments: Vec<MessageAttachment> = case
             .attachments
@@ -1636,7 +1636,7 @@ mod tests {
             attachments.clone(),
         );
         let args: ImportCsvArgs = serde_json::from_value(model_args.clone()).unwrap();
-        let output = tool.call(args).await.unwrap();
+        let output = tool.call(&mut ToolContext::new(), args).await.unwrap();
         let mut live_args = model_args;
         live_args["csvContent"] = json!(attachments[0].data);
         ToolTrace {

@@ -719,7 +719,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                       <div className="text-muted-foreground text-2xs">{holding.currency}</div>
                     </TableCell>
                     <TableCell className="hidden py-2 text-end tabular-nums sm:table-cell">
-                      {(holding.weight * 100).toFixed(1)}%
+                      {numberFormatting.formatPercent(holding.weight, { digits: 1 })}
                     </TableCell>
                     <TableCell className="py-2 pe-4 text-end">
                       {tableGainPct != null ? (

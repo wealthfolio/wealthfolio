@@ -168,6 +168,8 @@ async fn update_quote(
     // Ensure asset_id matches path parameter
     quote.asset_id = symbol;
     state.quote_service.update_quote(quote).await?;
+    // A new value can end a stale valuation in Health Center.
+    state.health_service.clear_cache().await;
     // Manual quote update - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the updated quotes
     enqueue_portfolio_job(
@@ -186,6 +188,8 @@ async fn delete_quote(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
     state.quote_service.delete_quote(&id).await?;
+    // Removing a value can make an asset's valuation stale in Health Center.
+    state.health_service.clear_cache().await;
     // Manual quote deletion - no market sync needed, but force full recalculation
     // so historical valuations are recomputed without the deleted quotes
     enqueue_portfolio_job(

@@ -81,6 +81,11 @@
     "editTitle": "ルールを編集",
     "addTitle": "ルールを追加",
     "editDescription": "名前のパターンで取引に自動でタグ付けします。複数一致した場合は優先度の高いルールが適用されます。",
+    "categoryCompatibilityHint": "カテゴリは取引のキャッシュフローに従います。貯蓄カテゴリは、支出管理対象の口座から外部への紐付け済み振替にのみ適用されます。",
+    "runIncompatible": "分類できないカテゴリ：{{count}}。カテゴリは取引のキャッシュフローに従います。貯蓄カテゴリは、支出管理対象の口座から外部への紐付け済み振替にのみ適用されます。",
+    "runProtected": "既存のカテゴリまたは分割を維持：{{count}}。",
+    "runUnchanged": "指定どおりに分類済み：{{count}}。",
+    "runWithoutTarget": "分類先カテゴリのない一致：{{count}}。",
     "matchContains": "を含む",
     "matchStartsWith": "で始まる",
     "matchExact": "完全一致",
@@ -182,7 +187,8 @@
     "duplicate": "複製",
     "unlinkTransfer": "振替のリンクを解除",
     "linkTransfer": "振替をリンク...",
-    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?"
+    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?",
+    "convertToTransfer": "振替に変換..."
   },
   "cashFlow": {
     "income": "収入",
@@ -838,6 +844,9 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "none": "なし",
+    "addExpense": "支出を追加",
+    "addIncome": "収入を追加",
     "accountRequired": "口座を選択してください。",
     "pickDate": "日付を選択",
     "amountNonNegative": "金額は0以上である必要があります。",
@@ -855,6 +864,8 @@
     "spendingCategory": "支出カテゴリ",
     "activityUpdated": "取引を更新しました。",
     "activityCreated": "取引を作成しました。",
+    "expenseAdded": "支出を追加しました。",
+    "incomeAdded": "収入を追加しました。",
     "saveFailed": "取引の保存に失敗しました: {{message}}",
     "editTitle": "取引を編集",
     "addTitle": "取引を追加",
@@ -921,7 +932,7 @@
     "stageWhenLabel": "いつ・どこで",
     "stageWhenSub": "支出のタイミングと支出イベント",
     "spendingAbovePrefix": "支出は",
-    "pctAbove": "{{pct}}%増",
+    "pctAbove": "{{pct}}増",
     "thePriorPeriod": "(前期間比)",
     "moreThan": "{{prior}}より{{more}}多い",
     "uncategorizedCount_one": "未分類の取引{{count}}件",

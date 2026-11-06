@@ -11,6 +11,7 @@ import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import MarketDataSettingsPage from "./market-data-settings";
 
 const hookMocks = vi.hoisted(() => ({
+  openUrlInBrowser: vi.fn().mockResolvedValue(undefined),
   getAssets: vi.fn(),
   getSecret: vi.fn(),
   useCustomProviders: vi.fn(),
@@ -26,6 +27,7 @@ const hookMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/adapters", () => ({
+  openUrlInBrowser: hookMocks.openUrlInBrowser,
   getAssets: hookMocks.getAssets,
   getSecret: hookMocks.getSecret,
 }));
@@ -154,6 +156,14 @@ describe("MarketDataSettingsPage", () => {
     hookMocks.useUpdateCustomProvider.mockReturnValue({ mutate });
     hookMocks.useSetApiKey.mockReturnValue({ mutate });
     hookMocks.useDeleteApiKey.mockReturnValue({ mutate });
+  });
+
+  it("opens the provider website through the platform adapter", async () => {
+    await openProviderSettings();
+    fireEvent.click(screen.getByRole("link", { name: "https://www.alphavantage.co/" }));
+    expect(hookMocks.openUrlInBrowser).toHaveBeenCalledExactlyOnceWith(
+      "https://www.alphavantage.co/",
+    );
   });
 
   it("keeps a new market data API key visible while typing or pasting", async () => {

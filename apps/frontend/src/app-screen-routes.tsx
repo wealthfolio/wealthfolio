@@ -1,3 +1,5 @@
+import { SPENDING_ENTRY_PATH } from "./features/spending/lib/activity-entry";
+import SpendingActivityPage from "./features/spending/pages/spending-activity-page";
 import { memo, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, type Location } from "react-router-dom";
 
@@ -89,6 +91,10 @@ export const AppScreenRoutes = memo(function AppScreenRoutes({ location }: AppSc
       <Route index element={<PortfolioPage />} />
       <Route path="dashboard" element={<PortfolioPage />} />
       <Route path="activities" element={<ActivityPage />} />
+      <Route
+        path="activities/add"
+        element={<ActivityPage key="transfer-holdings" initialAction="transfer-holdings" />}
+      />
       <Route path="activities/manage" element={<ActivityManagerPage />} />
       <Route path="holdings" element={<HoldingsPage />} />
       <Route path="holdings/:assetId" element={<AssetProfilePage />} />
@@ -106,6 +112,7 @@ export const AppScreenRoutes = memo(function AppScreenRoutes({ location }: AppSc
       <Route path="goals/:goalId/guide" element={<GoalRetirementGuidePage />} />
       <Route path="goals/:goalId" element={<GoalDetailPage />} />
       <Route path="spending/insights" element={<SpendingInsightsRedirect />} />
+      <Route path={SPENDING_ENTRY_PATH} element={<SpendingActivityPage />} />
       <Route path="spending/budget" element={<SpendingBudgetPage />} />
       {/* Dynamic addon routes */}
       {dynamicRoutes.map(({ path, addonId, routeId }) => (

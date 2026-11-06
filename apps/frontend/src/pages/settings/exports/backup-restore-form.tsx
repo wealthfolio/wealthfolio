@@ -4,7 +4,7 @@ import { getDatabaseBackupDownloadUrl, isWeb, openDatabaseBackupFolder } from "@
 import { usePlatform } from "@/hooks/use-platform";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useDateFormatting, buttonVariants } from "@wealthfolio/ui";
+import { useDateFormatting, buttonVariants, useLocalizationSettings } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
@@ -41,7 +41,8 @@ interface SelectedBackup {
 }
 
 export function BackupRestoreForm() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const localization = useLocalizationSettings();
   const formatting = useDateFormatting();
   const { platform } = usePlatform();
   const [folderError, setFolderError] = useState<BackupFailure | null>(null);
@@ -203,7 +204,7 @@ export function BackupRestoreForm() {
                     </>,
                   ]}
                   details={[
-                    formatBackupSize(backup.sizeBytes, i18n.language),
+                    formatBackupSize(backup.sizeBytes, localization.locale),
                     t(`settings:backup_reason_${backup.reason}`),
                   ]}
                   actions={
@@ -295,7 +296,7 @@ export function BackupRestoreForm() {
         >
           <DialogContent
             className="sm:max-w-md"
-            mobileClassName="h-auto max-h-[85dvh] overflow-y-auto"
+            mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
           >
             <DialogHeader className="text-start">
               <DialogTitle>{t("settings:backup_original_advanced")}</DialogTitle>

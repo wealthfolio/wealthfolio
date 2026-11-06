@@ -933,6 +933,10 @@ pub struct AssetMetadata {
     pub instrument_exchange_mic: Option<String>,
     pub instrument_symbol: Option<String>,
     pub instrument_type: Option<InstrumentType>,
+    /// Instrument label as the caller supplied it (e.g. "MUTUALFUND"), before it
+    /// collapses into `instrument_type`. Classifies a newly created asset.
+    #[serde(skip)]
+    pub instrument_type_label: Option<String>,
     pub display_code: Option<String>,
     /// Input quote currency provided by caller/search/provider (e.g. "GBp").
     pub requested_quote_ccy: Option<String>,

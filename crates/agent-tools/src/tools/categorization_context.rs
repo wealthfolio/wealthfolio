@@ -354,14 +354,16 @@ pub async fn compute_categorization_state(
 
         let notes = act.notes.as_deref().unwrap_or("");
         let notes_upper = notes.to_uppercase();
-        let rule_match = wealthfolio_spending::categorization_rules::matcher::match_compiled(
-            &compiled_rules,
-            &notes_upper,
-            notes,
-            act.effective_type(),
-            &act.account_id,
-            act.amount.map(|d| d.abs()),
-        );
+        let rule_match =
+            wealthfolio_spending::categorization_rules::matcher::match_compiled_for_taxonomy(
+                &compiled_rules,
+                Some(expected_taxonomy),
+                &notes_upper,
+                notes,
+                act.effective_type(),
+                &act.account_id,
+                act.amount.map(|d| d.abs()),
+            );
         if let Some(m) = rule_match {
             if let (Some(tax_id), Some(cat_id)) =
                 (m.rule.taxonomy_id.clone(), m.rule.category_id.clone())

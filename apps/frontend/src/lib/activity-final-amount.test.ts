@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateIncomeFinalAmount,
+  calculateIncomeGrossAmount,
+  calculateIncomeReceivedAmount,
   calculateTradeFinalAmount,
   calculateTradeFinalCash,
   isStoredTradeAmountCustom,
@@ -253,5 +255,34 @@ describe("isStoredTradeAmountCustom", () => {
         contractMultiplier: 10,
       }),
     ).toBe(false);
+  });
+});
+
+describe("income amount before tax", () => {
+  it("takes the withholding off exactly", () => {
+    // In floats, 2.63 - 0.33 is 2.3000000000000003.
+    expect(calculateIncomeReceivedAmount({ grossAmount: 2.63, tax: 0.33 })).toBe(2.3);
+    expect(calculateIncomeReceivedAmount({ grossAmount: 0.3, tax: 0.1 })).toBe(0.2);
+    expect(calculateIncomeReceivedAmount({ grossAmount: 100, tax: undefined })).toBe(100);
+  });
+
+  it("takes off a fee only when one is given", () => {
+    expect(calculateIncomeReceivedAmount({ grossAmount: 100, tax: 15, fee: 1 })).toBe(84);
+    expect(calculateIncomeGrossAmount({ receivedAmount: 84, tax: 15, fee: 1 })).toBe(100);
+  });
+
+  it("goes negative when the tax exceeds the amount", () => {
+    expect(calculateIncomeReceivedAmount({ grossAmount: 10, tax: 15 })).toBe(-5);
+  });
+
+  it("rebuilds the amount before tax from what was received", () => {
+    expect(calculateIncomeGrossAmount({ receivedAmount: 2.3, tax: 0.33 })).toBe(2.63);
+    expect(calculateIncomeGrossAmount({ receivedAmount: "85", tax: "15" })).toBe(100);
+  });
+
+  it("returns undefined while the source amount is blank", () => {
+    expect(calculateIncomeReceivedAmount({ grossAmount: undefined, tax: 15 })).toBeUndefined();
+    expect(calculateIncomeReceivedAmount({ grossAmount: null, tax: 15 })).toBeUndefined();
+    expect(calculateIncomeGrossAmount({ receivedAmount: "", tax: 15 })).toBeUndefined();
   });
 });

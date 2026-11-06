@@ -339,7 +339,7 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
         onClick={() => onSelect(thread.id)}
         disabled={isLoading || isDeleting}
       >
-        <span className="aui-thread-list-item-title block min-w-0 truncate text-sm tracking-tighter [word-spacing:-0.2em]">
+        <span className="aui-thread-list-item-title block min-w-0 truncate text-sm">
           {thread.title || t("ai:threadList.newChat")}
         </span>
       </button>

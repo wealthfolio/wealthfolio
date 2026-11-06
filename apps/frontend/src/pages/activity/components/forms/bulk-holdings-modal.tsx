@@ -250,44 +250,46 @@ export const BulkHoldingsModal = ({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-6xl">
-        <DialogHeader>
+      <DialogContent className="flex w-full flex-col overflow-hidden p-0 [--overlay-max-height:90dvh] sm:max-w-6xl">
+        <DialogHeader className="shrink-0 border-b px-4 py-4 pe-16 text-start sm:px-6 sm:pe-16">
           <DialogTitle>{t("activity:form.bulk_add_existing_title")}</DialogTitle>
           <DialogDescription>{t("activity:form.bulk_add_existing_desc")}</DialogDescription>
         </DialogHeader>
 
         <FormProvider {...form}>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit, handleFormError)} className="space-y-6">
-              <div className="py-4">
+            <form
+              onSubmit={form.handleSubmit(handleSubmit, handleFormError)}
+              className="flex min-h-0 flex-auto flex-col"
+            >
+              <div className="min-h-0 flex-auto overflow-y-auto px-4 py-4 sm:px-6">
                 <BulkHoldingsForm
                   onAccountChange={handleAccountChange}
                   defaultAccount={defaultAccount}
                 />
+
+                {/* Display validation errors */}
+                {Object.keys(form.formState.errors).length > 0 && (
+                  <Alert variant="destructive">
+                    <Icons.AlertCircle />
+                    <AlertTitle>{t("activity:form.bulk_fix_errors")}</AlertTitle>
+                    <AlertDescription>
+                      <ul className="space-y-1">
+                        {form.formState.errors.accountId && (
+                          <li>• {form.formState.errors.accountId.message}</li>
+                        )}
+                        {form.formState.errors.activityDate && (
+                          <li>• {form.formState.errors.activityDate.message}</li>
+                        )}
+                        {form.formState.errors.holdings && (
+                          <li>• {form.formState.errors.holdings.message}</li>
+                        )}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
-
-              {/* Display validation errors */}
-              {Object.keys(form.formState.errors).length > 0 && (
-                <Alert variant="destructive">
-                  <Icons.AlertCircle />
-                  <AlertTitle>{t("activity:form.bulk_fix_errors")}</AlertTitle>
-                  <AlertDescription>
-                    <ul className="space-y-1">
-                      {form.formState.errors.accountId && (
-                        <li>• {form.formState.errors.accountId.message}</li>
-                      )}
-                      {form.formState.errors.activityDate && (
-                        <li>• {form.formState.errors.activityDate.message}</li>
-                      )}
-                      {form.formState.errors.holdings && (
-                        <li>• {form.formState.errors.holdings.message}</li>
-                      )}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <DialogFooter>
+              <DialogFooter className="shrink-0 border-t px-4 py-4 sm:px-6">
                 <Button type="button" variant="outline" onClick={onClose}>
                   {t("activity:cancel")}
                 </Button>

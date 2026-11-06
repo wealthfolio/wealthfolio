@@ -3,7 +3,8 @@ import zhCommon from "@/i18n/locales/zh/common.json";
 import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { chartSliceColor } from "@wealthfolio/ui";
+import { chartSliceColor, FormattingProvider, stripBidiControls } from "@wealthfolio/ui";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { toast } from "sonner";
@@ -290,13 +291,19 @@ function previewLine(
 async function renderWorksheet(
   report: DriftReport = driftReport,
   target: AllocationTarget = profile,
+  locale = "US",
+  direction: "ltr" | "rtl" = "ltr",
 ) {
   const user = userEvent.setup();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Providers = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>
-      <MemoryRouter>{children}</MemoryRouter>
-    </QueryClientProvider>
+    <DirectionProvider direction={direction}>
+      <FormattingProvider locale={locale}>
+        <QueryClientProvider client={client}>
+          <MemoryRouter>{children}</MemoryRouter>
+        </QueryClientProvider>
+      </FormattingProvider>
+    </DirectionProvider>
   );
   render(
     <AllocationWorksheetTab
@@ -343,6 +350,23 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    { locale: "US", direction: "ltr" as const, bps: 250, label: "2.5%" },
+    { locale: "ES", direction: "ltr" as const, bps: 250, label: "2,5 %" },
+    { locale: "ES", direction: "rtl" as const, bps: 250, label: "2,5 %" },
+    { locale: "US", direction: "ltr" as const, bps: 255, label: "2.55%" },
+    { locale: "ES", direction: "rtl" as const, bps: 255, label: "2,55 %" },
+    { locale: "US", direction: "ltr" as const, bps: 300, label: "3%" },
+  ])(
+    "shows the saved $bps-bps turnover cap in $locale $direction",
+    async ({ locale, direction, bps, label }) => {
+      await renderWorksheet(driftReport, { ...profile, maxTurnoverBps: bps }, locale, direction);
+      expect(
+        await screen.findByText((text) => stripBidiControls(text) === `Turnover cap ${label}`),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("updates worksheet category displays on language changes without rewriting domain names", async () => {
     const categories = [

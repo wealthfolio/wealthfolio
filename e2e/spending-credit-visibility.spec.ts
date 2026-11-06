@@ -25,9 +25,11 @@ for (const direction of ["ltr", "rtl"]) {
       expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
       return response.json();
     };
-    await api(
+    const settings = await api(
       "settings",
       {
+        baseCurrency: "USD",
+        timezone: "UTC",
         onboardingCompleted: true,
         language: "en",
         theme: "light",
@@ -36,6 +38,7 @@ for (const direction of ["ltr", "rtl"]) {
       },
       "PUT",
     );
+    expect(settings).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
     const account = await api("accounts", {
       name: `Untyped credit ${direction}`,
       accountType: "CASH",

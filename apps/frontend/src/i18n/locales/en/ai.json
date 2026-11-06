@@ -637,6 +637,7 @@
     "connectionRefused": "**Cannot connect to AI provider**\n\nThe AI provider service doesn't appear to be running. Please:\n1. Start your local AI provider (e.g., Ollama)\n2. Verify the provider URL in {{settingsLink}}\n3. Try again",
     "authentication": "**Authentication failed**\n\nYour API key appears to be invalid or missing. Please check your {{settingsLink}} and ensure your API key is correctly configured.",
     "rateLimit": "**Rate limit exceeded**\n\nYou've made too many requests. Please wait a moment and try again.",
+    "contextOverflow": "**Conversation too long**\n\nThis chat no longer fits in the model's context window. Start a new chat, or choose a model with a larger context window in {{settingsLink}}.",
     "timeout": "**Request timed out**\n\nThe AI provider took too long to respond. This could be due to:\n- A slow network connection\n- The provider being overloaded\n- A very complex request\n\nPlease try again or select a faster model in {{settingsLink}}.",
     "provider": "**Provider error**\n\n{{error}}\n\nCheck your {{settingsLink}} if this persists.",
     "unknown": "**Something went wrong**\n\n{{error}}\n\nIf this persists, please check your {{settingsLink}}."

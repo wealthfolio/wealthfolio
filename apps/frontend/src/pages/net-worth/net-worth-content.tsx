@@ -7,6 +7,7 @@ import { formatDateISO, parseLocalDate } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
 import { DashboardCard } from "@/components/dashboard-card";
+import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
   GainAmount,
@@ -19,12 +20,6 @@ import { SpendingDatePicker } from "@/features/spending/components/spending-date
 import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@wealthfolio/ui/components/ui/tooltip";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -182,7 +177,6 @@ export function NetWorthContent() {
     parsedHistory[parsedHistory.length - 1].netWorth >= 0;
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
-  const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
   const periodLabel = periodCode ?? period.label;
   const localizedPeriodLabel = period.label;
 
@@ -208,6 +202,10 @@ export function NetWorthContent() {
             {t("insights:networth.failed_to_load")}
           </p>
           <p className="text-muted-foreground mt-2 text-sm">{error?.message}</p>
+          {/* Health Center usually explains why the figure failed to load. */}
+          <div className="mt-4 flex justify-center">
+            <HealthStatusIndicator />
+          </div>
         </div>
       </div>
     );
@@ -229,37 +227,7 @@ export function NetWorthContent() {
                 compact={isMobile}
               />
               <PrivacyToggle variant="ghost" />
-              {hasStaleValuations && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <div className="text-warning-subtle-foreground flex h-8 w-8 items-center justify-center rounded-full bg-current/15" />
-                      }
-                    >
-                      <Icons.AlertCircle className="h-4 w-4" />
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-70">
-                      <p className="mb-2 text-xs font-medium">
-                        {t("insights:networth.stale_valuations_tooltip")}
-                      </p>
-                      <ul className="space-y-1 text-xs">
-                        {netWorthData?.staleAssets.map((asset) => (
-                          <li
-                            key={asset.assetId}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span className="truncate">{asset.name ?? asset.assetId}</span>
-                            <span className="text-background/70 shrink-0">
-                              {t("insights:networth.days_ago", { count: asset.daysStale })}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              <HealthStatusIndicator />
             </div>
             <div className="text-md flex space-x-3">
               {isHistoryLoading ? (
