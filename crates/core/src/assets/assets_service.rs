@@ -1929,6 +1929,15 @@ impl AssetServiceTrait for AssetService {
                 })
                 .or_else(|| Some(canonical_symbol.clone()));
 
+            // The provider's quote type classifies the new asset only while it maps to
+            // the instrument type chosen here, not to a type taken from elsewhere.
+            let instrument_type_label = provider_result
+                .as_ref()
+                .filter(|result| {
+                    instrument_type.is_some()
+                        && InstrumentType::from_external_str(&result.quote_type) == instrument_type
+                })
+                .map(|result| result.quote_type.clone());
             let draft = if existing_asset_id.is_none() {
                 Some(NewAsset {
                     id: None,
@@ -1939,7 +1948,7 @@ impl AssetServiceTrait for AssetService {
                     quote_mode,
                     quote_ccy: quote_ccy.clone(),
                     instrument_type: instrument_type.clone(),
-                    instrument_type_label: None,
+                    instrument_type_label,
                     instrument_symbol: Some(canonical_symbol.clone()),
                     instrument_exchange_mic: exchange_mic.clone(),
                     provider_config: provider_config.clone(),
@@ -4603,6 +4612,68 @@ mod tests {
             draft.quote_ccy,
         );
         assert_eq!(spec.instrument_key().as_deref(), Some("EQUITY:ABC@XNAS"));
+    }
+
+    fn mutual_fund_search_result() -> SymbolSearchResult {
+        SymbolSearchResult {
+            quote_type: "MUTUALFUND".to_string(),
+            type_display: "Mutual Fund".to_string(),
+            ..yahoo_search_result(
+                "0P0000ABCD.BO",
+                "0P0000ABCD",
+                "XBOM",
+                "Example Corporate Bond Fund",
+                "INR",
+                "0P0000ABCD.BO",
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_import_keeps_the_provider_quote_type_on_a_new_fund_draft() {
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default()
+                .with_result("0P0000ABCD.BO", vec![mutual_fund_search_result()]),
+        );
+
+        let draft = service
+            .resolve_import_asset_inputs(vec![import_input("0P0000ABCD.BO", "INR")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap()
+            .draft
+            .expect("new fund draft");
+
+        assert_eq!(draft.instrument_type, Some(InstrumentType::Equity));
+        assert_eq!(draft.instrument_type_label.as_deref(), Some("MUTUALFUND"));
+    }
+
+    #[tokio::test]
+    async fn resolve_import_omits_a_provider_quote_type_that_maps_to_another_type() {
+        // A listed commodity product resolves to Equity, not to its COMMODITY quote type.
+        let result = SymbolSearchResult {
+            quote_type: "COMMODITY".to_string(),
+            type_display: "Commodity".to_string(),
+            ..yahoo_search_result("GLD", "GLD", "ARCX", "Example Gold Trust", "USD", "GLD")
+        };
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result("GLD", vec![result]),
+        );
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("GLD", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.provider_symbol.as_deref(), Some("GLD"));
+        let draft = output.draft.expect("new listed commodity draft");
+        assert_eq!(draft.instrument_type, Some(InstrumentType::Equity));
+        assert_eq!(draft.instrument_type_label, None);
     }
 
     #[tokio::test]
