@@ -518,10 +518,23 @@ async fn sessionless_2026_07_28_clients_keep_auth_and_audit_as_stateless() {
     );
     assert!(!headers.contains_key("mcp-session-id"));
 
+    // Calling a tool outside the token's scopes is still denied.
+    let (_, denied) = modern_rpc(
+        &client,
+        &url,
+        "tools/call",
+        Some("hidden"),
+        serde_json::json!({ "name": "hidden", "arguments": {} }),
+    )
+    .await;
+    assert_eq!(denied["result"]["isError"], true, "{denied}");
+
     let entries = sink.entries.lock().await;
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].session_id, "stateless");
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|e| e.session_id == "stateless"));
     assert_eq!(entries[0].outcome, AuditOutcome::Success);
+    assert_eq!(entries[1].tool, "hidden");
+    assert_eq!(entries[1].outcome, AuditOutcome::Denied);
     cancel.cancel();
 }
 
