@@ -74,7 +74,8 @@ async fn update_settings(
                     asset_ids: None,
                     days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
                 },
-                // Match desktop recalculation: refold the complete history.
+                // Another job may consume the settings trigger's marker before
+                // the runtime currency changes. Invalidate again when this job runs.
                 force_full: true,
             };
 

@@ -5,6 +5,7 @@ use axum::{
 };
 use tower::ServiceExt;
 use wealthfolio_core::portfolio::coordinator::JobObserver;
+use wealthfolio_core::settings::SettingsRepositoryTrait;
 
 use crate::{
     config::Config,
@@ -70,6 +71,248 @@ async fn pause_portfolio_job(
         .unwrap();
 
     (pause, running)
+}
+
+/// Pause only the test's settings write, after the real SQLite transaction has
+/// invalidated history and before the handler publishes the in-memory currency.
+struct PausedSettingsRepository {
+    inner: Arc<dyn SettingsRepositoryTrait>,
+    persisted: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+}
+
+#[async_trait::async_trait]
+impl SettingsRepositoryTrait for PausedSettingsRepository {
+    fn get_settings(&self) -> wealthfolio_core::errors::Result<Settings> {
+        self.inner.get_settings()
+    }
+
+    async fn update_settings(
+        &self,
+        update: &SettingsUpdate,
+    ) -> wealthfolio_core::errors::Result<()> {
+        self.inner.update_settings(update).await?;
+        self.persisted.notify_one();
+        self.release.notified().await;
+        Ok(())
+    }
+
+    fn get_setting(&self, key: &str) -> wealthfolio_core::errors::Result<String> {
+        self.inner.get_setting(key)
+    }
+
+    async fn update_setting(&self, key: &str, value: &str) -> wealthfolio_core::errors::Result<()> {
+        self.inner.update_setting(key, value).await
+    }
+
+    fn get_distinct_currencies_excluding_base(
+        &self,
+        base: &str,
+    ) -> wealthfolio_core::errors::Result<Vec<String>> {
+        self.inner.get_distinct_currencies_excluding_base(base)
+    }
+}
+
+#[tokio::test]
+async fn currency_rebuild_rewrites_history_after_another_job_consumes_settings_invalidation() {
+    use rust_decimal::Decimal;
+    use wealthfolio_core::{
+        fx::NewExchangeRate,
+        portfolio::{
+            coordinator::SilentObserver,
+            projection::{MarkerScope, ProjectionStoreTrait},
+        },
+        quotes::DATA_SOURCE_MANUAL,
+        settings::SettingsService,
+    };
+    use wealthfolio_storage_sqlite::{
+        portfolio::projection::ProjectionStore, settings::SettingsRepository,
+    };
+
+    let root = tempfile::tempdir().unwrap();
+    let config = test_config(root.path());
+    let mut state = crate::build_state(&config).await.unwrap();
+    let (pause, running) = pause_portfolio_job(&state).await;
+    pause.release.notify_one();
+    running.await.unwrap();
+
+    // Stop unrelated fixture workers before substituting its settings repository.
+    // The real coordinator, writer, SQLite triggers, and HTTP handler stay in use.
+    let workers = std::mem::take(&mut *state.workers.lock().unwrap());
+    for worker in workers {
+        worker.abort();
+        let _ = worker.await;
+    }
+    for provider in state.quote_service.get_providers_info().await.unwrap() {
+        state
+            .quote_service
+            .update_provider_settings(&provider.id, provider.priority, false)
+            .await
+            .unwrap();
+    }
+    assert!(state
+        .quote_service
+        .get_providers_info()
+        .await
+        .unwrap()
+        .iter()
+        .all(|provider| !provider.enabled));
+
+    let first_day = chrono::Utc::now().date_naive() - chrono::Duration::days(2);
+    let last_day = first_day + chrono::Duration::days(2);
+    let first_instant = format!("{first_day}T12:00:00Z");
+    let rate = state
+        .fx_service
+        .add_exchange_rate(NewExchangeRate {
+            from_currency: "USD".into(),
+            to_currency: "EUR".into(),
+            rate: Decimal::from(2),
+            source: DATA_SOURCE_MANUAL.into(),
+        })
+        .await
+        .unwrap();
+    {
+        let conn = state.db_access.connect_rusqlite().unwrap();
+        conn.execute_batch(
+            "INSERT OR REPLACE INTO app_settings(setting_key, setting_value)
+             VALUES ('base_currency', 'USD');
+             INSERT INTO accounts(id, name, account_type, currency, tracking_mode)
+             VALUES ('currency-race', 'Currency race fixture', 'SECURITIES', 'USD', 'TRANSACTIONS');",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO activities(id, account_id, activity_type, status, activity_date,
+             amount, currency, created_at, updated_at)
+             VALUES ('currency-deposit', 'currency-race', 'DEPOSIT', 'POSTED', ?1,
+             '100', 'USD', ?1, ?1)",
+            [&first_instant],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE quotes SET day = ?1, timestamp = ?2 WHERE asset_id = ?3",
+            (first_day.to_string(), &first_instant, &rate.id),
+        )
+        .unwrap();
+    }
+    *state.base_currency.write().unwrap() = "USD".into();
+    state.fx_service.initialize().unwrap();
+    let initial = state
+        .portfolio_coordinator
+        .run_job(
+            PortfolioJobConfig::default().into_request(),
+            &SilentObserver,
+        )
+        .await
+        .unwrap();
+    assert!(initial.failures.is_empty(), "{:?}", initial.failures);
+    let before = state
+        .valuation_service
+        .get_historical_valuations("currency-race", Some(first_day), Some(last_day))
+        .unwrap();
+    assert_eq!(before.len(), 3);
+    assert!(before
+        .iter()
+        .all(|row| row.base_currency == "USD" && row.total_value_base == Decimal::from(100)));
+
+    let pool = state.db_access.create_pool().unwrap();
+    let projections = ProjectionStore::new(pool.clone(), state.writer.clone());
+    assert!(projections.pending_markers().unwrap().is_empty());
+    let repository = Arc::new(PausedSettingsRepository {
+        inner: Arc::new(SettingsRepository::new(pool, state.writer.clone())),
+        persisted: tokio::sync::Notify::new(),
+        release: tokio::sync::Notify::new(),
+    });
+    let settings = Arc::new(SettingsService::new(
+        repository.clone(),
+        state.fx_service.clone(),
+    ));
+    Arc::get_mut(&mut state)
+        .expect("fixture workers and startup jobs have stopped")
+        .settings_service = settings;
+
+    let app = crate::api::app_router(state.clone(), &config).unwrap();
+    let mut events = state.event_bus.subscribe();
+    let save = tokio::spawn(
+        app.oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/settings")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"baseCurrency":"EUR"}"#))
+                .unwrap(),
+        ),
+    );
+    tokio::time::timeout(Duration::from_secs(10), repository.persisted.notified())
+        .await
+        .unwrap();
+    assert_eq!(
+        state.settings_service.get_settings().unwrap().base_currency,
+        "EUR"
+    );
+    assert_eq!(state.base_currency().unwrap(), "USD");
+    assert!(projections
+        .pending_markers()
+        .unwrap()
+        .iter()
+        .any(|marker| marker.scope == MarkerScope::All));
+
+    // A normal job can consume the real trigger's marker using the old runtime
+    // currency while the settings request is paused after its database commit.
+    let competing = state
+        .portfolio_coordinator
+        .run_job(
+            PortfolioJobConfig::default().into_request(),
+            &SilentObserver,
+        )
+        .await
+        .unwrap();
+    assert!(competing.failures.is_empty(), "{:?}", competing.failures);
+    assert!(projections.pending_markers().unwrap().is_empty());
+    assert!(state
+        .valuation_service
+        .get_historical_valuations("currency-race", Some(first_day), Some(last_day))
+        .unwrap()
+        .iter()
+        .all(|row| row.base_currency == "USD"));
+
+    repository.release.notify_one();
+    let response = tokio::time::timeout(Duration::from_secs(10), save)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let event = events.recv().await.unwrap();
+            assert_ne!(event.name, PORTFOLIO_UPDATE_ERROR, "{:?}", event.payload);
+            if event.name == PORTFOLIO_UPDATE_COMPLETE {
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    let after = state
+        .valuation_service
+        .get_historical_valuations("currency-race", Some(first_day), Some(last_day))
+        .unwrap();
+    assert_eq!(
+        after
+            .iter()
+            .map(|row| row.valuation_date)
+            .collect::<Vec<_>>(),
+        before
+            .iter()
+            .map(|row| row.valuation_date)
+            .collect::<Vec<_>>()
+    );
+    for row in after {
+        assert_eq!(row.base_currency, "EUR", "date: {}", row.valuation_date);
+        assert_eq!(row.total_value_base, Decimal::from(200));
+        assert_eq!(row.net_contribution_base, Decimal::from(200));
+    }
+    assert!(projections.pending_markers().unwrap().is_empty());
 }
 
 #[tokio::test]
