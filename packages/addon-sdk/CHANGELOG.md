@@ -11,6 +11,16 @@ and this project adheres to
 - `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
   dividends. `income` still counts every income type. Absent on older hosts.
 
+### Changed
+
+- The host shares `lucide-react` 1.x with addons (was 0.561). Lucide 1.0 removed
+  the brand icons (`Chrome`, `Facebook`, `Github`, `Gitlab`, `Instagram`,
+  `Linkedin`, `Slack`, `Twitter`, `Youtube` and others, with their `*Icon` and
+  `Lucide*` names). An addon that imports one of them from the host's
+  `lucide-react` fails to load; bundle your own icon instead. Other icon names,
+  including the deprecated aliases such as `Trash2` and `Loader2`, still work.
+  Some icons are redrawn: `Trash` now has the two inner lines, like `Trash2`.
+
 ### Fixed
 
 - Removed `Account.balance` from the SDK type to match the account metadata
