@@ -58,7 +58,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "eslint": "^10.14.0",
     "eslint-plugin-react": "^7.37.5",
-    "oxfmt": "^0.74.0",
+    "oxfmt": "^0.77.0",
     "oxlint": "^1.92.0",
     "oxlint-tsgolint": "^7.0.2006",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
