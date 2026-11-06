@@ -88,6 +88,20 @@ function extractErrorMessage(error: string): string {
   return error;
 }
 
+/** Error code of a turn that failed because the chat no longer fits the model's context window. */
+const CONTEXT_OVERFLOW = "CONTEXT_OVERFLOW";
+
+/**
+ * Format a failed turn's error from its backend code, else from its message.
+ */
+export function formatChatError(code: string, message: string, t: TFunction = i18n.t): string {
+  if (code === CONTEXT_OVERFLOW) {
+    const settingsLink = `[${t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
+    return t("ai:runtimeErrors.contextOverflow", { settingsLink });
+  }
+  return formatErrorMessage(message, t);
+}
+
 /**
  * Format error messages with user-friendly copy and actionable guidance.
  */
@@ -328,7 +342,7 @@ export function convertToExternalMessage(msg: ChatMessage): ExternalMessage {
       }
       case "error":
         // A reply cut off by a provider error, shown as it was live.
-        parts.push({ type: "text", content: formatErrorMessage(part.message) });
+        parts.push({ type: "text", content: formatChatError(part.code, part.message) });
         break;
     }
   }
@@ -806,7 +820,7 @@ export function useChatRuntime(config?: ChatModelConfig) {
               // Show formatted error to user in the assistant message
               streamParts.push({
                 type: "text",
-                content: formatErrorMessage(event.message),
+                content: formatChatError(event.code, event.message),
               });
               updateAssistantMessage();
               break;

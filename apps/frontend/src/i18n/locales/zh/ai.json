@@ -619,6 +619,7 @@
     "connectionRefused": "**无法连接 AI 提供方**\n\nAI 提供方服务似乎未运行。请：\n1. 启动本地 AI 提供方（如 Ollama）\n2. 在{{settingsLink}}中核对提供方网址\n3. 重试",
     "authentication": "**身份验证失败**\n\nAPI 密钥可能无效或缺失。请检查{{settingsLink}}，确保 API 密钥配置正确。",
     "rateLimit": "**请求过于频繁**\n\n请求次数过多，请稍候重试。",
+    "contextOverflow": "**对话过长**\n\n此对话已超出模型的上下文窗口。请新建对话，或在{{settingsLink}}中选择上下文窗口更大的模型。",
     "timeout": "**请求超时**\n\nAI 提供方响应时间过长。可能是网络较慢、提供方负载过高或请求过于复杂。\n\n请重试，或在{{settingsLink}}中选择更快的模型。",
     "provider": "**提供方错误**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。",
     "unknown": "**出现问题**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。"
