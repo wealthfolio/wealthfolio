@@ -154,7 +154,8 @@ pub enum SyncEntity {
 }
 
 impl SyncEntity {
-    /// Wire versions of a row share one conflict clock and deletion tombstone.
+    /// Wire versions share the ordinary row fields and deletion tombstone.
+    /// Recurrence uses the V2 entity's own conflict metadata.
     pub fn conflict_entity(self) -> Self {
         match self {
             Self::ContributionLimitV2 => Self::ContributionLimit,

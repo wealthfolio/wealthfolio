@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use wealthfolio_core::activities::stored_type_override;
 use wealthfolio_core::constants::DECIMAL_PRECISION;
-use wealthfolio_core::errors::{DatabaseError, Error, Result};
+use wealthfolio_core::errors::{DatabaseError, Error, Result, ValidationError};
 use wealthfolio_core::portfolio::snapshot::Position;
 use wealthfolio_core::sync::{
     should_apply_lww, SyncEngineStatus, SyncEntity, SyncEntityMetadata, SyncOperation,
@@ -1553,7 +1553,7 @@ fn upsert_entity_metadata_tx(
     op: SyncOperation,
     seq: i64,
 ) -> Result<()> {
-    let entity_db = enum_to_db(&entity.conflict_entity())?;
+    let entity_db = enum_to_db(&entity)?;
     let op_db = enum_to_db(&op)?;
     diesel::insert_into(sync_entity_metadata::table)
         .values(SyncEntityMetadataDB {
@@ -1588,7 +1588,7 @@ fn upsert_entity_metadata_preserving_seq_tx(
     client_timestamp: &str,
     op: SyncOperation,
 ) -> Result<()> {
-    let entity_db = enum_to_db(&entity.conflict_entity())?;
+    let entity_db = enum_to_db(&entity)?;
     let op_db = enum_to_db(&op)?;
     diesel::insert_into(sync_entity_metadata::table)
         .values(SyncEntityMetadataDB {
@@ -1665,6 +1665,17 @@ pub(in crate::sync::app_sync) fn insert_outbox_event(
         &client_timestamp,
         op,
     )?;
+
+    if entity == SyncEntity::ContributionLimitV2 {
+        upsert_entity_metadata_preserving_seq_tx(
+            conn,
+            entity.conflict_entity(),
+            &entity_id,
+            &event_id,
+            &client_timestamp,
+            op,
+        )?;
+    }
 
     Ok(event_id)
 }
@@ -2269,6 +2280,61 @@ fn apply_custom_taxonomy_event(
     Ok(())
 }
 
+fn contribution_limit_metadata_filter() -> Result<String> {
+    Ok(format!(
+        "entity IN ({})",
+        sql_string_list(&[
+            enum_to_db(&SyncEntity::ContributionLimit)?,
+            enum_to_db(&SyncEntity::ContributionLimitV2)?,
+        ])
+    ))
+}
+
+/// Validate the versioned row, then leave only ordinary fields for the row clock.
+fn take_contribution_limit_recurrence(
+    conn: &mut SqliteConnection,
+    entity_id: &str,
+    payload: &mut serde_json::Value,
+) -> Result<bool> {
+    let object = payload.as_object().ok_or_else(|| {
+        Error::Validation(ValidationError::InvalidInput(
+            "Contribution limit payload must be an object".into(),
+        ))
+    })?;
+    let fields = normalize_payload_fields(
+        conn,
+        "contribution_limits",
+        object
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect(),
+    )?;
+    if fields
+        .iter()
+        .any(|(key, value)| key == "id" && !payload_value_matches_entity_id(value, entity_id))
+    {
+        return Err(Error::Validation(ValidationError::InvalidInput(
+            "Contribution limit payload id does not match entity id".into(),
+        )));
+    }
+    let recurring = fields
+        .iter()
+        .find(|(key, _)| key == "is_recurring")
+        .and_then(|(_, value)| value.as_bool())
+        .ok_or_else(|| {
+            Error::Validation(ValidationError::InvalidInput(
+                "Contribution limit recurrence must be a boolean".into(),
+            ))
+        })?;
+    *payload = serde_json::Value::Object(
+        fields
+            .into_iter()
+            .filter(|(key, _)| key != "is_recurring")
+            .collect(),
+    );
+    Ok(recurring)
+}
+
 fn mark_table_incremental_applied_tx(conn: &mut SqliteConnection, table_name: &str) -> Result<()> {
     let now = Utc::now().to_rfc3339();
     diesel::insert_into(sync_table_state::table)
@@ -2299,8 +2365,9 @@ fn apply_remote_event_lww_tx(
     event_id_value: String,
     client_timestamp_value: String,
     seq_value: i64,
-    payload_json: serde_json::Value,
+    mut payload_json: serde_json::Value,
 ) -> Result<bool> {
+    let wire_entity = entity;
     let entity = entity.conflict_entity();
     let already_applied = sync_applied_events::table
         .find(&event_id_value)
@@ -2312,8 +2379,34 @@ fn apply_remote_event_lww_tx(
         return Ok(false);
     }
 
-    let entity_db = enum_to_db(&entity)?;
-    let metadata_row = load_entity_metadata_tx(conn, &entity_db, &entity_id_value)?;
+    let entity_db = enum_to_db(&wire_entity)?;
+    let metadata_row = load_entity_metadata_tx(conn, &enum_to_db(&entity)?, &entity_id_value)?;
+
+    let recurrence = if wire_entity == SyncEntity::ContributionLimitV2
+        && op != SyncOperation::Delete
+    {
+        let value = take_contribution_limit_recurrence(conn, &entity_id_value, &mut payload_json)?;
+        let deleted = metadata_row
+            .as_ref()
+            .map(|meta| enum_from_db::<SyncOperation>(&meta.last_op))
+            .transpose()?
+            == Some(SyncOperation::Delete);
+        let recurrence_metadata = load_entity_metadata_tx(conn, &entity_db, &entity_id_value)?;
+        let applies = !deleted
+            && match recurrence_metadata.as_ref() {
+                Some(meta) => should_apply_against_metadata(
+                    wire_entity,
+                    meta,
+                    op,
+                    &client_timestamp_value,
+                    &event_id_value,
+                )?,
+                None => true,
+            };
+        applies.then_some(value)
+    } else {
+        None
+    };
 
     let mut should_apply = match metadata_row.as_ref() {
         Some(meta) => should_apply_against_metadata(
@@ -2523,8 +2616,40 @@ fn apply_remote_event_lww_tx(
                 op,
                 seq_value,
             )?;
+            if wire_entity == SyncEntity::ContributionLimitV2 && op == SyncOperation::Delete {
+                upsert_entity_metadata_tx(
+                    conn,
+                    wire_entity,
+                    &entity_id_value,
+                    &event_id_value,
+                    &client_timestamp_value,
+                    op,
+                    seq_value,
+                )?;
+            }
         } else {
             should_apply = false;
+        }
+    }
+
+    if let Some(value) = recurrence {
+        let affected =
+            diesel::update(crate::schema::contribution_limits::table.find(&entity_id_value))
+                .set(crate::schema::contribution_limits::is_recurring.eq(value))
+                .execute(conn)
+                .map_err(StorageError::from)?;
+        if affected > 0 {
+            upsert_entity_metadata_tx(
+                conn,
+                wire_entity,
+                &entity_id_value,
+                &event_id_value,
+                &client_timestamp_value,
+                op,
+                seq_value,
+            )?;
+            mark_table_incremental_applied_tx(conn, "contribution_limits")?;
+            should_apply = true;
         }
     }
 
@@ -3038,7 +3163,7 @@ impl AppSyncRepository {
         self.writer
             .exec(move |conn| {
                 let row = SyncEntityMetadataDB {
-                    entity: enum_to_db(&metadata.entity.conflict_entity())?,
+                    entity: enum_to_db(&metadata.entity)?,
                     entity_id: metadata.entity_id.clone(),
                     last_event_id: metadata.last_event_id.clone(),
                     last_client_timestamp: metadata.last_client_timestamp.clone(),
@@ -3073,7 +3198,7 @@ impl AppSyncRepository {
         entity_id_value: &str,
     ) -> Result<Option<SyncEntityMetadata>> {
         let mut conn = get_connection(&self.pool)?;
-        let entity_value = enum_to_db(&entity.conflict_entity())?;
+        let entity_value = enum_to_db(&entity)?;
         let row = sync_entity_metadata::table
             .find((entity_value, entity_id_value))
             .first::<SyncEntityMetadataDB>(&mut conn)
@@ -3606,6 +3731,15 @@ impl AppSyncRepository {
                             .execute(tx)
                             .map_err(StorageError::from)?;
                     }
+                    if table_set.iter().any(|table| table == "contribution_limits") {
+                        // Schema 5 carries the limit clocks with the rows, so a
+                        // delayed legacy edit cannot erase recurrence after pairing.
+                        let filter = contribution_limit_metadata_filter()?;
+                        diesel::sql_query(format!(
+                            "CREATE TABLE {snapshot_alias}.sync_entity_metadata AS \
+                             SELECT * FROM main.sync_entity_metadata WHERE {filter}"
+                        )).execute(tx).map_err(StorageError::from)?;
+                    }
                     Ok(())
                 })();
 
@@ -3669,8 +3803,8 @@ impl AppSyncRepository {
                     .map_err(StorageError::from)?;
 
                 let restore_result = (|| -> Result<()> {
-                    // Bootstrap reset: clear control-plane sync state so stale events/metadata
-                    // never leak into the newly restored snapshot baseline.
+                    // Reset local control-plane state. The contribution-limit clocks
+                    // carried by schema-5 snapshots are restored with their rows below.
                     diesel::delete(sync_outbox::table)
                         .execute(conn)
                         .map_err(StorageError::from)?;
@@ -3818,6 +3952,18 @@ impl AppSyncRepository {
                         diesel::sql_query("DROP TABLE _keep_asset_logos")
                             .execute(conn)
                             .map_err(|err| restore_sql_error("copy", "asset_logos", err))?;
+                    }
+
+                    if has_plan("contribution_limits") && !load_table_columns(
+                        conn, &snapshot_alias, "sync_entity_metadata"
+                    )?.is_empty() {
+                        let filter = contribution_limit_metadata_filter()?;
+                        diesel::sql_query(format!(
+                            "INSERT INTO main.sync_entity_metadata \
+                             (entity, entity_id, last_event_id, last_client_timestamp, last_op, last_seq) \
+                             SELECT entity, entity_id, last_event_id, last_client_timestamp, last_op, last_seq \
+                             FROM {snapshot_alias}.sync_entity_metadata WHERE {filter}"
+                        )).execute(conn).map_err(StorageError::from)?;
                     }
 
                     ensure_no_foreign_key_violations_tx(
@@ -4085,7 +4231,7 @@ mod tests {
                         .unwrap()
                         .unwrap()
                         .entity,
-                    SyncEntity::ContributionLimit
+                    SyncEntity::ContributionLimitV2
                 );
             }
         }
@@ -4149,7 +4295,7 @@ mod tests {
         let saved = limits.get_contribution_limit(id).unwrap();
         assert!(saved.is_recurring);
         assert_eq!(saved.limit_amount, 9000.0);
-        assert!(!repo
+        assert!(repo
             .apply_remote_event_lww(
                 SyncEntity::ContributionLimitV2,
                 id.into(),
@@ -4186,6 +4332,176 @@ mod tests {
             .await
             .unwrap());
         assert!(limits.get_contribution_limit(id).is_err());
+    }
+
+    #[tokio::test]
+    async fn contribution_limit_recurrence_converges_and_survives_snapshot_restore() {
+        use crate::limits::ContributionLimitRepository;
+        use wealthfolio_core::limits::ContributionLimitRepositoryTrait;
+
+        for recurrence_first in [false, true] {
+            let (pool, writer, _dir) = setup_db();
+            let limits = ContributionLimitRepository::new(pool.clone(), writer.clone());
+            let repo = AppSyncRepository::new(pool, writer);
+            let id = "convergent-limit";
+            let recurrence = serde_json::json!({
+                "id": id, "group_name": "TFSA", "contribution_year": 2026,
+                "limit_amount": 7000, "is_recurring": true,
+                "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"
+            });
+            let mut legacy = recurrence.clone();
+            legacy.as_object_mut().unwrap().remove("is_recurring");
+            legacy["limit_amount"] = serde_json::json!(9000);
+            let mut events = vec![
+                (
+                    SyncEntity::ContributionLimitV2,
+                    "recurrence",
+                    "2026-01-01T00:00:01Z",
+                    recurrence.clone(),
+                ),
+                (
+                    SyncEntity::ContributionLimit,
+                    "legacy",
+                    "2026-01-01T00:00:02Z",
+                    legacy,
+                ),
+            ];
+            if !recurrence_first {
+                events.reverse();
+            }
+            for (index, (entity, event, timestamp, payload)) in events.into_iter().enumerate() {
+                assert!(repo
+                    .apply_remote_event_lww(
+                        entity,
+                        id.into(),
+                        SyncOperation::Update,
+                        event.into(),
+                        timestamp.into(),
+                        index as i64 + 1,
+                        payload
+                    )
+                    .await
+                    .unwrap());
+            }
+            let saved = limits.get_contribution_limit(id).unwrap();
+            assert!(saved.is_recurring, "recurrence_first={recurrence_first}");
+            assert_eq!(saved.limit_amount, 9000.0);
+
+            // Unrelated control metadata stays device-local at this boundary.
+            repo.upsert_entity_metadata(SyncEntityMetadata {
+                entity: SyncEntity::Goal,
+                entity_id: "other-entity".into(),
+                last_event_id: "other-event".into(),
+                last_client_timestamp: "2026-01-01T00:00:00Z".into(),
+                last_op: SyncOperation::Update,
+                last_seq: 1,
+            })
+            .await
+            .unwrap();
+            let snapshot = tempfile::NamedTempFile::new().unwrap();
+            std::fs::write(
+                snapshot.path(),
+                repo.export_snapshot_sqlite_image(vec!["contribution_limits".into()])
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            repo.restore_snapshot_tables_from_file(
+                snapshot.path().to_str().unwrap().into(),
+                vec!["contribution_limits".into()],
+                100,
+                "snapshot-device".into(),
+                Some(1),
+            )
+            .await
+            .unwrap();
+            assert!(repo
+                .get_entity_metadata(SyncEntity::Goal, "other-entity")
+                .unwrap()
+                .is_none());
+            assert_eq!(
+                repo.get_entity_metadata(SyncEntity::ContributionLimitV2, id)
+                    .unwrap()
+                    .unwrap()
+                    .last_event_id,
+                "recurrence"
+            );
+
+            let mut disabled = recurrence.clone();
+            disabled["is_recurring"] = serde_json::json!(false);
+            assert!(!repo
+                .apply_remote_event_lww(
+                    SyncEntity::ContributionLimitV2,
+                    id.into(),
+                    SyncOperation::Update,
+                    "older-recurrence".into(),
+                    "2026-01-01T00:00:00Z".into(),
+                    101,
+                    disabled.clone()
+                )
+                .await
+                .unwrap());
+            assert!(limits.get_contribution_limit(id).unwrap().is_recurring);
+            // This flag edit is newer than the flag clock, but older than the amount edit.
+            assert!(repo
+                .apply_remote_event_lww(
+                    SyncEntity::ContributionLimitV2,
+                    id.into(),
+                    SyncOperation::Update,
+                    "newer-recurrence".into(),
+                    "2026-01-01T00:00:01.500Z".into(),
+                    102,
+                    disabled
+                )
+                .await
+                .unwrap());
+            let saved = limits.get_contribution_limit(id).unwrap();
+            assert!(!saved.is_recurring);
+            assert_eq!(saved.limit_amount, 9000.0);
+
+            assert!(repo
+                .apply_remote_event_lww(
+                    SyncEntity::ContributionLimit,
+                    id.into(),
+                    SyncOperation::Delete,
+                    "delete-limit".into(),
+                    "2026-01-01T00:00:03Z".into(),
+                    103,
+                    serde_json::json!({"id": id})
+                )
+                .await
+                .unwrap());
+            let deleted_snapshot = tempfile::NamedTempFile::new().unwrap();
+            std::fs::write(
+                deleted_snapshot.path(),
+                repo.export_snapshot_sqlite_image(vec!["contribution_limits".into()])
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            repo.restore_snapshot_tables_from_file(
+                deleted_snapshot.path().to_str().unwrap().into(),
+                vec!["contribution_limits".into()],
+                103,
+                "snapshot-device".into(),
+                Some(1),
+            )
+            .await
+            .unwrap();
+            assert!(!repo
+                .apply_remote_event_lww(
+                    SyncEntity::ContributionLimitV2,
+                    id.into(),
+                    SyncOperation::Update,
+                    "late-recurrence".into(),
+                    "2026-01-01T00:00:04Z".into(),
+                    104,
+                    recurrence
+                )
+                .await
+                .unwrap());
+            assert!(limits.get_contribution_limit(id).is_err());
+        }
     }
 
     #[tokio::test]
