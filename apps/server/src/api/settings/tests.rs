@@ -2,10 +2,9 @@ use super::*;
 use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
-    Extension,
 };
 use tower::ServiceExt;
-use wealthfolio_core::portfolio::coordinator::{AccountFailure, JobObserver};
+use wealthfolio_core::portfolio::coordinator::JobObserver;
 
 use crate::{
     config::Config,
@@ -48,10 +47,9 @@ impl JobObserver for PausedJob {
     }
 }
 
-#[tokio::test]
-async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
-    let root = tempfile::tempdir().unwrap();
-    let state = crate::build_state(&test_config(root.path())).await.unwrap();
+async fn pause_portfolio_job(
+    state: &Arc<AppState>,
+) -> (Arc<PausedJob>, tokio::task::JoinHandle<()>) {
     let pause = Arc::new(PausedJob {
         entered: tokio::sync::Notify::new(),
         release: tokio::sync::Notify::new(),
@@ -71,6 +69,16 @@ async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
         .await
         .unwrap();
 
+    (pause, running)
+}
+
+#[tokio::test]
+async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
+    let root = tempfile::tempdir().unwrap();
+    let config = test_config(root.path());
+    let state = crate::build_state(&config).await.unwrap();
+    let (pause, running) = pause_portfolio_job(&state).await;
+
     let goal = state
         .goal_service
         .create_goal(
@@ -86,14 +94,14 @@ async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
         .unwrap();
     assert_eq!(goal.summary_current_value, None);
     let mut events = state.event_bus.subscribe();
-    let app = router::<()>().layer(Extension(state.clone()));
+    let app = crate::api::app_router(state.clone(), &config).unwrap();
 
     let response = tokio::time::timeout(
         Duration::from_secs(2),
         app.clone().oneshot(
             Request::builder()
                 .method("PUT")
-                .uri("/settings")
+                .uri("/api/v1/settings")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"baseCurrency":"EUR"}"#))
                 .unwrap(),
@@ -113,7 +121,7 @@ async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/settings")
+                .uri("/api/v1/settings")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -159,36 +167,103 @@ async fn currency_save_returns_while_rebuild_is_queued_then_refreshes_goals() {
 }
 
 #[tokio::test]
-async fn portfolio_error_keeps_settings_available_for_recovery() {
+async fn failed_currency_rebuild_emits_error_and_keeps_settings_available_for_retry() {
     let root = tempfile::tempdir().unwrap();
-    let state = crate::build_state(&test_config(root.path())).await.unwrap();
-    let mut events = state.event_bus.subscribe();
-    crate::api::shared::ServerJobObserver::new(&state).update_failed(&AccountFailure {
-        account_id: String::new(),
-        code: "JOB_FAILED".to_string(),
-        message: "Test rebuild failure".to_string(),
-    });
-    let event = tokio::time::timeout(Duration::from_secs(2), events.recv())
-        .await
+    let config = test_config(root.path());
+    let state = crate::build_state(&config).await.unwrap();
+    let (pause, running) = pause_portfolio_job(&state).await;
+    // A persisted, unreadable accounting entry is a real per-account failure.
+    // No assets or FX pairs are needed, so the fixture makes no provider requests.
+    state
+        .db_access
+        .connect_rusqlite()
         .unwrap()
+        .execute_batch(
+            "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active,
+         created_at, updated_at, tracking_mode, is_archived, meta)
+         VALUES ('currency-error-fixture', 'Currency failure', 'REGULAR', 'EUR', 0, 1,
+         datetime('now'), datetime('now'), 'TRANSACTIONS', 0, '{\"accounting\":false}');",
+        )
         .unwrap();
-    assert_eq!(event.name, PORTFOLIO_UPDATE_ERROR);
-    assert_eq!(
-        event.payload,
-        Some(serde_json::json!("Test rebuild failure"))
-    );
-
-    let response = router::<()>()
-        .layer(Extension(state))
+    let mut events = state.event_bus.subscribe();
+    let app = crate::api::app_router(state.clone(), &config).unwrap();
+    let response = app
+        .clone()
         .oneshot(
             Request::builder()
-                .uri("/settings")
+                .method("PUT")
+                .uri("/api/v1/settings")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"baseCurrency":"EUR"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    pause.release.notify_one();
+    running.await.unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let event = events.recv().await.unwrap();
+            if event.name == PORTFOLIO_UPDATE_ERROR {
+                let payload = event.payload.unwrap();
+                assert_eq!(payload["account_id"], "currency-error-fixture");
+                assert_eq!(payload["code"], "UNSUPPORTED_COST_BASIS");
+                break;
+            }
+        }
+        // Normal completion also runs after per-account errors. Consume this
+        // job's event before asking the existing recalculation endpoint to retry.
+        while events.recv().await.unwrap().name != PORTFOLIO_UPDATE_COMPLETE {}
+    })
+    .await
+    .expect("a failed background currency job must emit the normal error event");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let saved: Settings = serde_json::from_slice(&body).unwrap();
+    assert_eq!(saved.base_currency, "EUR");
+
+    state
+        .db_access
+        .connect_rusqlite()
+        .unwrap()
+        .execute_batch("UPDATE accounts SET meta = '{}' WHERE id = 'currency-error-fixture';")
+        .unwrap();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/portfolio/recalculate")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let event = events.recv().await.unwrap();
+            assert_ne!(
+                event.name, PORTFOLIO_UPDATE_ERROR,
+                "repaired account should rebuild"
+            );
+            if event.name == PORTFOLIO_UPDATE_COMPLETE {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("the existing recalculation action must retry the repaired account");
 }
 
 #[tokio::test]
