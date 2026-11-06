@@ -55,7 +55,8 @@ pub(crate) fn flush_projected_outbox(
     ) {
         // Old clients reject unknown payload columns. Keep the original event
         // readable, and send the complete row separately under a versioned
-        // entity they skip. Both versions use the same row's LWW metadata.
+        // entity they skip. Recurrence has its own conflict clock so a legacy
+        // edit cannot suppress a recurrence change it does not contain.
         let versioned = if request.entity == SyncEntity::ContributionLimit
             && request.op != SyncOperation::Delete
             && (request.payload.get("isRecurring").is_some()
