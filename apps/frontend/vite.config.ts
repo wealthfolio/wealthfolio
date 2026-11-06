@@ -139,5 +139,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    // Vitest 5 clears mock calls before every test by default; keep Vitest 4's
+    // behaviour so tests that count calls made in beforeAll or at module load hold.
+    clearMocks: false,
   },
 } as unknown as import("vitest/config").UserConfigExport);
