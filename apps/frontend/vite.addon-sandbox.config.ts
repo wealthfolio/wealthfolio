@@ -23,10 +23,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@wealthfolio/addon-sdk": path.resolve(__dirname, "../../packages/addon-sdk/src"),
-      "@wealthfolio/ui": path.resolve(__dirname, "../../packages/ui/src"),
-      "@/lib/utils": path.resolve(__dirname, "../../packages/ui/src/lib/utils"),
-      "@": path.resolve(__dirname, "./src"),
+      "@wealthfolio/addon-sdk": path.resolve(import.meta.dirname, "../../packages/addon-sdk/src"),
+      "@wealthfolio/ui": path.resolve(import.meta.dirname, "../../packages/ui/src"),
+      "@/lib/utils": path.resolve(import.meta.dirname, "../../packages/ui/src/lib/utils"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
     extensions: [".js", ".ts", ".jsx", ".tsx", ".json"],
   },
@@ -35,11 +35,11 @@ export default defineConfig({
     copyPublicDir: false,
     cssCodeSplit: false,
     emptyOutDir: !process.argv.includes("--watch"),
-    minify: "esbuild",
+    minify: "oxc",
     outDir: "public/__generated__",
     target: ["chrome107", "edge107", "firefox104", "safari16"],
-    rollupOptions: {
-      input: path.resolve(__dirname, "src/addons/iframe/addon-sandbox-entry.tsx"),
+    rolldownOptions: {
+      input: path.resolve(import.meta.dirname, "src/addons/iframe/addon-sandbox-entry.tsx"),
       output: {
         assetFileNames: (assetInfo) =>
           assetInfo.names.some((name) => name.endsWith(".css"))
@@ -47,7 +47,7 @@ export default defineConfig({
             : "[name][extname]",
         entryFileNames: "addon-sandbox-runtime.js",
         format: "es",
-        inlineDynamicImports: true,
+        codeSplitting: false,
       },
     },
     sourcemap: false,
