@@ -20,8 +20,6 @@ use wealthfolio_core::{
     settings::{Settings, SettingsServiceTrait, SettingsUpdate},
 };
 
-pub(crate) mod currency_transition;
-
 async fn get_settings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Settings>> {
@@ -66,8 +64,24 @@ async fn update_settings(
             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
             updated_settings.base_currency.clone();
 
-        // The web wrapper owns the currency rebuild and schedules it after the
-        // settings response is ready.
+        let state_for_job = state.clone();
+        tokio::spawn(async move {
+            // Base currency change needs BackfillHistory mode to ensure FX pairs
+            // have sufficient quote coverage from earliest activity date (US-006)
+            let job_config = PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: MarketSyncMode::BackfillHistory {
+                    asset_ids: None,
+                    days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
+                },
+                // Match desktop recalculation: refold the complete history.
+                force_full: true,
+            };
+
+            if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
+                tracing::warn!("Base currency change recalculation failed: {}", err);
+            }
+        });
     } else if timezone_changed {
         let state_for_job = state.clone();
         tokio::spawn(async move {
@@ -274,10 +288,7 @@ async fn check_update(
 
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
-        .route(
-            "/settings",
-            get(get_settings).put(currency_transition::update_settings),
-        )
+        .route("/settings", get(get_settings).put(update_settings))
         .route(
             "/settings/auto-update-enabled",
             get(is_auto_update_check_enabled),
@@ -285,3 +296,6 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/app/info", get(get_app_info))
         .route("/app/check-update", get(check_update))
 }
+
+#[cfg(test)]
+mod tests;

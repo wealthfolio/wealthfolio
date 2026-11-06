@@ -1,7 +1,6 @@
 // useGlobalEventListener.ts
 import {
   isTauri,
-  isWeb,
   listenAssetClassificationsChanged,
   listenBrokerSyncComplete,
   listenBrokerSyncError,
@@ -19,8 +18,6 @@ import {
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
-import { isWebCurrencyCompletion, resetWebCurrencyQueries } from "@/lib/currency-cache";
-import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAfterAssetClassificationsChanged,
   invalidateAfterGoalSummariesUpdated,
@@ -157,10 +154,7 @@ const useGlobalEventListener = () => {
       logger.error("Market sync error: " + errorMsg);
     };
 
-    const handlePortfolioUpdateStart = async (event: { payload: unknown }) => {
-      if (isWeb && isWebCurrencyCompletion(event.payload)) {
-        await resetWebCurrencyQueries(queryClientRef.current);
-      }
+    const handlePortfolioUpdateStart = () => {
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setPortfolioCalculating();
       } else {
@@ -230,13 +224,7 @@ const useGlobalEventListener = () => {
       logger.error("Portfolio Update Error: " + errorMessage);
     };
 
-    const handlePortfolioUpdateComplete = async (event: { payload: unknown }) => {
-      if (isWeb && isWebCurrencyCompletion(event.payload)) {
-        await queryClientRef.current.invalidateQueries({
-          queryKey: [QueryKeys.SETTINGS],
-          refetchType: "active",
-        });
-      }
+    const handlePortfolioUpdateComplete = () => {
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setIdle();
       } else {

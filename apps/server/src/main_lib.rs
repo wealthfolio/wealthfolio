@@ -74,7 +74,6 @@ use wealthfolio_storage_sqlite::{
 };
 
 pub struct AppState {
-    pub(crate) currency_transition: crate::api::settings::currency_transition::CurrencyTransition,
     pub(crate) mcp_sessions:
         Arc<rmcp::transport::streamable_http_server::session::local::LocalSessionManager>,
     pub(crate) profile_lifecycle: tokio::sync::Mutex<()>,
@@ -831,7 +830,7 @@ async fn initialize_profile_state(
         sources: fact_sources.clone(),
         fx_service: fx_service.clone(),
         snapshot_service: snapshot_service.clone(),
-        projections: projection_store.clone(),
+        projections: projection_store,
         lots: lots_repository.clone(),
         window_cadence: WindowCadence::Year,
     }));
@@ -1130,7 +1129,6 @@ async fn initialize_profile_state(
     )?);
 
     let state = Arc::new(AppState {
-        currency_transition: Default::default(),
         mcp_sessions: Arc::new(Default::default()),
         profile_lifecycle: tokio::sync::Mutex::new(()),
         connect_transition: Arc::new(tokio::sync::RwLock::new(())),
@@ -1207,11 +1205,7 @@ async fn initialize_profile_state(
     #[cfg(feature = "device-sync")]
     state.workers.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state)));
 
-    crate::api::settings::currency_transition::spawn_startup_update(
-        Arc::clone(&state),
-        projection_store,
-    )
-    .await?;
+    crate::api::shared::spawn_portfolio_update(Arc::clone(&state));
 
     Ok(state)
     }.await;

@@ -1,5 +1,4 @@
-import { isWeb, logger, updateSettings } from "@/adapters";
-import { resetWebCurrencyQueries } from "@/lib/currency-cache";
+import { logger, updateSettings } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
@@ -27,13 +26,6 @@ export function useSettingsMutation(
   return useMutation({
     mutationFn: updateSettings,
     onSuccess: async (updatedSettings, variables) => {
-      if (isWeb && "baseCurrency" in variables) {
-        // A settings read sent before the transition may still be in flight.
-        // Do not let its old label overwrite the canonical save response.
-        await queryClient.cancelQueries({ queryKey: [QueryKeys.SETTINGS] });
-        // Completion events refetch amounts once the background rebuild is ready.
-        await resetWebCurrencyQueries(queryClient, updatedSettings, { refetch: false });
-      }
       queryClient.invalidateQueries({ queryKey: [QueryKeys.SETTINGS] });
       if (
         "baseCurrency" in variables ||

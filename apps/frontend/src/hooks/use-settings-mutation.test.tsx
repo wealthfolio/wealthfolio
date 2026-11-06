@@ -1,17 +1,15 @@
 import { updateSettings } from "@/adapters";
 import type { Settings } from "@/lib/types";
-import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import i18n from "i18next";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchWebCurrencySettings } from "@/lib/currency-cache";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsMutation } from "./use-settings-mutation";
 
 vi.mock("@/adapters", () => ({
-  isWeb: true,
   logger: { error: vi.fn() },
   updateSettings: vi.fn(),
 }));
@@ -24,65 +22,6 @@ afterEach(() => {
 });
 
 describe("useSettingsMutation", () => {
-  it("a background currency save returns before amounts refetch and rejects old settings", async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData([QueryKeys.SETTINGS], { baseCurrency: "CAD" });
-    let finishOld!: (value: Settings) => void;
-    const oldSettings = client
-      .fetchQuery({
-        queryKey: [QueryKeys.SETTINGS],
-        queryFn: ({ signal }) =>
-          fetchWebCurrencySettings(
-            client,
-            () =>
-              new Promise<Settings>((resolve) => {
-                finishOld = resolve;
-              }),
-            signal,
-          ),
-      })
-      .catch(() => undefined);
-    const valuationKey = [QueryKeys.CURRENT_VALUATION, "portfolio:all"];
-    client.setQueryData(valuationKey, { amount: 100 });
-    let finishValuation!: (value: { amount: number }) => void;
-    const observer = new QueryObserver(client, {
-      queryKey: valuationKey,
-      staleTime: Infinity,
-      queryFn: () =>
-        new Promise<{ amount: number }>((resolve) => {
-          finishValuation = resolve;
-        }),
-    });
-    const unsubscribe = observer.subscribe(() => {});
-    vi.mocked(updateSettings).mockResolvedValue({
-      baseCurrency: "CNY",
-      onboardingCompleted: false,
-    } as Settings);
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => useSettingsMutation(vi.fn(), vi.fn()), { wrapper });
-    let save!: Promise<Settings>;
-    act(() => {
-      save = result.current.mutateAsync({ baseCurrency: "CNY" });
-    });
-    await act(async () => {
-      await save;
-    });
-    await act(async () => {
-      finishOld({ baseCurrency: "CAD" } as Settings);
-      await oldSettings;
-    });
-    expect(client.getQueryData<Settings>([QueryKeys.SETTINGS])?.baseCurrency).toBe("CNY");
-    expect(client.getQueryData(valuationKey)).toBeUndefined();
-    await act(async () => {
-      finishValuation?.({ amount: 500 });
-      await save;
-    });
-    unsubscribe();
-    client.clear();
-  });
-
   it("waits for the saved language resources before translating the success toast", async () => {
     let finishLoading!: () => void;
     const loading = new Promise<void>((resolve) => {
