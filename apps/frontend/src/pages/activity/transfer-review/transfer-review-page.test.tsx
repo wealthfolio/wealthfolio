@@ -426,6 +426,19 @@ describe("Match transfers review", () => {
     expect(linkTransferPairs).not.toHaveBeenCalled();
   });
 
+  it("opens Find match for a broker row whose type is overridden to a transfer", async () => {
+    const source: Activity = {
+      ...leg("in-9", "bank", "DEPOSIT"),
+      activityTypeOverride: "TRANSFER_IN",
+    };
+    renderPage({ certain: [], needsReview: [row(source, [])] });
+
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Find match" }));
+
+    expect(await screen.findByText("Link transfer")).toBeInTheDocument();
+  });
+
   it("says when nothing is left to match", async () => {
     renderPage({ certain: [], needsReview: [] });
     expect(await screen.findByText("All transfers are matched")).toBeInTheDocument();
