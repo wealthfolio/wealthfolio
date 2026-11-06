@@ -4,7 +4,10 @@ import { act, renderHook } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useContributionLimitMutations } from "./use-contribution-limit-mutations";
+import {
+  useContributionLimitMutations,
+  useContributionLimitProgress,
+} from "./use-contribution-limit-mutations";
 
 const adapters = vi.hoisted(() => ({
   createContributionLimit: vi.fn(),
@@ -72,4 +75,34 @@ describe("contribution limit cache invalidation", () => {
       expect(client.getQueryState([QueryKeys.ACCOUNTS, false])?.isInvalidated).toBe(false);
     },
   );
+
+  it("does not refetch a deleted limit while its progress query is still mounted", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    client.setQueryData([QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, limit.id], {
+      total: 0,
+      baseCurrency: "USD",
+      byAccount: {},
+    });
+    // The list refresh can take longer than progress refetching. Until it ends,
+    // the deleted limit's card still observes this query, whose API now errors.
+    adapters.calculateDepositsForLimit.mockRejectedValue(new Error("Limit not found"));
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => {
+        useContributionLimitProgress(limit.id);
+        return useContributionLimitMutations();
+      },
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.deleteContributionLimitMutation.mutateAsync(limit.id);
+    });
+
+    expect(adapters.calculateDepositsForLimit).not.toHaveBeenCalled();
+  });
 });
