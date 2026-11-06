@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getAssetTaxonomyAssignments } from "@/adapters";
 import { AccountType, HoldingType } from "@/lib/constants";
 import type {
   Account,
@@ -38,6 +39,7 @@ const {
   holdingsRef,
   constraintsRef,
   selectedProfileRef,
+  useTaxonomyMock,
 } = vi.hoisted(() => ({
   generateMock: vi.fn(),
   previewMock: vi.fn<(request: AllocationWorksheetRequest) => Promise<AllocationWorksheetResult>>(),
@@ -52,6 +54,8 @@ const {
   /** The target's standing rules (#1177). */
   constraintsRef: { current: [] as AllocationTargetConstraint[] },
   selectedProfileRef: { current: "worksheet-test-profile" },
+  /** The taxonomy ids the worksheet asked to load. */
+  useTaxonomyMock: vi.fn(),
 }));
 
 vi.mock("@/features/profiles/session", async (importActual) => ({
@@ -90,7 +94,10 @@ vi.mock("@/hooks/use-sync-market-data", () => ({
   useSyncMarketDataMutation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/hooks/use-taxonomies", () => ({
-  useTaxonomy: () => ({ data: undefined, dataUpdatedAt: 0 }),
+  useTaxonomy: (id: string | null) => {
+    useTaxonomyMock(id);
+    return { data: undefined, dataUpdatedAt: 0 };
+  },
 }));
 vi.mock("@/pages/asset/hooks/use-assets", () => ({
   useAssets: () => ({
@@ -2157,6 +2164,78 @@ describe("AllocationWorksheetTab account allocation (§6)", () => {
         }),
       { timeout: 2000 },
     );
+  });
+});
+
+describe("AllocationWorksheetTab asset target", () => {
+  const assetProfile: AllocationTarget = {
+    ...profile,
+    id: "target-2",
+    name: "Stocks",
+    taxonomyId: "__individual_securities__",
+    targetType: "asset",
+  };
+  const securityRow = (assetId: string, name: string, valueDelta: number) => ({
+    categoryId: assetId,
+    categoryName: name,
+    color: "",
+    currentBps: 5000 + valueDelta,
+    targetBps: 5000,
+    driftBps: valueDelta,
+    currentValue: 1500 + valueDelta,
+    targetValue: 1500,
+    valueDelta,
+    effectiveBandBps: 100,
+    status: valueDelta < 0 ? "underweight" : "overweight",
+    isRequired: true,
+    isZeroCurrent: false,
+    isCash: false,
+  });
+  const assetReport = {
+    ...driftReport,
+    targetId: assetProfile.id,
+    rows: [securityRow("vti", "VTI", 200), securityRow("vxus", "VXUS", -200)],
+  } as DriftReport;
+
+  beforeEach(() => {
+    acknowledgeDisclosure();
+    accountsRef.current = [account("acc-1", "Brokerage")];
+    heldAccountIds.current = ["acc-1"];
+    generateMock.mockReset().mockResolvedValue(calculated);
+    previewMock.mockReset().mockResolvedValue(previewResult);
+    useTaxonomyMock.mockClear();
+    vi.mocked(getAssetTaxonomyAssignments).mockClear();
+  });
+
+  it("names each security in the gap to target and never loads the sentinel taxonomy", async () => {
+    await renderWorksheet(assetReport, assetProfile);
+
+    const gaps = [...document.querySelectorAll<HTMLElement>("[data-gap-category]")];
+    // What to add first, then what to reduce.
+    expect(gaps.map((gap) => gap.dataset.gapCategory)).toEqual(["vxus", "vti"]);
+    expect(within(gaps[0]).getByText("VXUS")).toBeInTheDocument();
+    expect(within(gaps[1]).getByText("VTI")).toBeInTheDocument();
+    expect(useTaxonomyMock).not.toHaveBeenCalledWith("__individual_securities__");
+    expect(useTaxonomyMock).toHaveBeenCalledWith(null);
+  });
+
+  it("treats a security added by hand as its own category, without reading its classification", async () => {
+    const user = await renderWorksheet(assetReport, assetProfile);
+    await calculateFromTarget(user);
+
+    await user.click(screen.getByRole("button", { name: "Add position" }));
+    await user.click(await screen.findByRole("option", { name: /VXUS/ }));
+    await user.type(await screen.findByLabelText("Adjustment for VXUS"), "500");
+
+    const added = document.querySelector<HTMLElement>('[data-amounts-row="vxus"]')!;
+    expect(within(added).queryByText(/Unclassified/)).not.toBeInTheDocument();
+    expect(getAssetTaxonomyAssignments).not.toHaveBeenCalled();
+    expect(useTaxonomyMock).not.toHaveBeenCalledWith("__individual_securities__");
+  });
+
+  it("still loads the taxonomy of a category target", async () => {
+    await renderWorksheet();
+    expect(useTaxonomyMock).toHaveBeenCalledWith("asset_classes");
   });
 });
 

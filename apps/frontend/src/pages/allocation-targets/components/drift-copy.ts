@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { FormattingApi } from "@wealthfolio/ui";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
+import { INDIVIDUAL_SECURITIES_TAXONOMY_ID } from "@/lib/types";
 
 export function categoryNoun(
   t: TFunction,
@@ -10,15 +11,20 @@ export function categoryNoun(
 ) {
   const kind =
     (
-      { asset_classes: "assetClass", regions: "region", industries_gics: "industry" } as Record<
-        string,
-        string
-      >
+      {
+        asset_classes: "assetClass",
+        regions: "region",
+        industries_gics: "industry",
+        [INDIVIDUAL_SECURITIES_TAXONOMY_ID]: "security",
+      } as Record<string, string>
     )[taxonomyId] ?? "category";
   return t(`allocation:categoryNouns.${kind}`, { count });
 }
 
 export function taxonomyLabel(t: TFunction, taxonomyId: string, taxonomyName: string | undefined) {
+  if (taxonomyId === INDIVIDUAL_SECURITIES_TAXONOMY_ID) {
+    return t("allocation:editor.individualSecurities");
+  }
   return taxonomyName
     ? getTaxonomyLabel(t, taxonomyId, taxonomyName)
     : t("allocation:editor.category");

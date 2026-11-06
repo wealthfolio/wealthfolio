@@ -87,7 +87,8 @@
     "buildFromScratch": "Partir de zéro",
     "exampleWeights": "Pondérations d'exemple",
     "exampleDescription": "À utiliser comme point de départ quantitatif, puis vérifiez et modifiez les pondérations.",
-    "disclosure": "Pondérations d'exemple uniquement. Ce ne sont pas des recommandations, et Wealthfolio n'a pas évalué si elles vous conviennent."
+    "disclosure": "Pondérations d'exemple uniquement. Ce ne sont pas des recommandations, et Wealthfolio n'a pas évalué si elles vous conviennent.",
+    "equalWeight": "Pondération égale"
   },
   "mode": {
     "enableSellsTip": "Autorisez les réductions dans les réglages de cette cible pour utiliser « Rééquilibrer »."
@@ -170,7 +171,12 @@
     "suggestedTargetName": "Cible {{name}}",
     "customFallback": "Personnalisé",
     "deleteDialogTitle": "Supprimer la cible ?",
-    "deleteDialogDescription": "Cela supprimera définitivement « {{name}} » et tous ses poids cibles. Cette action est irréversible."
+    "deleteDialogDescription": "Cela supprimera définitivement « {{name}} » et tous ses poids cibles. Cette action est irréversible.",
+    "individualSecurities": "Titres individuels",
+    "individualSecuritiesNote": "Une pondération par titre. Les liquidités et les actifs alternatifs ne sont pas inclus.",
+    "security": "Titre",
+    "targetTypeFixed": "Le type d'allocation ne peut pas être modifié après la création de l'objectif. Créez un nouvel objectif pour utiliser un autre type.",
+    "noSecuritiesFound": "Aucun titre trouvé dans ce périmètre. Ajoutez des positions avant de créer un objectif par titres individuels."
   },
   "scope": {
     "allAccounts": "Tous les comptes",
@@ -541,6 +547,10 @@
     "industry_many": "industries",
     "category_one": "catégorie",
     "region_many": "régions",
-    "category_many": "catégories"
+    "category_many": "catégories",
+    "security": "titres",
+    "security_one": "titre",
+    "security_many": "titres",
+    "security_other": "titres"
   }
 }

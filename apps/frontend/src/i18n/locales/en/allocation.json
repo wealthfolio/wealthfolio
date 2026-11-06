@@ -83,7 +83,8 @@
     "buildFromScratch": "Build from scratch",
     "exampleWeights": "Example weights",
     "exampleDescription": "Use as a quantitative starting point, then review and edit the weights.",
-    "disclosure": "Example weights only. They are not recommendations, and Wealthfolio has not assessed whether they fit you."
+    "disclosure": "Example weights only. They are not recommendations, and Wealthfolio has not assessed whether they fit you.",
+    "equalWeight": "Equal weight"
   },
   "mode": {
     "enableSellsTip": "Allow reductions in this target's settings to use Rebalance."
@@ -165,7 +166,12 @@
     "suggestedTargetName": "{{name}} target",
     "customFallback": "Custom",
     "deleteDialogTitle": "Delete target?",
-    "deleteDialogDescription": "This will permanently delete “{{name}}” and all its target weights. This action cannot be undone."
+    "deleteDialogDescription": "This will permanently delete “{{name}}” and all its target weights. This action cannot be undone.",
+    "individualSecurities": "Individual securities",
+    "individualSecuritiesNote": "One weight per security. Cash and alternative assets are not included.",
+    "security": "Security",
+    "targetTypeFixed": "The allocation type cannot be changed after the target is created. Create a new target to use another type.",
+    "noSecuritiesFound": "No securities found in this scope. Add holdings before creating an individual securities target."
   },
   "scope": {
     "allAccounts": "All Accounts",
@@ -522,6 +528,9 @@
     "industry_one": "industry",
     "industry_other": "industries",
     "category_one": "category",
-    "category_other": "categories"
+    "category_other": "categories",
+    "security": "securities",
+    "security_one": "security",
+    "security_other": "securities"
   }
 }

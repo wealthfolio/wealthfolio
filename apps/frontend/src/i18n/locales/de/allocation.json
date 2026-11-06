@@ -83,7 +83,8 @@
     "buildFromScratch": "Von Grund auf erstellen",
     "exampleWeights": "Beispielgewichte",
     "exampleDescription": "Als quantitativen Ausgangspunkt verwenden, dann die Gewichte prüfen und bearbeiten.",
-    "disclosure": "Nur Beispielgewichte. Sie sind keine Empfehlungen, und Wealthfolio hat nicht geprüft, ob sie zu Ihnen passen."
+    "disclosure": "Nur Beispielgewichte. Sie sind keine Empfehlungen, und Wealthfolio hat nicht geprüft, ob sie zu Ihnen passen.",
+    "equalWeight": "Gleichgewichtung"
   },
   "mode": {
     "enableSellsTip": "Erlauben Sie Reduzierungen in den Einstellungen dieses Ziels, um Rebalancing zu nutzen."
@@ -165,7 +166,12 @@
     "suggestedTargetName": "Ziel {{name}}",
     "customFallback": "Benutzerdefiniert",
     "deleteDialogTitle": "Ziel löschen?",
-    "deleteDialogDescription": "Dadurch werden „{{name}}“ und alle zugehörigen Zielgewichte dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+    "deleteDialogDescription": "Dadurch werden „{{name}}“ und alle zugehörigen Zielgewichte dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "individualSecurities": "Einzelne Wertpapiere",
+    "individualSecuritiesNote": "Eine Gewichtung pro Wertpapier. Bargeld und alternative Anlagen sind nicht enthalten.",
+    "security": "Wertpapier",
+    "targetTypeFixed": "Der Allokationstyp lässt sich nach dem Erstellen des Ziels nicht ändern. Erstelle ein neues Ziel, um einen anderen Typ zu verwenden.",
+    "noSecuritiesFound": "In diesem Bereich wurden keine Wertpapiere gefunden. Füge Positionen hinzu, bevor du ein Ziel für einzelne Wertpapiere erstellst."
   },
   "scope": {
     "allAccounts": "Alle Konten",
@@ -522,6 +528,9 @@
     "assetClass_one": "Anlageklasse",
     "assetClass_other": "Anlageklassen",
     "industry_one": "Branche",
-    "industry_other": "Branchen"
+    "industry_other": "Branchen",
+    "security": "Wertpapiere",
+    "security_one": "Wertpapier",
+    "security_other": "Wertpapiere"
   }
 }

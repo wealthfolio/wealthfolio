@@ -25,7 +25,8 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const { t } = useTranslation();
   const numbers = useNumberFormatting();
-  const { data: taxonomy } = useTaxonomy(taxonomyId);
+  // An asset target names no taxonomy: its sentinel id must never be loaded.
+  const { data: taxonomy } = useTaxonomy(target?.targetType === "asset" ? null : taxonomyId);
   const resolvedReport = resolveDriftReportCategories(report, taxonomy?.categories);
   const taxonomyName = taxonomy?.taxonomy.name;
   const categoryLabel = categoryNoun(t, taxonomyId, taxonomyName, report.outOfBandCount);

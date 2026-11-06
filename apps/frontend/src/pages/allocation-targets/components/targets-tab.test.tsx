@@ -58,6 +58,7 @@ vi.mock("@/hooks/use-accounts", () => ({
 vi.mock("@/hooks/use-holdings", () => ({
   useHoldings: () => ({ holdings: holdingsRef.current, isComplete: true }),
 }));
+vi.mock("@/pages/asset/hooks/use-assets", () => ({ useAssets: () => ({ assets: [] }) }));
 vi.mock("@/hooks/use-portfolios", () => ({ usePortfolios: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-portfolio-allocations", () => ({
   usePortfolioAllocations: () => ({ isLoading: false }),
@@ -65,6 +66,7 @@ vi.mock("@/hooks/use-portfolio-allocations", () => ({
 vi.mock("../hooks/use-allocation-target-mutations", () => ({
   useDeleteAllocationTarget: () => ({}),
   useAllocationTargetWeights: () => ({ data: weights, isLoading: false }),
+  useAllocationTargetAssetWeights: () => ({ data: undefined, isLoading: false }),
   useSaveAllocationTargetWithWeights: () => ({ mutateAsync: saveTarget, isPending: false }),
 }));
 vi.mock("../hooks/use-target-constraints", () => ({

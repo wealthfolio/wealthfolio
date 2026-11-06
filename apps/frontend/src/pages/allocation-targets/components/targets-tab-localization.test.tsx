@@ -83,6 +83,7 @@ vi.mock("@/hooks/use-taxonomies", () => ({
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
 vi.mock("@/hooks/use-holdings", () => ({ useHoldings: () => ({ holdings: [] }) }));
+vi.mock("@/pages/asset/hooks/use-assets", () => ({ useAssets: () => ({ assets: [] }) }));
 vi.mock("@/hooks/use-portfolios", () => ({ usePortfolios: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-portfolio-allocations", () => ({
   usePortfolioAllocations: () => ({
@@ -93,6 +94,7 @@ vi.mock("@/hooks/use-portfolio-allocations", () => ({
 vi.mock("../hooks/use-allocation-target-mutations", () => ({
   useDeleteAllocationTarget: () => ({}),
   useAllocationTargetWeights: () => ({ data: weights, isLoading: false }),
+  useAllocationTargetAssetWeights: () => ({ data: undefined, isLoading: false }),
   useSaveAllocationTargetWithWeights: () => ({ mutateAsync: mocks.save, isPending: false }),
 }));
 const constraints: never[] = [];
