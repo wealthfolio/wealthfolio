@@ -4,7 +4,7 @@ use argon2::{
     Algorithm, Argon2, Params, Version,
 };
 use fs2::FileExt;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -887,7 +887,7 @@ fn new_lock_record(password: Option<&str>) -> ProfileResult<(LockRecord, Option<
             .map_err(storage_error)?
             .to_string();
         let mut bytes = [0u8; 16];
-        OsRng.fill_bytes(&mut bytes);
+        UnwrapErr(SysRng).fill_bytes(&mut bytes);
         let code = hex::encode_upper(bytes);
         let formatted = code
             .as_bytes()

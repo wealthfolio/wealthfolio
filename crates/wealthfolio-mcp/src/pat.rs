@@ -15,8 +15,9 @@
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::rand_core::UnwrapErr;
+use rand::rngs::SysRng;
+use rand::Rng;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use wealthfolio_storage_sqlite::agent::PatRepository;
@@ -26,10 +27,10 @@ pub const PAT_PREFIX: &str = "wfp_";
 /// Length of the lookup prefix stored alongside the hash (chars after `wfp_`).
 pub const TOKEN_PREFIX_LEN: usize = 12;
 
-/// Generates a fresh PAT: `wfp_` + 43-char base64url of 32 OsRng bytes.
+/// Generates a fresh PAT: `wfp_` + 43-char base64url of 32 OS RNG bytes.
 pub fn generate_token() -> String {
     let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
+    UnwrapErr(SysRng).fill_bytes(&mut bytes);
     format!("{PAT_PREFIX}{}", URL_SAFE_NO_PAD.encode(bytes))
 }
 

@@ -5696,12 +5696,12 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "rand_distr"
-version = "0.4.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
+checksum = "4d431c2703ccf129de4d45253c03f49ebb22b97d6ad79ee3ecfc7e3f4862c1d8"
 dependencies = [
  "num-traits",
- "rand 0.8.8",
+ "rand 0.10.3",
 ]
 
 [[package]]
@@ -8921,7 +8921,7 @@ dependencies = [
  "log",
  "num-traits",
  "proptest",
- "rand 0.8.8",
+ "rand 0.10.3",
  "rand_distr",
  "rayon",
  "regex",
@@ -9018,7 +9018,7 @@ dependencies = [
  "hex",
  "http",
  "log",
- "rand 0.8.8",
+ "rand 0.10.3",
  "reqwest",
  "rmcp",
  "serde_json",
@@ -9136,7 +9136,7 @@ dependencies = [
  "log",
  "num-traits",
  "r2d2",
- "rand 0.8.8",
+ "rand 0.10.3",
  "rusqlite",
  "rust_decimal",
  "serde",

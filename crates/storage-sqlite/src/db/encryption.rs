@@ -28,10 +28,10 @@ impl DbEncryptionKey {
     /// Mints a fresh key from the OS CSPRNG. Only the explicit enable path and
     /// first-boot-under-an-encrypted-policy ever reach this.
     pub fn generate() -> Self {
-        use rand::RngCore;
+        use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 
         let mut bytes = Zeroizing::new([0u8; DB_ENCRYPTION_KEY_BYTES]);
-        rand::rngs::OsRng.fill_bytes(bytes.as_mut());
+        UnwrapErr(SysRng).fill_bytes(bytes.as_mut());
         Self::from_bytes(&bytes)
     }
 
