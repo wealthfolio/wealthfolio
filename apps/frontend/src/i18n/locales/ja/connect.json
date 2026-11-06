@@ -60,6 +60,19 @@
     "signOutConfirm": "サインアウト",
     "signingOut": "サインアウトしています..."
   },
+  "twoFactor": {
+    "label": "2要素認証",
+    "on": "オン",
+    "off": "オフ",
+    "turnOn": "オンにする",
+    "manage": "管理"
+  },
+  "twoFactorNudge": {
+    "title": "同期データを保護しましょう",
+    "description": "Wealthfolio アカウントの2要素認証をオンにしてください。",
+    "setUp": "設定する",
+    "notNow": "今はしない"
+  },
   "accounts": {
     "title": "口座",
     "manage": "口座を管理",
@@ -232,6 +245,11 @@
     "title": "アップグレードして証券口座を同期",
     "description": "証券口座を連携すると、ポートフォリオを自動で同期できます。",
     "button": "アップグレード"
+  },
+  "mfaSyncPaused": {
+    "title": "同期は一時停止中です",
+    "description": "このアカウントでは2要素認証が有効になりました。このデバイスで同期を続けるにはコードを入力してください。",
+    "enterCode": "コードを入力"
   },
   "privacy": {
     "footnote": "Wealthfolio Connectは証券会社のログイン情報や金融データを保存しません。すべてのデータはアグリゲーター経由で安全にローカルデータベースへ同期されます。デバイス同期にはエンドツーエンド暗号化を使用しています。<privacyLink>詳しく見る</privacyLink>"

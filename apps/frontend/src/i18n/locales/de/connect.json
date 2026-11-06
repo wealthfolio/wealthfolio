@@ -60,6 +60,19 @@
     "signOutConfirm": "Abmelden",
     "signingOut": "Abmeldung..."
   },
+  "twoFactor": {
+    "label": "Zwei-Faktor-Authentifizierung",
+    "on": "An",
+    "off": "Aus",
+    "turnOn": "Aktivieren",
+    "manage": "Verwalten"
+  },
+  "twoFactorNudge": {
+    "title": "Schütze deine synchronisierten Daten",
+    "description": "Aktiviere die Zwei-Faktor-Authentifizierung für dein Wealthfolio-Konto.",
+    "setUp": "Einrichten",
+    "notNow": "Nicht jetzt"
+  },
   "accounts": {
     "title": "Konten",
     "manage": "Konten verwalten",
@@ -234,6 +247,11 @@
     "title": "Upgraden, um Broker-Konten zu synchronisieren",
     "description": "Verbinden Sie Ihre Broker-Konten für eine automatische Portfolio-Synchronisierung.",
     "button": "Upgrade"
+  },
+  "mfaSyncPaused": {
+    "title": "Synchronisierung pausiert",
+    "description": "Dein Konto verwendet jetzt die Zwei-Faktor-Authentifizierung. Gib einen Code ein, damit dieses Gerät weiter synchronisiert.",
+    "enterCode": "Code eingeben"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect speichert weder Ihre Broker-Zugangsdaten noch Ihre Finanzdaten. Alles wird sicher über einen Aggregator mit Ihrer lokalen Datenbank synchronisiert. Die Gerätesynchronisierung verwendet Ende-zu-Ende-Verschlüsselung. <privacyLink>Mehr erfahren</privacyLink>"

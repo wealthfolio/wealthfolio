@@ -16,6 +16,7 @@ import {
   updatePortfolio,
 } from "@/adapters";
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
+import { isMfaRequiredError } from "@/features/wealthfolio-connect/lib/mfa";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
 import {
@@ -377,7 +378,9 @@ const useGlobalEventListener = () => {
       // Dismiss the loading toast
       toast.dismiss(TOAST_IDS.brokerSyncStart);
       toast.error(translationRef.current("common:globalEvents.brokerSyncFailed"), {
-        description: translationRef.current("common:globalEvents.brokerSyncFailedDescription"),
+        description: isMfaRequiredError(error)
+          ? translationRef.current("connect:mfaSyncPaused.description")
+          : translationRef.current("common:globalEvents.brokerSyncFailedDescription"),
         duration: 10000,
       });
       logger.error("Broker sync error: " + error);

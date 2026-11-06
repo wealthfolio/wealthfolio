@@ -23,10 +23,13 @@ import { hasBrokerSync, isSubscriptionStatusActive } from "../lib/plan-capabilit
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { listBrokerAccounts, listBrokerConnections } from "../services/broker-service";
 import { useSyncBrokerData } from "../hooks/use-sync-broker-data";
+import { useTwoFactorStatus } from "../hooks/use-two-factor-status";
 import type { BrokerAccount, BrokerConnection } from "../types";
 import { BrokerageLogo } from "./brokerage-logo";
+import { MfaSyncPausedAlert } from "./mfa-sync-paused-alert";
 import { PortalLink } from "./portal-link";
 import { SubscriptionPlans } from "./subscription-plans";
+import { TwoFactorNudge, TwoFactorStatusLine, useTwoFactorNudge } from "./two-factor-status";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,6 +346,7 @@ export function ConnectedView() {
     error,
     clearError,
     refetchUserInfo,
+    isMfaRequired,
   } = useWealthfolioConnect();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -358,6 +362,11 @@ export function ConnectedView() {
 
   // Check if user's plan includes broker sync
   const showBrokerSync = hasBrokerSync(userInfo);
+
+  const twoFactor = useTwoFactorStatus();
+  const twoFactorNudge = useTwoFactorNudge(hasSubscription);
+  // One callout at a time: protecting synced data comes before the upgrade offer.
+  const showUpgradeCallout = hasSubscription && !showBrokerSync && !twoFactorNudge.show;
 
   // Hooks - only fetch broker connections and accounts if user has broker sync
   const connectionsQuery = useBrokerConnections(showBrokerSync);
@@ -455,11 +464,16 @@ export function ConnectedView() {
               }
             />
           </div>
+          <div className="mt-4 border-t pt-3">
+            <TwoFactorStatusLine isEnabled={twoFactor.isEnabled} />
+          </div>
         </CardContent>
       </Card>
 
+      <MfaSyncPausedAlert />
+
       {/* Show loading skeleton only during initial load (not refreshes) */}
-      {!isServiceUnavailable && !userInfo && (
+      {!isServiceUnavailable && !userInfo && !isMfaRequired && (
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-48" />
@@ -571,8 +585,10 @@ export function ConnectedView() {
       {/* Device Sync Section - Only show if user has an active subscription */}
       {hasSubscription && <DeviceSyncSection />}
 
+      {twoFactorNudge.show && <TwoFactorNudge onNotNow={twoFactorNudge.snooze} />}
+
       {/* Upgrade callout for basic plan users */}
-      {hasSubscription && !showBrokerSync && (
+      {showUpgradeCallout && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3">

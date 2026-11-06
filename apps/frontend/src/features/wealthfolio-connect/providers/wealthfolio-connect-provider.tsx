@@ -44,6 +44,7 @@ import { getUserInfo } from "../services/broker-service";
 import type { UserInfo } from "../types";
 import { parseAuthCallbackUrl } from "../lib/auth-callback";
 import { hasBrokerSync, isSubscriptionStatusActive } from "../lib/plan-capabilities";
+import { hasVerifiedTotpFactor, isMfaRequiredError } from "../lib/mfa";
 
 // Auth configuration - these are public/publishable keys (safe for client-side)
 // Can be overridden via environment variables: CONNECT_AUTH_URL and CONNECT_AUTH_PUBLISHABLE_KEY
@@ -77,7 +78,15 @@ type PostLoginSyncSource =
   | "email-sign-in"
   | "email-sign-up"
   | "otp"
+  | "mfa"
   | "subscription-activated";
+
+/** Where a session that still needs the authenticator code came from. */
+type MfaChallenge =
+  // A new login; nothing is stored until the code step succeeds.
+  | { kind: "sign-in"; source: PostLoginSyncSource }
+  // The saved session; the backend keeps it while the code step is open.
+  | { kind: "restore" };
 
 interface PostLoginSyncRequest {
   id: string;
@@ -101,6 +110,10 @@ interface WealthfolioConnectContextValue {
   userInfo: UserInfo | null;
   postLoginSyncRequest: PostLoginSyncRequest | null;
   error: string | null;
+  /** A sign-in or the saved session waits for the authenticator code before it connects. */
+  mfaChallenge: MfaChallenge["kind"] | null;
+  /** The cloud API asked the connected session for the authenticator code (sync paused). */
+  isMfaRequired: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithOAuth: (provider: "google" | "apple" | "github") => Promise<void>;
@@ -110,6 +123,13 @@ interface WealthfolioConnectContextValue {
   clearError: () => void;
   refetchUserInfo: () => Promise<void>;
   consumePostLoginSyncRequest: (requestId: string) => void;
+  /** Completes the pending code step, or steps up the connected session. */
+  verifyMfaCode: (code: string) => Promise<void>;
+  /** "Sign out" from the code step. */
+  cancelMfaChallenge: () => Promise<void>;
+  reportMfaRequired: () => void;
+  /** Reads whether the account has two-factor authentication on. */
+  fetchMfaEnabled: () => Promise<boolean>;
 }
 
 const WealthfolioConnectContext = createContext<WealthfolioConnectContextValue | undefined>(
@@ -133,6 +153,8 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   userInfo: null,
   postLoginSyncRequest: null,
   error: null,
+  mfaChallenge: null,
+  isMfaRequired: false,
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
   signInWithOAuth: async () => {},
@@ -142,6 +164,10 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   clearError: () => {},
   refetchUserInfo: async () => {},
   consumePostLoginSyncRequest: () => {},
+  verifyMfaCode: async () => {},
+  cancelMfaChallenge: async () => {},
+  reportMfaRequired: () => {},
+  fetchMfaEnabled: async () => false,
 };
 
 function getAuthStorageKey(supabaseUrl: string): string {
@@ -195,6 +221,14 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const [userInfoRetryAt, setUserInfoRetryAt] = useState(0);
   const authTransitionRef = useRef<Promise<unknown>>(Promise.resolve());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [mfaChallenge, setMfaChallengeState] = useState<MfaChallenge | null>(null);
+  const mfaChallengeRef = useRef<MfaChallenge | null>(null);
+  const [isMfaRequired, setIsMfaRequired] = useState(false);
+
+  const setMfaChallenge = useCallback((next: MfaChallenge | null) => {
+    mfaChallengeRef.current = next;
+    setMfaChallengeState(next);
+  }, []);
 
   const setSession = useCallback((next: Session | null) => {
     if (sessionRef.current?.user.id !== next?.user.id) {
@@ -205,6 +239,10 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     }
     sessionRef.current = next;
     setIsSessionUnavailable(false);
+    // A new or stepped-up session replaces any pending code step.
+    mfaChallengeRef.current = null;
+    setMfaChallengeState(null);
+    setIsMfaRequired(false);
     syncAccessRef.current = null;
     sessionGenerationRef.current += 1;
     userInfoRequestRef.current += 1;
@@ -332,6 +370,40 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     [queryClient],
   );
 
+  // A 2FA account's session is aal1 until the authenticator code is entered.
+  const needsMfaCode = useCallback(async () => {
+    const { data, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aalError) {
+      logger.warn(`Could not read the session's assurance level: ${aalError.message}`);
+      return false;
+    }
+    return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+  }, [supabase]);
+
+  // Store only the session the account requires: an aal1 login of a 2FA account
+  // waits for the code step, so the backend never keeps it.
+  const finishSignIn = useCallback(
+    async (next: Session, source: PostLoginSyncSource) => {
+      if (await needsMfaCode()) {
+        setMfaChallenge({ kind: "sign-in", source });
+        return false;
+      }
+      try {
+        if (!(await storeTokens(next))) return false;
+      } catch (cause) {
+        // The backend checks the login with the cloud API, which asks for the code too.
+        if (!isMfaRequiredError(cause)) throw cause;
+        setMfaChallenge({ kind: "sign-in", source });
+        return false;
+      }
+      setSession(next);
+      setUser(next.user);
+      requestPostLoginSync(source, next);
+      return true;
+    },
+    [needsMfaCode, setMfaChallenge, storeTokens, setSession, requestPostLoginSync],
+  );
+
   // Handle auth callback from URL (deep link or web redirect)
   const handleAuthCallback = useCallback(
     async (url: string) => {
@@ -378,11 +450,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
 
           didExchangeSession = true;
           // Store tokens BEFORE setting session to avoid race condition
-          if (!(await storeTokens(data.session))) return;
-          setSession(data.session);
-          setUser(data.session.user);
-          requestPostLoginSync("auth-callback", data.session);
-          logger.info("Auth callback completed successfully");
+          if (await finishSignIn(data.session, "auth-callback")) {
+            logger.info("Auth callback completed successfully");
+          }
         });
       } catch (err) {
         if (!didExchangeSession) {
@@ -393,15 +463,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         setError(message || t("connect:authErrors.completeSignInFailed"));
       }
     },
-    [
-      runAuthTransition,
-      setSession,
-      supabase,
-      storeTokens,
-      rememberAuthCodeIfNew,
-      requestPostLoginSync,
-      t,
-    ],
+    [runAuthTransition, supabase, finishSignIn, rememberAuthCodeIfNew, t],
   );
 
   // Cloud restoration never gates local portfolio rendering.
@@ -426,6 +488,14 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
             });
             if (!current()) return;
             if (setErr || !data.session) throw setErr ?? new Error("No restored session");
+            if (await needsMfaCode()) {
+              // Keep the saved login; the code step steps it up instead of signing out.
+              if (!current()) return;
+              setIsSessionUnavailable(false);
+              setMfaChallenge({ kind: "restore" });
+              return;
+            }
+            if (!current()) return;
             setSession(data.session);
             setUser(data.session.user);
           } catch (cause) {
@@ -472,7 +542,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [supabase, runAuthTransition, setSession, clearProcessedAuthCodes, isAuthenticated]);
+  }, [
+    supabase,
+    runAuthTransition,
+    setSession,
+    needsMfaCode,
+    setMfaChallenge,
+    clearProcessedAuthCodes,
+    isAuthenticated,
+  ]);
 
   useEffect(() => {
     if (!isSessionUnavailable) return;
@@ -568,10 +646,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
 
           if (data.session) {
             // Store tokens BEFORE setting session to avoid race condition
-            if (!(await storeTokens(data.session))) return;
-            setSession(data.session);
-            setUser(data.session.user);
-            requestPostLoginSync("email-sign-in", data.session);
+            await finishSignIn(data.session, "email-sign-in");
           }
         });
       } catch (err) {
@@ -582,7 +657,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         setIsLoading(false);
       }
     },
-    [runAuthTransition, setSession, supabase, storeTokens, requestPostLoginSync, t],
+    [runAuthTransition, supabase, finishSignIn, t],
   );
 
   const signUpWithEmail = useCallback(
@@ -609,10 +684,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           // If email confirmation is not required, user will be signed in
           if (data.session) {
             // Store tokens BEFORE setting session to avoid race condition
-            if (!(await storeTokens(data.session))) return;
-            setSession(data.session);
-            setUser(data.session.user);
-            requestPostLoginSync("email-sign-up", data.session);
+            await finishSignIn(data.session, "email-sign-up");
           } else if (data.user && !data.session) {
             // Email confirmation required
             setError(t("connect:authErrors.confirmEmail"));
@@ -626,7 +698,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         setIsLoading(false);
       }
     },
-    [runAuthTransition, setSession, supabase, storeTokens, requestPostLoginSync, t],
+    [runAuthTransition, supabase, finishSignIn, t],
   );
 
   const signInWithOAuth = useCallback(
@@ -768,10 +840,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
 
           if (data.session) {
             // Store tokens BEFORE setting session to avoid race condition
-            if (!(await storeTokens(data.session))) return;
-            setSession(data.session);
-            setUser(data.session.user);
-            requestPostLoginSync("otp", data.session);
+            await finishSignIn(data.session, "otp");
           }
         });
       } catch (err) {
@@ -783,7 +852,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         setIsLoading(false);
       }
     },
-    [runAuthTransition, setSession, supabase, storeTokens, requestPostLoginSync, t],
+    [runAuthTransition, supabase, finishSignIn, t],
   );
 
   const clearLocalSession = useCallback(() => {
@@ -813,6 +882,82 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       }
     });
   }, [runAuthTransition, clearLocalSession, supabase, t]);
+
+  const verifyMfaCode = useCallback(
+    async (code: string) => {
+      await runAuthTransition(async () => {
+        const challenge = mfaChallengeRef.current;
+        if (!challenge && !sessionRef.current) return;
+        if (challenge?.kind !== "sign-in") {
+          // The backend owns this session's refresh token and may have rotated it.
+          // Use its current tokens so the SDK never refreshes with a used one.
+          const { accessToken, refreshToken } = await restoreSyncSession();
+          const { error: setErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setErr) throw setErr;
+        }
+        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+        if (factorsError) throw factorsError;
+        // Without a verified authenticator (2FA turned off meanwhile) the session needs no code.
+        const factor = factors.totp[0];
+        if (factor) {
+          const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+            factorId: factor.id,
+            code,
+          });
+          if (verifyError) throw verifyError;
+        }
+        const {
+          data: { session: next },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!next) throw new Error(t("connect:authErrors.noSessionReturned"));
+        // Verifying rotated the refresh token; the backend must keep the new one.
+        if (!(await storeTokens(next))) {
+          setMfaChallenge(null);
+          return;
+        }
+        setSession(next);
+        setUser(next.user);
+        requestPostLoginSync(challenge?.kind === "sign-in" ? challenge.source : "mfa", next);
+      });
+    },
+    [
+      runAuthTransition,
+      supabase,
+      storeTokens,
+      setMfaChallenge,
+      setSession,
+      requestPostLoginSync,
+      t,
+    ],
+  );
+
+  const cancelMfaChallenge = useCallback(async () => {
+    if (mfaChallengeRef.current?.kind !== "sign-in") return signOut();
+    await runAuthTransition(async () => {
+      setMfaChallenge(null);
+      // Nothing was stored for this login; end it on the auth server only.
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) logger.warn(`Sign out failed: ${signOutError.message}`);
+    });
+  }, [runAuthTransition, setMfaChallenge, signOut, supabase]);
+
+  const reportMfaRequired = useCallback(() => {
+    if (sessionRef.current) setIsMfaRequired(true);
+  }, []);
+
+  // Read factors with an access token the backend minted: the SDK's stored
+  // session could refresh with a refresh token the backend already rotated.
+  const fetchMfaEnabled = useCallback(async () => {
+    const { accessToken } = await restoreSyncSession();
+    const { data, error: userError } = await supabase.auth.getUser(accessToken);
+    if (userError) throw userError;
+    return hasVerifiedTotpFactor(data.user);
+  }, [supabase]);
 
   // Only a missing backend auth session signs the user out; subscription access is separate.
   const reconcileSession = useCallback(async () => {
@@ -870,6 +1015,11 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         setUserInfo(info);
       } catch (err) {
         if (!isCurrent()) return;
+        if (requestedUserInfo && isMfaRequiredError(err)) {
+          // Keep the account on screen; the code step resumes sync without signing out.
+          setIsMfaRequired(true);
+          return;
+        }
         logger.error("Failed to fetch user info from API.");
         const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
         const rateLimited =
@@ -970,6 +1120,8 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       userInfo,
       postLoginSyncRequest,
       error: error ? profileAwareErrorMessage(error, t) : error,
+      mfaChallenge: mfaChallenge?.kind ?? null,
+      isMfaRequired,
       signInWithEmail,
       signUpWithEmail,
       signInWithOAuth,
@@ -979,6 +1131,10 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       clearError,
       refetchUserInfo,
       consumePostLoginSyncRequest,
+      verifyMfaCode,
+      cancelMfaChallenge,
+      reportMfaRequired,
+      fetchMfaEnabled,
     }),
     [
       session,
@@ -993,6 +1149,8 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       userInfo,
       postLoginSyncRequest,
       error,
+      mfaChallenge,
+      isMfaRequired,
       signInWithEmail,
       signUpWithEmail,
       signInWithOAuth,
@@ -1002,6 +1160,10 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       clearError,
       refetchUserInfo,
       consumePostLoginSyncRequest,
+      verifyMfaCode,
+      cancelMfaChallenge,
+      reportMfaRequired,
+      fetchMfaEnabled,
       t,
     ],
   );

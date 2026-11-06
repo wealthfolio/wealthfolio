@@ -4,14 +4,15 @@
 // ==========================================================================
 
 import { useWealthfolioConnect } from "@/features/wealthfolio-connect";
+import { isMfaRequiredError } from "@/features/wealthfolio-connect/lib/mfa";
 import { isSubscriptionStatusActive } from "@/features/wealthfolio-connect/lib/plan-capabilities";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { syncService } from "../services/sync-service";
 import { SyncError, SyncStates } from "../types";
 
 export function useSyncStatus() {
-  const { isConnected, isEnabled, userInfo } = useWealthfolioConnect();
+  const { isConnected, isEnabled, userInfo, reportMfaRequired } = useWealthfolioConnect();
 
   const hasSubscription = isSubscriptionStatusActive(userInfo?.team?.subscription_status);
 
@@ -44,6 +45,13 @@ export function useSyncStatus() {
   });
 
   const data = statusQuery.data;
+
+  // The engine pauses on a 2FA denial; the Connect screens offer the code step.
+  const mfaRequired =
+    isMfaRequiredError(statusQuery.error) || engineQuery.data?.lastCycleStatus === "mfa_required";
+  useEffect(() => {
+    if (mfaRequired) reportMfaRequired();
+  }, [mfaRequired, reportMfaRequired]);
 
   const refetch = useCallback(() => {
     statusQuery.refetch();

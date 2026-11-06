@@ -61,6 +61,19 @@
     "signOutConfirm": "Se déconnecter",
     "signingOut": "Déconnexion..."
   },
+  "twoFactor": {
+    "label": "Authentification à deux facteurs",
+    "on": "Activée",
+    "off": "Désactivée",
+    "turnOn": "Activer",
+    "manage": "Gérer"
+  },
+  "twoFactorNudge": {
+    "title": "Protégez vos données synchronisées",
+    "description": "Activez l'authentification à deux facteurs pour votre compte Wealthfolio.",
+    "setUp": "Configurer",
+    "notNow": "Plus tard"
+  },
   "accounts": {
     "title": "Comptes",
     "manage": "Gérer les comptes",
@@ -256,6 +269,11 @@
     "title": "Passez à un forfait supérieur pour synchroniser vos comptes de courtier",
     "description": "Connectez vos comptes de courtier pour une synchronisation automatique de votre portefeuille.",
     "button": "Mettre à niveau"
+  },
+  "mfaSyncPaused": {
+    "title": "La synchronisation est suspendue",
+    "description": "Votre compte utilise désormais l'authentification à deux facteurs. Saisissez un code pour continuer la synchronisation sur cet appareil.",
+    "enterCode": "Saisir le code"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect ne stocke pas vos identifiants de courtier ni vos données financières. Tout se synchronise en toute sécurité via un agrégateur vers votre base de données locale. La synchronisation des appareils utilise un chiffrement de bout en bout. <privacyLink>En savoir plus</privacyLink>"

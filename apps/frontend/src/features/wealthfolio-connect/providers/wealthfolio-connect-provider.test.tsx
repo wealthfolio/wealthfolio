@@ -25,6 +25,11 @@ const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   store: vi.fn(),
   clear: vi.fn(),
+  aal: vi.fn(),
+  listFactors: vi.fn(),
+  challengeAndVerify: vi.fn(),
+  getSession: vi.fn(),
+  getUser: vi.fn(),
   t: (key: string) => key,
 }));
 
@@ -59,6 +64,13 @@ vi.mock("@supabase/supabase-js", () => ({
       signOut: mocks.signOut,
       signInWithPassword: mocks.signIn,
       exchangeCodeForSession: mocks.exchange,
+      getSession: mocks.getSession,
+      getUser: mocks.getUser,
+      mfa: {
+        getAuthenticatorAssuranceLevel: mocks.aal,
+        listFactors: mocks.listFactors,
+        challengeAndVerify: mocks.challengeAndVerify,
+      },
       onAuthStateChange: (callback: typeof mocks.onAuth) => {
         mocks.onAuth = callback;
         return { data: { subscription: { unsubscribe: vi.fn() } } };
@@ -82,6 +94,23 @@ const session = (account: string) => ({
   refresh_token: account,
   access_token: `${account}-access`,
 });
+// The session Supabase saves after the code step: same user, rotated tokens.
+const verified = (account: string) => ({
+  data: {
+    session: {
+      user: { id: account },
+      refresh_token: `${account}-aal2`,
+      access_token: `${account}-aal2-access`,
+    },
+  },
+  error: null,
+});
+const assurance = (currentLevel: string, nextLevel: string) => ({
+  data: { currentLevel, nextLevel, currentAuthenticationMethods: [] },
+  error: null,
+});
+const MFA_REQUIRED =
+  "Unexpected error: API error 403: MFA_REQUIRED: Two-factor authentication required (requestId=x)";
 const info = (account: string, status: string | null = "active") => ({
   id: account,
   team: { subscription_status: status },
@@ -139,6 +168,13 @@ beforeEach(() => {
     return { error: null };
   });
   mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
+  // Accounts without 2FA: the sign-in session is already at its highest level.
+  mocks.aal.mockResolvedValue(assurance("aal1", "aal1"));
+  mocks.listFactors.mockResolvedValue({
+    data: { all: [], totp: [{ id: "factor-1", status: "verified" }], phone: [], webauthn: [] },
+    error: null,
+  });
+  mocks.challengeAndVerify.mockResolvedValue({ data: {}, error: null });
 });
 
 afterEach(() => {
@@ -828,4 +864,170 @@ it("replaces an invalidated pending refresh when translation changes", async () 
   } finally {
     mocks.t = previousTranslation;
   }
+});
+
+describe("Two-factor authentication", () => {
+  const signIn = async (
+    result: { current: ReturnType<typeof useWealthfolioConnect> },
+    method: "email" | "otp" | "oauth",
+  ) => {
+    await act(async () => {
+      if (method === "email") await result.current.signInWithEmail("A", "password");
+      else if (method === "otp") await result.current.verifyOtp("A", "123456");
+      else
+        mocks.onDeepLink({
+          payload: "wealthfolio://auth/callback?code=mfa-test#wf_profile_flow=test-flow",
+        });
+    });
+  };
+  const signInCases = [
+    ["email", "A", "email-sign-in"],
+    ["otp", "A", "otp"],
+    ["oauth", "B", "auth-callback"],
+  ] as const;
+
+  it("signs in without a code step when 2FA is off", async () => {
+    const { result } = await setup();
+    await signIn(result, "email");
+    expect(result.current.isConnected).toBe(true);
+    expect(mocks.store).toHaveBeenCalledWith("A");
+    expect(result.current.mfaChallenge).toBeNull();
+    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
+  });
+
+  it.each(signInCases)(
+    "stores a %s sign-in only after the authenticator code",
+    async (method, account, source) => {
+      mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+      const { result } = await setup();
+      await signIn(result, method);
+      await waitFor(() => expect(result.current.mfaChallenge).toBe("sign-in"));
+      expect(mocks.store).not.toHaveBeenCalled();
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.postLoginSyncRequest).toBeNull();
+
+      mocks.getSession.mockResolvedValue(verified(account));
+      await act(() => result.current.verifyMfaCode("123456"));
+      expect(mocks.challengeAndVerify).toHaveBeenCalledWith({
+        factorId: "factor-1",
+        code: "123456",
+      });
+      // A new login's tokens are the SDK's own; nothing is read back from the backend.
+      expect(mocks.restore).toHaveBeenCalledTimes(1);
+      expect(mocks.store).toHaveBeenCalledTimes(1);
+      expect(mocks.store).toHaveBeenCalledWith(`${account}-aal2`);
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.mfaChallenge).toBeNull();
+      expect(result.current.postLoginSyncRequest?.source).toBe(source);
+    },
+  );
+
+  it("keeps the code step after a wrong code", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const rejected = Object.assign(new Error("Invalid TOTP code entered"), {
+      code: "mfa_verification_failed",
+    });
+    mocks.challengeAndVerify.mockResolvedValueOnce({ data: null, error: rejected });
+    const { result } = await setup();
+    await signIn(result, "email");
+    await expect(result.current.verifyMfaCode("000000")).rejects.toBe(rejected);
+    expect(mocks.store).not.toHaveBeenCalled();
+    expect(result.current.mfaChallenge).toBe("sign-in");
+    expect(result.current.isConnected).toBe(false);
+  });
+
+  it("signing out of a new login's code step discards it without touching saved credentials", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const { result } = await setup();
+    await signIn(result, "email");
+    await act(() => result.current.cancelMfaChallenge());
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.store).not.toHaveBeenCalled();
+    expect(result.current.mfaChallenge).toBeNull();
+    expect(result.current.isConnected).toBe(false);
+  });
+
+  it("asks for the code when the backend's login check gets MFA_REQUIRED", async () => {
+    mocks.store.mockRejectedValueOnce(new Error(MFA_REQUIRED));
+    const { result } = await setup();
+    await signIn(result, "email");
+    expect(result.current.mfaChallenge).toBe("sign-in");
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("steps up a restored aal1 session instead of signing out", async () => {
+    mocks.configured = true;
+    mocks.account = "A";
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const { result } = await setup();
+    expect(result.current.mfaChallenge).toBe("restore");
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.isSessionUnavailable).toBe(false);
+    expect(mocks.clear).not.toHaveBeenCalled();
+
+    // The backend may have rotated the refresh token while the step was open.
+    mocks.restore.mockResolvedValue({ accessToken: "A-access-2", refreshToken: "A-rotated" });
+    mocks.getSession.mockResolvedValue(verified("A"));
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.setSession).toHaveBeenLastCalledWith({
+      access_token: "A-access-2",
+      refresh_token: "A-rotated",
+    });
+    expect(mocks.setSession.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      mocks.challengeAndVerify.mock.invocationCallOrder[0],
+    );
+    expect(mocks.store).toHaveBeenCalledWith("A-aal2");
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.mfaChallenge).toBeNull();
+    expect(result.current.postLoginSyncRequest?.source).toBe("mfa");
+    expect(mocks.clear).not.toHaveBeenCalled();
+  });
+
+  it("signing out of a restored session's code step clears saved credentials", async () => {
+    mocks.configured = true;
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const { result } = await setup();
+    await act(() => result.current.cancelMfaChallenge());
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+    expect(result.current.mfaChallenge).toBeNull();
+  });
+
+  it("pauses sync on MFA_REQUIRED and resumes after the code without signing out", async () => {
+    mocks.configured = true;
+    mocks.account = "A";
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    const { result } = await setup();
+    await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+
+    mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
+    mocks.getSession.mockResolvedValue(verified("A"));
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.restore).toHaveBeenCalledTimes(2);
+    expect(mocks.store).toHaveBeenCalledWith("A-aal2");
+    expect(result.current.isMfaRequired).toBe(false);
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.postLoginSyncRequest?.source).toBe("mfa");
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A-aal2"));
+  });
+
+  it("reads 2FA status with a token the backend minted", async () => {
+    mocks.configured = true;
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: "A", factors: [{ factor_type: "totp", status: "verified" }] } },
+      error: null,
+    });
+    const { result } = await setup();
+    await expect(result.current.fetchMfaEnabled()).resolves.toBe(true);
+    expect(mocks.getUser).toHaveBeenCalledWith("A-access");
+  });
 });

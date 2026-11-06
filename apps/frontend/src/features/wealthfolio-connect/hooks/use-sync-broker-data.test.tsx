@@ -6,16 +6,21 @@ import { useSyncBrokerData } from "./use-sync-broker-data";
 
 const mocks = vi.hoisted(() => ({
   sync: vi.fn(),
+  reportMfaRequired: vi.fn(),
   error: vi.fn(),
   loading: vi.fn(),
   t: (key: string, options?: { error?: string }) => {
     if (key === "connect:sync.startFailed") return `Could not start: ${options?.error}`;
     if (key === "connect:upgrade.title") return "Upgrade your plan";
     if (key === "connect:subscription.syncPausedDescription") return "Subscription paused";
+    if (key === "connect:mfaSyncPaused.description") return "Enter a code to keep syncing";
     return key;
   },
 }));
 vi.mock("../services/broker-service", () => ({ syncBrokerData: mocks.sync }));
+vi.mock("../providers/wealthfolio-connect-provider", () => ({
+  useWealthfolioConnect: () => ({ reportMfaRequired: mocks.reportMfaRequired }),
+}));
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({
   toast: { error: mocks.error, loading: mocks.loading },
 }));
@@ -51,4 +56,20 @@ it.each([
   act(() => result.current.mutate());
   await waitFor(() => expect(mocks.error).toHaveBeenCalledWith(`Could not start: ${message}`));
   expect(mocks.loading).not.toHaveBeenCalled();
+});
+
+it("pauses sync for the code step when the cloud API needs 2FA", async () => {
+  mocks.sync.mockRejectedValueOnce(
+    new Error("Unexpected error: API error 403: MFA_REQUIRED: Two-factor required"),
+  );
+  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useSyncBrokerData(), { wrapper });
+  act(() => result.current.mutate());
+  await waitFor(() =>
+    expect(mocks.error).toHaveBeenCalledWith("Could not start: Enter a code to keep syncing"),
+  );
+  expect(mocks.reportMfaRequired).toHaveBeenCalledTimes(1);
 });

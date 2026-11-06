@@ -201,7 +201,9 @@ impl DeviceEnrollService {
             Err(e) => {
                 // Device not found = RECOVERY
                 let err_str = e.to_string();
-                if err_str.contains("404") || err_str.contains("not found") {
+                // A 2FA denial isn't a missing device, even when its request ids contain "404".
+                let mfa_required = e.error_code() == Some(crate::error::MFA_REQUIRED);
+                if !mfa_required && (err_str.contains("404") || err_str.contains("not found")) {
                     warn!("[DeviceEnrollService] State: RECOVERY (device not found)");
                     return Ok(SyncStateResult {
                         state: SyncState::Recovery,
@@ -884,6 +886,42 @@ mod tests {
             assert_eq!(service.read_identity().unwrap().device_nonce, Some(nonce));
             server.abort();
         }
+    }
+
+    #[tokio::test]
+    async fn mfa_denial_is_an_error_not_a_missing_device() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let store = Arc::new(MemorySecrets::default());
+        let identity = SyncIdentity {
+            version: 2,
+            device_nonce: Some(crypto::generate_device_id()),
+            device_id: Some(crypto::generate_device_id()),
+            ..Default::default()
+        };
+        store
+            .set_secret(
+                SYNC_IDENTITY_KEY,
+                &serde_json::to_string(&identity).unwrap(),
+            )
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0; 8192];
+            let _ = socket.read(&mut buffer).await.unwrap();
+            // Request ids are random hex and can contain "404".
+            let body = r#"{"error":"MFA_REQUIRED","code":"MFA_REQUIRED","message":"Enter a code (request 404f)"}"#;
+            socket.write_all(format!("HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).as_bytes()).await.unwrap();
+        });
+        let service = DeviceEnrollService::new(store.clone(), &url, "test".into(), None);
+        let error = service.get_sync_state("test-token").await.unwrap_err();
+        assert!(error.message.contains(crate::error::MFA_REQUIRED));
+        assert_eq!(
+            service.read_identity().unwrap().device_id,
+            identity.device_id
+        );
+        server.await.unwrap();
     }
 
     #[tokio::test]

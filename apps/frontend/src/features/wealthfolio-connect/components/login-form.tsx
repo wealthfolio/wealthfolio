@@ -21,6 +21,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { ProviderButton } from "./provider-button";
 import { ConnectFeatures } from "./connect-features";
+import { MfaCodeStep } from "./mfa-code-step";
 import { Spinner } from "@wealthfolio/ui";
 
 // OAuth is only available on desktop/mobile (Tauri) where we can handle deep links
@@ -29,8 +30,15 @@ type Provider = "google" | "email";
 
 export function LoginForm() {
   const { t } = useTranslation();
-  const { signInWithOAuth, signInWithMagicLink, verifyOtp, error, clearError, isLoading } =
-    useWealthfolioConnect();
+  const {
+    signInWithOAuth,
+    signInWithMagicLink,
+    verifyOtp,
+    error,
+    clearError,
+    isLoading,
+    mfaChallenge,
+  } = useWealthfolioConnect();
 
   // State management
   const [email, setEmail] = useState("");
@@ -131,7 +139,11 @@ export function LoginForm() {
 
     try {
       await verifyOtp(pendingEmail, otpCode);
-      // Success - context will update isConnected
+      // Success - context will update isConnected, or ask for the authenticator code.
+      // Leave the email code behind so canceling that step starts over.
+      setShowOtpInput(false);
+      setPendingEmail("");
+      setOtpCode("");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "";
       // Check for OTP expired/invalid error and provide a more user-friendly message
@@ -176,11 +188,12 @@ export function LoginForm() {
 
   const rawError = localError ?? error;
   const displayError = rawError ? profileAwareErrorMessage(rawError, t) : rawError;
+  const showMfaStep = !!mfaChallenge;
 
   return (
     <div className="space-y-6">
       {/* Features Grid */}
-      <ConnectFeatures />
+      {!showMfaStep && <ConnectFeatures />}
 
       {/* Sign In Card */}
       <Card className="rounded-2xl shadow-none">
@@ -193,8 +206,8 @@ export function LoginForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Error Alert */}
-          {displayError && (
+          {/* Error Alert (the code step shows its own errors) */}
+          {displayError && !showMfaStep && (
             <Alert variant="destructive">
               <Icons.AlertCircle className="h-4 w-4" />
               <AlertDescription>{displayError}</AlertDescription>
@@ -210,7 +223,9 @@ export function LoginForm() {
           )}
 
           {/* OTP Verification UI */}
-          {showOtpInput ? (
+          {showMfaStep ? (
+            <MfaCodeStep />
+          ) : showOtpInput ? (
             <div className="flex flex-col items-center space-y-4">
               <div className="text-center">
                 <p className="text-sm font-medium">{t("auth:connect.otp.title")}</p>
@@ -335,7 +350,7 @@ export function LoginForm() {
           )}
 
           {/* Terms and Privacy Footer - Hidden during OTP */}
-          {!showOtpInput && (
+          {!showOtpInput && !showMfaStep && (
             <div className="pt-4">
               <p className="text-muted-foreground text-center text-xs">
                 <Trans

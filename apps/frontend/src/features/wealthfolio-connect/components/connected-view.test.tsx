@@ -10,7 +10,13 @@ vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({
 vi.mock("i18next", () => ({ default: { t: (key: string) => key } }));
 
 const context = vi.hoisted(() => ({
-  user: { email: "user@example.com" },
+  user: { id: "user-1", email: "user@example.com" } as Record<string, unknown>,
+  isConnected: true,
+  isMfaRequired: false,
+  fetchMfaEnabled: vi.fn(),
+  verifyMfaCode: vi.fn(),
+  cancelMfaChallenge: vi.fn(),
+  reportMfaRequired: vi.fn(),
   session: { access_token: "test" },
   userInfo: null as unknown,
   signOut: vi.fn(),
@@ -37,13 +43,16 @@ vi.mock("./subscription-plans", () => ({
 vi.mock("@/features/devices-sync", () => ({
   DeviceSyncSection: () => <div data-testid="device-sync" />,
 }));
-vi.mock("@/adapters", () => ({ openUrlInBrowser: vi.fn() }));
+const adapters = vi.hoisted(() => ({ openUrlInBrowser: vi.fn() }));
+vi.mock("@/adapters", () => adapters);
 vi.mock("../services/broker-service", () => ({
   listBrokerAccounts: vi.fn().mockResolvedValue([]),
   listBrokerConnections: vi.fn().mockResolvedValue([]),
   syncBrokerData: sync.trigger,
 }));
-vi.mock("@wealthfolio/ui", () => ({
+vi.mock("@wealthfolio/ui", async (importOriginal) => ({
+  // The two-factor nudge's "Not now" is stored like other UI preferences.
+  usePersistentState: (await importOriginal<typeof import("@wealthfolio/ui")>()).usePersistentState,
   buttonVariants: () => "",
   useDateFormatting: () => ({ dateFormat: "yyyy-MM-dd" }),
   Spinner: () => <span data-testid="spinner" />,
@@ -59,6 +68,8 @@ vi.mock("react-i18next", () => ({
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
+  context.isMfaRequired = false;
   context.error = null;
   context.isLoadingUserInfo = false;
   context.isUserInfoRateLimited = false;
@@ -177,4 +188,83 @@ describe("authenticated subscription view", () => {
       expect(screen.queryByTestId("pricing")).toBeNull();
     },
   );
+});
+
+describe("two-factor authentication", () => {
+  const SECURITY_URL = "https://connect.wealthfolio.app/settings/security";
+  const basicPlan = { team: { plan: "basic", subscription_status: "active" } };
+
+  it.each([
+    [false, "connect:twoFactor.off", "connect:twoFactor.turnOn"],
+    [true, "connect:twoFactor.on", "connect:twoFactor.manage"],
+  ])("shows the account's 2FA status (on: %s)", async (enabled, badge, action) => {
+    context.userInfo = basicPlan;
+    context.fetchMfaEnabled.mockResolvedValue(enabled);
+    renderView();
+    expect(screen.getByText("connect:twoFactor.label")).toBeTruthy();
+    expect(await screen.findByText(badge)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(action) }));
+    expect(adapters.openUrlInBrowser).toHaveBeenCalledWith(SECURITY_URL);
+  });
+
+  it("nudges subscribed users with 2FA off instead of stacking the upgrade callout", async () => {
+    context.userInfo = basicPlan;
+    context.fetchMfaEnabled.mockResolvedValue(false);
+    renderView();
+    expect(await screen.findByText("connect:twoFactorNudge.title")).toBeTruthy();
+    expect(screen.queryByText("connect:upgrade.title")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /connect:twoFactorNudge.setUp/ }));
+    expect(adapters.openUrlInBrowser).toHaveBeenCalledWith(SECURITY_URL);
+
+    fireEvent.click(screen.getByRole("button", { name: "connect:twoFactorNudge.notNow" }));
+    expect(screen.queryByText("connect:twoFactorNudge.title")).toBeNull();
+    expect(screen.getByText("connect:upgrade.title")).toBeTruthy();
+
+    // "Not now" holds for 60 days for this user.
+    cleanup();
+    renderView();
+    await screen.findByText("connect:twoFactor.off");
+    expect(screen.queryByText("connect:twoFactorNudge.title")).toBeNull();
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 61 * 24 * 60 * 60 * 1000);
+    cleanup();
+    renderView();
+    expect(await screen.findByText("connect:twoFactorNudge.title")).toBeTruthy();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["2FA is on", { team: { plan: "basic", subscription_status: "active" } }, true],
+    ["no subscription", { team: { subscription_status: "canceled" } }, false],
+  ])("does not nudge when %s", async (_case, userInfo, enabled) => {
+    context.userInfo = userInfo;
+    context.fetchMfaEnabled.mockResolvedValue(enabled);
+    renderView();
+    await waitFor(() => expect(context.fetchMfaEnabled).toHaveBeenCalled());
+    await screen.findByText(enabled ? "connect:twoFactor.on" : "connect:twoFactor.off");
+    expect(screen.queryByText("connect:twoFactorNudge.title")).toBeNull();
+  });
+
+  it("explains a paused sync and offers the code step without signing out", async () => {
+    context.userInfo = null;
+    context.isMfaRequired = true;
+    context.fetchMfaEnabled.mockResolvedValue(true);
+    // The code step's InputOTP measures itself.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      },
+    );
+    document.elementFromPoint = () => null;
+    renderView();
+    expect(screen.getByText("connect:mfaSyncPaused.description")).toBeTruthy();
+    // Not a service outage, and no endless loading skeleton.
+    expect(screen.queryByText("connect:serviceUnavailable.tryAgain")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "connect:mfaSyncPaused.enterCode" }));
+    expect(await screen.findByText("auth:connect.mfa.title")).toBeTruthy();
+    expect(context.signOut).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });

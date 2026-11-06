@@ -60,6 +60,19 @@
     "signOutConfirm": "登出",
     "signingOut": "正在登出…"
   },
+  "twoFactor": {
+    "label": "雙重驗證",
+    "on": "已開啟",
+    "off": "已關閉",
+    "turnOn": "開啟",
+    "manage": "管理"
+  },
+  "twoFactorNudge": {
+    "title": "保護你的同步資料",
+    "description": "為你的 Wealthfolio 帳戶開啟雙重驗證。",
+    "setUp": "設定",
+    "notNow": "稍後再說"
+  },
   "accounts": {
     "title": "帳戶",
     "manage": "管理帳戶",
@@ -234,6 +247,11 @@
     "title": "升級以同步券商帳戶",
     "description": "連線你的券商帳戶以自動同步投資組合。",
     "button": "升級"
+  },
+  "mfaSyncPaused": {
+    "title": "同步已暫停",
+    "description": "你的帳戶現在使用雙重驗證。輸入驗證碼即可在這部裝置上繼續同步。",
+    "enterCode": "輸入驗證碼"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect 不會儲存你的券商憑證或財務資料。資料會透過資料彙整服務商安全地同步到本機資料庫。裝置同步採用端對端加密。<privacyLink>了解更多</privacyLink>"

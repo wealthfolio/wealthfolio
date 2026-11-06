@@ -60,6 +60,19 @@
     "signOutConfirm": "Sign out",
     "signingOut": "Signing out..."
   },
+  "twoFactor": {
+    "label": "Two-factor authentication",
+    "on": "On",
+    "off": "Off",
+    "turnOn": "Turn on",
+    "manage": "Manage"
+  },
+  "twoFactorNudge": {
+    "title": "Protect your synced data",
+    "description": "Turn on two-factor authentication for your Wealthfolio account.",
+    "setUp": "Set up",
+    "notNow": "Not now"
+  },
   "accounts": {
     "title": "Accounts",
     "manage": "Manage accounts",
@@ -234,6 +247,11 @@
     "title": "Upgrade to sync broker accounts",
     "description": "Connect your brokerage accounts for automatic portfolio syncing.",
     "button": "Upgrade"
+  },
+  "mfaSyncPaused": {
+    "title": "Sync paused",
+    "description": "Your account now uses two-factor authentication. Enter a code to keep syncing on this device.",
+    "enterCode": "Enter code"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect doesn't store your brokerage credentials or financial data. Everything syncs securely via an aggregator to your local database. Device sync uses end-to-end encryption. <privacyLink>Learn more</privacyLink>"

@@ -22,6 +22,14 @@ pub const SYNC_SEGMENT_STREAM_MISMATCH: &str = "SYNC_SEGMENT_STREAM_MISMATCH";
 pub const SYNC_EVENT_INDEX_MISMATCH: &str = "SYNC_EVENT_INDEX_MISMATCH";
 pub const SYNC_SNAPSHOT_OBJECT_MISSING: &str = "SYNC_SNAPSHOT_OBJECT_MISSING";
 pub const SYNC_SNAPSHOT_CHECKSUM_MISMATCH: &str = "SYNC_SNAPSHOT_CHECKSUM_MISMATCH";
+/// The account has two-factor authentication on and this session hasn't passed
+/// the code step yet. The session stays valid; the user enters a code to resume.
+pub const MFA_REQUIRED: &str = "MFA_REQUIRED";
+
+/// Errors that reach the engine as text keep the API code in their message.
+pub fn is_mfa_required_message(message: &str) -> bool {
+    message.contains(MFA_REQUIRED)
+}
 
 /// Returns true when the given code indicates an integrity problem.
 pub fn is_integrity_code(code: &str) -> bool {
@@ -216,6 +224,15 @@ mod tests {
             let err = DeviceSyncError::api_structured(status, code, "Denied", None);
             assert_eq!(err.retry_class(), ApiRetryClass::Permanent);
         }
+    }
+
+    #[test]
+    fn mfa_denial_is_not_permanent() {
+        // Permanent errors dead-letter pending changes; a code step must not lose them.
+        let err = DeviceSyncError::api_structured(403, MFA_REQUIRED, "Enter a code", None);
+        assert_eq!(err.error_code(), Some(MFA_REQUIRED));
+        assert_ne!(err.retry_class(), ApiRetryClass::Permanent);
+        assert!(is_mfa_required_message(&err.to_string()));
     }
 
     #[test]

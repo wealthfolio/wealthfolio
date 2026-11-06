@@ -60,6 +60,19 @@
     "signOutConfirm": "退出登录",
     "signingOut": "正在退出登录..."
   },
+  "twoFactor": {
+    "label": "双重身份验证",
+    "on": "已开启",
+    "off": "已关闭",
+    "turnOn": "开启",
+    "manage": "管理"
+  },
+  "twoFactorNudge": {
+    "title": "保护你的同步数据",
+    "description": "为你的 Wealthfolio 账户开启双重身份验证。",
+    "setUp": "设置",
+    "notNow": "以后再说"
+  },
   "accounts": {
     "title": "账户",
     "manage": "管理账户",
@@ -232,6 +245,11 @@
     "title": "升级以同步券商账户",
     "description": "连接您的券商账户以自动同步投资组合。",
     "button": "升级"
+  },
+  "mfaSyncPaused": {
+    "title": "同步已暂停",
+    "description": "你的账户现已启用双重身份验证。输入验证码即可在此设备上继续同步。",
+    "enterCode": "输入验证码"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect 不会存储您的券商凭据或财务数据。所有内容均通过聚合服务商安全同步到您的本地数据库。设备同步采用端到端加密。<privacyLink>了解更多</privacyLink>"

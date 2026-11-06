@@ -58,6 +58,21 @@ impl TransportError {
             code.starts_with("SUBSCRIPTION_") || code == "PLAN_UPGRADE_REQUIRED"
         })
     }
+
+    pub fn is_mfa_required(&self) -> bool {
+        self.error_code.as_deref() == Some(crate::error::MFA_REQUIRED)
+    }
+
+    /// Denials that pause sync until the user acts, keeping pending changes.
+    pub fn pause_status(&self) -> Option<&'static str> {
+        if self.is_subscription_blocked() {
+            Some("subscription_required")
+        } else if self.is_mfa_required() {
+            Some("mfa_required")
+        } else {
+            None
+        }
+    }
 }
 
 impl std::fmt::Display for TransportError {

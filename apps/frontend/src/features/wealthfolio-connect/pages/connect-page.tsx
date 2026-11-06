@@ -7,6 +7,9 @@ import { SyncStates } from "@/features/devices-sync/types";
 import { BrokerageLogo } from "../components/brokerage-logo";
 import { PortalLink } from "../components/portal-link";
 import { ConnectedView } from "../components/connected-view";
+import { LoginForm } from "../components/login-form";
+import { MfaSyncPausedAlert } from "../components/mfa-sync-paused-alert";
+import { TwoFactorNudge, useTwoFactorNudge } from "../components/two-factor-status";
 import { ConnectEmptyState } from "@/features/wealthfolio-connect/components/connect-empty-state";
 import {
   useAggregatedSyncStatus,
@@ -73,7 +76,7 @@ export default function ConnectPage() {
   const localizationSettings = useLocalizationSettings();
 
   const { t } = useTranslation();
-  const { isEnabled, isConnected, isInitializing, isSessionUnavailable, userInfo } =
+  const { isEnabled, isConnected, isInitializing, isSessionUnavailable, userInfo, mfaChallenge } =
     useWealthfolioConnect();
   const { status, syncStates } = useAggregatedSyncStatus();
   const showBrokerSync = hasBrokerSync(userInfo);
@@ -190,6 +193,7 @@ export default function ConnectPage() {
   const hasSubscription = useMemo(() => {
     return isSubscriptionStatusActive(userInfo?.team?.subscription_status);
   }, [userInfo]);
+  const twoFactorNudge = useTwoFactorNudge(hasSubscription);
 
   if (isInitializing) {
     return (
@@ -222,6 +226,10 @@ export default function ConnectPage() {
             <ConnectSessionUnavailable />
           ) : isEnabled && isConnected ? (
             <ConnectedView />
+          ) : mfaChallenge ? (
+            <div className="mx-auto max-w-lg pt-4 sm:pt-6">
+              <LoginForm />
+            </div>
           ) : (
             <ConnectEmptyState />
           )}
@@ -301,6 +309,7 @@ export default function ConnectPage() {
         <div className="@container mx-auto max-w-5xl pt-4 sm:pt-6">
           <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-4">
+              <MfaSyncPausedAlert />
               {showBrokerSync ? (
                 <>
                   {attentionItems.length > 0 && (
@@ -360,30 +369,36 @@ export default function ConnectPage() {
                       </div>
                     )}
                   </SectionCard>
+                  {twoFactorNudge.show && <TwoFactorNudge onNotNow={twoFactorNudge.snooze} />}
                 </>
               ) : (
                 <>
                   {devicesCard}
-                  <Card className="border-primary/20 bg-primary/5">
-                    <div className="flex items-center justify-between gap-3 p-4">
-                      <div>
-                        <h3 className="text-sm font-medium">{t("connect:upgrade.title")}</h3>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
-                          {t("connect:upgrade.description")}
-                        </p>
+                  {/* One callout at a time: protecting synced data comes before the upgrade offer. */}
+                  {twoFactorNudge.show ? (
+                    <TwoFactorNudge onNotNow={twoFactorNudge.snooze} />
+                  ) : (
+                    <Card className="border-primary/20 bg-primary/5">
+                      <div className="flex items-center justify-between gap-3 p-4">
+                        <div>
+                          <h3 className="text-sm font-medium">{t("connect:upgrade.title")}</h3>
+                          <p className="text-muted-foreground mt-0.5 text-xs">
+                            {t("connect:upgrade.description")}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          title={t("connect:opensInBrowser")}
+                          onClick={() =>
+                            openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/settings/billing`)
+                          }
+                        >
+                          {t("connect:upgrade.button")}
+                          <Icons.ExternalLink className="ms-1 h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        title={t("connect:opensInBrowser")}
-                        onClick={() =>
-                          openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/settings/billing`)
-                        }
-                      >
-                        {t("connect:upgrade.button")}
-                        <Icons.ExternalLink className="ms-1 h-3.5 w-3.5" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </Card>
+                    </Card>
+                  )}
                 </>
               )}
             </div>

@@ -2,6 +2,8 @@ import { cloudSubscriptionErrorMessage } from "@/features/devices-sync/utils/err
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { syncBrokerData } from "../services/broker-service";
+import { isMfaRequiredError } from "../lib/mfa";
+import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 /**
@@ -11,12 +13,14 @@ import { toast } from "@wealthfolio/ui/components/ui/use-toast";
  */
 export function useSyncBrokerData() {
   const { t } = useTranslation();
+  const { reportMfaRequired } = useWealthfolioConnect();
   return useMutation({
     mutationFn: syncBrokerData,
     onSuccess: () => {
       toast.loading(t("connect:sync.syncingBrokerData"), { id: "broker-sync-start" });
     },
     onError: (error) => {
+      if (isMfaRequiredError(error)) reportMfaRequired();
       toast.error(
         t("connect:sync.startFailed", {
           error:

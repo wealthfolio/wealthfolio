@@ -60,6 +60,19 @@
     "signOutConfirm": "로그아웃",
     "signingOut": "로그아웃 중..."
   },
+  "twoFactor": {
+    "label": "2단계 인증",
+    "on": "켜짐",
+    "off": "꺼짐",
+    "turnOn": "켜기",
+    "manage": "관리"
+  },
+  "twoFactorNudge": {
+    "title": "동기화된 데이터를 보호하세요",
+    "description": "Wealthfolio 계정에 2단계 인증을 켜세요.",
+    "setUp": "설정",
+    "notNow": "나중에"
+  },
   "accounts": {
     "title": "계좌",
     "manage": "계좌 관리",
@@ -232,6 +245,11 @@
     "title": "업그레이드하여 증권사 계좌 동기화",
     "description": "증권사 계좌를 연결하여 포트폴리오를 자동으로 동기화하세요.",
     "button": "업그레이드"
+  },
+  "mfaSyncPaused": {
+    "title": "동기화가 일시 중지되었습니다",
+    "description": "이제 계정에서 2단계 인증을 사용합니다. 이 기기에서 계속 동기화하려면 코드를 입력하세요.",
+    "enterCode": "코드 입력"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect는 증권사 자격 증명이나 금융 데이터를 저장하지 않습니다. 모든 데이터는 애그리게이터를 통해 안전하게 로컬 데이터베이스로 동기화됩니다. 기기 동기화는 종단 간 암호화를 사용합니다. <privacyLink>자세히 알아보기</privacyLink>"

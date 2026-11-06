@@ -266,6 +266,9 @@ where
 
     let runtime_state = match ports.get_sync_state().await {
         Ok(value) => value,
+        Err(err) if crate::error::is_mfa_required_message(&err) => {
+            return ctx.fail("mfa_required", err, Some(300)).await;
+        }
         Err(err) => {
             return ctx
                 .fail(
@@ -313,10 +316,8 @@ where
     let reconcile = match ports.get_reconcile_ready_state(&token, &device_id).await {
         Ok(response) => response,
         Err(err) => {
-            if err.is_subscription_blocked() {
-                return ctx
-                    .fail("subscription_required", err.to_string(), Some(300))
-                    .await;
+            if let Some(status) = err.pause_status() {
+                return ctx.fail(status, err.to_string(), Some(300)).await;
             }
             return ctx
                 .fail(
@@ -579,10 +580,8 @@ where
                 server_cursor = push_response.server_cursor;
             }
             Err(err) => {
-                if err.is_subscription_blocked() {
-                    return ctx
-                        .fail("subscription_required", err.to_string(), Some(300))
-                        .await;
+                if let Some(status) = err.pause_status() {
+                    return ctx.fail(status, err.to_string(), Some(300)).await;
                 }
                 let err_str = err.to_string();
 
@@ -742,10 +741,8 @@ where
             {
                 Ok(value) => value,
                 Err(err) => {
-                    if err.is_subscription_blocked() {
-                        return ctx
-                            .fail("subscription_required", err.to_string(), Some(300))
-                            .await;
+                    if let Some(status) = err.pause_status() {
+                        return ctx.fail(status, err.to_string(), Some(300)).await;
                     }
                     if err.retry_class == ApiRetryClass::ReauthRequired {
                         warn!("[DeviceSync] Auth error during pull — token may need refresh");
@@ -1032,7 +1029,7 @@ where
     if let Ok(engine_status) = ports.get_engine_status().await {
         subscription_paused = matches!(
             engine_status.last_cycle_status.as_deref(),
-            Some("subscription_required" | "subscription_check_error")
+            Some("subscription_required" | "subscription_check_error" | "mfa_required")
         );
         if let Some(next_retry_at) = engine_status.next_retry_at.as_deref() {
             if let Some(wait_ms) = millis_until_rfc3339(next_retry_at) {
@@ -1683,6 +1680,54 @@ mod tests {
         let resumed = run_sync_cycle(&ports, false).await.unwrap();
         assert_eq!(resumed.status, "ok");
         assert_eq!(ports.push_batches.lock().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn mfa_denial_pauses_sync_and_keeps_pending_changes() {
+        let mfa_error = || TransportError {
+            message: "API error (403): MFA_REQUIRED: Enter a code".into(),
+            retry_class: ApiRetryClass::ReauthRequired,
+            error_code: Some(crate::error::MFA_REQUIRED.into()),
+            details: None,
+        };
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.push_error = Some(mfa_error());
+        ports.pending_outbox.lock().await.push(outbox_event(
+            "event-1",
+            "019cb093-06a8-7534-8677-546317b17957",
+            1,
+        ));
+        assert_eq!(
+            run_sync_cycle(&ports, false).await.unwrap().status,
+            "mfa_required"
+        );
+        assert_eq!(ports.pending_outbox.lock().await.len(), 1);
+        assert!(ports.dead_outbox_batches.lock().await.is_empty());
+        assert!((299_000..=300_000).contains(&compute_cycle_delay_ms(&ports, 0).await));
+
+        ports.push_error = None;
+        ports.reconcile_error = Some(mfa_error());
+        assert_eq!(
+            run_sync_cycle(&ports, false).await.unwrap().status,
+            "mfa_required"
+        );
+
+        // The device lookup comes first in each cycle and reports errors as text.
+        let ports = TestPorts::new(
+            Some(ready_identity()),
+            Err("Failed to get device: API error (403): MFA_REQUIRED: Enter a code".into()),
+        );
+        ports.pending_outbox.lock().await.push(outbox_event(
+            "event-1",
+            "019cb093-06a8-7534-8677-546317b17957",
+            1,
+        ));
+        assert_eq!(
+            run_sync_cycle(&ports, false).await.unwrap().status,
+            "mfa_required"
+        );
+        assert!((299_000..=300_000).contains(&compute_cycle_delay_ms(&ports, 0).await));
+        assert_eq!(ports.pending_outbox.lock().await.len(), 1);
     }
 
     #[tokio::test]

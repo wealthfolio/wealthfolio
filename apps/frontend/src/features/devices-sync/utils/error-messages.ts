@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { logger } from "@/adapters";
+import { isMfaRequiredError } from "@/features/wealthfolio-connect/lib/mfa";
 
 export function rawSyncErrorMessage(error: unknown): string {
   if (!error) return "";
@@ -49,8 +50,10 @@ function isTechnicalSyncError(message: string): boolean {
   );
 }
 
+/** Cloud denials that pause sync until the user acts (subscription, plan, 2FA code). */
 export function cloudSubscriptionErrorMessage(error: unknown): string | null {
   const message = rawSyncErrorMessage(error);
+  if (isMfaRequiredError(message)) return i18n.t("connect:mfaSyncPaused.description");
   if (/\b(?:SUBSCRIPTION_[A-Z_]+|BACKUP_SUBSCRIPTION_REQUIRED)\b/.test(message)) {
     return i18n.t("connect:subscription.syncPausedDescription");
   }

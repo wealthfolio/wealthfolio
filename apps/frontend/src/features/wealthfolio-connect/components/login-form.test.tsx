@@ -10,6 +10,9 @@ const fixture = vi.hoisted(() => ({
   verifyOtp: vi.fn(),
   clearError: vi.fn(),
   savePreferredProvider: vi.fn(),
+  mfaChallenge: null as "sign-in" | "restore" | null,
+  verifyMfaCode: vi.fn(),
+  cancelMfaChallenge: vi.fn(),
 }));
 
 vi.mock("@/adapters", () => ({
@@ -40,8 +43,10 @@ beforeEach(() => {
       disconnect = vi.fn();
     },
   );
+  document.elementFromPoint = () => null;
   fixture.tauri = true;
   fixture.preferredProvider = null;
+  fixture.mfaChallenge = null;
   fixture.signInWithOAuth.mockResolvedValue(undefined);
   fixture.signInWithMagicLink.mockResolvedValue(undefined);
 });
@@ -119,6 +124,48 @@ describe("Connect sign-in choices", () => {
     expect(screen.queryByRole("button", { name: emailLabel })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "auth:connect.otp.backToSignIn" }));
     expect(screen.getByRole("button", { name: googleLabel })).toBeTruthy();
+    expect(screen.getByRole("button", { name: emailLabel })).toBeTruthy();
+  });
+});
+
+describe("Two-factor code step", () => {
+  it.each([
+    [true, "sign-in"],
+    [false, "sign-in"],
+    [true, "restore"],
+  ] as const)("replaces the sign-in options (desktop: %s, %s)", async (tauri, challenge) => {
+    fixture.tauri = tauri;
+    fixture.mfaChallenge = challenge;
+    fixture.verifyMfaCode.mockResolvedValue(undefined);
+    render(<LoginForm />);
+    expect(screen.getByText("auth:connect.mfa.title")).toBeTruthy();
+    expect(screen.queryByLabelText("auth:connect.emailLabel")).toBeNull();
+    expect(screen.queryByRole("button", { name: googleLabel })).toBeNull();
+    fireEvent.change(screen.getByLabelText("auth:connect.mfa.codeLabel"), {
+      target: { value: "123456" },
+    });
+    await waitFor(() => expect(fixture.verifyMfaCode).toHaveBeenCalledWith("123456"));
+  });
+
+  it("leaves the email code behind once the authenticator step takes over", async () => {
+    fixture.verifyOtp.mockResolvedValue(undefined);
+    const { rerender } = render(<LoginForm />);
+    fireEvent.change(screen.getByLabelText("auth:connect.emailLabel"), {
+      target: { value: "demo@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: emailLabel }));
+    await screen.findByText("auth:connect.otp.title");
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "654321" } });
+    await waitFor(() =>
+      expect(fixture.verifyOtp).toHaveBeenCalledWith("demo@example.com", "654321"),
+    );
+    fixture.mfaChallenge = "sign-in";
+    rerender(<LoginForm />);
+    expect(await screen.findByText("auth:connect.mfa.title")).toBeTruthy();
+    // "Sign out" from the code step returns to the sign-in choices, not the email code.
+    fixture.mfaChallenge = null;
+    rerender(<LoginForm />);
+    expect(screen.queryByText("auth:connect.otp.title")).toBeNull();
     expect(screen.getByRole("button", { name: emailLabel })).toBeTruthy();
   });
 });

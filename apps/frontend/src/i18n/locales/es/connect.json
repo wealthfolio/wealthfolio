@@ -61,6 +61,19 @@
     "signOutConfirm": "Cerrar sesión",
     "signingOut": "Cerrando sesión..."
   },
+  "twoFactor": {
+    "label": "Autenticación en dos pasos",
+    "on": "Activada",
+    "off": "Desactivada",
+    "turnOn": "Activar",
+    "manage": "Gestionar"
+  },
+  "twoFactorNudge": {
+    "title": "Protege tus datos sincronizados",
+    "description": "Activa la autenticación en dos pasos en tu cuenta de Wealthfolio.",
+    "setUp": "Configurar",
+    "notNow": "Ahora no"
+  },
   "accounts": {
     "title": "Cuentas",
     "manage": "Gestionar cuentas",
@@ -256,6 +269,11 @@
     "title": "Mejora para sincronizar cuentas de corredores",
     "description": "Conecta tus cuentas de corredores para sincronizar tu cartera automáticamente.",
     "button": "Mejorar"
+  },
+  "mfaSyncPaused": {
+    "title": "La sincronización está pausada",
+    "description": "Tu cuenta ahora usa la autenticación en dos pasos. Introduce un código para seguir sincronizando en este dispositivo.",
+    "enterCode": "Introducir código"
   },
   "privacy": {
     "footnote": "Wealthfolio Connect no almacena las credenciales de tu corredor ni tus datos financieros. Todo se sincroniza de forma segura a través de un agregador hacia tu base de datos local. La sincronización de dispositivos utiliza cifrado de extremo a extremo. <privacyLink>Más información</privacyLink>"
