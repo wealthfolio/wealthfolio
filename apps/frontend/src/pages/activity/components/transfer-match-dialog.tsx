@@ -331,10 +331,13 @@ export function externalTransferUpdatePayload(
 export function ActivitySummaryRow({
   activity,
   accountMap,
+  compact = false,
   className,
 }: {
   activity: TransferDialogActivity;
   accountMap: Map<string, Account>;
+  /** Two lines, with the time: for lists of many rows. */
+  compact?: boolean;
   className?: string;
 }) {
   const dateFormatting = useDateFormatting();
@@ -345,6 +348,33 @@ export function ActivitySummaryRow({
   const amount = amountValue(normalized);
   const quantity = parseNumber(normalized.quantity);
   const symbol = normalized.assetSymbol || normalized.assetId || t("activity:date_list.cash");
+
+  if (compact) {
+    const quantityText = quantity != null ? `${Math.abs(quantity)} ${symbol}` : undefined;
+    return (
+      <div className={cn("flex flex-col gap-1 rounded-md px-3 py-2 text-sm", className)}>
+        <div className="flex items-center gap-2">
+          <ActivityTypeBadge
+            type={normalized.activityType as ActivityType}
+            className="text-2xs px-1.5 py-0"
+          />
+          <span className="min-w-0 truncate font-medium">{normalized.accountName}</span>
+          <span className="ms-auto shrink-0 font-medium tabular-nums">
+            {amount != null
+              ? formatting.formatAmount(Math.abs(amount), normalized.currency)
+              : (quantityText ?? normalized.currency)}
+          </span>
+        </div>
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <span className="shrink-0">{dateFormatting.formatDateTime(normalized.date)}</span>
+          {normalized.notes ? <span className="min-w-0 truncate">{normalized.notes}</span> : null}
+          {amount != null && quantityText ? (
+            <span className="ms-auto shrink-0">{quantityText}</span>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm", className)}>
