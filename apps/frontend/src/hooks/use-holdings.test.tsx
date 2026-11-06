@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AccountScope, Holding } from "@/lib/types";
+import { QueryKeys } from "@/lib/query-keys";
 import { useHoldings, useHoldingsWithClosedProbe } from "./use-holdings";
 
 const mocks = vi.hoisted(() => ({
@@ -79,6 +80,43 @@ describe("useHoldingsWithClosedProbe", () => {
 describe("useHoldings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("exposes background refreshes while retaining the cached holdings", async () => {
+    const scope: AccountScope = { type: "account", accountId: "account-1" };
+    const queryKey = [QueryKeys.HOLDINGS, scope, { includeClosed: false }];
+    const cachedHolding = { id: "position", quantity: 10 } as Holding;
+    const refreshedHolding = { ...cachedHolding, quantity: 6 };
+    let resolveRefresh: ((holdings: Holding[]) => void) | undefined;
+    mocks.getHoldingsList.mockImplementation(
+      () =>
+        new Promise<Holding[]>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 300_000 } },
+    });
+    queryClient.setQueryData(queryKey, [cachedHolding]);
+    const { result } = renderHook(() => useHoldings(scope), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(result.current.isFetching).toBe(false);
+
+    act(() => {
+      void queryClient.invalidateQueries({ queryKey });
+    });
+    await waitFor(() => expect(result.current.isFetching).toBe(true));
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.holdings).toEqual([cachedHolding]);
+
+    act(() => {
+      resolveRefresh?.([refreshedHolding]);
+    });
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.holdings).toEqual([refreshedHolding]);
   });
 
   it("does not retain open-only positions while closed positions load", async () => {

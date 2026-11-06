@@ -428,6 +428,7 @@ export function SellForm({
   const expiration = watch("expirationDate");
   const optType = watch("optionType");
   const existingAssetId = watch("existingAssetId");
+  const exchangeMic = watch("exchangeMic");
   const effectiveAssetId = useMemo(() => {
     if (!isOption) return existingAssetId || assetId;
     if (underlying && strike && isValidOptionExpiration(expiration) && optType) {
@@ -461,10 +462,12 @@ export function SellForm({
   const {
     availableQuantity: availableHoldingQuantity,
     isLoading: isHoldingsLoading,
+    isFetching: isHoldingsFetching,
     isError: isHoldingsError,
   } = useSellHoldings({
     accountId,
     assetId: effectiveAssetId,
+    exchangeMic,
     originalActivity,
     originalAssetId: originalEffectiveAssetId,
   });
@@ -617,11 +620,12 @@ export function SellForm({
                 action={
                   <SellAllButton
                     availableQuantity={availableHoldingQuantity}
-                    holdingKey={JSON.stringify([accountId, effectiveAssetId, subtype])}
+                    holdingKey={JSON.stringify([accountId, effectiveAssetId, exchangeMic, subtype])}
                     disabled={
                       !accountId ||
                       !effectiveAssetId ||
                       isHoldingsLoading ||
+                      isHoldingsFetching ||
                       isHoldingsError ||
                       isLoading
                     }
@@ -706,13 +710,13 @@ export function SellForm({
                 {isOption
                   ? t("activity:form.warn_selling_more_contracts", {
                       selling:
-                        optQuantity == null ? undefined : formatting.formatDecimal(optQuantity),
-                      available: formatting.formatDecimal(availableHoldingQuantity),
+                        optQuantity == null ? undefined : formatting.formatQuantity(optQuantity),
+                      available: formatting.formatQuantity(availableHoldingQuantity),
                     })
                   : t("activity:form.warn_selling_more_shares", {
                       selling:
-                        optQuantity == null ? undefined : formatting.formatDecimal(optQuantity),
-                      available: formatting.formatDecimal(availableHoldingQuantity),
+                        optQuantity == null ? undefined : formatting.formatQuantity(optQuantity),
+                      available: formatting.formatQuantity(availableHoldingQuantity),
                     })}
               </AlertDescription>
             </Alert>
@@ -723,7 +727,7 @@ export function SellForm({
               <Icons.AlertTriangle />
               <AlertDescription>
                 {t("activity:form.warn_sell_short_while_long", {
-                  available: formatting.formatDecimal(availableHoldingQuantity),
+                  available: formatting.formatQuantity(availableHoldingQuantity),
                 })}
               </AlertDescription>
             </Alert>

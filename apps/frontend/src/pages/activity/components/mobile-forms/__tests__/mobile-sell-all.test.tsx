@@ -11,10 +11,11 @@ import type { IncomeAmountTypedLast } from "../../forms/use-income-amounts";
 import { MobileDetailsStep } from "../mobile-details-step";
 import { MobileActivityForm } from "../mobile-activity-form";
 
-const mocks = vi.hoisted(() => ({ quantity: 1.12345678 }));
+const mocks = vi.hoisted(() => ({ quantity: 1.12345678, isFetching: false }));
 
 beforeEach(() => {
   mocks.quantity = 1.12345678;
+  mocks.isFetching = false;
 });
 
 vi.mock("@/lib/settings-provider", () => ({
@@ -26,6 +27,7 @@ vi.mock("@/hooks/use-holdings", () => ({
       { instrument: { id: "aapl-id", symbol: "AAPL" }, quantity: mocks.quantity } as Holding,
     ],
     isLoading: false,
+    isFetching: mocks.isFetching,
     isError: false,
   }),
 }));
@@ -99,6 +101,28 @@ function TestForm({
 }
 
 describe("mobile Sell all", () => {
+  it("waits for refreshed holdings before filling the quantity", async () => {
+    mocks.isFetching = true;
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const client = new QueryClient();
+    const { rerender } = render(<TestForm onSubmit={onSubmit} />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    expect(screen.getByRole("button", { name: "Sell all" })).toBeDisabled();
+
+    mocks.quantity = 0.00000001;
+    mocks.isFetching = false;
+    rerender(<TestForm onSubmit={onSubmit} />);
+
+    await user.click(screen.getByRole("button", { name: "Sell all" }));
+    expect(screen.getByRole("textbox", { name: "Shares" })).toHaveValue("0.00000001");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it.each([
     { activityType: ActivityType.UNKNOWN, status: ActivityStatus.POSTED, expected: "10" },
     { activityType: ActivityType.SELL, status: ActivityStatus.DRAFT, expected: "10" },

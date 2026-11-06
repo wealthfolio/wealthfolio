@@ -9,6 +9,7 @@ import type { ActivityDetails, Holding } from "@/lib/types";
 interface UseHoldingsResult {
   holdings: Holding[];
   isLoading: boolean;
+  isFetching?: boolean;
   isError?: boolean;
 }
 
@@ -525,6 +526,68 @@ describe("SellForm", () => {
   });
 
   describe("Holdings Warning", () => {
+    it("distinguishes eighth-decimal quantities in the over-holdings warning", () => {
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 10.00000001)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{ accountId: "acc-1", assetId: "AAPL", quantity: 10.00000002 }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+      expect(screen.getByTestId("alert-description")).toHaveTextContent(
+        "selling more shares (10.00000002) than your available holdings (10.00000001)",
+      );
+    });
+
+    it("retains tiny quantities in the Sell Short warning", () => {
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 0.00000001)],
+        isLoading: false,
+      });
+      render(
+        <SellForm
+          accounts={mockAccounts}
+          defaultValues={{
+            accountId: "acc-1",
+            assetId: "AAPL",
+            subtype: ACTIVITY_SUBTYPES.POSITION_OPEN,
+          }}
+          onSubmit={mockOnSubmit}
+        />,
+      );
+      expect(screen.getByTestId("alert-description")).toHaveTextContent(
+        "currently hold 0.00000001 shares",
+      );
+    });
+
+    it("waits for a holdings refetch before filling Sell all", async () => {
+      const user = userEvent.setup();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 10)],
+        isLoading: false,
+        isFetching: true,
+      });
+      const defaults = { accountId: "acc-1", assetId: "AAPL" };
+      const { rerender } = render(
+        <SellForm accounts={mockAccounts} defaultValues={defaults} onSubmit={mockOnSubmit} />,
+      );
+      expect(screen.getByRole("button", { name: "Sell all" })).toBeDisabled();
+      holdingsHook.useHoldings.mockReturnValue({
+        holdings: [createHolding("AAPL", 6)],
+        isLoading: false,
+        isFetching: false,
+      });
+      rerender(
+        <SellForm accounts={mockAccounts} defaultValues={defaults} onSubmit={mockOnSubmit} />,
+      );
+      await user.click(screen.getByRole("button", { name: "Sell all" }));
+      expect(screen.getByTestId("input-quantity")).toHaveValue(6);
+    });
+
     it.each([
       { activityType: ActivityType.UNKNOWN, status: ActivityStatus.POSTED },
       { activityType: ActivityType.SELL, status: ActivityStatus.DRAFT },

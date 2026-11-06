@@ -202,12 +202,14 @@ export function MobileDetailsStep({
 
   const subtype = watch("subtype");
   const sellAssetId = watch("existingAssetId") || watch("assetId") || "";
+  const sellExchangeMic = watch("exchangeMic");
   const sellDefaults = form.formState.defaultValues;
   const isLongSell =
     activityType === ActivityType.SELL && !isOption && subtype !== ACTIVITY_SUBTYPES.POSITION_OPEN;
   const sellHoldings = useSellHoldings({
     accountId: accountId ?? "",
     assetId: sellAssetId,
+    exchangeMic: sellExchangeMic,
     originalActivity,
     originalAssetId:
       sellDefaults?.existingAssetId ||
@@ -1009,6 +1011,7 @@ export function MobileDetailsStep({
                               holdingKey={JSON.stringify([
                                 accountId,
                                 sellAssetId,
+                                sellExchangeMic,
                                 subtype,
                                 activityType,
                               ])}
@@ -1017,6 +1020,7 @@ export function MobileDetailsStep({
                                 !accountId ||
                                 !sellAssetId ||
                                 sellHoldings.isLoading ||
+                                sellHoldings.isFetching ||
                                 sellHoldings.isError
                               }
                             />

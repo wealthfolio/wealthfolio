@@ -5,6 +5,7 @@ import type { ActivityDetails } from "@/lib/types";
 interface SellHoldingSelection {
   accountId: string;
   assetId: string;
+  exchangeMic?: string | null;
   originalActivity?: Partial<ActivityDetails>;
   originalAssetId?: string;
   enabled?: boolean;
@@ -14,15 +15,29 @@ interface SellHoldingSelection {
 export function useSellHoldings({
   accountId,
   assetId,
+  exchangeMic,
   originalActivity,
   originalAssetId,
   enabled = true,
 }: SellHoldingSelection) {
-  const { holdings, isLoading, isError } = useHoldings({ type: "account", accountId }, { enabled });
-  const holding = assetId
-    ? (holdings.find((h) => h.instrument?.id === assetId || h.id === assetId) ??
-      holdings.find((h) => h.instrument?.symbol === assetId))
+  const { holdings, isLoading, isFetching, isError } = useHoldings(
+    { type: "account", accountId },
+    { enabled },
+  );
+  const selectedExchange = exchangeMic?.trim().toUpperCase();
+  const exactHolding = assetId
+    ? holdings.find((h) => h.instrument?.id === assetId || h.id === assetId)
     : undefined;
+  const symbolHoldings =
+    assetId && !exactHolding
+      ? holdings.filter(
+          (h) =>
+            h.instrument?.symbol === assetId &&
+            (!selectedExchange ||
+              h.instrument?.exchangeMic?.trim().toUpperCase() === selectedExchange),
+        )
+      : [];
+  const holding = exactHolding ?? (symbolHoldings.length === 1 ? symbolHoldings[0] : undefined);
   const original = Number(originalActivity?.quantity);
   const isSameEditedHolding =
     !!originalActivity?.id &&
@@ -37,5 +52,5 @@ export function useSellHoldings({
       ? Number(((holding?.quantity ?? 0) + Math.abs(original)).toFixed(DECIMAL_PRECISION))
       : (holding?.quantity ?? 0);
 
-  return { availableQuantity, isLoading, isError };
+  return { availableQuantity, isLoading, isFetching, isError };
 }

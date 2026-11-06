@@ -99,19 +99,30 @@ const ActivityManagerPage = () => {
     null,
   );
   const needsSellAccount = selectedType === "SELL" && !!assetIdParam && !accountParam;
-  const { data: assetHoldings = [], isPending: isAssetHoldingsPending } = useQuery({
+  const {
+    data: assetHoldings = [],
+    isPending: isAssetHoldingsPending,
+    isFetching: isAssetHoldingsFetching,
+    isError: isAssetHoldingsError,
+  } = useQuery({
     queryKey: [QueryKeys.ASSET_HOLDINGS, assetIdParam],
     queryFn: () => getAssetHoldings(assetIdParam!),
     enabled: needsSellAccount && sellAccount?.assetId !== assetIdParam,
+    staleTime: 0,
   });
 
   useEffect(() => {
-    if (!needsSellAccount || isAccountsLoading || isAssetHoldingsPending) return;
-    const owners = activeAccounts.filter(
-      (account) =>
-        accountSupportsActivityType(account, "SELL") &&
-        assetHoldings.some((holding) => holding.accountId === account.id && holding.quantity > 0),
-    );
+    if (!needsSellAccount || isAccountsLoading || isAssetHoldingsPending || isAssetHoldingsFetching)
+      return;
+    const owners = isAssetHoldingsError
+      ? []
+      : activeAccounts.filter(
+          (account) =>
+            accountSupportsActivityType(account, "SELL") &&
+            assetHoldings.some(
+              (holding) => holding.accountId === account.id && holding.quantity > 0,
+            ),
+        );
     // Resolve once per asset so background refreshes cannot replace a user choice.
     setSellAccount((previous) =>
       previous?.assetId === assetIdParam
@@ -122,6 +133,8 @@ const ActivityManagerPage = () => {
     needsSellAccount,
     isAccountsLoading,
     isAssetHoldingsPending,
+    isAssetHoldingsFetching,
+    isAssetHoldingsError,
     activeAccounts,
     assetHoldings,
     assetIdParam,
