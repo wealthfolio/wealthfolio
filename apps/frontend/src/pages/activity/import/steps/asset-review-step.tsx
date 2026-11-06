@@ -53,6 +53,7 @@ function buildEditableAssetDraft(
       candidateDraft?.currency ||
       fallbackCurrency,
     instrumentType: item.draft?.instrumentType || candidateDraft?.instrumentType || "EQUITY",
+    instrumentTypeLabel: item.draft?.instrumentTypeLabel,
     instrumentSymbol:
       item.draft?.instrumentSymbol || item.draft?.displayCode || candidateDraft?.symbol,
     instrumentExchangeMic:

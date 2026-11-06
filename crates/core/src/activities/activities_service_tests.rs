@@ -528,6 +528,7 @@ pub(crate) mod tests {
                         quote_mode,
                         quote_ccy: quote_ccy.clone(),
                         instrument_type: instrument_type.clone(),
+                        instrument_type_label: None,
                         instrument_symbol: Some(canonical_symbol.clone()),
                         instrument_exchange_mic: exchange_mic.clone(),
                         provider_config: None,
