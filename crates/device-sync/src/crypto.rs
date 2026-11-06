@@ -13,7 +13,7 @@ use chacha20poly1305::{
 };
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -30,7 +30,7 @@ const SAS_INFO: &[u8] = b"wealthfolio-sas";
 /// Generate a cryptographically secure root key (32 bytes)
 pub fn generate_root_key() -> String {
     let mut key = [0u8; ROOT_KEY_SIZE];
-    OsRng.fill_bytes(&mut key);
+    UnwrapErr(SysRng).fill_bytes(&mut key);
     BASE64.encode(key)
 }
 
@@ -69,7 +69,7 @@ pub struct EphemeralKeyPair {
 
 /// Generate an ephemeral X25519 key pair for pairing
 pub fn generate_ephemeral_keypair() -> EphemeralKeyPair {
-    let secret = StaticSecret::random_from_rng(OsRng);
+    let secret = StaticSecret::random_from_rng(&mut UnwrapErr(SysRng));
     let public = PublicKey::from(&secret);
 
     EphemeralKeyPair {
@@ -139,8 +139,8 @@ pub fn encrypt_bytes(key_b64: &str, plaintext: &[u8]) -> Result<Vec<u8>, String>
 
     // Generate random nonce
     let mut nonce_bytes = [0u8; NONCE_SIZE];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = XNonce::from_slice(&nonce_bytes);
+    UnwrapErr(SysRng).fill_bytes(&mut nonce_bytes);
+    let nonce = &XNonce::from(nonce_bytes);
 
     // Encrypt
     let ciphertext = cipher
@@ -178,7 +178,7 @@ pub fn decrypt_bytes(key_b64: &str, data: &[u8]) -> Result<Vec<u8>, String> {
 
     // Extract nonce and ciphertext
     let (nonce_bytes, ciphertext) = data.split_at(NONCE_SIZE);
-    let nonce = XNonce::from_slice(nonce_bytes);
+    let nonce = &XNonce::try_from(nonce_bytes).map_err(|_| "Invalid nonce length")?;
 
     let cipher = XChaCha20Poly1305::new_from_slice(&key_bytes)
         .map_err(|e| format!("Failed to create cipher: {}", e))?;
@@ -194,7 +194,7 @@ pub fn decrypt_bytes(key_b64: &str, data: &[u8]) -> Result<Vec<u8>, String> {
 pub fn generate_pairing_code() -> String {
     const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous chars
     let mut code = String::with_capacity(6);
-    let mut rng = OsRng;
+    let mut rng = UnwrapErr(SysRng);
 
     for _ in 0..6 {
         let idx = (rng.next_u32() as usize) % CHARSET.len();
@@ -240,7 +240,7 @@ pub fn hmac_sha256(key_b64: &str, data: &str) -> Result<String, String> {
         .decode(key_b64)
         .map_err(|e| format!("Invalid HMAC key: {}", e))?;
 
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key_bytes)
+    let mut mac = <Hmac<Sha256> as KeyInit>::new_from_slice(&key_bytes)
         .map_err(|e| format!("HMAC key error: {}", e))?;
     mac.update(data.as_bytes());
     let result = mac.finalize().into_bytes();
@@ -267,7 +267,8 @@ pub fn compute_sas(shared_secret_b64: &str) -> Result<String, String> {
 /// Compute SHA-256 checksum of data, returned as `sha256:<hex>`.
 pub fn sha256_checksum(data: &[u8]) -> String {
     let digest = Sha256::digest(data);
-    format!("sha256:{:x}", digest)
+    let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
+    format!("sha256:{hex}")
 }
 
 /// Generate a UUID v4 device ID
@@ -278,6 +279,13 @@ pub fn generate_device_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cipher_wipes_its_key_on_drop() {
+        // chacha20poly1305 0.11 wipes keys only with its `zeroize` feature.
+        fn wipes_on_drop<T: zeroize::ZeroizeOnDrop>() {}
+        wipes_on_drop::<XChaCha20Poly1305>();
+    }
 
     #[test]
     fn test_root_key_generation() {

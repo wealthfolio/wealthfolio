@@ -396,7 +396,7 @@ fn split_effect(
         activity_id: before.id.clone(),
         removed_splits: if invalidates { splits.len() } else { 0 },
         has_retained_category_assignment: hidden,
-        fingerprint: format!("{:x}", Sha256::digest(state)),
+        fingerprint: hex::encode(Sha256::digest(state)),
     })
 }
 

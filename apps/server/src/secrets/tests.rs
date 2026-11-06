@@ -22,6 +22,13 @@ fn legacy_payload() -> Vec<u8> {
 }
 
 #[test]
+fn cipher_wipes_its_key_on_drop() {
+    // chacha20poly1305 0.11 wipes keys only with its `zeroize` feature.
+    fn wipes_on_drop<T: zeroize::ZeroizeOnDrop>() {}
+    wipes_on_drop::<ChaCha20Poly1305>();
+}
+
+#[test]
 fn encrypted_crud_survives_reopen_and_uses_fresh_nonces() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("secrets.json");
