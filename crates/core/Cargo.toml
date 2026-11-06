@@ -40,7 +40,7 @@ wealthfolio-portfolio-engine = { workspace = true }
 # Additional dependencies not in workspace
 regex = "1.10"
 rand = { workspace = true }
-rand_distr = "0.4"
+rand_distr = "0.6"
 rayon = "1"
 urlencoding = "2"
 csv = "1.4.0"

@@ -86,7 +86,7 @@ log = "0.4"
 zeroize = "1"
 hex = "0.4"
 sha2 = "0.11"
-rand = "0.8"
+rand = "0.10"
 
 # Internal crates
 wealthfolio-http = { path = "crates/http" }
