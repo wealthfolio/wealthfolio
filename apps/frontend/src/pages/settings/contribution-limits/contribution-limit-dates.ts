@@ -28,8 +28,14 @@ export function isContributionLimitCurrent(
   timezone = "UTC",
 ) {
   if (limit.startDate && limit.endDate && !hasFormerDefaultDates(limit)) {
-    const day = (date: string) => formatZonedDateKey(new Date(date), timezone);
-    return day(limit.startDate) <= todayKey && todayKey <= day(limit.endDate);
+    const start = new Date(limit.startDate);
+    const end = new Date(limit.endDate);
+    // The deposit count rejects dates it can't read, so such a limit isn't shown.
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    return (
+      formatZonedDateKey(start, timezone) <= todayKey &&
+      todayKey <= formatZonedDateKey(end, timezone)
+    );
   }
   return todayKey.startsWith(`${limit.contributionYear}-`);
 }

@@ -45,4 +45,9 @@ describe("isContributionLimitCurrent", () => {
       expect(isContributionLimitCurrent(yearLimit, "2027-01-01", "Pacific/Auckland")).toBe(false);
     }
   });
+
+  it("leaves out a limit whose dates can't be read instead of throwing", () => {
+    const unreadable = limit({ startDate: "not a date", endDate: "2026-12-31T00:00:00.000Z" });
+    expect(isContributionLimitCurrent(unreadable, "2026-06-15", "Europe/London")).toBe(false);
+  });
 });
