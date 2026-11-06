@@ -39,6 +39,10 @@ export const useContributionLimitMutations = () => {
       queryKey: [QueryKeys.CONTRIBUTION_LIMIT_PROGRESS],
       refetchType: refetchProgress ? "active" : "none",
     });
+    queryClient.invalidateQueries({
+      queryKey: [QueryKeys.CONTRIBUTION_LIMIT_DETAILS],
+      refetchType: refetchProgress ? "active" : "none",
+    });
     toast({
       description: message,
       variant: "success",

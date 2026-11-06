@@ -1,7 +1,7 @@
 import { QueryKeys } from "@/lib/query-keys";
 import type { ContributionLimit } from "@/lib/types";
 import { act, renderHook } from "@/test/render";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -49,7 +49,8 @@ describe("contribution limit cache invalidation", () => {
         limit.id,
       ];
       const limitsKey = [QueryKeys.CONTRIBUTION_LIMITS];
-      for (const key of [settingsKey, accountCardKey, limitsKey]) {
+      const detailsKey = [QueryKeys.CONTRIBUTION_LIMIT_DETAILS, limit.id];
+      for (const key of [settingsKey, accountCardKey, limitsKey, detailsKey]) {
         client.setQueryData(key, {});
       }
       client.setQueryData([QueryKeys.ACCOUNTS, false], []);
@@ -69,7 +70,7 @@ describe("contribution limit cache invalidation", () => {
         else await result.current.deleteContributionLimitMutation.mutateAsync(limit.id);
       });
 
-      for (const key of [settingsKey, accountCardKey, limitsKey]) {
+      for (const key of [settingsKey, accountCardKey, limitsKey, detailsKey]) {
         expect(client.getQueryState(key)?.isInvalidated).toBe(true);
       }
       expect(client.getQueryState([QueryKeys.ACCOUNTS, false])?.isInvalidated).toBe(false);
@@ -85,6 +86,8 @@ describe("contribution limit cache invalidation", () => {
       baseCurrency: "USD",
       byAccount: {},
     });
+    client.setQueryData([QueryKeys.CONTRIBUTION_LIMIT_DETAILS, limit.id], {});
+    const fetchDetails = vi.fn().mockRejectedValue(new Error("Limit not found"));
     // The list refresh can take longer than progress refetching. Until it ends,
     // the deleted limit's card still observes this query, whose API now errors.
     adapters.calculateDepositsForLimit.mockRejectedValue(new Error("Limit not found"));
@@ -94,6 +97,10 @@ describe("contribution limit cache invalidation", () => {
     const { result } = renderHook(
       () => {
         useContributionLimitProgress(limit.id);
+        useQuery({
+          queryKey: [QueryKeys.CONTRIBUTION_LIMIT_DETAILS, limit.id],
+          queryFn: fetchDetails,
+        });
         return useContributionLimitMutations();
       },
       { wrapper },
@@ -104,5 +111,6 @@ describe("contribution limit cache invalidation", () => {
     });
 
     expect(adapters.calculateDepositsForLimit).not.toHaveBeenCalled();
+    expect(fetchDetails).not.toHaveBeenCalled();
   });
 });

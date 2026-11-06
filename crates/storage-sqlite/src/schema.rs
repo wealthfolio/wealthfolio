@@ -191,6 +191,7 @@ diesel::table! {
         start_date -> Nullable<Timestamp>,
         end_date -> Nullable<Timestamp>,
         is_recurring -> Bool,
+        excluded_activity_ids -> Nullable<Text>,
     }
 }
 

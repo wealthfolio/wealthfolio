@@ -1981,5 +1981,34 @@
         "description": "الوصول إلى مضيفي HTTPS الخارجيين المصرح بهم عبر وسيط الشبكة في التطبيق المضيف"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "عرض التفاصيل",
+    "back": "حدود المساهمات",
+    "counted": "المساهمات المحتسبة",
+    "annual_limit": "مبلغ الحد",
+    "remaining": "المساحة المتبقية",
+    "over": "تجاوز الحد",
+    "activities": "معاملات المساهمات",
+    "review_activity": "مراجعة {{activity}}",
+    "transaction_details": "تفاصيل المعاملة",
+    "treatment": "المعاملة ضمن هذا الحد",
+    "automatic": "احتساب تلقائي",
+    "excluded": "استبعاد من هذا الحد",
+    "save": "حفظ المعاملة",
+    "counted_amount": "المبلغ المحتسب",
+    "usage_after_save": "استخدام الحد بعد الحفظ",
+    "recalculate": "يُحسب عند الحفظ",
+    "activity_unchanged": "يتغير استخدام هذا الحد فقط. تبقى معاملات الحساب دون تغيير.",
+    "save_success": "تم حفظ احتساب المساهمة.",
+    "save_error": "تعذر حفظ احتساب المساهمة.",
+    "load_error": "تعذر تحميل حد المساهمة هذا.",
+    "no_activities": "لا توجد معاملات مساهمات في هذه الفترة.",
+    "treatments": {
+      "counted": "محتسب",
+      "excludedByUser": "استبعدته أنت",
+      "internalTransfer": "تحويل داخلي",
+      "notExternal": "غير محدد كتحويل خارجي"
+    }
   }
 }

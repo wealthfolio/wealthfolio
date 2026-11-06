@@ -250,6 +250,8 @@ export {
   deleteContributionLimit,
   getContributionLimit,
   updateContributionLimit,
+  getContributionLimitDetails,
+  setContributionActivityExcluded,
 } from "../shared/contribution-limits";
 
 // Exchange Rates Commands

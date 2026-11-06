@@ -83,8 +83,8 @@ pub const APP_SYNC_TABLES: &[&str] = &[
 /// Schema version stamped on uploaded snapshots. Version 4 uses compressed binary
 /// encryption and includes broker holdings, activities and their import records.
 /// Older clients must not restore it with their manual-only import filters.
-/// Version 5 includes recurring contribution limits. Do not reuse older snapshots
-/// that cannot preserve their recurrence flags.
+/// Version 5 includes recurring contribution limits and per-limit exclusions. Do not
+/// reuse older snapshots that cannot preserve these settings.
 pub const SNAPSHOT_SCHEMA_VERSION: i32 = 5;
 
 /// A remote snapshot is reusable only when it covers the required event cursor
@@ -117,7 +117,7 @@ pub enum SyncEntity {
     AiMessage,
     AiThreadTag,
     ContributionLimit,
-    /// Full limit payload including recurrence; legacy clients skip this entity.
+    /// Full limit payload including recurrence and exclusions; legacy clients skip it.
     ContributionLimitV2,
     Platform,
     Snapshot,

@@ -1750,5 +1750,34 @@
         "description": "ホストのネットワーク仲介を通じた宣言済み外部 HTTPS ホストへのアクセス"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "詳細を表示",
+    "back": "拠出限度額",
+    "counted": "計上された拠出額",
+    "annual_limit": "限度額",
+    "remaining": "残りの枠",
+    "over": "限度額超過",
+    "activities": "拠出取引",
+    "review_activity": "{{activity}}を確認",
+    "transaction_details": "取引の詳細",
+    "treatment": "この限度額での扱い",
+    "automatic": "自動的に計上",
+    "excluded": "この限度額から除外",
+    "save": "扱いを保存",
+    "counted_amount": "計上額",
+    "usage_after_save": "保存後の限度額使用額",
+    "recalculate": "保存時に計算",
+    "activity_unchanged": "この限度額の使用額のみが変わります。口座の取引は変更されません。",
+    "save_success": "拠出の扱いを保存しました。",
+    "save_error": "拠出の扱いを保存できませんでした。",
+    "load_error": "この拠出限度額を読み込めませんでした。",
+    "no_activities": "この期間に拠出取引はありません。",
+    "treatments": {
+      "counted": "計上済み",
+      "excludedByUser": "手動で除外",
+      "internalTransfer": "内部振替",
+      "notExternal": "外部として未指定"
+    }
   }
 }

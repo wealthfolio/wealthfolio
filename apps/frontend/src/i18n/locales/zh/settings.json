@@ -1750,5 +1750,34 @@
         "description": "通过主机网络代理访问已声明的外部 HTTPS 主机"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "查看详情",
+    "back": "供款限额",
+    "counted": "已计入供款",
+    "annual_limit": "限额金额",
+    "remaining": "剩余额度",
+    "over": "超出限额",
+    "activities": "供款交易",
+    "review_activity": "查看{{activity}}",
+    "transaction_details": "交易详情",
+    "treatment": "在此限额中的处理方式",
+    "automatic": "自动计入",
+    "excluded": "从此限额中排除",
+    "save": "保存处理方式",
+    "counted_amount": "计入金额",
+    "usage_after_save": "保存后的限额使用量",
+    "recalculate": "保存时计算",
+    "activity_unchanged": "仅更改此限额的使用量，不会更改账户交易。",
+    "save_success": "已保存供款处理方式。",
+    "save_error": "无法保存供款处理方式。",
+    "load_error": "无法加载此供款限额。",
+    "no_activities": "此期间没有供款交易。",
+    "treatments": {
+      "counted": "已计入",
+      "excludedByUser": "您已排除",
+      "internalTransfer": "内部转账",
+      "notExternal": "未标记为外部"
+    }
   }
 }

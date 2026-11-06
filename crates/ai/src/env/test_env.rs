@@ -2080,6 +2080,21 @@ impl wealthfolio_core::portfolio::net_worth::NetWorthServiceTrait for EmptyNetWo
 struct EmptyContributionLimitService;
 #[async_trait::async_trait]
 impl wealthfolio_core::limits::ContributionLimitServiceTrait for EmptyContributionLimitService {
+    fn get_contribution_limit_details(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::limits::ContributionLimitDetails> {
+        unimplemented!("empty fixture")
+    }
+    async fn set_contribution_activity_excluded(
+        &self,
+        _: &str,
+        _: &str,
+        _: bool,
+    ) -> wealthfolio_core::errors::Result<()> {
+        unimplemented!("read-only fixture")
+    }
     fn get_contribution_limits(
         &self,
     ) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::limits::ContributionLimit>> {

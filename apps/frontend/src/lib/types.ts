@@ -1296,6 +1296,30 @@ export interface DepositsCalculation {
   byAccount: Record<string, AccountDeposit>;
 }
 
+export type ContributionTreatment =
+  | "counted"
+  | "excludedByUser"
+  | "internalTransfer"
+  | "notExternal";
+
+export interface ContributionActivityDetail {
+  id: string;
+  accountId: string;
+  activityType: string;
+  activityInstant: string;
+  amount: number | null;
+  currency: string;
+  countedAmount: number;
+  treatment: ContributionTreatment;
+  canExclude: boolean;
+}
+
+export interface ContributionLimitDetails {
+  limit: ContributionLimit;
+  calculation: DepositsCalculation;
+  activities: ContributionActivityDetail[];
+}
+
 // Renamed from CumulativeReturn to match Rust struct ReturnData
 export interface ReturnData {
   date: string; // Changed from CumulativeReturn

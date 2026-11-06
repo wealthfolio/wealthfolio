@@ -1777,5 +1777,34 @@
         "description": "Zugriff auf deklarierte externe HTTPS-Hosts über die Netzwerkvermittlung der Host-Anwendung"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "Details anzeigen",
+    "back": "Beitragsgrenzen",
+    "counted": "Angerechnete Beiträge",
+    "annual_limit": "Grenzbetrag",
+    "remaining": "Verbleibender Spielraum",
+    "over": "Grenze überschritten",
+    "activities": "Beitragsaktivitäten",
+    "review_activity": "{{activity}} prüfen",
+    "transaction_details": "Transaktionsdetails",
+    "treatment": "Anrechnung auf diese Grenze",
+    "automatic": "Automatisch anrechnen",
+    "excluded": "Von dieser Grenze ausschließen",
+    "save": "Anrechnung speichern",
+    "counted_amount": "Angerechneter Betrag",
+    "usage_after_save": "Auslastung nach dem Speichern",
+    "recalculate": "Wird beim Speichern berechnet",
+    "activity_unchanged": "Nur die Auslastung dieser Grenze ändert sich. Die Kontoaktivitäten bleiben unverändert.",
+    "save_success": "Beitragsanrechnung gespeichert.",
+    "save_error": "Beitragsanrechnung konnte nicht gespeichert werden.",
+    "load_error": "Diese Beitragsgrenze konnte nicht geladen werden.",
+    "no_activities": "Keine Beitragsaktivitäten in diesem Zeitraum.",
+    "treatments": {
+      "counted": "Angerechnet",
+      "excludedByUser": "Von dir ausgeschlossen",
+      "internalTransfer": "Interne Übertragung",
+      "notExternal": "Nicht als extern markiert"
+    }
   }
 }

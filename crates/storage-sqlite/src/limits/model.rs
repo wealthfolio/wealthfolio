@@ -21,6 +21,8 @@ pub struct ContributionLimitDB {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
     pub is_recurring: bool,
+    #[serde(default)]
+    pub excluded_activity_ids: Option<String>,
 }
 
 /// Database model for creating/updating contribution limits
@@ -84,6 +86,7 @@ impl From<ContributionLimit> for ContributionLimitDB {
             start_date: domain.start_date,
             end_date: domain.end_date,
             is_recurring: domain.is_recurring,
+            excluded_activity_ids: None,
         }
     }
 }

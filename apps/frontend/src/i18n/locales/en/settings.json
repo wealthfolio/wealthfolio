@@ -1777,5 +1777,34 @@
         "description": "Access to declared external HTTPS hosts through the host network broker"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "View details",
+    "back": "Contribution limits",
+    "counted": "Counted contributions",
+    "annual_limit": "Limit amount",
+    "remaining": "Remaining room",
+    "over": "Over limit",
+    "activities": "Contribution activity",
+    "review_activity": "Review {{activity}}",
+    "transaction_details": "Transaction details",
+    "treatment": "Treatment in this limit",
+    "automatic": "Count automatically",
+    "excluded": "Exclude from this limit",
+    "save": "Save treatment",
+    "counted_amount": "Counted amount",
+    "usage_after_save": "Limit usage after saving",
+    "recalculate": "Calculated on save",
+    "activity_unchanged": "Only this limit's usage changes. Account activity stays unchanged.",
+    "save_success": "Contribution treatment saved.",
+    "save_error": "Could not save contribution treatment.",
+    "load_error": "Could not load this contribution limit.",
+    "no_activities": "No contribution activity in this period.",
+    "treatments": {
+      "counted": "Counted",
+      "excludedByUser": "Excluded by you",
+      "internalTransfer": "Internal transfer",
+      "notExternal": "Not marked external"
+    }
   }
 }

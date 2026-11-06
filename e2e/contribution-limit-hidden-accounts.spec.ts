@@ -9,6 +9,8 @@ for (const dir of ["ltr", "rtl"]) {
     await completeOnboardingIfNeeded(page);
     await page.setViewportSize({ width: dir === "rtl" ? 390 : 1440, height: 1000 });
     const api = `${BASE_URL}/api/v1`;
+    const settings = await page.request.put(`${api}/settings`, { data: { baseCurrency: "USD" } });
+    expect(settings.ok(), await settings.text()).toBe(true);
     const year = new Date().getFullYear();
     const sourceName = `Old plan ${dir}`;
     const groupName = `Rollover ${dir}`;
