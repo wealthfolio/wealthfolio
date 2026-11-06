@@ -300,6 +300,49 @@ impl TransferScan {
     }
 }
 
+/// Posted activities not in a transfer pair, ordered by calendar day, so a
+/// match search reads only its date window. Build it once per scan: scanning
+/// every activity for each source made a review cost sources × activities.
+struct TransferCandidatePool<'a> {
+    by_day: Vec<(NaiveDate, &'a Activity)>,
+}
+
+impl<'a> TransferCandidatePool<'a> {
+    fn new(
+        activities: impl IntoIterator<Item = &'a Activity>,
+        transfer_resolution: &TransferPairResolution,
+    ) -> Self {
+        let mut by_day: Vec<(NaiveDate, &'a Activity)> = activities
+            .into_iter()
+            .filter(|activity| {
+                activity.is_posted()
+                    && transfer_resolution
+                        .pair_for_activity(&activity.id)
+                        .is_none()
+            })
+            .map(|activity| (activity.activity_date.date_naive(), activity))
+            .collect();
+        by_day.sort_by_key(|(day, _)| *day);
+        Self { by_day }
+    }
+
+    /// Activities at most `window_days` calendar days before or after `day`.
+    fn within_days(
+        &self,
+        day: NaiveDate,
+        window_days: i64,
+    ) -> impl Iterator<Item = &'a Activity> + '_ {
+        let window = chrono::Days::new(u64::try_from(window_days).unwrap_or(0));
+        let first = day.checked_sub_days(window).unwrap_or(NaiveDate::MIN);
+        let last = day.checked_add_days(window).unwrap_or(NaiveDate::MAX);
+        let start = self.by_day.partition_point(|(other, _)| *other < first);
+        let end = self.by_day.partition_point(|(other, _)| *other <= last);
+        self.by_day[start..end]
+            .iter()
+            .map(|(_, activity)| *activity)
+    }
+}
+
 impl ActivityService {
     fn normalize_new_activity_economic_signs(activity: &mut NewActivity) {
         activity.quantity = activity.quantity.map(|v| v.abs());
@@ -2107,25 +2150,21 @@ impl ActivityService {
     /// Counterparts `source` could be linked with, best first: posted
     /// activities of `counterpart_types`, not already in a pair, within
     /// `window_days`.
-    fn transfer_match_candidates<'a>(
+    fn transfer_match_candidates(
         source: &Activity,
         counterpart_types: &[&str],
-        activities: impl IntoIterator<Item = &'a Activity>,
-        transfer_resolution: &TransferPairResolution,
+        pool: &TransferCandidatePool<'_>,
         window_days: i64,
         limit: usize,
     ) -> Vec<TransferMatchCandidate> {
-        // Candidates, and the transfers that could rival `source` for one.
-        let population: Vec<&Activity> = activities
-            .into_iter()
+        // Candidates, and the transfers that could rival `source` for one. A
+        // rival falls on a candidate's day, so it is in the window too.
+        let population: Vec<&Activity> = pool
+            .within_days(source.activity_date.date_naive(), window_days)
             .filter(|activity| {
                 let activity_type = activity.effective_type();
-                (counterpart_types.contains(&activity_type)
-                    || activity_type == source.effective_type())
-                    && activity.is_posted()
-                    && transfer_resolution
-                        .pair_for_activity(&activity.id)
-                        .is_none()
+                counterpart_types.contains(&activity_type)
+                    || activity_type == source.effective_type()
             })
             .collect();
         let mut candidates: Vec<TransferMatchCandidate> = population
@@ -2135,9 +2174,6 @@ impl ActivityService {
             })
             .filter_map(|candidate| {
                 let day_diff = Self::transfer_date_diff_days(source, candidate);
-                if day_diff > window_days {
-                    return None;
-                }
                 Self::build_transfer_match_candidate(source, candidate, day_diff)
             })
             .collect();
@@ -2222,6 +2258,7 @@ impl ActivityService {
             .collect();
 
         let total = sources.len();
+        let pool = TransferCandidatePool::new(scan.open_activities(), &scan.transfer_resolution);
         let transfers = sources
             .into_iter()
             .skip(request.offset.unwrap_or(0))
@@ -2232,8 +2269,7 @@ impl ActivityService {
                 candidates: Self::transfer_match_candidates(
                     source,
                     &[opposite_type],
-                    scan.open_activities(),
-                    &scan.transfer_resolution,
+                    &pool,
                     window_days,
                     candidate_limit,
                 ),
@@ -2272,6 +2308,16 @@ impl ActivityService {
         const CANDIDATE_POOL: usize = 25;
 
         let scan = Self::load_transfer_scan(activity_repository, account_service)?;
+        // Only a cash deposit or withdrawal can be converted.
+        let pool = TransferCandidatePool::new(
+            scan.open_activities().filter(|candidate| {
+                !matches!(
+                    candidate.effective_type(),
+                    ACTIVITY_TYPE_DEPOSIT | ACTIVITY_TYPE_WITHDRAWAL
+                ) || Self::cash_flow_transfer_type(candidate).is_some()
+            }),
+            &scan.transfer_resolution,
+        );
         let rows: Vec<(&Activity, TransferLinkState, Vec<TransferMatchCandidate>)> = scan
             .unlinked_transfers()
             .filter(|(_, state)| {
@@ -2290,14 +2336,7 @@ impl ActivityService {
                 let candidates = Self::transfer_match_candidates(
                     source,
                     &[opposite_transfer, opposite_cash_flow],
-                    // Only a cash deposit or withdrawal can be converted.
-                    scan.open_activities().filter(|candidate| {
-                        !matches!(
-                            candidate.effective_type(),
-                            ACTIVITY_TYPE_DEPOSIT | ACTIVITY_TYPE_WITHDRAWAL
-                        ) || Self::cash_flow_transfer_type(candidate).is_some()
-                    }),
-                    &scan.transfer_resolution,
+                    &pool,
                     WINDOW_DAYS,
                     CANDIDATE_POOL,
                 );
@@ -6952,8 +6991,7 @@ impl ActivityServiceTrait for ActivityService {
         Ok(Self::transfer_match_candidates(
             &source,
             counterpart_types,
-            &all_activities,
-            &transfer_resolution,
+            &TransferCandidatePool::new(&all_activities, &transfer_resolution),
             request.window_days.unwrap_or(7).clamp(0, 90),
             request.limit.unwrap_or(25).clamp(1, 100),
         ))

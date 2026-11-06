@@ -13268,6 +13268,56 @@ pub(crate) mod tests {
         pair
     }
 
+    /// The review reads each transfer's 7-day window by calendar day: a leg
+    /// late on the seventh day is a candidate, one early on the eighth is not.
+    #[tokio::test]
+    async fn review_candidates_cover_seven_calendar_days_either_side() {
+        let (service, _, _) = review_service(vec![
+            review_leg(
+                "out",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-03-10T12:00:00Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-day-7",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-03-17T23:59:59Z",
+                dec!(500),
+            ),
+            review_leg(
+                "in-day-8",
+                "acc-c",
+                "TRANSFER_IN",
+                "2024-03-02T00:00:00Z",
+                dec!(500),
+            ),
+        ]);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert!(review.certain.is_empty());
+        let rows: Vec<(&str, Vec<&str>)> = review
+            .needs_review
+            .iter()
+            .map(|row| {
+                (
+                    row.activity.id.as_str(),
+                    row.candidates
+                        .iter()
+                        .map(|candidate| candidate.activity.id.as_str())
+                        .collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            vec![("in-day-7", vec!["out"]), ("in-day-8", Vec::new())]
+        );
+    }
+
     /// Wealthsimple books both legs of an internal transfer at the same
     /// millisecond, which tells two identical same-day transfers apart.
     #[tokio::test]
