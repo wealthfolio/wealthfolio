@@ -33,7 +33,7 @@ use openidconnect::{
     HttpClientError, HttpRequest, HttpResponse, IssuerUrl, Nonce as OidcNonce, PkceCodeChallenge,
     PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
 };
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::AuthState;
@@ -664,10 +664,10 @@ fn build_end_session_url(
 
 fn encrypt_bytes(key: &[u8; 32], plaintext: &[u8]) -> anyhow::Result<String> {
     let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
+    UnwrapErr(SysRng).fill_bytes(&mut nonce_bytes);
+    let cipher = ChaCha20Poly1305::new(&Key::from(*key));
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext)
+        .encrypt(&Nonce::from(nonce_bytes), plaintext)
         .map_err(|_| anyhow::anyhow!("failed to encrypt"))?;
     let mut out = Vec::with_capacity(12 + ciphertext.len());
     out.extend_from_slice(&nonce_bytes);
@@ -681,9 +681,9 @@ fn decrypt_bytes(key: &[u8; 32], value: &str) -> anyhow::Result<Vec<u8>> {
         anyhow::bail!("ciphertext too short");
     }
     let (nonce_bytes, ciphertext) = raw.split_at(12);
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
+    let cipher = ChaCha20Poly1305::new(&Key::from(*key));
     cipher
-        .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        .decrypt(&Nonce::try_from(nonce_bytes)?, ciphertext)
         .map_err(|_| anyhow::anyhow!("failed to decrypt"))
 }
 

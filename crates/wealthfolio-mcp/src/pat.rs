@@ -42,8 +42,7 @@ pub fn token_prefix(token: &str) -> Option<&str> {
 
 /// SHA-256 hex of the full presented token string.
 pub fn hash_token(token: &str) -> String {
-    let digest = Sha256::digest(token.as_bytes());
-    format!("{digest:x}")
+    hex::encode(Sha256::digest(token.as_bytes()))
 }
 
 /// A presented PAT that matched a stored, unrevoked, unexpired row.

@@ -42,12 +42,13 @@ dotenvy = "0.15"
 utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
 serde_urlencoded = "0.7"
 base64 = "0.22"
-argon2 = { version = "0.5", features = ["std"] }
+argon2 = "0.6"
 jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
-chacha20poly1305 = { version = "0.10", features = ["std"] }
-hkdf = "0.12"
-sha2 = "0.10"
-rand = "0.8"
+chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
+hkdf = "0.13"
+sha2 = "0.11"
+hex = { workspace = true }
+rand = "0.10"
 tower_governor = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"

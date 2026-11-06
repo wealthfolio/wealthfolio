@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use argon2::{
-    password_hash::{Error as PasswordHashError, PasswordHash, PasswordVerifier},
+    password_hash::{phc::PasswordHash, Error as PasswordHashError, PasswordVerifier},
     Argon2,
 };
 use axum::{
@@ -220,7 +220,7 @@ impl AuthManager {
         Argon2::default()
             .verify_password(candidate.as_bytes(), &parsed)
             .map_err(|err| match err {
-                PasswordHashError::Password => AuthError::InvalidCredentials,
+                PasswordHashError::PasswordInvalid => AuthError::InvalidCredentials,
                 other => AuthError::Internal(format!("Password verification failed: {other}")),
             })
     }
@@ -506,7 +506,7 @@ pub(crate) async fn require_backup_session(
     let needs_refresh = claims.sid.is_empty() || auth.should_refresh(&claims);
     let session = if claims.sid.is_empty() {
         // Concurrent refreshes of one legacy cookie must retain one identity.
-        format!("{:x}", sha2::Sha256::digest(token.as_bytes()))
+        hex::encode(sha2::Sha256::digest(token.as_bytes()))
     } else {
         claims.sid.clone()
     };

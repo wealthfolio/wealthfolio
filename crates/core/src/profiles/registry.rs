@@ -1,6 +1,6 @@
 use super::*;
 use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{phc::PasswordHash, PasswordHasher, PasswordVerifier},
     Algorithm, Argon2, Params, Version,
 };
 use fs2::FileExt;
@@ -882,9 +882,8 @@ fn new_lock_record(password: Option<&str>) -> ProfileResult<(LockRecord, Option<
     }
     let (record, recovery) = if let Some(password) = password {
         let params = Params::new(19 * 1024, 2, 1, Some(32)).map_err(storage_error)?;
-        let salt = SaltString::generate(&mut OsRng);
         let verifier = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map_err(storage_error)?
             .to_string();
         let mut bytes = [0u8; 16];
@@ -1699,7 +1698,7 @@ mod tests {
         let mut record = registry.read_lock(&profile).unwrap();
         record.verifier = Some(
             Argon2::default()
-                .hash_password(b"123456", &SaltString::generate(&mut OsRng))
+                .hash_password(b"123456")
                 .unwrap()
                 .to_string(),
         );

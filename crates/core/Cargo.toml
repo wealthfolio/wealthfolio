@@ -11,7 +11,7 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 default = []
 
 [dependencies]
-argon2 = { version = "0.5", features = ["std"] }
+argon2 = "0.6"
 fs2 = "0.4"
 subtle = "2"
 zeroize = { workspace = true }
@@ -49,7 +49,7 @@ encoding_rs = "0.8"
 zip = "9.2.1"
 jsonpath-rust = "0.7"
 scraper = "0.22"
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.22"
 hex = "0.4"
 chrono-tz = "0.10"

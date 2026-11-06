@@ -10,6 +10,7 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 async-trait = { workspace = true }
 base64 = "0.22"
 chrono = { workspace = true }
+hex = { workspace = true }
 http = "1"
 log = { workspace = true }
 rand = { workspace = true }

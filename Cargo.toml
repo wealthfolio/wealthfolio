@@ -85,7 +85,7 @@ log = "0.4"
 # Crypto
 zeroize = "1"
 hex = "0.4"
-sha2 = "0.10"
+sha2 = "0.11"
 rand = "0.8"
 
 # Internal crates
