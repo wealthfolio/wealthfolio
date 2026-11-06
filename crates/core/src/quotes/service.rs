@@ -2386,7 +2386,7 @@ where
             let get_field =
                 |idx: usize| record.get(idx).map(|s| s.trim()).filter(|s| !s.is_empty());
             let parse_decimal = |idx: Option<usize>| -> Option<Decimal> {
-                idx.and_then(&get_field)
+                idx.and_then(get_field)
                     .and_then(|s| Decimal::from_str(&s.replace(',', "")).ok())
             };
 
