@@ -4,11 +4,12 @@ use std::sync::Arc;
 use wealthfolio_core::{
     accounts::AccountPurpose,
     portfolio::allocation_targets::{
-        AllocationRule, AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
-        AllocationWorksheetLineInput, AllocationWorksheetResult, CalculateAllocationWorksheetInput,
-        CalculatedAdjustments, DriftReport, GenerateCalculatedAdjustmentsInput,
-        NewAllocationTarget, NewAllocationTargetWeight, SaveAllocationTargetResult, ScopeType,
-        WorksheetCashInput, WorksheetMode,
+        AllocationRule, AllocationTarget, AllocationTargetAssetWeight, AllocationTargetConstraint,
+        AllocationTargetWeight, AllocationWorksheetLineInput, AllocationWorksheetResult,
+        CalculateAllocationWorksheetInput, CalculatedAdjustments, DriftReport,
+        GenerateCalculatedAdjustmentsInput, NewAllocationTarget, NewAllocationTargetAssetWeight,
+        NewAllocationTargetWeight, SaveAllocationTargetResult, ScopeType, WorksheetCashInput,
+        WorksheetMode,
     },
     portfolios::AccountScope,
 };
@@ -146,16 +147,29 @@ pub async fn save_allocation_target_weights(
 }
 
 #[tauri::command]
+pub async fn list_allocation_target_asset_weights(
+    state: ProfileAccess,
+    target_id: String,
+) -> Result<Vec<AllocationTargetAssetWeight>, String> {
+    let context = state.context()?;
+    context
+        .allocation_target_service()
+        .list_asset_weights_for_target(&target_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn save_allocation_target_with_weights(
     state: ProfileAccess,
     id: Option<String>,
     input: NewAllocationTarget,
     weights: Vec<NewAllocationTargetWeight>,
+    asset_weights: Option<Vec<NewAllocationTargetAssetWeight>>,
 ) -> Result<SaveAllocationTargetResult, String> {
     let context = state.context()?;
     context
         .allocation_target_service()
-        .save_target_with_weights(id, input, weights)
+        .save_target_with_weights(id, input, weights, asset_weights.unwrap_or_default())
         .await
         .map_err(|e| e.to_string())
 }

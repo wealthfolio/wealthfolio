@@ -755,6 +755,7 @@ pub fn run() {
             commands::allocation_targets::archive_allocation_target,
             commands::allocation_targets::delete_allocation_target,
             commands::allocation_targets::list_allocation_target_weights,
+            commands::allocation_targets::list_allocation_target_asset_weights,
             commands::allocation_targets::save_allocation_target_weights,
             commands::allocation_targets::save_allocation_target_with_weights,
             commands::allocation_targets::list_target_constraints,

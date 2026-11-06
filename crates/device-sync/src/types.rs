@@ -545,6 +545,7 @@ pub fn sync_entity_from_remote(entity: &str) -> Option<SyncEntity> {
         "portfolio_account" => Some(SyncEntity::PortfolioAccount),
         "allocation_target" => Some(SyncEntity::AllocationTarget),
         "allocation_target_weight" => Some(SyncEntity::AllocationTargetWeight),
+        "allocation_target_asset_weight" => Some(SyncEntity::AllocationTargetAssetWeight),
         "allocation_target_constraint" => Some(SyncEntity::AllocationTargetConstraint),
         "spending_setting" => Some(SyncEntity::SpendingSetting),
         "app_preference" => Some(SyncEntity::AppPreference),

@@ -1,7 +1,8 @@
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use wealthfolio_core::portfolio::allocation_targets::{
-    AllocationTarget, AllocationTargetWeight, BandType, RebalanceGoal, ScopeType, TriggerType,
+    AllocationTarget, AllocationTargetAssetWeight, AllocationTargetWeight, BandType, RebalanceGoal,
+    ScopeType, TargetType, TriggerType,
 };
 
 #[derive(Debug, Clone, Queryable, Insertable, AsChangeset, Serialize, Deserialize)]
@@ -12,6 +13,7 @@ pub struct AllocationTargetDB {
     pub scope_type: String,
     pub scope_id: Option<String>,
     pub taxonomy_id: String,
+    pub target_type: String,
     pub trigger_type: String,
     pub drift_band_bps: i32,
     pub band_type: String,
@@ -34,6 +36,7 @@ impl From<AllocationTarget> for AllocationTargetDB {
             scope_type: target.scope_type.as_str().to_string(),
             scope_id: target.scope_id,
             taxonomy_id: target.taxonomy_id,
+            target_type: target.target_type.as_str().to_string(),
             trigger_type: target.trigger_type.as_str().to_string(),
             drift_band_bps: target.drift_band_bps,
             band_type: target.band_type.as_str().to_string(),
@@ -59,6 +62,7 @@ impl TryFrom<AllocationTargetDB> for AllocationTarget {
             scope_type: ScopeType::try_from(db.scope_type.as_str())?,
             scope_id: db.scope_id,
             taxonomy_id: db.taxonomy_id,
+            target_type: TargetType::try_from(db.target_type.as_str())?,
             trigger_type: TriggerType::try_from(db.trigger_type.as_str())?,
             drift_band_bps: db.drift_band_bps,
             band_type: BandType::try_from(db.band_type.as_str())?,
@@ -112,6 +116,49 @@ impl From<AllocationTargetWeightDB> for AllocationTargetWeight {
             target_id: db.target_id,
             taxonomy_id: db.taxonomy_id,
             category_id: db.category_id,
+            target_bps: db.target_bps,
+            is_locked: db.is_locked != 0,
+            is_required: db.is_required != 0,
+            created_at: db.created_at,
+            updated_at: db.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Queryable, Insertable, AsChangeset, Serialize, Deserialize)]
+#[diesel(table_name = crate::schema::allocation_target_asset_weights)]
+pub struct AllocationTargetAssetWeightDB {
+    pub id: String,
+    pub target_id: String,
+    pub asset_id: String,
+    pub target_bps: i32,
+    pub is_locked: i32,
+    pub is_required: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<AllocationTargetAssetWeight> for AllocationTargetAssetWeightDB {
+    fn from(n: AllocationTargetAssetWeight) -> Self {
+        Self {
+            id: n.id,
+            target_id: n.target_id,
+            asset_id: n.asset_id,
+            target_bps: n.target_bps,
+            is_locked: n.is_locked as i32,
+            is_required: n.is_required as i32,
+            created_at: n.created_at,
+            updated_at: n.updated_at,
+        }
+    }
+}
+
+impl From<AllocationTargetAssetWeightDB> for AllocationTargetAssetWeight {
+    fn from(db: AllocationTargetAssetWeightDB) -> Self {
+        Self {
+            id: db.id,
+            target_id: db.target_id,
+            asset_id: db.asset_id,
             target_bps: db.target_bps,
             is_locked: db.is_locked != 0,
             is_required: db.is_required != 0,

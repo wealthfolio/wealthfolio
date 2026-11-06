@@ -1,7 +1,9 @@
 use crate::errors::{Error as CoreError, Result as CoreResult, ValidationError};
 use rust_decimal::Decimal;
 
-use super::model::{NewAllocationTarget, NewAllocationTargetWeight, ScopeType};
+use super::model::{
+    NewAllocationTarget, NewAllocationTargetAssetWeight, NewAllocationTargetWeight, ScopeType,
+};
 
 fn invalid(msg: &str) -> CoreError {
     CoreError::Validation(ValidationError::InvalidInput(msg.to_string()))
@@ -43,29 +45,47 @@ pub fn validate_new_target(input: &NewAllocationTarget) -> CoreResult<()> {
     Ok(())
 }
 
-pub fn validate_weights_sum(weights: &[NewAllocationTargetWeight]) -> CoreResult<()> {
-    let total: i32 = weights.iter().map(|n| n.target_bps).sum();
+fn validate_weight_entries<'a>(
+    entries: impl Iterator<Item = (&'a str, i32)>,
+    noun: &str,
+) -> CoreResult<()> {
+    let entries = entries.collect::<Vec<_>>();
+    let total: i32 = entries.iter().map(|(_, target_bps)| *target_bps).sum();
     if total != 10000 {
         return Err(invalid(&format!(
             "Target allocations must sum to 10000 bps (100%), got {total}"
         )));
     }
     let mut seen = std::collections::HashSet::new();
-    for weight in weights {
-        if weight.target_bps < 0 || weight.target_bps > 10000 {
+    for (id, target_bps) in entries {
+        if !(0..=10000).contains(&target_bps) {
             return Err(invalid(&format!(
-                "target_bps for category {} must be between 0 and 10000",
-                weight.category_id
+                "target_bps for {noun} {id} must be between 0 and 10000"
             )));
         }
-        if !seen.insert(&weight.category_id) {
-            return Err(invalid(&format!(
-                "Duplicate category_id: {}",
-                weight.category_id
-            )));
+        if !seen.insert(id) {
+            return Err(invalid(&format!("Duplicate {noun}_id: {id}")));
         }
     }
     Ok(())
+}
+
+pub fn validate_weights_sum(weights: &[NewAllocationTargetWeight]) -> CoreResult<()> {
+    validate_weight_entries(
+        weights
+            .iter()
+            .map(|weight| (weight.category_id.as_str(), weight.target_bps)),
+        "category",
+    )
+}
+
+pub fn validate_asset_weights_sum(weights: &[NewAllocationTargetAssetWeight]) -> CoreResult<()> {
+    validate_weight_entries(
+        weights
+            .iter()
+            .map(|weight| (weight.asset_id.as_str(), weight.target_bps)),
+        "asset",
+    )
 }
 
 #[cfg(test)]
@@ -79,6 +99,7 @@ mod tests {
             scope_type: ScopeType::All,
             scope_id: None,
             taxonomy_id: "asset_classes".to_string(),
+            target_type: None,
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
             band_type: None,

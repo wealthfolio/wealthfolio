@@ -5,14 +5,19 @@ use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use super::model::{AllocationTargetConstraintDB, AllocationTargetDB, AllocationTargetWeightDB};
+use super::model::{
+    AllocationTargetAssetWeightDB, AllocationTargetConstraintDB, AllocationTargetDB,
+    AllocationTargetWeightDB,
+};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
-use crate::schema::{allocation_target_weights, allocation_targets};
+use crate::schema::{
+    allocation_target_asset_weights, allocation_target_weights, allocation_targets,
+};
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::portfolio::allocation_targets::{
-    AllocationTarget, AllocationTargetRepositoryTrait, AllocationTargetWeight,
-    SaveAllocationTargetResult,
+    AllocationTarget, AllocationTargetAssetWeight, AllocationTargetRepositoryTrait,
+    AllocationTargetWeight, SaveAllocationTargetResult,
 };
 
 pub struct AllocationTargetRepository {
@@ -73,6 +78,22 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
             .load::<AllocationTargetWeightDB>(conn)
             .map_err(StorageError::from)?;
         Ok(rows.into_iter().map(AllocationTargetWeight::from).collect())
+    }
+
+    fn list_asset_weights_for_target(
+        &self,
+        target_id: &str,
+    ) -> Result<Vec<AllocationTargetAssetWeight>> {
+        let conn = &mut get_connection(&self.pool)?;
+        let rows = allocation_target_asset_weights::table
+            .filter(allocation_target_asset_weights::target_id.eq(target_id))
+            .order(allocation_target_asset_weights::created_at.asc())
+            .load::<AllocationTargetAssetWeightDB>(conn)
+            .map_err(StorageError::from)?;
+        Ok(rows
+            .into_iter()
+            .map(AllocationTargetAssetWeight::from)
+            .collect())
     }
 
     async fn create_target(&self, target: AllocationTarget) -> Result<AllocationTarget> {
@@ -139,6 +160,11 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
                     .select(allocation_target_weights::id)
                     .load::<String>(tx.conn())
                     .map_err(StorageError::from)?;
+                let existing_asset_weight_ids = allocation_target_asset_weights::table
+                    .filter(allocation_target_asset_weights::target_id.eq(&id_owned))
+                    .select(allocation_target_asset_weights::id)
+                    .load::<String>(tx.conn())
+                    .map_err(StorageError::from)?;
 
                 let n = diesel::delete(
                     allocation_targets::table.filter(allocation_targets::id.eq(&id_owned)),
@@ -148,6 +174,9 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
                 if n > 0 {
                     for weight_id in existing_weight_ids {
                         tx.delete::<AllocationTargetWeightDB>(weight_id);
+                    }
+                    for weight_id in existing_asset_weight_ids {
+                        tx.delete::<AllocationTargetAssetWeightDB>(weight_id);
                     }
                     if let Some(target) = existing_target {
                         tx.delete_model(&target);
@@ -219,12 +248,17 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
         &self,
         target: AllocationTarget,
         weights: Vec<AllocationTargetWeight>,
+        asset_weights: Vec<AllocationTargetAssetWeight>,
     ) -> Result<SaveAllocationTargetResult> {
         let target_db = AllocationTargetDB::from(target);
         let target_id = target_db.id.clone();
         let db_weights: Vec<AllocationTargetWeightDB> = weights
             .into_iter()
             .map(AllocationTargetWeightDB::from)
+            .collect();
+        let db_asset_weights: Vec<AllocationTargetAssetWeightDB> = asset_weights
+            .into_iter()
+            .map(AllocationTargetAssetWeightDB::from)
             .collect();
 
         self.writer
@@ -242,6 +276,17 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
                         .iter()
                         .map(|weight| weight.id.clone())
                         .collect::<HashSet<_>>();
+                    let existing_asset_weight_ids = allocation_target_asset_weights::table
+                        .filter(allocation_target_asset_weights::target_id.eq(&target_id))
+                        .select(allocation_target_asset_weights::id)
+                        .load::<String>(tx.conn())
+                        .map_err(StorageError::from)?
+                        .into_iter()
+                        .collect::<HashSet<_>>();
+                    let incoming_asset_weight_ids = db_asset_weights
+                        .iter()
+                        .map(|weight| weight.id.clone())
+                        .collect::<HashSet<_>>();
 
                     diesel::delete(
                         allocation_target_weights::table
@@ -249,9 +294,18 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
                     )
                     .execute(tx.conn())
                     .map_err(StorageError::from)?;
+                    diesel::delete(
+                        allocation_target_asset_weights::table
+                            .filter(allocation_target_asset_weights::target_id.eq(&target_id)),
+                    )
+                    .execute(tx.conn())
+                    .map_err(StorageError::from)?;
 
                     for old_id in existing_weight_ids.difference(&incoming_weight_ids) {
                         tx.delete::<AllocationTargetWeightDB>(old_id.clone());
+                    }
+                    for old_id in existing_asset_weight_ids.difference(&incoming_asset_weight_ids) {
+                        tx.delete::<AllocationTargetAssetWeightDB>(old_id.clone());
                     }
 
                     let updated = diesel::update(
@@ -277,9 +331,22 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
                             .execute(tx.conn())
                             .map_err(StorageError::from)?;
                     }
+                    if !db_asset_weights.is_empty() {
+                        diesel::insert_into(allocation_target_asset_weights::table)
+                            .values(&db_asset_weights)
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                    }
 
                     for weight in &db_weights {
                         if existing_weight_ids.contains(&weight.id) {
+                            tx.update(weight)?;
+                        } else {
+                            tx.insert(weight)?;
+                        }
+                    }
+                    for weight in &db_asset_weights {
+                        if existing_asset_weight_ids.contains(&weight.id) {
                             tx.update(weight)?;
                         } else {
                             tx.insert(weight)?;
@@ -299,7 +366,12 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
             )
         })?;
         let weights = self.list_weights_for_target(&target_id)?;
-        Ok(SaveAllocationTargetResult { target, weights })
+        let asset_weights = self.list_asset_weights_for_target(&target_id)?;
+        Ok(SaveAllocationTargetResult {
+            target,
+            weights,
+            asset_weights,
+        })
     }
 
     fn list_target_constraints(
@@ -438,6 +510,7 @@ mod tests {
     use crate::schema::sync_outbox;
     use crate::taxonomies::TaxonomyRepository;
     use diesel::dsl::count_star;
+    use wealthfolio_core::portfolio::allocation_targets::TargetType;
     use wealthfolio_core::portfolio::allocation_targets::{
         AllocationTargetConstraint, BandType, ConstraintAction, ConstraintEffect,
         ConstraintSubjectType, RebalanceGoal, ScopeType, TriggerType,
@@ -471,6 +544,7 @@ mod tests {
             scope_type: ScopeType::All,
             scope_id: None,
             taxonomy_id: taxonomy_id.to_string(),
+            target_type: TargetType::Category,
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
             band_type: BandType::Absolute,
@@ -498,6 +572,28 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
+    }
+
+    fn asset_weight(asset_id: &str) -> AllocationTargetAssetWeight {
+        AllocationTargetAssetWeight {
+            id: format!("asset-weight-{asset_id}"),
+            target_id: "target-1".to_string(),
+            asset_id: asset_id.to_string(),
+            target_bps: 10000,
+            is_locked: false,
+            is_required: true,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    fn seed_asset(repo: &AllocationTargetRepository, id: &str) {
+        let conn = &mut get_connection(&repo.pool).expect("conn");
+        diesel::sql_query(format!(
+            "INSERT INTO assets(id, kind, quote_mode, quote_ccy) VALUES ('{id}', 'INVESTMENT', 'MANUAL', 'USD')"
+        ))
+        .execute(conn)
+        .expect("seed asset");
     }
 
     fn constraint(id: &str, target_id: &str) -> AllocationTargetConstraint {
@@ -604,7 +700,7 @@ mod tests {
             .unwrap();
 
         let saved = repo
-            .save_target_with_weights(target("regions"), vec![weight("regions", "R10")])
+            .save_target_with_weights(target("regions"), vec![weight("regions", "R10")], vec![])
             .await
             .unwrap();
 
@@ -615,6 +711,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn save_asset_weights_persists_and_loads() {
+        let (repo, _dir) = setup_repo();
+        seed_asset(&repo, "asset-1");
+        let mut asset_target = target("__individual_securities__");
+        asset_target.target_type = TargetType::Asset;
+        repo.create_target(asset_target).await.unwrap();
+
+        let saved = repo
+            .save_target_with_weights(
+                {
+                    let mut target = target("__individual_securities__");
+                    target.target_type = TargetType::Asset;
+                    target
+                },
+                vec![],
+                vec![asset_weight("asset-1")],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(saved.asset_weights.len(), 1);
+        assert_eq!(saved.asset_weights[0].asset_id, "asset-1");
+        assert_eq!(
+            repo.list_asset_weights_for_target("target-1").unwrap(),
+            saved.asset_weights
+        );
+    }
+
+    #[tokio::test]
+    async fn deleting_asset_target_deletes_asset_weights() {
+        let (repo, _dir) = setup_repo();
+        seed_asset(&repo, "asset-1");
+        let mut asset_target = target("__individual_securities__");
+        asset_target.target_type = TargetType::Asset;
+        repo.create_target(asset_target).await.unwrap();
+        repo.save_target_with_weights(
+            {
+                let mut target = target("__individual_securities__");
+                target.target_type = TargetType::Asset;
+                target
+            },
+            vec![],
+            vec![asset_weight("asset-1")],
+        )
+        .await
+        .unwrap();
+
+        repo.delete_target("target-1").await.unwrap();
+
+        assert!(repo
+            .list_asset_weights_for_target("target-1")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
     async fn save_target_with_weights_orders_child_deletes_before_target_update() {
         let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
@@ -622,7 +774,7 @@ mod tests {
             .await
             .unwrap();
 
-        repo.save_target_with_weights(target("regions"), vec![weight("regions", "R10")])
+        repo.save_target_with_weights(target("regions"), vec![weight("regions", "R10")], vec![])
             .await
             .unwrap();
 

@@ -32,21 +32,24 @@ use crate::portfolio::allocation::{
 };
 use crate::portfolio::holdings::{Holding, HoldingType, HoldingsServiceTrait};
 use crate::quotes::{LatestQuoteSnapshot, QuoteServiceTrait};
-use crate::taxonomies::{AssetTaxonomyAssignment, TaxonomyServiceTrait, TaxonomyWithCategories};
+use crate::taxonomies::{
+    AssetTaxonomyAssignment, Category, Taxonomy, TaxonomyServiceTrait, TaxonomyWithCategories,
+};
 
 use super::cash::{
     deployable_cash_from_contributions, has_deployable_cash_categories, tracked_cash,
 };
 use super::drift_service::DriftServiceTrait;
 use super::model::{
-    AdjustmentScaling, AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
-    AllocationWorksheetLineInput, AllocationWorksheetLineResult, AllocationWorksheetResult,
-    BelowOneUnitSecurity, CalculateAllocationWorksheetInput, CalculatedAdjustment,
-    CalculatedAdjustments, ConstraintAction, ConstraintEffect, ConstraintSubjectType, DriftReport,
-    GenerateCalculatedAdjustmentsInput, WorksheetCashInput, WorksheetCategoryExposure,
-    WorksheetCategoryResult, WorksheetDirection, WorksheetInputMode, WorksheetMode,
-    WorksheetPricingSource, WorksheetSourceRecord, WorksheetWarning, WorksheetWarningFacts,
-    WorksheetWarningKind,
+    AdjustmentScaling, AllocationTarget, AllocationTargetAssetWeight, AllocationTargetConstraint,
+    AllocationTargetWeight, AllocationWorksheetLineInput, AllocationWorksheetLineResult,
+    AllocationWorksheetResult, BelowOneUnitSecurity, CalculateAllocationWorksheetInput,
+    CalculatedAdjustment, CalculatedAdjustments, ConstraintAction, ConstraintEffect,
+    ConstraintSubjectType, DriftReport, GenerateCalculatedAdjustmentsInput, TargetType,
+    WorksheetCashInput, WorksheetCategoryExposure, WorksheetCategoryResult, WorksheetDirection,
+    WorksheetInputMode, WorksheetMode, WorksheetPricingSource, WorksheetSourceRecord,
+    WorksheetWarning, WorksheetWarningFacts, WorksheetWarningKind,
+    INDIVIDUAL_SECURITIES_TAXONOMY_ID,
 };
 use super::target_service::AllocationTargetServiceTrait;
 use super::worksheet_calculator::{
@@ -1994,6 +1997,115 @@ impl AllocationWorksheetService {
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
+    fn naive_timestamp(value: &str) -> chrono::NaiveDateTime {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .map(|timestamp| timestamp.naive_utc())
+            .unwrap_or_default()
+    }
+
+    fn asset_name(asset: Option<&Asset>, asset_id: &str) -> String {
+        asset
+            .and_then(|asset| {
+                asset
+                    .name
+                    .clone()
+                    .filter(|name| !name.trim().is_empty())
+                    .or_else(|| asset.instrument_symbol.clone())
+            })
+            .unwrap_or_else(|| asset_id.to_string())
+    }
+
+    fn synthetic_asset_taxonomy(
+        target: &AllocationTarget,
+        asset_ids: &[String],
+        assets_by_id: &HashMap<String, Asset>,
+    ) -> TaxonomyWithCategories {
+        let taxonomy = Taxonomy {
+            id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+            name: "Individual securities".to_string(),
+            color: "#808080".to_string(),
+            description: Some("Synthetic taxonomy for asset allocation targets".to_string()),
+            is_system: false,
+            is_single_select: true,
+            sort_order: 0,
+            created_at: Self::naive_timestamp(&target.created_at),
+            updated_at: Self::naive_timestamp(&target.updated_at),
+            scope: "asset".to_string(),
+        };
+        let categories = asset_ids
+            .iter()
+            .enumerate()
+            .map(|(index, asset_id)| {
+                let asset = assets_by_id.get(asset_id);
+                let updated_at = asset
+                    .map(|asset| asset.updated_at)
+                    .unwrap_or_else(|| Self::naive_timestamp(&target.updated_at));
+                Category {
+                    id: asset_id.clone(),
+                    taxonomy_id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+                    parent_id: None,
+                    name: Self::asset_name(asset, asset_id),
+                    key: asset_id.clone(),
+                    color: "#808080".to_string(),
+                    description: None,
+                    sort_order: index as i32,
+                    created_at: updated_at,
+                    updated_at,
+                    icon: None,
+                }
+            })
+            .collect();
+        TaxonomyWithCategories {
+            taxonomy,
+            categories,
+        }
+    }
+
+    fn synthetic_asset_weights(
+        asset_weights: &[AllocationTargetAssetWeight],
+    ) -> Vec<AllocationTargetWeight> {
+        asset_weights
+            .iter()
+            .map(|weight| AllocationTargetWeight {
+                id: weight.id.clone(),
+                target_id: weight.target_id.clone(),
+                taxonomy_id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+                category_id: weight.asset_id.clone(),
+                target_bps: weight.target_bps,
+                is_locked: weight.is_locked,
+                is_required: weight.is_required,
+                created_at: weight.created_at.clone(),
+                updated_at: weight.updated_at.clone(),
+            })
+            .collect()
+    }
+
+    fn synthetic_asset_assignments(
+        asset_ids: &[String],
+        assets_by_id: &HashMap<String, Asset>,
+        target: &AllocationTarget,
+    ) -> Vec<AssetTaxonomyAssignment> {
+        asset_ids
+            .iter()
+            .map(|asset_id| {
+                let updated_at = assets_by_id
+                    .get(asset_id)
+                    .map(|asset| asset.updated_at)
+                    .unwrap_or_else(|| Self::naive_timestamp(&target.updated_at));
+                AssetTaxonomyAssignment {
+                    id: format!("{INDIVIDUAL_SECURITIES_TAXONOMY_ID}:{asset_id}"),
+                    asset_id: asset_id.clone(),
+                    taxonomy_id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+                    category_id: asset_id.clone(),
+                    weight: 10_000,
+                    source: "individual_securities".to_string(),
+                    created_at: updated_at,
+                    updated_at,
+                }
+            })
+            .collect()
+    }
+
     fn load_target(&self, target_id: &str) -> CoreResult<AllocationTarget> {
         self.allocation_target_service
             .get_target(target_id)?
@@ -2012,6 +2124,7 @@ impl AllocationWorksheetService {
         selected_account_ids: &[String],
         base_currency: &str,
         taxonomy_id: &str,
+        is_asset_target: bool,
     ) -> CoreResult<Vec<AccountSource>> {
         let known = self
             .account_service
@@ -2021,15 +2134,24 @@ impl AllocationWorksheetService {
         let mut sources = Vec::with_capacity(selected.len());
         for account in selected {
             let account_ids = [account.id.clone()];
-            let contributions = self
-                .allocation_service
-                .get_holding_contributions_for_taxonomy_for_accounts(
-                    &account_ids,
-                    base_currency,
-                    taxonomy_id,
-                    &account.id,
-                )
-                .await?;
+            let contributions = if is_asset_target {
+                self.allocation_service
+                    .get_security_holding_contributions_for_accounts(
+                        &account_ids,
+                        base_currency,
+                        &account.id,
+                    )
+                    .await?
+            } else {
+                self.allocation_service
+                    .get_holding_contributions_for_taxonomy_for_accounts(
+                        &account_ids,
+                        base_currency,
+                        taxonomy_id,
+                        &account.id,
+                    )
+                    .await?
+            };
             let holdings = self
                 .holdings_service
                 .get_holdings(&account.id, base_currency)
@@ -2086,6 +2208,7 @@ impl AllocationWorksheetServiceTrait for AllocationWorksheetService {
                 &input.selected_account_ids,
                 &input.base_currency,
                 &target.taxonomy_id,
+                target.target_type == TargetType::Asset,
             )
             .await?;
         let drift = self
@@ -2131,6 +2254,7 @@ impl AllocationWorksheetServiceTrait for AllocationWorksheetService {
                 &input.selected_account_ids,
                 &input.base_currency,
                 &target.taxonomy_id,
+                target.target_type == TargetType::Asset,
             )
             .await?;
         let drift = self
@@ -2142,11 +2266,13 @@ impl AllocationWorksheetServiceTrait for AllocationWorksheetService {
                 &input.aggregated_account_id,
             )
             .await?;
-        let taxonomy = self
-            .taxonomy_service
-            .get_taxonomy(&target.taxonomy_id)?
-            .ok_or_else(|| Self::invalid("Target taxonomy no longer exists"))?;
-
+        let is_asset_target = target.target_type == TargetType::Asset;
+        let asset_weights = if is_asset_target {
+            self.allocation_target_service
+                .list_asset_weights_for_target(&input.target_id)?
+        } else {
+            Vec::new()
+        };
         let asset_ids = sorted_unique(
             input
                 .lines
@@ -2159,22 +2285,40 @@ impl AllocationWorksheetServiceTrait for AllocationWorksheetService {
                         .filter(|holding| holding.holding_type != HoldingType::Cash)
                         .map(Self::asset_key),
                 )
+                .chain(asset_weights.iter().map(|weight| weight.asset_id.clone()))
                 .collect(),
         );
-        let assignments = if asset_ids.is_empty() {
-            Vec::new()
+        let assets_by_id = self.load_assets(&asset_ids).await?;
+        let (taxonomy, assignments, weights) = if is_asset_target {
+            (
+                Self::synthetic_asset_taxonomy(&target, &asset_ids, &assets_by_id),
+                Self::synthetic_asset_assignments(&asset_ids, &assets_by_id, &target),
+                Self::synthetic_asset_weights(&asset_weights),
+            )
         } else {
-            self.taxonomy_service
-                .get_asset_assignments_for_assets(&asset_ids)?
+            let taxonomy = self
+                .taxonomy_service
+                .get_taxonomy(&target.taxonomy_id)?
+                .ok_or_else(|| Self::invalid("Target taxonomy no longer exists"))?;
+            let assignments = if asset_ids.is_empty() {
+                Vec::new()
+            } else {
+                self.taxonomy_service
+                    .get_asset_assignments_for_assets(&asset_ids)?
+            };
+            (
+                taxonomy,
+                assignments,
+                self.allocation_target_service
+                    .list_weights_for_target(&input.target_id)?,
+            )
         };
         let sources = PreviewSources {
-            weights: self
-                .allocation_target_service
-                .list_weights_for_target(&input.target_id)?,
+            weights,
             constraints: self
                 .allocation_target_service
                 .list_target_constraints(&input.target_id)?,
-            assets_by_id: self.load_assets(&asset_ids).await?,
+            assets_by_id,
             quote_snapshots: self.load_quotes(&asset_ids)?,
             fx_rates: self.fx_service.get_latest_exchange_rates()?,
             assignments,
@@ -2483,6 +2627,7 @@ mod tests {
                 scope_type: ScopeType::All,
                 scope_id: None,
                 taxonomy_id: self.taxonomy_id.to_string(),
+                target_type: crate::portfolio::allocation_targets::model::TargetType::Category,
                 trigger_type: TriggerType::Manual,
                 drift_band_bps: 500,
                 band_type: BandType::Absolute,
@@ -4157,5 +4302,144 @@ mod tests {
             original,
             AllocationWorksheetService::source_fingerprint(&request(), &source_changed)
         );
+    }
+    #[test]
+    fn asset_target_preview_uses_synthetic_taxonomy_and_weights() {
+        let mut target = brokerage(6000, 4000, 0).target();
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id = INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let asset_ids = vec!["aapl".to_string(), "msft".to_string()];
+        let assets_by_id = asset_ids
+            .iter()
+            .map(|id| (id.clone(), asset(id)))
+            .collect::<HashMap<_, _>>();
+        let asset_weights = vec![
+            AllocationTargetAssetWeight {
+                id: "aw-aapl".to_string(),
+                target_id: "target-1".to_string(),
+                asset_id: "aapl".to_string(),
+                target_bps: 6000,
+                is_locked: false,
+                is_required: true,
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                updated_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+            AllocationTargetAssetWeight {
+                id: "aw-msft".to_string(),
+                target_id: "target-1".to_string(),
+                asset_id: "msft".to_string(),
+                target_bps: 4000,
+                is_locked: false,
+                is_required: true,
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                updated_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+        ];
+        let taxonomy = AllocationWorksheetService::synthetic_asset_taxonomy(
+            &target,
+            &asset_ids,
+            &assets_by_id,
+        );
+        let weights = AllocationWorksheetService::synthetic_asset_weights(&asset_weights);
+        let assignments = AllocationWorksheetService::synthetic_asset_assignments(
+            &asset_ids,
+            &assets_by_id,
+            &target,
+        );
+        let contributions = vec![
+            contribution_in("aapl", "acc-1", "aapl", HoldingType::Security, dec!(6000)),
+            contribution_in("msft", "acc-1", "msft", HoldingType::Security, dec!(4000)),
+        ];
+        let account_source = AccountSource {
+            account: account("acc-1", account_types::SECURITIES),
+            contributions: TaxonomyHoldingContributions {
+                taxonomy_id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+                taxonomy_name: "Individual securities".to_string(),
+                total_value: dec!(10000),
+                currency: "USD".to_string(),
+                contributions,
+            },
+            holdings: vec![
+                holding("aapl", "acc-1", dec!(60)),
+                holding("msft", "acc-1", dec!(40)),
+            ],
+        };
+        let drift = DriftReport {
+            target_id: "target-1".to_string(),
+            scope_type: ScopeType::All,
+            scope_id: None,
+            total_value: dec!(10000),
+            base_currency: "USD".to_string(),
+            max_drift_bps: 0,
+            out_of_band_count: 0,
+            rows: vec![
+                DriftRow {
+                    category_id: "aapl".to_string(),
+                    category_name: "AAPL".to_string(),
+                    color: "#aaa".to_string(),
+                    current_bps: 6000,
+                    target_bps: 6000,
+                    drift_bps: 0,
+                    current_value: dec!(6000),
+                    target_value: dec!(6000),
+                    value_delta: Decimal::ZERO,
+                    effective_band_bps: 500,
+                    status: DriftStatus::InBand,
+                    is_required: true,
+                    is_zero_current: false,
+                    is_cash: false,
+                },
+                DriftRow {
+                    category_id: "msft".to_string(),
+                    category_name: "MSFT".to_string(),
+                    color: "#aaa".to_string(),
+                    current_bps: 4000,
+                    target_bps: 4000,
+                    drift_bps: 0,
+                    current_value: dec!(4000),
+                    target_value: dec!(4000),
+                    value_delta: Decimal::ZERO,
+                    effective_band_bps: 500,
+                    status: DriftStatus::InBand,
+                    is_required: true,
+                    is_zero_current: false,
+                    is_cash: false,
+                },
+            ],
+            holdings: None,
+            deployable_cash: Decimal::ZERO,
+        };
+        let input = CalculateAllocationWorksheetInput {
+            target_id: "target-1".to_string(),
+            cash: tracked(Decimal::ZERO),
+            lines: vec![],
+            account_ids: vec!["acc-1".to_string()],
+            base_currency: "USD".to_string(),
+            aggregated_account_id: "all".to_string(),
+            selected_account_ids: vec!["acc-1".to_string()],
+        };
+        let sources = PreviewSources {
+            target,
+            drift,
+            weights,
+            taxonomy,
+            accounts: vec![account_source],
+            constraints: vec![],
+            assets_by_id,
+            quote_snapshots: HashMap::new(),
+            assignments,
+            fx_rates: vec![],
+        };
+
+        let result = AllocationWorksheetService::preview(&input, &sources).unwrap();
+        assert_eq!(result.categories.len(), 2);
+        assert!(result
+            .categories
+            .iter()
+            .any(|category| category.category_id == "aapl" && category.target_bps == 6000));
+        assert!(result
+            .categories
+            .iter()
+            .any(|category| category.category_id == "msft" && category.target_bps == 4000));
     }
 }

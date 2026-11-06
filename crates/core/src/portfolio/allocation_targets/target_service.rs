@@ -4,15 +4,17 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::assets::{AssetKind, AssetServiceTrait};
 use crate::errors::{Error as CoreError, Result as CoreResult, ValidationError};
 use crate::taxonomies::{Category, TaxonomyServiceTrait};
 
 use super::model::{
-    AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight, BandType,
-    ConstraintAction, ConstraintEffect, ConstraintSubjectType, NewAllocationTarget,
-    NewAllocationTargetWeight, RebalanceGoal, SaveAllocationTargetResult,
+    AllocationTarget, AllocationTargetAssetWeight, AllocationTargetConstraint,
+    AllocationTargetWeight, BandType, ConstraintAction, ConstraintEffect, ConstraintSubjectType,
+    NewAllocationTarget, NewAllocationTargetAssetWeight, NewAllocationTargetWeight, RebalanceGoal,
+    SaveAllocationTargetResult, TargetType, INDIVIDUAL_SECURITIES_TAXONOMY_ID,
 };
-use super::validation::{validate_new_target, validate_weights_sum};
+use super::validation::{validate_asset_weights_sum, validate_new_target, validate_weights_sum};
 
 // ── Repository trait ─────────────────────────────────────────────────────────
 
@@ -21,6 +23,10 @@ pub trait AllocationTargetRepositoryTrait: Send + Sync {
     fn get_target(&self, id: &str) -> CoreResult<Option<AllocationTarget>>;
     fn list_targets(&self) -> CoreResult<Vec<AllocationTarget>>;
     fn list_weights_for_target(&self, target_id: &str) -> CoreResult<Vec<AllocationTargetWeight>>;
+    fn list_asset_weights_for_target(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetAssetWeight>>;
 
     async fn create_target(&self, target: AllocationTarget) -> CoreResult<AllocationTarget>;
     async fn update_target(&self, target: AllocationTarget) -> CoreResult<AllocationTarget>;
@@ -34,6 +40,7 @@ pub trait AllocationTargetRepositoryTrait: Send + Sync {
         &self,
         target: AllocationTarget,
         weights: Vec<AllocationTargetWeight>,
+        asset_weights: Vec<AllocationTargetAssetWeight>,
     ) -> CoreResult<SaveAllocationTargetResult>;
 
     fn list_target_constraints(
@@ -54,6 +61,10 @@ pub trait AllocationTargetServiceTrait: Send + Sync {
     fn get_target(&self, id: &str) -> CoreResult<Option<AllocationTarget>>;
     fn list_targets(&self) -> CoreResult<Vec<AllocationTarget>>;
     fn list_weights_for_target(&self, target_id: &str) -> CoreResult<Vec<AllocationTargetWeight>>;
+    fn list_asset_weights_for_target(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetAssetWeight>>;
 
     async fn create_target(&self, input: NewAllocationTarget) -> CoreResult<AllocationTarget>;
     async fn update_target(
@@ -73,6 +84,7 @@ pub trait AllocationTargetServiceTrait: Send + Sync {
         id: Option<String>,
         input: NewAllocationTarget,
         weights: Vec<NewAllocationTargetWeight>,
+        asset_weights: Vec<NewAllocationTargetAssetWeight>,
     ) -> CoreResult<SaveAllocationTargetResult>;
 
     fn list_target_constraints(
@@ -91,6 +103,7 @@ pub trait AllocationTargetServiceTrait: Send + Sync {
 pub struct AllocationTargetService {
     repository: Arc<dyn AllocationTargetRepositoryTrait>,
     taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
+    asset_service: Option<Arc<dyn AssetServiceTrait>>,
 }
 
 impl AllocationTargetService {
@@ -101,7 +114,13 @@ impl AllocationTargetService {
         Self {
             repository,
             taxonomy_service,
+            asset_service: None,
         }
+    }
+
+    pub fn with_asset_service(mut self, asset_service: Arc<dyn AssetServiceTrait>) -> Self {
+        self.asset_service = Some(asset_service);
+        self
     }
 
     fn now() -> String {
@@ -203,6 +222,24 @@ impl AllocationTargetService {
         Ok(())
     }
 
+    fn validate_target_asset_weights(
+        &self,
+        weights: &[NewAllocationTargetAssetWeight],
+    ) -> CoreResult<()> {
+        let Some(asset_service) = &self.asset_service else {
+            return Ok(());
+        };
+        for weight in weights {
+            let asset = asset_service.get_asset_by_id(&weight.asset_id)?;
+            if asset.kind != AssetKind::Investment {
+                return Err(CoreError::Validation(ValidationError::InvalidInput(
+                    format!("asset_id '{}' is not a security target", weight.asset_id),
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn requires_top_level_target_weights(taxonomy_id: &str) -> bool {
         matches!(
             taxonomy_id,
@@ -236,6 +273,7 @@ impl AllocationTargetService {
             scope_type: input.scope_type,
             scope_id: input.scope_id,
             taxonomy_id: input.taxonomy_id,
+            target_type: input.target_type.unwrap_or_default(),
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
             band_type: input
@@ -301,6 +339,26 @@ impl AllocationTargetService {
             })
             .collect()
     }
+
+    fn build_domain_asset_weights(
+        target_id: &str,
+        weights: Vec<NewAllocationTargetAssetWeight>,
+        now: &str,
+    ) -> Vec<AllocationTargetAssetWeight> {
+        weights
+            .into_iter()
+            .map(|n| AllocationTargetAssetWeight {
+                id: Uuid::new_v4().to_string(),
+                target_id: target_id.to_string(),
+                asset_id: n.asset_id,
+                target_bps: n.target_bps,
+                is_locked: n.is_locked,
+                is_required: n.is_required,
+                created_at: now.to_string(),
+                updated_at: now.to_string(),
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -317,9 +375,22 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
         self.repository.list_weights_for_target(target_id)
     }
 
+    fn list_asset_weights_for_target(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetAssetWeight>> {
+        self.repository.list_asset_weights_for_target(target_id)
+    }
+
     async fn create_target(&self, input: NewAllocationTarget) -> CoreResult<AllocationTarget> {
         validate_new_target(&input)?;
-        self.validate_target_taxonomy(&input.taxonomy_id)?;
+        let target_type = input.target_type.clone().unwrap_or_default();
+        let taxonomy_id = if target_type == TargetType::Asset {
+            INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string()
+        } else {
+            self.validate_target_taxonomy(&input.taxonomy_id)?;
+            input.taxonomy_id.clone()
+        };
         debug!("Creating allocation target: {}", input.name);
         let now = Self::now();
         let target = AllocationTarget {
@@ -327,7 +398,8 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
             name: input.name.trim().to_string(),
             scope_type: input.scope_type,
             scope_id: input.scope_id,
-            taxonomy_id: input.taxonomy_id,
+            taxonomy_id,
+            target_type,
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
             // New targets default to Hybrid (#1070). Existing DB rows
@@ -352,27 +424,42 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
         input: NewAllocationTarget,
     ) -> CoreResult<AllocationTarget> {
         validate_new_target(&input)?;
-        self.validate_target_taxonomy(&input.taxonomy_id)?;
         let existing = self.repository.get_target(id)?.ok_or_else(|| {
             crate::errors::Error::Database(crate::errors::DatabaseError::NotFound(format!(
                 "AllocationTarget {} not found",
                 id
             )))
         })?;
-        if existing.taxonomy_id != input.taxonomy_id
-            && !self.repository.list_weights_for_target(id)?.is_empty()
-        {
+        let target_type = input
+            .target_type
+            .clone()
+            .unwrap_or_else(|| existing.target_type.clone());
+        if target_type != existing.target_type {
             return Err(CoreError::Validation(ValidationError::InvalidInput(
-                "Cannot change taxonomy_id while allocation target weights exist".to_string(),
+                "target_type cannot change after a target is created".to_string(),
             )));
         }
+        let taxonomy_id = if target_type == TargetType::Asset {
+            INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string()
+        } else {
+            self.validate_target_taxonomy(&input.taxonomy_id)?;
+            if existing.taxonomy_id != input.taxonomy_id
+                && !self.repository.list_weights_for_target(id)?.is_empty()
+            {
+                return Err(CoreError::Validation(ValidationError::InvalidInput(
+                    "Cannot change taxonomy_id while allocation target weights exist".to_string(),
+                )));
+            }
+            input.taxonomy_id.clone()
+        };
         debug!("Updating allocation target: {}", id);
         let updated = AllocationTarget {
             id: existing.id,
             name: input.name.trim().to_string(),
             scope_type: input.scope_type,
             scope_id: input.scope_id,
-            taxonomy_id: input.taxonomy_id,
+            taxonomy_id,
+            target_type,
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
             band_type: input.band_type.unwrap_or(existing.band_type),
@@ -445,10 +532,9 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
         id: Option<String>,
         input: NewAllocationTarget,
         weights: Vec<NewAllocationTargetWeight>,
+        asset_weights: Vec<NewAllocationTargetAssetWeight>,
     ) -> CoreResult<SaveAllocationTargetResult> {
         validate_new_target(&input)?;
-        validate_weights_sum(&weights)?;
-        self.validate_weight_categories_for_taxonomy(&input.taxonomy_id, &weights)?;
 
         let existing = if let Some(target_id) = id.as_deref() {
             Some(
@@ -459,6 +545,42 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
         } else {
             None
         };
+        let target_type = input
+            .target_type
+            .clone()
+            .or_else(|| existing.as_ref().map(|target| target.target_type.clone()))
+            .unwrap_or_default();
+        if let (Some(existing), Some(requested)) = (&existing, &input.target_type) {
+            if existing.target_type != *requested {
+                return Err(CoreError::Validation(ValidationError::InvalidInput(
+                    "target_type cannot change after a target is created".to_string(),
+                )));
+            }
+        }
+        let taxonomy_id = if target_type == TargetType::Asset {
+            INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string()
+        } else {
+            input.taxonomy_id.clone()
+        };
+
+        if target_type == TargetType::Asset {
+            if !weights.is_empty() {
+                return Err(CoreError::Validation(ValidationError::InvalidInput(
+                    "category weights are not allowed on an individual securities target"
+                        .to_string(),
+                )));
+            }
+            validate_asset_weights_sum(&asset_weights)?;
+            self.validate_target_asset_weights(&asset_weights)?;
+        } else {
+            if !asset_weights.is_empty() {
+                return Err(CoreError::Validation(ValidationError::InvalidInput(
+                    "asset weights are only allowed on an individual securities target".to_string(),
+                )));
+            }
+            validate_weights_sum(&weights)?;
+            self.validate_weight_categories_for_taxonomy(&input.taxonomy_id, &weights)?;
+        }
 
         let now = Self::now();
         let target_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
@@ -469,10 +591,17 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
         );
 
         let target = Self::build_target_from_input(target_id.clone(), input, existing, &now);
+        let target = AllocationTarget {
+            taxonomy_id,
+            target_type,
+            ..target
+        };
         let domain_weights =
             Self::build_domain_weights(&target_id, &target.taxonomy_id, weights, &now);
+        let domain_asset_weights =
+            Self::build_domain_asset_weights(&target_id, asset_weights, &now);
         self.repository
-            .save_target_with_weights(target, domain_weights)
+            .save_target_with_weights(target, domain_weights, domain_asset_weights)
             .await
     }
 
@@ -559,6 +688,7 @@ mod tests {
             scope_type: ScopeType::All,
             scope_id: None,
             taxonomy_id: taxonomy_id.to_string(),
+            target_type: TargetType::Category,
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
             band_type: BandType::Absolute,
@@ -580,6 +710,7 @@ mod tests {
             scope_type: ScopeType::All,
             scope_id: None,
             taxonomy_id: taxonomy_id.to_string(),
+            target_type: None,
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
             band_type: None,
@@ -647,6 +778,13 @@ mod tests {
             Ok(self.weights.clone())
         }
 
+        fn list_asset_weights_for_target(
+            &self,
+            _target_id: &str,
+        ) -> CoreResult<Vec<AllocationTargetAssetWeight>> {
+            Ok(vec![])
+        }
+
         async fn create_target(&self, target: AllocationTarget) -> CoreResult<AllocationTarget> {
             Ok(target)
         }
@@ -671,8 +809,13 @@ mod tests {
             &self,
             target: AllocationTarget,
             weights: Vec<AllocationTargetWeight>,
+            asset_weights: Vec<AllocationTargetAssetWeight>,
         ) -> CoreResult<SaveAllocationTargetResult> {
-            Ok(SaveAllocationTargetResult { target, weights })
+            Ok(SaveAllocationTargetResult {
+                target,
+                weights,
+                asset_weights,
+            })
         }
 
         fn list_target_constraints(
@@ -908,6 +1051,140 @@ mod tests {
         assert_eq!(weights[0].target_id, "target-1");
         assert_eq!(weights[0].taxonomy_id, "regions");
         assert_eq!(weights[0].category_id, "North_America");
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_uses_sentinel_taxonomy() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+        let saved = service
+            .save_target_with_weights(
+                None,
+                NewAllocationTarget {
+                    target_type: Some(TargetType::Asset),
+                    taxonomy_id: String::new(),
+                    ..target_input("asset_classes")
+                },
+                vec![],
+                vec![NewAllocationTargetAssetWeight {
+                    asset_id: "asset-1".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(saved.target.target_type, TargetType::Asset);
+        assert_eq!(saved.target.taxonomy_id, INDIVIDUAL_SECURITIES_TAXONOMY_ID);
+        assert_eq!(saved.asset_weights.len(), 1);
+        assert!(saved.weights.is_empty());
+    }
+
+    #[tokio::test]
+    async fn save_target_rejects_type_change() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let err = service
+            .save_target_with_weights(
+                Some("target-1".to_string()),
+                NewAllocationTarget {
+                    target_type: Some(TargetType::Asset),
+                    ..target_input("asset_classes")
+                },
+                vec![],
+                vec![NewAllocationTargetAssetWeight {
+                    asset_id: "asset-1".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("target_type cannot change"));
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_rejects_category_weights() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let err = service
+            .save_target_with_weights(
+                None,
+                NewAllocationTarget {
+                    target_type: Some(TargetType::Asset),
+                    ..target_input("asset_classes")
+                },
+                vec![NewAllocationTargetWeight {
+                    category_id: "EQUITY".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+                vec![NewAllocationTargetAssetWeight {
+                    asset_id: "asset-1".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("category weights are not allowed"));
+    }
+
+    #[tokio::test]
+    async fn save_category_target_rejects_asset_weights() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let err = service
+            .save_target_with_weights(
+                None,
+                target_input("asset_classes"),
+                vec![NewAllocationTargetWeight {
+                    category_id: "EQUITY".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+                vec![NewAllocationTargetAssetWeight {
+                    asset_id: "asset-1".to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("asset weights are only allowed"));
     }
 
     #[tokio::test]

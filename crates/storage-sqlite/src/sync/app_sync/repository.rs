@@ -22,8 +22,9 @@ use crate::addons::addon_storage_id;
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::{
-    activities, addon_storage, spending_preset_rule_deletions, sync_applied_events, sync_cursor,
-    sync_device_config, sync_engine_state, sync_entity_metadata, sync_outbox, sync_table_state,
+    activities, addon_storage, allocation_target_asset_weights, spending_preset_rule_deletions,
+    sync_applied_events, sync_cursor, sync_device_config, sync_engine_state, sync_entity_metadata,
+    sync_outbox, sync_table_state,
 };
 use crate::spending::deterministic_ids::preset_rule_deletion_id;
 use crate::sync::broker_activity_patch::{
@@ -1134,6 +1135,7 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::PortfolioAccount => Some(("portfolio_accounts", "id")),
         SyncEntity::AllocationTarget => Some(("allocation_targets", "id")),
         SyncEntity::AllocationTargetWeight => Some(("allocation_target_weights", "id")),
+        SyncEntity::AllocationTargetAssetWeight => Some(("allocation_target_asset_weights", "id")),
         SyncEntity::AllocationTargetConstraint => Some(("allocation_target_constraints", "id")),
         SyncEntity::SpendingSetting | SyncEntity::AppPreference => {
             Some(("app_settings", "setting_key"))
@@ -2514,6 +2516,17 @@ fn apply_remote_event_lww_tx(
                 SyncOperation::Delete => {
                     if entity == SyncEntity::Account {
                         crate::accounts::delete_account_references(conn, &entity_id_value)?;
+                    }
+                    if entity == SyncEntity::Asset {
+                        // The asset FK is RESTRICT so a local delete still requires
+                        // removing the target edit first. A remote asset delete is
+                        // already authoritative; drop its target weights rather than
+                        // dead-lettering the whole event.
+                        diesel::delete(allocation_target_asset_weights::table.filter(
+                            allocation_target_asset_weights::asset_id.eq(&entity_id_value),
+                        ))
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
                     }
                     if entity == SyncEntity::SpendingCategorizationRule {
                         tombstone_remote_preset_rule_delete(
@@ -3925,6 +3938,34 @@ impl AppSyncRepository {
                         .execute(conn)
                         .map_err(|err| restore_sql_error("clear", "asset_logos", err))?;
                     }
+                    // Asset allocation weights reference `assets` with RESTRICT, so an
+                    // older snapshot without this table would otherwise fail when assets
+                    // are cleared. Stash them and restore the rows whose target and asset
+                    // survived.
+                    let keep_asset_weights = has_plan("assets")
+                        && !has_plan("allocation_target_asset_weights");
+                    if keep_asset_weights {
+                        diesel::sql_query(
+                            "CREATE TEMP TABLE _keep_allocation_target_asset_weights AS SELECT * FROM allocation_target_asset_weights",
+                        )
+                        .execute(conn)
+                        .map_err(|err| {
+                            restore_sql_error(
+                                "clear",
+                                "allocation_target_asset_weights",
+                                err,
+                            )
+                        })?;
+                        diesel::sql_query("DELETE FROM allocation_target_asset_weights")
+                            .execute(conn)
+                            .map_err(|err| {
+                                restore_sql_error(
+                                    "clear",
+                                    "allocation_target_asset_weights",
+                                    err,
+                                )
+                            })?;
+                    }
 
                     for plan in restore_plans.iter().rev() {
                         diesel::sql_query(&plan.clear_sql)
@@ -3972,6 +4013,28 @@ impl AppSyncRepository {
                         diesel::sql_query("DROP TABLE _keep_asset_logos")
                             .execute(conn)
                             .map_err(|err| restore_sql_error("copy", "asset_logos", err))?;
+                    }
+                    if keep_asset_weights {
+                        diesel::sql_query(
+                            "INSERT OR IGNORE INTO allocation_target_asset_weights SELECT * FROM _keep_allocation_target_asset_weights WHERE target_id IN (SELECT id FROM allocation_targets) AND asset_id IN (SELECT id FROM assets)",
+                        )
+                        .execute(conn)
+                        .map_err(|err| {
+                            restore_sql_error(
+                                "copy",
+                                "allocation_target_asset_weights",
+                                err,
+                            )
+                        })?;
+                        diesel::sql_query("DROP TABLE _keep_allocation_target_asset_weights")
+                            .execute(conn)
+                            .map_err(|err| {
+                                restore_sql_error(
+                                    "copy",
+                                    "allocation_target_asset_weights",
+                                    err,
+                                )
+                            })?;
                     }
 
                     if has_plan("contribution_limits") && !load_table_columns(
@@ -7624,6 +7687,7 @@ mod tests {
             SyncEntity::Snapshot,
             SyncEntity::AllocationTarget,
             SyncEntity::AllocationTargetWeight,
+            SyncEntity::AllocationTargetAssetWeight,
             SyncEntity::AllocationTargetConstraint,
         ];
 
