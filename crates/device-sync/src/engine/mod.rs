@@ -80,6 +80,7 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::AiMessage => "ai_message",
         SyncEntity::AiThreadTag => "ai_thread_tag",
         SyncEntity::ContributionLimit => "contribution_limit",
+        SyncEntity::ContributionLimitV2 => "contribution_limit_v2",
         SyncEntity::Platform => "platform",
         SyncEntity::Snapshot => "snapshot",
         SyncEntity::CustomProvider => "custom_provider",

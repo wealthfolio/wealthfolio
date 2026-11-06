@@ -6,6 +6,8 @@ import {
   ActivityType,
   activityTypeSchema,
   quoteModeSchema,
+  MIN_CONTRIBUTION_YEAR,
+  MAX_CONTRIBUTION_YEAR,
 } from "./constants";
 import { tryParseDate } from "./utils";
 import {
@@ -404,7 +406,8 @@ export const createContributionLimitSchema = (t?: TFunction) => {
     contributionYear: z
       .number({ error: invalidYear })
       .int({ message: invalidYear })
-      .min(1900, { message: invalidYear }),
+      .min(MIN_CONTRIBUTION_YEAR, { message: invalidYear })
+      .max(MAX_CONTRIBUTION_YEAR, { message: invalidYear }),
     limitAmount: z.coerce
       .number({
         error: invalidTypeError(

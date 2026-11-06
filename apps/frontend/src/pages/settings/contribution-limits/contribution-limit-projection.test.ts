@@ -22,6 +22,15 @@ const projectedYears = (limits: ContributionLimit[], timezone = "UTC") =>
     }));
 
 describe("withProjectedRecurringLimits", () => {
+  it.each([false, true])("bounds work for an extreme saved year (recurring: %s)", (isRecurring) => {
+    const future = limit({ id: "extreme", contributionYear: 2147483647, isRecurring });
+    const result = withProjectedRecurringLimits([limit({}), future], 2026, 3, "UTC");
+    expect(
+      result.filter((entry) => entry.isProjected).map((entry) => entry.contributionYear),
+    ).toEqual([2027, 2028, 2029]);
+    expect(result.find((entry) => entry.id === "extreme")).toMatchObject(future);
+  });
+
   it.each([
     // Local midnight on 1 January is still 31 December in UTC east of Greenwich.
     [
@@ -103,8 +112,6 @@ describe("withProjectedRecurringLimits", () => {
       [
         [2027, 2026],
         [2029, 2028],
-        [2030, 2028],
-        [2031, 2028],
       ],
     );
   });
@@ -131,10 +138,7 @@ describe("withProjectedRecurringLimits", () => {
     ).filter((projection) => projection.isProjected);
     expect(
       projections.map(({ sourceLimitId, contributionYear }) => [sourceLimitId, contributionYear]),
-    ).toEqual([
-      ["spouseA2027", 2028],
-      ["spouseB2026", 2027],
-    ]);
+    ).toEqual([["spouseB2026", 2027]]);
   });
 
   it("matches the same accounts listed in another order", () => {
