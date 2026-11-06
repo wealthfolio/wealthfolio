@@ -1,7 +1,7 @@
 import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
 import { render, screen } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
@@ -45,8 +45,9 @@ function TestForm({
   });
   const amountWasEdited = useRef(false);
   const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
+  const [queryClient] = useState(() => new QueryClient());
   return (
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <FormProvider {...form}>
         <MobileDetailsStep
           accounts={accounts}

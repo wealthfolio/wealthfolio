@@ -43,8 +43,9 @@ function TestForm({
   const incomeAmountTypedLast = useRef<IncomeAmountTypedLast>("gross");
   const [showDetails, setShowDetails] = useState(true);
   const [type, setType] = useState(activityType);
+  const [queryClient] = useState(() => new QueryClient());
   return (
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <FormProvider {...form}>
         {/* The form root keeps the values while the steps come and go. */}
         <button type="button" onClick={() => setShowDetails((shown) => !shown)}>

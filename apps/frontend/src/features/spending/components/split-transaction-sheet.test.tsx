@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DirectionProvider, FormattingProvider, type TextDirection } from "@wealthfolio/ui";
 import { Activity } from "react";
@@ -76,6 +76,14 @@ function savedAmounts(onSave: ReturnType<typeof vi.fn>) {
   expect(onSave).toHaveBeenCalledOnce();
   const [, splits] = onSave.mock.calls[0] as [string, { amount: string }[]];
   return splits.map((split) => split.amount);
+}
+
+// The sheet moves focus to its first control a frame after it opens. Typing before
+// then sends the keys that follow that move to the control instead of the line.
+async function waitForSheetFocus() {
+  await waitFor(() =>
+    expect(screen.getByRole("dialog")).toContainElement(document.activeElement as HTMLElement),
+  );
 }
 
 describe("SplitTransactionSheet", () => {
@@ -160,6 +168,7 @@ describe("SplitTransactionSheet", () => {
         direction,
       );
       const [line] = screen.getAllByRole("textbox");
+      await waitForSheetFocus();
 
       await user.clear(line);
       await user.type(line, "6.123456789");
@@ -197,6 +206,7 @@ describe("SplitTransactionSheet", () => {
     const user = userEvent.setup();
     renderSheet(splitRow("10", "KWD", ["10"]), "en-US");
     const [line] = screen.getAllByRole("textbox");
+    await waitForSheetFocus();
 
     await user.clear(line);
     await user.type(line, "3.3337");
@@ -228,6 +238,7 @@ describe("SplitTransactionSheet", () => {
     );
     const { rerender } = render(view(false));
     const [line] = screen.getAllByRole("textbox");
+    await waitForSheetFocus();
     await user.clear(line);
     await user.type(line, "4");
 

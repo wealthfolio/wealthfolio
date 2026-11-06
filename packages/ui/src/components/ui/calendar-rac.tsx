@@ -13,6 +13,8 @@ import {
   composeRenderProps,
   Heading as HeadingRac,
   RangeCalendar as RangeCalendarRac,
+  type CalendarProps as CalendarRacProps,
+  type DateValue,
 } from "react-aria-components";
 
 import { cn } from "../../lib/utils";
@@ -23,7 +25,8 @@ interface BaseCalendarProps {
   size?: "default" | "large";
 }
 
-type CalendarProps = ComponentProps<typeof CalendarRac> & BaseCalendarProps;
+// Single-date selection; ComponentProps of the generic Calendar widens onChange to every selection mode.
+type CalendarProps = CalendarRacProps<DateValue> & BaseCalendarProps;
 type RangeCalendarProps = ComponentProps<typeof RangeCalendarRac> & BaseCalendarProps;
 
 function CalendarHeader({ large = false }: { large?: boolean }) {

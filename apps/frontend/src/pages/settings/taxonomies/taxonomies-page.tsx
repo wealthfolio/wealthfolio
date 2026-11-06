@@ -146,7 +146,7 @@ export default function TaxonomiesPage() {
             setSelectedCategoryId(null);
           }}
         >
-          <div className="overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="[scrollbar-width:none] overflow-x-auto [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
             <TabsList className="inline-flex w-max justify-start gap-2">
               {taxonomies.map((taxonomy) => (
                 <TabsTrigger
