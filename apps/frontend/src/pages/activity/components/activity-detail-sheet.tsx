@@ -1,7 +1,8 @@
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionExpiration, formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
-import type { ActivityDetails } from "@/lib/types";
+import { getActivityChargeLines } from "@/lib/activity-charges";
+import type { ActivityCharge, ActivityDetails } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -72,6 +73,27 @@ function DetailRow({ label, value, icon }: DetailRowProps) {
   );
 }
 
+/** A fee or tax total's lines, labelled as the statement listed them. */
+function ChargeLineRows({
+  lines,
+  currency,
+  isHidden,
+}: {
+  lines: ActivityCharge[];
+  currency: string;
+  isHidden: boolean;
+}) {
+  return lines.map((line, index) => (
+    <div
+      key={`${line.category}-${index}`}
+      className="text-muted-foreground flex items-start justify-between gap-4 ps-4 pb-1 text-xs"
+    >
+      <span>{line.label}</span>
+      <AmountDisplay value={Number(line.amount)} currency={currency} isHidden={isHidden} />
+    </div>
+  ));
+}
+
 interface DetailSectionProps {
   title: string;
   icon?: React.ReactNode;
@@ -135,6 +157,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
     : null;
 
   const subtypeDisplay = activity.subtype ? localizeActivitySubtypeName(t, activity.subtype) : null;
+  const chargeLines = getActivityChargeLines(activity);
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "—";
@@ -305,33 +328,51 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               label={isOption ? t("activity:detail.total_premium") : t("activity:field_amount")}
               value={<StoredAmount activity={activity} isHidden={isBalanceHidden} />}
             />
-            {Number(activity.fee) !== 0 && (
-              <DetailRow
-                label={t("activity:field_fee")}
-                value={
-                  <AmountDisplay
-                    value={Number(activity.fee)}
+            {(Number(activity.fee ?? 0) !== 0 || !!chargeLines?.fee.length) && (
+              <>
+                <DetailRow
+                  label={t("activity:field_fee")}
+                  value={
+                    <AmountDisplay
+                      value={Number(activity.fee ?? 0)}
+                      currency={activity.currency}
+                      isHidden={isBalanceHidden}
+                    />
+                  }
+                />
+                {chargeLines && (
+                  <ChargeLineRows
+                    lines={chargeLines.fee}
                     currency={activity.currency}
                     isHidden={isBalanceHidden}
                   />
-                }
-              />
+                )}
+              </>
             )}
-            {Number(activity.tax ?? 0) !== 0 && (
-              <DetailRow
-                label={
-                  activity.activityType === ActivityType.DIVIDEND
-                    ? t("activity:detail.withholding_tax")
-                    : t("activity:type_tax")
-                }
-                value={
-                  <AmountDisplay
-                    value={Number(activity.tax ?? 0)}
+            {(Number(activity.tax ?? 0) !== 0 || !!chargeLines?.tax.length) && (
+              <>
+                <DetailRow
+                  label={
+                    activity.activityType === ActivityType.DIVIDEND
+                      ? t("activity:detail.withholding_tax")
+                      : t("activity:type_tax")
+                  }
+                  value={
+                    <AmountDisplay
+                      value={Number(activity.tax ?? 0)}
+                      currency={activity.currency}
+                      isHidden={isBalanceHidden}
+                    />
+                  }
+                />
+                {chargeLines && (
+                  <ChargeLineRows
+                    lines={chargeLines.tax}
                     currency={activity.currency}
                     isHidden={isBalanceHidden}
                   />
-                }
-              />
+                )}
+              </>
             )}
             {activity.fxRate && (
               <DetailRow
