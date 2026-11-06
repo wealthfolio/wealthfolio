@@ -207,6 +207,8 @@ export function buildNewAssetFromSearchResult(
     quoteMode,
     quoteCcy: result.currency || fallbackCurrency,
     instrumentType,
+    // An unmapped quote type must not ride along with a type taken from elsewhere.
+    instrumentTypeLabel: instrumentType ? result.quoteType : undefined,
     instrumentSymbol: canonicalSymbol,
     instrumentExchangeMic: canonicalExchangeMic,
     providerId: result.providerId,

@@ -1401,6 +1401,8 @@ export interface NewAsset {
   quoteMode: string;
   quoteCcy: string;
   instrumentType?: string;
+  /** Provider quote type (e.g. "MUTUALFUND") that `instrumentType` collapses; classifies the new asset. */
+  instrumentTypeLabel?: string;
   instrumentSymbol?: string;
   instrumentExchangeMic?: string;
   providerId?: string;

@@ -1939,6 +1939,7 @@ impl AssetServiceTrait for AssetService {
                     quote_mode,
                     quote_ccy: quote_ccy.clone(),
                     instrument_type: instrument_type.clone(),
+                    instrument_type_label: None,
                     instrument_symbol: Some(canonical_symbol.clone()),
                     instrument_exchange_mic: exchange_mic.clone(),
                     provider_config: provider_config.clone(),
@@ -2282,12 +2283,20 @@ impl AssetServiceTrait for AssetService {
         }
 
         let instrument_type = new_asset.instrument_type.clone();
+        let instrument_type_label = new_asset.instrument_type_label.clone();
+        let name = new_asset.name.clone();
         let kind = new_asset.kind.clone();
         let asset = self.asset_repository.create(new_asset).await?;
 
         // Auto-classify the newly created asset
-        self.classify_new_asset(&asset.id, instrument_type.as_ref(), None, None, &kind)
-            .await;
+        self.classify_new_asset(
+            &asset.id,
+            instrument_type.as_ref(),
+            instrument_type_label.as_deref(),
+            name.as_deref(),
+            &kind,
+        )
+        .await;
 
         // Emit event for newly created asset
         self.event_sink
