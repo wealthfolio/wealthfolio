@@ -15,11 +15,21 @@ const metadata = {
   loan_events: [{ type: "rate_change", effectiveDate: "2026-03-01", annualRate: 4.5 }],
 };
 
+const today = formatDateISO(new Date());
+
 const open = (
   onSubmit = vi.fn().mockResolvedValue(undefined),
   loan: Record<string, unknown> = metadata,
 ) => {
-  render(<ChangeRateSheet open onOpenChange={vi.fn()} metadata={loan} onSubmit={onSubmit} />);
+  render(
+    <ChangeRateSheet
+      open
+      onOpenChange={vi.fn()}
+      metadata={loan}
+      today={formatDateISO(new Date())}
+      onSubmit={onSubmit}
+    />,
+  );
   return {
     onSubmit,
     save: screen.getByRole("button", { name: "Change interest rate" }),
@@ -63,7 +73,7 @@ describe("change interest rate", () => {
       ...metadata,
       loan_events: [{ type: "rate_change", effectiveDate: "2026-03-01", annualRate: 5.3125 }],
     };
-    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() };
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn(), today };
     const { rerender } = render(<ChangeRateSheet {...props} metadata={precise} />);
     rerender(<ChangeRateSheet {...props} metadata={{ ...precise }} />);
     expect(screen.getByLabelText("Interest rate", { selector: "input" })).toHaveValue("5.3125");
@@ -72,7 +82,7 @@ describe("change interest rate", () => {
   });
 
   it("starts a fresh draft each time it opens", () => {
-    const props = { onOpenChange: vi.fn(), onSubmit: vi.fn(), metadata };
+    const props = { onOpenChange: vi.fn(), onSubmit: vi.fn(), metadata, today };
     const rate = () => screen.getByLabelText("Interest rate", { selector: "input" });
     const { rerender } = render(<ChangeRateSheet {...props} open={false} />);
     rerender(<ChangeRateSheet {...props} open />);
@@ -85,7 +95,7 @@ describe("change interest rate", () => {
 
   it("keeps a draft when the loan changes while the sheet is open", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    const props = { open: true, onOpenChange: vi.fn(), onSubmit };
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit, today };
     const { rerender } = render(<ChangeRateSheet {...props} metadata={metadata} />);
     fireEvent.change(screen.getByLabelText("Interest rate", { selector: "input" }), {
       target: { value: "5.1" },
