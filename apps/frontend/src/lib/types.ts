@@ -1,4 +1,9 @@
-import { importActivitySchema, importMappingSchema, parseConfigSchema } from "@/lib/schemas";
+import {
+  activityChargeSchema,
+  importActivitySchema,
+  importMappingSchema,
+  parseConfigSchema,
+} from "@/lib/schemas";
 import * as z from "zod";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import {
@@ -505,6 +510,7 @@ export interface LinkTransferPairsResult {
   errors: { index: number; message: string }[];
 }
 export type ActivityImport = z.infer<typeof importActivitySchema>;
+export type ActivityCharge = z.infer<typeof activityChargeSchema>;
 export type ImportMappingData = z.infer<typeof importMappingSchema>;
 export type ParseConfig = z.infer<typeof parseConfigSchema>;
 export type ImportTemplateScope = "SYSTEM" | "USER";
