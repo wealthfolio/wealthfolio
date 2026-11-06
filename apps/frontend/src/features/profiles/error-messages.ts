@@ -64,6 +64,8 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
       return t("profiles.errors.teamChanged");
     case "CONNECT_REBIND_REQUIRED":
       return t("profiles.errors.rebind");
+    case "CONNECT_SESSION_EXPIRED":
+      return t("profiles.errors.connectSessionExpired");
     default:
       return t("profiles.errors.generic");
   }

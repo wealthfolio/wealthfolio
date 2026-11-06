@@ -15,7 +15,7 @@ import { getPlatform } from "@/hooks/use-platform";
 import { CONNECT_ENABLED, CONNECT_OAUTH_CALLBACK_URL } from "@/lib/connect-config";
 import { QueryKeys } from "@/lib/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
-import { createClient, Session, SupabaseClient, User } from "@supabase/supabase-js";
+import { createClient, type AuthError, Session, SupabaseClient, User } from "@supabase/supabase-js";
 import {
   createContext,
   useCallback,
@@ -44,7 +44,12 @@ import { getUserInfo } from "../services/broker-service";
 import type { UserInfo } from "../types";
 import { parseAuthCallbackUrl } from "../lib/auth-callback";
 import { hasBrokerSync, isSubscriptionStatusActive } from "../lib/plan-capabilities";
-import { hasVerifiedTotpFactor, isMfaRequiredError } from "../lib/mfa";
+import {
+  hasVerifiedTotpFactor,
+  isMfaCodeRejected,
+  isMfaRequiredError,
+  isSavedLoginGone,
+} from "../lib/mfa";
 
 // Auth configuration - these are public/publishable keys (safe for client-side)
 // Can be overridden via environment variables: CONNECT_AUTH_URL and CONNECT_AUTH_PUBLISHABLE_KEY
@@ -114,6 +119,8 @@ interface WealthfolioConnectContextValue {
   mfaChallenge: MfaChallenge["kind"] | null;
   /** The cloud API asked the connected session for the authenticator code (sync paused). */
   isMfaRequired: boolean;
+  /** The saved login was ended by the auth server, not by signing out here. */
+  sessionEnded: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithOAuth: (provider: "google" | "apple" | "github") => Promise<void>;
@@ -155,6 +162,7 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   error: null,
   mfaChallenge: null,
   isMfaRequired: false,
+  sessionEnded: false,
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
   signInWithOAuth: async () => {},
@@ -223,7 +231,17 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mfaChallenge, setMfaChallengeState] = useState<MfaChallenge | null>(null);
   const mfaChallengeRef = useRef<MfaChallenge | null>(null);
-  const [isMfaRequired, setIsMfaRequired] = useState(false);
+  const [isMfaRequired, setIsMfaRequiredState] = useState(false);
+  const isMfaRequiredRef = useRef(false);
+  const mfaProbeRef = useRef(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
+  // Counts installed logins, so a late check can't clear a newer one.
+  const loginGenerationRef = useRef(0);
+
+  const setIsMfaRequired = useCallback((next: boolean) => {
+    isMfaRequiredRef.current = next;
+    setIsMfaRequiredState(next);
+  }, []);
 
   const setMfaChallenge = useCallback((next: MfaChallenge | null) => {
     mfaChallengeRef.current = next;
@@ -242,7 +260,12 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     // A new or stepped-up session replaces any pending code step.
     mfaChallengeRef.current = null;
     setMfaChallengeState(null);
-    setIsMfaRequired(false);
+    isMfaRequiredRef.current = false;
+    setIsMfaRequiredState(false);
+    if (next) {
+      loginGenerationRef.current += 1;
+      setSessionEnded(false);
+    }
     syncAccessRef.current = null;
     sessionGenerationRef.current += 1;
     userInfoRequestRef.current += 1;
@@ -368,6 +391,40 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       return true;
     },
     [queryClient],
+  );
+
+  const clearLocalSession = useCallback(() => {
+    setSession(null);
+    setUser(null);
+    setUserInfo(null);
+    setPostLoginSyncRequest(null);
+    setIsLoadingUserInfo(false);
+    clearProcessedAuthCodes();
+  }, [setSession, clearProcessedAuthCodes]);
+
+  // The auth server no longer has the saved login (e.g. 2FA was turned on
+  // elsewhere). Clear it as a sign-out does, which keeps the device's sync identity
+  // and pairing, and tell the user on the sign-in screen. Callers hold the auth
+  // transition.
+  const expireSavedLogin = useCallback(async () => {
+    clearLocalSession();
+    setSessionEnded(true);
+    try {
+      await clearSyncSession();
+    } catch {
+      logger.warn("Failed to clear the ended Connect session.");
+    }
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+    if (signOutError) logger.warn(`Local session sign out failed: ${signOutError.message}`);
+  }, [clearLocalSession, supabase]);
+
+  // For checks that run outside an auth transition: skip if a newer login arrived.
+  const expireSavedLoginIfCurrent = useCallback(
+    (loginGeneration: number) =>
+      runAuthTransition(async () => {
+        if (loginGeneration === loginGenerationRef.current) await expireSavedLogin();
+      }),
+    [runAuthTransition, expireSavedLogin],
   );
 
   // A 2FA account's session is aal1 until the authenticator code is entered.
@@ -506,6 +563,11 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
               setIsSessionUnavailable(false);
               return;
             }
+            if (isSavedLoginGone(cause)) {
+              // E.g. 2FA was turned on elsewhere. Signing in again asks for the code.
+              await expireSavedLogin();
+              return;
+            }
             // Only authoritative absence/invalidated credentials means signed out.
             const configured = await getSyncSessionStatus()
               .then((s) => s.isConfigured)
@@ -548,6 +610,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     setSession,
     needsMfaCode,
     setMfaChallenge,
+    expireSavedLogin,
     clearProcessedAuthCodes,
     isAuthenticated,
   ]);
@@ -855,20 +918,12 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     [runAuthTransition, supabase, finishSignIn, t],
   );
 
-  const clearLocalSession = useCallback(() => {
-    setSession(null);
-    setUser(null);
-    setUserInfo(null);
-    setPostLoginSyncRequest(null);
-    setIsLoadingUserInfo(false);
-    clearProcessedAuthCodes();
-  }, [setSession, clearProcessedAuthCodes]);
-
   const signOut = useCallback(async () => {
     await runAuthTransition(async () => {
       setIsLoading(true);
       setError(null);
       clearLocalSession();
+      setSessionEnded(false);
       try {
         // Cleanup is local and independent of the remote auth service's availability.
         await clearSyncSession();
@@ -891,24 +946,34 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         if (challenge?.kind !== "sign-in") {
           // The backend owns this session's refresh token and may have rotated it.
           // Use its current tokens so the SDK never refreshes with a used one.
-          const { accessToken, refreshToken } = await restoreSyncSession();
-          const { error: setErr } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (setErr) throw setErr;
+          try {
+            const { accessToken, refreshToken } = await restoreSyncSession();
+            const { error: setErr } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (setErr) throw setErr;
+          } catch (cause) {
+            if (!isSavedLoginGone(cause)) throw cause;
+            // Turning on 2FA elsewhere deleted this login; the sign-in screen asks for a code.
+            await expireSavedLogin();
+            return;
+          }
         }
         const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
         if (factorsError) throw factorsError;
-        // Without a verified authenticator (2FA turned off meanwhile) the session needs no code.
-        const factor = factors.totp[0];
-        if (factor) {
-          const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+        // The code may come from any of the user's authenticators (e.g. a backup app),
+        // as on the dashboard: try each until one accepts it. Without a verified
+        // authenticator (2FA turned off meanwhile) the session needs no code.
+        let verifyError: AuthError | null = null;
+        for (const factor of factors.totp) {
+          ({ error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
             factorId: factor.id,
             code,
-          });
-          if (verifyError) throw verifyError;
+          }));
+          if (!verifyError || !isMfaCodeRejected(verifyError)) break;
         }
+        if (verifyError) throw verifyError;
         const {
           data: { session: next },
           error: sessionError,
@@ -928,6 +993,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     [
       runAuthTransition,
       supabase,
+      expireSavedLogin,
       storeTokens,
       setMfaChallenge,
       setSession,
@@ -946,18 +1012,44 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     });
   }, [runAuthTransition, setMfaChallenge, signOut, supabase]);
 
+  // MFA_REQUIRED means one of two things. If 2FA was turned on elsewhere, Supabase
+  // deleted this login and only signing in again helps. If the login still exists
+  // at aal1, entering a code resumes sync. Check which before offering the code.
   const reportMfaRequired = useCallback(() => {
-    if (sessionRef.current) setIsMfaRequired(true);
-  }, []);
+    if (!sessionRef.current || isMfaRequiredRef.current || mfaProbeRef.current) return;
+    mfaProbeRef.current = true;
+    const generation = sessionGenerationRef.current;
+    const loginGeneration = loginGenerationRef.current;
+    void (async () => {
+      try {
+        const { accessToken } = await restoreSyncSession();
+        const { error: userError } = await supabase.auth.getUser(accessToken);
+        if (userError) throw userError;
+        if (generation === sessionGenerationRef.current) setIsMfaRequired(true);
+      } catch (cause) {
+        if (isSavedLoginGone(cause)) await expireSavedLoginIfCurrent(loginGeneration);
+        // Otherwise offer the code step; it checks the login again.
+        else if (generation === sessionGenerationRef.current) setIsMfaRequired(true);
+      } finally {
+        mfaProbeRef.current = false;
+      }
+    })();
+  }, [supabase, setIsMfaRequired, expireSavedLoginIfCurrent]);
 
   // Read factors with an access token the backend minted: the SDK's stored
   // session could refresh with a refresh token the backend already rotated.
   const fetchMfaEnabled = useCallback(async () => {
-    const { accessToken } = await restoreSyncSession();
-    const { data, error: userError } = await supabase.auth.getUser(accessToken);
-    if (userError) throw userError;
-    return hasVerifiedTotpFactor(data.user);
-  }, [supabase]);
+    const loginGeneration = loginGenerationRef.current;
+    try {
+      const { accessToken } = await restoreSyncSession();
+      const { data, error: userError } = await supabase.auth.getUser(accessToken);
+      if (userError) throw userError;
+      return hasVerifiedTotpFactor(data.user);
+    } catch (cause) {
+      if (isSavedLoginGone(cause)) void expireSavedLoginIfCurrent(loginGeneration);
+      throw cause;
+    }
+  }, [supabase, expireSavedLoginIfCurrent]);
 
   // Only a missing backend auth session signs the user out; subscription access is separate.
   const reconcileSession = useCallback(async () => {
@@ -967,7 +1059,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       if (generation !== sessionGenerationRef.current) return;
       const status = await getSyncSessionStatus();
       if (generation !== sessionGenerationRef.current || status.isConfigured) return;
+      // The backend dropped the login without a sign-out here, e.g. its refresh was rejected.
       clearLocalSession();
+      setSessionEnded(true);
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) logger.warn(`Local session sign out failed: ${signOutError.message}`);
     });
@@ -1016,8 +1110,13 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       } catch (err) {
         if (!isCurrent()) return;
         if (requestedUserInfo && isMfaRequiredError(err)) {
-          // Keep the account on screen; the code step resumes sync without signing out.
-          setIsMfaRequired(true);
+          // Keep the account on screen while checking whether a code can resume sync.
+          reportMfaRequired();
+          return;
+        }
+        if (requestedUserInfo && isSavedLoginGone(err)) {
+          // The backend's refresh was rejected and it cleared the login.
+          void reconcileSession();
           return;
         }
         logger.error("Failed to fetch user info from API.");
@@ -1051,7 +1150,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     };
     void promise.then(clear, clear);
     return promise;
-  }, [reconcileSession, requestPostLoginSync, t]);
+  }, [reconcileSession, reportMfaRequired, requestPostLoginSync, t]);
 
   // The regular poll can run just before the cooldown expires. Retry at its own deadline.
   useEffect(() => {
@@ -1122,6 +1221,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       error: error ? profileAwareErrorMessage(error, t) : error,
       mfaChallenge: mfaChallenge?.kind ?? null,
       isMfaRequired,
+      sessionEnded,
       signInWithEmail,
       signUpWithEmail,
       signInWithOAuth,
@@ -1151,6 +1251,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       error,
       mfaChallenge,
       isMfaRequired,
+      sessionEnded,
       signInWithEmail,
       signUpWithEmail,
       signInWithOAuth,

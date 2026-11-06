@@ -2,7 +2,7 @@ import { profileAwareErrorMessage } from "@/features/profiles/error-messages";
 import { isTauri } from "@/adapters";
 import { ExternalLink } from "@/components/external-link";
 import { getPreferredProvider, savePreferredProvider } from "@/lib/cookie-utils";
-import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
@@ -38,6 +38,7 @@ export function LoginForm() {
     clearError,
     isLoading,
     mfaChallenge,
+    sessionEnded,
   } = useWealthfolioConnect();
 
   // State management
@@ -211,6 +212,15 @@ export function LoginForm() {
             <Alert variant="destructive">
               <Icons.AlertCircle className="h-4 w-4" />
               <AlertDescription>{displayError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Signed out by the auth server, e.g. after turning on 2FA elsewhere */}
+          {sessionEnded && !showMfaStep && (
+            <Alert role="status">
+              <Icons.Info className="h-4 w-4" aria-hidden="true" />
+              <AlertTitle>{t("auth:connect.sessionEnded.title")}</AlertTitle>
+              <AlertDescription>{t("auth:connect.sessionEnded.description")}</AlertDescription>
             </Alert>
           )}
 

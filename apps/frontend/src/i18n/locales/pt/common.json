@@ -522,6 +522,7 @@
       "accountMismatch": "Entre com a conta Connect originalmente vinculada a este perfil.",
       "teamChanged": "Seu grupo familiar mudou. Reconecte o Wealthfolio Connect para continuar.",
       "rebind": "Reconecte o Wealthfolio Connect para confirmar a conta e o grupo familiar deste perfil.",
+      "connectSessionExpired": "Sua sessão do Wealthfolio Connect foi encerrada. Entre novamente.",
       "cooldown_many": "Muitas tentativas. Tente novamente em {{count}} segundos."
     }
   },

@@ -1001,6 +1001,8 @@ describe("Two-factor authentication", () => {
     mocks.account = "A";
     mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
     mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    // The saved login still exists at aal1, so a code can resume sync.
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
     const { result } = await setup();
     await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
     expect(result.current.isConnected).toBe(true);
@@ -1010,8 +1012,10 @@ describe("Two-factor authentication", () => {
 
     mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
     mocks.getSession.mockResolvedValue(verified("A"));
+    expect(mocks.getUser).toHaveBeenCalledWith("A-access");
     await act(() => result.current.verifyMfaCode("123456"));
-    expect(mocks.restore).toHaveBeenCalledTimes(2);
+    // Startup, the login check, then the code step.
+    expect(mocks.restore).toHaveBeenCalledTimes(3);
     expect(mocks.store).toHaveBeenCalledWith("A-aal2");
     expect(result.current.isMfaRequired).toBe(false);
     expect(result.current.isConnected).toBe(true);
@@ -1029,5 +1033,137 @@ describe("Two-factor authentication", () => {
     const { result } = await setup();
     await expect(result.current.fetchMfaEnabled()).resolves.toBe(true);
     expect(mocks.getUser).toHaveBeenCalledWith("A-access");
+  });
+});
+
+describe("Two-factor authentication turned on elsewhere", () => {
+  // Supabase deletes a user's other aal1 sessions when a code is verified.
+  const missing = () =>
+    Object.assign(new Error("Auth session missing!"), { name: "AuthSessionMissingError" });
+  const connectedA = async () => {
+    mocks.configured = true;
+    mocks.account = "A";
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    return setup();
+  };
+
+  it("tries each authenticator until one accepts the code", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    mocks.listFactors.mockResolvedValue({
+      data: {
+        all: [],
+        totp: [
+          { id: "phone-app", status: "verified" },
+          { id: "backup-app", status: "verified" },
+        ],
+        phone: [],
+        webauthn: [],
+      },
+      error: null,
+    });
+    const rejected = Object.assign(new Error("Invalid TOTP code entered"), {
+      code: "mfa_verification_failed",
+    });
+    mocks.challengeAndVerify
+      .mockResolvedValueOnce({ data: null, error: rejected })
+      .mockResolvedValueOnce({ data: {}, error: null });
+    mocks.getSession.mockResolvedValue(verified("A"));
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.challengeAndVerify.mock.calls.map(([params]) => params.factorId)).toEqual([
+      "phone-app",
+      "backup-app",
+    ]);
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("stops at an error that isn't a wrong code", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    mocks.listFactors.mockResolvedValue({
+      data: {
+        all: [],
+        totp: [
+          { id: "phone-app", status: "verified" },
+          { id: "backup-app", status: "verified" },
+        ],
+        phone: [],
+        webauthn: [],
+      },
+      error: null,
+    });
+    const limited = Object.assign(new Error("Too many requests"), {
+      code: "over_request_rate_limit",
+    });
+    mocks.challengeAndVerify.mockResolvedValueOnce({ data: null, error: limited });
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await expect(result.current.verifyMfaCode("123456")).rejects.toBe(limited);
+    expect(mocks.challengeAndVerify).toHaveBeenCalledTimes(1);
+    expect(mocks.store).not.toHaveBeenCalled();
+  });
+
+  it("asks to sign in again, not for a code, when MFA_REQUIRED comes from a deleted login", async () => {
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: missing() });
+    const { result } = await connectedA();
+    await waitFor(() => expect(result.current.sessionEnded).toBe(true));
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.isMfaRequired).toBe(false);
+    // Cleared like a sign-out, which keeps the device's sync identity.
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+
+    // Signing in again goes through the code step and clears the notice.
+    mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    await act(() => result.current.signInWithEmail("A", "password"));
+    expect(result.current.mfaChallenge).toBe("sign-in");
+    mocks.getSession.mockResolvedValue(verified("A"));
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.sessionEnded).toBe(false);
+    expect(mocks.store).toHaveBeenLastCalledWith("A-aal2");
+  });
+
+  it("turns the code step into a sign-in when the login was deleted meanwhile", async () => {
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
+    const { result } = await connectedA();
+    await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
+    mocks.setSession.mockResolvedValueOnce({ data: { session: null }, error: missing() });
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.sessionEnded).toBe(true);
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a login the backend found expired at startup", async () => {
+    mocks.configured = true;
+    mocks.restore.mockImplementation(async () => {
+      // The backend's refresh was rejected; it cleared the tokens, not the pairing.
+      mocks.configured = false;
+      throw new Error("CONNECT_SESSION_EXPIRED: Session expired. Please sign in again.");
+    });
+    const { result } = await setup();
+    expect(result.current.sessionEnded).toBe(true);
+    expect(result.current.isSessionUnavailable).toBe(false);
+    expect(result.current.isConnected).toBe(false);
+  });
+
+  it("explains a login the backend dropped while the app was open", async () => {
+    const { result } = await connectedA();
+    await waitFor(() => expect(result.current.userInfo).not.toBeNull());
+    mocks.configured = false;
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.sessionEnded).toBe(true);
+  });
+
+  it("does not show the notice after a sign-out here", async () => {
+    const { result } = await connectedA();
+    await act(() => result.current.signOut());
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.sessionEnded).toBe(false);
   });
 });

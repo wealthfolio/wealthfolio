@@ -498,7 +498,8 @@
       "duplicateAccount": "此 Connect 账户已关联到另一个个人资料。请切换到该个人资料。",
       "accountMismatch": "请使用最初关联到此个人资料的 Connect 账户登录。",
       "teamChanged": "您的家庭已更改。请重新连接 Wealthfolio Connect 以继续。",
-      "rebind": "请重新连接 Wealthfolio Connect，以确认此个人资料的账户和家庭。"
+      "rebind": "请重新连接 Wealthfolio Connect，以确认此个人资料的账户和家庭。",
+      "connectSessionExpired": "你已退出 Wealthfolio Connect。请重新登录。"
     }
   },
   "remove": "移除",

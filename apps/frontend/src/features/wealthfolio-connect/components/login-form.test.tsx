@@ -11,6 +11,7 @@ const fixture = vi.hoisted(() => ({
   clearError: vi.fn(),
   savePreferredProvider: vi.fn(),
   mfaChallenge: null as "sign-in" | "restore" | null,
+  sessionEnded: false,
   verifyMfaCode: vi.fn(),
   cancelMfaChallenge: vi.fn(),
 }));
@@ -47,6 +48,7 @@ beforeEach(() => {
   fixture.tauri = true;
   fixture.preferredProvider = null;
   fixture.mfaChallenge = null;
+  fixture.sessionEnded = false;
   fixture.signInWithOAuth.mockResolvedValue(undefined);
   fixture.signInWithMagicLink.mockResolvedValue(undefined);
 });
@@ -167,5 +169,23 @@ describe("Two-factor code step", () => {
     rerender(<LoginForm />);
     expect(screen.queryByText("auth:connect.otp.title")).toBeNull();
     expect(screen.getByRole("button", { name: emailLabel })).toBeTruthy();
+  });
+});
+
+describe("Signed out by the auth server", () => {
+  it("says why and keeps the sign-in choices", () => {
+    fixture.sessionEnded = true;
+    render(<LoginForm />);
+    expect(screen.getByText("auth:connect.sessionEnded.title")).toBeTruthy();
+    expect(screen.getByText("auth:connect.sessionEnded.description")).toBeTruthy();
+    expect(screen.getByRole("button", { name: googleLabel })).toBeTruthy();
+  });
+
+  it("gives way to the code step after signing in", () => {
+    fixture.sessionEnded = true;
+    fixture.mfaChallenge = "sign-in";
+    render(<LoginForm />);
+    expect(screen.getByText("auth:connect.mfa.title")).toBeTruthy();
+    expect(screen.queryByText("auth:connect.sessionEnded.title")).toBeNull();
   });
 });

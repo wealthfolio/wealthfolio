@@ -507,7 +507,8 @@
       "duplicateAccount": "此 Connect 帳戶已連結至另一個個人資料。請切換至該個人資料。",
       "accountMismatch": "請使用最初連結至此個人資料的 Connect 帳戶登入。",
       "teamChanged": "您的家庭已變更。請重新連線至 Wealthfolio Connect 以繼續。",
-      "rebind": "請重新連線至 Wealthfolio Connect，以確認此個人資料的帳戶和家庭。"
+      "rebind": "請重新連線至 Wealthfolio Connect，以確認此個人資料的帳戶和家庭。",
+      "connectSessionExpired": "你已登出 Wealthfolio Connect。請重新登入。"
     }
   },
   "remove": "移除",

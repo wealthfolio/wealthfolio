@@ -13,6 +13,12 @@ use crate::request_metadata::{
 
 pub use wealthfolio_core::secrets::{CLOUD_ACCESS_TOKEN_KEY, CLOUD_REFRESH_TOKEN_KEY};
 
+/// The auth server rejected the saved login (signed out elsewhere, revoked, or
+/// removed when two-factor authentication was turned on). Only the tokens are
+/// gone: the device's sync identity and the profile's account binding stay, so
+/// signing in again with the same account resumes sync without re-pairing.
+pub const SESSION_EXPIRED_CODE: &str = "CONNECT_SESSION_EXPIRED";
+
 const DEFAULT_EXPIRY_BUFFER_SECS: u64 = 60;
 const DEFAULT_REFRESH_TIMEOUT_SECS: u64 = 10;
 
@@ -136,6 +142,9 @@ pub struct TokenLifecycleState {
     cache: RwLock<Option<CachedAccessToken>>,
     refresh_lock: Mutex<()>,
     terminated: AtomicBool,
+    // Why the session ended, so later calls keep reporting an expiry rather
+    // than a sign-out the user chose.
+    expired: AtomicBool,
     pending_login: std::sync::Mutex<Option<PendingProfileLogin>>,
 }
 
@@ -145,6 +154,7 @@ impl TokenLifecycleState {
             cache: RwLock::new(None),
             refresh_lock: Mutex::new(()),
             terminated: AtomicBool::new(false),
+            expired: AtomicBool::new(false),
             pending_login: std::sync::Mutex::new(None),
         }
     }
@@ -361,6 +371,7 @@ impl TokenLifecycleState {
             .set_secret(CLOUD_REFRESH_TOKEN_KEY, token)
             .map_err(|err| TokenLifecycleError::Internal(err.to_string()))?;
         self.terminated.store(false, Ordering::SeqCst);
+        self.expired.store(false, Ordering::SeqCst);
         self.clear_cache().await;
         let _ = store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
         Ok(())
@@ -390,6 +401,7 @@ impl TokenLifecycleState {
             .pending_login
             .lock()
             .map_err(|_| TokenLifecycleError::Internal("Connect login unavailable".into()))? = None;
+        self.expired.store(false, Ordering::SeqCst);
         let result = self.clear_session_locked(store).await;
         after_clear().await;
         result.map(|_| true)
@@ -490,12 +502,16 @@ pub async fn ensure_profile_access_token(
         let config = config.ok_or_else(|| {
             TokenLifecycleError::NotConfigured("Connect auth configuration is missing".into())
         })?;
-        let binding = verified_profile_binding(&token, config, api_url)
-            .await
-            .map_err(TokenLifecycleError::Unauthorized)?;
-        registry
-            .bind_connect(profile_id, binding)
-            .map_err(|error| TokenLifecycleError::Unauthorized(error.to_string()))?;
+        match verified_profile_binding(&token, config, api_url).await {
+            Ok(binding) => registry
+                .bind_connect(profile_id, binding)
+                .map_err(|error| TokenLifecycleError::Unauthorized(error.to_string()))?,
+            // A 2FA account's aal1 token can't read its identity until the code
+            // step. Hand it out for that step: the cloud API rejects it for
+            // everything else, and binding runs again on the first aal2 use.
+            Err(error) if crate::is_mfa_required(&error) => {}
+            Err(error) => return Err(TokenLifecycleError::Unauthorized(error)),
+        }
     }
     Ok(token)
 }
@@ -508,7 +524,11 @@ async fn ensure_valid_access_token_locked(
 ) -> Result<String, TokenLifecycleError> {
     if state.terminated.load(Ordering::SeqCst) {
         return Err(TokenLifecycleError::Unauthorized(
-            "Cloud session has ended. Please sign in again.".to_string(),
+            if state.expired.load(Ordering::SeqCst) {
+                format!("{SESSION_EXPIRED_CODE}: Session expired. Please sign in again.")
+            } else {
+                "Cloud session has ended. Please sign in again.".to_string()
+            },
         ));
     }
 
@@ -565,8 +585,9 @@ async fn ensure_valid_access_token_locked(
         Err(err) => {
             if err.is_session_invalid() {
                 state.clear_session_locked(secret_store).await?;
+                state.expired.store(true, Ordering::SeqCst);
                 return Err(TokenLifecycleError::Unauthorized(format!(
-                    "Session expired. Please sign in again. ({})",
+                    "{SESSION_EXPIRED_CODE}: Session expired. Please sign in again. ({})",
                     err.message
                 )));
             }
@@ -1186,6 +1207,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn legacy_binding_waits_for_the_code_step_on_a_2fa_account() {
+        let (root, store, registry) = migration_registry(true);
+        let id = registry.default_id().unwrap();
+        let state = TokenLifecycleState::new();
+        state
+            .store_session(store.as_ref(), "existing-refresh")
+            .await
+            .unwrap();
+        let token = cache_migration_token(&state).await;
+        let (url, calls, server) = serve_legacy_binding_responses(vec![
+            (
+                403,
+                r#"{"error":"MFA_REQUIRED","code":"MFA_REQUIRED","message":"Two-factor authentication required"}"#,
+            ),
+            (200, r#"{"id":"internal-user","team":{"id":"household"}}"#),
+        ])
+        .await;
+        let config = TokenLifecycleConfig::new("issuer".into(), "test-key".into());
+        // The app gets the token for the code step; the profile stays unbound.
+        assert_eq!(
+            ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id)
+                .await
+                .unwrap(),
+            token
+        );
+        assert!(registry.profile(id).unwrap().connect.is_none());
+        assert!(state.is_session_configured(store.as_ref()).unwrap());
+        // After the code step the lookup succeeds and binds as usual.
+        ensure_profile_access_token(store.as_ref(), &state, Some(&config), &url, &registry, id)
+            .await
+            .unwrap();
+        assert!(registry.profile(id).unwrap().connect.is_some());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        server.abort();
+        drop(registry);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
     async fn legacy_binding_skips_signed_out_and_nonlegacy_profiles() {
         for (legacy, has_session) in [(false, false), (false, true), (true, false)] {
             let (root, store, registry) = migration_registry(legacy);
@@ -1790,6 +1850,62 @@ mod tests {
         assert!(ensure_valid_access_token(&store, &state, None)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn rejected_refresh_reports_expiry_and_keeps_the_device_identity() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let config = TokenLifecycleConfig::new(
+            format!("http://{}", listener.local_addr().unwrap()),
+            "test-key".into(),
+        );
+        // Supabase deletes aal1 sessions when two-factor authentication is turned on.
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).unwrap() > 0);
+            let body = r#"{"error":"invalid_grant","error_description":"Invalid Refresh Token: Refresh Token Not Found"}"#;
+            write!(stream, "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        });
+        let store = MemorySecrets::default();
+        store
+            .set_secret(SYNC_IDENTITY_KEY, "paired-device")
+            .unwrap();
+        let state = TokenLifecycleState::new();
+        state
+            .store_session(&store, "deleted-session")
+            .await
+            .unwrap();
+
+        let error = ensure_valid_access_token(&store, &state, Some(&config))
+            .await
+            .unwrap_err()
+            .to_string();
+        server.join().unwrap();
+        assert!(error.starts_with(SESSION_EXPIRED_CODE), "{error}");
+        assert!(!state.is_session_configured(&store).unwrap());
+        assert!(store.get_secret(CLOUD_REFRESH_TOKEN_KEY).unwrap().is_none());
+        assert_eq!(
+            store.get_secret(SYNC_IDENTITY_KEY).unwrap().as_deref(),
+            Some("paired-device")
+        );
+        // Later callers (a sync worker, then the app's restore) see the same reason.
+        let again = ensure_valid_access_token(&store, &state, Some(&config))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(again.starts_with(SESSION_EXPIRED_CODE), "{again}");
+
+        // A chosen sign-out is not an expiry; a new login resets both.
+        state.clear_session(&store).await.unwrap();
+        let signed_out = ensure_valid_access_token(&store, &state, Some(&config))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(!signed_out.contains(SESSION_EXPIRED_CODE), "{signed_out}");
+        state.store_session(&store, "new-login").await.unwrap();
+        assert!(state.is_session_configured(&store).unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

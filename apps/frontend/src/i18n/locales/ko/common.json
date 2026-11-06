@@ -498,7 +498,8 @@
       "duplicateAccount": "이 Connect 계정은 이미 다른 프로필에 연결되어 있습니다. 해당 프로필로 전환하세요.",
       "accountMismatch": "이 프로필에 처음 연결한 Connect 계정으로 로그인하세요.",
       "teamChanged": "가구가 변경되었습니다. 계속하려면 Wealthfolio Connect를 다시 연결하세요.",
-      "rebind": "Wealthfolio Connect를 다시 연결하여 이 프로필의 계정과 가구를 확인하세요."
+      "rebind": "Wealthfolio Connect를 다시 연결하여 이 프로필의 계정과 가구를 확인하세요.",
+      "connectSessionExpired": "Wealthfolio Connect에서 로그아웃되었습니다. 다시 로그인하세요."
     }
   },
   "remove": "제거",

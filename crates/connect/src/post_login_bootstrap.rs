@@ -143,9 +143,15 @@ pub fn is_subscription_denial(message: &str) -> bool {
     message.contains("SUBSCRIPTION_") || message.contains("PLAN_UPGRADE_REQUIRED")
 }
 
+/// The account has two-factor authentication on and the session hasn't passed
+/// the code step. The login stays valid; the user enters a code to continue.
+pub fn is_mfa_required(message: &str) -> bool {
+    message.contains("MFA_REQUIRED")
+}
+
 #[cfg(test)]
 mod denial_tests {
-    use super::is_subscription_denial;
+    use super::{is_mfa_required, is_subscription_denial};
 
     #[test]
     fn entitlement_denials_do_not_mask_auth_or_transient_errors() {
@@ -162,5 +168,13 @@ mod denial_tests {
         ] {
             assert!(!is_subscription_denial(message));
         }
+    }
+
+    #[test]
+    fn mfa_denial_is_not_an_entitlement_denial() {
+        let message = "Unexpected error: API error 403: MFA_REQUIRED: Two-factor required";
+        assert!(is_mfa_required(message));
+        assert!(!is_subscription_denial(message));
+        assert!(!is_mfa_required("API error 403: SUBSCRIPTION_CANCELED"));
     }
 }

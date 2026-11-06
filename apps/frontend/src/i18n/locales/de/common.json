@@ -507,7 +507,8 @@
       "duplicateAccount": "Dieses Connect-Konto ist bereits mit einem anderen Profil verknüpft. Wechsle zu diesem Profil.",
       "accountMismatch": "Melde dich mit dem Connect-Konto an, das ursprünglich mit diesem Profil verknüpft wurde.",
       "teamChanged": "Dein Haushalt hat sich geändert. Verbinde Wealthfolio Connect erneut, um fortzufahren.",
-      "rebind": "Verbinde Wealthfolio Connect erneut, um das Konto und den Haushalt dieses Profils zu bestätigen."
+      "rebind": "Verbinde Wealthfolio Connect erneut, um das Konto und den Haushalt dieses Profils zu bestätigen.",
+      "connectSessionExpired": "Du wurdest von Wealthfolio Connect abgemeldet. Melde dich erneut an."
     }
   },
   "remove": "Entfernen",

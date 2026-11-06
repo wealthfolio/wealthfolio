@@ -35,3 +35,26 @@ export function hasVerifiedTotpFactor(user: User | null | undefined): boolean {
     (factor) => factor.factor_type === "totp" && factor.status === "verified",
   );
 }
+
+/**
+ * The auth server no longer has the saved login: it was signed out elsewhere,
+ * revoked, or deleted because two-factor authentication was turned on (Supabase
+ * removes a user's other aal1 sessions when a code is verified). Entering a code
+ * can't revive it; the user signs in again. The backend reports its own failed
+ * refresh as CONNECT_SESSION_EXPIRED (crates/connect token_lifecycle.rs).
+ */
+export function isSavedLoginGone(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    const { name, code } = error as { name?: unknown; code?: unknown };
+    if (
+      name === "AuthSessionMissingError" ||
+      code === "session_not_found" ||
+      code === "refresh_token_not_found"
+    ) {
+      return true;
+    }
+  }
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : undefined;
+  return !!message && /\bCONNECT_SESSION_EXPIRED\b/.test(message);
+}

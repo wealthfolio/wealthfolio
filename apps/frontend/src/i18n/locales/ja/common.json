@@ -498,7 +498,8 @@
       "duplicateAccount": "このConnectアカウントはすでに別のプロフィールにリンクされています。そのプロフィールに切り替えてください。",
       "accountMismatch": "このプロフィールに最初にリンクされたConnectアカウントでログインしてください。",
       "teamChanged": "世帯が変更されました。続行するにはWealthfolio Connectに再接続してください。",
-      "rebind": "Wealthfolio Connectに再接続して、このプロフィールのアカウントと世帯を確認してください。"
+      "rebind": "Wealthfolio Connectに再接続して、このプロフィールのアカウントと世帯を確認してください。",
+      "connectSessionExpired": "Wealthfolio Connect からサインアウトされました。もう一度サインインしてください。"
     }
   },
   "remove": "削除",

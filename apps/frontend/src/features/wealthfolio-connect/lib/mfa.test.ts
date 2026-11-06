@@ -1,6 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { hasVerifiedTotpFactor, isMfaCodeRejected, isMfaRequiredError } from "./mfa";
+import {
+  hasVerifiedTotpFactor,
+  isMfaCodeRejected,
+  isMfaRequiredError,
+  isSavedLoginGone,
+} from "./mfa";
 
 describe("two-factor helpers", () => {
   it.each([
@@ -38,5 +43,21 @@ describe("two-factor helpers", () => {
     expect(hasVerifiedTotpFactor(user([factor("verified", "phone")]))).toBe(false);
     expect(hasVerifiedTotpFactor(user(undefined))).toBe(false);
     expect(hasVerifiedTotpFactor(null)).toBe(false);
+  });
+
+  it.each([
+    [Object.assign(new Error("Auth session missing!"), { name: "AuthSessionMissingError" }), true],
+    [{ code: "refresh_token_not_found" }, true],
+    [
+      new Error(
+        "Unexpected error: CONNECT_SESSION_EXPIRED: Session expired. Please sign in again.",
+      ),
+      true,
+    ],
+    [new Error("API error 403: MFA_REQUIRED: Enter a code"), false],
+    [new Error("Request failed: network"), false],
+    [{ code: "mfa_verification_failed" }, false],
+  ])("tells a deleted login from other failures: %s", (error, expected) => {
+    expect(isSavedLoginGone(error)).toBe(expected);
   });
 });

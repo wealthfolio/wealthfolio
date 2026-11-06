@@ -76,8 +76,15 @@ export default function ConnectPage() {
   const localizationSettings = useLocalizationSettings();
 
   const { t } = useTranslation();
-  const { isEnabled, isConnected, isInitializing, isSessionUnavailable, userInfo, mfaChallenge } =
-    useWealthfolioConnect();
+  const {
+    isEnabled,
+    isConnected,
+    isInitializing,
+    isSessionUnavailable,
+    userInfo,
+    mfaChallenge,
+    sessionEnded,
+  } = useWealthfolioConnect();
   const { status, syncStates } = useAggregatedSyncStatus();
   const showBrokerSync = hasBrokerSync(userInfo);
   const {
@@ -226,7 +233,8 @@ export default function ConnectPage() {
             <ConnectSessionUnavailable />
           ) : isEnabled && isConnected ? (
             <ConnectedView />
-          ) : mfaChallenge ? (
+          ) : mfaChallenge || sessionEnded ? (
+            // Finish a sign-in, or say why the login ended, right here.
             <div className="mx-auto max-w-lg pt-4 sm:pt-6">
               <LoginForm />
             </div>
