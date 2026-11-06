@@ -86,7 +86,15 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, msg) = match &self {
             ApiError::Core(e) => match e {
-                CoreError::ConstraintViolation(_) => (StatusCode::CONFLICT, e.to_string()),
+                CoreError::ConstraintViolation(_)
+                | CoreError::Database(
+                    DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
+                ) => (StatusCode::CONFLICT, e.to_string()),
+                CoreError::Database(DatabaseError::NotFound(_)) => {
+                    (StatusCode::NOT_FOUND, e.to_string())
+                }
+                // Any other database error is a failure on the server, not in the request.
+                CoreError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
                 CoreError::Validation(_) => (StatusCode::BAD_REQUEST, e.to_string()),
                 _ => (StatusCode::BAD_REQUEST, e.to_string()),
             },
@@ -201,6 +209,53 @@ mod tests {
         assert_eq!(kind, "profile_io");
         assert_eq!(io_kind, Some(std::io::ErrorKind::PermissionDenied));
         assert_eq!(os_code, Some(13));
+    }
+
+    #[test]
+    fn database_errors_are_classified_by_variant() {
+        let status = |error: DatabaseError| {
+            ApiError::from(CoreError::from(error))
+                .into_response()
+                .status()
+        };
+        let message = || "detail".to_string();
+        for server_failure in [
+            DatabaseError::ConnectionFailed(message()),
+            DatabaseError::PoolCreationFailed(message()),
+            DatabaseError::QueryFailed(message()),
+            DatabaseError::TransactionFailed(message()),
+            DatabaseError::MigrationFailed(message()),
+            DatabaseError::BackupFailed(message()),
+            DatabaseError::RestoreFailed(message()),
+            DatabaseError::Encryption(message()),
+            DatabaseError::Internal(message()),
+        ] {
+            assert_eq!(status(server_failure), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        assert_eq!(
+            status(DatabaseError::NotFound(message())),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            status(DatabaseError::UniqueViolation(message())),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            status(DatabaseError::ForeignKeyViolation(message())),
+            StatusCode::CONFLICT
+        );
+
+        let core_status = |error: CoreError| ApiError::from(error).into_response().status();
+        assert_eq!(
+            core_status(CoreError::ConstraintViolation(message())),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            core_status(CoreError::Validation(
+                wealthfolio_core::errors::ValidationError::InvalidInput(message())
+            )),
+            StatusCode::BAD_REQUEST
+        );
     }
 
     #[test]
