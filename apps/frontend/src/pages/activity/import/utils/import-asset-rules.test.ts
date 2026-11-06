@@ -323,6 +323,41 @@ describe("import asset rules", () => {
     expect(draft.instrumentTypeLabel).toBe("MUTUALFUND");
   });
 
+  it("keeps a resolved fund's quote type on the row for the fallback asset", () => {
+    const fund = {
+      kind: "INVESTMENT",
+      name: "Example Corporate Bond Fund",
+      displayCode: "122639",
+      isActive: true,
+      quoteMode: "MANUAL",
+      quoteCcy: "INR",
+      instrumentType: "EQUITY",
+      instrumentTypeLabel: "MUTUALFUND",
+      instrumentSymbol: "122639",
+    };
+    const [row] = applyAssetResolution(
+      [createDraft({ symbol: "122639", currency: "INR", assetCandidateKey: "fund" })],
+      "fund",
+      fund,
+      { importAssetKey: "fund" },
+    );
+
+    expect(row.instrumentTypeLabel).toBe("MUTUALFUND");
+    expect(buildNewAssetFromDraft(row)).toMatchObject({
+      quoteMode: "MANUAL",
+      instrumentType: "EQUITY",
+      instrumentTypeLabel: "MUTUALFUND",
+    });
+
+    const [replaced] = applyAssetResolution(
+      [row],
+      "fund",
+      { ...fund, instrumentTypeLabel: undefined },
+      { importAssetKey: "fund" },
+    );
+    expect(replaced.instrumentTypeLabel).toBeUndefined();
+  });
+
   it("omits a quote type it cannot map to an instrument type", () => {
     const draft = buildNewAssetFromSearchResult(
       {
