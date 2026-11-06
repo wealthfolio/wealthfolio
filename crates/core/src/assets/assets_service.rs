@@ -2292,7 +2292,12 @@ impl AssetServiceTrait for AssetService {
         }
 
         let instrument_type = new_asset.instrument_type.clone();
-        let instrument_type_label = new_asset.instrument_type_label.clone();
+        // A label that contradicts the instrument type does not classify the asset.
+        let instrument_type_label = new_asset.instrument_type_label.clone().filter(|label| {
+            instrument_type
+                .as_ref()
+                .is_none_or(|it| InstrumentType::from_external_str(label).as_ref() == Some(it))
+        });
         let name = new_asset.name.clone();
         let kind = new_asset.kind.clone();
         let asset = self.asset_repository.create(new_asset).await?;
