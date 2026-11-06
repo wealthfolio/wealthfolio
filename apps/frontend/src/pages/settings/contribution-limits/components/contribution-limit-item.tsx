@@ -13,22 +13,12 @@ import {
 } from "@wealthfolio/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { hasFormerDefaultDates } from "../contribution-limit-dates";
 import { useContributionLimitProgress } from "../use-contribution-limit-mutations";
 import { AccountSelection } from "./account-selection";
 import { ContributionLimitOperations } from "./contribution-limit-operations";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import { cn } from "@/lib/utils";
-
-/**
- * The form's former default dates: noon UTC on 1 January and 31 December. At
- * UTC+12 and beyond those fall on the next local day, so they show as saved.
- */
-function hasFormerDefaultDates({ contributionYear, startDate, endDate }: ContributionLimit) {
-  return (
-    Date.parse(startDate ?? "") === Date.UTC(contributionYear, 0, 1, 12) &&
-    Date.parse(endDate ?? "") === Date.UTC(contributionYear, 11, 31, 12)
-  );
-}
 
 interface ContributionLimitItemProps {
   limit: ContributionLimit;
@@ -45,6 +35,8 @@ export function ContributionLimitItem({
 }: ContributionLimitItemProps) {
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
+  // At UTC+12 and beyond the former default dates fall on the next local day,
+  // so they show as saved.
   const formatLimitDate = hasFormerDefaultDates(limit)
     ? (date: string, options?: Parameters<typeof dateFormatting.formatDate>[1]) =>
         dateFormatting.formatCalendarDate(date.slice(0, 10), options)
