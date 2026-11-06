@@ -1491,4 +1491,227 @@ mod tests {
         // Byte 2 falls inside '中'
         assert_eq!(detect_html_locale(r#"<html lang="中文"></html>"#), None);
     }
+
+    // A quote page with the markup real sites send: unclosed <li>, <p>, <th>
+    // and <td>, a table without <tbody>, misnested tags, entities and
+    // responsive duplicates. Pins what the HTML parser decides, so a scraper
+    // upgrade can't silently change the selectors, labels and values users
+    // saved.
+    const QUOTE_PAGE: &str = include_str!("quote_page_fixture.html");
+
+    #[test]
+    fn quote_page_detection_is_pinned() {
+        let detected = detect_html_elements(QUOTE_PAGE, Some("de-DE"));
+        let summary: Vec<(&str, &str, &str)> = detected
+            .iter()
+            .map(|e| (e.selector.as_str(), e.text.as_str(), e.label.as_str()))
+            .collect();
+        let row = "04.11.202604.11.";
+        assert_eq!(
+            summary,
+            [
+                ("#last-price", "123,45\u{a0}€", "Letzter Kurs"),
+                ("div.quote > span.change.positive", "+1,25\u{a0}%", ""),
+                ("div:nth-of-type(2) > span:nth-of-type(2)", "123,40", "Geld"),
+                ("span:nth-of-type(4)", "123,50", "Brief"),
+                ("p > b", "1.234.567", "Volumen"),
+                ("p > time", "04.11.2026 17:35", "Stand:"),
+                ("td > span.desktop", "125,10", "Tageshoch"),
+                ("td > span.mobile", "125,1", "Tageshoch"),
+                (
+                    "tr:nth-of-type(3) > td:nth-of-type(2)",
+                    "122,80",
+                    "Tagestief"
+                ),
+                ("b > i", "140,00", ""),
+                ("td > span.d-full", "04.11.2026", row),
+                ("td > span.d-short", "04.11.", row),
+                ("tr:nth-of-type(1) > td:nth-of-type(2)", "122,00 €", row),
+                ("tr:nth-of-type(1) > td:nth-of-type(3)", "125,10 €", row),
+                ("tr:nth-of-type(1) > td:nth-of-type(4)", "122,80 €", row),
+                ("tr:nth-of-type(1) > td:nth-of-type(5)", "123,45 €", row),
+                ("tr:nth-of-type(1) > td:nth-of-type(6)", "1.234.567", row),
+                (
+                    "table.history.quotes > tbody > tr:nth-of-type(2) > td:nth-of-type(1)",
+                    "03.11.2026",
+                    ""
+                ),
+                (
+                    "table.history.quotes > tbody > tr:nth-of-type(2) > td:nth-of-type(2)",
+                    "121,10 €",
+                    "03.11.2026"
+                ),
+                (
+                    "tr:nth-of-type(2) > td:nth-of-type(3)",
+                    "122,50 €",
+                    "03.11.2026"
+                ),
+                (
+                    "tr:nth-of-type(2) > td:nth-of-type(4)",
+                    "120,90 €",
+                    "03.11.2026"
+                ),
+                (
+                    "tr:nth-of-type(2) > td:nth-of-type(5)",
+                    "122,20 €",
+                    "03.11.2026"
+                ),
+                (
+                    "tr:nth-of-type(2) > td:nth-of-type(6)",
+                    "987.654",
+                    "03.11.2026"
+                ),
+                (
+                    "table.history.quotes > tbody > tr:nth-of-type(4) > td:nth-of-type(1)",
+                    "31.10.2026",
+                    ""
+                ),
+                (
+                    "table.history.quotes > tbody > tr:nth-of-type(4) > td:nth-of-type(2)",
+                    "119,00\u{a0}€",
+                    "31.10.2026"
+                ),
+                (
+                    "tr:nth-of-type(4) > td:nth-of-type(3)",
+                    "121,40\u{a0}€",
+                    "31.10.2026"
+                ),
+                (
+                    "tr:nth-of-type(4) > td:nth-of-type(4)",
+                    "118,75\u{a0}€",
+                    "31.10.2026"
+                ),
+                (
+                    "tr:nth-of-type(4) > td:nth-of-type(5)",
+                    "121,00\u{a0}€",
+                    "31.10.2026"
+                ),
+                ("#price\\:last", "99,90", ""),
+            ]
+        );
+        for element in &detected {
+            assert_eq!(
+                extract_html_value(QUOTE_PAGE, &element.selector, Some("de-DE")),
+                Some(element.value),
+                "{}",
+                element.selector
+            );
+        }
+
+        // The preview snippets show the repaired markup.
+        assert_eq!(detected[9].html_context, "<td><b><i>140,00</i></b>\n</td>");
+        assert_eq!(
+            detected[6].html_context,
+            "<tr><td>Tageshoch</td><td><span class=\"desktop\">125,10</span><span class=\"mobile\">125,1</span>\n  </td></tr>"
+        );
+
+        assert_eq!(detect_html_locale(QUOTE_PAGE), Some("de".to_string()));
+    }
+
+    #[test]
+    fn quote_page_authored_selectors_extract_pinned_values() {
+        let value = |selector: &str| extract_html_value(QUOTE_PAGE, selector, Some("de-DE"));
+        assert_eq!(value("#last-price"), Some(123.45));
+        assert_eq!(value(r#"span[data-field="bid"]"#), Some(123.4));
+        assert_eq!(
+            value("div.quote:nth-of-type(2) > span.value:last-child"),
+            Some(123.5)
+        );
+        assert_eq!(value("p > b"), Some(1_234_567.0));
+        assert_eq!(
+            value("table.key-figures tr:nth-child(4) td:last-child"),
+            Some(140.0)
+        );
+        assert_eq!(value("#price\\:last"), Some(99.9));
+        assert_eq!(value("main#content .change.positive"), Some(1.25));
+        assert_eq!(value("footer"), None);
+    }
+
+    #[test]
+    fn quote_page_tables_are_pinned() {
+        let tables = detect_html_tables(QUOTE_PAGE);
+        let columns = |index: usize| -> Vec<(String, Option<String>)> {
+            tables[index]
+                .columns
+                .iter()
+                .map(|c| (c.header.clone(), c.role.clone()))
+                .collect()
+        };
+        let col = |header: &str, role: Option<&str>| (header.to_string(), role.map(str::to_string));
+        assert_eq!(tables.len(), 2);
+
+        assert_eq!(columns(0), [col("Kennzahl", None), col("Wert", None)]);
+        assert_eq!(tables[0].row_count, 3);
+        assert_eq!(
+            tables[0].sample_rows,
+            [
+                ["Tageshoch", "125,10"],
+                ["Tagestief", "122,80"],
+                ["52W-Hoch", "140,00"]
+            ]
+        );
+
+        assert_eq!(
+            columns(1),
+            [
+                col("Datum", Some("date")),
+                col("Eröffnung", Some("open")),
+                col("Hoch", Some("high")),
+                col("Tief", Some("low")),
+                col("Schluss", Some("close")),
+                col("Volumen", Some("volume")),
+            ]
+        );
+        assert_eq!(tables[1].row_count, 4);
+        let history_rows: Vec<Vec<&str>> = vec![
+            vec![
+                "04.11.2026",
+                "122,00 €",
+                "125,10 €",
+                "122,80 €",
+                "123,45 €",
+                "1.234.567",
+            ],
+            vec![
+                "03.11.2026",
+                "121,10 €",
+                "122,50 €",
+                "120,90 €",
+                "122,20 €",
+                "987.654",
+            ],
+            vec!["Dividende 2,50 €"],
+            vec![
+                "31.10.2026",
+                "119,00\u{a0}€",
+                "121,40\u{a0}€",
+                "118,75\u{a0}€",
+                "121,00\u{a0}€",
+                "-",
+            ],
+        ];
+        assert_eq!(tables[1].sample_rows, history_rows);
+        assert_eq!(
+            extract_table_data_rows(QUOTE_PAGE, 1),
+            Some(
+                history_rows
+                    .iter()
+                    .map(|row| row.iter().map(|cell| cell.to_string()).collect())
+                    .collect()
+            )
+        );
+
+        assert_eq!(
+            extract_table_value(QUOTE_PAGE, "0:1", Some("de-DE")),
+            Some(125.1)
+        );
+        assert_eq!(
+            extract_table_value(QUOTE_PAGE, "1:4", Some("de-DE")),
+            Some(123.45)
+        );
+        assert_eq!(
+            extract_table_string(QUOTE_PAGE, "1:0"),
+            Some("04.11.2026".to_string())
+        );
+    }
 }
