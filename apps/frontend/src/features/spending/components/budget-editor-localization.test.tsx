@@ -415,3 +415,118 @@ it.each([
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
   },
 );
+
+it.each([
+  { enabled: true, direction: "ltr" as const },
+  { enabled: true, direction: "rtl" as const },
+  { enabled: false, direction: "ltr" as const },
+  { enabled: false, direction: "rtl" as const },
+  { enabled: undefined, direction: "ltr" as const },
+  { enabled: undefined, direction: "rtl" as const },
+])(
+  "Setup rollover reads saved category state ($enabled) and toggles both ways in $direction",
+  async ({ enabled, direction }) => {
+    const budget = budgetSnapshot();
+    if (enabled !== undefined) {
+      budget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled,
+          startMonth: "2025-03",
+          startingBalance: "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+    }
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+    });
+    expect(item).toHaveTextContent(
+      i18n.t(enabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+    );
+
+    // Mutation invalidation reloads a default-period snapshot whose computed
+    // rollover flags remain false, even when the saved setting is enabled.
+    for (const [index, nextEnabled] of [!enabled, !!enabled].entries()) {
+      const nextBudget = structuredClone(budget);
+      nextBudget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled: nextEnabled,
+          startMonth: "2025-03",
+          startingBalance: enabled === undefined ? "0" : "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+      vi.mocked(getBudget).mockResolvedValue(nextBudget);
+      vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(nextBudget);
+      await user.click(item);
+      await waitFor(() =>
+        expect(upsertBudgetRolloverSetting).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({
+            targetType: "category",
+            taxonomyId: "spending_categories",
+            categoryId: "cat_housing",
+            enabled: nextEnabled,
+            startingBalance: enabled === undefined ? "0" : "25",
+          }),
+          "default",
+        ),
+      );
+      await waitFor(() =>
+        expect(item).toHaveTextContent(
+          i18n.t(nextEnabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+        ),
+      );
+    }
+  },
+);
+
+it.each(["ltr", "rtl"] as const)(
+  "Setup rollover respects saved group rollover in %s",
+  async (direction) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        taxonomyId: null,
+        categoryId: null,
+        groupId: NEEDS_ID,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "25",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+    });
+    expect(item).toHaveTextContent(i18n.t("spending:budgetEditor.groupWide"));
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(item);
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+  },
+);
