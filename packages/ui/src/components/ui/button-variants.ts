@@ -2,9 +2,8 @@ import { cva } from "class-variance-authority";
 
 // Outline and ghost buttons stay filled while the popup they open (menu, select,
 // popover) is open; a disclosure (collapsible, accordion) only sets aria-expanded.
-// With reduced motion a press doesn't shift the button down a pixel.
 export const buttonVariants = cva(
-  "group/button inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap rounded-(--button-radius) border border-transparent bg-clip-padding select-none active:not-aria-[haspopup]:translate-y-px motion-reduce:active:not-aria-[haspopup]:translate-y-0 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:outline-destructive aria-invalid:border-destructive",
+  "group/button inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap rounded-(--button-radius) border border-transparent bg-clip-padding select-none active:not-aria-[haspopup]:translate-y-px text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:outline-destructive aria-invalid:border-destructive",
   {
     variants: {
       variant: {
