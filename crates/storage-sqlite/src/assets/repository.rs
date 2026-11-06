@@ -11,7 +11,7 @@ use wealthfolio_core::{Error, Result};
 use super::model::{AssetDB, InsertableAssetDB};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
-use crate::schema::{activities, assets, quotes};
+use crate::schema::{activities, allocation_target_asset_weights, assets, quotes};
 use crate::utils::chunk_for_sqlite;
 
 /// Repository for managing asset data in the database
@@ -348,6 +348,18 @@ impl AssetRepositoryTrait for AssetRepository {
                     ));
                 }
 
+                let target_weight_count: i64 = allocation_target_asset_weights::table
+                    .filter(allocation_target_asset_weights::asset_id.eq(&asset_id_owned))
+                    .count()
+                    .get_result(tx.conn())
+                    .map_err(StorageError::from)?;
+
+                if target_weight_count > 0 {
+                    return Err(Error::ConstraintViolation(
+                        "Cannot delete asset: it is used by an allocation target. Remove it from the target first.".to_string()
+                    ));
+                }
+
                 // Delete all quotes for this asset (by asset_id)
                 diesel::delete(quotes::table.filter(quotes::asset_id.eq(&asset_id_owned)))
                     .execute(tx.conn())
@@ -681,6 +693,38 @@ mod tests {
             .select(assets::is_active)
             .first(conn)
             .expect("asset active flag")
+    }
+
+    fn insert_asset_target_weight(conn: &mut SqliteConnection, asset_id: &str) {
+        sql_query(
+            "INSERT INTO allocation_targets (id, name, scope_type, target_type)
+             VALUES ('target-1', 'Target', 'all', 'asset')",
+        )
+        .execute(conn)
+        .expect("insert allocation target");
+        sql_query(
+            "INSERT INTO allocation_target_asset_weights (id, target_id, asset_id, target_bps)
+             VALUES ('weight-1', 'target-1', ?, 10000)",
+        )
+        .bind::<Text, _>(asset_id)
+        .execute(conn)
+        .expect("insert allocation target asset weight");
+    }
+
+    #[tokio::test]
+    async fn delete_rejects_asset_used_by_allocation_target() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = AssetRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_asset(&mut conn, "targeted-asset");
+        insert_asset_target_weight(&mut conn, "targeted-asset");
+        drop(conn);
+
+        let err = repo.delete("targeted-asset").await.unwrap_err();
+
+        assert!(matches!(err, Error::ConstraintViolation(_)));
+        assert!(err.to_string().contains("allocation target"));
+        assert!(repo.get_by_id("targeted-asset").is_ok());
     }
 
     #[tokio::test]

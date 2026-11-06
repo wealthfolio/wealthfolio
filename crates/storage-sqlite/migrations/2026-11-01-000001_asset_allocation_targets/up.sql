@@ -83,17 +83,3 @@ WHEN OLD.target_type <> NEW.target_type
 BEGIN
     SELECT RAISE(ABORT, 'allocation_targets.target_type cannot change while weights exist');
 END;
-
--- Foreign keys are disabled during migrations; delete children before targets.
-DELETE FROM allocation_target_asset_weights
-WHERE target_id NOT IN (SELECT id FROM allocation_targets);
-
-DELETE FROM allocation_target_asset_weights
-WHERE target_id IN (
-    SELECT id FROM allocation_targets
-    WHERE scope_type = 'account' AND scope_id IN (
-        SELECT entity_id FROM sync_entity_metadata
-        WHERE entity = 'account' AND last_op = 'delete'
-          AND entity_id NOT IN (SELECT id FROM accounts)
-    )
-);

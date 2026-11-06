@@ -226,8 +226,13 @@ impl AllocationTargetService {
         &self,
         weights: &[NewAllocationTargetAssetWeight],
     ) -> CoreResult<()> {
-        let Some(asset_service) = &self.asset_service else {
+        if weights.is_empty() {
             return Ok(());
+        }
+        let Some(asset_service) = &self.asset_service else {
+            return Err(CoreError::Validation(ValidationError::InvalidInput(
+                "asset service is not configured; cannot validate asset weights".to_string(),
+            )));
         };
         for weight in weights {
             let asset = asset_service.get_asset_by_id(&weight.asset_id)?;
@@ -639,6 +644,10 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assets::{
+        Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetSpec,
+        EnsureAssetsResult, NewAsset, UpdateAssetProfile,
+    };
     use crate::portfolio::allocation_targets::{
         ConstraintAction, ConstraintEffect, ConstraintSubjectType, ScopeType, TriggerType,
     };
@@ -831,6 +840,139 @@ mod tests {
             constraints: Vec<AllocationTargetConstraint>,
         ) -> CoreResult<Vec<AllocationTargetConstraint>> {
             Ok(constraints)
+        }
+    }
+
+    struct MockAssetService {
+        assets: Vec<Asset>,
+    }
+
+    impl MockAssetService {
+        fn with_asset(id: &str, kind: AssetKind) -> Arc<Self> {
+            Arc::new(Self {
+                assets: vec![Asset {
+                    id: id.to_string(),
+                    kind,
+                    ..Default::default()
+                }],
+            })
+        }
+    }
+
+    #[async_trait]
+    impl AssetServiceTrait for MockAssetService {
+        fn get_assets(&self) -> CoreResult<Vec<Asset>> {
+            Ok(self.assets.clone())
+        }
+
+        fn get_asset_by_id(&self, asset_id: &str) -> CoreResult<Asset> {
+            self.assets
+                .iter()
+                .find(|asset| asset.id == asset_id)
+                .cloned()
+                .ok_or_else(|| CoreError::Asset(format!("Asset not found: {asset_id}")))
+        }
+
+        async fn delete_asset(&self, _: &str) -> CoreResult<()> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn update_asset_profile(&self, _: &str, _: UpdateAssetProfile) -> CoreResult<Asset> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn create_asset(&self, _: NewAsset) -> CoreResult<Asset> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn get_or_create_minimal_asset(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<AssetMetadata>,
+            _: Option<String>,
+        ) -> CoreResult<Asset> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn update_quote_mode(&self, _: &str, _: &str) -> CoreResult<Asset> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn get_assets_by_asset_ids(&self, _: &[String]) -> CoreResult<Vec<Asset>> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn enrich_asset_profile(&self, _: &str) -> CoreResult<Asset> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn enrich_assets(&self, _: Vec<String>) -> CoreResult<(usize, usize, usize)> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn cleanup_legacy_metadata(&self, _: &str) -> CoreResult<()> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn merge_unknown_asset(
+            &self,
+            _: &str,
+            _: &str,
+            _: &dyn crate::activities::ActivityRepositoryTrait,
+        ) -> CoreResult<u32> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn ensure_assets(
+            &self,
+            _: Vec<AssetSpec>,
+            _: &dyn crate::activities::ActivityRepositoryTrait,
+        ) -> CoreResult<EnsureAssetsResult> {
+            unimplemented!("unused by this fixture")
+        }
+
+        async fn resolve_import_asset_inputs(
+            &self,
+            _: Vec<AssetResolutionInput>,
+        ) -> CoreResult<Vec<AssetResolutionOutput>> {
+            unimplemented!("unused by this fixture")
+        }
+    }
+
+    async fn save_single_asset_target(
+        service: &AllocationTargetService,
+        asset_id: &str,
+    ) -> CoreResult<SaveAllocationTargetResult> {
+        service
+            .save_target_with_weights(
+                None,
+                NewAllocationTarget {
+                    target_type: Some(TargetType::Asset),
+                    ..target_input("asset_classes")
+                },
+                vec![],
+                vec![NewAllocationTargetAssetWeight {
+                    asset_id: asset_id.to_string(),
+                    target_bps: 10000,
+                    is_locked: false,
+                    is_required: true,
+                }],
+            )
+            .await
+    }
+
+    fn service_with_asset(asset_service: Option<Arc<MockAssetService>>) -> AllocationTargetService {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+        match asset_service {
+            Some(asset_service) => service.with_asset_service(asset_service),
+            None => service,
         }
     }
 
@@ -1055,13 +1197,10 @@ mod tests {
 
     #[tokio::test]
     async fn save_asset_target_uses_sentinel_taxonomy() {
-        let service = AllocationTargetService::new(
-            Arc::new(MockAllocationTargetRepository {
-                target: target("asset_classes"),
-                weights: vec![],
-            }),
-            Arc::new(MockTaxonomyService),
-        );
+        let service = service_with_asset(Some(MockAssetService::with_asset(
+            "asset-1",
+            AssetKind::Investment,
+        )));
         let saved = service
             .save_target_with_weights(
                 None,
@@ -1085,6 +1224,57 @@ mod tests {
         assert_eq!(saved.target.taxonomy_id, INDIVIDUAL_SECURITIES_TAXONOMY_ID);
         assert_eq!(saved.asset_weights.len(), 1);
         assert!(saved.weights.is_empty());
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_accepts_investment_asset() {
+        let service = service_with_asset(Some(MockAssetService::with_asset(
+            "asset-1",
+            AssetKind::Investment,
+        )));
+
+        let saved = save_single_asset_target(&service, "asset-1").await.unwrap();
+
+        assert_eq!(saved.asset_weights.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_rejects_unknown_asset() {
+        let service = service_with_asset(Some(MockAssetService::with_asset(
+            "asset-1",
+            AssetKind::Investment,
+        )));
+
+        let err = save_single_asset_target(&service, "missing-asset")
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("Asset not found: missing-asset"));
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_rejects_non_investment_asset() {
+        let service = service_with_asset(Some(MockAssetService::with_asset(
+            "asset-1",
+            AssetKind::Property,
+        )));
+
+        let err = save_single_asset_target(&service, "asset-1")
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("is not a security target"));
+    }
+
+    #[tokio::test]
+    async fn save_asset_target_rejects_asset_weights_without_asset_service() {
+        let service = service_with_asset(None);
+
+        let err = save_single_asset_target(&service, "asset-1")
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("asset service is not configured"));
     }
 
     #[tokio::test]

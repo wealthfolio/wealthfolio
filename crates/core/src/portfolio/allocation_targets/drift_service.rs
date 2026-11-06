@@ -308,7 +308,6 @@ impl DriftService {
         base_currency: &str,
         weights: &[(&str, i32, bool)],
         contributions: &TaxonomyHoldingContributions,
-        direct_targets: bool,
     ) -> DriftHoldingsReport {
         let total_value = contributions.total_value;
         let target_bps_by_category: HashMap<&str, i32> = weights
@@ -339,9 +338,7 @@ impl DriftService {
                     .get(contribution.category_id.as_str())
                     .copied()
                     .unwrap_or_default();
-                let target_pct = if direct_targets {
-                    (target_bps > 0).then(|| Decimal::from(target_bps) / dec!(100))
-                } else if category_value > Decimal::ZERO {
+                let target_pct = if category_value > Decimal::ZERO {
                     Some(
                         contribution.value / category_value * Decimal::from(target_bps) / dec!(100),
                     )
@@ -475,7 +472,6 @@ impl DriftService {
                 base_currency,
                 &display_weights,
                 &contributions,
-                is_asset_target,
             )
         });
 
@@ -1393,6 +1389,57 @@ mod tests {
         assert_eq!(tiny.current_pct, dec!(0.0001));
         assert_eq!(tiny.target_pct, Some(dec!(1)));
         assert_eq!(tiny.drift_bps, Some(-100));
+    }
+
+    #[tokio::test]
+    async fn asset_target_holdings_split_target_across_rows_of_one_asset() {
+        let mut target = base_target(500);
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id =
+            crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let mut row_one = holding_contribution("asset-A", dec!(300));
+        row_one.id = "asset-A:acc-1".to_string();
+        let mut row_two = holding_contribution("asset-A", dec!(100));
+        row_two.id = "asset-A:acc-2".to_string();
+        let contributions = TaxonomyHoldingContributions {
+            taxonomy_id: "asset".to_string(),
+            taxonomy_name: "Asset".to_string(),
+            total_value: dec!(1000),
+            currency: "USD".to_string(),
+            contributions: vec![row_one, row_two, holding_contribution("asset-C", dec!(600))],
+        };
+        let service = DriftService::new(
+            Arc::new(MockTargetService {
+                target,
+                weights: vec![],
+                asset_weights: vec![asset_weight("asset-A", 4000)],
+            }),
+            Arc::new(MockAllocationService {
+                allocations: PortfolioAllocations::default(),
+                contributions,
+            }),
+        );
+
+        let report = service
+            .get_drift_report_with_holdings_for_target("p1", &["acc".to_string()], "USD", "acc")
+            .await
+            .unwrap();
+        let rows = report.holdings.unwrap().rows;
+
+        let asset_a_targets: Vec<Decimal> = rows
+            .iter()
+            .filter(|row| row.category_id == "asset-A")
+            .map(|row| row.target_pct.unwrap())
+            .collect();
+        assert_eq!(asset_a_targets.len(), 2);
+        assert_eq!(asset_a_targets.iter().copied().sum::<Decimal>(), dec!(40));
+        let row_one = rows.iter().find(|row| row.id == "asset-A:acc-1").unwrap();
+        assert_eq!(row_one.target_pct, Some(dec!(30)));
+        let untargeted = rows
+            .iter()
+            .find(|row| row.category_id == "asset-C")
+            .unwrap();
+        assert_eq!(untargeted.target_pct, Some(Decimal::ZERO));
     }
 
     #[tokio::test]
