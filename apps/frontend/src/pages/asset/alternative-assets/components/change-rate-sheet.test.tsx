@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatDateISO } from "@/lib/utils";
-import { ChangeRateSheet } from "./change-rate-sheet";
+import { ChangeRateSheet, type LoanRateChangeInput } from "./change-rate-sheet";
 
 const metadata = {
   loan_projection: {
@@ -18,15 +19,16 @@ const metadata = {
 const today = formatDateISO(new Date());
 
 const open = (
-  onSubmit = vi.fn().mockResolvedValue(undefined),
+  onSubmit = vi.fn<(change: LoanRateChangeInput) => Promise<void>>().mockResolvedValue(undefined),
   loan: Record<string, unknown> = metadata,
+  settingsToday = formatDateISO(new Date()),
 ) => {
   render(
     <ChangeRateSheet
       open
       onOpenChange={vi.fn()}
       metadata={loan}
-      today={formatDateISO(new Date())}
+      today={settingsToday}
       onSubmit={onSubmit}
     />,
   );
@@ -158,5 +160,46 @@ describe("change interest rate", () => {
     fireEvent.change(rate, { target: { value: "5.1" } });
     fireEvent.click(save);
     expect(await screen.findByRole("alert")).toHaveTextContent("Check the date and values.");
+  });
+});
+
+// The backend dates a rate change by today in the settings timezone, which can be
+// a day behind or ahead of the browser's date.
+describe("change interest rate in the settings timezone", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 2, 12));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("dates the change on the settings day when the browser is a day ahead", async () => {
+    const { onSubmit, save, rate } = open(undefined, metadata, "2026-11-01");
+    fireEvent.change(rate, { target: { value: "5.1" } });
+    fireEvent.click(save);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(formatDateISO(onSubmit.mock.calls[0][0].effectiveDate)).toBe("2026-11-01");
+  });
+
+  it("refuses the browser's date when it is after the settings day", async () => {
+    const user = userEvent.setup();
+    const { save, rate } = open(undefined, metadata, "2026-11-01");
+    fireEvent.change(rate, { target: { value: "5.1" } });
+    expect(save).toBeEnabled();
+    await user.click(screen.getByRole("spinbutton", { name: /day/i }));
+    await user.keyboard("02");
+    await user.tab();
+    expect(save).toBeDisabled();
+  });
+
+  it("accepts the settings day when the browser is a day behind", async () => {
+    const { onSubmit, save, rate } = open(undefined, metadata, "2026-11-03");
+    fireEvent.change(rate, { target: { value: "5.1" } });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(formatDateISO(onSubmit.mock.calls[0][0].effectiveDate)).toBe("2026-11-03");
   });
 });
