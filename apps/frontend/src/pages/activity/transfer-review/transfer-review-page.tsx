@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { convertToInternalTransfer, linkTransferPairs, reviewTransferMatches } from "@/adapters";
+import {
+  convertToInternalTransfer,
+  getAssets,
+  linkTransferPairs,
+  reviewTransferMatches,
+} from "@/adapters";
 import {
   isActivityEditCancelled,
   useConvertToTransferSplitReview,
@@ -56,6 +61,7 @@ import {
   pairInFlowOrder,
   reviewReason,
   timingReason,
+  withAssetSymbols,
   type AccountRoute,
   type ReviewReason,
 } from "./transfer-review-utils";
@@ -187,12 +193,21 @@ function CandidateOption({
   );
 }
 
-/** Points from one side of a transfer to the other: down when stacked, along the row when not. */
-function FlowArrow({ className }: { className?: string }) {
+/**
+ * Points from one side of a transfer to the other: down when stacked, along
+ * the row when not. `backward` points the other way, at the side shown first.
+ */
+function FlowArrow({ className, backward = false }: { className?: string; backward?: boolean }) {
+  const Stacked = backward ? Icons.ArrowUp : Icons.ArrowDown;
+  const Along = backward ? Icons.ArrowLeft : Icons.ArrowRight;
   return (
-    <div className={cn("text-muted-foreground flex items-center justify-center", className)}>
-      <Icons.ArrowDown className="h-4 w-4 sm:hidden" aria-hidden="true" />
-      <Icons.ArrowRight className="hidden h-4 w-4 sm:block rtl:rotate-180" aria-hidden="true" />
+    <div
+      className={cn("text-muted-foreground flex items-center justify-center", className)}
+      data-testid="transfer-flow-arrow"
+      data-direction={backward ? "backward" : "forward"}
+    >
+      <Stacked className="h-4 w-4 sm:hidden" aria-hidden="true" />
+      <Along className="hidden h-4 w-4 sm:block rtl:rotate-180" aria-hidden="true" />
     </div>
   );
 }
@@ -629,7 +644,13 @@ function ReviewRow({
             className="bg-muted/30 border"
           />
         </div>
-        {selected ? <FlowArrow className="sm:h-14" /> : null}
+        {selected ? (
+          <FlowArrow
+            className="sm:h-14"
+            // Money arrives at an incoming transfer, from its match.
+            backward={pairInFlowOrder(row.activity, selected.activity)[0] !== row.activity}
+          />
+        ) : null}
         <div className="min-w-0 space-y-1.5 sm:flex-1">
           {selected ? (
             <>
@@ -813,8 +834,10 @@ export function TransferReviewPage() {
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
   );
+  // Shares the assets query; its data keeps one identity between fetches.
+  const { data: assets } = useQuery({ queryKey: [QueryKeys.ASSETS], queryFn: getAssets });
   const {
-    data: review,
+    data: rawReview,
     isLoading,
     error,
     refetch,
@@ -822,6 +845,10 @@ export function TransferReviewPage() {
     queryKey: [QueryKeys.TRANSFER_REVIEW],
     queryFn: reviewTransferMatches,
   });
+  const review = useMemo(
+    () => (rawReview ? withAssetSymbols(rawReview, assets ?? []) : undefined),
+    [rawReview, assets],
+  );
 
   // Skipping hides a row for this visit only.
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
