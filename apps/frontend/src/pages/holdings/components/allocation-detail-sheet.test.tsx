@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
-import type { TaxonomyAllocation } from "@/lib/types";
+import type { AllocationHoldings, TaxonomyAllocation } from "@/lib/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Activity } from "react";
 import { FormattingProvider } from "@wealthfolio/ui";
@@ -11,13 +11,30 @@ import { queryTooltip } from "@/test/tooltip";
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
 }));
-vi.mock("@/adapters", () => ({ getHoldingsByAllocation: vi.fn() }));
+vi.mock("@/adapters", () => ({
+  getHoldingsByAllocation: vi.fn((_filter: unknown, taxonomyId: string, categoryId: string) =>
+    Promise.resolve<AllocationHoldings>({
+      taxonomyId,
+      taxonomyName: "Regions",
+      categoryId,
+      categoryName: categoryId,
+      color: "",
+      holdings: [],
+      totalValue: 0,
+      currency: "USD",
+    }),
+  ),
+}));
 
 const allocation = {
   taxonomyId: "regions",
   taxonomyName: "Regions",
   categories: [{ categoryId: "R20", categoryName: "Americas", value: 100, percentage: 100 }],
 } as TaxonomyAllocation;
+
+// Each test waits for its holdings query to settle before it ends. Otherwise
+// React Query's update timer can fire after Vitest has removed `window`.
+const waitForHoldings = () => screen.findByText("No holdings found in this category.");
 
 describe("AllocationDetailSheet focus", () => {
   it("opens on the title without a tooltip and retains keyboard access to segment tooltips", async () => {
@@ -39,11 +56,12 @@ describe("AllocationDetailSheet focus", () => {
     const segment = screen.getAllByRole("button").find((button) => button.tagName === "DIV")!;
     act(() => segment.focus());
     await waitFor(() => expect(queryTooltip()).toHaveTextContent("Americas"));
+    await waitForHoldings();
   });
 });
 
 describe("AllocationDetailSheet on a kept screen", () => {
-  it("keeps the chosen category when its phone screen is shown again", () => {
+  it("keeps the chosen category when its phone screen is shown again", async () => {
     // A phone screen kept under another one is a hidden <Activity>, whose
     // effects run again when it is shown.
     const regions = {
@@ -79,10 +97,11 @@ describe("AllocationDetailSheet on a kept screen", () => {
     rerender(view(false));
 
     expect(screen.getByRole("heading", { name: "Holdings in Europe" })).toBeInTheDocument();
+    await waitForHoldings();
   });
 });
 
-it("formats allocation percentages using the selected region", () => {
+it("formats allocation percentages using the selected region", async () => {
   render(
     <FormattingProvider locale="ES">
       <MemoryRouter>
@@ -110,4 +129,5 @@ it("formats allocation percentages using the selected region", () => {
     </FormattingProvider>,
   );
   expect(screen.getByText("33,3 %")).toBeInTheDocument();
+  await waitForHoldings();
 });
