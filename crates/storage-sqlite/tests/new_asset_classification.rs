@@ -117,3 +117,25 @@ async fn a_new_asset_without_a_label_is_classified_by_its_instrument_type() {
     assert_eq!(instrument_types, ["STOCK_COMMON"]);
     assert_eq!(asset_classes, ["EQUITY"]);
 }
+
+#[tokio::test]
+async fn a_label_that_contradicts_the_instrument_type_is_ignored() {
+    let mut payload = bond_fund(Some("MUTUALFUND"));
+    payload["instrumentType"] = "CRYPTO".into();
+
+    let (instrument_types, asset_classes) = create_and_classify(payload).await;
+
+    assert_eq!(instrument_types, ["CRYPTO_NATIVE"]);
+    assert_eq!(asset_classes, ["DIGITAL_ASSETS"]);
+}
+
+#[tokio::test]
+async fn a_label_without_an_instrument_type_still_classifies() {
+    let mut payload = bond_fund(Some("MUTUALFUND"));
+    payload.as_object_mut().unwrap().remove("instrumentType");
+
+    let (instrument_types, asset_classes) = create_and_classify(payload).await;
+
+    assert_eq!(instrument_types, ["FUND_MUTUAL"]);
+    assert_eq!(asset_classes, ["FIXED_INCOME"]);
+}
