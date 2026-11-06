@@ -13268,6 +13268,63 @@ pub(crate) mod tests {
         pair
     }
 
+    /// Legs that certain pairs take are dropped before the review keeps a
+    /// row's candidates, so a match behind many of them still shows.
+    #[tokio::test]
+    async fn review_keeps_a_match_behind_many_certain_pairs() {
+        let mut legs = Vec::new();
+        for k in 0..25 {
+            let date = format!("2024-03-01T15:00:00.{:03}Z", k + 1);
+            legs.push(review_leg(
+                &format!("pair-out-{k}"),
+                "acc-a",
+                "TRANSFER_OUT",
+                &date,
+                dec!(500),
+            ));
+            legs.push(review_leg(
+                &format!("pair-in-{k}"),
+                "acc-b",
+                "TRANSFER_IN",
+                &date,
+                dec!(500),
+            ));
+        }
+        legs.push(review_leg(
+            "lone-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            "2024-03-01T08:00:00Z",
+            dec!(500),
+        ));
+        legs.push(review_leg(
+            "lone-in",
+            "acc-c",
+            "TRANSFER_IN",
+            "2024-03-02T10:00:00Z",
+            dec!(500),
+        ));
+        let (service, _, _) = review_service(legs);
+
+        let review = service.review_transfer_matches().await.expect("review");
+
+        assert_eq!(review.certain.len(), 25);
+        let rows: Vec<(&str, Vec<&str>)> = review
+            .needs_review
+            .iter()
+            .map(|row| {
+                (
+                    row.activity.id.as_str(),
+                    row.candidates
+                        .iter()
+                        .map(|candidate| candidate.activity.id.as_str())
+                        .collect(),
+                )
+            })
+            .collect();
+        assert_eq!(rows, vec![("lone-in", vec!["lone-out"])]);
+    }
+
     /// The review reads each transfer's 7-day window by calendar day: a leg
     /// late on the seventh day is a candidate, one early on the eighth is not.
     #[tokio::test]

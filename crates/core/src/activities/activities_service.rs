@@ -2304,8 +2304,6 @@ impl ActivityService {
     ) -> Result<TransferMatchReview> {
         const WINDOW_DAYS: i64 = 7;
         const CANDIDATES_SHOWN: usize = 3;
-        // Enough left after dropping the legs of certain pairs.
-        const CANDIDATE_POOL: usize = 25;
 
         let scan = Self::load_transfer_scan(activity_repository, account_service)?;
         // Only a cash deposit or withdrawal can be converted.
@@ -2338,7 +2336,9 @@ impl ActivityService {
                     &[opposite_transfer, opposite_cash_flow],
                     &pool,
                     WINDOW_DAYS,
-                    CANDIDATE_POOL,
+                    // All of them: rows drop the legs of certain pairs
+                    // before keeping CANDIDATES_SHOWN.
+                    usize::MAX,
                 );
                 Some((source, state, candidates))
             })
