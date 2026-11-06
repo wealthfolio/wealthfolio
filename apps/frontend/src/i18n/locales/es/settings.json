@@ -1828,5 +1828,34 @@
         "description": "Acceso a servidores HTTPS externos declarados a través del intermediario de red de la aplicación anfitriona"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "Ver detalles",
+    "back": "Límites de aportación",
+    "counted": "Aportaciones contabilizadas",
+    "annual_limit": "Importe del límite",
+    "remaining": "Margen restante",
+    "over": "Límite superado",
+    "activities": "Movimientos de aportación",
+    "review_activity": "Revisar {{activity}}",
+    "transaction_details": "Detalles de la transacción",
+    "treatment": "Tratamiento en este límite",
+    "automatic": "Contabilizar automáticamente",
+    "excluded": "Excluir de este límite",
+    "save": "Guardar tratamiento",
+    "counted_amount": "Importe contabilizado",
+    "usage_after_save": "Uso del límite tras guardar",
+    "recalculate": "Se calcula al guardar",
+    "activity_unchanged": "Solo cambia el uso de este límite. Los movimientos de la cuenta no cambian.",
+    "save_success": "Tratamiento de la aportación guardado.",
+    "save_error": "No se pudo guardar el tratamiento de la aportación.",
+    "load_error": "No se pudo cargar este límite de aportación.",
+    "no_activities": "No hay movimientos de aportación en este período.",
+    "treatments": {
+      "counted": "Contabilizado",
+      "excludedByUser": "Excluido por ti",
+      "internalTransfer": "Transferencia interna",
+      "notExternal": "Sin marcar como externa"
+    }
   }
 }

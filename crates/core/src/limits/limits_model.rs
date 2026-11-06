@@ -59,6 +59,7 @@ pub struct DepositsCalculation {
 /// Fetched from DB, filtered in Rust for performance.
 #[derive(Debug, Clone)]
 pub struct ContributionActivity {
+    pub id: String,
     pub account_id: String,
     pub activity_type: String,
     pub activity_instant: DateTime<Utc>,
@@ -66,4 +67,35 @@ pub struct ContributionActivity {
     pub currency: String,
     pub metadata: Option<String>,
     pub source_group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContributionTreatment {
+    Counted,
+    ExcludedByUser,
+    InternalTransfer,
+    NotExternal,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionActivityDetail {
+    pub id: String,
+    pub account_id: String,
+    pub activity_type: String,
+    pub activity_instant: DateTime<Utc>,
+    pub amount: Option<Decimal>,
+    pub currency: String,
+    pub counted_amount: Decimal,
+    pub treatment: ContributionTreatment,
+    pub can_exclude: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionLimitDetails {
+    pub limit: ContributionLimit,
+    pub calculation: DepositsCalculation,
+    pub activities: Vec<ContributionActivityDetail>,
 }

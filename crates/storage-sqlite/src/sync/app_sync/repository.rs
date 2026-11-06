@@ -2291,11 +2291,11 @@ fn contribution_limit_metadata_filter() -> Result<String> {
 }
 
 /// Validate the versioned row, then leave only ordinary fields for the row clock.
-fn take_contribution_limit_recurrence(
+fn take_contribution_limit_settings(
     conn: &mut SqliteConnection,
     entity_id: &str,
     payload: &mut serde_json::Value,
-) -> Result<bool> {
+) -> Result<(bool, Option<String>)> {
     let object = payload.as_object().ok_or_else(|| {
         Error::Validation(ValidationError::InvalidInput(
             "Contribution limit payload must be an object".into(),
@@ -2326,13 +2326,30 @@ fn take_contribution_limit_recurrence(
                 "Contribution limit recurrence must be a boolean".into(),
             ))
         })?;
+    let invalid_exclusions = || {
+        Error::Validation(ValidationError::InvalidInput(
+            "Contribution limit exclusions must be null or a JSON array of activity ids".into(),
+        ))
+    };
+    let excluded = match fields
+        .iter()
+        .find(|(key, _)| key == "excluded_activity_ids")
+        .map(|(_, value)| value)
+    {
+        Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(ids)) => {
+            serde_json::from_str::<Vec<String>>(ids).map_err(|_| invalid_exclusions())?;
+            Some(ids.clone())
+        }
+        _ => return Err(invalid_exclusions()),
+    };
     *payload = serde_json::Value::Object(
         fields
             .into_iter()
-            .filter(|(key, _)| key != "is_recurring")
+            .filter(|(key, _)| key != "is_recurring" && key != "excluded_activity_ids")
             .collect(),
     );
-    Ok(recurring)
+    Ok((recurring, excluded))
 }
 
 fn mark_table_incremental_applied_tx(conn: &mut SqliteConnection, table_name: &str) -> Result<()> {
@@ -2382,18 +2399,18 @@ fn apply_remote_event_lww_tx(
     let entity_db = enum_to_db(&wire_entity)?;
     let metadata_row = load_entity_metadata_tx(conn, &enum_to_db(&entity)?, &entity_id_value)?;
 
-    let recurrence = if wire_entity == SyncEntity::ContributionLimitV2
+    let versioned_settings = if wire_entity == SyncEntity::ContributionLimitV2
         && op != SyncOperation::Delete
     {
-        let value = take_contribution_limit_recurrence(conn, &entity_id_value, &mut payload_json)?;
+        let value = take_contribution_limit_settings(conn, &entity_id_value, &mut payload_json)?;
         let deleted = metadata_row
             .as_ref()
             .map(|meta| enum_from_db::<SyncOperation>(&meta.last_op))
             .transpose()?
             == Some(SyncOperation::Delete);
-        let recurrence_metadata = load_entity_metadata_tx(conn, &entity_db, &entity_id_value)?;
+        let settings_metadata = load_entity_metadata_tx(conn, &entity_db, &entity_id_value)?;
         let applies = !deleted
-            && match recurrence_metadata.as_ref() {
+            && match settings_metadata.as_ref() {
                 Some(meta) => should_apply_against_metadata(
                     wire_entity,
                     meta,
@@ -2632,10 +2649,13 @@ fn apply_remote_event_lww_tx(
         }
     }
 
-    if let Some(value) = recurrence {
+    if let Some((recurring, excluded)) = versioned_settings {
         let affected =
             diesel::update(crate::schema::contribution_limits::table.find(&entity_id_value))
-                .set(crate::schema::contribution_limits::is_recurring.eq(value))
+                .set((
+                    crate::schema::contribution_limits::is_recurring.eq(recurring),
+                    crate::schema::contribution_limits::excluded_activity_ids.eq(excluded),
+                ))
                 .execute(conn)
                 .map_err(StorageError::from)?;
         if affected > 0 {
@@ -4127,7 +4147,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn contribution_limit_events_support_legacy_and_recurring_clients() {
+    async fn contribution_limit_events_support_legacy_and_v2_settings_clients() {
         use crate::limits::ContributionLimitRepository;
         use wealthfolio_core::limits::{ContributionLimitRepositoryTrait, NewContributionLimit};
 
@@ -4176,18 +4196,23 @@ mod tests {
                 )
                 .await
                 .unwrap();
+            limits
+                .set_activity_excluded(&limit.id, "activity-1", true)
+                .await
+                .unwrap();
         }
 
         let events = sync.list_pending_outbox(100).unwrap();
         assert_eq!(
             events.len(),
-            8,
-            "each create/update emits compatible and versioned rows"
+            12,
+            "create, edit, and exclusion writes emit compatible and versioned rows"
         );
         for (index, event) in events.iter().enumerate() {
             let payload: serde_json::Value = serde_json::from_str(&event.payload).unwrap();
             if event.entity == SyncEntity::ContributionLimit {
                 assert!(payload.get("is_recurring").is_none());
+                assert!(payload.get("excluded_activity_ids").is_none());
                 // The legacy schema can apply the complete ordinary limit change.
                 upsert_json_row(
                     &mut legacy,
@@ -4199,6 +4224,7 @@ mod tests {
             } else {
                 assert_eq!(event.entity, SyncEntity::ContributionLimitV2);
                 assert!(payload["is_recurring"].is_boolean());
+                assert!(payload.get("excluded_activity_ids").is_some());
             }
             assert!(target
                 .apply_remote_event_lww(
@@ -4224,6 +4250,16 @@ mod tests {
                 assert_eq!(
                     saved.limit_amount,
                     expected["limit_amount"].as_f64().unwrap()
+                );
+                let expected_ids: HashSet<String> = expected["excluded_activity_ids"]
+                    .as_str()
+                    .map(|ids| serde_json::from_str(ids).unwrap())
+                    .unwrap_or_default();
+                assert_eq!(
+                    target_limits
+                        .get_excluded_activity_ids(&event.entity_id)
+                        .unwrap(),
+                    expected_ids
                 );
                 assert_eq!(
                     target
@@ -4252,6 +4288,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn contribution_limit_v2_rejects_invalid_exclusions_without_partial_writes() {
+        use crate::limits::ContributionLimitRepository;
+        use wealthfolio_core::limits::ContributionLimitRepositoryTrait;
+        let (pool, writer, _dir) = setup_db();
+        let limits = ContributionLimitRepository::new(pool.clone(), writer.clone());
+        let repo = AppSyncRepository::new(pool, writer);
+        for (index, excluded) in [
+            serde_json::json!("not-json"),
+            serde_json::json!("{}"),
+            serde_json::json!("[17]"),
+            serde_json::json!(["rollover"]),
+            serde_json::json!(false),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let id = format!("invalid-limit-{index}");
+            let payload = serde_json::json!({
+                "id": id, "group_name": "TFSA", "contribution_year": 2026,
+                "limit_amount": 7000, "is_recurring": true, "excluded_activity_ids": excluded,
+                "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"
+            });
+            assert!(repo
+                .apply_remote_event_lww(
+                    SyncEntity::ContributionLimitV2,
+                    id.clone(),
+                    SyncOperation::Create,
+                    format!("invalid-event-{index}"),
+                    "2026-01-01T00:00:00Z".into(),
+                    index as i64 + 1,
+                    payload,
+                )
+                .await
+                .is_err());
+            assert!(limits.get_contribution_limit(&id).is_err());
+            assert!(repo
+                .get_entity_metadata(SyncEntity::ContributionLimitV2, &id)
+                .unwrap()
+                .is_none());
+        }
+        assert!(repo.list_pending_outbox(100).unwrap().is_empty());
+    }
+
+    #[tokio::test]
     async fn contribution_limit_wire_versions_share_conflict_and_delete_precedence() {
         use crate::limits::ContributionLimitRepository;
         use wealthfolio_core::limits::ContributionLimitRepositoryTrait;
@@ -4261,7 +4341,7 @@ mod tests {
         let id = "recurring-limit";
         let recurring = serde_json::json!({
             "id": id, "group_name": "TFSA", "contribution_year": 2026,
-            "limit_amount": 7000, "is_recurring": true,
+            "limit_amount": 7000, "is_recurring": true, "excluded_activity_ids": null,
             "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"
         });
         assert!(repo
@@ -4279,6 +4359,10 @@ mod tests {
         // An older client can edit a limit without erasing the recurrence it cannot read.
         let mut legacy = recurring.clone();
         legacy.as_object_mut().unwrap().remove("is_recurring");
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("excluded_activity_ids");
         legacy["limit_amount"] = serde_json::json!(9000);
         assert!(repo
             .apply_remote_event_lww(
@@ -4335,7 +4419,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn contribution_limit_recurrence_converges_and_survives_snapshot_restore() {
+    async fn contribution_limit_v2_settings_converge_and_survive_snapshot_restore() {
         use crate::limits::ContributionLimitRepository;
         use wealthfolio_core::limits::ContributionLimitRepositoryTrait;
 
@@ -4346,11 +4430,15 @@ mod tests {
             let id = "convergent-limit";
             let recurrence = serde_json::json!({
                 "id": id, "group_name": "TFSA", "contribution_year": 2026,
-                "limit_amount": 7000, "is_recurring": true,
+                "limit_amount": 7000, "is_recurring": true, "excluded_activity_ids": "[\"rollover\"]",
                 "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"
             });
             let mut legacy = recurrence.clone();
             legacy.as_object_mut().unwrap().remove("is_recurring");
+            legacy
+                .as_object_mut()
+                .unwrap()
+                .remove("excluded_activity_ids");
             legacy["limit_amount"] = serde_json::json!(9000);
             let mut events = vec![
                 (
@@ -4386,6 +4474,10 @@ mod tests {
             let saved = limits.get_contribution_limit(id).unwrap();
             assert!(saved.is_recurring, "recurrence_first={recurrence_first}");
             assert_eq!(saved.limit_amount, 9000.0);
+            assert!(limits
+                .get_excluded_activity_ids(id)
+                .unwrap()
+                .contains("rollover"));
 
             // Unrelated control metadata stays device-local at this boundary.
             repo.upsert_entity_metadata(SyncEntityMetadata {
@@ -4427,8 +4519,14 @@ mod tests {
                 "recurrence"
             );
 
+            assert!(limits
+                .get_excluded_activity_ids(id)
+                .unwrap()
+                .contains("rollover"));
+
             let mut disabled = recurrence.clone();
             disabled["is_recurring"] = serde_json::json!(false);
+            disabled["excluded_activity_ids"] = serde_json::json!("[]");
             assert!(!repo
                 .apply_remote_event_lww(
                     SyncEntity::ContributionLimitV2,
@@ -4442,6 +4540,10 @@ mod tests {
                 .await
                 .unwrap());
             assert!(limits.get_contribution_limit(id).unwrap().is_recurring);
+            assert!(limits
+                .get_excluded_activity_ids(id)
+                .unwrap()
+                .contains("rollover"));
             // This flag edit is newer than the flag clock, but older than the amount edit.
             assert!(repo
                 .apply_remote_event_lww(
@@ -4457,6 +4559,7 @@ mod tests {
                 .unwrap());
             let saved = limits.get_contribution_limit(id).unwrap();
             assert!(!saved.is_recurring);
+            assert!(limits.get_excluded_activity_ids(id).unwrap().is_empty());
             assert_eq!(saved.limit_amount, 9000.0);
 
             assert!(repo

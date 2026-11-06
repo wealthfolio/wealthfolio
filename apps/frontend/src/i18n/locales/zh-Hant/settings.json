@@ -1777,5 +1777,34 @@
         "description": "透過主機網路代理存取已宣告的外部 HTTPS 主機"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "查看詳情",
+    "back": "供款限額",
+    "counted": "已計入供款",
+    "annual_limit": "限額金額",
+    "remaining": "剩餘額度",
+    "over": "超出限額",
+    "activities": "供款交易",
+    "review_activity": "查看{{activity}}",
+    "transaction_details": "交易詳情",
+    "treatment": "在此限額中的處理方式",
+    "automatic": "自動計入",
+    "excluded": "從此限額中排除",
+    "save": "儲存處理方式",
+    "counted_amount": "計入金額",
+    "usage_after_save": "儲存後的限額使用量",
+    "recalculate": "儲存時計算",
+    "activity_unchanged": "僅變更此限額的使用量，不會變更帳戶交易。",
+    "save_success": "已儲存供款處理方式。",
+    "save_error": "無法儲存供款處理方式。",
+    "load_error": "無法載入此供款限額。",
+    "no_activities": "此期間沒有供款交易。",
+    "treatments": {
+      "counted": "已計入",
+      "excludedByUser": "您已排除",
+      "internalTransfer": "內部轉帳",
+      "notExternal": "未標記為外部"
+    }
   }
 }

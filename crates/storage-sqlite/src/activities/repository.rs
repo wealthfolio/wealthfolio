@@ -2511,6 +2511,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .filter(activities::activity_date.ge(start_utc.to_rfc3339()))
             .filter(activities::activity_date.lt(end_exclusive_utc.to_rfc3339()))
             .select((
+                activities::id,
                 activities::account_id,
                 sql::<Text>(&effective_type_sql("activities")),
                 activities::activity_date,
@@ -2525,6 +2526,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 activities::source_group_id,
             ))
             .load::<(
+                String,
                 String,
                 String,
                 String,
@@ -2545,6 +2547,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .into_iter()
             .filter_map(
                 |(
+                    id,
                     account_id,
                     activity_type,
                     activity_date_str,
@@ -2603,6 +2606,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     };
 
                     Some(ContributionActivity {
+                        id,
                         account_id,
                         activity_type,
                         activity_instant,
@@ -3552,6 +3556,249 @@ mod tests {
             .count()
             .get_result::<i64>(conn)
             .expect("count outbox")
+    }
+
+    #[tokio::test]
+    async fn contribution_limit_exclusions_are_persisted_scoped_and_do_not_change_activities() {
+        use wealthfolio_core::limits::{
+            ContributionLimitRepositoryTrait, ContributionTreatment, NewContributionLimit,
+        };
+
+        let (pool, writer, _dir) = setup_db();
+        let activity_repository = Arc::new(ActivityRepository::new(pool.clone(), writer.clone()));
+        let limit_repository = Arc::new(ContributionLimitRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ));
+        let fx = Arc::new(FxService::new(Arc::new(FxRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ))));
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            for id in ["retirement", "source-hidden", "outside"] {
+                insert_account(&mut conn, id);
+            }
+            diesel::update(accounts::table.find("source-hidden"))
+                .set(accounts::is_active.eq(false))
+                .execute(&mut conn)
+                .expect("hide source");
+            diesel::sql_query("INSERT INTO assets
+                (id, kind, name, display_code, is_active, quote_mode, quote_ccy, instrument_type, instrument_symbol, created_at, updated_at)
+                VALUES ('rollover-fund', 'INVESTMENT', 'Fund', 'FUND', 1, 'MARKET', 'USD', 'EQUITY', 'FUND', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+                .execute(&mut conn).expect("insert asset");
+            diesel::sql_query("INSERT INTO activities
+                (id, account_id, activity_type, status, activity_date, asset_id, quantity, unit_price, amount, currency, metadata, source_group_id, source_system, is_user_modified, needs_review, created_at, updated_at) VALUES
+                ('rollover', 'retirement', 'TRANSFER_IN', 'POSTED', '2025-06-15T12:00:00Z', 'rollover-fund', '100', '500', NULL, 'USD', '{\"flow\":{\"is_external\":true}}', NULL, 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('deposit', 'retirement', 'DEPOSIT', 'POSTED', '2025-07-15T12:00:00Z', NULL, NULL, NULL, '5000', 'USD', NULL, NULL, 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('internal-out', 'source-hidden', 'TRANSFER_OUT', 'POSTED', '2025-08-15T12:00:00Z', NULL, NULL, NULL, '2000', 'USD', NULL, 'internal-pair', 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('internal-in', 'retirement', 'TRANSFER_IN', 'POSTED', '2025-08-15T12:00:00Z', NULL, NULL, NULL, '2000', 'USD', NULL, 'internal-pair', 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('draft', 'retirement', 'DEPOSIT', 'DRAFT', '2025-08-15T12:00:00Z', NULL, NULL, NULL, '700', 'USD', NULL, NULL, 'MANUAL', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('old-year', 'retirement', 'DEPOSIT', 'POSTED', '2024-08-15T12:00:00Z', NULL, NULL, NULL, '900', 'USD', NULL, NULL, 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('outside', 'outside', 'DEPOSIT', 'POSTED', '2025-08-15T12:00:00Z', NULL, NULL, NULL, '1000', 'USD', NULL, NULL, 'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+                .execute(&mut conn).expect("insert contribution activities");
+        }
+        let input = NewContributionLimit {
+            id: None,
+            group_name: "Retirement".into(),
+            contribution_year: 2025,
+            limit_amount: 24000.0,
+            account_ids: Some("retirement,source-hidden".into()),
+            is_recurring: false,
+            start_date: None,
+            end_date: None,
+        };
+        let first = limit_repository
+            .create_contribution_limit(input.clone())
+            .await
+            .expect("first limit");
+        let second = limit_repository
+            .create_contribution_limit(input.clone())
+            .await
+            .expect("second limit");
+        let service = ContributionLimitService::new(
+            fx.clone(),
+            limit_repository.clone(),
+            activity_repository.clone(),
+        );
+        let before = {
+            let mut conn = get_connection(&pool).expect("conn");
+            serde_json::to_value(
+                activities::table
+                    .order(activities::id)
+                    .select(ActivityDB::as_select())
+                    .load::<ActivityDB>(&mut conn)
+                    .expect("activities"),
+            )
+            .expect("activity snapshot")
+        };
+        let details = service
+            .get_contribution_limit_details(&first.id, "USD")
+            .expect("details");
+        assert_eq!(details.calculation.total, Decimal::from(55000));
+        assert_eq!(details.activities.len(), 3);
+        assert_eq!(
+            details
+                .activities
+                .iter()
+                .find(|a| a.id == "internal-in")
+                .expect("internal transfer")
+                .treatment,
+            ContributionTreatment::InternalTransfer
+        );
+        assert_eq!(
+            details
+                .activities
+                .iter()
+                .find(|a| a.id == "rollover")
+                .expect("security transfer")
+                .amount,
+            Some(Decimal::from(50000))
+        );
+        assert!(limit_repository
+            .get_excluded_activity_ids(&first.id)
+            .expect("legacy default")
+            .is_empty());
+
+        service
+            .set_contribution_activity_excluded(&first.id, "rollover", true)
+            .await
+            .expect("exclude rollover");
+        let details = service
+            .get_contribution_limit_details(&first.id, "USD")
+            .expect("updated details");
+        assert_eq!(details.calculation.total, Decimal::from(5000));
+        let excluded = details
+            .activities
+            .iter()
+            .find(|a| a.id == "rollover")
+            .expect("excluded row remains visible");
+        assert_eq!(excluded.treatment, ContributionTreatment::ExcludedByUser);
+        assert_eq!(excluded.counted_amount, Decimal::ZERO);
+        assert!(excluded.can_exclude);
+        assert_eq!(
+            service
+                .calculate_deposits_for_contribution_limit(&first.id, "USD")
+                .expect("progress")
+                .total,
+            details.calculation.total
+        );
+        assert_eq!(
+            service
+                .calculate_deposits_for_contribution_limit(&second.id, "USD")
+                .expect("other limit")
+                .total,
+            Decimal::from(55000)
+        );
+
+        // Ordinary limit edits and recreating the repository preserve the choice.
+        limit_repository
+            .update_contribution_limit(
+                &first.id,
+                NewContributionLimit {
+                    group_name: "Renamed".into(),
+                    ..input
+                },
+            )
+            .await
+            .expect("edit limit");
+        let reloaded = ContributionLimitService::new(
+            fx,
+            Arc::new(ContributionLimitRepository::new(pool.clone(), writer)),
+            activity_repository,
+        );
+        assert_eq!(
+            reloaded
+                .calculate_deposits_for_contribution_limit(&first.id, "USD")
+                .expect("persisted progress")
+                .total,
+            Decimal::from(5000)
+        );
+        let outbox_before = {
+            let mut conn = get_connection(&pool).expect("conn");
+            sync_outbox_count(&mut conn)
+        };
+        for id in [
+            "internal-in",
+            "internal-out",
+            "draft",
+            "old-year",
+            "outside",
+            "missing",
+        ] {
+            assert!(
+                reloaded
+                    .set_contribution_activity_excluded(&first.id, id, true)
+                    .await
+                    .is_err(),
+                "must reject {id}"
+            );
+        }
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            assert_eq!(sync_outbox_count(&mut conn), outbox_before);
+        }
+
+        reloaded
+            .set_contribution_activity_excluded(&first.id, "deposit", true)
+            .await
+            .expect("exclude cash deposit");
+        assert_eq!(
+            reloaded
+                .calculate_deposits_for_contribution_limit(&first.id, "USD")
+                .expect("both excluded")
+                .total,
+            Decimal::ZERO
+        );
+        reloaded
+            .set_contribution_activity_excluded(&first.id, "rollover", false)
+            .await
+            .expect("restore rollover");
+        reloaded
+            .set_contribution_activity_excluded(&first.id, "deposit", false)
+            .await
+            .expect("restore deposit");
+        assert_eq!(
+            reloaded
+                .calculate_deposits_for_contribution_limit(&first.id, "USD")
+                .expect("restored progress")
+                .total,
+            Decimal::from(55000)
+        );
+        let mut conn = get_connection(&pool).expect("conn");
+        let after = serde_json::to_value(
+            activities::table
+                .order(activities::id)
+                .select(ActivityDB::as_select())
+                .load::<ActivityDB>(&mut conn)
+                .expect("activities unchanged"),
+        )
+        .expect("activity snapshot");
+        assert_eq!(
+            before, after,
+            "exclusions must not rewrite cash, securities, basis, metadata, or broker/user flags"
+        );
+        let payloads = sync_outbox::table
+            .filter(sync_outbox::entity_id.eq(&first.id))
+            .select(sync_outbox::payload)
+            .load::<String>(&mut conn)
+            .expect("limit outbox");
+        assert!(
+            payloads.iter().any(|payload| {
+                let payload: serde_json::Value =
+                    serde_json::from_str(payload).expect("outbox JSON");
+                payload
+                    .get("excluded_activity_ids")
+                    .or_else(|| payload.get("excludedActivityIds"))
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|ids| {
+                        serde_json::from_str::<Vec<String>>(ids)
+                            .expect("exclusions JSON")
+                            .contains(&"rollover".to_string())
+                    })
+            }),
+            "manual choices must use the existing limit sync outbox"
+        );
     }
 
     #[tokio::test]

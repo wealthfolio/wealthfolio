@@ -1828,5 +1828,34 @@
         "description": "Accès aux hôtes HTTPS externes déclarés via le relais réseau de l’application hôte"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "Voir les détails",
+    "back": "Plafonds de cotisation",
+    "counted": "Cotisations comptabilisées",
+    "annual_limit": "Montant du plafond",
+    "remaining": "Marge restante",
+    "over": "Plafond dépassé",
+    "activities": "Opérations de cotisation",
+    "review_activity": "Examiner {{activity}}",
+    "transaction_details": "Détails de l’opération",
+    "treatment": "Traitement pour ce plafond",
+    "automatic": "Comptabiliser automatiquement",
+    "excluded": "Exclure de ce plafond",
+    "save": "Enregistrer le traitement",
+    "counted_amount": "Montant comptabilisé",
+    "usage_after_save": "Utilisation du plafond après enregistrement",
+    "recalculate": "Calculé à l’enregistrement",
+    "activity_unchanged": "Seule l’utilisation de ce plafond change. Les opérations du compte restent inchangées.",
+    "save_success": "Traitement de la cotisation enregistré.",
+    "save_error": "Impossible d’enregistrer le traitement de la cotisation.",
+    "load_error": "Impossible de charger ce plafond de cotisation.",
+    "no_activities": "Aucune opération de cotisation sur cette période.",
+    "treatments": {
+      "counted": "Comptabilisé",
+      "excludedByUser": "Exclu par vous",
+      "internalTransfer": "Virement interne",
+      "notExternal": "Non marqué comme externe"
+    }
   }
 }

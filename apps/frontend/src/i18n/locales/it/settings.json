@@ -1828,5 +1828,34 @@
         "description": "Accesso agli host HTTPS esterni dichiarati tramite il broker di rete dell’host"
       }
     }
+  },
+  "limits_detail": {
+    "view_details": "Mostra dettagli",
+    "back": "Limiti di contribuzione",
+    "counted": "Contributi conteggiati",
+    "annual_limit": "Importo del limite",
+    "remaining": "Margine rimanente",
+    "over": "Limite superato",
+    "activities": "Movimenti contributivi",
+    "review_activity": "Esamina {{activity}}",
+    "transaction_details": "Dettagli della transazione",
+    "treatment": "Trattamento per questo limite",
+    "automatic": "Conteggia automaticamente",
+    "excluded": "Escludi da questo limite",
+    "save": "Salva trattamento",
+    "counted_amount": "Importo conteggiato",
+    "usage_after_save": "Utilizzo del limite dopo il salvataggio",
+    "recalculate": "Calcolato al salvataggio",
+    "activity_unchanged": "Cambia solo l’utilizzo di questo limite. I movimenti del conto restano invariati.",
+    "save_success": "Trattamento del contributo salvato.",
+    "save_error": "Impossibile salvare il trattamento del contributo.",
+    "load_error": "Impossibile caricare questo limite di contribuzione.",
+    "no_activities": "Nessun movimento contributivo in questo periodo.",
+    "treatments": {
+      "counted": "Conteggiato",
+      "excludedByUser": "Escluso da te",
+      "internalTransfer": "Trasferimento interno",
+      "notExternal": "Non contrassegnato come esterno"
+    }
   }
 }

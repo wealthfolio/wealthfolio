@@ -10,9 +10,11 @@ import {
   Skeleton,
   useAmountFormatting,
   useDateFormatting,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { hasFormerDefaultDates } from "../contribution-limit-dates";
 import { useContributionLimitProgress } from "../use-contribution-limit-mutations";
 import { AccountSelection } from "./account-selection";
@@ -263,6 +265,13 @@ export function ContributionLimitItem({
             className={`w-full ${isOverLimit ? "bg-destructive/20" : ""}`}
           />
         )}
+        <Link
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-3")}
+          to={`/settings/contribution-limits/${encodeURIComponent(limit.id)}`}
+        >
+          {t("settings:limits_detail.view_details")}
+          <Icons.ChevronRight className="size-4 rtl:rotate-180" />
+        </Link>
         {isExpanded && (
           <div className="mt-4 border-t pt-4">
             <AccountSelection

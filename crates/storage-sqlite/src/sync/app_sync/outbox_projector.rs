@@ -55,8 +55,8 @@ pub(crate) fn flush_projected_outbox(
     ) {
         // Old clients reject unknown payload columns. Keep the original event
         // readable, and send the complete row separately under a versioned
-        // entity they skip. Recurrence has its own conflict clock so a legacy
-        // edit cannot suppress a recurrence change it does not contain.
+        // entity they skip. Recurrence and exclusions share the versioned conflict
+        // clock so legacy edits cannot suppress settings they do not contain.
         let versioned = if request.entity == SyncEntity::ContributionLimit
             && request.op != SyncOperation::Delete
             && (request.payload.get("isRecurring").is_some()
@@ -68,6 +68,8 @@ pub(crate) fn flush_projected_outbox(
             if let Some(payload) = request.payload.as_object_mut() {
                 payload.remove("isRecurring");
                 payload.remove("is_recurring");
+                payload.remove("excludedActivityIds");
+                payload.remove("excluded_activity_ids");
             }
             Some(versioned)
         } else {
