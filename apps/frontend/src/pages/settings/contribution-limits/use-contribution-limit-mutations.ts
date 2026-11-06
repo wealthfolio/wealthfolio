@@ -33,10 +33,11 @@ export const useContributionLimitProgress = (limitId: string) => {
 export const useContributionLimitMutations = () => {
   const queryClient = useQueryClient();
 
-  const handleSuccess = (message: string) => {
+  const handleSuccess = (message: string, refetchProgress = true) => {
     queryClient.invalidateQueries({ queryKey: [QueryKeys.CONTRIBUTION_LIMITS] });
     queryClient.invalidateQueries({
       queryKey: [QueryKeys.CONTRIBUTION_LIMIT_PROGRESS],
+      refetchType: refetchProgress ? "active" : "none",
     });
     toast({
       description: message,
@@ -73,7 +74,8 @@ export const useContributionLimitMutations = () => {
 
   const deleteContributionLimitMutation = useMutation({
     mutationFn: deleteContributionLimit,
-    onSuccess: () => handleSuccess(i18n.t("settings:messages.contribution.deleted")),
+    // The deleted card can still observe progress until the limits list refreshes.
+    onSuccess: () => handleSuccess(i18n.t("settings:messages.contribution.deleted"), false),
     onError: (e) => {
       logger.error(`Error deleting contribution limit: ${String(e)}`);
       handleError("delete");
