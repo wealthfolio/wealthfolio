@@ -19,11 +19,11 @@ describe("CSVFileViewer scroll ownership", () => {
     const table = screen.getByRole("table");
     const wrapper = table.parentElement!;
     const box = wrapper.parentElement!;
-    expect(box).toHaveClass("overflow-auto", "[&>div]:overflow-visible");
+    expect(box).toHaveClass("overflow-auto");
     expect(box).toHaveStyle({ maxHeight: "300px" });
-    expect(wrapper).toHaveClass("relative", "w-full", "overflow-auto");
+    expect(wrapper).toHaveClass("relative", "w-full", "overflow-visible");
     expect(table.querySelectorAll("tbody tr")).toHaveLength(20);
-    expect(table.querySelector("tbody td")).toHaveClass("sticky", "left-0");
+    expect(table.querySelector("tbody td")).toHaveClass("sticky", "start-0");
   });
 
   it("keeps short files and empty input in the same scroll box", () => {
