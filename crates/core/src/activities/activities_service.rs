@@ -57,6 +57,9 @@ use crate::activities::cash_balances::{
     running_cash_balances, shows_cash_balance, shows_running_cash_balance, ActivityCashBalance,
     CashLedgerActivity,
 };
+use crate::activities::charges::{
+    check_import_charges, normalize_charges, without_charges, CHARGES_METADATA_KEY,
+};
 use crate::activities::csv_parser::{self, ParseConfig, ParsedCsvResult};
 use crate::activities::idempotency::{
     compute_activity_idempotency_key, compute_idempotency_key, idempotency_activity_type,
@@ -3650,6 +3653,62 @@ impl ActivityService {
         serde_json::Value::Object(merged).to_string()
     }
 
+    /// Whether a metadata patch changes or explicitly clears the stored lines.
+    fn sends_new_charges(patch: &str, existing: Option<&serde_json::Value>) -> bool {
+        let Ok(serde_json::Value::Object(patch_map)) = serde_json::from_str(patch) else {
+            return false;
+        };
+        let Some(sent) = patch_map.get(CHARGES_METADATA_KEY) else {
+            return false;
+        };
+        let stored = existing
+            .and_then(|metadata| metadata.get(CHARGES_METADATA_KEY))
+            .unwrap_or(&serde_json::Value::Null);
+        sent.is_null() || sent.as_array().is_some_and(Vec::is_empty) || sent != stored
+    }
+
+    /// Keeps an update's fee and tax lines consistent with its totals. Lines
+    /// it sends must add up to the totals it leaves (checked and converted
+    /// from a minor unit like the totals). An update that changes a total
+    /// without sending lines drops the stored ones instead of leaving them
+    /// stale.
+    fn reconcile_update_charges(
+        activity: &mut ActivityUpdate,
+        existing: &Activity,
+        charges_sent: bool,
+    ) -> Result<()> {
+        let currency = activity.currency.trim().to_string();
+        let stored_total = |patch: Option<Option<Decimal>>, existing: Option<Decimal>| match patch {
+            Some(value) => value.map(|value| normalize_amount(value.abs(), &currency).0),
+            None => existing,
+        };
+        let fee = stored_total(activity.fee, existing.fee);
+        let tax = stored_total(activity.tax, existing.tax);
+
+        if charges_sent {
+            activity.metadata = normalize_charges(activity.metadata.take(), &currency, fee, tax)?;
+            return Ok(());
+        }
+
+        let unchanged = |total: Option<Decimal>, existing: Option<Decimal>| {
+            total.unwrap_or(Decimal::ZERO) == existing.unwrap_or(Decimal::ZERO)
+        };
+        if unchanged(fee, existing.fee) && unchanged(tax, existing.tax) {
+            return Ok(());
+        }
+        let metadata = match activity.metadata.as_deref() {
+            Some(merged) => without_charges(merged),
+            None => existing
+                .metadata
+                .as_ref()
+                .and_then(|stored| without_charges(&stored.to_string())),
+        };
+        if metadata.is_some() {
+            activity.metadata = metadata;
+        }
+        Ok(())
+    }
+
     /// New activities never start as loan payments; linking tags them afterwards.
     fn without_loan_payment_tag(metadata: Option<String>) -> Option<String> {
         let text = metadata?;
@@ -4373,6 +4432,7 @@ impl ActivityService {
         activity.fee = activity.fee.map(|v| v.abs());
 
         // Normalize minor currency units (e.g., GBp -> GBP) and convert amounts
+        let charges_currency = activity.currency.clone();
         if get_normalization_rule(&activity.currency).is_some() {
             let input_currency = activity.currency.clone();
             let mut normalized_currency = activity.currency.clone();
@@ -4400,6 +4460,12 @@ impl ActivityService {
             }
             activity.currency = normalized_currency;
         }
+        activity.metadata = normalize_charges(
+            activity.metadata.take(),
+            &charges_currency,
+            activity.fee,
+            activity.tax,
+        )?;
 
         // The asset owns the contract multiplier. Activity metadata only
         // seeds a brand-new asset (see the ensure/create branch above), and
@@ -4509,7 +4575,13 @@ impl ActivityService {
 
     /// Stores values unsigned (the type sets the direction) and converts
     /// minor-unit currencies such as GBp to their major unit.
-    fn normalize_update_values(activity: &mut ActivityUpdate) {
+    fn normalize_update_values(activity: &mut ActivityUpdate, existing: &Activity) -> Result<()> {
+        // Whole-blob writers echo stored lines; only different or cleared lines count as sent.
+        let charges_sent = activity
+            .metadata
+            .as_deref()
+            .is_some_and(|patch| Self::sends_new_charges(patch, existing.metadata.as_ref()));
+        Self::reconcile_update_charges(activity, existing, charges_sent)?;
         activity.quantity = activity.quantity.map(|v| v.map(|d| d.abs()));
         activity.unit_price = activity.unit_price.map(|v| v.map(|d| d.abs()));
         activity.amount = activity.amount.map(|v| v.map(|d| d.abs()));
@@ -4543,6 +4615,7 @@ impl ActivityService {
             }
             activity.currency = normalized_currency;
         }
+        Ok(())
     }
 
     /// What `prepare_update_activity` makes of `activity`, without its writes
@@ -4577,7 +4650,7 @@ impl ActivityService {
                 None => self.resolve_activity_currency("", None, &account_currency),
             };
         }
-        Self::normalize_update_values(&mut activity);
+        Self::normalize_update_values(&mut activity, &existing)?;
         activity.validate()?;
         let activity_date = Self::parse_activity_timestamp_utc(&activity.activity_date)
             .ok_or_else(|| Self::invalid_activity_data("Invalid activity date"))?;
@@ -4592,6 +4665,7 @@ impl ActivityService {
     async fn prepare_update_activity(
         &self,
         mut activity: ActivityUpdate,
+        existing: &Activity,
     ) -> Result<ActivityUpdate> {
         let account_currency = self.validate_update_request(&mut activity)?;
         let currency = resolve_currency(&[&activity.currency, &account_currency]);
@@ -4926,7 +5000,7 @@ impl ActivityService {
             }
         }
 
-        Self::normalize_update_values(&mut activity);
+        Self::normalize_update_values(&mut activity, existing)?;
 
         Ok(activity)
     }
@@ -5449,7 +5523,6 @@ impl ActivityService {
             }
             self.hydrate_import_activity_from_asset_id(&mut activity);
             Self::normalize_import_activity_subtype(&mut activity);
-
             let symbol = activity.symbol.trim().to_string();
 
             if let Err((field, message)) =
@@ -5801,6 +5874,20 @@ impl ActivityService {
             activity.is_valid = true;
             self.validate_currency(&mut activity, &account_currency);
             activities_with_status.push(activity);
+        }
+
+        for activity in activities_with_status
+            .iter_mut()
+            .filter(|activity| activity.is_valid)
+        {
+            if let Err(error) = check_import_charges(
+                activity.charges.as_deref(),
+                &activity.currency,
+                activity.fee,
+                activity.tax,
+            ) {
+                Self::add_activity_error(activity, "charges", &error.to_string());
+            }
         }
 
         let mut keys: Vec<Option<String>> = Vec::with_capacity(activities_with_status.len());
@@ -6211,7 +6298,7 @@ impl ActivityServiceTrait for ActivityService {
                 "Transfer pair changed; refresh before editing",
             ));
         }
-        let prepared = self.prepare_update_activity(activity).await?;
+        let prepared = self.prepare_update_activity(activity, &existing).await?;
 
         let counterpart_id = match (pair.as_ref(), conversion.as_ref()) {
             (Some(pair), _) => Some(if existing.id == pair.transfer_in.id {
@@ -6232,7 +6319,10 @@ impl ActivityServiceTrait for ActivityService {
                     &mut counterpart_update,
                     &counterpart_existing,
                 )?;
-                updates.push(self.prepare_update_activity(counterpart_update).await?);
+                updates.push(
+                    self.prepare_update_activity(counterpart_update, &counterpart_existing)
+                        .await?,
+                );
             }
             self.check_conversion_writes(&[], &updates, &[])?;
             let persisted = self
@@ -6715,7 +6805,12 @@ impl ActivityServiceTrait for ActivityService {
             let (pair, updates) = self.build_internal_pair_update_inputs(&request, &pair_values)?;
             let mut prepared_updates = Vec::new();
             for update in updates {
-                prepared_updates.push(self.prepare_update_activity(update).await?);
+                let existing = if update.id == pair.transfer_out.id {
+                    &pair.transfer_out
+                } else {
+                    &pair.transfer_in
+                };
+                prepared_updates.push(self.prepare_update_activity(update, existing).await?);
             }
 
             for activity in [&pair.transfer_out, &pair.transfer_in] {
@@ -6822,7 +6917,7 @@ impl ActivityServiceTrait for ActivityService {
             update.split_review = request.split_review.clone();
             let existing = self.activity_repository.get_activity(&update.id)?;
             self.hydrate_and_validate_update_against_existing(&mut update, &existing)?;
-            prepared_updates.push(self.prepare_update_activity(update).await?);
+            prepared_updates.push(self.prepare_update_activity(update, &existing).await?);
         }
         let mut prepared_creates = Vec::new();
         for create in creates {
@@ -7161,7 +7256,7 @@ impl ActivityServiceTrait for ActivityService {
             let mut update_request = update_request;
             let target_id = update_request.id.clone();
             // Get the existing activity to capture old account_id and asset_id
-            match self.activity_repository.get_activity(&target_id) {
+            let existing = match self.activity_repository.get_activity(&target_id) {
                 Ok(existing) => {
                     old_account_ids.insert(existing.account_id.clone());
                     if let Some(ref asset_id) = existing.asset_id {
@@ -7181,12 +7276,21 @@ impl ActivityServiceTrait for ActivityService {
                         });
                         continue;
                     }
+                    existing
                 }
-                Err(_) => {
-                    // Activity doesn't exist - will fail during prepare_update_activity
+                Err(err) => {
+                    errors.push(ActivityBulkMutationError {
+                        id: Some(target_id),
+                        action: "update".to_string(),
+                        message: err.to_string(),
+                    });
+                    continue;
                 }
-            }
-            match self.prepare_update_activity(update_request).await {
+            };
+            match self
+                .prepare_update_activity(update_request, &existing)
+                .await
+            {
                 Ok(prepared) => prepared_updates.push(prepared),
                 Err(err) => {
                     errors.push(ActivityBulkMutationError {
@@ -8823,6 +8927,38 @@ impl ActivityService {
                 }
             }
 
+            // Fee and tax lines must add up to the totals as stored: unsigned
+            // and in the major unit (GBp lines become GBP like the totals).
+            let stored_fee = activity
+                .fee
+                .map(|fee| normalize_amount(fee.abs(), &activity_currency).0);
+            let stored_tax = activity
+                .tax
+                .map(|tax| normalize_amount(tax.abs(), &activity_currency).0);
+            let activity_metadata = activity.metadata.take();
+            match normalize_charges(
+                activity_metadata.clone(),
+                &activity_currency,
+                stored_fee,
+                stored_tax,
+            ) {
+                Ok(metadata) => activity.metadata = metadata,
+                Err(_) if mode.is_sync() => {
+                    warn!(
+                        "Broker sync activity at index {} has invalid fee and tax lines; dropping them",
+                        idx
+                    );
+                    activity.metadata = activity_metadata
+                        .as_deref()
+                        .and_then(without_charges)
+                        .or(activity_metadata);
+                }
+                Err(e) => {
+                    result.errors.push((idx, e.to_string()));
+                    continue;
+                }
+            }
+
             if mode.is_sync()
                 && Self::sync_asset_income_needs_review(&activity, resolved_asset_id.as_deref())
             {
@@ -9386,6 +9522,7 @@ mod reviewed_import_metadata_tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         }
     }
 
