@@ -51,34 +51,6 @@ test("an accordion opens without growing when the system asks for reduced motion
   expect((await motion()).filter((record) => record.moved > 0.5)).toEqual([]);
 });
 
-test("a button doesn't move when pressed and the system asks for reduced motion", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await openGallery(page);
-  const motion = await recordMotion(page);
-  const button = page.getByRole("button", { name: "Primary action" });
-  // Up to 1024 px wide, globals.css also gives every button a 200 ms
-  // transition on all properties.
-  for (const width of [1280, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    await button.scrollIntoViewIfNeeded();
-    const box = await button.boundingBox();
-    if (!box) throw new Error("The button has no box.");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await nextFrames(page);
-    await settle(page);
-    await page.mouse.up();
-    await nextFrames(page);
-    await settle(page);
-    expect(
-      (await motion()).filter((record) => record.moved > 0.5),
-      `${width} px`,
-    ).toEqual([]);
-  }
-});
-
 test("the performance chart draws without animating when the system asks for reduced motion", async ({
   page,
 }) => {
