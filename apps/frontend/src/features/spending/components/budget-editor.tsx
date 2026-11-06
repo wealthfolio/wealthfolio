@@ -720,7 +720,10 @@ function GroupBudgetSection({
               groupTotal={row.plannedTotal}
               monthMode={monthMode}
               mode={mode}
-              groupRolloverEnabled={row.rolloverEnabled}
+              rolloverEnabled={
+                findCategoryRollover(rolloverSettings, category.categoryId)?.enabled ?? false
+              }
+              groupRolloverEnabled={groupRollover?.enabled ?? false}
               onSaveTarget={onSaveCategoryTarget}
               onDeleteOverride={onDeleteOverride}
               onMoveCategory={onMoveCategory}
@@ -1128,6 +1131,7 @@ function BudgetCategoryLine({
   groupTotal,
   monthMode,
   mode,
+  rolloverEnabled,
   groupRolloverEnabled,
   onSaveTarget,
   onDeleteOverride,
@@ -1141,6 +1145,7 @@ function BudgetCategoryLine({
   groupTotal: number;
   monthMode: boolean;
   mode: BudgetEditorMode;
+  rolloverEnabled: boolean;
   groupRolloverEnabled: boolean;
   onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
@@ -1259,7 +1264,7 @@ function BudgetCategoryLine({
                 disabled={groupRolloverEnabled}
                 closeOnClick={false}
                 onClick={() => {
-                  onToggleRollover(row, !row.rolloverEnabled);
+                  onToggleRollover(row, !rolloverEnabled);
                 }}
                 className="text-xs"
               >
@@ -1268,7 +1273,7 @@ function BudgetCategoryLine({
                 <span className="text-muted-foreground text-2xs">
                   {groupRolloverEnabled
                     ? t("spending:budgetEditor.groupWide")
-                    : row.rolloverEnabled
+                    : rolloverEnabled
                       ? t("spending:budgetEditor.on")
                       : t("spending:budgetEditor.off")}
                 </span>
