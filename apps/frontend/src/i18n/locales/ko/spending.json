@@ -253,6 +253,18 @@
     "month": "월",
     "year": "연도",
     "previousPeriod": "이전 기간",
+    "previousStep": "이전 <unit>{{period}}</unit>",
+    "nextStep": "다음 <unit>{{period}}</unit>",
+    "backToLatest": "현재 기간으로 돌아가기",
+    "stepUnits": {
+      "day": "1일",
+      "week": "1주",
+      "month": "1개월",
+      "threeMonths": "3개월",
+      "sixMonths": "6개월",
+      "year": "1년",
+      "fiveYears": "5년"
+    },
     "nextPeriod": "다음 기간",
     "previousYears": "이전 연도",
     "nextYears": "이후 연도",

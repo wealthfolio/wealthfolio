@@ -262,6 +262,18 @@
     "month": "Mois",
     "year": "Année",
     "previousPeriod": "Période précédente",
+    "previousStep": "Reculer de <unit>{{period}}</unit>",
+    "nextStep": "Avancer de <unit>{{period}}</unit>",
+    "backToLatest": "Revenir à la période actuelle",
+    "stepUnits": {
+      "day": "un jour",
+      "week": "une semaine",
+      "month": "un mois",
+      "threeMonths": "3 mois",
+      "sixMonths": "6 mois",
+      "year": "un an",
+      "fiveYears": "5 ans"
+    },
     "nextPeriod": "Période suivante",
     "previousYears": "Années précédentes",
     "nextYears": "Années suivantes",

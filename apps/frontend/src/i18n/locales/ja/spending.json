@@ -253,6 +253,18 @@
     "month": "月",
     "year": "年",
     "previousPeriod": "前の期間",
+    "previousStep": "<unit>{{period}}</unit>前",
+    "nextStep": "<unit>{{period}}</unit>後",
+    "backToLatest": "現在の期間に戻る",
+    "stepUnits": {
+      "day": "1日",
+      "week": "1週間",
+      "month": "1か月",
+      "threeMonths": "3か月",
+      "sixMonths": "6か月",
+      "year": "1年",
+      "fiveYears": "5年"
+    },
     "nextPeriod": "次の期間",
     "previousYears": "過去の年",
     "nextYears": "以降の年",
