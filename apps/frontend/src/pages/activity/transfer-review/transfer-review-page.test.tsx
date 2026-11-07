@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   convertToInternalTransfer,
+  findTransferMatchCandidates,
   getAssets,
   linkTransferPairs,
   reviewConvertToTransferSplitEffects,
@@ -94,6 +95,13 @@ function leg(
   };
 }
 
+/** A row's two sides, from and to, by account name. */
+function sides(row: HTMLElement): (string | null)[] {
+  return within(row)
+    .getAllByTestId("transfer-review-side")
+    .map((side) => side.textContent);
+}
+
 function candidate(
   activity: Activity,
   overrides: Partial<TransferMatchCandidate> = {},
@@ -121,6 +129,16 @@ function certainPair(index: number, from = "tfsa", to = "rrsp", date = timestamp
     candidate(leg(`out-${index}`, from, "TRANSFER_OUT", "500", date), {
       confidence: "high",
       reasonCodes: ["same_amount", "same_currency", "same_time"],
+    }),
+  ]);
+}
+
+/** A transfer in whose one likely match left `days` days earlier. */
+function datesDiffer(days: number) {
+  return row(leg(`in-d${days}`, "tfsa", "TRANSFER_IN", `${days}00`), [
+    candidate(leg(`out-d${days}`, "bank", "TRANSFER_OUT", `${days}00`), {
+      reasonCodes: ["same_amount", "same_currency"],
+      warningCodes: [{ code: "dates_differ", days }],
     }),
   ]);
 }
@@ -157,41 +175,70 @@ describe("Match transfers review", () => {
     updateActivity.mockReset().mockResolvedValue({});
   });
 
-  it("sums certain pairs up by account route and lists them on request", async () => {
+  it("sums many certain pairs up by account route and opens a route's pairs", async () => {
     renderPage({
       certain: [
         certainPair(1, "tfsa", "rrsp", "2026-04-15T12:00:00.123Z"),
         certainPair(2, "tfsa", "rrsp", "2026-06-15T12:00:00.123Z"),
-        certainPair(3, "bank", "tfsa", "2026-05-15T12:00:00.123Z"),
+        certainPair(3, "tfsa", "rrsp", "2026-05-15T12:00:00.123Z"),
+        certainPair(4, "tfsa", "rrsp", "2026-06-20T12:00:00.123Z"),
+        certainPair(5, "bank", "tfsa", "2026-05-15T12:00:00.123Z"),
+        certainPair(6, "bank", "tfsa", "2026-05-20T12:00:00.123Z"),
       ],
       needsReview: [],
     });
 
-    expect(await screen.findByText("3 pairs")).toBeInTheDocument();
-    const routes = within(screen.getByTestId("transfer-review-routes")).getAllByRole("listitem");
+    const routes = await screen.findAllByTestId("transfer-review-route");
     expect(routes).toHaveLength(2);
-    // Largest route first, in the direction money moved, over its months.
-    expect(routes[0]).toHaveTextContent(/^TFSA\s*RRSP\s*Apr – Jun 2026\s*2 pairs$/);
-    expect(routes[1]).toHaveTextContent(/^Bank\s*TFSA\s*May 2026\s*1 pair$/);
+    // Largest route first, in the direction money moved, over its months,
+    // with the cash it moved in the amount column.
+    expect(routes[0]).toHaveTextContent(/^Apr – Jun 2026\s*TFSA\s*RRSP\s*\$2,000\.00\s*4 pairs$/);
+    expect(routes[1]).toHaveTextContent(/^May 2026\s*Bank\s*TFSA\s*\$1,000\.00\s*2 pairs$/);
     expect(screen.queryByTestId("transfer-review-certain-row")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show the 3 pairs" }));
-    const rows = screen.getAllByTestId("transfer-review-certain-row");
-    expect(rows).toHaveLength(3);
-    // Each pair reads from the side money leaves, and says how it matched.
-    const [from, to] = within(rows[0]).getAllByText(/TFSA|RRSP/);
-    expect(from).toHaveTextContent("TFSA");
-    expect(to).toHaveTextContent("RRSP");
-    expect(within(rows[0]).getByText("Same time")).toBeInTheDocument();
+    const toggle = within(routes[0]).getAllByRole("button")[0];
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    // Only this route's pairs, newest first, each with its own Link.
+    const rows = within(routes[0]).getAllByTestId("transfer-review-certain-row");
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Jun 20, 2026");
+    expect(rows[3]).toHaveTextContent("Apr 15, 2026");
+    // Under its route, a pair still names both of its sides.
+    expect(sides(rows[0])).toEqual(["TFSA", "RRSP"]);
+    expect(within(rows[0]).getByRole("button", { name: "Link" })).toBeInTheDocument();
+    expect(within(routes[1]).queryByTestId("transfer-review-certain-row")).not.toBeInTheDocument();
+  });
+
+  it("lists a few certain pairs as they are, each with its own Link", async () => {
+    renderPage({ certain: [certainPair(1, "bank", "rrsp")], needsReview: [] });
+
+    expect(
+      await screen.findByText(
+        "This pair matches exactly on the same day, and nothing else matches either side.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("transfer-review-routes")).not.toBeInTheDocument();
+    const [pair] = screen.getAllByTestId("transfer-review-certain-row");
+    expect(sides(pair)).toEqual(["Bank", "RRSP"]);
+
+    fireEvent.click(within(pair).getByRole("button", { name: "Link" }));
+    await waitFor(() =>
+      expect(linkTransferPairs).toHaveBeenCalledWith([
+        { activityAId: "in-1", activityBId: "out-1" },
+      ]),
+    );
   });
 
   it("links every certain pair still shown, and says how many it linked", async () => {
     renderPage({ certain: [certainPair(1), certainPair(2), certainPair(3)], needsReview: [] });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Show the 3 pairs" }));
-    const rows = screen.getAllByTestId("transfer-review-certain-row");
-    fireEvent.click(within(rows[1]).getByRole("button", { name: "Skip" }));
-    expect(screen.getByText("1 skipped for now")).toBeInTheDocument();
+    // A few pairs list as they are.
+    const rows = await screen.findAllByTestId("transfer-review-certain-row");
+    fireEvent.click(within(rows[1]).getByRole("button", { name: "More actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Skip" }));
+    expect(await screen.findByText("1 skipped for now")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Link all 2 pairs" }));
 
     expect(await screen.findByText("2 pairs linked")).toBeInTheDocument();
@@ -270,100 +317,163 @@ describe("Match transfers review", () => {
     expect(linkTransferPairs).toHaveBeenCalledTimes(1);
   });
 
-  it("groups transfers needing a look by the core's reason", async () => {
+  it("sorts many transfers needing a look into sections by the core's reason", async () => {
     renderPage({
       certain: [],
       needsReview: [
-        row(leg("out-1", "tfsa", "TRANSFER_OUT", "300"), [
-          candidate(leg("in-1", "rrsp", "TRANSFER_IN", "300"), {
+        row(leg("in-5", "tfsa", "TRANSFER_IN", "99"), []),
+        datesDiffer(1),
+        datesDiffer(2),
+        datesDiffer(3),
+        row(leg("out-c", "tfsa", "TRANSFER_OUT", "300"), [
+          candidate(leg("in-c1", "rrsp", "TRANSFER_IN", "300"), {
             warningCodes: [{ code: "another_match" }],
           }),
-          candidate(leg("in-2", "bank", "TRANSFER_IN", "300"), {
+          candidate(leg("in-c2", "bank", "TRANSFER_IN", "300"), {
             warningCodes: [{ code: "another_match" }],
-          }),
-        ]),
-        row(leg("in-3", "tfsa", "TRANSFER_IN", "750"), [
-          candidate(leg("out-3", "bank", "TRANSFER_OUT", "750"), {
-            reasonCodes: ["same_amount", "same_currency"],
-            warningCodes: [{ code: "dates_differ", days: 2 }],
           }),
         ]),
         row(leg("out-4", "rrsp", "TRANSFER_OUT", "420"), [
-          candidate(leg("dep-4", "bank", "DEPOSIT", "420"), {
-            warningCodes: [{ code: "dates_differ", days: 1 }],
-          }),
+          candidate(leg("dep-4", "bank", "DEPOSIT", "420")),
         ]),
-        row(leg("in-5", "tfsa", "TRANSFER_IN", "99"), []),
         row(leg("in-6", "tfsa", "TRANSFER_IN", "60"), [
           candidate(leg("out-6", "bank", "TRANSFER_OUT", "60"), {
             warningCodes: [{ code: "currencies_differ", source: "USD", candidate: "CAD" }],
           }),
         ]),
+        row(leg("in-7", "rrsp", "TRANSFER_IN", "77"), []),
       ],
     });
 
-    const filters = await screen.findByRole("group", { name: "Filter by reason" });
-    const chips = within(filters)
-      .getAllByRole("button")
-      .map((chip) => chip.textContent);
-    // The currency difference shows under All only.
-    expect(chips).toEqual([
-      "All5",
-      "More than one match1",
-      "Dates differ1",
-      "Recorded as a deposit or withdrawal1",
-      "No likely match1",
+    const rows = await screen.findAllByTestId("transfer-review-row");
+    const sections = screen
+      .getAllByTestId(/^transfer-review-section-/)
+      .map((section) => section.dataset.testid);
+    // Likely links first, no other side last.
+    expect(sections).toEqual([
+      "transfer-review-section-dates_differ",
+      "transfer-review-section-more_than_one",
+      "transfer-review-section-cash_flow",
+      "transfer-review-section-other",
+      "transfer-review-section-no_match",
     ]);
-    expect(screen.getAllByTestId("transfer-review-row")).toHaveLength(5);
+    expect(
+      within(screen.getByTestId("transfer-review-section-dates_differ")).getByRole("heading"),
+    ).toHaveTextContent("Arrived on a different day3");
+    // Each of the two likely other sides is a pair of its own.
+    expect(
+      within(screen.getByTestId("transfer-review-section-more_than_one")).getByRole("heading"),
+    ).toHaveTextContent("More than one possible match2");
+    expect(rows).toHaveLength(9);
+    expect(rows[0]).toHaveTextContent("Dates differ by 1 day.");
+    expect(rows[3]).toHaveTextContent("Bank also matches. Link only the right one.");
+    expect(rows[6]).toHaveTextContent("Currencies differ (USD / CAD).");
+    expect(rows[8]).toHaveTextContent("No likely match within 7 days.");
 
-    fireEvent.click(within(filters).getByRole("button", { name: /^Dates differ/ }));
-    const shown = screen.getAllByTestId("transfer-review-row");
-    expect(shown).toHaveLength(1);
-    expect(within(shown[0]).getByText("Dates differ by 2 days.")).toBeInTheDocument();
-    expect(within(filters).getByRole("button", { name: /^Dates differ/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    // Fewer than eight left: one list, in the same order.
+    for (const index of [8, 6]) {
+      fireEvent.click(
+        within(screen.getAllByTestId("transfer-review-row")[index]).getByRole("button", {
+          name: "More actions",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Skip" }));
+    }
+    await waitFor(() =>
+      expect(screen.queryByTestId(/^transfer-review-section-/)).not.toBeInTheDocument(),
     );
-
-    // Its last row skipped, the reason falls back to All.
-    fireEvent.click(within(shown[0]).getByRole("button", { name: "More actions" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Skip" }));
-    await waitFor(() => expect(screen.getAllByTestId("transfer-review-row")).toHaveLength(4));
+    const remaining = screen.getAllByTestId("transfer-review-row");
+    expect(remaining).toHaveLength(7);
+    expect(remaining[0]).toHaveTextContent("Dates differ by 1 day.");
+    expect(remaining[6]).toHaveTextContent("No likely match within 7 days.");
   });
 
-  it("links the chosen match, translating the matcher's warnings", async () => {
-    const source = leg("out-1", "tfsa", "TRANSFER_OUT");
+  it("shows each likely other side as a pair of its own, naming the other", async () => {
     renderPage({
       certain: [],
       needsReview: [
-        row(source, [
+        row(leg("out-1", "tfsa", "TRANSFER_OUT"), [
           candidate(leg("in-1", "rrsp", "TRANSFER_IN"), {
             warningCodes: [{ code: "another_match" }],
-            warnings: ["Another transfer matches as well."],
           }),
           candidate(leg("in-2", "bank", "TRANSFER_IN"), {
             score: 80,
             reasonCodes: ["same_amount", "same_currency"],
             warningCodes: [{ code: "dates_differ", days: 2 }],
-            warnings: ["Dates differ by 2 day(s)."],
           }),
         ]),
       ],
     });
 
-    expect(await screen.findByText("Another transfer matches as well.")).toBeInTheDocument();
-    expect(screen.queryByText("Dates differ by 2 days.")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "+1 other match" }));
-    const later = screen.getByText("Dates differ by 2 days.").closest("button")!;
-    fireEvent.click(later);
-    expect(later).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    const rows = await screen.findAllByTestId("transfer-review-row");
+    expect(rows).toHaveLength(2);
+    expect(sides(rows[0])).toEqual(["TFSA", "RRSP"]);
+    expect(rows[0]).toHaveTextContent("Bank also matches. Link only the right one.");
+    // The rival line says it once; the core's own "another match" is not repeated.
+    expect(rows[0]).not.toHaveTextContent("Another transfer matches as well.");
+    expect(sides(rows[1])).toEqual(["TFSA", "Bank"]);
+    expect(rows[1]).toHaveTextContent("RRSP also matches. Link only the right one.");
+    expect(rows[1]).toHaveTextContent("Dates differ by 2 days.");
+    fireEvent.click(within(rows[1]).getByRole("button", { name: "Link" }));
 
     await waitFor(() =>
       expect(linkTransferPairs).toHaveBeenCalledWith([
         { activityAId: "out-1", activityBId: "in-2" },
       ]),
     );
+  });
+
+  it("shows each transfer claiming the same other side as a pair of its own", async () => {
+    const shared = leg("out-1", "tfsa", "TRANSFER_OUT");
+    renderPage({
+      certain: [],
+      needsReview: [
+        row(leg("in-1", "rrsp", "TRANSFER_IN"), [
+          candidate(shared, { warningCodes: [{ code: "another_match" }] }),
+        ]),
+        row(leg("in-2", "bank", "TRANSFER_IN"), [
+          candidate(shared, { warningCodes: [{ code: "another_match" }] }),
+        ]),
+      ],
+    });
+
+    const rows = await screen.findAllByTestId("transfer-review-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Bank also matches. Link only the right one.");
+    expect(rows[1]).toHaveTextContent("RRSP also matches. Link only the right one.");
+    fireEvent.click(within(rows[0]).getByRole("button", { name: "Link" }));
+
+    await waitFor(() =>
+      expect(linkTransferPairs).toHaveBeenCalledWith([
+        { activityAId: "in-1", activityBId: "out-1" },
+      ]),
+    );
+  });
+
+  it("opens a pair's details with its other side selected", async () => {
+    const other = candidate(leg("in-1", "rrsp", "TRANSFER_IN"), {
+      warningCodes: [{ code: "dates_differ", days: 1 }],
+    });
+    vi.mocked(findTransferMatchCandidates).mockResolvedValueOnce([other]);
+    renderPage({
+      certain: [],
+      needsReview: [row(leg("out-1", "tfsa", "TRANSFER_OUT"), [other])],
+    });
+
+    fireEvent.click(await screen.findByTestId("transfer-review-flow"));
+
+    const details = await screen.findByTestId("transfer-match-details");
+    // The other side is selected once the suggestions load, from the side
+    // money left, as the row reads.
+    await waitFor(() =>
+      expect(within(details).getByRole("row", { name: /^Account/ })).toHaveTextContent(
+        /^Account\s*TFSA\s*RRSP$/,
+      ),
+    );
+    // The core's warning flags the Date row, and only that row.
+    expect(within(details).getByRole("row", { name: /^Date/ })).toHaveTextContent(/differs/);
+    expect(within(details).getAllByText(/differs/)).toHaveLength(1);
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Link" })).toBeEnabled();
   });
 
   it("converts a matching deposit into the transfer's other side", async () => {
@@ -377,7 +487,7 @@ describe("Match transfers review", () => {
     expect(
       await screen.findByText("This becomes the other side of the transfer."),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Make it a transfer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
 
     await waitFor(() =>
       expect(convertToInternalTransfer).toHaveBeenCalledWith({
@@ -397,7 +507,9 @@ describe("Match transfers review", () => {
     renderPage({ certain: [], needsReview: [row(source, [])] });
 
     expect(await screen.findByText("No likely match within 7 days.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Not a transfer" }));
+    // The side it came from is unknown.
+    expect(sides(screen.getByTestId("transfer-review-row"))).toEqual(["No match", "Bank"]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark as external" }));
 
     await waitFor(() => expect(updateActivity).toHaveBeenCalledTimes(1));
     expect(updateActivity.mock.calls[0][0]).toMatchObject({
@@ -408,7 +520,7 @@ describe("Match transfers review", () => {
     });
   });
 
-  it("offers Not a transfer from the menu of a row with a match", async () => {
+  it("offers Mark as external, naming the account, from the menu of a row with a match", async () => {
     renderPage({
       certain: [],
       needsReview: [
@@ -421,7 +533,11 @@ describe("Match transfers review", () => {
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Not a transfer" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "Mark the TFSA transfer as external",
+      }),
+    );
 
     await waitFor(() => expect(updateActivity).toHaveBeenCalledTimes(1));
     expect(updateActivity.mock.calls[0][0]).toMatchObject({ id: "out-1" });
@@ -456,7 +572,7 @@ describe("Match transfers review", () => {
     expect(screen.queryByText(new RegExp(assetId))).not.toBeInTheDocument();
   });
 
-  it("points a row's arrow the way the money moved", async () => {
+  it("shows each row from the account money left", async () => {
     renderPage({
       certain: [],
       needsReview: [
@@ -474,10 +590,9 @@ describe("Match transfers review", () => {
     });
 
     const rows = await screen.findAllByTestId("transfer-review-row");
-    const direction = (index: number) =>
-      within(rows[index]).getByTestId("transfer-flow-arrow").getAttribute("data-direction");
-    expect(direction(0)).toBe("backward");
-    expect(direction(1)).toBe("forward");
+    for (const reviewRow of rows) {
+      expect(sides(reviewRow)).toEqual(["TFSA", "RRSP"]);
+    }
   });
 
   it("says when nothing is left to match", async () => {
