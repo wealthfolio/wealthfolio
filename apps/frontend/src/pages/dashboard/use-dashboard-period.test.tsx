@@ -31,6 +31,35 @@ describe("useDashboardPeriod", () => {
     expect(first.result.current.customRange).toBeUndefined();
   });
 
+  it("retains an Insights calendar window and its alignment on both portfolio tabs", () => {
+    localStorage.setItem(
+      "dashboard-period",
+      JSON.stringify({
+        kind: "range",
+        from: "2025-10-01",
+        to: "2026-03-31",
+        presetWindow: {
+          preset: { kind: "spending", code: "6M" },
+          anchor: "2026-09-15",
+          offset: -1,
+          alignment: "calendar",
+        },
+      }),
+    );
+    const investments = renderHook(() => useDashboardPeriod("2026-09-15"));
+    const netWorth = renderHook(() =>
+      useDashboardPeriod("2026-09-15", { key: "networth-interval", initial: "ALL" }),
+    );
+    expect(investments.result.current.selectedPreset).toBe("6M");
+    expect(dates(netWorth.result.current.range)).toEqual(["2025-10-01", "2026-03-31"]);
+    act(() => netWorth.result.current.navigation.onStep(-1));
+    expect(dates(investments.result.current.range)).toEqual(["2025-04-01", "2025-09-30"]);
+    act(() => investments.result.current.navigation.onStep(1));
+    expect(dates(netWorth.result.current.range)).toEqual(["2025-10-01", "2026-03-31"]);
+    act(() => netWorth.result.current.navigation.onStep(1));
+    expect(investments.result.current.code).toBe("6M");
+  });
+
   it("persists and synchronizes a stepped year, then clears back to the previous preset", () => {
     const investments = renderHook(() => useDashboardPeriod(TODAY));
     const netWorth = renderHook(() => useDashboardPeriod(TODAY));

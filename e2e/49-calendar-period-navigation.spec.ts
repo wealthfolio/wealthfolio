@@ -196,8 +196,8 @@ for (const mobile of [false, true]) {
           .toEqual(
             expect.arrayContaining([
               expect.objectContaining({
-                startDate: "2025-09-15T00:00:00.000Z",
-                endDate: "2026-03-15T23:59:59.999Z",
+                startDate: "2025-10-01T00:00:00.000Z",
+                endDate: "2026-03-31T23:59:59.999Z",
               }),
             ]),
           );
@@ -211,6 +211,20 @@ for (const mobile of [false, true]) {
           path: testInfo.outputPath("insights-period-navigation.png"),
           animations: "disabled",
         });
+        await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}`);
+        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+        await expect
+          .poll(() => reportRequests)
+          .toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                startDate: "2025-10-01T00:00:00.000Z",
+                endDate: "2026-03-31T23:59:59.999Z",
+              }),
+            ]),
+          );
+        await gotoAppPath(page, `/insights?tab=spending&dir=${direction}`);
+        await expect(nextInsight).toBeEnabled();
         await nextInsight.click();
         await expect(nextInsight).toBeDisabled();
         await visible(mobile ? "MTD" : "This month").click();
