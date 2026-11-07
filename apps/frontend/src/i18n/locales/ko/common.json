@@ -1,4 +1,5 @@
 {
+  "periodReturn": "{{period}} 수익률",
   "currentValue": "현재 가치",
   "app_name": "Wealthfolio",
   "welcome": "환영합니다",

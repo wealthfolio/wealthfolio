@@ -244,10 +244,9 @@ export function DashboardContent({
               </>
             )}
             <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-              {period.label}
               {period.customMonth || period.customYear !== null
-                ? ` · ${t("performance:metric.return")}`
-                : ""}
+                ? t("common:periodReturn", { period: period.label })
+                : period.label}
             </span>
           </div>
         </div>

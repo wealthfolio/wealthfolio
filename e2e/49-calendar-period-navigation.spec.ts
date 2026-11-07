@@ -106,6 +106,9 @@ for (const mobile of [false, true]) {
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}`);
         await periodButton("2024").click();
         await popup.getByRole("button", { name: "Month", exact: true }).click();
+        await expect(
+          popup.locator('[data-slot="month-year-picker"]').getByRole("button", { pressed: true }),
+        ).toHaveCount(0);
         await popup.getByRole("button", { name: /February/ }).click();
         await expect(periodButton("February 2024")).toBeVisible();
         await visible("Previous period").click();

@@ -161,6 +161,7 @@ export function SpendingDatePicker({
         <div className="p-4">
           <MonthYearPicker
             value={customMonth ?? (customYear !== null ? `${customYear}-01` : maxMonth)}
+            highlightSelection={customYear === null}
             maxDate={maxMonth}
             className="w-full max-w-none p-0 [&_.grid_button]:h-11"
             onChange={(month) => {

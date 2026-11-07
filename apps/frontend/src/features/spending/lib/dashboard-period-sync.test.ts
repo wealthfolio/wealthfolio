@@ -27,6 +27,12 @@ function spending(pick: DashboardPeriodPick) {
 }
 
 describe("dashboard period sync", () => {
+  it("keeps every supported portfolio preset readable from the shared preference", () => {
+    const codes = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ALL"] as const;
+    for (const code of codes) {
+      expect(portfolioViewForPick({ kind: "portfolio", code }, TODAY)?.code).toBe(code);
+    }
+  });
   it("shares calendar-year identity without converting it to a relative preset", () => {
     const pick: DashboardPeriodPick = { kind: "year", year: 2025 };
     expect(portfolio(pick)).toEqual({ code: null, range: ["2025-01-01", "2025-12-31"] });
