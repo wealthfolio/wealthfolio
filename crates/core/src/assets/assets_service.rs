@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
-use crate::fx::normalize_amount;
+use crate::fx::{normalize_amount, normalize_currency_code};
 use crate::quotes::{QuoteServiceTrait, SymbolSearchResult};
 use crate::taxonomies::TaxonomyServiceTrait;
 use crate::utils::isin::looks_like_isin;
@@ -1299,6 +1299,7 @@ impl AssetService {
         .await
     }
 
+    /// Merges the provider profile into the asset without emitting an event.
     async fn enrich_asset_profile_silent(&self, asset_id: &str) -> Result<AssetEnrichmentOutcome> {
         // Get the existing asset
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
@@ -1442,8 +1443,15 @@ impl AssetService {
             existing_asset.instrument_exchange_mic.as_deref(),
             Some(provider_profile.currency.as_str()),
         );
+        // Profiles carry no currency, so `canonical` holds the exchange's. It only
+        // fixes the unit (GBP to GBp): CSPX on XLON trades in USD and stays USD.
         let resolved_quote_ccy = canonical
             .quote_ccy
+            .filter(|ccy| {
+                existing_asset.quote_ccy.trim().is_empty()
+                    || normalize_currency_code(ccy)
+                        == normalize_currency_code(&existing_asset.quote_ccy)
+            })
             .unwrap_or_else(|| existing_asset.quote_ccy.clone());
 
         // Build profile update from provider data
@@ -6295,6 +6303,42 @@ mod tests {
             asset_ids,
             &vec!["option-a".to_string(), "option-b".to_string()]
         );
+    }
+
+    /// #2532: a USD-traded London ETF kept its quote currency until the first
+    /// enrichment, which reported none and so took the exchange's GBp. The
+    /// exchange still fixes the unit of a pence-quoted listing stored as GBP.
+    #[tokio::test]
+    async fn enrichment_keeps_a_listing_currency_other_than_the_exchanges() {
+        let listing = |id: &str, symbol: &str, quote_ccy: &str| Asset {
+            id: id.to_string(),
+            instrument_symbol: Some(symbol.to_string()),
+            instrument_exchange_mic: Some("XLON".to_string()),
+            quote_ccy: quote_ccy.to_string(),
+            ..test_market_asset()
+        };
+        let repo = Arc::new(TestAssetRepository::with_assets(vec![
+            listing("cspx", "CSPX", "USD"),
+            listing("vod", "VOD", "GBP"),
+        ]));
+        let quotes = TestQuoteService::default();
+        for symbol in ["CSPX", "VOD"] {
+            quotes.profiles.lock().unwrap().insert(
+                symbol.to_string(),
+                ProviderProfile {
+                    symbol: symbol.to_string(),
+                    data_source: "YAHOO".to_string(),
+                    ..Default::default()
+                },
+            );
+        }
+        let service = AssetService::new(repo.clone(), Arc::new(quotes)).unwrap();
+
+        service.enrich_asset_profile("cspx").await.unwrap();
+        service.enrich_asset_profile("vod").await.unwrap();
+
+        assert_eq!(repo.get_by_id("cspx").unwrap().quote_ccy, "USD");
+        assert_eq!(repo.get_by_id("vod").unwrap().quote_ccy, "GBp");
     }
 
     fn test_market_asset() -> Asset {
