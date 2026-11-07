@@ -69,6 +69,25 @@ pub trait HoldingsServiceTrait: Send + Sync {
 
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
 
+    /// Account rows and availability together, without merging accounts.
+    async fn get_holdings_by_account_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        let mut scope = HoldingsScope::default();
+        for id in account_ids {
+            let account = self
+                .get_holdings_scope(std::slice::from_ref(id), base_currency, id, false)
+                .await?;
+            scope.holdings.extend(account.holdings);
+            scope
+                .incomplete_accounts
+                .extend(account.incomplete_accounts);
+        }
+        Ok(scope)
+    }
+
     /// Per-account rows for an asset, captured together without aggregating accounts.
     async fn get_asset_holdings_scope(
         &self,
@@ -1169,6 +1188,22 @@ mod expired_option_metadata_tests {
 
 #[async_trait]
 impl HoldingsServiceTrait for HoldingsService {
+    async fn get_holdings_by_account_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        self.read_scope(
+            account_ids,
+            base_currency,
+            "accounts",
+            false,
+            None,
+            ReadView::Accounts,
+        )
+        .await
+    }
+
     async fn get_holdings_scope(
         &self,
         account_ids: &[String],
@@ -4065,6 +4100,68 @@ mod tests {
             assert_eq!(scope.require_complete().unwrap()[0].quantity, dec!(1));
         }
 
+        #[tokio::test]
+        async fn quote_updates_and_failed_revaluation_preserve_current_accounting() {
+            let account = account("transaction", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            fixture.quotes.add_quotes(vec![crate::quotes::Quote {
+                id: "updated-close".into(),
+                asset_id: ASSET_ID.into(),
+                timestamp: fixture.now,
+                close: dec!(120),
+                currency: "CAD".into(),
+                ..Default::default()
+            }]);
+            fixture
+                .store
+                .invalidate(
+                    MarkerScope::Prices(ASSET_ID.into()),
+                    fixture.now.date_naive(),
+                )
+                .await
+                .unwrap();
+            for failed in [false, true] {
+                if failed {
+                    fixture.store.fail_next_completion();
+                    coordinator
+                        .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                        .await
+                        .unwrap();
+                }
+                let scope = holdings
+                    .get_holdings_scope(
+                        std::slice::from_ref(&account.id),
+                        "CAD",
+                        &account.id,
+                        false,
+                    )
+                    .await
+                    .unwrap();
+                assert!(
+                    scope.incomplete_accounts.is_empty(),
+                    "quote-only changes do not invalidate accounting: {failed}"
+                );
+                let row = scope
+                    .require_complete()
+                    .unwrap()
+                    .into_iter()
+                    .find(|row| row.instrument.is_some())
+                    .unwrap();
+                assert_eq!(row.quantity, dec!(1));
+                assert_eq!(row.cost_basis, Some(money(dec!(100), dec!(100))));
+                assert_eq!(row.market_value, money(dec!(120), dec!(120)));
+                assert!(fixture
+                    .store
+                    .pending_markers()
+                    .unwrap()
+                    .iter()
+                    .all(|marker| !matches!(marker.scope, MarkerScope::Account(_))));
+            }
+        }
+
         #[test]
         fn asset_scope_does_not_certify_unknown_positions_as_unrelated() {
             let read = HoldingsRead {
@@ -4103,7 +4200,6 @@ mod tests {
                 MarkerScope::Fx("USD/CAD".into()),
                 MarkerScope::Account("third".into()),
                 MarkerScope::Asset(ASSET_ID.into()),
-                MarkerScope::Prices(ASSET_ID.into()),
             ] {
                 read.markers = vec![crate::portfolio::projection::ProjectionMarker {
                     scope,
@@ -4112,6 +4208,12 @@ mod tests {
                 }];
                 assert!(read.history_pending("first", day));
             }
+            read.markers = vec![crate::portfolio::projection::ProjectionMarker {
+                scope: MarkerScope::Prices(ASSET_ID.into()),
+                dirty_from: day,
+                version: 1,
+            }];
+            assert!(!read.history_pending("first", day));
             read.markers = vec![crate::portfolio::projection::ProjectionMarker {
                 scope: MarkerScope::Account("unrelated".into()),
                 dirty_from: day,

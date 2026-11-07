@@ -457,7 +457,8 @@ impl PortfolioCoordinator {
             resolved,
             cadence: self.deps.window_cadence,
         };
-        // Fence all attempted account writes, including unmarked day advances.
+        // Fence accounting writes, including unmarked day advances. Price-only
+        // revaluation does not replace positions or the lot book.
         // Keep the captured versions for a failure just as for successful publication.
         let fenced = self
             .deps
@@ -466,7 +467,6 @@ impl PortfolioCoordinator {
                 &plan
                     .refold
                     .iter()
-                    .chain(plan.revalue.iter())
                     .map(|(id, from)| (id.clone(), *from))
                     .collect::<Vec<_>>(),
             )

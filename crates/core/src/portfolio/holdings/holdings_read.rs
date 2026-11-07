@@ -207,7 +207,8 @@ impl HoldingsRead {
         self.markers.iter().any(|marker| match &marker.scope {
             MarkerScope::All | MarkerScope::Fx(_) => true,
             MarkerScope::Account(id) => accounts.contains(id),
-            MarkerScope::Asset(id) | MarkerScope::Prices(id) => assets.contains(id.as_str()),
+            MarkerScope::Asset(id) => assets.contains(id.as_str()),
+            MarkerScope::Prices(_) => false,
         }) || self
             .last_valued
             .get(account_id)

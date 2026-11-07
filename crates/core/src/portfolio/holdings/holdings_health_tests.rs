@@ -111,6 +111,11 @@ async fn health_checks_continue_with_pending_unavailable_and_failed_accounts() {
         let status = fixture
             .full_health_status(accounts, coordinator, holdings, snapshots, "CAD")
             .await;
+        assert_eq!(
+            fixture.store.holdings_read_count(),
+            1,
+            "a full health run must capture holdings once"
+        );
         assert!(
             status
                 .issues
@@ -206,6 +211,10 @@ async fn health_missing_fx_keeps_the_base_impact_unknown() {
         .expect("missing FX remains a health issue");
     assert_eq!(fx.affected_count, 1);
     assert_eq!(fx.affected_mv_pct, None);
+    assert!(status
+        .issues
+        .iter()
+        .all(|issue| issue.affected_mv_pct.is_none()));
     assert!(fx.diagnostics.as_ref().unwrap()[0].evidence[0]
         .value
         .contains("unknown"));

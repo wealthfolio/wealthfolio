@@ -159,9 +159,7 @@ impl FxIntegrityCheck {
 
         // Emit issue for missing FX pairs (Error level)
         if !missing_pairs.is_empty() {
-            let mv_pct = missing_mv
-                .filter(|_| ctx.total_portfolio_value > 0.0)
-                .map(|value| value / ctx.total_portfolio_value);
+            let mv_pct = missing_mv.and_then(|value| ctx.affected_mv_pct(value));
 
             let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
@@ -221,9 +219,7 @@ impl FxIntegrityCheck {
 
         // Emit issue for critically stale FX rates (Error level)
         if !stale_error_pairs.is_empty() {
-            let mv_pct = stale_error_mv
-                .filter(|_| ctx.total_portfolio_value > 0.0)
-                .map(|value| value / ctx.total_portfolio_value);
+            let mv_pct = stale_error_mv.and_then(|value| ctx.affected_mv_pct(value));
 
             let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
@@ -282,9 +278,7 @@ impl FxIntegrityCheck {
 
         // Emit issue for slightly stale FX rates (Warning level)
         if !stale_warning_pairs.is_empty() {
-            let mv_pct = stale_warning_mv
-                .filter(|_| ctx.total_portfolio_value > 0.0)
-                .map(|value| value / ctx.total_portfolio_value);
+            let mv_pct = stale_warning_mv.and_then(|value| ctx.affected_mv_pct(value));
 
             let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
