@@ -1318,7 +1318,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .select(ActivityDB::as_select())
             .find(activity_id)
             .first::<ActivityDB>(&mut conn)
-            .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
+            .map_err(ActivityError::from)?;
         Ok(Activity::from(activity_db))
     }
 
@@ -3466,6 +3466,30 @@ mod tests {
 
     fn insert_account(conn: &mut SqliteConnection, account_id: &str) {
         insert_account_with_archived(conn, account_id, false);
+    }
+
+    /// Callers tell a missing activity from a failed read by the error kind, so
+    /// only a missing row may be `NotFound`.
+    #[tokio::test]
+    async fn get_activity_reports_a_missing_row_as_not_found_and_other_errors_as_database() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+
+        let error = repo.get_activity("missing").unwrap_err();
+        assert!(
+            matches!(&error, Error::Activity(ActivityError::NotFound(_))),
+            "expected NotFound, got {error:?}"
+        );
+
+        let mut conn = get_connection(&pool).expect("conn");
+        diesel::sql_query("ALTER TABLE activities RENAME TO activities_unreadable")
+            .execute(&mut conn)
+            .expect("break the table");
+        let error = repo.get_activity("missing").unwrap_err();
+        assert!(
+            matches!(&error, Error::Activity(ActivityError::DatabaseError(_))),
+            "expected DatabaseError, got {error:?}"
+        );
     }
 
     fn insert_account_with_archived(conn: &mut SqliteConnection, account_id: &str, archived: bool) {

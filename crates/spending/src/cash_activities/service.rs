@@ -10,9 +10,10 @@ use wealthfolio_core::accounts::{
 };
 use wealthfolio_core::activities::{
     application_order, running_cash_balances, shows_running_cash_balance, Activity,
-    ActivityCashBalance, ActivityRepositoryTrait, CashLedgerActivity, TransferPairResolution,
-    ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
+    ActivityCashBalance, ActivityError, ActivityRepositoryTrait, CashLedgerActivity,
+    TransferPairResolution, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
 };
+use wealthfolio_core::errors::Error as CoreError;
 use wealthfolio_core::taxonomies::TaxonomyServiceTrait;
 use wealthfolio_core::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default};
 
@@ -1218,7 +1219,15 @@ impl CashActivityService {
         let activity = self
             .activity_repo
             .get_activity(activity_id)
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            .map_err(|e| match e {
+                CoreError::Activity(ActivityError::NotFound(_)) => {
+                    anyhow::Error::from(SpendingError::NotFound {
+                        entity: "Activity",
+                        id: activity_id.to_string(),
+                    })
+                }
+                other => anyhow::anyhow!(other.to_string()),
+            })?;
         if !s.account_ids.iter().any(|id| id == &activity.account_id) {
             return Err(SpendingError::InvalidInput {
                 message: "Activity account is not opted into spending tracking".to_string(),
@@ -1622,6 +1631,9 @@ mod tests {
         }
     }
 
+    /// An id whose lookup fails with a database error, not a missing row.
+    const UNREADABLE_ACTIVITY: &str = "unreadable";
+
     struct MockActivityRepo {
         activities: Vec<Activity>,
         /// Calls to `get_activities_by_account_ids`, the full-history read.
@@ -1630,18 +1642,17 @@ mod tests {
 
     #[async_trait]
     impl ActivityRepositoryTrait for MockActivityRepo {
+        /// Fails like the SQLite repository: a missing row is `NotFound`, and
+        /// any other read error (the `UNREADABLE_ACTIVITY` id) is not.
         fn get_activity(&self, activity_id: &str) -> wealthfolio_core::Result<Activity> {
+            if activity_id == UNREADABLE_ACTIVITY {
+                return Err(ActivityError::DatabaseError("disk I/O error".to_string()).into());
+            }
             self.activities
                 .iter()
                 .find(|activity| activity.id == activity_id)
                 .cloned()
-                .ok_or_else(|| {
-                    wealthfolio_core::errors::Error::Validation(
-                        wealthfolio_core::errors::ValidationError::InvalidInput(
-                            "not found".to_string(),
-                        ),
-                    )
-                })
+                .ok_or_else(|| ActivityError::NotFound("Record not found".to_string()).into())
         }
 
         fn get_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
@@ -3689,6 +3700,59 @@ mod tests {
             .unwrap();
         assert_eq!(written.len(), 3);
         assert_eq!(activity_repo.account_loads.load(Ordering::SeqCst), 2);
+    }
+
+    /// An activity id the client got wrong is a "not found" the client can act
+    /// on, not a server fault. Reads that fail for other reasons stay faults.
+    #[tokio::test]
+    async fn unknown_activity_is_not_found_and_other_read_errors_are_not() {
+        let (service, assignments, _) = make_service(activity("WITHDRAWAL"));
+        let not_found = |error: anyhow::Error| match error.downcast_ref::<SpendingError>() {
+            Some(SpendingError::NotFound { entity, id }) => {
+                assert_eq!(*entity, "Activity");
+                id.clone()
+            }
+            other => panic!("expected NotFound, got {other:?}: {error}"),
+        };
+
+        let error = service
+            .assign_category("missing", SPENDING_TAXONOMY, "groceries")
+            .await
+            .unwrap_err();
+        assert_eq!(not_found(error), "missing");
+        let error = service
+            .unassign_category("missing", SPENDING_TAXONOMY)
+            .await
+            .unwrap_err();
+        assert_eq!(not_found(error), "missing");
+        let error = service.list_splits("missing").await.unwrap_err();
+        assert_eq!(not_found(error), "missing");
+        let error = service
+            .bulk_assign_categories(&[
+                BulkCategoryAssignment {
+                    activity_id: "activity-1".to_string(),
+                    taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                    category_id: "groceries".to_string(),
+                    expected_splits: None,
+                },
+                BulkCategoryAssignment {
+                    activity_id: "missing".to_string(),
+                    taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                    category_id: "groceries".to_string(),
+                    expected_splits: None,
+                },
+            ])
+            .await
+            .unwrap_err();
+        assert_eq!(not_found(error), "missing");
+        assert!(assignments.assignments.lock().unwrap().is_empty());
+
+        let error = service
+            .assign_category(UNREADABLE_ACTIVITY, SPENDING_TAXONOMY, "groceries")
+            .await
+            .unwrap_err();
+        assert!(error.downcast_ref::<SpendingError>().is_none());
+        assert!(error.to_string().contains("disk I/O error"));
     }
 
     #[tokio::test]
