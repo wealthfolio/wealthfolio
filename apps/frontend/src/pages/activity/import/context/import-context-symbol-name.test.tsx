@@ -99,7 +99,7 @@ it("keeps a reviewed asset name through validation, revalidation, and fallback c
 
   const previewAsset: NewAsset = {
     kind: "INVESTMENT",
-    name: "Example Credit Bond Fund",
+    name: "Provider Fund Name",
     displayCode: "EXCFX",
     isActive: true,
     quoteMode: "MARKET",
@@ -125,6 +125,7 @@ it("keeps a reviewed asset name through validation, revalidation, and fallback c
   expect(context().state.draftActivities[0].symbolName).toBeUndefined();
 
   fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByLabelText("Name")).toHaveValue("Provider Fund Name");
   fireEvent.change(screen.getByLabelText("Name"), {
     target: { value: "Example Credit Bond Fund" },
   });
