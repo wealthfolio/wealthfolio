@@ -1,23 +1,44 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Dialog, DialogContent, DialogTitle } from "@wealthfolio/ui";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileStackContext, type MobileStackContextValue } from "./mobile-stack-contexts";
 import { MobileStackOutlet } from "./mobile-stack-outlet";
 import { applyNavigation, coldStart, type StackConfig, type StackState } from "./stack-model";
 
-const pages = vi.hoisted(() => ({ withPopup: false, withField: false }));
-// Each screen's page: nothing, an open dialog titled with the page's path, or a
-// text field labelled with it.
+const pages = vi.hoisted(() => ({ withPopup: false, withField: false, withLateHeading: false }));
+// Each screen's page: nothing, an open dialog titled with the page's path, a
+// text field labelled with it, or a heading with it once loading ends.
 vi.mock("@/app-screen-routes", () => ({
   AppScreenRoutes: ({ location }: { location?: { pathname: string } }) =>
     pages.withPopup ? (
       <PagePopup title={location?.pathname ?? ""} />
     ) : pages.withField ? (
       <input aria-label={location?.pathname} />
+    ) : pages.withLateHeading ? (
+      <LateHeading title={location?.pathname ?? ""} />
     ) : null,
 }));
+
+// Whether pages showing a heading once loaded have finished loading.
+const loading = {
+  done: false,
+  listeners: new Set<() => void>(),
+  finish() {
+    loading.done = true;
+    for (const listener of loading.listeners) listener();
+  },
+  subscribe(listener: () => void) {
+    loading.listeners.add(listener);
+    return () => loading.listeners.delete(listener);
+  },
+};
+
+function LateHeading({ title }: { title: string }) {
+  const done = useSyncExternalStore(loading.subscribe, () => loading.done);
+  return done ? <h1>{title}</h1> : <p>Loading</p>;
+}
 
 function PagePopup({ title }: { title: string }) {
   return (
@@ -263,6 +284,145 @@ describe("a back swipe in the iOS app", () => {
 describe("focus after a push", () => {
   afterEach(() => {
     pages.withPopup = false;
+    pages.withLateHeading = false;
+    loading.done = false;
+    vi.restoreAllMocks();
+  });
+
+  async function pushLoadingScreen(overrides: Partial<MobileStackContextValue> = {}) {
+    pages.withLateHeading = true;
+    const view = render(outletFor(stackOf(1)), { reactStrictMode: true });
+    const { container, rerender } = view;
+    rerender(outletFor(stackOf(2), overrides));
+    const layer = container.querySelector<HTMLElement>('[data-stack-screen="holdings:1"]')!;
+    const under = container.querySelector<HTMLElement>('[data-stack-screen="holdings:0"]')!;
+    // Still loading when the push settles, so the screen itself takes focus.
+    await waitFor(() => expect(under).not.toBeVisible());
+    await waitFor(() => expect(document.activeElement).toBe(layer));
+    return { ...view, layer };
+  }
+
+  it.each([false, true])("moves focus to a late heading (instant push: %s)", async (instant) => {
+    const { layer } = await pushLoadingScreen({ historyDriven: instant, popAnimated: instant });
+    act(() => loading.finish());
+    const heading = await waitFor(() => {
+      const found = layer.querySelector("h1");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  it("leaves focus where the user moved it before the heading renders", async () => {
+    const { layer } = await pushLoadingScreen();
+    const elsewhere = document.createElement("button");
+    document.body.append(elsewhere);
+    try {
+      elsewhere.focus();
+      act(() => loading.finish());
+      await waitFor(() => expect(layer.querySelector("h1")).not.toBeNull());
+      expect(document.activeElement).toBe(elsewhere);
+    } finally {
+      elsewhere.remove();
+    }
+  });
+
+  function switchTab(state: StackState) {
+    return applyNavigation(
+      state,
+      {
+        action: "PUSH",
+        location: { pathname: "/settings", search: "", hash: "", state: null, key: "settings" },
+      },
+      {
+        ...config,
+        tabs: [...config.tabs, { id: "settings", rootPath: "/settings" }],
+        topLevelPaths: [...config.topLevelPaths, "/settings"],
+      },
+    );
+  }
+
+  it.each(["push", "pop", "tab switch", "unmount"] as const)(
+    "stops watching the loading screen on %s",
+    async (navigation) => {
+      const observe = vi.spyOn(MutationObserver.prototype, "observe");
+      const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
+      const { layer, rerender, unmount } = await pushLoadingScreen();
+      const index = observe.mock.calls.findIndex(([target]) => target === layer);
+      expect(index).toBeGreaterThanOrEqual(0);
+      const observer = observe.mock.contexts[index];
+      expect(disconnect.mock.contexts).not.toContain(observer);
+      if (navigation === "unmount") {
+        unmount();
+      } else {
+        const next =
+          navigation === "tab switch"
+            ? switchTab(stackOf(2))
+            : stackOf(navigation === "push" ? 3 : 1);
+        rerender(outletFor(next));
+      }
+      expect(disconnect.mock.contexts).toContain(observer);
+    },
+  );
+
+  it("does not focus an inert screen when a tab switch interrupts its push", async () => {
+    const observe = vi.spyOn(MutationObserver.prototype, "observe");
+    pages.withLateHeading = true;
+    const { container, rerender } = render(outletFor(stackOf(1)), { reactStrictMode: true });
+    rerender(outletFor(stackOf(2)));
+    rerender(outletFor(switchTab(stackOf(2))));
+    const hidden = container.querySelector<HTMLElement>('[data-stack-screen="holdings:1"]')!;
+    expect(hidden).not.toBeVisible();
+    expect(hidden).toHaveAttribute("inert");
+    expect(document.activeElement).not.toBe(hidden);
+    expect(observe.mock.calls.some(([target]) => target === hidden)).toBe(false);
+  });
+
+  it("keeps waiting when the same screen updates its URL", async () => {
+    const { layer, rerender } = await pushLoadingScreen();
+    const updated = applyNavigation(
+      stackOf(2),
+      {
+        action: "REPLACE",
+        location: {
+          pathname: "/holdings/A1",
+          search: "?tab=activities",
+          hash: "",
+          state: null,
+          key: "section",
+        },
+      },
+      config,
+    );
+    rerender(outletFor(updated));
+    act(() => loading.finish());
+    await waitFor(() => expect(document.activeElement).toBe(layer.querySelector("h1")));
+  });
+
+  it("focuses a heading already rendered when the push settles", async () => {
+    pages.withLateHeading = true;
+    loading.done = true;
+    const { container, rerender } = render(outletFor(stackOf(1)), { reactStrictMode: true });
+    rerender(outletFor(stackOf(2)));
+    const layer = container.querySelector<HTMLElement>('[data-stack-screen="holdings:1"]')!;
+    await waitFor(() => expect(document.activeElement).toBe(layer.querySelector("h1")));
+  });
+
+  it("restores focus on pop without moving it when the heading renders", async () => {
+    const { layer, rerender, container } = await pushLoadingScreen();
+    const field = document.createElement("input");
+    layer.append(field);
+    field.focus();
+    rerender(outletFor(stackOf(3)));
+    await waitFor(() => expect(layer).not.toBeVisible());
+    rerender(outletFor(stackOf(2)));
+    await waitFor(() =>
+      expect(container.querySelector('[data-stack-screen="holdings:2"]')).toBeNull(),
+    );
+    expect(document.activeElement).toBe(field);
+    act(() => loading.finish());
+    await waitFor(() => expect(layer.querySelector("h1")).not.toBeNull());
+    expect(document.activeElement).toBe(field);
   });
 
   it("leaves focus in a dialog the pushed screen's page opened", async () => {
