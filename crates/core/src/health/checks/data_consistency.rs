@@ -1822,6 +1822,13 @@ mod tests {
             issues[0].details.as_deref(),
             Some("Brokerage — 2025-01-06\nno USD/GBp rate on 2025-01-06\nActivity: buy-1")
         );
+        // The issue sheet shows details only beside its single fallback
+        // diagnostic (`isFallbackDiagnosticIssue` in issue-detail-sheet.tsx).
+        let diagnostics = issues[0].diagnostics.as_deref().expect("diagnostics");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "REJECTED_ACTIVITY");
+        assert_eq!(diagnostics[0].title, issues[0].title);
+        assert_eq!(diagnostics[0].explanation, issues[0].message);
     }
 
     #[test]
