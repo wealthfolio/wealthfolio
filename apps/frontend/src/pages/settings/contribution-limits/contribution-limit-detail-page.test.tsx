@@ -29,7 +29,6 @@ const accounts: Account[] = ["retirement", "source"].map((id) => ({
   id,
   name: id === "retirement" ? "Current plan" : "Old plan",
   accountType: "SECURITIES",
-  balance: 0,
   currency: "USD",
   isDefault: false,
   isActive: id !== "source",

@@ -79,7 +79,6 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string; // Optional
-  balance: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;

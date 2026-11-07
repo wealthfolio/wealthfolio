@@ -158,7 +158,6 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string;
-  balance: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;

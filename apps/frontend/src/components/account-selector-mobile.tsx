@@ -66,7 +66,6 @@ function createPortfolioAccount(baseCurrency: string, t: TFunction): UIAccount {
     isArchived: false,
     trackingMode: "NOT_SET",
     isDefault: false,
-    balance: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

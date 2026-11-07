@@ -28,7 +28,6 @@ const account = (id: string, overrides: Partial<Account> = {}): Account => ({
   id,
   name: id,
   accountType: AccountType.SECURITIES,
-  balance: 0,
   currency: "USD",
   isDefault: false,
   isActive: true,

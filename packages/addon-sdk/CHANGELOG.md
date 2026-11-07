@@ -11,6 +11,12 @@ and this project adheres to
 - `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
   dividends. `income` still counts every income type. Absent on older hosts.
 
+### Fixed
+
+- Removed `Account.balance` from the SDK type to match the account metadata
+  returned by `accounts.getAll()` and `accounts.create()`. For account values,
+  use `portfolio.getLatestValuations()` with the required portfolio permission.
+
 ## [3.12.0] - 2026-11-01
 
 ### Added
