@@ -315,10 +315,11 @@ it("keeps the mobile sheet open and blocks navigation while restoring", async ()
     Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
   }
 });
-it("wraps the explanation and truncates only a backup name", () => {
+it("wraps the explanation and truncates only a backup name", async () => {
   const local = mount("/backups/backup.wfbackup");
   expect(screen.getByText(copy.backup_import_description)).not.toHaveClass("truncate");
   local.unmount();
   mount(undefined, true);
   expect(screen.getByText("Selected cloud backup")).toHaveClass("truncate");
+  await screen.findByText(copy.backup_destination_encrypted);
 });
