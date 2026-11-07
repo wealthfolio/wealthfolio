@@ -2,6 +2,7 @@ import { LiquidGlass } from "@/components/liquid-glass";
 import { ProfileMenu } from "@/features/profiles/profile-menu";
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
+import { CONNECT_ENABLED } from "@/lib/connect-config";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Icons } from "@wealthfolio/ui";
 import { motion } from "motion/react";
@@ -121,34 +122,36 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
               </span>
             </button>
             {/* Connect with status icon */}
-            <Link
-              to="/connect"
-              onClick={() =>
-                handleNavigation("/connect", isPathActive(location.pathname, "/connect"))
-              }
-              aria-label={t("common:connect")}
-              className={baseButtonClass}
-              aria-current={isPathActive(location.pathname, "/connect") ? "page" : undefined}
-            >
-              {isPathActive(location.pathname, "/connect") && (
-                <motion.div
-                  layoutId={`floating-nav-indicator-${uniqueId}`}
-                  className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
-                  initial={false}
-                  transition={{
-                    type: "spring",
-                    stiffness: 400,
-                    damping: 30,
-                  }}
-                />
-              )}
-              <span
-                className="relative flex size-7 shrink-0 items-center justify-center outline-none"
-                aria-hidden="true"
+            {CONNECT_ENABLED && (
+              <Link
+                to="/connect"
+                onClick={() =>
+                  handleNavigation("/connect", isPathActive(location.pathname, "/connect"))
+                }
+                aria-label={t("common:connect")}
+                className={baseButtonClass}
+                aria-current={isPathActive(location.pathname, "/connect") ? "page" : undefined}
               >
-                <SyncStatusIcon status={syncStatus} className="size-6" />
-              </span>
-            </Link>
+                {isPathActive(location.pathname, "/connect") && (
+                  <motion.div
+                    layoutId={`floating-nav-indicator-${uniqueId}`}
+                    className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
+                    initial={false}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 30,
+                    }}
+                  />
+                )}
+                <span
+                  className="relative flex size-7 shrink-0 items-center justify-center outline-none"
+                  aria-hidden="true"
+                >
+                  <SyncStatusIcon status={syncStatus} className="size-6" />
+                </span>
+              </Link>
+            )}
             {hasMoreItems && (
               <DropdownMenu open={overflowOpen} onOpenChange={setOverflowOpen}>
                 <DropdownMenuTrigger
