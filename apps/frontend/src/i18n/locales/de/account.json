@@ -179,7 +179,16 @@
     "open": "Offen",
     "due": "Fällig am {{date}}",
     "statement_balance": "Saldo bei Abschluss",
-    "balance_so_far": "Bisheriger Saldo",
-    "balance_hint": "Die Salden beruhen auf erfassten Buchungen einschließlich früherer unbezahlter Schulden. Positive Beträge sind geschuldet, negative sind Guthaben. Spätere Zahlungen ändern den Saldo einer abgeschlossenen Abrechnung nicht."
+    "balance_hint": "Die Salden beruhen auf erfassten Buchungen einschließlich früherer unbezahlter Schulden. Positive Beträge sind geschuldet, negative sind Guthaben. Spätere Zahlungen ändern den Saldo einer abgeschlossenen Abrechnung nicht. Er zeigt daher nicht, wie viel heute noch zu zahlen ist.",
+    "manage": "Abrechnung verwalten",
+    "current_balance": "Aktueller Saldo",
+    "last_closed": "Letzte abgeschlossene Abrechnung",
+    "closes_on": "Abschluss am",
+    "closed_on": "Abgeschlossen am",
+    "payment_due": "Zahlungsfrist",
+    "current_hint": "Enthält erfasste Zahlungen und frühere Schulden.",
+    "closed_hint": "Saldo bei Abschluss. Spätere Zahlungen sind nicht abgezogen.",
+    "view_transactions": "Buchungen anzeigen",
+    "calculation_help": "So werden Salden berechnet"
   }
 }

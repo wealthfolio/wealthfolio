@@ -181,7 +181,16 @@
     "open": "Abierto",
     "due": "Vence el {{date}}",
     "statement_balance": "Saldo al cierre",
-    "balance_so_far": "Saldo hasta ahora",
-    "balance_hint": "Los saldos usan las transacciones registradas, incluida la deuda anterior pendiente. Los importes positivos se deben; los negativos son crédito. Los pagos posteriores no cambian el saldo de un estado cerrado."
+    "balance_hint": "Los saldos usan las transacciones registradas, incluida la deuda anterior pendiente. Los importes positivos se deben; los negativos son crédito. Los pagos posteriores no cambian el saldo de un estado cerrado, por lo que no indica cuánto queda por pagar hoy.",
+    "manage": "Configurar facturación",
+    "current_balance": "Saldo actual",
+    "last_closed": "Último estado cerrado",
+    "closes_on": "Cierra el",
+    "closed_on": "Cerró el",
+    "payment_due": "Vencimiento",
+    "current_hint": "Incluye pagos registrados y deudas anteriores.",
+    "closed_hint": "Saldo al cierre. No descuenta pagos posteriores.",
+    "view_transactions": "Ver transacciones",
+    "calculation_help": "Cómo se calculan los saldos"
   }
 }

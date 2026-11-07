@@ -179,7 +179,16 @@
     "open": "Open",
     "due": "Due {{date}}",
     "statement_balance": "Statement balance",
-    "balance_so_far": "Balance so far",
-    "balance_hint": "Balances use your recorded transactions, including earlier unpaid debt. Positive amounts are owed; negative amounts are credit. Later payments do not change a closed statement balance."
+    "balance_hint": "Balances use your recorded transactions, including earlier unpaid debt. Positive amounts are owed; negative amounts are credit. Later payments do not change a closed statement balance, so it does not show what remains due today.",
+    "manage": "Manage billing",
+    "current_balance": "Current balance",
+    "last_closed": "Last closed statement",
+    "closes_on": "Closes on",
+    "closed_on": "Closed on",
+    "payment_due": "Payment due",
+    "current_hint": "Includes recorded payments and earlier debt.",
+    "closed_hint": "Balance at closing. Later payments aren’t deducted.",
+    "view_transactions": "View transactions",
+    "calculation_help": "How balances are calculated"
   }
 }

@@ -178,7 +178,16 @@
     "open": "未结账",
     "due": "{{date}} 到期",
     "statement_balance": "结账余额",
-    "balance_so_far": "当前余额",
-    "balance_hint": "余额依据已记录的交易计算，包含此前未偿还的债务。正数表示欠款，负数表示溢缴款。之后的还款不会改变已结账账单的余额。"
+    "balance_hint": "余额依据已记录的交易计算，包含此前未偿还的债务。正数表示欠款，负数表示溢缴款。之后的还款不会改变已结账账单的余额，因此该余额不表示今天尚需还款的金额。",
+    "manage": "账单设置",
+    "current_balance": "当前余额",
+    "last_closed": "最近已结账账单",
+    "closes_on": "结账日期",
+    "closed_on": "已结账日期",
+    "payment_due": "还款到期日",
+    "current_hint": "包含已记录的还款和此前欠款。",
+    "closed_hint": "结账时的余额，不扣除之后的还款。",
+    "view_transactions": "查看交易",
+    "calculation_help": "余额如何计算"
   }
 }

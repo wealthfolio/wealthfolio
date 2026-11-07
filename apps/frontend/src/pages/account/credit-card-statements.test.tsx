@@ -91,6 +91,30 @@ describe("CreditCardStatements", () => {
     expect(screen.getByText(/132\.05/)).toBeInTheDocument();
     expect(screen.getByText(/62\.05/)).toBeInTheDocument();
     expect(screen.getByText(/9\.99/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Current balance" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Last closed statement" })).toBeInTheDocument();
+    expect(screen.getByText("Balance at closing. Later payments aren’t deducted.")).toBeVisible();
+    expect(screen.getAllByRole("link", { name: /View transactions/ })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Manage billing" })).toHaveAttribute(
+      "href",
+      "/settings/accounts",
+    );
+  });
+
+  it("keeps history and calculation details collapsed without hiding the balance warning", async () => {
+    mount();
+    await screen.findByRole("heading", { name: "Current balance" });
+    const help = screen.getByText("How balances are calculated").closest("details");
+    const history = screen.getByText("Previous statements").closest("details");
+    expect(help).not.toHaveAttribute("open");
+    expect(history).not.toHaveAttribute("open");
+    expect(screen.getByText("Balance at closing. Later payments aren’t deducted.")).toBeVisible();
+    fireEvent.click(screen.getByText("How balances are calculated"));
+    expect(help).toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Previous statements"));
+    expect(history).toHaveAttribute("open");
+    expect(screen.getByText(/100\.00/)).toBeVisible();
+    expect(mocks.get).toHaveBeenCalledTimes(1);
   });
 
   it("shows an error with a working retry instead of a zero balance", async () => {

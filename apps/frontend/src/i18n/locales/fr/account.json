@@ -181,7 +181,16 @@
     "open": "En cours",
     "due": "Échéance le {{date}}",
     "statement_balance": "Solde à la clôture",
-    "balance_so_far": "Solde actuel",
-    "balance_hint": "Les soldes utilisent les opérations enregistrées, y compris les dettes antérieures impayées. Un montant positif est dû ; un montant négatif est un crédit. Les paiements ultérieurs ne modifient pas le solde d’un relevé clôturé."
+    "balance_hint": "Les soldes utilisent les opérations enregistrées, y compris les dettes antérieures impayées. Un montant positif est dû ; un montant négatif est un crédit. Les paiements ultérieurs ne modifient pas le solde d’un relevé clôturé : il n’indique donc pas le montant restant à payer aujourd’hui.",
+    "manage": "Configurer la facturation",
+    "current_balance": "Solde actuel",
+    "last_closed": "Dernier relevé clôturé",
+    "closes_on": "Clôture le",
+    "closed_on": "Clôturé le",
+    "payment_due": "Échéance",
+    "current_hint": "Inclut les paiements enregistrés et les dettes antérieures.",
+    "closed_hint": "Solde à la clôture. Les paiements ultérieurs ne sont pas déduits.",
+    "view_transactions": "Voir les opérations",
+    "calculation_help": "Comment les soldes sont calculés"
   }
 }

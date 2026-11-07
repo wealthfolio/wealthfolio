@@ -78,8 +78,14 @@ for (const direction of ["ltr", "rtl"] as const) {
     const previousClose = new Date(`${current.startDate}T12:00:00Z`);
     previousClose.setUTCDate(previousClose.getUTCDate() - 1);
     const closingDay = previousClose.toISOString().slice(0, 10);
+    const earlierClose = new Date(previousClose);
+    earlierClose.setUTCMonth(earlierClose.getUTCMonth() - 1);
+    const earlierClosingDay = earlierClose.toISOString().slice(0, 10);
     const closingActivityIds: string[] = [];
     for (const [kind, date, amount] of [
+      // An earlier cycle exercises the collapsed history without changing debt.
+      ["WITHDRAWAL", earlierClosingDay, "10.00"],
+      ["CREDIT", earlierClosingDay, "10.00"],
       ["WITHDRAWAL", closingDay, "120.50"],
       ["CREDIT", closingDay, "20.10"],
       ["TRANSFER_IN", current.startDate, 80],
@@ -126,8 +132,49 @@ for (const direction of ["ltr", "rtl"] as const) {
     // RTL formatters surround amounts with Unicode direction isolates.
     await expect(panel.getByText(/\$45\.40/)).toBeVisible();
     await expect(panel.getByText(/\$100\.40/)).toBeVisible();
-    await expect(panel.getByText("Statement balance", { exact: true }).first()).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath("billing.png"), fullPage: true });
+    await expect(panel.getByRole("heading", { name: "Current balance" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "Last closed statement" })).toBeVisible();
+    await expect(
+      panel.getByText("Balance at closing. Later payments aren’t deducted.", { exact: true }),
+    ).toBeVisible();
+    await expect(panel.getByRole("link", { name: "Manage billing" })).toHaveAttribute(
+      "href",
+      "/settings/accounts",
+    );
+    const help = panel.locator("details").filter({ hasText: "How balances are calculated" });
+    const history = panel.locator("details").filter({ hasText: "Previous statements" });
+    await expect(help).not.toHaveAttribute("open");
+    await expect(history).not.toHaveAttribute("open");
+    await help.locator("summary").click();
+    await expect(help.getByText(/Balances use your recorded transactions/)).toBeVisible();
+    await help.locator("summary").click();
+    await history.locator("summary").click();
+    await expect(history.getByRole("link").first()).toBeVisible();
+    await history.locator("summary").click();
+    for (const width of [1280, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      for (const control of await panel.locator("a:visible, summary:visible").all()) {
+        const box = await control.boundingBox();
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+        expect(box?.width).toBeGreaterThanOrEqual(44);
+      }
+      await page.screenshot({ path: testInfo.outputPath(`billing-${width}.png`) });
+    }
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("wf:privacy-changed", { detail: { isBalanceHidden: true } }),
+      );
+    });
+    await expect(panel.getByText(/\$45\.40|\$100\.40/)).toHaveCount(0);
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent("wf:privacy-changed", { detail: { isBalanceHidden: false } }),
+      );
+    });
     const href = `/activities?account=${account.id}&from=${result[1].startDate}&to=${closingDay}`;
     const periodSearch = page.waitForResponse((response) => {
       if (!response.url().includes("/spending/cash-activities/search")) return false;

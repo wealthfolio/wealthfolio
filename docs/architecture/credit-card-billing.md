@@ -10,8 +10,12 @@ stays open through that day.
 
 The account page shows the open cycle and up to twelve previous cycles. Each
 period links to the existing Activities page filtered to that card and date
-range. Earlier cycles are collapsed. Cards without a schedule show a settings
-link and do not request statement history.
+range. The current balance and last closing balance are prominent summaries,
+with separate closing and payment due dates and explicit transaction links.
+Earlier cycles and the detailed calculation explanation are collapsed; the
+closing-balance caveat stays visible. A billing settings link reuses the account
+settings page. Cards without a schedule show a setup link and do not request
+statement history.
 
 ## Balances
 
