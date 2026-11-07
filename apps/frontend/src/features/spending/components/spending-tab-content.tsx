@@ -47,9 +47,12 @@ import {
   DASHBOARD_PERIOD_STORAGE_KEY,
   portfolioPresetForSpendingPeriod,
   rangePick,
+  spendingPeriodRange,
   spendingViewForPick,
-  stepCalendarPick,
+  stepDashboardPeriod,
   type DashboardPeriodPick,
+  type DashboardPresetPick,
+  type PresetWindow,
   type SpendingPeriodView,
 } from "../lib/dashboard-period-sync";
 import {
@@ -91,6 +94,7 @@ import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
 import { SpendingDeltaLine } from "./spending-delta-line";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
+import { PeriodNavigation } from "./period-navigation";
 import { parseCalendarYear, SPENDING_YEAR_PARAM, yearLabel, yearRange } from "../lib/year-period";
 
 const FUTURE_BAR = "var(--muted)";
@@ -101,7 +105,13 @@ type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
   | { kind: "year"; year: number; restoreCode: SpendingDashboardPeriod }
   | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod }
-  | { kind: "range"; range: SpendingDateRange; restoreCode: SpendingDashboardPeriod };
+  | {
+      kind: "range";
+      range: SpendingDateRange;
+      restoreCode: SpendingDashboardPeriod;
+      preset?: DashboardPresetPick;
+      presetWindow?: PresetWindow;
+    };
 
 const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
   "MTD",
@@ -178,40 +188,10 @@ function normalizeSpendingDashboardPeriod(
 }
 
 function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string | null) {
-  const today = getZonedDateParts(new Date(), timezone);
-  const { start, end } = (() => {
-    switch (code) {
-      case "MTD":
-        return { start: { year: today.year, month: today.month, day: 1 }, end: today };
-      case "LAST_MONTH": {
-        const lastMonth = addCalendarMonths({ year: today.year, month: today.month, day: 1 }, -1);
-        return {
-          start: { year: lastMonth.year, month: lastMonth.month, day: 1 },
-          end: {
-            year: lastMonth.year,
-            month: lastMonth.month,
-            day: daysInCalendarMonth(lastMonth.year, lastMonth.month),
-          },
-        };
-      }
-      case "3M":
-        return { start: addCalendarMonths(today, -3), end: today };
-      case "6M":
-        return { start: addCalendarMonths(today, -6), end: today };
-      case "YTD":
-        return { start: { year: today.year, month: 1, day: 1 }, end: today };
-      case "1Y":
-        return { start: { ...today, year: today.year - 1 }, end: today };
-    }
-  })();
-
   return {
     code,
     description: INTERVAL_DESCRIPTIONS[code],
-    range: {
-      from: localDateFromParts(start),
-      to: localDateFromParts(end),
-    },
+    range: spendingPeriodRange(code, formatZonedDateKey(new Date(), timezone)),
   };
 }
 
@@ -235,7 +215,13 @@ function selectionFromParams(
     if (shared.kind === "period") return { kind: "period", code: shared.code };
     if (shared.kind === "month") return { kind: "month", monthKey: shared.monthKey, restoreCode };
     if (shared.kind === "year") return { kind: "year", year: shared.year, restoreCode };
-    return { kind: "range", range: shared.range, restoreCode };
+    return {
+      kind: "range",
+      range: shared.range,
+      restoreCode,
+      ...(shared.preset ? { preset: shared.preset } : {}),
+      ...(shared.presetWindow ? { presetWindow: shared.presetWindow } : {}),
+    };
   }
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
@@ -267,7 +253,7 @@ function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: s
 
 function selectionData(
   selection: SpendingSelection,
-  formatting: Pick<FormattingApi, "formatCalendarDate">,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatCalendarDateRange">,
   timezone?: string | null,
 ) {
   if (selection.kind === "year") {
@@ -282,6 +268,15 @@ function selectionData(
 
   if (selection.kind === "range") {
     const { from, to } = selection.range;
+    if (selection.presetWindow)
+      return {
+        range: selection.range,
+        description: formatting.formatCalendarDateRange(localDateParts(from), localDateParts(to), {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      };
     const format = (date: Date) =>
       formatting.formatCalendarDate(localDateParts(date), {
         month: "short",
@@ -410,11 +405,17 @@ export default function SpendingTabContent() {
     setSharedPick({ kind: "spending", code });
     setPortfolioPreset(portfolioPresetForSpendingPeriod(code));
   };
-  const selectedPeriod = selection.kind === "period" ? selection.code : null;
+  const selectedPeriod =
+    selection.kind === "period"
+      ? selection.code
+      : selection.kind === "range" && isSpendingDashboardPeriod(selection.preset?.code)
+        ? selection.preset.code
+        : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
   const customRange = selection.kind === "range" ? selection.range : undefined;
   const customYear = selection.kind === "year" ? selection.year : null;
-  const restoreCode = selection.kind === "period" ? selection.code : selection.restoreCode;
+  const restoreCode =
+    selectedPeriod ?? (selection.kind === "period" ? selection.code : selection.restoreCode);
   const { range: dateRange, description: selectedIntervalDescription } = useMemo(
     () => selectionData(selection, dateFormatting, appTimezone),
     [selection, dateFormatting, appTimezone],
@@ -637,6 +638,8 @@ export default function SpendingTabContent() {
     if (range && (!range.from || !range.to)) return;
     setPersistedMonth(null);
     if (range?.from && range.to) setSharedPick(rangePick({ from: range.from, to: range.to }));
+    else if (selection.kind === "range" && selection.presetWindow)
+      setSharedPick(selection.presetWindow.preset);
     else shareSpendingPeriod(restoreCode);
     setBudgetMonthKey(currentBudgetMonthKey);
     setBudgetMonthTouched(false);
@@ -653,24 +656,41 @@ export default function SpendingTabContent() {
     setBudgetMonthKey(currentBudgetMonthKey);
     setBudgetMonthTouched(false);
   };
-  const calendarPick: DashboardPeriodPick | null =
+  const navigationPick: DashboardPeriodPick =
     customYear !== null
       ? { kind: "year", year: customYear }
       : customMonth
         ? { kind: "month", monthKey: customMonth }
-        : null;
-  const calendarNavigation = calendarPick
-    ? {
-        label: selectedIntervalDescription,
-        previousDisabled: !stepCalendarPick(calendarPick, -1, todayISO),
-        nextDisabled: !stepCalendarPick(calendarPick, 1, todayISO),
-        onStep: (direction: -1 | 1) => {
-          const next = stepCalendarPick(calendarPick, direction, todayISO);
-          if (next?.kind === "year") handleCustomYearSelect(next.year);
-          if (next?.kind === "month") handleCustomMonthSelect(next.monthKey);
-        },
+        : selection.kind === "range"
+          ? selection.presetWindow
+            ? { ...rangePick(selection.range), presetWindow: selection.presetWindow }
+            : (selection.preset ?? rangePick(selection.range))
+          : { kind: "spending", code: selection.kind === "period" ? selection.code : restoreCode };
+  const periodNavigation = {
+    label: selectedIntervalDescription.startsWith("spending:")
+      ? t(selectedIntervalDescription)
+      : selectedIntervalDescription,
+    previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
+    nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+    onStep: (direction: -1 | 1) => {
+      const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+      if (!next) return;
+      if (next?.kind === "year") handleCustomYearSelect(next.year);
+      else if (next.kind === "month") handleCustomMonthSelect(next.monthKey);
+      else if (next.kind === "spending") handleIntervalSelect(next.code);
+      else {
+        if (selection.kind === "period") {
+          setPersistedInterval(selection.code);
+          setPersistedInsightPeriod(selection.code);
+          setPortfolioPreset(portfolioPresetForSpendingPeriod(selection.code));
+        }
+        setPersistedMonth(null);
+        setSharedPick(next);
+        setBudgetMonthKey(currentBudgetMonthKey);
+        setBudgetMonthTouched(false);
       }
-    : undefined;
+    },
+  };
 
   // Apply a period named in the URL once, then drop it from the URL.
   useEffect(() => {
@@ -712,6 +732,13 @@ export default function SpendingTabContent() {
     if (selection.kind === "year") return "month";
     if (selection.kind === "month") return "day";
     if (selection.kind === "range") {
+      const code = selection.preset?.code;
+      if (code)
+        return code === "3M" || code === "6M"
+          ? "week"
+          : code === "1Y" || code === "5Y" || code === "YTD"
+            ? "month"
+            : "day";
       const days = calendarDaysBetweenInclusive(
         localDateParts(selection.range.from),
         localDateParts(selection.range.to),
@@ -986,24 +1013,27 @@ export default function SpendingTabContent() {
       <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
-              {t("spending:tabContent.spentLabel")}
-              {selectedIntervalDescription
-                ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
-                : ""}
-              {excludedCategoryCount > 0 && (
-                <>
-                  {" · "}
-                  <Link
-                    to="/settings/spending/categories"
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {t("spending:tabContent.excludedCategoriesHint", {
-                      count: excludedCategoryCount,
-                    })}
-                  </Link>
-                </>
-              )}
+            <div className="flex flex-wrap items-center gap-x-1">
+              <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
+                {t("spending:tabContent.spentLabel")}
+                {selectedIntervalDescription
+                  ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
+                  : ""}
+                {excludedCategoryCount > 0 && (
+                  <>
+                    {" · "}
+                    <Link
+                      to="/settings/spending/categories"
+                      className="hover:text-foreground hover:underline"
+                    >
+                      {t("spending:tabContent.excludedCategoriesHint", {
+                        count: excludedCategoryCount,
+                      })}
+                    </Link>
+                  </>
+                )}
+              </div>
+              <PeriodNavigation navigation={periodNavigation} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Balance
@@ -1162,7 +1192,9 @@ export default function SpendingTabContent() {
               customYear={customYear}
               maxYear={Number(todayISO.slice(0, 4)) - 1}
               onCustomYearChange={handleCustomYearSelect}
-              navigation={calendarNavigation}
+              selectionLabel={
+                customMonth || customYear !== null ? selectedIntervalDescription : undefined
+              }
               maxMonth={maxPickerMonth}
               onCustomMonthChange={handleCustomMonthSelect}
               onCustomRangeChange={handleCustomRangeSelect}

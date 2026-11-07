@@ -476,10 +476,10 @@ describe("period shared with the dashboard", () => {
 
   it("shares a period picked here with the dashboard", async () => {
     const user = renderAt("?stage=where");
-    await user.click(screen.getByRole("button", { name: /Last month/ }));
+    await user.click(screen.getByRole("button", { name: /This month/ }));
     expect(JSON.parse(localStorage.getItem("dashboard-period") ?? "null")).toEqual({
       kind: "spending",
-      code: "LAST_MONTH",
+      code: "MTD",
     });
     expect(JSON.parse(localStorage.getItem("dashboard-interval") ?? "null")).toBe("1M");
     // Back/forward can only revive what is in the URL, so a pick never goes there.

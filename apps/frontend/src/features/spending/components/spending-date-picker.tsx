@@ -32,20 +32,13 @@ import { monthRange } from "../lib/month-period";
 import { yearRange } from "../lib/year-period";
 import { CalendarYearPicker } from "./calendar-year-picker";
 
-export interface CalendarNavigation {
-  label: string;
-  onStep: (direction: -1 | 1) => void;
-  previousDisabled: boolean;
-  nextDisabled: boolean;
-}
-
 interface SpendingDatePickerProps {
   customMonth: string | null;
   customRange?: DateRange;
   customYear?: number | null;
   maxYear?: number;
   onCustomYearChange?: (year: number | null) => void;
-  navigation?: CalendarNavigation;
+  selectionLabel?: string;
   maxMonth: string;
   onCustomMonthChange: (month: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
@@ -59,7 +52,7 @@ export function SpendingDatePicker({
   customYear = null,
   maxYear,
   onCustomYearChange,
-  navigation,
+  selectionLabel,
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
@@ -108,22 +101,23 @@ export function SpendingDatePicker({
   const trigger = (
     <Button
       type="button"
-      variant={navigation ? "ghost" : active ? "default" : "ghost"}
-      size={navigation ? "sm" : "icon"}
+      data-no-swipe-drag
+      variant={selectionLabel ? "ghost" : active ? "default" : "ghost"}
+      size={selectionLabel ? "sm" : "icon"}
       className={cn(
         "shrink-0 rounded-full",
-        navigation ? "h-11 gap-1 px-2 font-medium sm:h-8" : "h-8 w-8",
-        !navigation && (appearance === "header" ? "w-9" : !active && "bg-muted"),
+        selectionLabel ? "h-11 gap-1 px-2 font-medium sm:h-8" : "h-8 w-8",
+        !selectionLabel && (appearance === "header" ? "w-9" : !active && "bg-muted"),
       )}
       aria-label={
-        navigation
-          ? `${navigation.label}, ${t("spending:period.selectDates")}`
+        selectionLabel
+          ? `${selectionLabel}, ${t("spending:period.selectDates")}`
           : t("spending:period.selectDates")
       }
     >
-      {navigation ? (
+      {selectionLabel ? (
         <>
-          <span aria-live="polite">{navigation.label}</span>
+          <span aria-live="polite">{selectionLabel}</span>
           <Icons.ChevronDown className="size-3" />
         </>
       ) : (
@@ -295,7 +289,7 @@ export function SpendingDatePicker({
     </div>
   );
 
-  const picker = isMobile ? (
+  return isMobile ? (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger render={trigger} />
       <SheetContent
@@ -321,41 +315,5 @@ export function SpendingDatePicker({
         {content}
       </PopoverContent>
     </Popover>
-  );
-
-  if (!navigation) return picker;
-  return (
-    <div
-      className="flex shrink-0 items-center"
-      role="group"
-      aria-label={navigation.label}
-      data-no-swipe-drag
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-hidden={open || undefined}
-        className={cn("size-11 sm:size-8", open && "invisible")}
-        disabled={navigation.previousDisabled}
-        onClick={() => navigation.onStep(-1)}
-        aria-label={t("spending:period.previousPeriod")}
-      >
-        <Icons.ChevronLeft className="size-4 rtl:rotate-180" />
-      </Button>
-      {picker}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-hidden={open || undefined}
-        className={cn("size-11 sm:size-8", open && "invisible")}
-        disabled={navigation.nextDisabled}
-        onClick={() => navigation.onStep(1)}
-        aria-label={t("spending:period.nextPeriod")}
-      >
-        <Icons.ChevronRight className="size-4 rtl:rotate-180" />
-      </Button>
-    </div>
   );
 }

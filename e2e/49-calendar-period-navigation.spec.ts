@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { BASE_URL, gotoAppPath } from "./helpers";
 
 for (const mobile of [false, true]) {
   for (const direction of ["ltr", "rtl"] as const) {
@@ -7,13 +7,36 @@ for (const mobile of [false, true]) {
       page,
     }, testInfo) => {
       test.setTimeout(120_000);
+      page.setDefaultTimeout(15_000);
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
       await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
-      await completeOnboardingIfNeeded(page);
+      const profileState = await (
+        await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
+      ).json();
+      const session =
+        profileState.session ??
+        (await (
+          await page.request.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
+            data: { profileId: profileState.profiles[0].id },
+          })
+        ).json());
+      const headers = { "x-wf-profile-scope": session.scopeId };
       expect(
-        (await page.request.put(`${BASE_URL}/api/v1/settings`, { data: { timezone: "UTC" } })).ok(),
+        (
+          await page.request.put(`${BASE_URL}/api/v1/settings`, {
+            headers,
+            data: {
+              onboardingCompleted: true,
+              language: "en",
+              timezone: "UTC",
+              baseCurrency: "USD",
+              autoUpdateCheckEnabled: false,
+            },
+          })
+        ).ok(),
       ).toBeTruthy();
       const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
+        headers,
         data: {
           name: `Calendar ${mobile}-${direction}`,
           accountType: "CASH",
@@ -31,6 +54,7 @@ for (const mobile of [false, true]) {
         ["2025-06-01", "WITHDRAWAL", 50],
       ] as const) {
         const activity = await page.request.post(`${BASE_URL}/api/v1/activities`, {
+          headers,
           data: {
             accountId: id,
             activityType,
@@ -44,12 +68,13 @@ for (const mobile of [false, true]) {
         expect(activity.ok()).toBeTruthy();
       }
       const oldSettings = await (
-        await page.request.get(`${BASE_URL}/api/v1/spending/settings`)
+        await page.request.get(`${BASE_URL}/api/v1/spending/settings`, { headers })
       ).json();
       try {
         expect(
           (
             await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
+              headers,
               data: { ...oldSettings, enabled: true, accountIds: [id] },
             })
           ).ok(),
@@ -118,7 +143,6 @@ for (const mobile of [false, true]) {
         const yearButton = (year: number) =>
           popup.getByRole("button", { name: new RegExp(`^\\u2068?${year}\\u2069?$`) });
         await expect(yearButton(2024)).toHaveAttribute("aria-pressed", "true");
-        await expect(visible("Previous period")).toHaveCount(0);
         await expect(yearButton(2017)).toBeInViewport({
           ratio: 1,
         });
@@ -156,7 +180,78 @@ for (const mobile of [false, true]) {
         await visible("Next period").click();
         await expect(periodButton("January 2024")).toBeVisible();
         await visible("YTD").click();
-        await expect(visible("Previous period")).toHaveCount(0);
+        await expect(visible("Previous period")).toBeEnabled();
+        await expect(visible("Next period")).toBeDisabled();
+        await expect(visible("Last month")).toHaveCount(0);
+
+        for (const [code, from, to] of [
+          ["3M", "2026-03-15", "2026-06-15"],
+          ["6M", "2025-09-15", "2026-03-15"],
+          ["YTD", "2025-01-01", "2025-09-15"],
+          ["1Y", "2024-09-15", "2025-09-15"],
+        ]) {
+          await visible(code).click();
+          await expect(visible("Previous period")).toBeEnabled();
+          const headline = await spendingPane.getByText(/^Spent ·/).boundingBox();
+          const arrow = await visible("Previous period").boundingBox();
+          expect(headline).not.toBeNull();
+          expect(arrow).not.toBeNull();
+          expect(
+            Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2),
+          ).toBeLessThan(3);
+          if (code === "6M")
+            await page.screenshot({
+              path: testInfo.outputPath("header-6m-navigation.png"),
+              animations: "disabled",
+            });
+          await visible("Previous period").click();
+          await expect
+            .poll(() => reportRequests)
+            .toEqual(
+              expect.arrayContaining([
+                expect.objectContaining({
+                  startDate: `${from}T00:00:00.000Z`,
+                  endDate: `${to}T23:59:59.999Z`,
+                }),
+              ]),
+            );
+          await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
+          await expect(visible("Next period")).toBeEnabled();
+          if (code === "6M") {
+            await page.reload();
+            await expect(visible("Next period")).toBeEnabled();
+            await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
+            await page.screenshot({
+              path: testInfo.outputPath("header-6m-previous-window.png"),
+              animations: "disabled",
+            });
+          }
+          await visible("Next period").click();
+          await expect(visible("Next period")).toBeDisabled();
+          await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
+        }
+
+        await visible(mobile ? "MTD" : "This month").click();
+        await visible("Previous period").click();
+        await expect(periodButton("August 2026")).toBeVisible();
+        await visible("Next period").click();
+        await expect(visible(mobile ? "MTD" : "This month")).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+        await expect(visible("Next period")).toBeDisabled();
+
+        for (const tab of ["investments", "net-worth"]) {
+          await gotoAppPath(page, `/dashboard?tab=${tab}&dir=${direction}`);
+          await visible("1M").click();
+          await expect(visible("Previous period")).toBeEnabled();
+          await visible("Previous period").click();
+          await expect(visible("1M")).toHaveAttribute("aria-pressed", "true");
+          await expect(visible("Next period")).toBeEnabled();
+          await visible("Next period").click();
+          await expect(visible("Next period")).toBeDisabled();
+          await expect(visible("1M")).toHaveAttribute("aria-pressed", "true");
+        }
 
         await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
         await visible("ALL").click();
@@ -168,7 +263,10 @@ for (const mobile of [false, true]) {
           await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
         }
       } finally {
-        await page.request.put(`${BASE_URL}/api/v1/spending/settings`, { data: oldSettings });
+        await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
+          headers,
+          data: oldSettings,
+        });
       }
     });
   }
