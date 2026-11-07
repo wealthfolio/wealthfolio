@@ -43,6 +43,18 @@ for (const mobile of [false, true]) {
         },
       });
       expect(deposit.ok()).toBeTruthy();
+      // The account's history is calculated in the background after the deposit.
+      await expect
+        .poll(
+          async () => {
+            const history = await page.request.post(`${BASE_URL}/api/v1/performance/history`, {
+              data: { itemType: "account", itemId: id, filter: { type: "account", accountId: id } },
+            });
+            return history.ok() ? (await history.json()).period?.startDate : null;
+          },
+          { timeout: 60_000 },
+        )
+        .toMatch(/^2024-01-/);
       // Earlier specs leave older activities in the shared profile: chart only this account.
       const state = await (
         await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
