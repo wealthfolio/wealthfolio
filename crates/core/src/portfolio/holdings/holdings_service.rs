@@ -23,9 +23,9 @@ use crate::lots::{AssetLotView, LotRepositoryTrait};
 use crate::portfolio::coordinator::blocking;
 use crate::portfolio::economic_events::ActivityEconomicsResolver;
 use crate::portfolio::holdings::holdings_model::{Holding, HoldingType, Instrument, MonetaryValue};
-use crate::portfolio::projection::{ActivityIssueKind, ProjectionStoreTrait};
+use crate::portfolio::projection::ProjectionStoreTrait;
 use crate::portfolio::snapshot::{self, SnapshotServiceTrait};
-use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default, user_today};
+use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use log::{debug, error, warn};
@@ -424,17 +424,9 @@ impl HoldingsService {
             }) {
                 return Ok(Vec::new());
             }
-            let timezone = parse_user_timezone_or_default(&read.timezone);
-            let has_facts = read.activities.iter().any(|a| {
-                a.account_id == account_id
-                    && a.is_posted()
-                    && activity_date_in_tz(a.activity_date, timezone) <= read.day
-                    && !read
-                        .issues
-                        .iter()
-                        .any(|i| i.activity_id == a.id && i.kind == ActivityIssueKind::Rejected)
-            });
-            if has_facts || read.accounts_with_open_lots.contains(account_id) {
+            if read.has_effective_activities(account_id, read.day)
+                || read.accounts_with_open_lots.contains(account_id)
+            {
                 return Err(CoreError::HoldingsUnavailable(
                     "snapshot data is missing".into(),
                 ));
@@ -4293,6 +4285,81 @@ mod tests {
             assert_eq!(row.quantity, dec!(1));
             assert_eq!(row.cost_basis, Some(money(dec!(100), dec!(100))));
             assert!(fixture.store.pending_markers().unwrap().is_empty());
+        }
+
+        async fn assert_non_effective_account_does_not_block_holdings(future: bool) {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let empty = account("not-effective", "CAD", TrackingMode::Transactions);
+            let mut activity = buy(&empty.id, "CAD", dec!(100));
+            if future {
+                activity.activity_date = "2025-01-16T12:00:00Z".parse().unwrap();
+            } else {
+                activity.status = crate::activities::ActivityStatus::Draft;
+            }
+            let fixture = Fixture::new(
+                vec![buy(&healthy.id, "CAD", dec!(100)), activity],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![healthy.clone(), empty.clone()]);
+            run(&coordinator).await;
+            let scope = holdings
+                .get_holdings_scope(&[healthy.id.clone(), empty.id.clone()], "CAD", "all", false)
+                .await
+                .unwrap();
+            assert!(
+                scope.incomplete_accounts.is_empty(),
+                "non-effective activity is not pending accounting"
+            );
+            assert!(!scope.holdings.is_empty());
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.weight.is_some()));
+            assert!(holdings
+                .get_holdings(&empty.id, "CAD")
+                .await
+                .unwrap()
+                .iter()
+                .all(|holding| holding.quantity.is_zero()));
+        }
+
+        #[tokio::test]
+        async fn draft_only_transaction_account_does_not_block_healthy_holdings() {
+            assert_non_effective_account_does_not_block_holdings(false).await;
+        }
+
+        #[tokio::test]
+        async fn future_only_transaction_account_does_not_block_healthy_holdings() {
+            assert_non_effective_account_does_not_block_holdings(true).await;
+        }
+
+        #[test]
+        fn never_valued_read_requires_effective_accounting_inputs_to_be_pending() {
+            let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+            let account = account("never-valued", "CAD", TrackingMode::Transactions);
+            let mut activity = buy(&account.id, "CAD", dec!(100));
+            activity.status = crate::activities::ActivityStatus::Draft;
+            let mut read = HoldingsRead {
+                day,
+                timezone: "UTC".into(),
+                accounts: vec![account.clone()],
+                activities: vec![activity],
+                ..Default::default()
+            };
+            assert!(!read.position_pending(&account.id, day));
+            read.activities[0].status = crate::activities::ActivityStatus::Posted;
+            read.activities[0].activity_date = "2025-01-16T12:00:00Z".parse().unwrap();
+            assert!(!read.position_pending(&account.id, day));
+            read.activities[0].activity_date = "2025-01-15T12:00:00Z".parse().unwrap();
+            assert!(read.position_pending(&account.id, day));
+            read.issues
+                .push(crate::portfolio::projection::ActivityIssue {
+                    activity_id: read.activities[0].id.clone(),
+                    kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+                    message: "Rejected input".into(),
+                });
+            assert!(!read.position_pending(&account.id, day));
         }
 
         #[test]

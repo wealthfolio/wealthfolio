@@ -259,7 +259,22 @@ impl HoldingsRead {
                     .get(account_id)
                     .is_some_and(|s| s.base_currency.is_none())
                 || (!self.last_valued.contains_key(account_id)
-                    && self.activities.iter().any(|a| a.account_id == account_id)))
+                    && self.has_effective_activities(account_id, day)))
+    }
+
+    /// Draft, future and rejected rows cannot establish current accounting.
+    pub fn has_effective_activities(&self, account_id: &str, day: NaiveDate) -> bool {
+        let timezone = crate::utils::time_utils::parse_user_timezone_or_default(&self.timezone);
+        self.activities.iter().any(|activity| {
+            activity.account_id == account_id
+                && activity.is_posted()
+                && crate::utils::time_utils::activity_date_in_tz(activity.activity_date, timezone)
+                    <= day
+                && !self.issues.iter().any(|issue| {
+                    issue.activity_id == activity.id
+                        && issue.kind == crate::portfolio::projection::ActivityIssueKind::Rejected
+                })
+        })
     }
 
     /// Selection matches SnapshotService's tracking-mode rule. The retained
