@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Separator } from "@wealthfolio/ui";
@@ -21,6 +21,7 @@ import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useIsCompactTableViewport } from "@/hooks/use-platform";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useSettingsContext } from "@/lib/settings-provider";
+import type { LatestQuoteSnapshot } from "@/lib/types";
 import { SettingsHeader } from "../settings/settings-header";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import { isExpiredOptionAsset, ParsedAsset, toParsedAsset } from "./asset-utils";
@@ -30,6 +31,8 @@ import { CreateSecurityDialog } from "./create-security-dialog";
 import { useAssetManagement } from "./hooks/use-asset-management";
 import { useAssets } from "./hooks/use-assets";
 import { useLatestQuotes } from "./hooks/use-latest-quotes";
+
+const NO_QUOTES: Record<string, LatestQuoteSnapshot> = {};
 
 export default function AssetsPage() {
   const { t } = useTranslation();
@@ -60,12 +63,20 @@ export default function AssetsPage() {
     [parsedAssets, appTimezone],
   );
   const assetIds = useMemo(() => visibleAssets.map((asset) => asset.id), [visibleAssets]);
-  const { data: latestQuotes = {}, isLoading: isQuotesLoading } = useLatestQuotes(assetIds);
+  const { data: latestQuotes = NO_QUOTES, isLoading: isQuotesLoading } = useLatestQuotes(assetIds);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<ParsedAsset | null>(null);
   const [assetPendingDelete, setAssetPendingDelete] = useState<ParsedAsset | null>(null);
   const [assetPendingRefetch, setAssetPendingRefetch] = useState<ParsedAsset | null>(null);
+
+  // The tables build their columns from these. New functions on each render (every
+  // holdings refetch) would remount the rows and close an open row menu.
+  const { mutate: updateQuotes } = updateQuotesMutation;
+  const updateAssetQuotes = useCallback(
+    (asset: ParsedAsset) => updateQuotes([asset.id]),
+    [updateQuotes],
+  );
 
   const handleDelete = async () => {
     if (!assetPendingDelete) return;
@@ -108,10 +119,10 @@ export default function AssetsPage() {
             latestQuotes={latestQuotes}
             heldAssetIds={heldAssetIds}
             isLoading={isLoading || isQuotesLoading}
-            onEdit={(asset) => setEditingAsset(asset)}
-            onDelete={(asset) => setAssetPendingDelete(asset)}
-            onUpdateQuotes={(asset) => updateQuotesMutation.mutate([asset.id])}
-            onRefetchQuotes={(asset) => setAssetPendingRefetch(asset)}
+            onEdit={setEditingAsset}
+            onDelete={setAssetPendingDelete}
+            onUpdateQuotes={updateAssetQuotes}
+            onRefetchQuotes={setAssetPendingRefetch}
             isUpdatingQuotes={updateQuotesMutation.isPending}
             isRefetchingQuotes={refetchQuotesMutation.isPending}
           />
@@ -121,10 +132,10 @@ export default function AssetsPage() {
             latestQuotes={latestQuotes}
             heldAssetIds={heldAssetIds}
             isLoading={isLoading || isQuotesLoading}
-            onEdit={(asset) => setEditingAsset(asset)}
-            onDelete={(asset) => setAssetPendingDelete(asset)}
-            onUpdateQuotes={(asset) => updateQuotesMutation.mutate([asset.id])}
-            onRefetchQuotes={(asset) => setAssetPendingRefetch(asset)}
+            onEdit={setEditingAsset}
+            onDelete={setAssetPendingDelete}
+            onUpdateQuotes={updateAssetQuotes}
+            onRefetchQuotes={setAssetPendingRefetch}
             isUpdatingQuotes={updateQuotesMutation.isPending}
             isRefetchingQuotes={refetchQuotesMutation.isPending}
           />

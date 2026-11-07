@@ -7,6 +7,9 @@ import AssetsPage from "./assets-page";
 
 const mocks = vi.hoisted(() => ({
   useCreateAsset: (() => undefined) as () => unknown,
+  tableProps: [] as Record<string, unknown>[],
+  // React Query's `mutate` keeps its identity across renders.
+  syncMutation: { mutate: () => undefined, isPending: false },
 }));
 
 vi.mock("./hooks/use-assets", () => ({ useAssets: () => ({ assets: [], isLoading: false }) }));
@@ -17,17 +20,22 @@ vi.mock("./hooks/use-asset-management", () => ({
   }),
 }));
 vi.mock("./hooks/use-latest-quotes", () => ({
-  useLatestQuotes: () => ({ data: {}, isLoading: false }),
+  useLatestQuotes: () => ({ data: undefined, isLoading: false }),
 }));
 vi.mock("@/hooks/use-sync-market-data", () => ({
-  useSyncMarketDataMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useSyncMarketDataMutation: () => mocks.syncMutation,
 }));
 vi.mock("@/hooks/use-holdings", () => ({ useHoldings: () => ({ holdings: [] }) }));
 vi.mock("@/hooks/use-platform", () => ({ useIsCompactTableViewport: () => false }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { baseCurrency: "USD" } }),
 }));
-vi.mock("./assets-table", () => ({ AssetsTable: () => null }));
+vi.mock("./assets-table", () => ({
+  AssetsTable: (props: Record<string, unknown>) => {
+    mocks.tableProps.push(props);
+    return null;
+  },
+}));
 vi.mock("./assets-table-mobile", () => ({ AssetsTableMobile: () => null }));
 vi.mock("./asset-edit-sheet", () => ({ AssetEditSheet: () => null }));
 // The dialog's own fields have their coverage; what matters here is when it closes.
@@ -76,4 +84,26 @@ it("closes the new security dialog when its save ends while the screen is out of
   rerender(page(false));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});
+
+it("gives the table the same row callbacks and quotes across re-renders", () => {
+  // The table builds its columns from these; a new function or object on a re-render
+  // (a holdings refetch) would remount the rows and close an open row menu.
+  const client = new QueryClient();
+  const page = () => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <AssetsPage />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  const { rerender } = render(page());
+  const first = mocks.tableProps.at(-1)!;
+  rerender(page());
+  const last = mocks.tableProps.at(-1)!;
+
+  expect(last).not.toBe(first);
+  for (const prop of ["onEdit", "onDelete", "onUpdateQuotes", "onRefetchQuotes", "latestQuotes"]) {
+    expect(last[prop], prop).toBe(first[prop]);
+  }
 });
