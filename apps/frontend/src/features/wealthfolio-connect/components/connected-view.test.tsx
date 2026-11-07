@@ -232,6 +232,25 @@ describe("two-factor authentication", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps one account's snooze from hiding another account's nudge", async () => {
+    context.userInfo = basicPlan;
+    context.fetchMfaEnabled.mockResolvedValue(false);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = () => (
+      <QueryClientProvider client={client}>
+        <ConnectedView />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view());
+    fireEvent.click(await screen.findByRole("button", { name: "connect:twoFactorNudge.notNow" }));
+    expect(screen.queryByText("connect:twoFactorNudge.title")).toBeNull();
+    // Same screen, another account signs in.
+    context.user = { id: "user-2", email: "other@example.com" };
+    rerender(view());
+    expect(await screen.findByText("connect:twoFactorNudge.title")).toBeTruthy();
+    context.user = { id: "user-1", email: "user@example.com" };
+  });
+
   it.each([
     ["2FA is on", { team: { plan: "basic", subscription_status: "active" } }, true],
     ["no subscription", { team: { subscription_status: "canceled" } }, false],

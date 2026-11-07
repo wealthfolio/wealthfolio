@@ -44,24 +44,34 @@ export function TwoFactorStatusLine({ isEnabled }: { isEnabled: boolean }) {
   );
 }
 
-const nudgeHiddenUntilKey = (userId: string) => `connect-two-factor-nudge-hidden-until:${userId}`;
+// One key for all users: a key that changes with the user would keep the previous
+// user's value while mounted (usePersistentState keeps state for unknown keys).
+const NUDGE_HIDDEN_UNTIL_KEY = "connect-two-factor-nudge-hidden-until";
 
 /** Subscribed users with 2FA off see the nudge until "Not now" hides it for a while. */
 export function useTwoFactorNudge(hasSubscription: boolean) {
   const { user, isMfaRequired } = useWealthfolioConnect();
   const twoFactor = useTwoFactorStatus();
-  const [hiddenUntil, setHiddenUntil] = usePersistentState<number>(
-    nudgeHiddenUntilKey(user?.id ?? ""),
-    0,
+  const [hiddenUntilByUser, setHiddenUntilByUser] = usePersistentState<Record<string, number>>(
+    NUDGE_HIDDEN_UNTIL_KEY,
+    {},
   );
+  const userId = user?.id;
   return {
     show:
+      !!userId &&
       hasSubscription &&
       !isMfaRequired &&
       twoFactor.isKnown &&
       !twoFactor.isEnabled &&
-      Date.now() >= hiddenUntil,
-    snooze: () => setHiddenUntil(Date.now() + MFA_NUDGE_SNOOZE_MS),
+      Date.now() >= (hiddenUntilByUser[userId] ?? 0),
+    snooze: () => {
+      if (!userId) return;
+      setHiddenUntilByUser((previous) => ({
+        ...previous,
+        [userId]: Date.now() + MFA_NUDGE_SNOOZE_MS,
+      }));
+    },
   };
 }
 

@@ -1184,6 +1184,42 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(mocks.store).toHaveBeenLastCalledWith("B");
   });
 
+  it("explains a deleted login found by the restore's 2FA check", async () => {
+    mocks.configured = true;
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    mocks.aal.mockImplementationOnce(async () => {
+      mocks.onAuth("SIGNED_OUT");
+      return { data: null, error: missing() };
+    });
+    const { result } = await setup();
+    expect(result.current.sessionEnded).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries handing a verified login to the backend instead of verifying again", async () => {
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
+    const { result } = await connectedA();
+    await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
+    mocks.getSession.mockResolvedValue(verified("A"));
+    mocks.store.mockRejectedValueOnce(
+      new Error("Broker sync is running. Wait for it to finish and try again."),
+    );
+    await act(async () => {
+      await expect(result.current.verifyMfaCode("123456")).rejects.toThrow("Broker sync");
+    });
+    const restores = mocks.restore.mock.calls.length;
+    mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
+    await act(() => result.current.verifyMfaCode("123456"));
+    // The backend's older token is never restored over the verified one.
+    expect(mocks.restore).toHaveBeenCalledTimes(restores);
+    expect(mocks.challengeAndVerify).toHaveBeenCalledTimes(1);
+    expect(mocks.store.mock.calls.map(([token]) => token)).toEqual(["A-aal2", "A-aal2"]);
+    expect(result.current.isMfaRequired).toBe(false);
+    expect(result.current.isConnected).toBe(true);
+  });
+
   it("explains a login the backend found expired at startup", async () => {
     mocks.configured = true;
     mocks.restore.mockImplementation(async () => {
