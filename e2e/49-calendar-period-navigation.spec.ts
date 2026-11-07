@@ -94,7 +94,14 @@ for (const mobile of [false, true]) {
         });
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=2025`);
         const visible = (name: string | RegExp) =>
-          page.getByRole("button", { name }).filter({ visible: true });
+          page
+            .getByRole("button", { name, exact: typeof name === "string" })
+            .filter({ visible: true });
+        const periodAction = (name: string | RegExp) =>
+          page
+            .getByTestId("period-navigation")
+            .getByRole("button", { name })
+            .filter({ visible: true });
         // Formatting isolates calendar labels in RTL text.
         const periodButton = (label: string) =>
           visible(new RegExp(`${label}\\u2069?, Select dates`));
@@ -128,14 +135,14 @@ for (const mobile of [false, true]) {
             .filter({ visible: true }),
         ).toBeVisible();
         expect(new URL(page.url()).searchParams.has("spendingYear")).toBe(false);
-        await visible("Previous period").click();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("2024")).toBeVisible();
         await page.reload();
         await expect(periodButton("2024")).toBeVisible();
-        await visible("Next period").click();
+        await periodAction(/^Next/).click();
         await expect(periodButton("2025")).toBeVisible();
-        await expect(visible("Next period")).toBeDisabled();
-        await visible("Previous period").click();
+        await expect(periodAction(/^Next/)).toBeDisabled();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("2024")).toBeVisible();
         await expect(page.locator("html")).toHaveAttribute("dir", direction);
         expect(
@@ -166,13 +173,13 @@ for (const mobile of [false, true]) {
             page.getByText("Current value", { exact: true }).filter({ visible: true }).first(),
           ).toBeVisible();
         }
-        await visible("Previous period").click();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("2024")).toBeVisible();
         await gotoAppPath(page, `/insights?tab=spending&dir=${direction}`);
         await expect(page.getByTestId("spending-selected-range")).toContainText("2024");
         const insightsHeader = page.getByTestId("spending-period-header");
-        const previousInsight = insightsHeader.getByRole("button", { name: "Previous period" });
-        const nextInsight = insightsHeader.getByRole("button", { name: "Next period" });
+        const previousInsight = insightsHeader.getByRole("button", { name: /^Previous/ });
+        const nextInsight = insightsHeader.getByRole("button", { name: /^Next/ });
         await expect(visible("Last month")).toHaveCount(0);
         await expect(
           page.getByRole("button", { name: "Prev", exact: true }).filter({ visible: true }),
@@ -225,6 +232,11 @@ for (const mobile of [false, true]) {
           );
         await gotoAppPath(page, `/insights?tab=spending&dir=${direction}`);
         await expect(nextInsight).toBeEnabled();
+        await previousInsight.click();
+        await insightsHeader.getByRole("button", { name: "Back to latest" }).click();
+        await expect(nextInsight).toBeDisabled();
+        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+        await previousInsight.click();
         await nextInsight.click();
         await expect(nextInsight).toBeDisabled();
         await visible(mobile ? "MTD" : "This month").click();
@@ -247,15 +259,15 @@ for (const mobile of [false, true]) {
         ).toHaveCount(0);
         await popup.getByRole("button", { name: /February/ }).click();
         await expect(periodButton("February 2024")).toBeVisible();
-        await visible("Previous period").click();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("January 2024")).toBeVisible();
-        await visible("Previous period").click();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("December 2023")).toBeVisible();
-        await visible("Next period").click();
+        await periodAction(/^Next/).click();
         await expect(periodButton("January 2024")).toBeVisible();
         await visible("YTD").click();
-        await expect(visible("Previous period")).toBeEnabled();
-        await expect(visible("Next period")).toBeDisabled();
+        await expect(periodAction(/^Previous/)).toBeEnabled();
+        await expect(periodAction(/^Next/)).toBeDisabled();
         await expect(visible("Last month")).toHaveCount(0);
 
         for (const [code, from, to] of [
@@ -265,24 +277,29 @@ for (const mobile of [false, true]) {
           ["1Y", "2024-09-15", "2025-09-15"],
         ]) {
           await visible(code).click();
-          await expect(visible("Previous period")).toBeEnabled();
+          await expect(periodAction(/^Previous/)).toBeEnabled();
           const headline = await spendingPane.getByText(/^Spent ·/).boundingBox();
-          const arrow = await visible("Previous period").boundingBox();
+          const arrow = await periodAction(/^Previous/).boundingBox();
           expect(headline).not.toBeNull();
           expect(arrow).not.toBeNull();
           if (mobile) {
             expect(arrow!.width).toBeGreaterThanOrEqual(44);
             expect(arrow!.height).toBeGreaterThanOrEqual(44);
           }
-          expect(
-            Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2),
-          ).toBeLessThan(3);
+          if (mobile) {
+            expect(arrow!.y).toBeGreaterThanOrEqual(headline!.y);
+            expect(arrow!.y).toBeLessThan(headline!.y + headline!.height + 48);
+          } else {
+            expect(
+              Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2),
+            ).toBeLessThan(3);
+          }
           if (code === "6M")
             await page.screenshot({
               path: testInfo.outputPath("header-6m-navigation.png"),
               animations: "disabled",
             });
-          await visible("Previous period").click();
+          await periodAction(/^Previous/).click();
           await expect
             .poll(() => reportRequests)
             .toEqual(
@@ -294,40 +311,45 @@ for (const mobile of [false, true]) {
               ]),
             );
           await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
-          await expect(visible("Next period")).toBeEnabled();
+          await expect(periodAction(/^Next/)).toBeEnabled();
           if (code === "6M") {
             await page.reload();
-            await expect(visible("Next period")).toBeEnabled();
+            await expect(periodAction(/^Next/)).toBeEnabled();
             await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
             await page.screenshot({
               path: testInfo.outputPath("header-6m-previous-window.png"),
               animations: "disabled",
             });
+            await periodAction(/^Previous/).click();
+            await periodAction("Back to latest").click();
+            await expect(periodAction(/^Next/)).toBeDisabled();
+            await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+            await periodAction(/^Previous/).click();
           }
-          await visible("Next period").click();
-          await expect(visible("Next period")).toBeDisabled();
+          await periodAction(/^Next/).click();
+          await expect(periodAction(/^Next/)).toBeDisabled();
           await expect(visible(code)).toHaveAttribute("aria-pressed", "true");
         }
 
         await visible(mobile ? "MTD" : "This month").click();
-        await visible("Previous period").click();
+        await periodAction(/^Previous/).click();
         await expect(periodButton("August 2026")).toBeVisible();
-        await visible("Next period").click();
+        await periodAction(/^Next/).click();
         await expect(visible(mobile ? "MTD" : "This month")).toHaveAttribute(
           "aria-pressed",
           "true",
         );
-        await expect(visible("Next period")).toBeDisabled();
+        await expect(periodAction(/^Next/)).toBeDisabled();
 
         for (const tab of ["investments", "net-worth"]) {
           await gotoAppPath(page, `/dashboard?tab=${tab}&dir=${direction}`);
           await visible("1M").click();
-          await expect(visible("Previous period")).toBeEnabled();
-          await visible("Previous period").click();
+          await expect(periodAction(/^Previous/)).toBeEnabled();
+          await periodAction(/^Previous/).click();
           await expect(visible("1M")).toHaveAttribute("aria-pressed", "true");
-          await expect(visible("Next period")).toBeEnabled();
-          await visible("Next period").click();
-          await expect(visible("Next period")).toBeDisabled();
+          await expect(periodAction(/^Next/)).toBeEnabled();
+          await periodAction(/^Next/).click();
+          await expect(periodAction(/^Next/)).toBeDisabled();
           await expect(visible("1M")).toHaveAttribute("aria-pressed", "true");
         }
 

@@ -1,11 +1,70 @@
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { PeriodNavigation } from "./period-navigation";
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("uses the compact interval label on a phone and exposes a one-click return", async () => {
+  vi.stubGlobal("innerWidth", 390);
+  const onReset = vi.fn();
+  render(
+    <PeriodNavigation
+      navigation={{
+        label: "Historical range",
+        step: "3M",
+        previousDisabled: false,
+        nextDisabled: false,
+        onStep: vi.fn(),
+        onReset,
+      }}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Previous 3M" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Next 3M" })).toBeVisible();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Back to latest" }));
+  expect(onReset).toHaveBeenCalledOnce();
+});
+
+it.each([null, "ALL"] as const)("omits navigation when %s has no stepping unit", (step) => {
+  render(
+    <PeriodNavigation
+      navigation={{
+        label: "Custom range",
+        step,
+        previousDisabled: true,
+        nextDisabled: true,
+        onStep: vi.fn(),
+      }}
+    />,
+  );
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Custom range");
+});
+
+it("keeps the announcement region mounted when switching between fixed ranges and presets", () => {
+  const navigation = {
+    label: "Custom range",
+    step: null,
+    previousDisabled: true,
+    nextDisabled: true,
+    onStep: vi.fn(),
+  };
+  const { rerender } = render(<PeriodNavigation navigation={navigation} />);
+  const status = screen.getByRole("status");
+  rerender(
+    <PeriodNavigation
+      navigation={{ ...navigation, step: "6M", label: "Past 6 months", previousDisabled: false }}
+    />,
+  );
+  expect(screen.getByRole("status")).toBe(status);
+  expect(status).toHaveTextContent("Past 6 months");
+});
 
 it("announces the updated period while focus can stay on an arrow", () => {
   const navigation = {
     label: "Past 6 months",
+    step: "6M" as const,
     previousDisabled: false,
     nextDisabled: true,
     onStep: vi.fn(),
@@ -22,24 +81,36 @@ it("exposes header navigation for the current preset and keeps Next disabled", a
   const onStep = vi.fn();
   render(
     <PeriodNavigation
-      navigation={{ label: "Past 6 months", previousDisabled: false, nextDisabled: true, onStep }}
+      navigation={{
+        label: "Past 6 months",
+        step: "6M" as const,
+        previousDisabled: false,
+        nextDisabled: true,
+        onStep,
+      }}
     />,
   );
   expect(screen.getByRole("group", { name: "Past 6 months" })).toBeInTheDocument();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Previous period" }));
+  await userEvent.setup().click(screen.getByRole("button", { name: "Previous 6 months" }));
   expect(onStep).toHaveBeenCalledWith(-1);
-  expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Next 6 months" })).toBeDisabled();
 });
 
 it("allows returning to a newer historical window and mirrors the arrow icons in RTL", async () => {
   const onStep = vi.fn();
   render(
     <PeriodNavigation
-      navigation={{ label: "2024", previousDisabled: true, nextDisabled: false, onStep }}
+      navigation={{
+        label: "2024",
+        step: "year",
+        previousDisabled: true,
+        nextDisabled: false,
+        onStep,
+      }}
     />,
   );
-  expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
-  const next = screen.getByRole("button", { name: "Next period" });
+  expect(screen.getByRole("button", { name: "Previous year" })).toBeDisabled();
+  const next = screen.getByRole("button", { name: "Next year" });
   expect(next.querySelector("svg")).toHaveClass("rtl:rotate-180");
   await userEvent.setup().click(next);
   expect(onStep).toHaveBeenCalledWith(1);

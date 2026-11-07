@@ -667,6 +667,22 @@ export default function SpendingTabContent() {
             : (selection.preset ?? rangePick(selection.range))
           : { kind: "spending", code: selection.kind === "period" ? selection.code : restoreCode };
   const periodNavigation = {
+    step:
+      selection.kind === "range"
+        ? (selection.preset?.code ?? null)
+        : selection.kind === "period"
+          ? selection.code
+          : selection.kind,
+    onReset:
+      customMonth ||
+      customYear !== null ||
+      (selection.kind === "range" && selection.presetWindow) ||
+      (selection.kind === "period" && selection.code === "LAST_MONTH")
+        ? () => {
+            if (selection.kind === "range") handleCustomRangeSelect(undefined);
+            else handleIntervalSelect(customYear !== null ? "YTD" : "MTD");
+          }
+        : undefined,
     label: selectedIntervalDescription.startsWith("spending:")
       ? t(selectedIntervalDescription)
       : selectedIntervalDescription,

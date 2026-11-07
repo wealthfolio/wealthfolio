@@ -14,6 +14,29 @@ function dates(range: { from?: Date; to?: Date } | undefined) {
 describe("useDashboardPeriod", () => {
   beforeEach(() => localStorage.clear());
 
+  it("returns from several historical windows to the original live preset in one action", () => {
+    const { result } = renderHook(() => useDashboardPeriod(TODAY));
+    act(() => result.current.selectPreset("6M"));
+    act(() => result.current.navigation.onStep(-1));
+    act(() => result.current.navigation.onStep(-1));
+    expect(result.current.navigation.step).toBe("6M");
+    act(() => result.current.navigation.onReset?.());
+    expect(result.current.code).toBe("6M");
+    expect(result.current.navigation.onReset).toBeUndefined();
+    expect(result.current.navigation.nextDisabled).toBe(true);
+  });
+
+  it.each(["month", "year"] as const)("returns a calendar %s to its current live unit", (kind) => {
+    const { result } = renderHook(() => useDashboardPeriod(TODAY));
+    act(() =>
+      kind === "month" ? result.current.selectMonth("2025-02") : result.current.selectYear(2024),
+    );
+    expect(result.current.navigation.step).toBe(kind);
+    act(() => result.current.navigation.onReset?.());
+    expect(result.current.code).toBe(kind === "month" ? "1M" : "YTD");
+    expect(result.current.navigation.onReset).toBeUndefined();
+  });
+
   it("exposes navigation immediately for 6M, shares its window, and restores it after reload", () => {
     const first = renderHook(() => useDashboardPeriod(TODAY));
     act(() => first.result.current.selectPreset("6M"));

@@ -255,6 +255,18 @@
     "month": "Monat",
     "year": "Jahr",
     "previousPeriod": "Vorheriger Zeitraum",
+    "previousStep": "Zurück: <unit>{{period}}</unit>",
+    "nextStep": "Weiter: <unit>{{period}}</unit>",
+    "backToLatest": "Zurück zum aktuellen Zeitraum",
+    "stepUnits": {
+      "day": "Tag",
+      "week": "Woche",
+      "month": "Monat",
+      "threeMonths": "3 Monate",
+      "sixMonths": "6 Monate",
+      "year": "Jahr",
+      "fiveYears": "5 Jahre"
+    },
     "nextPeriod": "Nächster Zeitraum",
     "previousYears": "Frühere Jahre",
     "nextYears": "Spätere Jahre",

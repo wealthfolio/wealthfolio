@@ -253,6 +253,18 @@
     "month": "月",
     "year": "年",
     "previousPeriod": "上一个期间",
+    "previousStep": "前<unit>{{period}}</unit>",
+    "nextStep": "后<unit>{{period}}</unit>",
+    "backToLatest": "返回当前期间",
+    "stepUnits": {
+      "day": "1天",
+      "week": "1周",
+      "month": "1个月",
+      "threeMonths": "3个月",
+      "sixMonths": "6个月",
+      "year": "1年",
+      "fiveYears": "5年"
+    },
     "nextPeriod": "下一个期间",
     "previousYears": "更早年份",
     "nextYears": "更晚年份",

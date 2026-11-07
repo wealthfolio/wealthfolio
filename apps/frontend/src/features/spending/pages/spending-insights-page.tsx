@@ -613,6 +613,24 @@ export default function SpendingInsightsPage({
             : (rangePreset ?? rangePick(customRange))
           : { kind: "spending", code: period };
   const periodNavigation = {
+    step:
+      customYear !== null
+        ? ("year" as const)
+        : customMonth
+          ? ("month" as const)
+          : customRange
+            ? (rangePreset?.code ?? null)
+            : period,
+    onReset:
+      customMonth ||
+      customYear !== null ||
+      presetWindow ||
+      (navigationPick.kind === "spending" && navigationPick.code === "LAST_MONTH")
+        ? () => {
+            if (presetWindow) selectCustomRange(undefined);
+            else selectPeriod(customYear !== null ? "YTD" : "MTD");
+          }
+        : undefined,
     label: periodDescription,
     previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO, "calendar"),
     nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO, "calendar"),

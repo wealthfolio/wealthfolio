@@ -751,6 +751,18 @@
     "month": "شهر",
     "year": "سنة",
     "previousPeriod": "الفترة السابقة",
+    "previousStep": "السابق: <unit>{{period}}</unit>",
+    "nextStep": "التالي: <unit>{{period}}</unit>",
+    "backToLatest": "العودة إلى الفترة الحالية",
+    "stepUnits": {
+      "day": "يوم",
+      "week": "أسبوع",
+      "month": "شهر",
+      "threeMonths": "٣ أشهر",
+      "sixMonths": "٦ أشهر",
+      "year": "سنة",
+      "fiveYears": "٥ سنوات"
+    },
     "nextPeriod": "الفترة التالية",
     "previousYears": "سنوات سابقة",
     "nextYears": "سنوات لاحقة",

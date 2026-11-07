@@ -244,7 +244,7 @@ export function DashboardContent({
                 )}
               </>
             )}
-            <span className="ms-1 inline-flex max-w-full items-center gap-1">
+            <span className="ms-1 inline-flex max-w-full flex-wrap items-center gap-2">
               <span className="lg:text-md text-muted-foreground text-sm font-light">
                 {period.isHistorical
                   ? t("common:periodReturn", { period: period.label })
