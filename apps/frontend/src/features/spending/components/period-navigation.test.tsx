@@ -2,10 +2,37 @@ import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { PeriodNavigation } from "./period-navigation";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
+import frSpending from "@/i18n/locales/fr/spending.json";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("uses the compact interval label on a phone and exposes a one-click return", async () => {
+it("renders French month actions without an unelided article", async () => {
+  const i18n = createInstance();
+  await i18n.init({
+    lng: "fr",
+    defaultNS: "spending",
+    resources: { fr: { spending: frSpending } },
+  });
+  render(
+    <I18nextProvider i18n={i18n}>
+      <PeriodNavigation
+        navigation={{
+          label: "Période actuelle",
+          step: "month",
+          previousDisabled: false,
+          nextDisabled: true,
+          onStep: vi.fn(),
+        }}
+      />
+    </I18nextProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Précédent : mois" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Suivant : mois" })).toBeDisabled();
+});
+
+it("keeps full spoken interval labels on a phone and exposes a one-click return", async () => {
   vi.stubGlobal("innerWidth", 390);
   const onReset = vi.fn();
   render(
@@ -20,8 +47,8 @@ it("uses the compact interval label on a phone and exposes a one-click return", 
       }}
     />,
   );
-  expect(screen.getByRole("button", { name: "Previous 3M" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Next 3M" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Previous 3 months" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Next 3 months" })).toBeVisible();
   await userEvent.setup().click(screen.getByRole("button", { name: "Back to latest" }));
   expect(onReset).toHaveBeenCalledOnce();
 });

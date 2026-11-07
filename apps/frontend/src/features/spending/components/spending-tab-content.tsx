@@ -1032,9 +1032,6 @@ export default function SpendingTabContent() {
             <div className="flex flex-wrap items-center gap-x-1">
               <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
                 {t("spending:tabContent.spentLabel")}
-                {selectedIntervalDescription
-                  ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
-                  : ""}
                 {excludedCategoryCount > 0 && (
                   <>
                     {" · "}
