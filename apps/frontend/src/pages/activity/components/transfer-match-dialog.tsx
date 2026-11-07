@@ -167,7 +167,8 @@ function normalizeActivity(
     accountName: getAccountName(activity, accountMap),
     accountType: account?.accountType ?? "",
     accountCurrency: getAccountCurrency(activity, accountMap),
-    activityType: activity.activityType,
+    // The displayed type, so a broker row overridden to a transfer can be linked.
+    activityType: getEffectiveType(activity),
     date: getActivityDate(activity),
     amount: activity.amount,
     quantity: activity.quantity,
@@ -296,7 +297,8 @@ function activitySortKey(activity: TransferDialogActivity): string {
   return `${new Date(getActivityDate(activity)).getTime()}-${activity.id}`;
 }
 
-function externalTransferUpdatePayload(
+/** The update that marks a transfer as money moving into or out of the portfolio. */
+export function externalTransferUpdatePayload(
   activity: TransferDialogActivity,
 ): NewActivityFormValues & { id: string; currentAssetId?: string } {
   const amount = parseNumber(activity.amount);
@@ -308,7 +310,11 @@ function externalTransferUpdatePayload(
   return {
     id: activity.id,
     accountId: activity.accountId,
-    activityType: activity.activityType as Extract<ActivityType, "TRANSFER_IN" | "TRANSFER_OUT">,
+    // The displayed type: echoing it keeps a broker row's type override.
+    activityType: getEffectiveType(activity) as Extract<
+      ActivityType,
+      "TRANSFER_IN" | "TRANSFER_OUT"
+    >,
     activityDate: getActivityDate(activity),
     currency: activity.currency,
     amount,
@@ -323,13 +329,16 @@ function externalTransferUpdatePayload(
   } as NewActivityFormValues & { id: string; currentAssetId?: string };
 }
 
-function ActivitySummaryRow({
+export function ActivitySummaryRow({
   activity,
   accountMap,
+  compact = false,
   className,
 }: {
   activity: TransferDialogActivity;
   accountMap: Map<string, Account>;
+  /** Two lines, with the time: for lists of many rows. */
+  compact?: boolean;
   className?: string;
 }) {
   const dateFormatting = useDateFormatting();
@@ -340,6 +349,33 @@ function ActivitySummaryRow({
   const amount = amountValue(normalized);
   const quantity = parseNumber(normalized.quantity);
   const symbol = normalized.assetSymbol || normalized.assetId || t("activity:date_list.cash");
+
+  if (compact) {
+    const quantityText = quantity != null ? `${Math.abs(quantity)} ${symbol}` : undefined;
+    return (
+      <div className={cn("flex flex-col gap-1 rounded-md px-3 py-2 text-sm", className)}>
+        <div className="flex items-center gap-2">
+          <ActivityTypeBadge
+            type={normalized.activityType as ActivityType}
+            className="text-2xs px-1.5 py-0"
+          />
+          <span className="min-w-0 truncate font-medium">{normalized.accountName}</span>
+          <span className="ms-auto shrink-0 font-medium tabular-nums">
+            {amount != null
+              ? formatting.formatAmount(Math.abs(amount), normalized.currency)
+              : (quantityText ?? normalized.currency)}
+          </span>
+        </div>
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <span className="shrink-0">{dateFormatting.formatDateTime(normalized.date)}</span>
+          {normalized.notes ? <span className="min-w-0 truncate">{normalized.notes}</span> : null}
+          {amount != null && quantityText ? (
+            <span className="ms-auto shrink-0">{quantityText}</span>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm", className)}>

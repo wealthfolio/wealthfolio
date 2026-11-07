@@ -37,9 +37,11 @@ pub use activities_model::{
     ImportAssetCandidate, ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping,
     ImportMappingData, ImportTemplate, ImportTemplateData, ImportTemplateScope,
     ImportedActivityIdentity, IncomeData, InternalTransferPairRequest,
-    InternalTransferPairResponse, LinkedTransfer, NewActivity, PrepareActivitiesResult,
-    PreviewedActivityUpdate, SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind,
-    TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfer, UnlinkedTransfers,
+    InternalTransferPairResponse, LinkTransferPairsResult, LinkedTransfer, LinkedTransferPair,
+    NewActivity, PrepareActivitiesResult, PreviewedActivityUpdate,
+    SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind, TransferMatchCandidate,
+    TransferMatchCandidateRequest, TransferMatchReason, TransferMatchReview, TransferMatchWarning,
+    TransferPairLinkError, TransferPairLinkRequest, UnlinkedTransfer, UnlinkedTransfers,
     UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
