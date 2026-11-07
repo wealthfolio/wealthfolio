@@ -48,6 +48,8 @@ pub struct AccountStateSnapshotDB {
     #[diesel(sql_type = Text)]
     pub source: String,
     #[diesel(sql_type = Nullable<Text>)]
+    // Calculated-only provenance must not change observed-snapshot sync payloads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_currency: Option<String>,
 }
 
@@ -169,6 +171,21 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_basis_currency_keeps_known_provenance_and_accepts_legacy_payloads() {
+        let row = AccountStateSnapshotDB::from(AccountStateSnapshot {
+            base_currency: Some("CAD".into()),
+            ..Default::default()
+        });
+        let mut payload = serde_json::to_value(row).unwrap();
+        assert_eq!(payload["baseCurrency"], "CAD");
+        let restored: AccountStateSnapshotDB = serde_json::from_value(payload.clone()).unwrap();
+        assert_eq!(restored.base_currency.as_deref(), Some("CAD"));
+        payload.as_object_mut().unwrap().remove("baseCurrency");
+        let legacy: AccountStateSnapshotDB = serde_json::from_value(payload).unwrap();
+        assert_eq!(legacy.base_currency, None);
+    }
 
     #[test]
     fn snapshot_json_columns_preserve_exact_decimals() {
