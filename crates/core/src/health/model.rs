@@ -459,6 +459,9 @@ pub struct Evidence {
     /// Optional deep-link route for this evidence row.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub route: Option<String>,
+    /// Engine activity context for localized evidence and machine consumers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_issue: Option<crate::portfolio::projection::ActivityIssue>,
 }
 
 impl Evidence {
@@ -468,6 +471,7 @@ impl Evidence {
             label: label.into(),
             value: value.into(),
             route: None,
+            activity_issue: None,
         }
     }
 
@@ -1090,6 +1094,7 @@ impl HealthIssueBuilder {
                         label: "Item".to_string(),
                         value,
                         route: item.route.clone(),
+                        activity_issue: None,
                     };
                     diagnostic = diagnostic.evidence(evidence);
                 }

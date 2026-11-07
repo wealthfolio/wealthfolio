@@ -2,6 +2,9 @@ import type { HealthIssue } from "@/lib/types";
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import React from "react";
+import i18n from "i18next";
+import frHealth from "@/i18n/locales/fr/health.json";
+import arHealth from "@/i18n/locales/ar/health.json";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { IssueDetailSheet } from "./issue-detail-sheet";
@@ -734,5 +737,71 @@ describe("IssueDetailSheet", () => {
     expect(screen.getByText("Updated home")).toBeInTheDocument();
     expect(screen.getByText("last valued 2026-06-01 · 157 days ago")).toBeInTheDocument();
     expect(screen.getByText("Car")).toBeInTheDocument();
+  });
+});
+
+// Exercise the same evidence path the health service supplies, in both directions.
+describe("localized engine activity evidence", () => {
+  it.each([
+    ["fr", frHealth, "ltr"],
+    ["ar", arHealth, "rtl"],
+  ] as const)("shows the reason and activity ID in %s", async (language, catalog, direction) => {
+    i18n.addResourceBundle(language, "health", catalog);
+    const previousLanguage = i18n.language;
+    const previousDirection = document.documentElement.dir;
+    document.documentElement.dir = direction;
+    await i18n.changeLanguage(language);
+    try {
+      renderIssueSheet({
+        ...baseIssue,
+        id: "missing_activity_amount:hash",
+        code: "data_missing_activity_amount",
+        params: { count: 1 },
+        title: "Transaction has no amount",
+        message: "Review these transactions",
+        details: "raw English details",
+        diagnostics: [
+          {
+            ...diagnosticMeta,
+            code: "MISSING_ACTIVITY_AMOUNT",
+            title: "Transaction has no amount",
+            explanation: "Review these transactions",
+            actions: [],
+            evidence: [
+              {
+                label: "Item",
+                value: "Brokerage — 2025-01-06",
+                route: "/activities?activity=fee-1&healthContext=activity",
+                activityIssue: {
+                  activityId: "fee-1",
+                  kind: "MISSING_AMOUNT",
+                  message: "raw English message",
+                  reason: { code: "MISSING_FINAL_CASH" },
+                },
+              },
+            ],
+          },
+        ],
+      });
+      expect(screen.getByText(catalog.activityReasons.missing_final_cash)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (text) =>
+            text.replace(/\p{Bidi_Control}/gu, "") ===
+            catalog.activityReasons.activity_id.replace("{{id}}", "fee-1"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("raw English message")).not.toBeInTheDocument();
+      expect(screen.queryByText("raw English details")).not.toBeInTheDocument();
+      expect(screen.queryByText("Transaction has no amount")).not.toBeInTheDocument();
+      expect(screen.queryByText("Review these transactions")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Brokerage/ })).toHaveAttribute(
+        "href",
+        "/activities?activity=fee-1&healthContext=activity",
+      );
+    } finally {
+      document.documentElement.dir = previousDirection;
+      await i18n.changeLanguage(previousLanguage);
+    }
   });
 });

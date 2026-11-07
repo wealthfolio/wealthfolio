@@ -28,7 +28,7 @@ mod scope;
 mod value;
 
 pub use compile::{compile, CompiledLedger};
-pub use diagnostics::{Diagnostic, DiagnosticCode, Severity};
+pub use diagnostics::{ActivityReason, Diagnostic, DiagnosticCode, Severity};
 pub use engine::Engine;
 pub use error::EngineError;
 pub use impact::{impact, FactChange, Impact, BEGINNING};

@@ -2,6 +2,7 @@
 //! fallback input is reported here, attached to the event or day it affects.
 //! Diagnostics are never turned into silent zeros and never dropped.
 
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -70,6 +71,85 @@ pub enum DiagnosticCode {
     ConflictingFxRates,
 }
 
+/// Domain reasons carried with activity diagnostics. Values stay raw; consumers
+/// choose the language and presentation. Persisted consumers retain the fallback
+/// message when they encounter a reason their version does not understand.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "code",
+    content = "params",
+    rename_all = "SCREAMING_SNAKE_CASE",
+    rename_all_fields = "camelCase"
+)]
+pub enum ActivityReason {
+    MissingFxRate {
+        from: String,
+        to: String,
+        date: NaiveDate,
+    },
+    CloseBuyWithoutShortPosition {
+        asset: String,
+    },
+    SellShortIntentRequired {
+        asset: String,
+    },
+    ConversionInsufficientHoldings {
+        asset: String,
+        requested: String,
+        held: String,
+    },
+    ConversionCurrencyMismatch {
+        from_asset: String,
+        from_currency: String,
+        to_asset: String,
+        to_currency: String,
+    },
+    ReturnOfCapitalAmountRequired,
+    SellWithoutPosition {
+        asset: String,
+    },
+    InsufficientQuantity {
+        action: String,
+        asset: String,
+        requested: String,
+        held: String,
+        excess: String,
+    },
+    MissingFinalCash,
+}
+
+/// A rejected activity's existing fallback message plus an optional domain reason.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("{message}")]
+pub(crate) struct ActivityRejection {
+    pub message: String,
+    pub reason: Option<Box<ActivityReason>>,
+}
+
+impl ActivityRejection {
+    pub fn with_reason(message: impl Into<String>, reason: ActivityReason) -> Self {
+        Self {
+            message: message.into(),
+            reason: Some(Box::new(reason)),
+        }
+    }
+}
+
+impl From<String> for ActivityRejection {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            reason: None,
+        }
+    }
+}
+
+impl From<&str> for ActivityRejection {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub code: DiagnosticCode,
@@ -77,6 +157,8 @@ pub struct Diagnostic {
     /// Activity id, asset id, account id, or date the diagnostic points at.
     pub source: String,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<ActivityReason>,
 }
 
 impl Diagnostic {
@@ -91,7 +173,14 @@ impl Diagnostic {
             severity,
             source: source.into(),
             message: message.into(),
+            reason: None,
         }
+    }
+
+    /// Attaches a typed activity reason without changing its outcome or severity.
+    pub fn with_reason(mut self, reason: Option<ActivityReason>) -> Self {
+        self.reason = reason;
+        self
     }
 
     pub fn warning(

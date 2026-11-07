@@ -1,5 +1,6 @@
 import type {
   DiagnosticAction,
+  EngineActivityIssue,
   FixAction,
   HealthCategory,
   HealthDiagnostic,
@@ -26,7 +27,11 @@ import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { translateHealthAction, translateIssueText } from "../translate-issue";
+import {
+  translateActivityReason,
+  translateHealthAction,
+  translateIssueText,
+} from "../translate-issue";
 
 interface IssueDetailSheetProps {
   issue: HealthIssue | null;
@@ -163,6 +168,7 @@ interface DiagnosticGroup {
 }
 
 interface DiagnosticEvidenceRow {
+  activityIssue?: EngineActivityIssue;
   key: string;
   label: string;
   value: string;
@@ -301,6 +307,7 @@ function buildDiagnosticRows(diagnostic: HealthDiagnostic): DiagnosticEvidenceRo
       value: display.value,
       detail: dateRow && dateRow !== row ? dateRow.value : undefined,
       route: row.route,
+      activityIssue: row.activityIssue,
     };
   });
 }
@@ -433,7 +440,11 @@ export function IssueDetailSheet({
   const diagnosticGroups = groupDiagnostics(diagnostics);
   const isGroupedPrice = isGroupedPriceIssue(diagnosticGroups);
   const hasDiagnosticActions = diagnostics.some((diagnostic) => diagnostic.actions.length > 0);
-  const shouldRenderDetails = !hasDiagnostics || isFallbackDiagnosticIssue(issue, diagnostics);
+  const hasActivityEvidence = diagnostics.some((diagnostic) =>
+    diagnostic.evidence.some((evidence) => evidence.activityIssue),
+  );
+  const hasFallbackDiagnostic = isFallbackDiagnosticIssue(issue, diagnostics);
+  const shouldRenderDetails = !hasActivityEvidence && (!hasDiagnostics || hasFallbackDiagnostic);
   const detailItems =
     issue.details
       ?.split(/\n\s*\n/)
@@ -554,7 +565,9 @@ export function IssueDetailSheet({
                           <p className="text-sm font-medium">
                             {shouldGroupByAsset
                               ? t("health:sheet.pricesByInvestment")
-                              : group.title}
+                              : hasActivityEvidence && hasFallbackDiagnostic
+                                ? translateIssueText(t, issue, "title")
+                                : group.title}
                           </p>
                           {shouldGroupByAsset && (
                             <p className="text-muted-foreground text-xs">
@@ -568,7 +581,9 @@ export function IssueDetailSheet({
                         </div>
                         {!shouldGroupByAsset && (
                           <p className="text-muted-foreground text-xs leading-relaxed">
-                            {group.explanation}
+                            {hasActivityEvidence && hasFallbackDiagnostic
+                              ? translateIssueText(t, issue, "message")
+                              : group.explanation}
                           </p>
                         )}
                         {shouldGroupByAsset && (
@@ -620,13 +635,29 @@ export function IssueDetailSheet({
                                     <div className="min-w-0">
                                       <p className="truncate text-sm">{evidenceRow.label}</p>
                                       <div className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                        {evidenceRow.value && <span>{evidenceRow.value}</span>}
+                                        {evidenceRow.activityIssue ? (
+                                          <span className="break-all">
+                                            {t("health:activityReasons.activity_id", {
+                                              id: evidenceRow.activityIssue.activityId,
+                                            })}
+                                          </span>
+                                        ) : (
+                                          evidenceRow.value && <span>{evidenceRow.value}</span>
+                                        )}
                                         {evidenceRow.detail && (
                                           <span className="font-mono tabular-nums">
                                             {evidenceRow.detail}
                                           </span>
                                         )}
                                       </div>
+                                      {evidenceRow.activityIssue && (
+                                        <p className="text-muted-foreground mt-1 text-sm break-words whitespace-normal">
+                                          {translateActivityReason(t, evidenceRow.activityIssue, {
+                                            ...dateFormatting,
+                                            ...numbers,
+                                          })}
+                                        </p>
+                                      )}
                                     </div>
                                     {rowRoute && (
                                       <Icons.ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 rtl:rotate-180" />

@@ -211,6 +211,7 @@ pub(super) async fn execute(
                 activity_id: diagnostic.source.clone(),
                 kind,
                 message: diagnostic.message.clone(),
+                reason: diagnostic.reason.clone(),
             });
         }
     };
@@ -447,7 +448,10 @@ async fn stored_inputs(
             .activity_issues(&ids)?
             .into_iter()
             .filter(|issue| issue.kind == ActivityIssueKind::Rejected)
-            .map(|r| Diagnostic::error(DiagnosticCode::ActivityRejected, r.activity_id, r.message))
+            .map(|r| {
+                Diagnostic::error(DiagnosticCode::ActivityRejected, r.activity_id, r.message)
+                    .with_reason(r.reason)
+            })
             .collect(),
     })
 }

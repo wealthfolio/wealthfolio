@@ -1984,7 +1984,15 @@ async fn the_health_view_reports_the_engine_decisions() {
                 .activity_issues()
                 .unwrap()
                 .into_iter()
-                .map(|issue| (issue.activity_id, issue.kind))
+                .map(|issue| {
+                    if matches!(
+                        issue.kind,
+                        ActivityIssueKind::Oversold | ActivityIssueKind::MissingAmount
+                    ) {
+                        assert!(issue.reason.is_some(), "stored activity reason: {issue:?}");
+                    }
+                    (issue.activity_id, issue.kind)
+                })
                 .collect();
             kinds.sort_by(|a, b| a.0.cmp(&b.0));
             (kinds, harness.coordinator.fx_conflicts().unwrap())
