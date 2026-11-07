@@ -1,5 +1,5 @@
 import { devices, expect, test, type Page } from "@playwright/test";
-import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -52,6 +52,13 @@ test.beforeEach(async ({ browser, page }) => {
   await gotoAppPath(page, "/");
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
   await seedAccounts(page);
+});
+
+// Later specs expect English at the default text size.
+test.afterEach(async ({ page }) => {
+  await page.request.put(`${BASE_URL}/api/v1/settings`, {
+    data: { language: "en", textSize: "default" },
+  });
 });
 
 for (const scenario of [
@@ -137,9 +144,12 @@ for (const scenario of [
     );
     const writes: string[] = [];
     page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      // Searching activities is a read, even though it is a POST.
       if (
         ["POST", "PUT", "PATCH"].includes(request.method()) &&
-        /\/activities(?:\/|$)/.test(new URL(request.url()).pathname)
+        /\/activities(?:\/|$)/.test(path) &&
+        !path.endsWith("/search")
       )
         writes.push(request.method());
     });
