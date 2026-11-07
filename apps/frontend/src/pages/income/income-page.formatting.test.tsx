@@ -1,6 +1,12 @@
 import type { IncomeSummary } from "@/lib/types";
+import { findTooltip } from "@/test/tooltip";
 import { render, screen, within } from "@testing-library/react";
-import { FormattingProvider, type CurrencyFormattingRegions } from "@wealthfolio/ui";
+import userEvent from "@testing-library/user-event";
+import {
+  FormattingProvider,
+  TooltipProvider,
+  type CurrencyFormattingRegions,
+} from "@wealthfolio/ui";
 import { cloneElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import IncomePage from "./income-page";
@@ -22,6 +28,7 @@ const { summary } = vi.hoisted(() => ({
         symbol: "EXAMPLE",
         name: "Example company",
         income: 137451.9878,
+        dividendIncome: 137451.9878,
       },
     },
     byAccount: {},
@@ -83,16 +90,20 @@ describe("IncomePage currency tooltip", () => {
   });
 });
 
-it("uses the selected region for income source percentages and updates immediately", () => {
+it("uses the selected region for income source percentages and updates immediately", async () => {
   const page = (locale: string) => (
     <FormattingProvider locale={locale}>
-      <IncomePage />
+      <TooltipProvider delay={0}>
+        <IncomePage />
+      </TooltipProvider>
     </FormattingProvider>
   );
   const { rerender } = render(page("ES"));
   expect(screen.getByText("33,3 %")).toBeInTheDocument();
   expect(screen.getByText("66,7 %")).toBeInTheDocument();
-  expect(screen.getByText("33,3 % of total")).toBeInTheDocument();
+  const bar = document.querySelector<HTMLElement>('[data-slot="tooltip-trigger"]');
+  await userEvent.hover(bar!);
+  expect(await findTooltip()).toHaveTextContent("33,3 % of total");
   rerender(page("US"));
   expect(screen.getByText("33.3%")).toBeInTheDocument();
   expect(screen.getByText("66.7%")).toBeInTheDocument();

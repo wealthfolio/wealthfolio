@@ -1065,7 +1065,10 @@ export interface IncomeByAsset {
   kind: AssetKind;
   symbol: string;
   name: string;
+  /** Income of every type. */
   income: number;
+  /** The part of `income` that is dividends; absent on older hosts. */
+  dividendIncome?: number;
 }
 
 export interface IncomeSummary {
