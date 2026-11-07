@@ -51,6 +51,8 @@ describe("supported locales", () => {
       expect(normalizeLocaleCode("fr-CA")).toBe("fr");
       expect(normalizeLocaleCode("en_US")).toBe("en");
       expect(normalizeLocaleCode("pt-PT")).toBe("pt");
+      expect(normalizeLocaleCode("vi-VN")).toBe("vi");
+      expect(normalizeLocaleCode("vi_VN")).toBe("vi");
     });
 
     it("does not treat a Traditional region as Chinese on another language", () => {
