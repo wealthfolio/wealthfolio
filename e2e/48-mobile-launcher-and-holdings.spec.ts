@@ -56,9 +56,10 @@ test.beforeEach(async ({ browser, page }) => {
 
 // Later specs expect English at the default text size.
 test.afterEach(async ({ page }) => {
-  await page.request.put(`${BASE_URL}/api/v1/settings`, {
+  const reset = await page.request.put(`${BASE_URL}/api/v1/settings`, {
     data: { language: "en", textSize: "default" },
   });
+  expect(reset.ok(), await reset.text()).toBeTruthy();
 });
 
 for (const scenario of [
