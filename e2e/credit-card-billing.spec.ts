@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
+test.use({ timezoneId: "America/New_York" });
+
 for (const direction of ["ltr", "rtl"] as const) {
   test(`credit card statements preserve closing balances and open their transactions (${direction})`, async ({
     page,
@@ -9,6 +11,8 @@ for (const direction of ["ltr", "rtl"] as const) {
     if (direction === "rtl") await page.setViewportSize({ width: 390, height: 844 });
     await completeOnboardingIfNeeded(page);
     const api = `${BASE_URL}/api/v1`;
+    const timezone = await page.request.put(`${api}/settings`, { data: { timezone: "UTC" } });
+    expect(timezone.ok(), await timezone.text()).toBeTruthy();
     const create = await page.request.post(`${api}/accounts`, {
       data: {
         name: `Billing ${direction} ${Date.now().toString(36)}`,
@@ -74,6 +78,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     const previousClose = new Date(`${current.startDate}T12:00:00Z`);
     previousClose.setUTCDate(previousClose.getUTCDate() - 1);
     const closingDay = previousClose.toISOString().slice(0, 10);
+    const closingActivityIds: string[] = [];
     for (const [kind, date, amount] of [
       ["WITHDRAWAL", closingDay, "120.50"],
       ["CREDIT", closingDay, "20.10"],
@@ -92,6 +97,8 @@ for (const direction of ["ltr", "rtl"] as const) {
         },
       });
       expect(response.ok(), await response.text()).toBeTruthy();
+      const activity = await response.json();
+      if (date === closingDay) closingActivityIds.push(activity.id);
     }
     const result = await (await statements()).json();
     expect(result[0]).toMatchObject({
@@ -106,6 +113,10 @@ for (const direction of ["ltr", "rtl"] as const) {
     expect(Number(result[0].balances[0].balance)).toBe(45.4);
     expect(Number(result[1].balances[0].balance)).toBe(100.4);
 
+    const spending = await page.request.put(`${api}/spending/settings`, {
+      data: { enabled: true, accountIds: [account.id] },
+    });
+    expect(spending.ok(), await spending.text()).toBeTruthy();
     await gotoAppPath(page, `/accounts/${account.id}?dir=${direction}`);
     const panel = page
       .locator('[data-slot="card"]')
@@ -118,8 +129,25 @@ for (const direction of ["ltr", "rtl"] as const) {
     await expect(panel.getByText("Statement balance", { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("billing.png"), fullPage: true });
     const href = `/activities?account=${account.id}&from=${result[1].startDate}&to=${closingDay}`;
+    const periodSearch = page.waitForResponse((response) => {
+      if (!response.url().includes("/spending/cash-activities/search")) return false;
+      const request = response.request().postDataJSON();
+      return Boolean(
+        request?.accountIds?.includes(account.id) && request.startDate && request.endDate,
+      );
+    });
     await panel.locator(`a[href="${href}"]`).click();
-    await expect(page).toHaveURL(new RegExp(`account=${account.id}`));
+    await expect(page).toHaveURL(new RegExp(`accounts?=${account.id}`));
     await expect(page).toHaveURL(new RegExp(`to=${closingDay}`));
+    const search = await periodSearch;
+    expect(search.ok(), await search.text()).toBeTruthy();
+    expect(search.request().postDataJSON()).toMatchObject({
+      startDate: result[1].startDate,
+      endDate: closingDay,
+    });
+    const matches = await search.json();
+    expect(matches.items.map((item: { id: string }) => item.id).sort()).toEqual(
+      closingActivityIds.sort(),
+    );
   });
 }

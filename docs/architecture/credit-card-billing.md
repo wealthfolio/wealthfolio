@@ -50,6 +50,11 @@ statements. Partial imports cannot reconstruct missing opening debt.
 - Existing account/activity events invalidate the statement query alongside
   other portfolio queries. The active page also refreshes every minute so the
   open/closed boundary changes without requiring a new transaction.
+- Spending date filters send calendar dates to the shared Rust service. It
+  compares them in the configured application timezone, including DST
+  transitions, so a browser in a different timezone sees the same statement
+  period. Existing RFC3339 timestamp filters keep their inclusive instant
+  semantics.
 - No payment is created by closing a cycle. Card payment accounting, spending
   categorization, provider settings and network integrations are unchanged.
 - The account form and statement list use existing UI components, privacy-aware

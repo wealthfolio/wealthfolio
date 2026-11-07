@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use chrono_tz::Tz;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use wealthfolio_core::accounts::{
@@ -210,6 +210,7 @@ impl CashActivityService {
             &mut activities,
             filter.start_date.as_deref(),
             filter.end_date.as_deref(),
+            chrono_tz::UTC,
         )?;
 
         activities.sort_by_key(|a| std::cmp::Reverse(a.activity_date));
@@ -470,6 +471,7 @@ impl CashActivityService {
             &mut activities,
             req.start_date.as_deref(),
             req.end_date.as_deref(),
+            timezone,
         )?;
 
         if let Some(events) = req.event_ids.as_deref() {
@@ -1446,17 +1448,27 @@ fn group_splits(splits: &[ActivitySplit]) -> HashMap<&str, Vec<&ActivitySplit>> 
     map
 }
 
+/// Calendar bounds include whole days in the app timezone, including DST gaps.
+/// RFC3339 bounds retain their existing inclusive instant semantics.
 fn retain_by_date_range(
     activities: &mut Vec<Activity>,
     start_date: Option<&str>,
     end_date: Option<&str>,
+    timezone: Tz,
 ) -> Result<()> {
-    let start = parse_filter_datetime(start_date)?;
-    let end = parse_filter_datetime(end_date)?;
+    let calendar_day = |value: &str| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok();
+    let start_day = start_date.and_then(calendar_day);
+    let end_day = end_date.and_then(calendar_day);
+    let start = parse_filter_datetime(start_date.filter(|_| start_day.is_none()))?;
+    let end = parse_filter_datetime(end_date.filter(|_| end_day.is_none()))?;
 
-    if start.is_some() || end.is_some() {
-        activities
-            .retain(|a| activity_date_in_range(&a.activity_date, start.as_ref(), end.as_ref()));
+    if start.is_some() || end.is_some() || start_day.is_some() || end_day.is_some() {
+        activities.retain(|a| {
+            let day = activity_date_in_tz(a.activity_date, timezone);
+            start_day.is_none_or(|start| day >= start)
+                && end_day.is_none_or(|end| day <= end)
+                && activity_date_in_range(&a.activity_date, start.as_ref(), end.as_ref())
+        });
     }
 
     Ok(())
@@ -3531,6 +3543,90 @@ mod tests {
         let net = response.net.clone().unwrap().by_currency[0].amount;
         assert_eq!(summed, net);
         assert_eq!(summed, 350.0);
+    }
+
+    #[test]
+    fn calendar_date_filters_include_whole_app_days_across_dst_changes() {
+        for (timezone, day, instants) in [
+            (
+                chrono_tz::UTC,
+                "2026-11-01",
+                [
+                    "2026-10-31T23:59:59.999999999Z",
+                    "2026-11-01T00:00:00Z",
+                    "2026-11-01T23:59:59.999999999Z",
+                    "2026-11-02T00:00:00Z",
+                ],
+            ),
+            (
+                chrono_tz::America::New_York,
+                "2026-11-01",
+                [
+                    "2026-11-01T03:59:59.999999999Z",
+                    "2026-11-01T04:00:00Z",
+                    "2026-11-02T04:59:59.999999999Z",
+                    "2026-11-02T05:00:00Z",
+                ],
+            ),
+            (
+                chrono_tz::Asia::Beirut,
+                "2026-03-29",
+                [
+                    "2026-03-28T21:59:59.999999999Z",
+                    "2026-03-28T22:00:00Z",
+                    "2026-03-29T20:59:59.999999999Z",
+                    "2026-03-29T21:00:00Z",
+                ],
+            ),
+        ] {
+            let mut rows: Vec<_> = instants
+                .iter()
+                .enumerate()
+                .map(|(index, instant)| {
+                    let mut row = activity("WITHDRAWAL");
+                    row.id = index.to_string();
+                    row.activity_date = instant.parse().unwrap();
+                    row
+                })
+                .collect();
+            retain_by_date_range(&mut rows, Some(day), Some(day), timezone).unwrap();
+            assert_eq!(
+                rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+                ["1", "2"],
+                "{timezone} {day}"
+            );
+        }
+    }
+
+    #[test]
+    fn calendar_and_timestamp_bounds_can_be_mixed_without_changing_instant_semantics() {
+        let mut row = activity("WITHDRAWAL");
+        row.activity_date = "2026-11-01T06:30:00Z".parse().unwrap();
+        let mut rows = vec![row];
+        retain_by_date_range(
+            &mut rows,
+            Some("2026-11-01T01:30:00-05:00"),
+            Some("2026-11-01"),
+            chrono_tz::America::New_York,
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        retain_by_date_range(
+            &mut rows,
+            None,
+            Some("2026-11-01T06:29:59Z"),
+            chrono_tz::America::New_York,
+        )
+        .unwrap();
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn invalid_calendar_bounds_are_rejected_instead_of_ignored() {
+        let mut rows = vec![activity("WITHDRAWAL")];
+        assert!(
+            retain_by_date_range(&mut rows, Some("2026-02-30"), None, chrono_tz::UTC,).is_err()
+        );
     }
 
     #[test]

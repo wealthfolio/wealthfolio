@@ -55,7 +55,9 @@ export interface CashActivitySearchRequest {
   subcategoryIds?: string[];
   eventIds?: string[];
   status?: CashActivityStatusFilter;
+  /** Inclusive calendar date in the app timezone, or an RFC3339 instant. */
   startDate?: string;
+  /** Inclusive calendar date in the app timezone, or an RFC3339 instant. */
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
