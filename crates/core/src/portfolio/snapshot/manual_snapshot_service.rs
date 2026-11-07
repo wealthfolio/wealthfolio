@@ -276,6 +276,7 @@ impl ManualSnapshotService {
             cash_total_account_currency,
             cash_total_base_currency,
             calculated_at: Utc::now().naive_utc(),
+            base_currency: None,
             source: request.source,
         };
 

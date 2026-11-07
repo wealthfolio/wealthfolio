@@ -24,8 +24,8 @@ pub struct FxPairInfo {
     pub from_currency: String,
     /// To currency (base currency)
     pub to_currency: String,
-    /// Market value of holdings using this pair (in base currency)
-    pub affected_mv: f64,
+    /// Market value of holdings using this pair in base currency; unknown if any value is missing.
+    pub affected_mv: Option<f64>,
     /// Latest quote timestamp (None if no quote exists)
     pub latest_quote_time: Option<DateTime<Utc>>,
 }
@@ -125,11 +125,11 @@ impl FxIntegrityCheck {
 
         // Track issues by type
         let mut missing_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut missing_mv = 0.0;
+        let mut missing_mv = Some(0.0);
         let mut stale_warning_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut stale_warning_mv = 0.0;
+        let mut stale_warning_mv = Some(0.0);
         let mut stale_error_pairs: Vec<&FxPairInfo> = Vec::new();
-        let mut stale_error_mv = 0.0;
+        let mut stale_error_mv = Some(0.0);
 
         for pair in fx_pairs {
             match pair.latest_quote_time {
@@ -137,29 +137,31 @@ impl FxIntegrityCheck {
                     let age = fx_market_open_duration(quote_time, ctx.now);
                     if age > critical_age {
                         stale_error_pairs.push(pair);
-                        stale_error_mv += pair.affected_mv;
+                        stale_error_mv = stale_error_mv
+                            .zip(pair.affected_mv)
+                            .map(|(total, value)| total + value);
                     } else if age > warning_age {
                         stale_warning_pairs.push(pair);
-                        stale_warning_mv += pair.affected_mv;
+                        stale_warning_mv = stale_warning_mv
+                            .zip(pair.affected_mv)
+                            .map(|(total, value)| total + value);
                     }
                 }
                 None => {
                     // No rate exists at all
                     missing_pairs.push(pair);
-                    missing_mv += pair.affected_mv;
+                    missing_mv = missing_mv
+                        .zip(pair.affected_mv)
+                        .map(|(total, value)| total + value);
                 }
             }
         }
 
         // Emit issue for missing FX pairs (Error level)
         if !missing_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                missing_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = missing_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -217,13 +219,9 @@ impl FxIntegrityCheck {
 
         // Emit issue for critically stale FX rates (Error level)
         if !stale_error_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                stale_error_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = stale_error_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -280,13 +278,9 @@ impl FxIntegrityCheck {
 
         // Emit issue for slightly stale FX rates (Warning level)
         if !stale_warning_pairs.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                stale_warning_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = stale_warning_mv.and_then(|value| ctx.affected_mv_pct(value));
 
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Warning
@@ -359,7 +353,7 @@ impl FxIntegrityCheck {
             .iter()
             .map(|c| format!("{}:{}:{}:{}", c.pair_id, c.days, c.first_day, c.last_day))
             .collect();
-        let data_hash = compute_data_hash(&pair_ids, Severity::Warning, 0.0);
+        let data_hash = compute_data_hash(&pair_ids, Severity::Warning, Some(0.0));
         let affected_items: Vec<AffectedItem> = conflicts
             .iter()
             .map(|c| {
@@ -419,10 +413,10 @@ fn fx_diagnostic(
             None => "no rate on record".to_string(),
         };
         let label = format!("{} → {}", pair.from_currency, pair.to_currency);
-        let value = format!(
-            "{rate_state} · affects ~{:.0} in base currency",
-            pair.affected_mv
-        );
+        let value = match pair.affected_mv {
+            Some(value) => format!("{rate_state} · affects ~{value:.0} in base currency"),
+            None => format!("{rate_state} · affected value in base currency is unknown"),
+        };
         diagnostic = diagnostic
             .entity(HealthEntityRef::new("currencyPair", pair.pair_id.clone()).label(label.clone()))
             .evidence(Evidence::new(label, value));
@@ -453,7 +447,7 @@ impl HealthCheck for FxIntegrityCheck {
 }
 
 /// Computes a data hash for issue identity and change detection.
-fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: f64) -> String {
+fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: Option<f64>) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -464,7 +458,10 @@ fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: f64) -> St
         id.hash(&mut hasher);
     }
     severity.as_str().hash(&mut hasher);
-    ((mv_pct * 100.0) as u32).hash(&mut hasher);
+    match mv_pct {
+        Some(pct) => ((pct * 100.0) as u32).hash(&mut hasher),
+        None => "unknown".hash(&mut hasher),
+    }
 
     format!("{:x}", hasher.finish())
 }
@@ -519,7 +516,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: None,
         }];
 
@@ -542,6 +539,34 @@ mod tests {
     }
 
     #[test]
+    fn missing_fx_reports_unknown_impact_without_relabeling_local_values() {
+        let ctx = HealthContext::new(HealthConfig::default(), "CAD", 100_000.0);
+        let mut pair = FxPairInfo {
+            pair_id: "USD:CAD".into(),
+            from_currency: "USD".into(),
+            to_currency: "CAD".into(),
+            affected_mv: None,
+            latest_quote_time: None,
+        };
+        let check = FxIntegrityCheck::new();
+        let unknown = check.analyze(std::slice::from_ref(&pair), &ctx);
+        assert_eq!(unknown.len(), 1);
+        assert_eq!(unknown[0].affected_count, 1);
+        assert_eq!(unknown[0].affected_mv_pct, None);
+        assert_eq!(unknown[0].severity, Severity::Error);
+        assert!(unknown[0].diagnostics.as_ref().unwrap()[0].evidence[0]
+            .value
+            .contains("unknown"));
+
+        pair.affected_mv = Some(0.0);
+        let zero = check.analyze(&[pair], &ctx);
+        assert_eq!(zero[0].affected_mv_pct, Some(0.0));
+        assert!(zero[0].diagnostics.as_ref().unwrap()[0].evidence[0]
+            .value
+            .contains("affects ~0"));
+    }
+
+    #[test]
     fn test_stale_fx_pair() {
         let check = FxIntegrityCheck::new();
         let ctx = HealthContext::with_timestamp(
@@ -556,7 +581,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: Some(stale_time),
         }];
 
@@ -580,7 +605,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: Some(fresh_time),
         }];
 
@@ -598,7 +623,7 @@ mod tests {
             pair_id: "EUR:USD".to_string(),
             from_currency: "EUR".to_string(),
             to_currency: "USD".to_string(),
-            affected_mv: 10_000.0,
+            affected_mv: Some(10_000.0),
             latest_quote_time: Some(at(latest_rate)),
         }];
         FxIntegrityCheck::new().analyze(&pairs, &ctx)

@@ -172,13 +172,18 @@ impl FxRepository {
 
     pub fn get_all_historical_exchange_rates(&self) -> Result<Vec<ExchangeRate>> {
         let mut conn = get_connection(&self.pool)?;
+        Self::historical_rates_on_connection(&mut conn)
+    }
 
+    pub(crate) fn historical_rates_on_connection(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<ExchangeRate>> {
         let results: Vec<(QuoteDB, AssetDB)> = quotes::table
             .inner_join(assets::table.on(quotes::asset_id.eq(assets::id)))
             .filter(assets::kind.eq(AssetKind::Fx.as_db_str()))
             .select((quotes::all_columns, assets::all_columns))
             .order_by((quotes::asset_id.asc(), quotes::timestamp.asc()))
-            .load(&mut conn)
+            .load(conn)
             .map_err(StorageError::from)?;
 
         Ok(results

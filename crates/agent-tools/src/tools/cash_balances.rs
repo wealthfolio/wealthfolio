@@ -2,7 +2,7 @@
 //!
 //! Uses the holdings service (which builds cash holdings from snapshots)
 //! to return per-account cash balances. Amounts are in original currency;
-//! per-account totals use the snapshot's pre-computed base-currency conversion.
+//! totals use the captured holdings conversion and stay unknown when inputs are missing.
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -38,11 +38,15 @@ pub struct AccountCashSummary {
     pub account_name: String,
     pub account_currency: String,
     /// Individual cash positions by currency.
-    pub balances: Vec<CashBalanceEntry>,
+    pub balances: Option<Vec<CashBalanceEntry>>,
+    /// Accounting availability: ready, pending, or unavailable.
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason_code: Option<String>,
     /// Total cash converted to account currency.
-    pub total_account_currency: Decimal,
+    pub total_account_currency: Option<Decimal>,
     /// Total cash converted to base currency.
-    pub total_base_currency: Decimal,
+    pub total_base_currency: Option<Decimal>,
 }
 
 /// Output envelope.
@@ -50,7 +54,7 @@ pub struct AccountCashSummary {
 #[serde(rename_all = "camelCase")]
 pub struct GetCashBalancesOutput {
     pub accounts: Vec<AccountCashSummary>,
-    pub grand_total_base: Decimal,
+    pub grand_total_base: Option<Decimal>,
     pub base_currency: String,
 }
 
@@ -67,7 +71,7 @@ impl AgentTool for GetCashBalances {
         "Get cash balances for investment accounts. Returns per-account, \
                 per-currency cash positions with totals in both account currency and base \
                 currency. Use this when the user asks about cash, available funds, \
-                uninvested money, or account balances."
+                uninvested money, or account balances. Unavailable totals are null; per-currency balances and accounting status remain available."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -104,7 +108,7 @@ impl AgentTool for GetCashBalances {
             .get_active_non_archived_accounts()
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
 
-        let account_map: HashMap<String, (String, String)> = accounts
+        let mut account_map: HashMap<String, (String, String)> = accounts
             .iter()
             .map(|a| (a.id.clone(), (a.name.clone(), a.currency.clone())))
             .collect();
@@ -115,102 +119,239 @@ impl AgentTool for GetCashBalances {
         } else {
             accounts.iter().map(|a| a.id.clone()).collect()
         };
-        let valuation_by_account: HashMap<_, _> = env
-            .valuation_service()
-            .get_latest_valuations(&target_ids)
-            .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?
-            .into_iter()
-            .map(|valuation| (valuation.account_id.clone(), valuation))
-            .collect();
-
-        let mut summaries = Vec::new();
-        let mut grand_total_base = Decimal::ZERO;
-
-        for account_id in &target_ids {
-            let holdings = env
-                .holdings_service()
-                .get_holdings(account_id, &base_currency)
-                .await
-                .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
-
-            let cash_holdings: Vec<_> = holdings
-                .into_iter()
-                .filter(|h| h.holding_type == wealthfolio_core::holdings::HoldingType::Cash)
-                .collect();
-
-            if cash_holdings.is_empty() {
-                continue;
+        if let Some(account_id) = target_account_id {
+            if !account_map.contains_key(account_id) {
+                let account = env
+                    .account_service()
+                    .get_account(account_id)
+                    .map_err(|error| AgentToolError::ExecutionFailed(error.to_string()))?;
+                account_map.insert(account.id, (account.name, account.currency));
             }
+        }
+        let scope = env
+            .holdings_service()
+            .get_holdings_by_account_scope(&target_ids, &base_currency)
+            .await
+            .map_err(|error| AgentToolError::ExecutionFailed(error.to_string()))?;
+        let output = cash_balances_output(&target_ids, &account_map, scope, base_currency);
+        Ok(AgentToolResult {
+            content: serde_json::to_value(output)?,
+        })
+    }
+}
 
-            let (account_name, account_currency) = account_map
-                .get(account_id)
-                .cloned()
-                .unwrap_or_else(|| (account_id.clone(), base_currency.clone()));
-
-            let mut balances = Vec::new();
-
-            for h in &cash_holdings {
-                let currency = h
-                    .instrument
-                    .as_ref()
-                    .map(|i| i.currency.clone())
-                    .unwrap_or_else(|| h.local_currency.clone());
-                balances.push(CashBalanceEntry {
-                    currency,
-                    amount: h.quantity,
-                });
-            }
-
-            let raw_total: Decimal = balances.iter().map(|b| b.amount).sum();
-            let all_in_account_currency = balances.iter().all(|b| b.currency == account_currency);
-            let all_in_base_currency = balances.iter().all(|b| b.currency == base_currency);
-            let valuation = valuation_by_account.get(account_id);
-
-            let total_base: Decimal = cash_holdings.iter().map(|h| h.market_value.base).sum();
-            let effective_base = if total_base != Decimal::ZERO {
-                total_base
-            } else if let Some(valuation) = valuation {
-                valuation.cash_balance * valuation.fx_rate_to_base
-            } else if all_in_base_currency {
-                raw_total
-            } else {
-                return Err(AgentToolError::ExecutionFailed(format!(
-                    "Cash balance for account '{}' includes currencies that cannot be converted to base currency.",
-                    account_id
-                )));
-            };
-
-            let total_account_currency = if let Some(valuation) = valuation {
-                valuation.cash_balance
-            } else if all_in_account_currency {
-                raw_total
-            } else if account_currency == base_currency {
-                effective_base
-            } else {
-                return Err(AgentToolError::ExecutionFailed(format!(
-                    "Cash balance for account '{}' includes mixed currencies without an account-currency total.",
-                    account_id
-                )));
-            };
-
-            grand_total_base += effective_base;
+fn cash_balances_output(
+    target_ids: &[String],
+    account_map: &HashMap<String, (String, String)>,
+    scope: wealthfolio_core::holdings::HoldingsScope,
+    base_currency: String,
+) -> GetCashBalancesOutput {
+    let mut summaries = Vec::new();
+    let mut grand_total_base = scope
+        .incomplete_accounts
+        .is_empty()
+        .then_some(Decimal::ZERO);
+    for account_id in target_ids {
+        let (account_name, account_currency) = account_map
+            .get(account_id)
+            .cloned()
+            .unwrap_or_else(|| (account_id.clone(), base_currency.clone()));
+        if let Some(issue) = scope
+            .incomplete_accounts
+            .iter()
+            .find(|issue| issue.account_id == *account_id)
+        {
             summaries.push(AccountCashSummary {
                 account_id: account_id.clone(),
                 account_name,
                 account_currency,
-                balances,
-                total_account_currency,
-                total_base_currency: effective_base,
+                balances: None,
+                status: issue.status.into(),
+                reason_code: Some(issue.reason_code.into()),
+                total_account_currency: None,
+                total_base_currency: None,
             });
+            continue;
         }
-
-        let output = GetCashBalancesOutput {
-            accounts: summaries,
-            grand_total_base,
-            base_currency,
+        let cash: Vec<_> = scope
+            .holdings
+            .iter()
+            .filter(|holding| {
+                holding.account_id == *account_id
+                    && holding.holding_type == wealthfolio_core::holdings::HoldingType::Cash
+            })
+            .collect();
+        if cash.is_empty() {
+            continue;
+        }
+        let balances: Vec<_> = cash
+            .iter()
+            .map(|holding| CashBalanceEntry {
+                currency: holding.local_currency.clone(),
+                amount: holding.quantity,
+            })
+            .collect();
+        let total_base_currency: Option<Decimal> =
+            cash.iter().map(|holding| holding.market_value.base).sum();
+        let total_account_currency = if balances
+            .iter()
+            .all(|balance| balance.currency == account_currency)
+        {
+            Some(balances.iter().map(|balance| balance.amount).sum())
+        } else if account_currency == base_currency {
+            total_base_currency
+        } else {
+            None
         };
-        Ok(AgentToolResult {
-            content: serde_json::to_value(output)?,
-        })
+        grand_total_base = grand_total_base
+            .zip(total_base_currency)
+            .map(|(total, value)| total + value);
+        summaries.push(AccountCashSummary {
+            account_id: account_id.clone(),
+            account_name,
+            account_currency,
+            balances: Some(balances),
+            status: "ready".into(),
+            reason_code: None,
+            total_account_currency,
+            total_base_currency,
+        });
+    }
+    GetCashBalancesOutput {
+        accounts: summaries,
+        grand_total_base,
+        base_currency,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wealthfolio_core::holdings::{
+        Holding, HoldingType, HoldingsScope, IncompleteHoldingsAccount, MonetaryValue,
+    };
+
+    fn cash(account: &str, currency: &str, amount: i64, base: Option<i64>) -> Holding {
+        Holding {
+            id: format!("{account}-{currency}"),
+            account_id: account.into(),
+            holding_type: HoldingType::Cash,
+            is_closed: false,
+            instrument: None,
+            asset_kind: None,
+            quantity: Decimal::from(amount),
+            open_date: None,
+            lots: None,
+            contract_multiplier: Decimal::ONE,
+            local_currency: currency.into(),
+            base_currency: "CAD".into(),
+            translate_observed_basis: false,
+            fx_rate: None,
+            market_value: MonetaryValue::new(Decimal::from(amount), base.map(Decimal::from)),
+            cost_basis: None,
+            price: None,
+            purchase_price: None,
+            unrealized_gain: None,
+            unrealized_gain_pct: None,
+            realized_gain: None,
+            realized_gain_pct: None,
+            total_gain: None,
+            total_gain_pct: None,
+            income: None,
+            total_return: None,
+            total_return_pct: None,
+            return_basis: None,
+            day_change: None,
+            day_change_pct: None,
+            prev_close_value: None,
+            weight: None,
+            as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 11, 6).unwrap(),
+            metadata: None,
+            source_account_ids: Vec::new(),
+        }
+    }
+
+    fn output(scope: HoldingsScope) -> GetCashBalancesOutput {
+        cash_balances_output(
+            &["cad".into(), "usd".into()],
+            &HashMap::from([
+                ("cad".into(), ("CAD account".into(), "CAD".into())),
+                ("usd".into(), ("USD account".into(), "USD".into())),
+            ]),
+            scope,
+            "CAD".into(),
+        )
+    }
+
+    #[test]
+    fn missing_fx_keeps_native_cash_and_healthy_peers_without_a_partial_grand_total() {
+        let result = output(HoldingsScope {
+            holdings: vec![
+                cash("cad", "CAD", 50, Some(50)),
+                cash("usd", "USD", 100, None),
+            ],
+            incomplete_accounts: Vec::new(),
+        });
+        assert_eq!(result.accounts.len(), 2);
+        assert_eq!(
+            result.accounts[0].total_base_currency,
+            Some(Decimal::from(50))
+        );
+        assert_eq!(
+            result.accounts[1].balances.as_ref().unwrap()[0].amount,
+            Decimal::from(100)
+        );
+        assert_eq!(
+            result.accounts[1].total_account_currency,
+            Some(Decimal::from(100))
+        );
+        assert_eq!(result.accounts[1].total_base_currency, None);
+        assert_eq!(result.grand_total_base, None);
+        let json = serde_json::to_value(result).unwrap();
+        assert!(json["grandTotalBase"].is_null());
+        assert!(json["accounts"][1]["totalBaseCurrency"].is_null());
+    }
+
+    #[test]
+    fn pending_and_unavailable_accounts_do_not_hide_known_cash() {
+        for status in ["pending", "unavailable"] {
+            let result = output(HoldingsScope {
+                holdings: vec![cash("cad", "CAD", 50, Some(50))],
+                incomplete_accounts: vec![IncompleteHoldingsAccount {
+                    account_id: "usd".into(),
+                    status,
+                    reason_code: "test",
+                }],
+            });
+            assert_eq!(
+                result.accounts[0].total_base_currency,
+                Some(Decimal::from(50))
+            );
+            assert_eq!(result.accounts[1].status, status);
+            assert!(result.accounts[1].balances.is_none());
+            assert!(result.accounts[1].total_base_currency.is_none());
+            assert!(result.grand_total_base.is_none());
+        }
+    }
+
+    #[test]
+    fn mixed_currencies_need_a_known_account_conversion_but_preserve_known_base_cash() {
+        let result = output(HoldingsScope {
+            holdings: vec![
+                cash("usd", "CAD", 10, Some(10)),
+                cash("usd", "USD", 20, Some(30)),
+            ],
+            incomplete_accounts: Vec::new(),
+        });
+        assert_eq!(result.accounts[0].total_account_currency, None);
+        assert_eq!(
+            result.accounts[0].total_base_currency,
+            Some(Decimal::from(40))
+        );
+        assert_eq!(result.grand_total_base, Some(Decimal::from(40)));
+        assert_eq!(
+            output(HoldingsScope::default()).grand_total_base,
+            Some(Decimal::ZERO)
+        );
     }
 }

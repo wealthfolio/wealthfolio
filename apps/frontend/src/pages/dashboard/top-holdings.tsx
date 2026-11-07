@@ -83,15 +83,15 @@ function HoldingRow({
             }),
       });
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
-  const marketValue = holding.marketValue?.base ?? 0;
+  const marketValue = holding.marketValue?.base;
   const gainAmount =
     performanceMode === "return"
-      ? (holding.totalReturn?.base ?? holding.totalGain?.base ?? 0)
+      ? holding.totalReturn?.base
       : performanceMode === "pnl"
-        ? (holding.totalGain?.base ?? holding.unrealizedGain?.base ?? 0)
+        ? holding.totalGain?.base
         : performanceMode === "unrealized"
-          ? (holding.unrealizedGain?.base ?? 0)
-          : (holding.dayChange?.base ?? 0);
+          ? holding.unrealizedGain?.base
+          : holding.dayChange?.base;
   const gainPercent = getBaseHoldingPerformancePercentForMode(holding, performanceMode);
 
   // An Item link: its padding and rounded corners carry the hover, and the negative

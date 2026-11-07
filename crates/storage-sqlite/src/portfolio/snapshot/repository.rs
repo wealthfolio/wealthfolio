@@ -187,7 +187,7 @@ impl SnapshotRepository {
                 SELECT \
                     id, account_id, snapshot_date, currency, positions, \
                     cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, \
-                    cash_total_account_currency, cash_total_base_currency, source, \
+                    cash_total_account_currency, cash_total_base_currency, source, base_currency, \
                     ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY snapshot_date DESC) as rn \
                 FROM {} \
                 WHERE account_id IN ({}) AND snapshot_date <= ? \
@@ -195,7 +195,7 @@ impl SnapshotRepository {
             SELECT \
                 id, account_id, snapshot_date, currency, positions, \
                 cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, \
-                cash_total_account_currency, cash_total_base_currency, source \
+                cash_total_account_currency, cash_total_base_currency, source, base_currency \
             FROM RankedSnapshots \
             WHERE rn = 1",
             "holdings_snapshots", // Use direct table name string
@@ -248,7 +248,7 @@ impl SnapshotRepository {
                 SELECT \
                     id, account_id, snapshot_date, currency, positions, \
                     cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, \
-                    cash_total_account_currency, cash_total_base_currency, source, \
+                    cash_total_account_currency, cash_total_base_currency, source, base_currency, \
                     ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY snapshot_date DESC) as rn \
                 FROM {} \
                 WHERE account_id IN ({}) \
@@ -256,7 +256,7 @@ impl SnapshotRepository {
             SELECT \
                 id, account_id, snapshot_date, currency, positions, \
                 cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, \
-                cash_total_account_currency, cash_total_base_currency, source \
+                cash_total_account_currency, cash_total_base_currency, source, base_currency \
             FROM RankedSnapshots \
             WHERE rn = 1",
             "holdings_snapshots",
@@ -1053,7 +1053,30 @@ mod tests {
             cash_total_account_currency: Decimal::ZERO,
             cash_total_base_currency: Decimal::ZERO,
             calculated_at: chrono::Utc::now().naive_utc(),
+            base_currency: None,
             source,
+        }
+    }
+
+    #[tokio::test]
+    async fn issue_2487_bulk_snapshot_readers_preserve_currency_provenance() {
+        let (repo, pool, _temp_dir) = create_test_repository().await;
+        let account = "bulk-provenance";
+        create_test_account(&pool, account);
+        let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+        for base in [Some("CAD".to_string()), None] {
+            let mut snapshot = create_test_snapshot(account, day, SnapshotSource::Calculated);
+            snapshot.base_currency = base.clone();
+            repo.save_snapshots(&[snapshot]).await.unwrap();
+            let ids = [account.to_string()];
+            assert_eq!(
+                repo.get_latest_snapshots_before_date(&ids, day).unwrap()[account].base_currency,
+                base
+            );
+            assert_eq!(
+                repo.get_all_latest_snapshots(&ids).unwrap()[account].base_currency,
+                base
+            );
         }
     }
 

@@ -133,6 +133,32 @@ pub struct RunCompletion {
 
 #[async_trait]
 pub trait ProjectionStoreTrait: Send + Sync {
+    /// Captures accounting inputs and their readiness from one database read transaction.
+    fn holdings_read(
+        &self,
+        _accounts: &[String],
+        _day: NaiveDate,
+        _detail_asset: Option<&str>,
+    ) -> Result<crate::portfolio::holdings::HoldingsRead> {
+        Err(crate::Error::Repository(
+            "holdings reads are not configured".into(),
+        ))
+    }
+
+    /// Fences calculations discovered without an existing marker (for example day
+    /// advancement). Only newly created markers may be added to consumption.
+    async fn ensure_calculation_markers(
+        &self,
+        _accounts: &[(String, NaiveDate)],
+    ) -> Result<Vec<ProjectionMarker>> {
+        Ok(Vec::new())
+    }
+
+    /// Records failure only if the attempted inputs are still current.
+    async fn record_failed_calculations(&self, _attempted: &[ProjectionMarker]) -> Result<()> {
+        Ok(())
+    }
+
     /// Every marker with a dirty day.
     fn pending_markers(&self) -> Result<Vec<ProjectionMarker>>;
 

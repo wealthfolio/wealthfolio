@@ -96,6 +96,15 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
             })?;
         let date = NaiveDate::parse_from_str(&metadata.snapshot_date, "%Y-%m-%d")
             .map_err(|error| Error::Repository(error.to_string()))?;
+        if self
+            .get_snapshot_metadata_by_account(account_id, Some(date), Some(date))?
+            .len()
+            != 1
+        {
+            return Err(Error::Repository(
+                "Deleting a snapshot with same-date siblings requires row-ID support".into(),
+            ));
+        }
         self.delete_snapshots_for_account_and_dates(account_id, &[date])
             .await
     }

@@ -5,12 +5,13 @@ import { FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { Activity } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { AllocationTarget, AllocationTargetConstraint } from "@/lib/types";
+import type { AllocationTarget, AllocationTargetConstraint, Holding } from "@/lib/types";
 import { TargetsTab } from "./targets-tab";
 
-const { saveConstraints, saveTarget } = vi.hoisted(() => ({
+const { saveConstraints, saveTarget, holdingsRef } = vi.hoisted(() => ({
   saveConstraints: vi.fn(),
   saveTarget: vi.fn(),
+  holdingsRef: { current: [] as Holding[] },
 }));
 
 const target: AllocationTarget = {
@@ -53,7 +54,9 @@ vi.mock("@/hooks/use-taxonomies", () => ({
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: [{ id: "account-1", name: "New account", isActive: true }] }),
 }));
-vi.mock("@/hooks/use-holdings", () => ({ useHoldings: () => ({ holdings: [] }) }));
+vi.mock("@/hooks/use-holdings", () => ({
+  useHoldings: () => ({ holdings: holdingsRef.current, isComplete: true }),
+}));
 vi.mock("@/hooks/use-portfolios", () => ({ usePortfolios: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-portfolio-allocations", () => ({
   usePortfolioAllocations: () => ({ isLoading: false }),
@@ -69,7 +72,38 @@ vi.mock("../hooks/use-target-constraints", () => ({
 vi.mock("./target-weight-editor", () => ({ TargetWeightEditor: () => null }));
 vi.mock("@/components/account-filter-selector", () => ({ AccountScopeSelector: () => null }));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  holdingsRef.current = [];
+});
+
+it("can protect a known holding even when its market value is unavailable", async () => {
+  holdingsRef.current = [
+    {
+      id: "unpriced",
+      holdingType: "security",
+      quantity: 1,
+      instrument: { id: "unpriced", symbol: "UNPRICED", name: "Unknown price" },
+      marketValue: { local: null, base: null },
+    } as Holding,
+  ];
+  const user = userEvent.setup();
+  render(
+    <FormattingProvider locale="en-US">
+      <TooltipProvider>
+        <TargetsTab
+          targets={[target]}
+          selectedTargetId={target.id}
+          accountScope={{ type: "all" }}
+          onTargetChange={vi.fn()}
+        />
+      </TooltipProvider>
+    </FormattingProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Add asset" }));
+  await user.click(screen.getByRole("button", { name: /UNPRICED/ }));
+  expect(screen.getByRole("button", { name: "Remove UNPRICED" })).toBeInTheDocument();
+});
 
 it.each([undefined, {}])(
   "saves a new sell-protection constraint without crypto APIs (%j)",

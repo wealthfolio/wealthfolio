@@ -9638,6 +9638,50 @@ mod tests {
         );
     }
 
+    #[test]
+    fn observed_snapshot_outbox_payloads_are_accepted_by_the_legacy_column_catalog() {
+        use crate::portfolio::snapshot::AccountStateSnapshotDB;
+        use crate::sync::app_sync::ProjectedChange;
+        use crate::sync::SyncOutboxModel;
+        use wealthfolio_core::portfolio::snapshot::{AccountStateSnapshot, SnapshotSource};
+
+        let mut conn = SqliteConnection::establish(":memory:").unwrap();
+        // The snapshot table on a peer predating basis provenance metadata.
+        diesel::sql_query(
+            "CREATE TABLE holdings_snapshots (
+            id TEXT PRIMARY KEY, account_id TEXT, snapshot_date TEXT,
+            currency TEXT, positions TEXT, cash_balances TEXT, cost_basis TEXT,
+            net_contribution TEXT, calculated_at TEXT, net_contribution_base TEXT,
+            cash_total_account_currency TEXT, cash_total_base_currency TEXT, source TEXT
+        )",
+        )
+        .execute(&mut conn)
+        .unwrap();
+        for source in [SnapshotSource::ManualEntry, SnapshotSource::CsvImport] {
+            let snapshot = AccountStateSnapshot {
+                id: uuid::Uuid::new_v4().to_string(),
+                source,
+                base_currency: None,
+                ..Default::default()
+            };
+            let row = AccountStateSnapshotDB::from(snapshot);
+            assert!(row.should_sync_outbox(SyncOperation::Create));
+            let change = ProjectedChange::for_model(&row, SyncOperation::Create).unwrap();
+            let fields = change
+                .payload
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect();
+            normalize_payload_fields(&mut conn, "holdings_snapshots", fields)
+                .expect("an observed snapshot outbox event must remain readable by older peers");
+            assert!(change.payload.get("baseCurrency").is_none());
+            assert!(change.payload.get("base_currency").is_none());
+            assert_eq!(change.payload.as_object().unwrap().len(), 13);
+        }
+    }
+
     #[tokio::test]
     async fn replay_app_preference_is_allowlisted_and_uses_lww_without_echo() {
         let (pool, writer, _dir) = setup_db();

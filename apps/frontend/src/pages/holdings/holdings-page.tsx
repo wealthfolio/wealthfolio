@@ -1,4 +1,5 @@
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
   Empty,
@@ -124,13 +125,11 @@ export const HoldingsPage = () => {
   );
 
   const includeClosed = effectiveVisibilityFilters.includes("closed");
-  const { holdings, isLoading, hasHiddenClosedPositions } = useHoldingsWithClosedProbe(
-    accountFilter,
-    {
+  const { holdings, isLoading, isComplete, incompleteAccounts, isError, hasHiddenClosedPositions } =
+    useHoldingsWithClosedProbe(accountFilter, {
       includeClosed,
       probeClosedWhenEmpty: showClosedPositions,
-    },
-  );
+    });
   const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
@@ -435,7 +434,8 @@ export const HoldingsPage = () => {
     hasHiddenClosedPositions || (holdings.length > 0 && filteredHoldings.length === 0);
 
   // Empty state checks
-  const hasNoInvestments = !isDataLoading && holdings.length === 0 && !hasHiddenClosedPositions;
+  const hasNoInvestments =
+    isComplete && !isDataLoading && holdings.length === 0 && !hasHiddenClosedPositions;
   const hasNoAssets = !isDataLoading && assetsHoldings.length === 0;
   const hasNoLiabilities = !isDataLoading && liabilitiesHoldings.length === 0;
   const hasMobileInvestmentsToolbar =
@@ -764,6 +764,12 @@ export const HoldingsPage = () => {
 
   return (
     <>
+      <HoldingsScopeNotice
+        isComplete={isComplete}
+        isLoading={isLoading}
+        isError={isError}
+        incompleteAccounts={incompleteAccounts}
+      />
       <SwipablePage views={views} defaultView="investments" />
 
       {/* Alternative Asset Quick Add Modal */}

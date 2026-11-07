@@ -1335,9 +1335,18 @@ impl QuoteServiceTrait for InMemoryQuoteService {
 
     fn get_latest_quotes_pair(
         &self,
-        _symbols: &[String],
+        symbols: &[String],
     ) -> Result<HashMap<String, LatestQuotePair>> {
-        not_needed!("QuoteServiceTrait::get_latest_quotes_pair")
+        Ok(symbols
+            .iter()
+            .filter_map(|symbol| {
+                let series = self.series(symbol);
+                let mut quotes = series.into_iter().rev();
+                let latest = self.reconciled(quotes.next()?);
+                let previous = quotes.next().map(|quote| self.reconciled(quote));
+                Some((symbol.clone(), LatestQuotePair { latest, previous }))
+            })
+            .collect())
     }
 
     fn get_historical_quotes(&self, symbol: &str) -> Result<Vec<Quote>> {
@@ -1533,7 +1542,8 @@ impl QuoteServiceTrait for InMemoryQuoteService {
     }
 
     fn get_sync_states_with_errors(&self) -> Result<Vec<QuoteSyncState>> {
-        not_needed!("QuoteServiceTrait::get_sync_states_with_errors")
+        // This fixture stores quotes directly; no provider sync has run.
+        Ok(Vec::new())
     }
 
     async fn reset_sync_errors(&self, _asset_ids: &[String]) -> Result<()> {
@@ -1611,6 +1621,10 @@ impl InMemoryFxRepository {
 
     pub fn all_rates(&self) -> Vec<ExchangeRate> {
         self.rates.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    pub fn clear_rates(&self) {
+        self.rates.write().unwrap().clear();
     }
 
     fn latest(&self, from: &str, to: &str) -> Option<ExchangeRate> {
@@ -1714,6 +1728,7 @@ struct MarkerRow {
     dirty_from: Option<NaiveDate>,
     version: i64,
     activity_issues: Vec<ActivityIssue>,
+    failed_version: Option<i64>,
 }
 
 /// Projection store over the other doubles (not transactional; tests only).
@@ -1724,9 +1739,39 @@ pub struct InMemoryProjectionStore {
     valued: RwLock<HashSet<String>>,
     /// Number of upcoming writes that fail (retry tests).
     failures_to_inject: std::sync::atomic::AtomicUsize,
+    /// Fail the final commit after the window snapshots have been saved.
+    fail_completion: std::sync::atomic::AtomicBool,
+    completion_pause: Mutex<Option<Arc<ProjectionCompletionPause>>>,
     snapshots: Arc<dyn SnapshotRepositoryTrait>,
     lots: Arc<dyn LotRepositoryTrait>,
     valuations: Arc<dyn ValuationRepositoryTrait>,
+    holdings_sources: RwLock<Option<InMemoryHoldingsSources>>,
+    holdings_read_count: std::sync::atomic::AtomicUsize,
+}
+
+pub struct InMemoryHoldingsSources {
+    pub accounts: Arc<dyn crate::accounts::AccountRepositoryTrait>,
+    pub activities: Arc<dyn crate::activities::ActivityRepositoryTrait>,
+    pub assets: Arc<dyn crate::assets::AssetRepositoryTrait>,
+    pub fx: Arc<dyn crate::fx::FxRepositoryTrait>,
+    pub base_currency: Arc<RwLock<String>>,
+    pub timezone: Arc<RwLock<String>>,
+}
+
+/// A deterministic reader/writer interleaving at the existing publication boundary.
+pub struct ProjectionCompletionPause {
+    entered: tokio::sync::Notify,
+    resume: tokio::sync::Notify,
+}
+
+impl ProjectionCompletionPause {
+    pub async fn wait_until_entered(&self) {
+        self.entered.notified().await;
+    }
+
+    pub fn resume(&self) {
+        self.resume.notify_one();
+    }
 }
 
 impl InMemoryProjectionStore {
@@ -1740,18 +1785,47 @@ impl InMemoryProjectionStore {
             markers: RwLock::new(BTreeMap::new()),
             valued: RwLock::new(HashSet::new()),
             failures_to_inject: std::sync::atomic::AtomicUsize::new(0),
+            fail_completion: std::sync::atomic::AtomicBool::new(false),
+            completion_pause: Mutex::new(None),
             snapshots,
             lots,
             valuations,
+            holdings_sources: RwLock::new(None),
+            holdings_read_count: std::sync::atomic::AtomicUsize::new(0),
         };
         store.mark(MarkerScope::All, GENESIS);
         store
     }
 
     /// Makes the next `count` writes fail with a storage error.
+    pub fn set_holdings_sources(&self, sources: InMemoryHoldingsSources) {
+        *self.holdings_sources.write().unwrap() = Some(sources);
+    }
+
+    pub fn holdings_read_count(&self) -> usize {
+        self.holdings_read_count
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Makes the next `count` writes fail with a storage error.
     pub fn fail_next_persists(&self, count: usize) {
         self.failures_to_inject
             .store(count, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Fails the next final commit, leaving earlier window writes intact.
+    pub fn fail_next_completion(&self) {
+        self.fail_completion
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn pause_next_completion(&self) -> Arc<ProjectionCompletionPause> {
+        let pause = Arc::new(ProjectionCompletionPause {
+            entered: tokio::sync::Notify::new(),
+            resume: tokio::sync::Notify::new(),
+        });
+        *self.completion_pause.lock().unwrap() = Some(pause.clone());
+        pause
     }
 
     /// What a SQLite trigger records for a fact change.
@@ -1781,6 +1855,130 @@ fn in_window(day: NaiveDate, start: NaiveDate, end: Option<NaiveDate>) -> bool {
 
 #[async_trait]
 impl ProjectionStoreTrait for InMemoryProjectionStore {
+    async fn ensure_calculation_markers(
+        &self,
+        accounts: &[(String, NaiveDate)],
+    ) -> Result<Vec<ProjectionMarker>> {
+        let mut markers = self.markers.write().unwrap();
+        let mut added = Vec::new();
+        for (account, from) in accounts {
+            let row = markers.entry(account.clone()).or_default();
+            if row.dirty_from.is_some() {
+                row.failed_version = None;
+                continue;
+            }
+            row.dirty_from = Some(*from);
+            row.version += 1;
+            added.push(ProjectionMarker {
+                scope: MarkerScope::Account(account.clone()),
+                dirty_from: *from,
+                version: row.version,
+            });
+        }
+        Ok(added)
+    }
+
+    async fn record_failed_calculations(&self, attempted: &[ProjectionMarker]) -> Result<()> {
+        let mut rows = self.markers.write().unwrap();
+        for marker in attempted {
+            if let Some(row) = rows
+                .get_mut(&marker.scope.key())
+                .filter(|row| row.version == marker.version && row.dirty_from.is_some())
+            {
+                row.failed_version = Some(marker.version);
+            }
+        }
+        Ok(())
+    }
+
+    fn holdings_read(
+        &self,
+        requested: &[String],
+        day: NaiveDate,
+        detail_asset: Option<&str>,
+    ) -> Result<crate::portfolio::holdings::HoldingsRead> {
+        use crate::portfolio::holdings::HoldingsRead;
+        self.holdings_read_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let sources = self.holdings_sources.read().unwrap();
+        let sources = sources
+            .as_ref()
+            .expect("holdings fixture sources configured");
+        let accounts = sources.accounts.list(None, None, None)?;
+        let ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
+        let activities = sources.activities.get_activities_by_account_ids(&ids)?;
+        let mut snapshots = HashMap::new();
+        for account in accounts.iter().filter(|a| requested.contains(&a.id)) {
+            if let Some(snapshot) = self
+                .snapshots
+                .get_snapshots_by_account(&account.id, None, Some(day))?
+                .into_iter()
+                .filter(|s| HoldingsRead::reads_snapshot(account, s))
+                .max_by_key(|s| s.snapshot_date)
+            {
+                snapshots.insert(account.id.clone(), snapshot);
+            }
+        }
+        let asset_ids: Vec<String> = activities
+            .iter()
+            .filter_map(|a| a.asset_id.clone())
+            .chain(snapshots.values().flat_map(|s| s.positions.keys().cloned()))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let mut lots = Vec::new();
+        let mut accounts_with_open_lots = HashSet::new();
+        let mut disposals = Vec::new();
+        for id in requested {
+            let open = tokio::runtime::Handle::current()
+                .block_on(self.lots.get_open_lots_for_account(id))?;
+            if !open.is_empty() {
+                accounts_with_open_lots.insert(id.clone());
+            }
+            lots.extend(
+                open.into_iter()
+                    .filter(|lot| detail_asset == Some(lot.asset_id.as_str())),
+            );
+            disposals.extend(
+                tokio::runtime::Handle::current()
+                    .block_on(self.lots.get_lot_disposals_for_account(id))?,
+            );
+        }
+        let base_currency = sources.base_currency.read().unwrap().clone();
+        let timezone = sources.timezone.read().unwrap().clone();
+        let failed_accounts = self
+            .markers
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|(_, row)| row.failed_version == Some(row.version) && row.dirty_from.is_some())
+            .map(|(scope, _)| scope.clone())
+            .collect();
+        Ok(HoldingsRead {
+            failed_accounts,
+            day,
+            accounts,
+            snapshots,
+            activities,
+            lots,
+            disposals,
+            accounts_with_open_lots,
+            unavailable_accounts: HashSet::new(),
+            assets: sources
+                .assets
+                .list_by_asset_ids(&asset_ids)?
+                .into_iter()
+                .map(|a| (a.id.clone(), a))
+                .collect(),
+            fx_rates: sources.fx.get_historical_exchange_rates()?,
+            markers: self.pending_markers()?,
+            issues: self.activity_issues(&ids)?,
+            last_valued: self.last_valued_days()?,
+            base_currency,
+            timezone,
+        })
+    }
+
     fn pending_markers(&self) -> Result<Vec<ProjectionMarker>> {
         let markers = self.markers.read().unwrap_or_else(|p| p.into_inner());
         Ok(markers
@@ -1866,6 +2064,19 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
     }
 
     async fn complete_run(&self, completion: RunCompletion) -> Result<()> {
+        let pause = self.completion_pause.lock().unwrap().take();
+        if let Some(pause) = pause {
+            pause.entered.notify_one();
+            pause.resume.notified().await;
+        }
+        if self
+            .fail_completion
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(crate::Error::Unexpected(
+                "injected projection completion failure".to_string(),
+            ));
+        }
         self.injected_failure()?;
         for book in completion.lot_books {
             let account = &book.account_id;
@@ -1912,6 +2123,7 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
                     MarkerScope::Account(_) => {
                         if let Some(row) = markers.get_mut(&key) {
                             row.dirty_from = None;
+                            row.failed_version = None;
                         }
                     }
                     _ => {

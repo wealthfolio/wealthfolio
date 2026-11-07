@@ -710,8 +710,19 @@ export interface Instrument {
 }
 
 export interface MonetaryValue {
-  local: number;
-  base: number;
+  local: number | null;
+  base: number | null;
+}
+
+export interface IncompleteHoldingsAccount {
+  accountId: string;
+  status: "pending" | "unavailable";
+  reasonCode: string;
+}
+
+export interface HoldingsListResponse {
+  holdings: Holding[];
+  incompleteAccounts: IncompleteHoldingsAccount[];
 }
 
 export interface Lot {
@@ -813,7 +824,7 @@ export interface Holding {
   dayChange?: MonetaryValue | null;
   dayChangePct?: number | null;
   prevCloseValue?: MonetaryValue | null;
-  weight: number;
+  weight: number | null;
   asOfDate: string;
   /** Source account IDs for aggregated holdings (portfolio/multi-account scope). Empty for single-account. */
   sourceAccountIds?: string[];

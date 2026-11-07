@@ -146,7 +146,7 @@ impl PriceStalenessCheck {
                         "Manual/custom holdings need a manual valuation before they can be included as valued performance positions.",
                     )
                     .affected_count(count as u32)
-                    .affected_mv_pct(0.0)
+                    .affected_mv_pct(None)
                     .affected_items(affected_items)
                     .diagnostics(vec![price_diagnostic(
                         &manual_without_value,
@@ -197,14 +197,10 @@ impl PriceStalenessCheck {
 
         // Emit error-level issue for critically stale assets
         if !error_assets.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                error_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(error_mv);
 
             // Escalate to Critical if MV% exceeds threshold
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -312,14 +308,10 @@ impl PriceStalenessCheck {
 
         // Emit warning-level issue for slightly stale assets
         if !warning_assets.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                warning_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(warning_mv);
 
             // Escalate to Critical if MV% exceeds threshold
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Warning
@@ -476,7 +468,7 @@ impl PriceStalenessCheck {
                  {STALENESS_THRESHOLD_DAYS} days, so your net worth may be out of date."
             ))
             .affected_count(count as u32)
-            .affected_mv_pct(0.0)
+            .affected_mv_pct(None)
             .affected_items(
                 stale_valuations
                     .iter()
@@ -625,7 +617,11 @@ impl HealthCheck for PriceStalenessCheck {
 }
 
 /// Computes a data hash for issue identity and change detection.
-fn compute_data_hash(asset_ids: &[String], severity: Severity, mv_pct: f64) -> String {
+fn compute_data_hash(
+    asset_ids: &[String],
+    severity: Severity,
+    mv_pct: impl Into<Option<f64>>,
+) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -636,7 +632,10 @@ fn compute_data_hash(asset_ids: &[String], severity: Severity, mv_pct: f64) -> S
         id.hash(&mut hasher);
     }
     severity.as_str().hash(&mut hasher);
-    ((mv_pct * 100.0) as u32).hash(&mut hasher);
+    match mv_pct.into() {
+        Some(pct) => ((pct * 100.0) as u32).hash(&mut hasher),
+        None => "unknown".hash(&mut hasher),
+    }
 
     format!("{:x}", hasher.finish())
 }

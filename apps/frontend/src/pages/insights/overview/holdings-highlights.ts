@@ -29,7 +29,7 @@ export function getTopMovers(holdings: Holding[], mode: "amount" | "percent") {
 }
 
 export interface Concentration {
-  holdings: Holding[];
+  holdings: (Holding & { marketValue: { local: number | null; base: number } })[];
   total: number;
   topFiveWeight: number;
   largestWeight: number;
@@ -46,9 +46,13 @@ export function getConcentration(holdings: Holding[]): Concentration | null {
     )
   )
     return null;
-  const total = investments.reduce((sum, holding) => sum + holding.marketValue.base, 0);
+  const valued = investments.filter(
+    (holding): holding is Holding & { marketValue: { local: number | null; base: number } } =>
+      holding.marketValue.base != null,
+  );
+  const total = valued.reduce((sum, holding) => sum + holding.marketValue.base, 0);
   if (!Number.isFinite(total) || total <= 0) return null;
-  const largest = investments
+  const largest = valued
     .filter(
       (holding) => holding.holdingType === HoldingType.SECURITY && holding.marketValue.base > 0,
     )

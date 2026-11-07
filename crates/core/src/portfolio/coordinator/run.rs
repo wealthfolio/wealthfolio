@@ -154,7 +154,11 @@ pub(super) struct RunContext {
 /// accounts from the fold and the revalued ones from their stored keyframes,
 /// and writes their rows together. Returns what the run commits last (the
 /// caller adds the consumed markers).
-pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunCompletion> {
+pub(super) async fn execute(
+    context: &RunContext,
+    plan: &Plan,
+    fenced: Vec<crate::portfolio::projection::ProjectionMarker>,
+) -> Result<RunCompletion> {
     let resolved = Arc::clone(&context.resolved);
     let starts: BTreeSet<NaiveDate> = plan
         .refold
@@ -282,7 +286,10 @@ pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunComp
         state = Some(folded.final_state);
     }
 
-    let mut completion = RunCompletion::default();
+    let mut completion = RunCompletion {
+        consumed: fenced,
+        ..RunCompletion::default()
+    };
     let Some(final_state) = state else {
         return Ok(completion);
     };
@@ -604,6 +611,7 @@ fn refold_rows(
                 &frames,
                 &writer.account,
                 &account.currency,
+                resolved.facts.policy().base_currency.as_str(),
             )),
             valuations: series
                 .get(&id)

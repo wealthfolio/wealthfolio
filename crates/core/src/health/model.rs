@@ -1000,8 +1000,8 @@ impl HealthIssueBuilder {
         self
     }
 
-    pub fn affected_mv_pct(mut self, pct: f64) -> Self {
-        self.affected_mv_pct = Some(pct);
+    pub fn affected_mv_pct(mut self, pct: impl Into<Option<f64>>) -> Self {
+        self.affected_mv_pct = pct.into();
         self
     }
 
