@@ -1220,6 +1220,33 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(result.current.isConnected).toBe(true);
   });
 
+  it("never hands over a cancelled login's verified session for another account", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    mocks.getSession.mockResolvedValue(verified("A"));
+    mocks.store.mockRejectedValueOnce(
+      new Error("Broker sync is running. Wait for it to finish and try again."),
+    );
+    await act(async () => {
+      await expect(result.current.verifyMfaCode("123456")).rejects.toThrow("Broker sync");
+    });
+    // Sign out of A's code step fails to reach the server, so the SDK keeps A.
+    mocks.signOut.mockResolvedValueOnce({ error: new Error("Network request failed") });
+    await act(() => result.current.cancelMfaChallenge());
+
+    await act(() => result.current.signInWithEmail("B", "password"));
+    expect(result.current.mfaChallenge).toBe("sign-in");
+    mocks.getSession.mockResolvedValue(verified("B"));
+    await act(() => result.current.verifyMfaCode("654321"));
+    expect(mocks.challengeAndVerify).toHaveBeenLastCalledWith({
+      factorId: "factor-1",
+      code: "654321",
+    });
+    expect(mocks.store).toHaveBeenLastCalledWith("B-aal2");
+    expect(result.current.user?.id).toBe("B");
+  });
+
   it("explains a login the backend found expired at startup", async () => {
     mocks.configured = true;
     mocks.restore.mockImplementation(async () => {

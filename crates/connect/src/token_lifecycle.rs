@@ -19,7 +19,11 @@ pub use wealthfolio_core::secrets::{CLOUD_ACCESS_TOKEN_KEY, CLOUD_REFRESH_TOKEN_
 /// signing in again with the same account resumes sync without re-pairing.
 pub const SESSION_EXPIRED_CODE: &str = "CONNECT_SESSION_EXPIRED";
 
-const DEFAULT_EXPIRY_BUFFER_SECS: u64 = 60;
+/// Refresh this long before expiry. The app's Supabase client refreshes a
+/// session on its own within 90 s of expiry (auth-js `EXPIRY_MARGIN_MS`), which
+/// would rotate the refresh token this backend owns. Tokens handed out with more
+/// time left than that keep it from doing so.
+const DEFAULT_EXPIRY_BUFFER_SECS: u64 = 120;
 const DEFAULT_REFRESH_TIMEOUT_SECS: u64 = 10;
 
 #[derive(Debug, Clone)]
@@ -1789,6 +1793,21 @@ mod tests {
             .as_secs() as i64;
         let token = fake_jwt_with_exp(now + 30);
         assert!(!is_access_token_fresh(&token, SystemTime::now(), 60));
+    }
+
+    #[test]
+    fn handed_out_tokens_outlast_the_app_sdk_refresh_margin() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("current time after epoch")
+            .as_secs() as i64;
+        // auth-js refreshes within 90 s of expiry; never hand out a token that close.
+        let token = fake_jwt_with_exp(now + 100);
+        assert!(!is_access_token_fresh(
+            &token,
+            SystemTime::now(),
+            DEFAULT_EXPIRY_BUFFER_SECS
+        ));
     }
 
     #[test]

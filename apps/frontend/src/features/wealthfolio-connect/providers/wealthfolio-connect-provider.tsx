@@ -248,6 +248,8 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   }, []);
 
   const setMfaChallenge = useCallback((next: MfaChallenge | null) => {
+    // A verified session waiting for its handoff belongs to the old challenge only.
+    verifiedPendingRef.current = null;
     mfaChallengeRef.current = next;
     setMfaChallengeState(next);
   }, []);
@@ -978,10 +980,11 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           return null;
         }
       }
-      // listFactors and challengeAndVerify use the SDK session and may refresh it
-      // within 90 s of expiry. Verifying rotates the token anyway, and the result
-      // goes to the backend next (retried until it lands), so the backend ends up
-      // with the newest token.
+      // listFactors and challengeAndVerify use the SDK session, which refreshes
+      // itself within 90 s of expiry. The backend hands out tokens with more time
+      // left than that, so verifying is the only rotation: if the handoff below
+      // fails, the backend's token is the verified one's parent, which Supabase
+      // still accepts.
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
       if (factorsError) throw factorsError;
       // The code may come from any of the user's authenticators (e.g. a backup app),
