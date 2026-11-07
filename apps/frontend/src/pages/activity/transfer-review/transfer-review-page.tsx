@@ -1,6 +1,7 @@
 import { fromDate, toCalendarDate } from "@internationalized/date";
+import type { TFunction } from "i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -17,9 +18,16 @@ import {
 } from "@/features/spending/components/activity-split-review-provider";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { ActivityType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
-import type { Account, Activity, TransferMatchCandidate, UnlinkedTransfer } from "@/lib/types";
-import { cn, resolveDisplayTimezone } from "@/lib/utils";
+import {
+  getEffectiveType,
+  type Account,
+  type Activity,
+  type TransferMatchCandidate,
+  type UnlinkedTransfer,
+} from "@/lib/types";
+import { cn, formatDateTime, resolveDisplayTimezone } from "@/lib/utils";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import {
   Badge,
@@ -37,39 +45,38 @@ import {
   Spinner,
   buttonVariants,
   statusSurfaceVariants,
+  useAmountFormatting,
   useDateFormatting,
   useLocalizationSettings,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
+import { ActivityTypeBadge } from "../components/activity-type-badge";
+import { candidateWarnings } from "../components/transfer-link-utils";
 import {
-  ActivitySummaryRow,
   TransferMatchDialog,
   externalTransferUpdatePayload,
 } from "../components/transfer-match-dialog";
 import { useActivityMutations } from "../hooks/use-activity-mutations";
 import {
   LINK_BATCH_SIZE,
-  REVIEW_REASONS,
+  REVIEW_SECTIONS,
   accountRoutes,
-  candidateReasons,
-  candidateWarnings,
   chunk,
   isMarkedExternal,
+  isOutflow,
   needsConversion,
   pairInFlowOrder,
-  reviewReason,
-  timingReason,
+  reviewPairs,
   withAssetSymbols,
   type AccountRoute,
+  type ReviewPair,
   type ReviewReason,
 } from "./transfer-review-utils";
 
 /** Rows shown at first in a list, and added by "Show more". */
 const ROWS_PER_PAGE = 50;
-
-type ReasonFilter = "all" | Exclude<ReviewReason, "other">;
 
 interface LinkFailure {
   row: UnlinkedTransfer;
@@ -79,7 +86,12 @@ interface LinkFailure {
 /** Link all, while it runs and once it is done. Lives for this visit only. */
 type LinkRun =
   | { status: "running"; done: number; total: number; stopping: boolean }
-  | { status: "finished"; linked: number; failures: LinkFailure[]; notSent: number };
+  | {
+      status: "finished";
+      linked: number;
+      failures: LinkFailure[];
+      notSent: number;
+    };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -95,7 +107,6 @@ function useVisibleCount() {
   return {
     count,
     showMore: () => setCount((current) => current + ROWS_PER_PAGE),
-    reset: () => setCount(ROWS_PER_PAGE),
   };
 }
 
@@ -110,179 +121,295 @@ function ShowMoreButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function CandidateNotes({
-  candidate,
-  withReasons = true,
-  className,
-}: {
-  candidate: TransferMatchCandidate;
-  withReasons?: boolean;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  const reasons = withReasons ? candidateReasons(t, candidate) : [];
-  const warnings = candidateWarnings(t, candidate);
-  const external = isMarkedExternal(candidate.activity);
-  const converts = needsConversion(candidate);
-  if (reasons.length === 0 && warnings.length === 0 && !external && !converts) return null;
+/**
+ * The page's columns: date, From → To, amount, actions. Both cards and their
+ * rows take them from one grid, so the columns line up across the cards.
+ */
+const PAGE_COLUMNS =
+  "sm:grid sm:grid-cols-[minmax(6rem,auto)_minmax(0,1fr)_minmax(7rem,auto)_minmax(10rem,auto)] sm:gap-x-4";
+/** Takes the columns of the grid around it, through subgrid where supported. */
+const SUBGRID =
+  "sm:col-span-full sm:grid sm:grid-cols-[minmax(6rem,auto)_minmax(0,1fr)_minmax(7rem,auto)_minmax(10rem,auto)] sm:gap-x-4 sm:supports-[grid-template-columns:subgrid]:grid-cols-subgrid";
+/**
+ * A row's first line in each column, as tall as its buttons, so the date,
+ * accounts, amount and buttons sit on one line.
+ */
+const FIRST_LINE = "sm:flex sm:min-h-9 sm:items-center sm:self-start";
+
+/** One line under a row: what to know before linking. */
+interface RowStatus {
+  tone: "warning" | "info";
+  text: string;
+}
+
+function StatusLines({ items }: { items: RowStatus[] }) {
+  if (items.length === 0) return null;
   return (
-    <div className={cn("space-y-1.5", className)}>
-      {reasons.length > 0 || external ? (
-        <div className="text-2xs flex flex-wrap gap-1">
-          {reasons.map((reason) => (
-            <Badge key={reason} variant="secondary" className="rounded-sm px-1.5 py-0">
-              {reason}
-            </Badge>
-          ))}
-          {external ? (
-            <Badge variant="outline" className="rounded-sm px-1.5 py-0">
-              {t("activity:transfer_review.marked_external_badge")}
-            </Badge>
-          ) : null}
-        </div>
-      ) : null}
-      {warnings.length > 0 ? (
-        <div className="text-2xs text-warning flex items-start gap-1.5">
-          <Icons.AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-          <span>{warnings.join(" ")}</span>
-        </div>
-      ) : null}
-      {converts ? (
-        <div className="text-2xs text-muted-foreground flex items-start gap-1.5">
-          <Icons.Info className="mt-0.5 h-3 w-3 shrink-0" />
-          <span>{t("activity:transfer_review.converts_hint")}</span>
-        </div>
-      ) : null}
+    <div className="space-y-0.5">
+      {items.map((item) => {
+        const Icon = item.tone === "warning" ? Icons.AlertTriangle : Icons.Info;
+        return (
+          <p
+            key={item.text}
+            className={cn(
+              "flex items-start gap-1.5 text-xs",
+              item.tone === "warning" ? "text-warning" : "text-muted-foreground",
+            )}
+          >
+            <Icon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>{item.text}</span>
+          </p>
+        );
+      })}
     </div>
   );
 }
 
-function CandidateOption({
-  candidate,
-  accountMap,
-  selected,
-  onSelect,
-}: {
-  candidate: TransferMatchCandidate;
-  accountMap: Map<string, Account>;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "hover:bg-muted/50 flex w-full items-start rounded-md border text-start transition-colors",
-        selected && "border-primary bg-primary/5 hover:bg-primary/5",
-      )}
-      onClick={onSelect}
-      aria-pressed={selected}
-    >
-      <div className="py-3 ps-3">
-        {selected ? (
-          <Icons.CheckCircle className="text-primary h-4 w-4" />
-        ) : (
-          <Icons.Circle className="text-muted-foreground/30 h-4 w-4" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <ActivitySummaryRow activity={candidate.activity} accountMap={accountMap} />
-        <CandidateNotes candidate={candidate} className="px-3 pb-2.5" />
-      </div>
-    </button>
-  );
+function isTransferLeg(activity: Activity): boolean {
+  const type = getEffectiveType(activity);
+  return type === ActivityType.TRANSFER_IN || type === ActivityType.TRANSFER_OUT;
 }
 
 /**
- * Points from one side of a transfer to the other: down when stacked, along
- * the row when not. `backward` points the other way, at the side shown first.
+ * A leg's amount, and for a security its quantity and ticker. A security
+ * transfer may carry only quantity and price; its value is their product.
  */
-function FlowArrow({ className, backward = false }: { className?: string; backward?: boolean }) {
-  const Stacked = backward ? Icons.ArrowUp : Icons.ArrowDown;
-  const Along = backward ? Icons.ArrowLeft : Icons.ArrowRight;
-  return (
-    <div
-      className={cn("text-muted-foreground flex items-center justify-center", className)}
-      data-testid="transfer-flow-arrow"
-      data-direction={backward ? "backward" : "forward"}
-    >
-      <Stacked className="h-4 w-4 sm:hidden" aria-hidden="true" />
-      <Along className="hidden h-4 w-4 sm:block rtl:rotate-180" aria-hidden="true" />
-    </div>
-  );
+function legAmount(activity: Activity, formatting: ReturnType<typeof useAmountFormatting>) {
+  const number = (value: unknown) => (value == null ? Number.NaN : Number(value));
+  const quantityValue = number(activity.quantity);
+  const symbol =
+    "assetSymbol" in activity && typeof activity.assetSymbol === "string"
+      ? activity.assetSymbol
+      : (activity.assetId ?? "");
+  const quantity = Number.isFinite(quantityValue)
+    ? `${Math.abs(quantityValue)} ${symbol}`.trim()
+    : undefined;
+  let amount = number(activity.amount);
+  if (!Number.isFinite(amount)) amount = quantityValue * number(activity.unitPrice);
+  return Number.isFinite(amount)
+    ? {
+        amount: formatting.formatAmount(Math.abs(amount), activity.currency),
+        quantity,
+      }
+    : { amount: quantity ?? activity.currency, quantity: undefined };
 }
 
-/** The two sides of a pair, the one money leaves first. */
-function PairLegs({
-  source,
-  counterpart,
-  accountMap,
-  className,
-}: {
-  source: Activity;
-  counterpart: Activity;
-  accountMap: Map<string, Account>;
-  className?: string;
-}) {
-  const [from, to] = pairInFlowOrder(source, counterpart);
-  return (
-    <div className={cn("flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2", className)}>
-      <ActivitySummaryRow
-        compact
-        activity={from}
-        accountMap={accountMap}
-        className="bg-muted/30 min-w-0 border sm:flex-1"
-      />
-      <FlowArrow />
-      <ActivitySummaryRow
-        compact
-        activity={to}
-        accountMap={accountMap}
-        className="bg-muted/30 min-w-0 border sm:flex-1"
-      />
-    </div>
-  );
-}
+/**
+ * The From → To column: the side money left, an arrow, the side it reached,
+ * in halves of equal width, so sides line up down a list. Narrow, the sides
+ * stack.
+ */
+const FLOW_COLUMNS =
+  "grid min-w-0 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-x-3";
 
-function CertainPairRow({
-  row,
+/**
+ * One pair, or one transfer with no other side, in the list's columns: date,
+ * From → To, amount, actions. Each side shows its account, then its time and
+ * note; below both, what to know. Every list on the page uses this row.
+ * Clicking it opens the pair's details.
+ */
+function PairRow({
+  from,
+  to,
   accountMap,
-  disabled,
-  onSkip,
+  status = [],
+  actions,
+  onOpen,
+  testId = "transfer-review-row",
 }: {
-  row: UnlinkedTransfer;
+  from?: Activity;
+  to?: Activity;
   accountMap: Map<string, Account>;
-  disabled: boolean;
-  onSkip: () => void;
+  status?: RowStatus[];
+  actions?: ReactNode;
+  onOpen?: () => void;
+  testId?: string;
 }) {
   const { t } = useTranslation();
-  const candidate = row.candidates[0];
-  if (!candidate) return null;
-  const timing = timingReason(t, candidate);
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
+  const first = from ?? to;
+  if (!first) return null;
+  const date = formatDateTime(first.activityDate, dateFormatting).date;
+  // A leg's time, with its date only when that differs from the row's.
+  const when = (leg: Activity) =>
+    formatDateTime(leg.activityDate, dateFormatting).date === date
+      ? dateFormatting.formatTime(leg.activityDate)
+      : dateFormatting.formatDateTime(leg.activityDate);
+  const accountName = (leg: Activity) => accountMap.get(leg.accountId)?.name ?? leg.accountId;
+  const main = legAmount(first, formatting);
+  // The other side's amount, only when it reads differently: another currency or value.
+  const second = from && to ? legAmount(to, formatting).amount : undefined;
+
+  const side = (leg: Activity | undefined) =>
+    leg ? (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="sm:truncate">{accountName(leg)}</span>
+        {isTransferLeg(leg) ? null : (
+          <ActivityTypeBadge
+            type={getEffectiveType(leg) as ActivityType}
+            className="text-2xs px-1.5 py-0 font-normal"
+          />
+        )}
+      </span>
+    ) : (
+      <span className="text-muted-foreground font-normal">
+        {t("activity:transfer_review.no_other_side")}
+      </span>
+    );
+  // One side: its account, then its time and note. Narrow, where the sides
+  // stack, the arrow leads the second, and the first side's line starts with
+  // the date, as there is no date column.
+  const sideColumn = (leg: Activity | undefined, isTo: boolean) => {
+    const note = leg?.notes?.trim();
+    const detail = leg ? `${when(leg)}${note ? ` · ${note}` : ""}` : "";
+    return (
+      <div className="min-w-0">
+        <div
+          className={cn("flex min-w-0 items-center gap-1.5 text-sm font-medium", FIRST_LINE)}
+          data-testid="transfer-review-side"
+        >
+          {isTo ? (
+            <Icons.ArrowRight
+              className="text-muted-foreground h-3.5 w-3.5 shrink-0 sm:hidden rtl:rotate-180"
+              aria-hidden="true"
+            />
+          ) : null}
+          {side(leg)}
+        </div>
+        {leg ? (
+          <div
+            className={cn("text-muted-foreground truncate text-xs", isTo && "max-sm:ps-5")}
+            // A long note is cut short; hovering shows it whole.
+            title={detail}
+          >
+            {leg === first ? <span className="sm:hidden">{date} · </span> : null}
+            {detail}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <li
-      className="flex flex-col gap-2 px-3 py-2.5 lg:flex-row lg:items-center lg:gap-3"
-      data-testid="transfer-review-certain-row"
+      className={cn(
+        "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-t px-4 py-2.5 md:px-5",
+        SUBGRID,
+        onOpen && "hover:bg-muted/50 cursor-pointer transition-colors",
+      )}
+      onClick={
+        onOpen
+          ? (event) => {
+              // Buttons and menu items do their own thing. React bubbles clicks
+              // here from the row menu's portal too, which sits outside the row.
+              if (!event.currentTarget.contains(event.target as Node)) return;
+              if ((event.target as HTMLElement).closest("button, a, [role='menuitem']")) return;
+              onOpen();
+            }
+          : undefined
+      }
+      data-testid={testId}
     >
-      <PairLegs
-        source={row.activity}
-        counterpart={candidate.activity}
-        accountMap={accountMap}
-        className="min-w-0 lg:flex-1"
-      />
-      <div className="flex items-center justify-between gap-2 lg:justify-end">
-        {timing ? (
-          <Badge variant="secondary" className="text-2xs rounded-sm px-1.5 py-0">
-            {timing}
-          </Badge>
-        ) : (
-          <span />
+      <span
+        className={cn(
+          "text-muted-foreground hidden text-sm whitespace-nowrap tabular-nums",
+          FIRST_LINE,
         )}
-        <Button variant="ghost" size="sm" onClick={onSkip} disabled={disabled}>
-          {t("activity:transfer_review.skip")}
-        </Button>
+      >
+        {date}
+      </span>
+      <div className="min-w-0 space-y-1">
+        <div className={FLOW_COLUMNS} data-testid="transfer-review-flow">
+          {sideColumn(from, false)}
+          <span className={cn("text-muted-foreground hidden", FIRST_LINE)}>
+            <Icons.ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
+          </span>
+          {sideColumn(to, true)}
+        </div>
+        <StatusLines items={status} />
       </div>
+      <div className="text-end text-sm">
+        <div className={cn("font-medium tabular-nums sm:justify-end", FIRST_LINE)}>
+          {main.amount}
+        </div>
+        {second && second !== main.amount ? (
+          <div className="text-muted-foreground flex items-center justify-end gap-1 text-xs tabular-nums">
+            <Icons.ArrowRight className="h-3 w-3 shrink-0 rtl:rotate-180" aria-hidden="true" />
+            {second}
+          </div>
+        ) : null}
+        {main.quantity ? (
+          <div className="text-muted-foreground text-xs">{main.quantity}</div>
+        ) : null}
+      </div>
+      {actions ? (
+        <div className="col-span-2 flex items-start justify-end gap-2 sm:col-span-1">{actions}</div>
+      ) : null}
     </li>
+  );
+}
+
+/** A row's own action: the same size and weight on every row. */
+function RowButton({
+  busy,
+  disabled,
+  icon,
+  label,
+  ariaLabel,
+  onClick,
+}: {
+  busy: boolean;
+  disabled: boolean;
+  icon?: boolean;
+  label: string;
+  ariaLabel?: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="flex-1 sm:flex-none"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+    >
+      {busy ? <Spinner className="h-4 w-4" /> : icon ? <Icons.Link className="h-4 w-4" /> : null}
+      {label}
+    </Button>
+  );
+}
+
+interface RowMenuItem {
+  label: string;
+  onClick: () => void;
+}
+
+function RowMenu({ disabled, items }: { disabled: boolean; items: RowMenuItem[] }) {
+  const { t } = useTranslation();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={disabled}
+            aria-label={t("activity:transfer_review.more_actions")}
+          >
+            <Icons.MoreHorizontal className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        {items.map((item) => (
+          <DropdownMenuItem key={item.label} onClick={item.onClick}>
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -300,65 +427,227 @@ function useRouteDates() {
   };
 }
 
-function RouteList({
-  routes,
+/** What a certain pair's row needs from the page. */
+interface CertainHandlers {
+  busyId: string | null;
+  disabled: boolean;
+  onLink: (row: UnlinkedTransfer) => void;
+  onOpen: (row: UnlinkedTransfer) => void;
+  onSkip: (row: UnlinkedTransfer) => void;
+}
+
+function CertainPairRow({
+  row,
   accountMap,
+  handlers,
 }: {
-  routes: AccountRoute[];
+  row: UnlinkedTransfer;
   accountMap: Map<string, Account>;
+  handlers: CertainHandlers;
 }) {
   const { t } = useTranslation();
-  const routeDates = useRouteDates();
-  const name = (id: string) => accountMap.get(id)?.name ?? id;
+  const candidate = row.candidates[0];
+  if (!candidate) return null;
+  const [from, to] = pairInFlowOrder(row.activity, candidate.activity);
   return (
-    <ul className="divide-y border-t px-4 md:px-5" data-testid="transfer-review-routes">
-      {routes.map((route) => (
-        <li
-          key={`${route.fromAccountId}-${route.toAccountId}`}
-          className="flex flex-wrap items-center gap-x-4 gap-y-0.5 py-2.5 text-sm"
-        >
-          <span className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 font-medium">
-            <span className="truncate">{name(route.fromAccountId)}</span>
-            <Icons.ArrowRight
-              className="text-muted-foreground h-3.5 w-3.5 shrink-0 rtl:rotate-180"
-              aria-hidden="true"
-            />
-            <span className="truncate">{name(route.toAccountId)}</span>
-          </span>
-          <span className="text-muted-foreground">{routeDates(route)}</span>
-          <span className="ms-auto w-20 text-end font-medium tabular-nums">
-            {t("activity:transfer_review.pair_count", { count: route.count })}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <PairRow
+      from={from}
+      to={to}
+      accountMap={accountMap}
+      onOpen={() => handlers.onOpen(row)}
+      testId="transfer-review-certain-row"
+      actions={
+        <>
+          <RowButton
+            icon
+            busy={handlers.busyId === row.activity.id}
+            disabled={handlers.disabled}
+            label={t("activity:transfer_review.link")}
+            onClick={() => handlers.onLink(row)}
+          />
+          <RowMenu
+            disabled={handlers.disabled}
+            items={[
+              {
+                label: t("activity:operations.more_details"),
+                onClick: () => handlers.onOpen(row),
+              },
+              {
+                label: t("activity:transfer_review.skip"),
+                onClick: () => handlers.onSkip(row),
+              },
+            ]}
+          />
+        </>
+      }
+    />
   );
 }
 
-/** Certain pairs as a summary: count, routes, Link all, and the pairs on request. */
+/**
+ * A route's line, in a pair row's columns: its months, its accounts, its
+ * total, and how many pairs it opens. Open, it is tinted like a section
+ * heading, and its pairs follow below it.
+ */
+function RouteItem({
+  route,
+  accountMap,
+  defaultOpen,
+  handlers,
+}: {
+  route: AccountRoute;
+  accountMap: Map<string, Account>;
+  defaultOpen: boolean;
+  handlers: CertainHandlers;
+}) {
+  const { t } = useTranslation();
+  const routeDates = useRouteDates();
+  const formatting = useAmountFormatting();
+  const [open, setOpen] = useState(defaultOpen);
+  const visible = useVisibleCount();
+  const pairsId = useId();
+  const name = (id: string) => accountMap.get(id)?.name ?? id;
+  return (
+    <li className="sm:contents" data-testid="transfer-review-route">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={pairsId}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          // Narrow: accounts and total, then the months and pair count below.
+          "hover:bg-muted/50 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-t px-4 py-2.5 text-start text-sm transition-colors md:px-5",
+          SUBGRID,
+          open && "bg-muted/40",
+        )}
+      >
+        <span
+          className={cn(
+            "text-muted-foreground col-start-1 row-start-2 text-xs whitespace-nowrap tabular-nums sm:col-start-auto sm:row-start-auto sm:text-sm",
+            FIRST_LINE,
+          )}
+        >
+          {routeDates(route)}
+        </span>
+        {/*
+          Wide: the halves of a pair row's From → To, so the route's accounts sit
+          over its pairs'. Narrow: wraps rather than cutting names short.
+        */}
+        <span className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-1.5 font-medium sm:col-start-auto sm:row-start-auto sm:grid sm:min-h-9 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-x-3 sm:self-start">
+          <span className="sm:truncate">{name(route.fromAccountId)}</span>
+          <Icons.ArrowRight
+            className="text-muted-foreground h-3.5 w-3.5 shrink-0 rtl:rotate-180"
+            aria-hidden="true"
+          />
+          <span className="sm:truncate">{name(route.toAccountId)}</span>
+        </span>
+        <span
+          className={cn(
+            "col-start-2 row-start-1 text-end font-medium tabular-nums sm:col-start-auto sm:row-start-auto sm:justify-end",
+            FIRST_LINE,
+          )}
+        >
+          {route.total ? formatting.formatAmount(route.total.amount, route.total.currency) : null}
+        </span>
+        <span
+          className={cn(
+            "text-muted-foreground col-start-2 row-start-2 flex items-center justify-end gap-1 text-xs sm:col-start-auto sm:row-start-auto sm:gap-1.5 sm:text-sm",
+            FIRST_LINE,
+          )}
+        >
+          {t("activity:transfer_review.pair_count", { count: route.count })}
+          <Icons.ChevronDown
+            className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+      {open ? (
+        <ul id={pairsId} className="sm:contents">
+          {route.rows.slice(0, visible.count).map((row) => (
+            <CertainPairRow
+              key={row.activity.id}
+              row={row}
+              accountMap={accountMap}
+              handlers={handlers}
+            />
+          ))}
+          {route.rows.length > visible.count ? (
+            <li className="border-t sm:col-span-full">
+              <ShowMoreButton onClick={visible.showMore} />
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+/** A card's heading, or at level 3 a section's within the card, a size smaller. */
+function SectionHeading({
+  id,
+  level = 2,
+  title,
+  description,
+  count,
+  className,
+}: {
+  id?: string;
+  level?: 2 | 3;
+  title: string;
+  description: string;
+  count: number;
+  className?: string;
+}) {
+  const Heading = level === 2 ? "h2" : "h3";
+  return (
+    <div className={cn("min-w-0", level === 2 ? "space-y-1" : "space-y-0.5", className)}>
+      <Heading
+        id={id}
+        className={cn(
+          "flex items-center gap-2 font-semibold",
+          level === 2 ? "text-base" : "text-sm",
+        )}
+      >
+        {title}
+        <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-medium">
+          {count}
+        </Badge>
+      </Heading>
+      <p className={cn("text-muted-foreground max-w-2xl", level === 2 ? "text-sm" : "text-xs")}>
+        {description}
+      </p>
+    </div>
+  );
+}
+
+/** Up to this many certain pairs list as they are, without a summary by route. */
+const FEW_PAIRS = 5;
+
+/**
+ * Certain pairs and Link all. Many pairs show by route, each opening its
+ * pairs; a few are listed as they are.
+ */
 function ReadyToLinkCard({
   rows,
   accountMap,
-  disabled,
+  handlers,
   onLinkAll,
-  onSkip,
 }: {
   rows: UnlinkedTransfer[];
   accountMap: Map<string, Account>;
-  disabled: boolean;
+  handlers: CertainHandlers;
   onLinkAll: () => void;
-  onSkip: (row: UnlinkedTransfer) => void;
 }) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
-  const [expanded, setExpanded] = useState(false);
-  const visible = useVisibleCount();
   const routes = useMemo(() => accountRoutes(rows), [rows]);
+  const few = rows.length <= FEW_PAIRS;
 
   const linkAllButton = (
     <Button
       onClick={onLinkAll}
-      disabled={disabled}
+      disabled={handlers.disabled}
       className={cn(isMobile && "w-full")}
       data-testid="transfer-review-link-all"
     >
@@ -368,68 +657,55 @@ function ReadyToLinkCard({
   );
 
   return (
-    <section aria-labelledby="transfer-review-ready" className={cardSurfaceClassName}>
-      <div className="flex flex-wrap items-start justify-between gap-4 p-4 md:p-5">
-        <div className="min-w-0 flex-1 basis-80 space-y-1">
-          <h2
-            id="transfer-review-ready"
-            className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
-          >
-            {t("activity:transfer_review.certain_title")}
-          </h2>
-          <p className="text-2xl font-semibold tabular-nums">
-            {t("activity:transfer_review.pair_count", { count: rows.length })}
-          </p>
-          <p className="text-muted-foreground max-w-2xl text-sm">
-            {t("activity:transfer_review.certain_desc")}
-          </p>
-        </div>
+    <section aria-labelledby="transfer-review-ready" className={cn(cardSurfaceClassName, SUBGRID)}>
+      <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:col-span-full md:p-5">
+        <SectionHeading
+          id="transfer-review-ready"
+          title={t("activity:transfer_review.certain_title")}
+          description={t("activity:transfer_review.certain_desc", {
+            count: rows.length,
+          })}
+          count={rows.length}
+          className="flex-1 basis-80"
+        />
         {isMobile ? null : linkAllButton}
       </div>
 
-      <RouteList routes={routes} accountMap={accountMap} />
-
-      <div className="border-t px-2 py-1 md:px-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((open) => !open)}
-        >
-          {expanded
-            ? t("activity:transfer_review.hide_pairs")
-            : t("activity:transfer_review.show_pairs", { count: rows.length })}
-          <Icons.ChevronDown className={cn("ms-1 h-4 w-4", expanded && "rotate-180")} />
-        </Button>
-      </div>
-
-      {expanded ? (
-        <div className="border-t">
-          <ul className="divide-y">
-            {rows.slice(0, visible.count).map((row) => (
-              <CertainPairRow
-                key={row.activity.id}
-                row={row}
-                accountMap={accountMap}
-                disabled={disabled}
-                onSkip={() => onSkip(row)}
-              />
-            ))}
-          </ul>
-          {rows.length > visible.count ? <ShowMoreButton onClick={visible.showMore} /> : null}
-        </div>
-      ) : null}
+      {few ? (
+        <ul className={SUBGRID} data-testid="transfer-review-pairs">
+          {rows.map((row) => (
+            <CertainPairRow
+              key={row.activity.id}
+              row={row}
+              accountMap={accountMap}
+              handlers={handlers}
+            />
+          ))}
+        </ul>
+      ) : (
+        <ul className={SUBGRID} data-testid="transfer-review-routes">
+          {routes.map((route) => (
+            <RouteItem
+              key={`${route.fromAccountId}-${route.toAccountId}`}
+              route={route}
+              accountMap={accountMap}
+              // A single route opens: there is nothing else to choose between.
+              defaultOpen={routes.length === 1}
+              handlers={handlers}
+            />
+          ))}
+        </ul>
+      )}
 
       {isMobile ? (
         // Pinned above the tab bar while the pairs scroll past.
-        <div className="bg-card/95 sticky bottom-(--mobile-nav-total-offset) z-10 rounded-b-(--card-radius) border-t p-3 backdrop-blur-md">
+        <div className="bg-card/95 sticky bottom-(--mobile-nav-total-offset) z-10 rounded-b-(--card-radius) border-t p-3 backdrop-blur-md sm:col-span-full">
           {linkAllButton}
         </div>
       ) : null}
     </section>
   );
 }
-
 function LinkProgressCard({
   done,
   total,
@@ -447,7 +723,7 @@ function LinkProgressCard({
   const title = t("activity:transfer_review.linking", { done, count: total });
   return (
     <section
-      className={cn(cardSurfaceClassName, "space-y-3 p-4 md:p-5")}
+      className={cn(cardSurfaceClassName, "space-y-3 p-4 sm:col-span-full md:p-5")}
       data-testid="transfer-review-progress"
     >
       <div className="flex items-center justify-between gap-3">
@@ -532,23 +808,26 @@ function LinkResultCard({
             </Button>
           </div>
           {showFailures ? (
-            <div className="border-t">
-              <ul className="divide-y" data-testid="transfer-review-failures">
-                {failures.slice(0, visible.count).map(({ row, message }) => (
-                  <li key={row.activity.id} className="space-y-1.5 px-3 py-2.5">
-                    <PairLegs
-                      source={row.activity}
-                      counterpart={row.candidates[0].activity}
+            <>
+              <ul className={PAGE_COLUMNS} data-testid="transfer-review-failures">
+                {failures.slice(0, visible.count).map(({ row, message }) => {
+                  const [from, to] = pairInFlowOrder(row.activity, row.candidates[0].activity);
+                  return (
+                    <PairRow
+                      key={row.activity.id}
+                      from={from}
+                      to={to}
                       accountMap={accountMap}
+                      status={[{ tone: "warning", text: message }]}
+                      testId="transfer-review-failure"
                     />
-                    <p className="text-muted-foreground text-xs">{message}</p>
-                  </li>
-                ))}
+                  );
+                })}
               </ul>
               {failures.length > visible.count ? (
                 <ShowMoreButton onClick={visible.showMore} />
               ) : null}
-            </div>
+            </>
           ) : null}
         </div>
       ) : null}
@@ -559,264 +838,236 @@ function LinkResultCard({
   );
 }
 
-function RowMenu({
-  disabled,
-  onNotTransfer,
-  onFindMatch,
-  onSkip,
-}: {
-  disabled: boolean;
-  /** Absent when Not a transfer is already the row's main action. */
-  onNotTransfer?: () => void;
-  onFindMatch: () => void;
-  onSkip: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={disabled}
-            aria-label={t("activity:transfer_review.more_actions")}
-          >
-            <Icons.MoreHorizontal className="h-4 w-4" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end">
-        {onNotTransfer ? (
-          <DropdownMenuItem onClick={onNotTransfer}>
-            {t("activity:transfer_review.not_transfer")}
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem onClick={onFindMatch}>
-          {t("activity:transfer_review.find_match")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onSkip}>{t("activity:transfer_review.skip")}</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+/** What to know about a pair in Needs a look, one line each. */
+function pairStatus(t: TFunction, pair: ReviewPair, accountMap: Map<string, Account>): RowStatus[] {
+  const status: RowStatus[] = [];
+  if (pair.row.linkState === "broken_link") {
+    status.push({
+      tone: "warning",
+      text: t("activity:transfer_review.state_broken_link"),
+    });
+  }
+  const { candidate, rivals } = pair;
+  if (!candidate) {
+    status.push({ tone: "info", text: t("activity:transfer_review.no_match") });
+    return status;
+  }
+  if (rivals.length === 1) {
+    const account = accountMap.get(rivals[0].accountId)?.name ?? rivals[0].accountId;
+    status.push({
+      tone: "warning",
+      text: t("activity:transfer_review.also_matches", { account }),
+    });
+  } else if (rivals.length > 1) {
+    status.push({
+      tone: "warning",
+      text: t("activity:transfer_review.also_match_count", {
+        count: rivals.length,
+      }),
+    });
+  }
+  // The rival line above already says there is another match.
+  const warningCodes =
+    rivals.length > 0
+      ? candidate.warningCodes?.filter((warning) => warning.code !== "another_match")
+      : candidate.warningCodes;
+  for (const text of candidateWarnings(t, { ...candidate, warningCodes })) {
+    status.push({ tone: "warning", text });
+  }
+  if (isMarkedExternal(candidate.activity)) {
+    status.push({
+      tone: "info",
+      text: t("activity:transfer_review.marked_external_badge"),
+    });
+  }
+  if (needsConversion(candidate)) {
+    status.push({
+      tone: "info",
+      text: t("activity:transfer_review.converts_hint"),
+    });
+  }
+  return status;
 }
 
-function ReviewRow({
-  row,
+/** What a Needs a look row needs from the page. */
+interface ReviewHandlers {
+  busyId: string | null;
+  disabled: boolean;
+  onLink: (pair: ReviewPair) => void;
+  onMarkExternal: (pair: ReviewPair) => void;
+  onOpen: (pair: ReviewPair) => void;
+  onSkip: (pair: ReviewPair) => void;
+}
+
+function ReviewPairRow({
+  pair,
   accountMap,
-  busy,
-  disabled,
-  onLink,
-  onNotTransfer,
-  onFindMatch,
-  onSkip,
+  handlers,
 }: {
-  row: UnlinkedTransfer;
+  pair: ReviewPair;
   accountMap: Map<string, Account>;
-  busy: boolean;
-  disabled: boolean;
-  onLink: (candidate: TransferMatchCandidate) => void;
-  onNotTransfer: () => void;
-  onFindMatch: () => void;
-  onSkip: () => void;
+  handlers: ReviewHandlers;
 }) {
   const { t } = useTranslation();
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
-  const [choosing, setChoosing] = useState(false);
-  const selected =
-    row.candidates.find((candidate) => candidate.activity.id === selectedId) ?? row.candidates[0];
-  const otherCount = row.candidates.length - 1;
-  const converts = selected ? needsConversion(selected) : false;
-
+  const { row, candidate } = pair;
+  const [from, to]: [Activity | undefined, Activity | undefined] = candidate
+    ? pairInFlowOrder(row.activity, candidate.activity)
+    : isOutflow(row.activity)
+      ? [row.activity, undefined]
+      : [undefined, row.activity];
+  const busy = handlers.busyId === pair.key;
+  const account = accountMap.get(row.activity.accountId)?.name ?? row.activity.accountId;
+  const skip = {
+    label: t("activity:transfer_review.skip"),
+    onClick: () => handlers.onSkip(pair),
+  };
   return (
-    <li className="space-y-2 p-3" data-testid="transfer-review-row">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-2">
-        <div className="min-w-0 space-y-1 sm:flex-1">
-          {row.linkState === "broken_link" ? (
-            <Badge variant="outline" className="text-2xs rounded-sm px-1.5 py-0 font-normal">
-              {t("activity:transfer_review.state_broken_link")}
-            </Badge>
-          ) : null}
-          <ActivitySummaryRow
-            compact
-            activity={row.activity}
-            accountMap={accountMap}
-            className="bg-muted/30 border"
-          />
-        </div>
-        {selected ? (
-          <FlowArrow
-            className="sm:h-14"
-            // Money arrives at an incoming transfer, from its match.
-            backward={pairInFlowOrder(row.activity, selected.activity)[0] !== row.activity}
-          />
-        ) : null}
-        <div className="min-w-0 space-y-1.5 sm:flex-1">
-          {selected ? (
-            <>
-              <ActivitySummaryRow
-                compact
-                activity={selected.activity}
-                accountMap={accountMap}
-                className="bg-muted/30 border"
-              />
-              <CandidateNotes candidate={selected} withReasons={false} className="px-1" />
-              {otherCount > 0 ? (
-                <button
-                  type="button"
-                  className="text-2xs hover:text-foreground text-muted-foreground flex items-center gap-1 px-1 font-medium underline-offset-2 hover:underline"
-                  aria-expanded={choosing}
-                  onClick={() => setChoosing((open) => !open)}
-                >
-                  {t("activity:transfer_review.other_matches", { count: otherCount })}
-                  <Icons.ChevronDown className={cn("h-3 w-3", choosing && "rotate-180")} />
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-muted-foreground px-1 py-2 text-sm">
-              {t("activity:transfer_review.no_match")}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2 sm:shrink-0">
-          {selected ? (
-            <Button
-              size="sm"
-              className="flex-1 sm:flex-none"
-              onClick={() => onLink(selected)}
-              disabled={disabled}
-            >
-              {busy ? (
-                <Spinner className="me-2 h-4 w-4" />
-              ) : converts ? (
-                <Icons.ArrowLeftRight className="me-2 h-4 w-4" />
-              ) : (
-                <Icons.Link className="me-2 h-4 w-4" />
-              )}
-              {converts
-                ? t("activity:transfer_review.make_transfer")
-                : t("activity:transfer_review.link")}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 sm:flex-none"
-              onClick={onNotTransfer}
-              disabled={disabled}
-            >
-              {busy ? <Spinner className="me-2 h-4 w-4" /> : null}
-              {t("activity:transfer_review.not_transfer")}
-            </Button>
-          )}
-          <RowMenu
-            disabled={disabled}
-            onNotTransfer={selected ? onNotTransfer : undefined}
-            onFindMatch={onFindMatch}
-            onSkip={onSkip}
-          />
-        </div>
-      </div>
-
-      {choosing ? (
-        <div className="space-y-2">
-          {row.candidates.map((candidate) => (
-            <CandidateOption
-              key={candidate.activity.id}
-              candidate={candidate}
-              accountMap={accountMap}
-              selected={candidate.activity.id === selected?.activity.id}
-              onSelect={() => setSelectedId(candidate.activity.id)}
+    <PairRow
+      from={from}
+      to={to}
+      accountMap={accountMap}
+      status={pairStatus(t, pair, accountMap)}
+      onOpen={() => handlers.onOpen(pair)}
+      actions={
+        candidate ? (
+          <>
+            <RowButton
+              icon
+              busy={busy}
+              disabled={handlers.disabled}
+              label={t("activity:transfer_review.link")}
+              onClick={() => handlers.onLink(pair)}
             />
-          ))}
-        </div>
-      ) : null}
-    </li>
+            <RowMenu
+              disabled={handlers.disabled}
+              items={[
+                {
+                  label: t("activity:operations.more_details"),
+                  onClick: () => handlers.onOpen(pair),
+                },
+                {
+                  label: t("activity:transfer_review.mark_external_account", {
+                    account,
+                  }),
+                  onClick: () => handlers.onMarkExternal(pair),
+                },
+                skip,
+              ]}
+            />
+          </>
+        ) : (
+          <>
+            <RowButton
+              busy={busy}
+              disabled={handlers.disabled}
+              label={t("activity:transfer_review.mark_external")}
+              onClick={() => handlers.onMarkExternal(pair)}
+            />
+            <RowMenu
+              disabled={handlers.disabled}
+              items={[
+                {
+                  label: t("activity:transfer_review.find_match"),
+                  onClick: () => handlers.onOpen(pair),
+                },
+                skip,
+              ]}
+            />
+          </>
+        )
+      }
+    />
   );
 }
 
-function SectionHeading({
-  title,
-  description,
-  count,
-}: {
-  title: string;
-  description: string;
-  count: number;
-}) {
-  return (
-    <div className="min-w-0 space-y-1">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
-        {title}
-        <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-medium">
-          {count}
-        </Badge>
-      </h2>
-      <p className="text-muted-foreground max-w-2xl text-sm">{description}</p>
-    </div>
-  );
-}
+/** Below this many pairs, Needs a look is one list rather than sections. */
+const SECTION_MIN_ITEMS = 8;
 
-const REASON_LABEL_KEYS: Record<ReasonFilter, string> = {
-  all: "activity:transfer_review.filter_all",
-  more_than_one: "activity:transfer_review.reason_more_than_one",
-  dates_differ: "activity:transfer_review.reason_dates_differ",
-  cash_flow: "activity:transfer_review.reason_cash_flow",
-  no_match: "activity:transfer_review.reason_no_match",
+const SECTION_KEYS: Record<ReviewReason, { title: string; hint: string }> = {
+  dates_differ: {
+    title: "activity:transfer_review.section_dates_differ",
+    hint: "activity:transfer_review.section_dates_differ_hint",
+  },
+  more_than_one: {
+    title: "activity:transfer_review.section_more_than_one",
+    hint: "activity:transfer_review.section_more_than_one_hint",
+  },
+  cash_flow: {
+    title: "activity:transfer_review.section_cash_flow",
+    hint: "activity:transfer_review.section_cash_flow_hint",
+  },
+  other: {
+    title: "activity:transfer_review.section_other",
+    hint: "activity:transfer_review.section_other_hint",
+  },
+  no_match: {
+    title: "activity:transfer_review.section_no_match",
+    hint: "activity:transfer_review.section_no_match_hint",
+  },
 };
 
-function ReasonFilters({
-  counts,
-  total,
-  value,
-  onChange,
+/**
+ * Needs a look, in the same card and columns as Ready to link. Many pairs
+ * split into sections by reason, each saying what to do; a few are one list
+ * in the same order.
+ */
+function NeedsReviewCard({
+  pairs,
+  accountMap,
+  handlers,
 }: {
-  counts: Record<Exclude<ReviewReason, "other">, number>;
-  total: number;
-  value: ReasonFilter;
-  onChange: (value: ReasonFilter) => void;
+  pairs: ReviewPair[];
+  accountMap: Map<string, Account>;
+  handlers: ReviewHandlers;
 }) {
   const { t } = useTranslation();
-  const chips: { value: ReasonFilter; count: number }[] = [
-    { value: "all", count: total },
-    ...REVIEW_REASONS.filter((reason) => counts[reason] > 0).map((reason) => ({
-      value: reason,
-      count: counts[reason],
-    })),
-  ];
-  // Every row shares one reason, or has none of these: the chips add nothing.
-  if (chips.length < 2 || chips.some((chip) => chip.value !== "all" && chip.count === total)) {
-    return null;
-  }
+  const visible = useVisibleCount();
+  const ordered = REVIEW_SECTIONS.flatMap((reason) =>
+    pairs.filter((pair) => pair.reason === reason),
+  );
+  const sectioned = pairs.length >= SECTION_MIN_ITEMS;
+  const shown = ordered.slice(0, visible.count);
   return (
-    <div
-      role="group"
-      aria-label={t("activity:transfer_review.filter_label")}
-      className="flex flex-wrap gap-2"
+    <section
+      aria-labelledby="transfer-review-needs-look"
+      className={cn(cardSurfaceClassName, SUBGRID)}
     >
-      {chips.map((chip) => {
-        const active = chip.value === value;
-        return (
-          <Button
-            key={chip.value}
-            size="xs"
-            variant={active ? "default" : "outline"}
-            className="rounded-full"
-            aria-pressed={active}
-            onClick={() => onChange(chip.value)}
-          >
-            {t(REASON_LABEL_KEYS[chip.value])}
-            <span className={cn("tabular-nums", !active && "text-muted-foreground")}>
-              {chip.count}
-            </span>
-          </Button>
-        );
-      })}
-    </div>
+      <div className="p-4 sm:col-span-full md:p-5">
+        <SectionHeading
+          id="transfer-review-needs-look"
+          title={t("activity:transfer_review.needs_review_title")}
+          description={t("activity:transfer_review.needs_review_desc")}
+          count={pairs.length}
+        />
+      </div>
+      <ul className={SUBGRID}>
+        {shown.map((pair, index) => (
+          <Fragment key={pair.key}>
+            {sectioned && shown[index - 1]?.reason !== pair.reason ? (
+              <li
+                className="bg-muted/40 border-t px-4 py-3 sm:col-span-full md:px-5"
+                data-testid={`transfer-review-section-${pair.reason}`}
+              >
+                <SectionHeading
+                  level={3}
+                  title={t(SECTION_KEYS[pair.reason].title)}
+                  description={t(SECTION_KEYS[pair.reason].hint)}
+                  count={ordered.filter((other) => other.reason === pair.reason).length}
+                />
+              </li>
+            ) : null}
+            <ReviewPairRow pair={pair} accountMap={accountMap} handlers={handlers} />
+          </Fragment>
+        ))}
+      </ul>
+      {ordered.length > visible.count ? (
+        <div className="border-t sm:col-span-full">
+          <ShowMoreButton onClick={visible.showMore} />
+        </div>
+      ) : null}
+    </section>
   );
 }
-
 /**
  * Match transfers: pairs certain enough to link together in one action, and
  * the other unlinked transfers the Health Center reports, each with its likely
@@ -853,49 +1104,30 @@ export function TransferReviewPage() {
   // Skipping hides a row for this visit only.
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [busy, setBusy] = useState<string | null>(null);
-  const [findMatchFor, setFindMatchFor] = useState<Activity | null>(null);
+  // The pair or transfer whose details are open, and the other side to select.
+  const [sheet, setSheet] = useState<{
+    source: Activity;
+    counterpartId?: string;
+  } | null>(null);
   const [linkRun, setLinkRun] = useState<LinkRun | null>(null);
   const stopRequested = useRef(false);
-  const [filter, setFilter] = useState<ReasonFilter>("all");
-  const visibleRows = useVisibleCount();
 
   const certain = useMemo(
     () => (review?.certain ?? []).filter((row) => !skipped.has(row.activity.id)),
     [review, skipped],
   );
-  const needsReview = useMemo(
-    () => (review?.needsReview ?? []).filter((row) => !skipped.has(row.activity.id)),
-    [review, skipped],
+  const allPairs = useMemo(() => reviewPairs(review?.needsReview ?? []), [review]);
+  const pairs = useMemo(
+    () => allPairs.filter((pair) => !skipped.has(pair.key)),
+    [allPairs, skipped],
   );
-  const reasons = useMemo(
-    () => new Map(needsReview.map((row) => [row.activity.id, reviewReason(row)])),
-    [needsReview],
-  );
-  const reasonCounts = useMemo(() => {
-    const counts = { more_than_one: 0, dates_differ: 0, cash_flow: 0, no_match: 0, other: 0 };
-    for (const reason of reasons.values()) counts[reason] += 1;
-    return counts;
-  }, [reasons]);
-  // A reason whose rows are all handled falls back to All.
-  const activeFilter: ReasonFilter = filter !== "all" && reasonCounts[filter] > 0 ? filter : "all";
-  const filteredRows =
-    activeFilter === "all"
-      ? needsReview
-      : needsReview.filter((row) => reasons.get(row.activity.id) === activeFilter);
 
   const skippedCount =
-    (review?.certain.length ?? 0) +
-    (review?.needsReview.length ?? 0) -
-    certain.length -
-    needsReview.length;
-  const skip = (id: string) => setSkipped((current) => new Set(current).add(id));
+    (review?.certain.length ?? 0) - certain.length + allPairs.length - pairs.length;
+  // A certain pair skips by its row; a pair in Needs a look by its own key.
+  const skip = (key: string) => setSkipped((current) => new Set(current).add(key));
   const linking = linkRun?.status === "running";
   const disabled = busy !== null || linking;
-
-  const selectFilter = (value: ReasonFilter) => {
-    setFilter(value);
-    visibleRows.reset();
-  };
 
   const linkAll = async () => {
     const rows = certain;
@@ -934,8 +1166,13 @@ export function TransferReviewPage() {
     setLinkRun((run) => (run?.status === "running" ? { ...run, stopping: true } : run));
   };
 
-  const linkRow = async (row: UnlinkedTransfer, candidate: TransferMatchCandidate) => {
-    setBusy(row.activity.id);
+  /** Links `row` with `candidate`; `busyKey` names what shows the spinner. */
+  const linkRow = async (
+    row: UnlinkedTransfer,
+    candidate: TransferMatchCandidate,
+    busyKey = row.activity.id,
+  ) => {
+    setBusy(busyKey);
     try {
       if (needsConversion(candidate)) {
         const request = await reviewConversion({
@@ -962,17 +1199,33 @@ export function TransferReviewPage() {
     }
   };
 
-  const markNotTransfer = async (row: UnlinkedTransfer) => {
-    setBusy(row.activity.id);
+  const markExternal = async (activity: Activity, busyKey: string) => {
+    setBusy(busyKey);
     try {
       // The same update as the activity form's "external" switch.
-      await updateActivityMutation.mutateAsync(externalTransferUpdatePayload(row.activity));
+      await updateActivityMutation.mutateAsync(externalTransferUpdatePayload(activity));
       toast.success(t("activity:transfer_review.marked_external"));
     } catch {
       // The mutation reports its own failure.
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * Opens Find match on a pair, its other side selected. It opens on the
+   * side money left, as the row reads, except that a deposit or withdrawal
+   * is the side the sheet converts, so it opens on that one.
+   */
+  const openPair = (row: UnlinkedTransfer, candidate?: TransferMatchCandidate) => {
+    if (!candidate) {
+      setSheet({ source: row.activity });
+      return;
+    }
+    const [from, to] = needsConversion(candidate)
+      ? [candidate.activity, row.activity]
+      : pairInFlowOrder(row.activity, candidate.activity);
+    setSheet({ source: from, counterpartId: to.id });
   };
 
   const isEmpty = !!review && review.certain.length === 0 && review.needsReview.length === 0;
@@ -1031,56 +1284,46 @@ export function TransferReviewPage() {
           </div>
         ) : review ? (
           <>
-            {linkRun?.status === "running" ? (
-              <LinkProgressCard
-                done={linkRun.done}
-                total={linkRun.total}
-                stopping={linkRun.stopping}
-                onStop={stopLinking}
-              />
-            ) : certain.length > 0 ? (
-              <ReadyToLinkCard
-                rows={certain}
-                accountMap={accountMap}
-                disabled={disabled}
-                onLinkAll={() => void linkAll()}
-                onSkip={(row) => skip(row.activity.id)}
-              />
-            ) : null}
+            <div className={cn("max-sm:space-y-8 sm:gap-y-8", PAGE_COLUMNS)}>
+              {linkRun?.status === "running" ? (
+                <LinkProgressCard
+                  done={linkRun.done}
+                  total={linkRun.total}
+                  stopping={linkRun.stopping}
+                  onStop={stopLinking}
+                />
+              ) : certain.length > 0 ? (
+                <ReadyToLinkCard
+                  rows={certain}
+                  accountMap={accountMap}
+                  onLinkAll={() => void linkAll()}
+                  handlers={{
+                    busyId: busy,
+                    disabled,
+                    onLink: (row) => void linkRow(row, row.candidates[0]),
+                    onOpen: (row) => openPair(row, row.candidates[0]),
+                    onSkip: (row) => skip(row.activity.id),
+                  }}
+                />
+              ) : null}
 
-            {needsReview.length > 0 ? (
-              <section className="space-y-3">
-                <SectionHeading
-                  title={t("activity:transfer_review.needs_review_title")}
-                  description={t("activity:transfer_review.needs_review_desc")}
-                  count={needsReview.length}
+              {pairs.length > 0 ? (
+                <NeedsReviewCard
+                  pairs={pairs}
+                  accountMap={accountMap}
+                  handlers={{
+                    busyId: busy,
+                    disabled,
+                    onLink: (pair) => {
+                      if (pair.candidate) void linkRow(pair.row, pair.candidate, pair.key);
+                    },
+                    onMarkExternal: (pair) => void markExternal(pair.row.activity, pair.key),
+                    onOpen: (pair) => openPair(pair.row, pair.candidate),
+                    onSkip: (pair) => skip(pair.key),
+                  }}
                 />
-                <ReasonFilters
-                  counts={reasonCounts}
-                  total={needsReview.length}
-                  value={activeFilter}
-                  onChange={selectFilter}
-                />
-                <ul className={cn(cardSurfaceClassName, "divide-y")}>
-                  {filteredRows.slice(0, visibleRows.count).map((row) => (
-                    <ReviewRow
-                      key={row.activity.id}
-                      row={row}
-                      accountMap={accountMap}
-                      busy={busy === row.activity.id}
-                      disabled={disabled}
-                      onLink={(candidate) => void linkRow(row, candidate)}
-                      onNotTransfer={() => void markNotTransfer(row)}
-                      onFindMatch={() => setFindMatchFor(row.activity)}
-                      onSkip={() => skip(row.activity.id)}
-                    />
-                  ))}
-                </ul>
-                {filteredRows.length > visibleRows.count ? (
-                  <ShowMoreButton onClick={visibleRows.showMore} />
-                ) : null}
-              </section>
-            ) : null}
+              ) : null}
+            </div>
 
             {skippedCount > 0 ? (
               <div className="text-muted-foreground flex flex-wrap items-center justify-center gap-2 text-sm">
@@ -1096,12 +1339,13 @@ export function TransferReviewPage() {
       </PageContent>
 
       <TransferMatchDialog
-        open={findMatchFor !== null}
+        open={sheet !== null}
         mode="link"
-        sourceActivity={findMatchFor}
+        sourceActivity={sheet?.source ?? null}
+        counterpartId={sheet?.counterpartId}
         accounts={accounts}
         onOpenChange={(open) => {
-          if (!open) setFindMatchFor(null);
+          if (!open) setSheet(null);
         }}
       />
     </Page>
