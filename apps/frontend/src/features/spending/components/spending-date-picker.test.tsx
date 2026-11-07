@@ -92,6 +92,14 @@ describe("SpendingDatePicker", { timeout: 15_000 }, () => {
     );
     await open(user);
     await user.click(screen.getByRole("button", { name: /^Month$/ }));
+    expect(screen.getByRole("button", { name: "January" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "February" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     await user.click(screen.getByRole("button", { name: "February" }));
     expect(onMonth).toHaveBeenCalledWith("2024-02");
   });
@@ -157,6 +165,10 @@ describe("SpendingDatePicker", { timeout: 15_000 }, () => {
   it("seeds range fields from a selected month", async () => {
     const { user } = setup(undefined, "2024-02");
     await open(user);
+    expect(screen.getByRole("button", { name: "February" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await user.click(screen.getByRole("button", { name: "Choose custom dates" }));
     expect(screen.getByLabelText("Start date")).toHaveValue("2024-02-01");
     expect(screen.getByLabelText("End date")).toHaveValue("2024-02-29");

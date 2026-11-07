@@ -1,4 +1,5 @@
 {
+  "periodReturn": "{{period}}のリターン",
   "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",
   "welcome": "ようこそ",
