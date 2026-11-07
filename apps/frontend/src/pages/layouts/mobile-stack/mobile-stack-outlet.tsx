@@ -112,7 +112,7 @@ function focusScreen(
   container: HTMLElement | null,
   screenId: string,
   restore: Element | undefined,
-) {
+): (() => void) | undefined {
   const layer = container?.querySelector<HTMLElement>(`[data-stack-screen="${screenId}"]`);
   if (!layer) return;
   if (restore instanceof HTMLElement && restore.isConnected && layer.contains(restore)) {
@@ -130,9 +130,24 @@ function focusScreen(
   ) {
     return;
   }
-  const heading = layer.querySelector<HTMLElement>("h1") ?? layer;
-  if (heading.tabIndex < 0 && !heading.hasAttribute("tabindex")) heading.tabIndex = -1;
-  heading.focus({ preventScroll: true });
+  const focus = (element: HTMLElement) => {
+    if (element.tabIndex < 0 && !element.hasAttribute("tabindex")) element.tabIndex = -1;
+    element.focus({ preventScroll: true });
+  };
+  const heading = layer.querySelector<HTMLElement>("h1");
+  focus(heading ?? layer);
+  if (heading) return;
+  // A page still loading has no heading yet: move focus to it once it renders,
+  // unless focus has moved on in the meantime.
+  const observer = new MutationObserver(() => {
+    if (document.activeElement !== layer) return observer.disconnect();
+    const late = layer.querySelector<HTMLElement>("h1");
+    if (!late) return;
+    observer.disconnect();
+    focus(late);
+  });
+  observer.observe(layer, { childList: true, subtree: true });
+  return () => observer.disconnect();
 }
 
 interface StackLayerProps {
@@ -290,7 +305,7 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
     if (transition || !target) return;
     pendingFocus.current = null;
     const restore = target.restore ? focusOrigins.current.get(target.screenId) : undefined;
-    focusScreen(containerRef.current, target.screenId, restore);
+    return focusScreen(containerRef.current, target.screenId, restore);
   }, [transition]);
 
   const onStart = useCallback(

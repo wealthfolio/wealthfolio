@@ -59,7 +59,7 @@ for (const dir of ["ltr", "rtl"]) {
     await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 30_000 });
 
     const response = await page.request.post(`${BASE_URL}/api/v1/activities/search`, {
-      data: { page: 0, pageSize: 100 },
+      data: { page: 0, pageSize: 100, accountIdFilter: [account.id] },
     });
     expect(response.ok(), await response.text()).toBeTruthy();
     const body = (await response.json()) as {

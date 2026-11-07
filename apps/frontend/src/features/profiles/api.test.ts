@@ -180,3 +180,25 @@ it("notifies proxy navigation consistently without treating it as confirmed expi
     setUnauthorizedHandler(null);
   }
 });
+
+it("shares the document's first state read with calls that overlap it", async () => {
+  vi.resetModules();
+  const { profileCommand: freshProfileCommand } = await import("./api");
+  let answer: (response: Response) => void = () => undefined;
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    .mockImplementation(() => Promise.resolve(new Response('{"later":true}')));
+  vi.stubGlobal("fetch", fetch);
+
+  const first = freshProfileCommand("get_profile_state");
+  const overlapping = freshProfileCommand("get_profile_state");
+  answer(new Response('{"first":true}'));
+  await expect(first).resolves.toEqual({ first: true });
+  await expect(overlapping).resolves.toEqual({ first: true });
+  expect(fetch).toHaveBeenCalledTimes(1);
+
+  // Later reads must not reuse an answer from before a profile change.
+  await expect(freshProfileCommand("get_profile_state")).resolves.toEqual({ later: true });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
