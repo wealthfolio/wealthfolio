@@ -5943,7 +5943,25 @@ impl ActivityServiceTrait for ActivityService {
         self.activity_repository.get_activity(activity_id)
     }
 
-    /// Retrieves all activities
+    /// Derives card statements from the existing local cash ledger.
+    async fn get_credit_card_statements(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<crate::accounts::CreditCardStatement>> {
+        let account_id = account_id.to_string();
+        let account_service = Arc::clone(&self.account_service);
+        let activity_repository = Arc::clone(&self.activity_repository);
+        let timezone = self.configured_timezone();
+        let today = Utc::now().with_timezone(&timezone).date_naive();
+        crate::portfolio::coordinator::blocking(move || {
+            let account = account_service.get_account(&account_id)?;
+            let history = activity_repository.get_cash_ledger_activities(&[account_id])?;
+            crate::accounts::credit_card_statements(&account, &history, today, timezone)
+        })
+        .await
+    }
+
+    /// Retrieves all activities.
     fn get_activities(&self) -> Result<Vec<Activity>> {
         self.activity_repository.get_activities()
     }

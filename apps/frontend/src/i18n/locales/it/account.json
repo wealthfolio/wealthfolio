@@ -168,5 +168,29 @@
   },
   "more_count_one": "+{{count}} altro",
   "more_count_many": "+{{count}} altri",
-  "more_count_other": "+{{count}} altri"
+  "more_count_other": "+{{count}} altri",
+  "billing": {
+    "title": "Estratti conto della carta",
+    "closing_day": "Giorno di chiusura (1–31)",
+    "due_day": "Giorno di scadenza (1–31)",
+    "schedule_hint": "I mesi più brevi usano il loro ultimo giorno. La scadenza è il primo giorno scelto dopo la chiusura. Le modifiche si applicano anche agli estratti precedenti.",
+    "setup": "Imposta i giorni di chiusura e scadenza nelle impostazioni del conto.",
+    "load_error": "Impossibile caricare gli estratti conto.",
+    "previous": "Estratti precedenti",
+    "closed": "Chiuso",
+    "open": "Aperto",
+    "due": "Scadenza {{date}}",
+    "statement_balance": "Saldo alla chiusura",
+    "balance_hint": "I saldi usano le operazioni registrate, inclusi i debiti precedenti non pagati. Gli importi positivi sono dovuti; quelli negativi sono credito. I pagamenti successivi non modificano il saldo di un estratto chiuso, che quindi non indica quanto resta da pagare oggi.",
+    "manage": "Configura fatturazione",
+    "current_balance": "Saldo attuale",
+    "last_closed": "Ultimo estratto chiuso",
+    "closes_on": "Chiusura il",
+    "closed_on": "Chiuso il",
+    "payment_due": "Scadenza",
+    "current_hint": "Include i pagamenti registrati e i debiti precedenti.",
+    "closed_hint": "Saldo alla chiusura. I pagamenti successivi non vengono detratti.",
+    "view_transactions": "Vedi operazioni",
+    "calculation_help": "Come vengono calcolati i saldi"
+  }
 }

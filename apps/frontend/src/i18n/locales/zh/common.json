@@ -685,6 +685,7 @@
     "accountNameMax": "名称不得超过 50 个字符。",
     "accountNumberMax": "账户号码不得超过 64 个字符。",
     "accountCurrency": "请选择货币。",
-    "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。"
+    "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。",
+    "creditCardBillingDays": "账单日和还款日必须为 1 至 31 的整数。"
   }
 }

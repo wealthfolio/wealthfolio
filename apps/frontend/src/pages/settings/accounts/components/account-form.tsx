@@ -51,6 +51,7 @@ import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 
 import { useAccountMutations } from "./use-account-mutations";
+import { CreditCardBillingFields } from "./credit-card-billing-fields";
 
 const CASH_ALLOCATION_DEFAULT_VALUE = "__default__";
 const CASH_FIXED_INCOME_CATEGORY_ID = "FIXED_INCOME";
@@ -529,6 +530,18 @@ export function AccountForm({
           </div>
 
           <div className="grid content-start gap-4">
+            {isCreditCardAccount && (
+              <FormField
+                control={form.control}
+                name="meta"
+                render={({ field }) => (
+                  <FormItem className={formCardClassName}>
+                    <CreditCardBillingFields value={field.value} onChange={field.onChange} />
+                    <AccountFormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="trackingMode"

@@ -14,6 +14,18 @@ use axum::{
 use serde::Deserialize;
 use wealthfolio_core::accounts::AccountServiceTrait;
 
+async fn credit_card_statements(
+    Path(id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<Vec<wealthfolio_core::accounts::CreditCardStatement>>> {
+    Ok(Json(
+        state
+            .activity_service
+            .get_credit_card_statements(&id)
+            .await?,
+    ))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ListAccountsQuery {
@@ -74,6 +86,7 @@ async fn delete_account(
 
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
+        .route("/accounts/{id}/statements", get(credit_card_statements))
         .route("/accounts", get(list_accounts).post(create_account))
         .route("/accounts/{id}", put(update_account).delete(delete_account))
 }

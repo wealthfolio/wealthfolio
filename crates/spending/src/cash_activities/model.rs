@@ -11,8 +11,9 @@ pub struct CashActivityFilter {
     /// Restrict to specific accounts (intersected with the spending account list).
     /// If None, all spending accounts are queried.
     pub account_ids: Option<Vec<String>>,
-    /// Restrict to a date window (RFC3339 strings on either side; both inclusive).
+    /// Inclusive UTC calendar date, or an RFC3339 instant (legacy list API).
     pub start_date: Option<String>,
+    /// Inclusive UTC calendar date, or an RFC3339 instant (legacy list API).
     pub end_date: Option<String>,
     /// Restrict to specific activity_types. If None, defaults to CASH_ACTIVITY_TYPES.
     pub activity_types: Option<Vec<String>>,
@@ -71,8 +72,9 @@ pub struct CashActivitySearchRequest {
     /// Status: All / NeedsReview / Uncategorized / Categorized.
     #[serde(default)]
     pub status: CashActivityStatusFilter,
-    /// Date window — RFC3339 strings, inclusive.
+    /// Inclusive calendar date in the app timezone, or an RFC3339 instant.
     pub start_date: Option<String>,
+    /// Inclusive calendar date in the app timezone, or an RFC3339 instant.
     pub end_date: Option<String>,
     /// Absolute amount range (operates on |amount|).
     pub min_amount: Option<f64>,

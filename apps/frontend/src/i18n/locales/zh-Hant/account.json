@@ -166,5 +166,29 @@
     "irr_hover_hint": " 將滑鼠懸停在該值上以查看所選期間的 IRR。"
   },
   "more_count_other": "+{{count}} 項",
-  "more_count_one": "+{{count}} 項"
+  "more_count_one": "+{{count}} 項",
+  "billing": {
+    "title": "信用卡帳單",
+    "closing_day": "結帳日（1–31）",
+    "due_day": "繳款日（1–31）",
+    "schedule_hint": "較短的月份使用月底。繳款日為結帳後首次到來的指定日期。變更也適用於歷史帳單。",
+    "setup": "請在帳戶設定中配置結帳日和繳款日。",
+    "load_error": "無法載入帳單。",
+    "previous": "歷史帳單",
+    "closed": "已結帳",
+    "open": "未結帳",
+    "due": "{{date}} 到期",
+    "statement_balance": "結帳餘額",
+    "balance_hint": "餘額依據已記錄的交易計算，包含先前未償還的債務。正數表示欠款，負數表示溢繳款。之後的還款不會改變已結帳帳單的餘額，因此該餘額不表示今天尚需還款的金額。",
+    "manage": "帳單設定",
+    "current_balance": "目前餘額",
+    "last_closed": "最近已結帳帳單",
+    "closes_on": "結帳日期",
+    "closed_on": "已結帳日期",
+    "payment_due": "還款到期日",
+    "current_hint": "包含已記錄的還款和先前欠款。",
+    "closed_hint": "結帳時的餘額，不扣除之後的還款。",
+    "view_transactions": "查看交易",
+    "calculation_help": "餘額如何計算"
+  }
 }

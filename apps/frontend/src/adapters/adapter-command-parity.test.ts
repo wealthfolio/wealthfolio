@@ -751,3 +751,14 @@ describe("contribution limit details and exclusions", () => {
     expect(JSON.parse(body as string)).toEqual({ excluded });
   });
 });
+
+describe("credit card statements transport", () => {
+  it("encodes the account ID and keeps the request read-only", async () => {
+    const mock = stubFetch([]);
+    await invoke("get_credit_card_statements", { accountId: "card/1" });
+    expect(lastCall(mock)).toMatchObject({
+      url: "/api/v1/accounts/card%2F1/statements",
+      method: "GET",
+    });
+  });
+});
