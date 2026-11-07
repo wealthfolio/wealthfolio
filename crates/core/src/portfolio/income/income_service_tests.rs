@@ -344,7 +344,7 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
         to_currency: "USD".to_string(),
         rate: dec!(1.1),
         source: "MANUAL".to_string(),
-        timestamp: Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap(),
+        timestamp: Utc.with_ymd_and_hms(2025, 5, 15, 0, 0, 0).unwrap(),
     }])));
     fx_service.initialize().unwrap();
 
@@ -438,6 +438,49 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
     let two_years_ago = summary(&summaries, "TWO_YEARS_AGO");
     assert_eq!(two_years_ago.total_income, dec!(0));
     assert_eq!(two_years_ago.unconverted_currencies, currencies(&["GBP"]));
+}
+
+#[test]
+fn income_does_not_use_a_future_exchange_rate() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 6, 15, 12, 0, 0).unwrap());
+
+    let fx_service = FxService::new(Arc::new(InMemoryFxRepository::new(vec![ExchangeRate {
+        id: "EURUSD".to_string(),
+        from_currency: "EUR".to_string(),
+        to_currency: "USD".to_string(),
+        rate: dec!(1.1),
+        source: "MANUAL".to_string(),
+        // This quote is after the income and must not be used retroactively.
+        timestamp: Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap(),
+    }])));
+    fx_service.initialize().unwrap();
+
+    let service = IncomeService::new(
+        Arc::new(fx_service),
+        Arc::new(MockActivityRepository {
+            income: Mutex::new(vec![income(
+                "2025-05-15",
+                "DIVIDEND",
+                "SAP",
+                "EUR",
+                dec!(100),
+                "acc-eur",
+            )]),
+            first_activity_date: Utc.with_ymd_and_hms(2025, 5, 15, 0, 0, 0).unwrap(),
+        }),
+        Arc::new(RwLock::new("USD".to_string())),
+    );
+
+    let summaries = service.get_income_summary(None).unwrap();
+    let all = summary(&summaries, "ALL");
+
+    assert_eq!(all.total_income, dec!(0));
+    assert!(all.by_currency_base.is_empty());
+    assert_eq!(all.by_currency.get("EUR"), Some(&dec!(100)));
+    assert_eq!(
+        all.unconverted_currencies,
+        BTreeSet::from(["EUR".to_string()])
+    );
 }
 
 #[test]

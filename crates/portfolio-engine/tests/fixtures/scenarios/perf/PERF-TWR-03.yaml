@@ -69,3 +69,5 @@ expected_notes: >
   warns "Transfer activity tin-1 has no valid linked transfer pair and no
   external intent; it was treated as external." although the stamped flow is
   Unknown, not External (misleading message text).
+  acc-2 and portfolio return curves are omitted because their intermediate
+  valuations are unavailable; the gaps must not appear as flat zero returns.

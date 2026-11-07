@@ -1,8 +1,8 @@
 //! Stage 3: quote and FX surfaces resolved over an observation set.
 //! Codifies the legacy ladder as policy: minor-unit normalization, per-day
-//! direct or inverse observation, bidirectional nearest observation (tie →
-//! past), then a deterministic fewest-hops path through intermediate
-//! currencies. No "latest rate of any date" last resort (EDGE-FX-07).
+//! direct or inverse observation, bounded as-of carry, then a deterministic
+//! fewest-hops path through intermediate currencies. No future observation or
+//! "latest rate of any date" last resort (EDGE-FX-07).
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -11,6 +11,8 @@ use rust_decimal::Decimal;
 
 use crate::arith;
 use crate::model::{FxObservation, Policy};
+
+mod historical_fx;
 
 type Pair = (String, String);
 
@@ -83,33 +85,14 @@ impl FxSurface {
             .map(|(day, _)| *day)
     }
 
-    /// Nearest observation for a direct pair: exact day, else the closer of
-    /// the last-before and first-after observations (tie → past), with its
-    /// distance in days from `date`.
+    /// Resolve a direct pair using the bounded historical as-of policy.
     fn direct_rate(&self, from: &str, to: &str, date: NaiveDate) -> Option<(Decimal, i64)> {
-        let history = self.series.get(&(from.to_string(), to.to_string()))?;
-        let prev = history.range(..=date).next_back();
-        let next = history.range(date..).next();
-        let distance = |day: &NaiveDate| (date - *day).num_days().abs();
-        match (prev, next) {
-            (Some((d1, r1)), Some((d2, r2))) => {
-                if d1 == d2 {
-                    return Some((*r1, 0));
-                }
-                Some(if distance(d1) <= distance(d2) {
-                    (*r1, distance(d1))
-                } else {
-                    (*r2, distance(d2))
-                })
-            }
-            (Some((day, rate)), None) | (None, Some((day, rate))) => Some((*rate, distance(day))),
-            (None, None) => None,
-        }
+        historical_fx::direct_rate(self, from, to, date)
     }
 
     /// Rate between major-unit codes: direct pair first, else the fewest-hops
     /// path (neighbors visited in code order, so equal-length paths resolve
-    /// deterministically), each hop nearest-neighbour resolved on `date`.
+    /// deterministically), each hop resolved as-of `date`.
     /// Also returns the largest distance of any hop's observation from `date`.
     fn path_rate(&self, from: &str, to: &str, date: NaiveDate) -> Option<(Decimal, i64)> {
         if from == to {
@@ -232,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn nearest_observation_prefers_past_on_ties_and_looks_forward() {
+    fn as_of_observation_never_looks_forward_and_expires_after_a_week() {
         let surface = FxSurface::from_observations(&[
             observation("USD", "CAD", 6, dec!(1.30)),
             observation("USD", "CAD", 9, dec!(1.40)),
@@ -243,10 +226,59 @@ mod tests {
             policy: &policy,
         };
         assert_eq!(fx.rate("USD", "CAD", day(7)), Some(dec!(1.30)));
-        assert_eq!(fx.rate("USD", "CAD", day(8)), Some(dec!(1.40)));
-        assert_eq!(fx.rate("USD", "CAD", day(20)), Some(dec!(1.40)));
-        assert_eq!(fx.rate("USD", "CAD", day(1)), Some(dec!(1.30)));
+        assert_eq!(fx.rate("USD", "CAD", day(8)), Some(dec!(1.30)));
+        assert_eq!(fx.rate("USD", "CAD", day(16)), Some(dec!(1.40)));
+        assert_eq!(fx.rate("USD", "CAD", day(17)), None);
+        assert_eq!(fx.rate("USD", "CAD", day(1)), None);
         assert_eq!(fx.rate("CAD", "USD", day(6)), Some(dec!(1) / dec!(1.30)));
+    }
+
+    #[test]
+    fn weekend_and_holiday_carry_uses_calendar_days() {
+        let surface = FxSurface::from_observations(&[observation("USD", "CAD", 3, dec!(1.30))]);
+        let policy = policy();
+        let fx = FxResolver {
+            surface: &surface,
+            policy: &policy,
+        };
+        // Friday -> Monday is a three-calendar-day carry; the next Friday is
+        // still seven days old and the following Saturday is unavailable.
+        assert_eq!(fx.rate("USD", "CAD", day(6)), Some(dec!(1.30)));
+        assert_eq!(fx.rate("USD", "CAD", day(10)), Some(dec!(1.30)));
+        assert_eq!(fx.rate("USD", "CAD", day(11)), None);
+    }
+
+    #[test]
+    fn non_positive_surface_rates_are_unavailable() {
+        let surface = FxSurface::from_observations(&[
+            observation("USD", "CAD", 2, Decimal::ZERO),
+            observation("EUR", "CAD", 2, -dec!(1.2)),
+        ]);
+        let policy = policy();
+        let fx = FxResolver {
+            surface: &surface,
+            policy: &policy,
+        };
+        assert_eq!(fx.rate("USD", "CAD", day(2)), None);
+        assert_eq!(fx.rate("EUR", "CAD", day(2)), None);
+    }
+
+    #[test]
+    fn each_triangulated_hop_obeys_the_same_age_bound() {
+        let surface = FxSurface::from_observations(&[
+            observation("EUR", "CHF", 1, dec!(0.95)),
+            observation("CHF", "USD", 7, dec!(1.10)),
+        ]);
+        let policy = policy();
+        let fx = FxResolver {
+            surface: &surface,
+            policy: &policy,
+        };
+        assert_eq!(
+            fx.rate_with_age("EUR", "USD", day(8)),
+            Some((dec!(0.95) * dec!(1.10), 7))
+        );
+        assert_eq!(fx.rate("EUR", "USD", day(9)), None);
     }
 
     #[test]

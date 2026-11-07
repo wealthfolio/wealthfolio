@@ -156,24 +156,15 @@ impl FxService {
 
         if let Ok(converter_lock) = self.converter.read() {
             if let Some(converter) = &*converter_lock {
-                if let Ok(rate) = converter.get_rate_nearest(from, to, date) {
-                    return Ok(rate);
-                }
+                return converter.get_rate_as_of(from, to, date).map_err(Into::into);
             }
         }
 
-        let latest_rate = self.load_latest_exchange_rate(from, to)?;
-        let fallback_date = latest_rate.timestamp.date_naive();
-
-        log::warn!(
-            "No exchange rate found for {}/{} on {}. Using fallback rate from {}",
-            from,
-            to,
-            date,
-            fallback_date
-        );
-
-        Ok(latest_rate.rate)
+        Err(FxError::RateNotFound(format!(
+            "No historical exchange rates available for {}/{} on {}",
+            from, to, date
+        ))
+        .into())
     }
 }
 
@@ -212,10 +203,8 @@ impl FxServiceTrait for FxService {
         if rate.source == DATA_SOURCE_MANUAL {
             let saved = self.repository.save_exchange_rate(rate).await?;
 
-            // Reinitialize the converter with updated rates: every dated lookup
-            // consults it before falling back to the repository, so without this
-            // a rate the user just entered stays invisible until a market sync
-            // or a restart. `delete_exchange_rate` has always done the same.
+            // Reinitialize the converter so dated lookups see a rate the user
+            // just entered without waiting for a market sync or restart.
             self.initialize_converter()?;
 
             Ok(saved)
@@ -464,11 +453,14 @@ mod tests {
     use rust_decimal::Decimal;
     use std::sync::Mutex;
 
+    mod historical;
+
     #[derive(Default)]
     struct MockFxRepository {
         created_pairs: Mutex<Vec<(String, String, String)>>,
         saved_rates: Mutex<Vec<ExchangeRate>>,
         historical_rates: Mutex<Vec<ExchangeRate>>,
+        latest_rate: Mutex<Option<ExchangeRate>>,
     }
 
     #[async_trait]
@@ -482,7 +474,7 @@ mod tests {
         }
 
         fn get_latest_exchange_rate(&self, _from: &str, _to: &str) -> Result<Option<ExchangeRate>> {
-            Ok(None)
+            Ok(self.latest_rate.lock().unwrap().clone())
         }
 
         fn get_latest_exchange_rate_by_symbol(
@@ -692,12 +684,8 @@ mod tests {
     }
 
     #[test]
-    fn get_exchange_rate_for_date_falls_back_to_nearest_when_no_exact_match() {
-        // Only a rate on 2026-05-10 exists; a lookup for 2026-05-18 (no quote,
-        // e.g. a weekend/holiday) should fall back to the nearest available
-        // rate rather than erroring — this is what unblocks addons resolving
-        // a rate for an arbitrary transaction date.
-        let quoted_date = NaiveDate::from_ymd_opt(2026, 5, 10).unwrap();
+    fn get_exchange_rate_for_date_carries_past_rate_for_weekend() {
+        let quoted_date = NaiveDate::from_ymd_opt(2026, 5, 15).unwrap();
         let requested_date = NaiveDate::from_ymd_opt(2026, 5, 18).unwrap();
         let repo = Arc::new(MockFxRepository::default());
         repo.historical_rates

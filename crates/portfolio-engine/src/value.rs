@@ -1210,6 +1210,22 @@ impl<'a> Valuer<'a> {
                         return ((booked.cost - fee).abs(), source);
                     }
                 }
+                if paired && self.projected(event) {
+                    // A paired incoming leg has no independent cost: its
+                    // amount must come from the sender's booked lots. When
+                    // the sender's base cost is unavailable (for example,
+                    // because its acquisition FX is outside the bounded
+                    // history window), using the receiver's local book basis
+                    // would invent a base flow for the transfer.
+                    return (
+                        Decimal::ZERO,
+                        if unknown {
+                            FlowSource::UnknownBoundaryTransfer
+                        } else {
+                            FlowSource::Unknown
+                        },
+                    );
+                }
                 if let Some(basis) = book_basis {
                     return self.priced(basis.abs(), event.currency.as_str(), event, source);
                 }
