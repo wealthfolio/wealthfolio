@@ -10,6 +10,9 @@ for (const mobile of [false, true]) {
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
       await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
       await completeOnboardingIfNeeded(page);
+      expect(
+        (await page.request.put(`${BASE_URL}/api/v1/settings`, { data: { timezone: "UTC" } })).ok(),
+      ).toBeTruthy();
       const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
         data: {
           name: `Calendar ${mobile}-${direction}`,
@@ -51,13 +54,47 @@ for (const mobile of [false, true]) {
             })
           ).ok(),
         ).toBeTruthy();
+        const reportRequests: { startDate: string; endDate: string }[] = [];
+        page.on("request", (request) => {
+          if (new URL(request.url()).pathname === "/api/v1/spending/report") {
+            reportRequests.push(request.postDataJSON());
+          }
+        });
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=2025`);
         const visible = (name: string | RegExp) =>
           page.getByRole("button", { name }).filter({ visible: true });
         // Formatting isolates calendar labels in RTL text.
         const periodButton = (label: string) =>
           visible(new RegExp(`${label}\\u2069?, Select dates`));
+        // Mobile keeps neighboring tabs mounted with the same period labels.
+        const spendingPane = page
+          .locator("[data-virtual-scroll-parent]")
+          .filter({ has: page.getByText(/^Spent ·/) })
+          .last();
+        const spendingPeriodButton = (label: string) =>
+          spendingPane.getByRole("button", { name: new RegExp(`${label}\\u2069?, Select dates`) });
         await expect(periodButton("2025")).toBeVisible();
+        await expect
+          .poll(() => reportRequests)
+          .toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                startDate: "2025-01-01T00:00:00.000Z",
+                endDate: "2025-12-31T23:59:59.999Z",
+              }),
+              expect.objectContaining({
+                startDate: "2024-01-01T00:00:00.000Z",
+                endDate: "2024-12-31T23:59:59.999Z",
+              }),
+            ]),
+          );
+        await expect(
+          page
+            .getByRole("application")
+            .locator(".recharts-xAxis-tick-labels")
+            .getByText("Jun '25", { exact: true })
+            .filter({ visible: true }),
+        ).toBeVisible();
         expect(new URL(page.url()).searchParams.has("spendingYear")).toBe(false);
         await visible("Previous period").click();
         await expect(periodButton("2024")).toBeVisible();
@@ -76,7 +113,7 @@ for (const mobile of [false, true]) {
           path: testInfo.outputPath("selected-year.png"),
           animations: "disabled",
         });
-        await periodButton("2024").click();
+        await spendingPeriodButton("2024").click();
         const popup = page.getByRole("dialog");
         const yearButton = (year: number) =>
           popup.getByRole("button", { name: new RegExp(`^\\u2068?${year}\\u2069?$`) });
@@ -104,7 +141,8 @@ for (const mobile of [false, true]) {
         await expect(page.getByTestId("spending-selected-range")).toContainText("2024");
 
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}`);
-        await periodButton("2024").click();
+        await spendingPeriodButton("2024").click();
+        await expect(popup).toBeVisible();
         await popup.getByRole("button", { name: "Month", exact: true }).click();
         await expect(
           popup.locator('[data-slot="month-year-picker"]').getByRole("button", { pressed: true }),
@@ -119,6 +157,16 @@ for (const mobile of [false, true]) {
         await expect(periodButton("January 2024")).toBeVisible();
         await visible("YTD").click();
         await expect(visible("Previous period")).toHaveCount(0);
+
+        await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
+        await visible("ALL").click();
+        await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
+        for (const year of ["2026", "invalid"]) {
+          await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=${year}`);
+          await expect(page).not.toHaveURL(/spendingYear/);
+          await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
+          await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
+        }
       } finally {
         await page.request.put(`${BASE_URL}/api/v1/spending/settings`, { data: oldSettings });
       }

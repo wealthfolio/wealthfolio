@@ -682,13 +682,19 @@ export default function SpendingTabContent() {
       SPENDING_RANGE_TO_PARAM,
     ].filter((param) => searchParams.has(param));
     if (linked.length === 0) return;
-    if (selection.kind === "period") handleIntervalSelect(selection.code);
-    else {
-      setPersistedInterval(selection.restoreCode);
-      setPersistedInsightPeriod(selection.restoreCode);
-      if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
-      else if (selection.kind === "year") handleCustomYearSelect(selection.year);
-      else handleCustomRangeSelect(selection.range);
+    const invalidYearOnly =
+      linked.length === 1 &&
+      linked[0] === SPENDING_YEAR_PARAM &&
+      parseCalendarYear(searchParams.get(SPENDING_YEAR_PARAM), todayISO) === null;
+    if (!invalidYearOnly) {
+      if (selection.kind === "period") handleIntervalSelect(selection.code);
+      else {
+        setPersistedInterval(selection.restoreCode);
+        setPersistedInsightPeriod(selection.restoreCode);
+        if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
+        else if (selection.kind === "year") handleCustomYearSelect(selection.year);
+        else handleCustomRangeSelect(selection.range);
+      }
     }
     setSearchParams(
       (prev) => {
