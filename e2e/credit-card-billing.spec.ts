@@ -29,6 +29,21 @@ for (const direction of ["ltr", "rtl"] as const) {
       },
     });
     expect(rejected.status()).toBe(400);
+    // Billing settings are inactive for other account types. Switching back
+    // to a card must validate them again, before they can affect statements.
+    const nonCard = {
+      ...account,
+      accountType: "CASH",
+      meta: '{"creditCardBilling":{"closingDay":32,"dueDay":20}}',
+    };
+    const changedType = await page.request.put(`${api}/accounts/${account.id}`, { data: nonCard });
+    expect(changedType.ok(), await changedType.text()).toBeTruthy();
+    const invalidCard = await page.request.put(`${api}/accounts/${account.id}`, {
+      data: { ...nonCard, accountType: "CREDIT_CARD" },
+    });
+    expect(invalidCard.status()).toBe(400);
+    const restoredCard = await page.request.put(`${api}/accounts/${account.id}`, { data: account });
+    expect(restoredCard.ok(), await restoredCard.text()).toBeTruthy();
     const statements = () => page.request.get(`${api}/accounts/${account.id}/statements`);
     expect(await (await statements()).json()).toEqual([]);
 

@@ -198,31 +198,44 @@ fn unconfigured_cards_have_no_statements_and_non_cards_are_rejected() {
 }
 
 #[test]
-fn account_create_and_update_reject_invalid_billing_days() {
+fn account_create_and_update_validate_billing_only_for_credit_cards() {
     use crate::accounts::{AccountUpdate, NewAccount};
-    let input = |closing_day: u32| {
+    let input = |account_type: &str, closing_day: u32| {
         serde_json::json!({
-            "id": "card", "name": "Card", "accountType": "CREDIT_CARD", "currency": "BRL",
+            "id": "card", "name": "Card", "accountType": account_type, "currency": "BRL",
             "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS",
             "meta": serde_json::json!({"creditCardBilling": {"closingDay": closing_day, "dueDay": 20}}).to_string(),
         })
     };
-    for day in [0, 32] {
-        assert!(serde_json::from_value::<NewAccount>(input(day))
-            .unwrap()
-            .validate()
-            .is_err());
-        assert!(serde_json::from_value::<AccountUpdate>(input(day))
-            .unwrap()
-            .validate()
-            .is_err());
+    for account_type in [account_types::CREDIT_CARD, account_types::CASH] {
+        for day in [0, 32] {
+            let is_card = account_type == account_types::CREDIT_CARD;
+            assert_eq!(
+                serde_json::from_value::<NewAccount>(input(account_type, day))
+                    .unwrap()
+                    .validate()
+                    .is_err(),
+                is_card
+            );
+            assert_eq!(
+                serde_json::from_value::<AccountUpdate>(input(account_type, day))
+                    .unwrap()
+                    .validate()
+                    .is_err(),
+                is_card
+            );
+        }
     }
-    assert!(serde_json::from_value::<NewAccount>(input(31))
-        .unwrap()
-        .validate()
-        .is_ok());
-    assert!(serde_json::from_value::<AccountUpdate>(input(31))
-        .unwrap()
-        .validate()
-        .is_ok());
+    assert!(
+        serde_json::from_value::<NewAccount>(input(account_types::CREDIT_CARD, 31))
+            .unwrap()
+            .validate()
+            .is_ok()
+    );
+    assert!(
+        serde_json::from_value::<AccountUpdate>(input(account_types::CREDIT_CARD, 31))
+            .unwrap()
+            .validate()
+            .is_ok()
+    );
 }

@@ -38,8 +38,10 @@ statements. Partial imports cannot reconstruct missing opening debt.
   preservation, backup/export and account synchronization carry them. No
   migration, new table, statement snapshot, worker, retry policy or
   synchronization primitive is added.
-- Account create/update validates recognized billing metadata in core before
-  persistence. Invalid values produce errors that do not echo metadata.
+- Credit card create/update validates recognized billing metadata in core before
+  persistence. Invalid values produce errors that do not echo metadata. Other
+  account types keep inactive metadata without validating hidden card settings;
+  changing the type back to a card validates those settings again.
 - `ActivityServiceTrait::get_credit_card_statements` loads the account's ledger
   and runs shared core calculations on the existing blocking pool. Tauri's
   `get_credit_card_statements` and Axum's `GET /api/v1/accounts/{id}/statements`

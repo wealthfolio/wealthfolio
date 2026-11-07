@@ -123,23 +123,20 @@ export const newAccountSchema = z
       error: requiredError("common:validation.accountCurrency"),
     }),
     trackingMode: trackingModeSchema.optional().default("NOT_SET"),
-    meta: z
-      .string()
-      .nullable()
-      .optional()
-      .refine(
-        (meta) => {
-          if (!meta) return true;
-          try {
-            const billing = JSON.parse(meta)?.creditCardBilling;
-            return billing == null || creditCardBillingSchema.safeParse(billing).success;
-          } catch {
-            return true;
-          }
-        },
-        { message: "common:validation.creditCardBillingDays" },
-      ),
+    meta: z.string().nullable().optional(),
   })
+  .refine(
+    (data) => {
+      if (data.accountType !== AccountType.CREDIT_CARD || !data.meta) return true;
+      try {
+        const billing = JSON.parse(data.meta)?.creditCardBilling;
+        return billing == null || creditCardBillingSchema.safeParse(billing).success;
+      } catch {
+        return true;
+      }
+    },
+    { message: "common:validation.creditCardBillingDays", path: ["meta"] },
+  )
   .refine(
     (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
     {
