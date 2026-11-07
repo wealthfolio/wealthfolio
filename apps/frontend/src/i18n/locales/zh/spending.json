@@ -250,6 +250,12 @@
     "filteredNet": "筛选净额"
   },
   "period": {
+    "month": "月",
+    "year": "年",
+    "previousPeriod": "上一个期间",
+    "nextPeriod": "下一个期间",
+    "previousYears": "更早年份",
+    "nextYears": "更晚年份",
     "thisMonth": "本月",
     "mtdShort": "MTD",
     "lastMonth": "上月",

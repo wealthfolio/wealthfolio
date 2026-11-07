@@ -29,10 +29,23 @@ import {
   SPENDING_RANGE_TO_PARAM,
 } from "../lib/date-range-params";
 import { monthRange } from "../lib/month-period";
+import { yearRange } from "../lib/year-period";
+import { CalendarYearPicker } from "./calendar-year-picker";
+
+export interface CalendarNavigation {
+  label: string;
+  onStep: (direction: -1 | 1) => void;
+  previousDisabled: boolean;
+  nextDisabled: boolean;
+}
 
 interface SpendingDatePickerProps {
   customMonth: string | null;
   customRange?: DateRange;
+  customYear?: number | null;
+  maxYear?: number;
+  onCustomYearChange?: (year: number | null) => void;
+  navigation?: CalendarNavigation;
   maxMonth: string;
   onCustomMonthChange: (month: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
@@ -43,6 +56,10 @@ interface SpendingDatePickerProps {
 export function SpendingDatePicker({
   customMonth,
   customRange,
+  customYear = null,
+  maxYear,
+  onCustomYearChange,
+  navigation,
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
@@ -56,7 +73,7 @@ export function SpendingDatePicker({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [viewMonth, setViewMonth] = useState<Date>();
-  const active = !!customMonth || !!customRange;
+  const active = !!customMonth || !!customRange || customYear !== null;
   const selected = {
     from: parseSpendingDate(from) ?? undefined,
     to: parseSpendingDate(to) ?? undefined,
@@ -68,8 +85,14 @@ export function SpendingDatePicker({
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
-      const initial = customRange ?? (customMonth ? monthRange(customMonth) : undefined);
-      setMode(customRange ? "range" : "month");
+      const initial =
+        customRange ??
+        (customYear !== null
+          ? yearRange(customYear)
+          : customMonth
+            ? monthRange(customMonth)
+            : undefined);
+      setMode(customRange ? "range" : customYear !== null ? "year" : "month");
       setFrom(initial?.from ? formatDateISO(initial.from) : "");
       setTo(initial?.to ? formatDateISO(initial.to) : "");
       setViewMonth(initial?.from ?? new Date());
@@ -77,30 +100,67 @@ export function SpendingDatePicker({
     setOpen(next);
   };
   const clear = () => {
-    if (customRange) onCustomRangeChange?.(undefined);
+    if (customYear !== null) onCustomYearChange?.(null);
+    else if (customRange) onCustomRangeChange?.(undefined);
     else onCustomMonthChange(null);
     setOpen(false);
   };
   const trigger = (
     <Button
       type="button"
-      variant={active ? "default" : "ghost"}
-      size="icon"
+      variant={navigation ? "ghost" : active ? "default" : "ghost"}
+      size={navigation ? "sm" : "icon"}
       className={cn(
-        "h-8 w-8 shrink-0 rounded-full",
-        appearance === "header" ? "w-9" : !active && "bg-muted",
+        "shrink-0 rounded-full",
+        navigation ? "h-11 gap-1 px-2 font-medium sm:h-8" : "h-8 w-8",
+        !navigation && (appearance === "header" ? "w-9" : !active && "bg-muted"),
       )}
-      aria-label={t("spending:period.selectDates")}
+      aria-label={
+        navigation
+          ? `${navigation.label}, ${t("spending:period.selectDates")}`
+          : t("spending:period.selectDates")
+      }
     >
-      <Icons.Calendar className="h-4 w-4" />
+      {navigation ? (
+        <>
+          <span aria-live="polite">{navigation.label}</span>
+          <Icons.ChevronDown className="size-3" />
+        </>
+      ) : (
+        <Icons.Calendar className="h-4 w-4" />
+      )}
     </Button>
   );
   const content = (
     <div>
+      {onCustomYearChange && mode !== "range" && (
+        <div
+          className="flex gap-5 px-4 pt-1"
+          role="group"
+          aria-label={t("spending:period.selectDates")}
+        >
+          {(["month", "year"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={mode === value}
+              onClick={() => setMode(value)}
+              className={cn(
+                "min-h-11 border-b-2 px-1 text-sm",
+                mode === value
+                  ? "text-foreground border-current font-medium"
+                  : "text-muted-foreground border-transparent",
+              )}
+            >
+              {t(value === "month" ? "spending:period.month" : "spending:period.year")}
+            </button>
+          ))}
+        </div>
+      )}
       {mode === "month" ? (
         <div className="p-4">
           <MonthYearPicker
-            value={customMonth ?? maxMonth}
+            value={customMonth ?? (customYear !== null ? `${customYear}-01` : maxMonth)}
             maxDate={maxMonth}
             className="w-full max-w-none p-0 [&_.grid_button]:h-11"
             onChange={(month) => {
@@ -109,6 +169,15 @@ export function SpendingDatePicker({
             }}
           />
         </div>
+      ) : mode === "year" && onCustomYearChange && maxYear !== undefined ? (
+        <CalendarYearPicker
+          value={customYear}
+          maxYear={maxYear}
+          onChange={(year) => {
+            onCustomYearChange(year);
+            setOpen(false);
+          }}
+        />
       ) : (
         <div>
           <div className="grid grid-cols-2 gap-4 px-5 pt-5">
@@ -173,11 +242,11 @@ export function SpendingDatePicker({
         {onCustomRangeChange && (
           <button
             type="button"
-            onClick={() => setMode(mode === "month" ? "range" : "month")}
+            onClick={() => setMode(mode === "range" ? "month" : "range")}
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring me-auto rounded-sm text-xs whitespace-nowrap underline decoration-current/40 underline-offset-4 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {t(
-              mode === "month"
+              mode !== "range"
                 ? "spending:period.chooseCustomDates"
                 : "spending:period.chooseMonth",
             )}
@@ -225,7 +294,7 @@ export function SpendingDatePicker({
     </div>
   );
 
-  return isMobile ? (
+  const picker = isMobile ? (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger render={trigger} />
       <SheetContent
@@ -251,5 +320,41 @@ export function SpendingDatePicker({
         {content}
       </PopoverContent>
     </Popover>
+  );
+
+  if (!navigation) return picker;
+  return (
+    <div
+      className="flex shrink-0 items-center"
+      role="group"
+      aria-label={navigation.label}
+      data-no-swipe-drag
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-hidden={open || undefined}
+        className={cn("size-11 sm:size-8", open && "invisible")}
+        disabled={navigation.previousDisabled}
+        onClick={() => navigation.onStep(-1)}
+        aria-label={t("spending:period.previousPeriod")}
+      >
+        <Icons.ChevronLeft className="size-4 rtl:rotate-180" />
+      </Button>
+      {picker}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-hidden={open || undefined}
+        className={cn("size-11 sm:size-8", open && "invisible")}
+        disabled={navigation.nextDisabled}
+        onClick={() => navigation.onStep(1)}
+        aria-label={t("spending:period.nextPeriod")}
+      >
+        <Icons.ChevronRight className="size-4 rtl:rotate-180" />
+      </Button>
+    </div>
   );
 }

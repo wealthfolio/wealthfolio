@@ -14,6 +14,25 @@ function dates(range: { from?: Date; to?: Date } | undefined) {
 describe("useDashboardPeriod", () => {
   beforeEach(() => localStorage.clear());
 
+  it("persists and synchronizes a stepped year, then clears back to the previous preset", () => {
+    const investments = renderHook(() => useDashboardPeriod(TODAY));
+    const netWorth = renderHook(() => useDashboardPeriod(TODAY));
+    act(() => investments.result.current.selectPreset("6M"));
+    act(() => investments.result.current.selectYear(2025));
+    expect(netWorth.result.current.customYear).toBe(2025);
+    expect(netWorth.result.current.code).toBeNull();
+    expect(netWorth.result.current.navigation?.nextDisabled).toBe(true);
+    act(() => netWorth.result.current.navigation?.onStep(-1));
+    expect(investments.result.current.customYear).toBe(2024);
+    expect(dates(investments.result.current.range)).toEqual(["2024-01-01", "2024-12-31"]);
+    investments.unmount();
+    const reopened = renderHook(() => useDashboardPeriod("2027-01-01"));
+    expect(reopened.result.current.customYear).toBe(2024);
+    act(() => reopened.result.current.selectYear(null));
+    expect(netWorth.result.current.code).toBe("6M");
+    expect(netWorth.result.current.navigation).toBeUndefined();
+  });
+
   it("keeps each tab's own preset until a period is picked", () => {
     localStorage.setItem("networth-interval", JSON.stringify("ALL"));
     const investments = renderHook(() => useDashboardPeriod(TODAY));

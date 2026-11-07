@@ -252,6 +252,12 @@
     "filteredNet": "Filtered net"
   },
   "period": {
+    "month": "Month",
+    "year": "Year",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "previousYears": "Earlier years",
+    "nextYears": "Later years",
     "selectDates": "Select dates",
     "chooseCustomDates": "Choose custom dates",
     "chooseMonth": "Choose a month",

@@ -252,6 +252,12 @@
     "filteredNet": "Netto (Filter)"
   },
   "period": {
+    "month": "Monat",
+    "year": "Jahr",
+    "previousPeriod": "Vorheriger Zeitraum",
+    "nextPeriod": "Nächster Zeitraum",
+    "previousYears": "Frühere Jahre",
+    "nextYears": "Spätere Jahre",
     "thisMonth": "Dieser Monat",
     "mtdShort": "Monat",
     "lastMonth": "Letzter Monat",

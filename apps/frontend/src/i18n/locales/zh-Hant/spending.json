@@ -252,6 +252,12 @@
     "selectedNet": "所選交易淨額"
   },
   "period": {
+    "month": "月",
+    "year": "年",
+    "previousPeriod": "上一個期間",
+    "nextPeriod": "下一個期間",
+    "previousYears": "更早年份",
+    "nextYears": "更晚年份",
     "thisMonth": "本月",
     "mtdShort": "MTD",
     "lastMonth": "上月",

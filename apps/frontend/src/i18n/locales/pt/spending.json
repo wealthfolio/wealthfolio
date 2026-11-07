@@ -259,6 +259,12 @@
     "filteredNet": "Líquido filtrado"
   },
   "period": {
+    "month": "Mês",
+    "year": "Ano",
+    "previousPeriod": "Período anterior",
+    "nextPeriod": "Próximo período",
+    "previousYears": "Anos anteriores",
+    "nextYears": "Anos seguintes",
     "thisMonth": "Este mês",
     "mtdShort": "MTD",
     "lastMonth": "Mês passado",

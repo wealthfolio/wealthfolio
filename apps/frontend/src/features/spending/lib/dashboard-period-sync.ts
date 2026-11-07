@@ -11,8 +11,9 @@ import type { DateRange } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
 
 import { parseSpendingDate, type SpendingDateRange } from "./date-range-params";
-import { monthRange, parseMonthKey } from "./month-period";
-import type { ReportsPeriod } from "./reports-period";
+import { addMonthsToMonthKey, monthRange, parseMonthKey } from "./month-period";
+import { REPORTS_PERIODS, type ReportsPeriod } from "./reports-period";
+import { MIN_CALENDAR_YEAR, parseCalendarYear, yearRange } from "./year-period";
 
 export const DASHBOARD_PERIOD_STORAGE_KEY = "dashboard-period";
 /** Last preset shown on Investments and Net Worth; restored when a custom period is cleared. */
@@ -23,6 +24,7 @@ export type DashboardPeriodPick =
   | { kind: "portfolio"; code: TimePeriod }
   | { kind: "spending"; code: ReportsPeriod }
   | { kind: "month"; monthKey: string }
+  | { kind: "year"; year: number }
   | { kind: "range"; from: string; to: string };
 
 export interface PortfolioPeriodView {
@@ -34,6 +36,7 @@ export interface PortfolioPeriodView {
 export type SpendingPeriodView =
   | { kind: "period"; code: ReportsPeriod }
   | { kind: "month"; monthKey: string }
+  | { kind: "year"; year: number }
   | { kind: "range"; range: SpendingDateRange };
 
 // Presets both selectors offer with the same rolling range.
@@ -55,11 +58,21 @@ export function portfolioViewForPick(
   pick: DashboardPeriodPick,
   todayISO: string,
 ): PortfolioPeriodView | null {
+  if (!pick || typeof pick !== "object") return null;
   if (pick.kind === "portfolio" || pick.kind === "spending") {
+    if (pick.kind === "portfolio" && pick.code !== "ALL" && !RANGE_PRESETS.includes(pick.code)) {
+      return null;
+    }
+    if (pick.kind === "spending" && !REPORTS_PERIODS.includes(pick.code)) return null;
     const code =
       pick.kind === "portfolio" ? pick.code : portfolioPresetForSpendingPeriod(pick.code);
     return { code, range: portfolioPeriodRange(code, todayISO) };
   }
+  if (pick.kind === "year") {
+    const year = parseCalendarYear(pick.year, todayISO);
+    return year === null ? null : { code: null, range: yearRange(year) };
+  }
+  if (pick.kind !== "month" && pick.kind !== "range") return null;
   const range = pickedRange(pick);
   if (!range) return null;
   return { code: matchingPreset(range, todayISO), range };
@@ -70,11 +83,13 @@ export function spendingViewForPick(
   pick: DashboardPeriodPick,
   todayISO: string,
 ): SpendingPeriodView | null {
+  if (!pick || typeof pick !== "object") return null;
   switch (pick.kind) {
     case "spending":
-      return { kind: "period", code: pick.code };
+      return REPORTS_PERIODS.includes(pick.code) ? { kind: "period", code: pick.code } : null;
     case "portfolio": {
       if (pick.code === "ALL") return null;
+      if (!RANGE_PRESETS.includes(pick.code)) return null;
       if (SHARED_PRESETS.has(pick.code)) {
         return { kind: "period", code: pick.code as ReportsPeriod };
       }
@@ -84,12 +99,41 @@ export function spendingViewForPick(
         : null;
     }
     case "month":
-      return parseMonthKey(pick.monthKey) ? { kind: "month", monthKey: pick.monthKey } : null;
+      return typeof pick.monthKey === "string" && parseMonthKey(pick.monthKey)
+        ? { kind: "month", monthKey: pick.monthKey }
+        : null;
+    case "year": {
+      const year = parseCalendarYear(pick.year, todayISO);
+      return year === null ? null : { kind: "year", year };
+    }
     case "range": {
       const range = pickedRange(pick);
       return range ? { kind: "range", range } : null;
     }
+    default:
+      return null;
   }
+}
+
+/** Step explicit calendar picks only; relative presets and custom ranges keep their semantics. */
+export function stepCalendarPick(
+  pick: DashboardPeriodPick | null,
+  direction: -1 | 1,
+  todayISO: string,
+): DashboardPeriodPick | null {
+  if (pick?.kind === "year") {
+    if (parseCalendarYear(pick.year, todayISO) === null) return null;
+    const year = parseCalendarYear(pick.year + direction, todayISO);
+    return year === null ? null : { kind: "year", year };
+  }
+  if (pick?.kind === "month" && typeof pick.monthKey === "string" && parseMonthKey(pick.monthKey)) {
+    const monthKey = addMonthsToMonthKey(pick.monthKey, direction);
+    const maxMonth = addMonthsToMonthKey(todayISO.slice(0, 7), -1);
+    return monthKey >= `${MIN_CALENDAR_YEAR}-01` && monthKey <= maxMonth
+      ? { kind: "month", monthKey }
+      : null;
+  }
+  return null;
 }
 
 export function rangePick(range: SpendingDateRange): DashboardPeriodPick {
@@ -115,10 +159,11 @@ function pickedRange(
   pick: Extract<DashboardPeriodPick, { kind: "month" | "range" }>,
 ): SpendingDateRange | null {
   if (pick.kind === "month") {
-    if (!parseMonthKey(pick.monthKey)) return null;
+    if (typeof pick.monthKey !== "string" || !parseMonthKey(pick.monthKey)) return null;
     const { from, to } = monthRange(pick.monthKey);
     return from && to ? { from, to } : null;
   }
+  if (typeof pick.from !== "string" || typeof pick.to !== "string") return null;
   const from = parseSpendingDate(pick.from);
   const to = parseSpendingDate(pick.to);
   return from && to && from <= to ? { from, to } : null;

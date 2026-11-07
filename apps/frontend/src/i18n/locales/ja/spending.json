@@ -250,6 +250,12 @@
     "filteredNet": "絞り込みの収支"
   },
   "period": {
+    "month": "月",
+    "year": "年",
+    "previousPeriod": "前の期間",
+    "nextPeriod": "次の期間",
+    "previousYears": "過去の年",
+    "nextYears": "以降の年",
     "thisMonth": "今月",
     "mtdShort": "月初来",
     "lastMonth": "先月",

@@ -187,6 +187,11 @@ export function DashboardContent({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
+            {(period.customMonth || period.customYear !== null) && (
+              <span className="text-muted-foreground w-full text-xs">
+                {t("common:currentValue")}
+              </span>
+            )}
             <PortfolioUpdateTrigger
               lastCalculatedAt={portfolioSourceDataAsOf}
               notices={portfolioCurrentValuation?.summary.warnings}
@@ -240,6 +245,9 @@ export function DashboardContent({
             )}
             <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
               {period.label}
+              {period.customMonth || period.customYear !== null
+                ? ` · ${t("performance:metric.return")}`
+                : ""}
             </span>
           </div>
         </div>
@@ -275,6 +283,10 @@ export function DashboardContent({
                 <SpendingDatePicker
                   customMonth={period.customMonth}
                   customRange={period.customRange}
+                  customYear={period.customYear}
+                  maxYear={period.maxYear}
+                  onCustomYearChange={period.selectYear}
+                  navigation={period.navigation}
                   maxMonth={period.maxMonth}
                   onCustomMonthChange={period.selectMonth}
                   onCustomRangeChange={period.selectRange}
