@@ -902,6 +902,8 @@ describe("Two-factor authentication", () => {
       const { result } = await setup();
       await signIn(result, method);
       await waitFor(() => expect(result.current.mfaChallenge).toBe("sign-in"));
+      // Checked with the login's own token, not the SDK's stored session.
+      expect(mocks.aal).toHaveBeenCalledWith(`${account}-access`);
       expect(mocks.store).not.toHaveBeenCalled();
       expect(result.current.isConnected).toBe(false);
       expect(result.current.postLoginSyncRequest).toBeNull();
@@ -967,6 +969,9 @@ describe("Two-factor authentication", () => {
     expect(result.current.isConnected).toBe(false);
     expect(result.current.isSessionUnavailable).toBe(false);
     expect(mocks.clear).not.toHaveBeenCalled();
+    // Reading the SDK's stored session could refresh the backend's token.
+    expect(mocks.aal).toHaveBeenCalledWith("A-access");
+    expect(mocks.getSession).not.toHaveBeenCalled();
 
     // The backend may have rotated the refresh token while the step was open.
     mocks.restore.mockResolvedValue({ accessToken: "A-access-2", refreshToken: "A-rotated" });
@@ -1136,6 +1141,47 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(result.current.isConnected).toBe(false);
     expect(result.current.sessionEnded).toBe(true);
     expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a deleted login the backend still had a cached token for", async () => {
+    mocks.configured = true;
+    mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
+    // The SDK signs out a deleted session before setSession returns.
+    mocks.setSession.mockImplementationOnce(async () => {
+      mocks.onAuth("SIGNED_OUT");
+      return { data: { session: null }, error: missing() };
+    });
+    const { result } = await setup();
+    expect(result.current.sessionEnded).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("a late check of a deleted login can't sign out a newer one", async () => {
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    const late = deferred<void>();
+    mocks.getUser.mockImplementationOnce(async () => {
+      await late.promise;
+      // The SDK drops whatever session it holds when a token's session is gone.
+      mocks.onAuth("SIGNED_OUT");
+      return { data: { user: null }, error: missing() };
+    });
+    const { result } = await connectedA();
+    await waitFor(() => expect(mocks.getUser).toHaveBeenCalledTimes(1));
+    mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
+    let login!: Promise<void>;
+    await act(async () => {
+      login = result.current.signInWithEmail("B", "password");
+      // Long enough for a login that doesn't wait for the check to finish.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    await act(async () => {
+      late.resolve();
+      await login;
+    });
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.user?.id).toBe("B");
+    expect(mocks.store).toHaveBeenLastCalledWith("B");
   });
 
   it("explains a login the backend found expired at startup", async () => {

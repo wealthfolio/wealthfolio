@@ -418,30 +418,28 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     if (signOutError) logger.warn(`Local session sign out failed: ${signOutError.message}`);
   }, [clearLocalSession, supabase]);
 
-  // For checks that run outside an auth transition: skip if a newer login arrived.
-  const expireSavedLoginIfCurrent = useCallback(
-    (loginGeneration: number) =>
-      runAuthTransition(async () => {
-        if (loginGeneration === loginGenerationRef.current) await expireSavedLogin();
-      }),
-    [runAuthTransition, expireSavedLogin],
-  );
-
   // A 2FA account's session is aal1 until the authenticator code is entered.
-  const needsMfaCode = useCallback(async () => {
-    const { data, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aalError) {
-      logger.warn(`Could not read the session's assurance level: ${aalError.message}`);
-      return false;
-    }
-    return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
-  }, [supabase]);
+  // Pass the token: without one the SDK reads its stored session, which refreshes
+  // within 90 s of expiry and would rotate the refresh token the backend owns.
+  const needsMfaCode = useCallback(
+    async (session: Session) => {
+      const { data, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(
+        session.access_token,
+      );
+      if (aalError) {
+        logger.warn(`Could not read the session's assurance level: ${aalError.message}`);
+        return false;
+      }
+      return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+    },
+    [supabase],
+  );
 
   // Store only the session the account requires: an aal1 login of a 2FA account
   // waits for the code step, so the backend never keeps it.
   const finishSignIn = useCallback(
     async (next: Session, source: PostLoginSyncSource) => {
-      if (await needsMfaCode()) {
+      if (await needsMfaCode(next)) {
         setMfaChallenge({ kind: "sign-in", source });
         return false;
       }
@@ -543,9 +541,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
               access_token: accessToken,
               refresh_token: refreshToken,
             });
+            // For a deleted login the SDK emits SIGNED_OUT before returning, which
+            // ends current(). Logins run in this same transition, so none is newer.
+            if (setErr && isSavedLoginGone(setErr) && !cancelled) {
+              await expireSavedLogin();
+              return;
+            }
             if (!current()) return;
             if (setErr || !data.session) throw setErr ?? new Error("No restored session");
-            if (await needsMfaCode()) {
+            if (await needsMfaCode(data.session)) {
               // Keep the saved login; the code step steps it up instead of signing out.
               if (!current()) return;
               setIsSessionUnavailable(false);
@@ -960,6 +964,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
             return;
           }
         }
+        // listFactors and challengeAndVerify use the SDK session and may refresh it
+        // within 90 s of expiry. Verifying rotates the token anyway, and the result
+        // is stored to the backend below, so the backend ends up with the newest one.
         const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
         if (factorsError) throw factorsError;
         // The code may come from any of the user's authenticators (e.g. a backup app),
@@ -1015,41 +1022,47 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   // MFA_REQUIRED means one of two things. If 2FA was turned on elsewhere, Supabase
   // deleted this login and only signing in again helps. If the login still exists
   // at aal1, entering a code resumes sync. Check which before offering the code.
+  // Checks of the saved login run in the auth transition: when a token's session
+  // is gone, the SDK drops whatever session it holds, so no login may land meanwhile.
   const reportMfaRequired = useCallback(() => {
     if (!sessionRef.current || isMfaRequiredRef.current || mfaProbeRef.current) return;
     mfaProbeRef.current = true;
-    const generation = sessionGenerationRef.current;
     const loginGeneration = loginGenerationRef.current;
-    void (async () => {
+    void runAuthTransition(async () => {
+      // The report was about a login that has since been replaced or signed out.
+      if (loginGeneration !== loginGenerationRef.current || !sessionRef.current) return;
       try {
         const { accessToken } = await restoreSyncSession();
         const { error: userError } = await supabase.auth.getUser(accessToken);
         if (userError) throw userError;
-        if (generation === sessionGenerationRef.current) setIsMfaRequired(true);
+        setIsMfaRequired(true);
       } catch (cause) {
-        if (isSavedLoginGone(cause)) await expireSavedLoginIfCurrent(loginGeneration);
+        if (isSavedLoginGone(cause)) await expireSavedLogin();
         // Otherwise offer the code step; it checks the login again.
-        else if (generation === sessionGenerationRef.current) setIsMfaRequired(true);
-      } finally {
-        mfaProbeRef.current = false;
+        else setIsMfaRequired(true);
       }
-    })();
-  }, [supabase, setIsMfaRequired, expireSavedLoginIfCurrent]);
+    }).finally(() => {
+      mfaProbeRef.current = false;
+    });
+  }, [runAuthTransition, supabase, setIsMfaRequired, expireSavedLogin]);
 
   // Read factors with an access token the backend minted: the SDK's stored
   // session could refresh with a refresh token the backend already rotated.
-  const fetchMfaEnabled = useCallback(async () => {
-    const loginGeneration = loginGenerationRef.current;
-    try {
-      const { accessToken } = await restoreSyncSession();
-      const { data, error: userError } = await supabase.auth.getUser(accessToken);
-      if (userError) throw userError;
-      return hasVerifiedTotpFactor(data.user);
-    } catch (cause) {
-      if (isSavedLoginGone(cause)) void expireSavedLoginIfCurrent(loginGeneration);
-      throw cause;
-    }
-  }, [supabase, expireSavedLoginIfCurrent]);
+  const fetchMfaEnabled = useCallback(
+    () =>
+      runAuthTransition(async () => {
+        try {
+          const { accessToken } = await restoreSyncSession();
+          const { data, error: userError } = await supabase.auth.getUser(accessToken);
+          if (userError) throw userError;
+          return hasVerifiedTotpFactor(data.user);
+        } catch (cause) {
+          if (isSavedLoginGone(cause)) await expireSavedLogin();
+          throw cause;
+        }
+      }),
+    [runAuthTransition, supabase, expireSavedLogin],
+  );
 
   // Only a missing backend auth session signs the user out; subscription access is separate.
   const reconcileSession = useCallback(async () => {
