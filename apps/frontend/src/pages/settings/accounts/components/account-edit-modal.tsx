@@ -16,7 +16,6 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
   const defaultValues = {
     id: account?.id ?? undefined,
     name: account?.name ?? "",
-    balance: account?.balance ?? 0,
     accountType: (account?.accountType ?? "SECURITIES") as
       | "SECURITIES"
       | "CASH"

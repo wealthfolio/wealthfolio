@@ -675,7 +675,6 @@ function createAccount(): Account {
     name: "Brokerage",
     accountType: AccountType.SECURITIES,
     group: "Investments",
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,

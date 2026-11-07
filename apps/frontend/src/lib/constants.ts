@@ -19,7 +19,6 @@ export function createPortfolioAccount(baseCurrency: string) {
     id: PORTFOLIO_SCOPE_ID,
     name: "All Portfolio",
     accountType: PORTFOLIO_ACCOUNT_TYPE as never,
-    balance: 0,
     currency: baseCurrency,
     isDefault: false,
     isActive: true,
