@@ -74,7 +74,9 @@ async fn update_settings(
                     asset_ids: None,
                     days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
                 },
-                ..PortfolioJobConfig::default()
+                // Another job may consume the settings trigger's marker before
+                // the runtime currency changes. Invalidate again when this job runs.
+                force_full: true,
             };
 
             if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
@@ -294,42 +296,4 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::Config;
-
-    #[tokio::test]
-    async fn a_failed_auto_update_setting_read_is_not_reported_as_enabled() {
-        let root = tempfile::tempdir().unwrap();
-        let state = crate::build_state(&Config {
-            listen_addr: "127.0.0.1:0".parse().unwrap(),
-            db_path: root.path().join("app.db").to_string_lossy().into_owned(),
-            addons_root: root.path().join("addons").to_string_lossy().into_owned(),
-            static_dir: root.path().join("static").to_string_lossy().into_owned(),
-            cors_allow: vec![],
-            request_timeout: Duration::from_secs(10),
-            raw_secret_key: vec![7; 32],
-            secrets_encryption_key: [8; 32],
-            database_key: [9; 32],
-            db_encryption_required: false,
-            auth: None,
-            oidc: None,
-            mcp_enabled: false,
-            mcp_audit_enabled: false,
-            mcp_allowed_hosts: None,
-        })
-        .await
-        .unwrap();
-        state
-            .db_access
-            .connect_rusqlite()
-            .unwrap()
-            .execute_batch("ALTER TABLE app_settings RENAME TO unreadable_settings;")
-            .unwrap();
-
-        // The app runs its startup update check unless this read says off or fails.
-        assert!(is_auto_update_check_enabled(axum::Extension(state))
-            .await
-            .is_err());
-    }
-}
+mod tests;

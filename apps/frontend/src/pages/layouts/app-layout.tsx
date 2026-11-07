@@ -99,7 +99,7 @@ const AppLayoutContent = () => {
     // Catches errors outside a page. Going home reloads at the root, away from a route that keeps failing.
     <ErrorBoundary onGoHome={() => window.location.assign("/")}>
       <ApplicationShell
-        className="app-shell h-screen overflow-x-hidden"
+        className="app-shell h-screen overflow-x-hidden supports-[height:100dvh]:h-dvh"
         data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
         data-nav-style={shouldUseMobileNavigation && isAndroid ? "material" : undefined}
         style={{

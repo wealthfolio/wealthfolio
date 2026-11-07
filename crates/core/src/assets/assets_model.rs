@@ -682,6 +682,10 @@ pub struct NewAsset {
 
     // Instrument identity (for market assets)
     pub instrument_type: Option<InstrumentType>,
+    /// Instrument label as the caller supplied it (e.g. "MUTUALFUND"), before it
+    /// collapses into `instrument_type`. Classifies the created asset; not stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrument_type_label: Option<String>,
     pub instrument_symbol: Option<String>,
     pub instrument_exchange_mic: Option<String>,
 
@@ -894,6 +898,7 @@ impl From<ProviderProfile> for NewAsset {
             quote_mode: QuoteMode::Market,
             quote_ccy: canonical.quote_ccy.unwrap_or(profile.currency),
             instrument_type: Some(InstrumentType::Equity), // Default; caller can override
+            instrument_type_label: None,
             instrument_symbol: canonical.instrument_symbol,
             instrument_exchange_mic: canonical.instrument_exchange_mic,
             provider_config,

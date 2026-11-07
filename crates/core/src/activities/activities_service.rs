@@ -3440,6 +3440,7 @@ impl ActivityService {
             quote_mode: asset.quote_mode,
             quote_ccy: asset.quote_ccy.clone(),
             instrument_type: asset.instrument_type.clone(),
+            instrument_type_label: None,
             instrument_symbol: asset.instrument_symbol.clone(),
             instrument_exchange_mic: asset.instrument_exchange_mic.clone(),
             provider_config: asset.provider_config.clone(),

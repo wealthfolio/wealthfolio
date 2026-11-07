@@ -3302,7 +3302,7 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
     for (invalid, reason) in [
         (
             serde_json::json!({"activityId": "missing-activity", "taxonomyId": "spending_categories", "categoryId": first}),
-            "Record not found",
+            "Activity not found",
         ),
         (
             serde_json::json!({"activityId": activities[1]["id"], "taxonomyId": "income_sources", "categoryId": income}),

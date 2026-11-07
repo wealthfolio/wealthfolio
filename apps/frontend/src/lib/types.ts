@@ -79,7 +79,6 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string; // Optional
-  balance: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;
@@ -1093,7 +1092,10 @@ export interface IncomeByAsset {
   kind: AssetKind;
   symbol: string;
   name: string;
+  /** Income of every type. */
   income: number;
+  /** The part of `income` that is dividends. */
+  dividendIncome: number;
 }
 
 export interface IncomeByAccount {
@@ -1437,6 +1439,8 @@ export interface NewAsset {
   quoteMode: string;
   quoteCcy: string;
   instrumentType?: string;
+  /** Provider quote type (e.g. "MUTUALFUND") that `instrumentType` collapses; classifies the new asset. */
+  instrumentTypeLabel?: string;
   instrumentSymbol?: string;
   instrumentExchangeMic?: string;
   providerId?: string;
