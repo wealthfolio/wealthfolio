@@ -61,6 +61,9 @@ function sumOfCategories(allocation: TaxonomyAllocation | undefined): number {
   return (allocation?.categories ?? []).reduce((s, c) => s + (c.value > 0 ? c.value : 0), 0);
 }
 
+/** Rows kept before the rest collapse into one "Other" row; the labels count rows, not underlying items. */
+const COLLAPSED_TOP_N = 5;
+
 function sumValue(nodes: BreakdownNode[]): number {
   return nodes.reduce((s, n) => s + n.value, 0);
 }
@@ -163,6 +166,7 @@ function accountsLens(label: string, unit: string, nodes: BreakdownNode[]): Lens
   };
 }
 
+/** Lens-based breakdown of the portfolio: allocation, accounts, sectors, regions, risk, types, currency, custom groups. */
 export function PortfolioExplorer({
   allocations,
   holdings,
@@ -283,10 +287,17 @@ export function PortfolioExplorer({
 
   const total = sumValue(active.nodes);
   const collapsible = active.nodes.length > 6;
-  const otherLabel = t("insights:insights.explorer.other_units", { unit: active.unit });
-  const barWeights = collapsible ? collapseWeights(active.nodes, 5, otherLabel) : active.nodes;
+  const otherLabel = t("insights:insights.explorer.other_units", {
+    unit: active.unit,
+    count: active.nodes.length - COLLAPSED_TOP_N,
+  });
+  const barWeights = collapsible
+    ? collapseWeights(active.nodes, COLLAPSED_TOP_N, otherLabel)
+    : active.nodes;
   const listWeights =
-    collapsible && !showAll ? collapseWeights(active.nodes, 5, otherLabel) : active.nodes;
+    collapsible && !showAll
+      ? collapseWeights(active.nodes, COLLAPSED_TOP_N, otherLabel)
+      : active.nodes;
 
   function renderNode(node: BreakdownNode): React.ReactNode[] {
     const hasChildren = !!node.children?.length;
@@ -401,7 +412,10 @@ export function PortfolioExplorer({
           <div className="mt-4 mb-1 flex items-baseline justify-between">
             <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
               {collapsible && !showAll
-                ? t("insights:insights.explorer.top_units", { unit: active.unit })
+                ? t("insights:insights.explorer.top_units", {
+                    unit: active.unit,
+                    count: COLLAPSED_TOP_N,
+                  })
                 : active.label}
             </span>
             {collapsible && (
