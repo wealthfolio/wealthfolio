@@ -4,6 +4,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
+  dividends. `income` still counts every income type. Absent on older hosts.
+
+### Fixed
+
+- Removed `Account.balance` from the SDK type to match the account metadata
+  returned by `accounts.getAll()` and `accounts.create()`. For account values,
+  use `portfolio.getLatestValuations()` with the required portfolio permission.
+
 ## [3.12.0] - 2026-11-01
 
 ### Added

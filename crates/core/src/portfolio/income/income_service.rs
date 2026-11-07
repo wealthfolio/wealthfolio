@@ -255,6 +255,8 @@ impl IncomeServiceTrait for IncomeService {
                 }
                 for entry in summary.by_asset.values_mut() {
                     entry.income = entry.income.round_dp(DISPLAY_DECIMAL_PRECISION);
+                    entry.dividend_income =
+                        entry.dividend_income.round_dp(DISPLAY_DECIMAL_PRECISION);
                 }
                 for val in summary.by_currency.values_mut() {
                     *val = val.round_dp(DISPLAY_DECIMAL_PRECISION);

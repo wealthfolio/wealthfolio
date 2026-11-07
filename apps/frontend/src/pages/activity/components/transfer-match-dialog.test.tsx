@@ -41,7 +41,6 @@ const account: Account = {
   id: "synthetic-account",
   name: "Synthetic account",
   accountType: "SECURITIES",
-  balance: 0,
   currency: "USD",
   isDefault: false,
   isActive: true,
