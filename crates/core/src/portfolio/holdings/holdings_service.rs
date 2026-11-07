@@ -277,6 +277,7 @@ impl HoldingsService {
         let day = self.today_in_user_timezone();
         let detail_asset = detail_asset.map(str::to_owned);
         let base = base_currency.to_string();
+        let scoped_asset = asset_id.clone();
         let (read, converter, mut scope) = blocking(move || {
             let mut read = store.holdings_read(&ids, day, detail_asset.as_deref())?;
             if live_accounts_only {
@@ -289,6 +290,9 @@ impl HoldingsService {
                             )
                     })
                 });
+            }
+            if let Some(asset_id) = scoped_asset {
+                ids.retain(|id| read.could_hold_asset(id, &asset_id));
             }
             read.carry_observed_splits()?;
             let converter = Arc::new(CurrencyConverter::new(read.fx_rates.clone())?);
@@ -2638,6 +2642,8 @@ mod tests {
 
         const ASSET_ID: &str = "cad-stock";
 
+        include!("holdings_health_tests.rs");
+
         struct Fixture {
             now: chrono::DateTime<Utc>,
             base_currency: Arc<RwLock<String>>,
@@ -4012,6 +4018,65 @@ mod tests {
             assert_eq!(scope.holdings[0].account_id, healthy.id);
         }
 
+        #[tokio::test]
+        async fn asset_scope_ignores_unrelated_unsupported_accounts() {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let mut unrelated = account("unrelated", "CAD", TrackingMode::Transactions);
+            unrelated.meta = Some(
+                r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#
+                    .into(),
+            );
+            let mut other_buy = buy(&unrelated.id, "CAD", dec!(80));
+            other_buy.asset_id = Some("another-asset".into());
+            let fixture = Fixture::new(
+                vec![buy(&healthy.id, "CAD", dec!(100)), other_buy],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) =
+                fixture.services(vec![healthy.clone(), unrelated.clone()]);
+            coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(
+                    &[healthy.id.clone(), unrelated.id.clone()],
+                    ASSET_ID,
+                    "CAD",
+                )
+                .await
+                .unwrap();
+            assert!(scope.incomplete_accounts.is_empty());
+            assert_eq!(scope.require_complete().unwrap()[0].account_id, healthy.id);
+        }
+
+        #[tokio::test]
+        async fn asset_scope_includes_snapshot_only_positions_without_activities() {
+            let account = account("observed", "CAD", TrackingMode::Holdings);
+            let fixture = Fixture::new(Vec::new(), Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(100)).await;
+            let scope = holdings
+                .get_asset_holdings_scope(std::slice::from_ref(&account.id), ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(scope.require_complete().unwrap()[0].quantity, dec!(1));
+        }
+
+        #[test]
+        fn asset_scope_does_not_certify_unknown_positions_as_unrelated() {
+            let read = HoldingsRead {
+                unavailable_accounts: HashSet::from(["corrupt".into()]),
+                accounts_with_open_lots: HashSet::from(["missing-snapshot".into()]),
+                ..Default::default()
+            };
+            assert!(read.could_hold_asset("corrupt", ASSET_ID));
+            assert!(read.could_hold_asset("missing-snapshot", ASSET_ID));
+            assert!(!read.could_hold_asset("unrelated", ASSET_ID));
+        }
+
         #[test]
         fn issue_2487_readiness_tracks_transfers_closed_assets_and_global_dependencies() {
             let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
@@ -4031,6 +4096,8 @@ mod tests {
                 activities: rows,
                 ..Default::default()
             };
+            assert!(read.could_hold_asset("third", ASSET_ID));
+            assert!(!read.could_hold_asset("third", "unrelated"));
             for scope in [
                 MarkerScope::All,
                 MarkerScope::Fx("USD/CAD".into()),

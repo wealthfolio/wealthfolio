@@ -1542,7 +1542,8 @@ impl QuoteServiceTrait for InMemoryQuoteService {
     }
 
     fn get_sync_states_with_errors(&self) -> Result<Vec<QuoteSyncState>> {
-        not_needed!("QuoteServiceTrait::get_sync_states_with_errors")
+        // This fixture stores quotes directly; no provider sync has run.
+        Ok(Vec::new())
     }
 
     async fn reset_sync_errors(&self, _asset_ids: &[String]) -> Result<()> {

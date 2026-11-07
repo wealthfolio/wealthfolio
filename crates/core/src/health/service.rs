@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, Utc};
 use log::{debug, info, warn};
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -354,12 +355,20 @@ impl HealthService {
         let mut latest_quote_times: HashMap<String, chrono::DateTime<chrono::Utc>> = HashMap::new();
         let mut total_portfolio_value = 0.0;
         // Track FX pairs needed: (from_currency, to_currency) → affected market value
-        let mut fx_pair_mv: HashMap<(String, String), f64> = HashMap::new();
+        let mut fx_pair_mv: HashMap<(String, String), Option<f64>> = HashMap::new();
 
         for account in &accounts {
+            // Health must stay readable while accounting is pending or failed:
+            // the history checks below diagnose the incomplete accounts.
             let holdings = holdings_service
-                .get_holdings(&account.id, base_currency)
-                .await?;
+                .get_holdings_scope(
+                    std::slice::from_ref(&account.id),
+                    base_currency,
+                    &account.id,
+                    false,
+                )
+                .await?
+                .holdings;
 
             for holding in holdings {
                 // Collect FX pair info before filtering to instrument-only
@@ -367,17 +376,15 @@ impl HealthService {
                     let mv = holding
                         .market_value
                         .base
-                        .map(|value| value.to_string())
-                        .unwrap_or_default()
-                        .parse::<f64>()
-                        .unwrap_or(0.0)
-                        .abs();
-                    *fx_pair_mv
+                        .and_then(|value| value.to_f64())
+                        .map(f64::abs);
+                    let affected = fx_pair_mv
                         .entry((
                             holding.local_currency.clone(),
                             holding.base_currency.clone(),
                         ))
-                        .or_default() += mv;
+                        .or_insert(Some(0.0));
+                    *affected = affected.zip(mv).map(|(total, value)| total + value);
                 }
 
                 if !is_price_staleness_candidate(&holding.holding_type, holding.asset_kind.as_ref())

@@ -141,6 +141,23 @@ impl HoldingsRead {
         accounts
     }
 
+    /// Asset-scoped actions need complete ownership only from accounts that
+    /// could hold the asset. Keep unknown/corrupt positions conservative.
+    pub fn could_hold_asset(&self, account_id: &str, asset_id: &str) -> bool {
+        let accounts = self.dependency_accounts(account_id);
+        accounts.iter().any(|id| {
+            self.unavailable_accounts.contains(id)
+                || self
+                    .snapshots
+                    .get(id)
+                    .is_some_and(|snapshot| snapshot.positions.contains_key(asset_id))
+                || (!self.snapshots.contains_key(id) && self.accounts_with_open_lots.contains(id))
+        }) || self.activities.iter().any(|activity| {
+            accounts.contains(&activity.account_id)
+                && activity.asset_id.as_deref() == Some(asset_id)
+        })
+    }
+
     /// A permanent exclusion or a failed attempt is not an in-progress calculation.
     pub fn unavailable_reason(&self, account_id: &str) -> Option<&'static str> {
         if self.unavailable_accounts.contains(account_id) {
