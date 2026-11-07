@@ -202,3 +202,23 @@ it("shares the document's first state read with calls that overlap it", async ()
   await expect(freshProfileCommand("get_profile_state")).resolves.toEqual({ later: true });
   expect(fetch).toHaveBeenCalledTimes(2);
 });
+
+it("shares the retries that overlap after a failed first state read", async () => {
+  vi.resetModules();
+  const { profileCommand: freshProfileCommand } = await import("./api");
+  let answer: (response: Response) => void = () => undefined;
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    // Offline: the request never reached the server, so no browser cookie was set.
+    .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+  vi.stubGlobal("fetch", fetch);
+
+  await expect(freshProfileCommand("get_profile_state")).rejects.toThrow("Failed to fetch");
+  const retry = freshProfileCommand("get_profile_state");
+  const overlapping = freshProfileCommand("get_profile_state");
+  answer(new Response('{"retried":true}'));
+  await expect(retry).resolves.toEqual({ retried: true });
+  await expect(overlapping).resolves.toEqual({ retried: true });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

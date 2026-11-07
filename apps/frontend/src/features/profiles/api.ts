@@ -61,9 +61,10 @@ export interface ProfileState {
 }
 // Without a sign-in, the server gives each request that has no browser cookie a
 // new browser id. Calls that overlap this document's first state read share it,
-// so they all get one id and the profile session opened for it.
+// so they all get one id and the profile session opened for it. A read that
+// fails may not have reached the server, so the next one is shared again.
 let firstStateRead: Promise<unknown> | undefined;
-let stateReadStarted = false;
+let firstStateReadDone = false;
 
 export async function profileCommand<T>(
   command: string,
@@ -74,15 +75,16 @@ export async function profileCommand<T>(
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<T>(command, { ...payload, ...(scoped ? { scopeId: profileScope() } : {}) });
   }
-  if (command === "get_profile_state") {
-    if (firstStateRead) return firstStateRead as Promise<T>;
-    if (!stateReadStarted) {
-      stateReadStarted = true;
-      firstStateRead = webProfileCommand<T>(command, payload, scoped).finally(() => {
+  if (command === "get_profile_state" && !firstStateReadDone) {
+    firstStateRead ??= webProfileCommand<T>(command, payload, scoped)
+      .then((state) => {
+        firstStateReadDone = true;
+        return state;
+      })
+      .finally(() => {
         firstStateRead = undefined;
       });
-      return firstStateRead as Promise<T>;
-    }
+    return firstStateRead as Promise<T>;
   }
   return webProfileCommand<T>(command, payload, scoped);
 }
