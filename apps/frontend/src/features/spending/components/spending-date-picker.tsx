@@ -117,7 +117,7 @@ export function SpendingDatePicker({
     >
       {selectionLabel ? (
         <>
-          <span aria-live="polite">{selectionLabel}</span>
+          <span>{selectionLabel}</span>
           <Icons.ChevronDown className="size-3" />
         </>
       ) : (

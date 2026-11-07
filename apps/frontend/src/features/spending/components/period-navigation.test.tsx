@@ -3,6 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { PeriodNavigation } from "./period-navigation";
 
+it("announces the updated period while focus can stay on an arrow", () => {
+  const navigation = {
+    label: "Past 6 months",
+    previousDisabled: false,
+    nextDisabled: true,
+    onStep: vi.fn(),
+  };
+  const { rerender } = render(<PeriodNavigation navigation={navigation} />);
+  expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  rerender(
+    <PeriodNavigation navigation={{ ...navigation, label: "Sep 15, 2025 – Mar 15, 2026" }} />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("Sep 15, 2025 – Mar 15, 2026");
+});
+
 it("exposes header navigation for the current preset and keeps Next disabled", async () => {
   const onStep = vi.fn();
   render(
