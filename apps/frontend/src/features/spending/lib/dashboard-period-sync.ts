@@ -30,6 +30,8 @@ export interface PresetWindow {
   preset: DashboardPresetPick;
   anchor: string;
   offset: number;
+  /** Insights starts multi-month presets at month boundaries. */
+  alignment?: "calendar";
 }
 
 export type DashboardPeriodPick =
@@ -105,6 +107,15 @@ function presetWindowRange(window: PresetWindow): SpendingDateRange | null {
           : code === "6M"
             ? 6
             : 1;
+  if (window.alignment === "calendar") {
+    if (window.preset.kind !== "spending" || !["3M", "6M", "1Y"].includes(code)) return null;
+    const currentStart = addCalendarMonths({ ...date, day: 1 }, 1 - months);
+    const start = addCalendarMonths(currentStart, window.offset * months);
+    const end = addCalendarDays(addCalendarMonths(currentStart, (window.offset + 1) * months), -1);
+    if (!Number.isFinite(start.year) || start.year < MIN_CALENDAR_YEAR) return null;
+    return { from: localDateFromParts(start), to: localDateFromParts(end) };
+  }
+  if (window.alignment !== undefined) return null;
   const asOf =
     code === "1D" || code === "1W"
       ? addCalendarDays(date, window.offset * (code === "1W" ? 7 : 1))
@@ -154,6 +165,7 @@ export function stepDashboardPeriod(
   pick: DashboardPeriodPick,
   direction: -1 | 1,
   todayISO: string,
+  alignment?: PresetWindow["alignment"],
 ): DashboardPeriodPick | null {
   if (pick.kind === "spending" && (pick.code === "MTD" || pick.code === "LAST_MONTH")) {
     if (pick.code === "MTD" && direction === 1) return null;
@@ -176,7 +188,17 @@ export function stepDashboardPeriod(
   const offset = (previous?.offset ?? 0) + direction;
   if (offset > 0) return null;
   if (offset === 0) return preset;
-  const window = { preset, anchor: previous?.anchor ?? todayISO, offset };
+  const windowAlignment = previous ? previous.alignment : alignment;
+  const window: PresetWindow = {
+    preset,
+    anchor: previous?.anchor ?? todayISO,
+    offset,
+    ...(windowAlignment === "calendar" &&
+    preset.kind === "spending" &&
+    ["3M", "6M", "1Y"].includes(preset.code)
+      ? { alignment: "calendar" as const }
+      : {}),
+  };
   if (window.anchor > todayISO) return null;
   const range = presetWindowRange(window);
   if (

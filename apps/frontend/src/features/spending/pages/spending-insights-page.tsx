@@ -614,10 +614,10 @@ export default function SpendingInsightsPage({
           : { kind: "spending", code: period };
   const periodNavigation = {
     label: periodDescription,
-    previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
-    nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+    previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO, "calendar"),
+    nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO, "calendar"),
     onStep: (direction: -1 | 1) => {
-      const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+      const next = stepDashboardPeriod(navigationPick, direction, todayISO, "calendar");
       if (!next) return;
       if (navigationPick.kind === "spending" && next.kind !== "spending") {
         const visiblePreset = navigationPick.code === "LAST_MONTH" ? "MTD" : navigationPick.code;

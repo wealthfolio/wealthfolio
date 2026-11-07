@@ -31,6 +31,33 @@ function spending(pick: DashboardPeriodPick) {
 
 describe("dashboard period sync", () => {
   it.each([
+    ["3M", "2026-04-01", "2026-06-30"],
+    ["6M", "2025-10-01", "2026-03-31"],
+    ["1Y", "2024-10-01", "2025-09-30"],
+  ] as const)("keeps Insights %s on adjacent full calendar-month blocks", (code, from, to) => {
+    const original: DashboardPeriodPick = { kind: "spending", code };
+    const prior = stepDashboardPeriod(original, -1, "2026-09-15", "calendar")!;
+    expect(isoRange(portfolioViewForPick(prior, "2026-09-15")?.range)).toEqual([from, to]);
+    expect(getPresetWindow(prior)).toEqual({
+      preset: original,
+      anchor: "2026-09-15",
+      offset: -1,
+      alignment: "calendar",
+    });
+    // Other tabs retain the alignment without supplying the Insights option.
+    const older = stepDashboardPeriod(prior, -1, "2026-09-15")!;
+    expect(stepDashboardPeriod(older, 1, "2026-09-15")).toEqual(prior);
+    expect(stepDashboardPeriod(prior, 1, "2026-09-16")).toEqual(original);
+  });
+
+  it("retains rolling metadata when Insights continues a dashboard window", () => {
+    const prior = stepDashboardPeriod({ kind: "spending", code: "6M" }, -1, TODAY)!;
+    expect(stepDashboardPeriod(prior, -1, TODAY, "calendar")).toEqual(
+      stepDashboardPeriod(prior, -1, TODAY),
+    );
+  });
+
+  it.each([
     ["1D", "2026-03-29", "2026-03-30"],
     ["1W", "2026-03-17", "2026-03-24"],
     ["1M", "2026-01-31", "2026-02-28"],
@@ -125,6 +152,13 @@ describe("dashboard period sync", () => {
       { preset: { kind: "portfolio", code: "6M" }, anchor: "bad", offset: -1 },
       { preset: { kind: "portfolio", code: "ALL" }, anchor: TODAY, offset: -1 },
       { preset: { kind: "portfolio", code: "6M" }, anchor: TODAY, offset: -1e15 },
+      { preset: { kind: "spending", code: "6M" }, anchor: TODAY, offset: -1, alignment: "bad" },
+      {
+        preset: { kind: "portfolio", code: "6M" },
+        anchor: TODAY,
+        offset: -1,
+        alignment: "calendar",
+      },
     ]) {
       const pick = {
         kind: "range",
