@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   store: vi.fn(),
   clear: vi.fn(),
+  verifyMfa: vi.fn(),
   aal: vi.fn(),
   listFactors: vi.fn(),
   challengeAndVerify: vi.fn(),
@@ -84,6 +85,7 @@ vi.mock("../services/auth-service", () => ({
   getSyncSessionStatus: mocks.getStatus,
   clearSyncSession: mocks.clear,
   storeSyncSession: mocks.store,
+  verifySyncSessionMfa: mocks.verifyMfa,
 }));
 vi.mock("../services/broker-service", () => ({ getUserInfo: mocks.getUserInfo }));
 
@@ -959,7 +961,7 @@ describe("Two-factor authentication", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("steps up a restored aal1 session instead of signing out", async () => {
+  it("steps up a restored aal1 session in the backend instead of signing out", async () => {
     mocks.configured = true;
     mocks.account = "A";
     mocks.restore.mockResolvedValue({ accessToken: "A-access", refreshToken: "A" });
@@ -973,18 +975,20 @@ describe("Two-factor authentication", () => {
     expect(mocks.aal).toHaveBeenCalledWith("A-access");
     expect(mocks.getSession).not.toHaveBeenCalled();
 
-    // The backend may have rotated the refresh token while the step was open.
-    mocks.restore.mockResolvedValue({ accessToken: "A-access-2", refreshToken: "A-rotated" });
-    mocks.getSession.mockResolvedValue(verified("A"));
+    // The backend verifies with its own token and keeps the rotated login.
+    mocks.restore.mockResolvedValue({ accessToken: "A-aal2-access", refreshToken: "A-rotated" });
     await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.verifyMfa).toHaveBeenCalledWith("123456");
+    expect(mocks.verifyMfa.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setSession.mock.invocationCallOrder.at(-1)!,
+    );
     expect(mocks.setSession).toHaveBeenLastCalledWith({
-      access_token: "A-access-2",
+      access_token: "A-aal2-access",
       refresh_token: "A-rotated",
     });
-    expect(mocks.setSession.mock.invocationCallOrder.at(-1)).toBeLessThan(
-      mocks.challengeAndVerify.mock.invocationCallOrder[0],
-    );
-    expect(mocks.store).toHaveBeenCalledWith("A-aal2");
+    // The app never verifies or hands over tokens for the saved login itself.
+    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
+    expect(mocks.store).not.toHaveBeenCalled();
     expect(result.current.isConnected).toBe(true);
     expect(result.current.mfaChallenge).toBeNull();
     expect(result.current.postLoginSyncRequest?.source).toBe("mfa");
@@ -1014,18 +1018,22 @@ describe("Two-factor authentication", () => {
     expect(result.current.error).toBeNull();
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.getUser).toHaveBeenCalledWith("A-access");
 
     mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
-    mocks.getSession.mockResolvedValue(verified("A"));
-    expect(mocks.getUser).toHaveBeenCalledWith("A-access");
+    mocks.setSession.mockResolvedValueOnce({
+      data: { session: { ...session("A"), access_token: "A-aal2-access" } },
+      error: null,
+    });
     await act(() => result.current.verifyMfaCode("123456"));
-    // Startup, the login check, then the code step.
+    expect(mocks.verifyMfa).toHaveBeenCalledWith("123456");
+    // Startup, the login check, then the stepped-up login.
     expect(mocks.restore).toHaveBeenCalledTimes(3);
-    expect(mocks.store).toHaveBeenCalledWith("A-aal2");
+    expect(mocks.store).not.toHaveBeenCalled();
     expect(result.current.isMfaRequired).toBe(false);
     expect(result.current.isConnected).toBe(true);
     expect(result.current.postLoginSyncRequest?.source).toBe("mfa");
-    await waitFor(() => expect(result.current.userInfo?.id).toBe("A-aal2"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
   });
 
   it("reads 2FA status with a token the backend minted", async () => {
@@ -1135,9 +1143,11 @@ describe("Two-factor authentication turned on elsewhere", () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
     const { result } = await connectedA();
     await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
-    mocks.setSession.mockResolvedValueOnce({ data: { session: null }, error: missing() });
+    // The backend found the login gone when it checked the code.
+    mocks.verifyMfa.mockRejectedValueOnce(
+      new Error("CONNECT_SESSION_EXPIRED: Session expired. Please sign in again."),
+    );
     await act(() => result.current.verifyMfaCode("123456"));
-    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
     expect(result.current.isConnected).toBe(false);
     expect(result.current.sessionEnded).toBe(true);
     expect(mocks.clear).toHaveBeenCalledTimes(1);
@@ -1197,11 +1207,10 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(mocks.clear).toHaveBeenCalledTimes(1);
   });
 
-  it("retries handing a verified login to the backend instead of verifying again", async () => {
-    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
-    const { result } = await connectedA();
-    await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
+  it("retries handing a new login to the backend instead of asking for another code", async () => {
+    mocks.aal.mockResolvedValue(assurance("aal1", "aal2"));
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
     mocks.getSession.mockResolvedValue(verified("A"));
     mocks.store.mockRejectedValueOnce(
       new Error("Broker sync is running. Wait for it to finish and try again."),
@@ -1209,14 +1218,9 @@ describe("Two-factor authentication turned on elsewhere", () => {
     await act(async () => {
       await expect(result.current.verifyMfaCode("123456")).rejects.toThrow("Broker sync");
     });
-    const restores = mocks.restore.mock.calls.length;
-    mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
     await act(() => result.current.verifyMfaCode("123456"));
-    // The backend's older token is never restored over the verified one.
-    expect(mocks.restore).toHaveBeenCalledTimes(restores);
     expect(mocks.challengeAndVerify).toHaveBeenCalledTimes(1);
     expect(mocks.store.mock.calls.map(([token]) => token)).toEqual(["A-aal2", "A-aal2"]);
-    expect(result.current.isMfaRequired).toBe(false);
     expect(result.current.isConnected).toBe(true);
   });
 
@@ -1247,19 +1251,19 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(result.current.user?.id).toBe("B");
   });
 
-  it("turns the code step into a sign-in when the factor lookup finds the login deleted", async () => {
+  it("keeps the saved login's code step after a wrong code", async () => {
     mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
     mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
     const { result } = await connectedA();
     await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
-    mocks.listFactors.mockImplementationOnce(async () => {
-      mocks.onAuth("SIGNED_OUT");
-      return { data: null, error: missing() };
+    const rejected = new Error("CONNECT_MFA_CODE_REJECTED: Invalid TOTP code entered");
+    mocks.verifyMfa.mockRejectedValueOnce(rejected);
+    await act(async () => {
+      await expect(result.current.verifyMfaCode("000000")).rejects.toBe(rejected);
     });
-    await act(() => result.current.verifyMfaCode("123456"));
-    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
-    expect(result.current.sessionEnded).toBe(true);
-    expect(mocks.clear).toHaveBeenCalledTimes(1);
+    expect(result.current.isMfaRequired).toBe(true);
+    expect(result.current.isConnected).toBe(true);
+    expect(mocks.clear).not.toHaveBeenCalled();
   });
 
   it("explains a login the backend found expired at startup", async () => {

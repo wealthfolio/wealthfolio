@@ -24,6 +24,10 @@ pub const SESSION_EXPIRED_CODE: &str = "CONNECT_SESSION_EXPIRED";
 /// would rotate the refresh token this backend owns. Tokens handed out with more
 /// time left than that keep it from doing so.
 const DEFAULT_EXPIRY_BUFFER_SECS: u64 = 120;
+
+/// Supabase rejected the authenticator code (wrong or out of date). The saved
+/// login is unchanged; the user enters another code.
+pub const MFA_CODE_REJECTED_CODE: &str = "CONNECT_MFA_CODE_REJECTED";
 const DEFAULT_REFRESH_TIMEOUT_SECS: u64 = 10;
 
 #[derive(Debug, Clone)]
@@ -423,6 +427,109 @@ impl TokenLifecycleState {
             .map_err(|err| TokenLifecycleError::Internal(err.to_string()))
     }
 
+    /// Pass the code step for the saved login. The code is verified with this
+    /// backend's own token and the rotated tokens are kept before the refresh lock
+    /// is released, so no refresh can reuse an older token in between and the app
+    /// never holds a newer token than the backend. Tries each verified
+    /// authenticator, as the dashboard does. Without one the login needs no code.
+    pub async fn verify_mfa_code(
+        &self,
+        store: &dyn SecretStore,
+        config: &TokenLifecycleConfig,
+        code: &str,
+    ) -> Result<(), TokenLifecycleError> {
+        let _guard = self.refresh_lock.lock().await;
+        let access_token = ensure_valid_access_token_locked(store, self, Some(config)).await?;
+        let client = wealthfolio_http::client_builder()
+            .timeout(Duration::from_secs(config.refresh_timeout_secs))
+            .build()
+            .map_err(|e| {
+                TokenLifecycleError::Internal(format!("Failed to create HTTP client: {}", e))
+            })?;
+        let user: AuthUser = match auth_api_request(
+            &client,
+            config,
+            &access_token,
+            reqwest::Method::GET,
+            "/auth/v1/user",
+            "/auth/v1/user",
+            None,
+        )
+        .await
+        {
+            Ok(user) => user,
+            // Deleted elsewhere, e.g. when two-factor authentication was turned on.
+            Err(error) if error.code == "session_not_found" => {
+                self.clear_session_locked(store).await?;
+                self.expired.store(true, Ordering::SeqCst);
+                return Err(TokenLifecycleError::Unauthorized(format!(
+                    "{SESSION_EXPIRED_CODE}: Session expired. Please sign in again. ({})",
+                    error.message
+                )));
+            }
+            Err(error) => return Err(TokenLifecycleError::Internal(error.message)),
+        };
+        let mut rejected = None;
+        for factor in user
+            .factors
+            .iter()
+            .filter(|factor| factor.factor_type == "totp" && factor.status == "verified")
+        {
+            let challenge: AuthChallenge = auth_api_request(
+                &client,
+                config,
+                &access_token,
+                reqwest::Method::POST,
+                &format!("/auth/v1/factors/{}/challenge", factor.id),
+                "/auth/v1/factors/{id}/challenge",
+                Some(serde_json::json!({})),
+            )
+            .await
+            .map_err(|error| TokenLifecycleError::Internal(error.message))?;
+            let verified: RefreshTokenResponse = match auth_api_request(
+                &client,
+                config,
+                &access_token,
+                reqwest::Method::POST,
+                &format!("/auth/v1/factors/{}/verify", factor.id),
+                "/auth/v1/factors/{id}/verify",
+                Some(serde_json::json!({ "challenge_id": challenge.id, "code": code })),
+            )
+            .await
+            {
+                Ok(verified) => verified,
+                // The code may come from another of the user's authenticators.
+                Err(error) if MFA_CODE_REJECTIONS.contains(&error.code.as_str()) => {
+                    rejected = Some(error.message);
+                    continue;
+                }
+                Err(error) => return Err(TokenLifecycleError::Internal(error.message)),
+            };
+            let refresh_token = verified
+                .refresh_token
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    TokenLifecycleError::Internal("Verification returned no refresh token".into())
+                })?;
+            self.store_session_locked(store, refresh_token).await?;
+            let expires_at = compute_expires_at(
+                &verified.access_token,
+                verified.expires_in,
+                config.expiry_buffer_secs,
+            );
+            write_cache(self, verified.access_token, expires_at).await;
+            return Ok(());
+        }
+        match rejected {
+            Some(message) => Err(TokenLifecycleError::MfaCodeRejected(format!(
+                "{MFA_CODE_REJECTED_CODE}: {message}"
+            ))),
+            None => Ok(()),
+        }
+    }
+
     pub async fn clear_cache(&self) {
         let mut cache = self.cache.write().await;
         *cache = None;
@@ -445,6 +552,8 @@ pub enum TokenLifecycleError {
     RefreshFailed(String),
     #[error("{0}")]
     Internal(String),
+    #[error("{0}")]
+    MfaCodeRejected(String),
 }
 
 #[derive(Debug, Clone)]
@@ -790,6 +899,119 @@ impl RefreshRequestError {
     fn is_session_invalid(&self) -> bool {
         self.session_invalid
     }
+}
+
+/// Supabase error codes for a wrong or out-of-date authenticator code.
+const MFA_CODE_REJECTIONS: [&str; 3] = [
+    "mfa_verification_failed",
+    "mfa_verification_rejected",
+    "mfa_challenge_expired",
+];
+
+#[derive(Debug, Deserialize)]
+struct AuthUser {
+    #[serde(default)]
+    factors: Vec<AuthFactor>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthFactor {
+    id: String,
+    factor_type: String,
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthChallenge {
+    id: String,
+}
+
+#[derive(Debug)]
+struct AuthApiError {
+    code: String,
+    message: String,
+}
+
+/// A Supabase Auth request on behalf of the saved login. `log_path` keeps
+/// factor ids out of the logs.
+async fn auth_api_request<T: serde::de::DeserializeOwned>(
+    client: &reqwest::Client,
+    config: &TokenLifecycleConfig,
+    access_token: &str,
+    method: reqwest::Method,
+    path: &str,
+    log_path: &'static str,
+    body: Option<serde_json::Value>,
+) -> Result<T, AuthApiError> {
+    let context = CloudRequestContext::new(
+        if method == reqwest::Method::GET {
+            "GET"
+        } else {
+            "POST"
+        },
+        log_path,
+        None,
+    );
+    let mut request = client
+        .request(method, format!("{}{}", config.auth_url, path))
+        .header("apikey", &config.publishable_key)
+        .bearer_auth(access_token)
+        // Errors carry a string `code` from this API version on.
+        .header("X-Supabase-Api-Version", "2024-01-01")
+        .header(CLIENT_REQUEST_ID_HEADER, context.client_request_id.as_str());
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    let response = request.send().await.map_err(|e| {
+        log_failed_cloud_request("ConnectAuth", &context, None, None);
+        AuthApiError {
+            code: String::new(),
+            message: format!(
+                "Auth request failed: {} ({})",
+                e,
+                request_metadata_suffix(&context, None)
+            ),
+        }
+    })?;
+    let status = response.status();
+    let request_id = server_request_id(response.headers());
+    let text = response.text().await.unwrap_or_default();
+    if !status.is_success() {
+        log_failed_cloud_request("ConnectAuth", &context, Some(status), request_id.as_deref());
+        let parsed = serde_json::from_str::<serde_json::Value>(&text).unwrap_or_default();
+        // Older responses use `error_code` and `msg`; newer ones `code` and `message`.
+        let code = parsed
+            .get("error_code")
+            .or_else(|| parsed.get("code"))
+            .and_then(|value| value.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let message = parsed
+            .get("message")
+            .or_else(|| parsed.get("msg"))
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| fallback_refresh_error_message(status.as_u16(), &text));
+        return Err(AuthApiError {
+            code,
+            message: format!(
+                "{} ({})",
+                message,
+                request_metadata_suffix(&context, request_id.as_deref())
+            ),
+        });
+    }
+    serde_json::from_str(&text).map_err(|e| {
+        log_failed_cloud_request("ConnectAuth", &context, Some(status), request_id.as_deref());
+        AuthApiError {
+            code: String::new(),
+            message: format!(
+                "Failed to parse auth response: {} ({})",
+                e,
+                request_metadata_suffix(&context, request_id.as_deref())
+            ),
+        }
+    })
 }
 
 /// Verify the server-reported user/team with the configured issuer. No JWT
@@ -2020,5 +2242,222 @@ mod tests {
             Some("account-b")
         );
         assert!(state.is_session_configured(store.as_ref()).unwrap());
+    }
+
+    type AuthRequests = Arc<std::sync::Mutex<Vec<String>>>;
+
+    /// A fake Supabase Auth server: answers each request in order, checking its
+    /// request line, and records the requests.
+    async fn serve_auth_responses(
+        responses: Vec<(&'static str, u16, String)>,
+    ) -> (String, AuthRequests, tokio::task::JoinHandle<()>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let requests: AuthRequests = Arc::default();
+        let seen = requests.clone();
+        let server = tokio::spawn(async move {
+            for (request_line, status, body) in responses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let header_end = loop {
+                    assert!(stream.read_buf(&mut request).await.unwrap() > 0);
+                    if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                        break end + 4;
+                    }
+                };
+                let head = String::from_utf8_lossy(&request[..header_end]).to_ascii_lowercase();
+                let length = head
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length:"))
+                    .map(|value| value.trim().parse::<usize>().unwrap())
+                    .unwrap_or(0);
+                while request.len() < header_end + length {
+                    assert!(stream.read_buf(&mut request).await.unwrap() > 0);
+                }
+                let text = String::from_utf8_lossy(&request).to_string();
+                assert!(text.starts_with(request_line), "{text}");
+                seen.lock().unwrap().push(text);
+                stream.write_all(format!(
+                    "HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()
+                ).as_bytes()).await.unwrap();
+            }
+        });
+        (url, requests, server)
+    }
+
+    async fn saved_login_with_cached_token() -> (MemorySecrets, TokenLifecycleState, String) {
+        let store = MemorySecrets::default();
+        let state = TokenLifecycleState::new();
+        state.store_session(&store, "saved-refresh").await.unwrap();
+        let token = cache_migration_token(&state).await;
+        (store, state, token)
+    }
+
+    const TWO_AUTHENTICATORS: &str = r#"{"factors":[
+        {"id":"phone","factor_type":"totp","status":"verified"},
+        {"id":"backup","factor_type":"totp","status":"verified"},
+        {"id":"draft","factor_type":"totp","status":"unverified"}
+    ]}"#;
+    const WRONG_CODE: &str =
+        r#"{"code":"mfa_verification_failed","message":"Invalid TOTP code entered"}"#;
+
+    #[tokio::test]
+    async fn code_step_tries_each_authenticator_and_keeps_the_rotated_login() {
+        let (store, state, saved_access) = saved_login_with_cached_token().await;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let stepped_up = fake_jwt_with_exp(now + 3600);
+        let (url, requests, server) = serve_auth_responses(vec![
+            ("GET /auth/v1/user ", 200, TWO_AUTHENTICATORS.into()),
+            ("POST /auth/v1/factors/phone/challenge ", 200, r#"{"id":"c1"}"#.into()),
+            ("POST /auth/v1/factors/phone/verify ", 422, WRONG_CODE.into()),
+            ("POST /auth/v1/factors/backup/challenge ", 200, r#"{"id":"c2"}"#.into()),
+            (
+                "POST /auth/v1/factors/backup/verify ",
+                200,
+                format!(
+                    r#"{{"access_token":"{stepped_up}","refresh_token":"rotated-refresh","expires_in":3600}}"#
+                ),
+            ),
+        ])
+        .await;
+        let config = TokenLifecycleConfig::new(url, "test-key".into());
+
+        state
+            .verify_mfa_code(&store, &config, "123456")
+            .await
+            .unwrap();
+        server.await.unwrap();
+
+        // The backend keeps the stepped-up login; callers get its token without a refresh.
+        assert_eq!(
+            store
+                .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("rotated-refresh")
+        );
+        assert_eq!(
+            ensure_valid_access_token(&store, &state, None)
+                .await
+                .unwrap(),
+            stepped_up
+        );
+        let requests = requests.lock().unwrap();
+        assert!(requests
+            .iter()
+            .all(|request| request.to_ascii_lowercase().contains(&format!(
+                "authorization: bearer {}",
+                saved_access.to_ascii_lowercase()
+            ))));
+        assert!(requests[2].contains(r#""challenge_id":"c1""#) && requests[2].contains("123456"));
+        assert!(requests[4].contains(r#""challenge_id":"c2""#) && requests[4].contains("123456"));
+    }
+
+    #[tokio::test]
+    async fn rejected_code_keeps_the_saved_login() {
+        let (store, state, saved_access) = saved_login_with_cached_token().await;
+        let (url, _, server) = serve_auth_responses(vec![
+            (
+                "GET /auth/v1/user ",
+                200,
+                r#"{"factors":[{"id":"phone","factor_type":"totp","status":"verified"}]}"#.into(),
+            ),
+            (
+                "POST /auth/v1/factors/phone/challenge ",
+                200,
+                r#"{"id":"c1"}"#.into(),
+            ),
+            (
+                "POST /auth/v1/factors/phone/verify ",
+                422,
+                WRONG_CODE.into(),
+            ),
+        ])
+        .await;
+        let config = TokenLifecycleConfig::new(url, "test-key".into());
+
+        let error = state
+            .verify_mfa_code(&store, &config, "000000")
+            .await
+            .unwrap_err();
+        server.await.unwrap();
+
+        assert!(matches!(error, TokenLifecycleError::MfaCodeRejected(_)));
+        assert!(error.to_string().starts_with(MFA_CODE_REJECTED_CODE));
+        assert_eq!(
+            store
+                .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("saved-refresh")
+        );
+        assert_eq!(
+            ensure_valid_access_token(&store, &state, None)
+                .await
+                .unwrap(),
+            saved_access
+        );
+    }
+
+    #[tokio::test]
+    async fn code_step_on_a_deleted_login_reports_expiry_and_keeps_pairing() {
+        let (store, state, _) = saved_login_with_cached_token().await;
+        store
+            .set_secret(SYNC_IDENTITY_KEY, "paired-device")
+            .unwrap();
+        // Supabase deletes aal1 sessions when two-factor authentication is turned on.
+        let (url, _, server) = serve_auth_responses(vec![(
+            "GET /auth/v1/user ",
+            403,
+            r#"{"code":"session_not_found","message":"Session from session_id claim in JWT does not exist"}"#
+                .into(),
+        )])
+        .await;
+        let config = TokenLifecycleConfig::new(url, "test-key".into());
+
+        let error = state
+            .verify_mfa_code(&store, &config, "123456")
+            .await
+            .unwrap_err()
+            .to_string();
+        server.await.unwrap();
+
+        assert!(error.starts_with(SESSION_EXPIRED_CODE), "{error}");
+        assert!(!state.is_session_configured(&store).unwrap());
+        assert_eq!(
+            store.get_secret(SYNC_IDENTITY_KEY).unwrap().as_deref(),
+            Some("paired-device")
+        );
+    }
+
+    #[tokio::test]
+    async fn login_without_an_authenticator_needs_no_code() {
+        let (store, state, _) = saved_login_with_cached_token().await;
+        let (url, requests, server) = serve_auth_responses(vec![(
+            "GET /auth/v1/user ",
+            200,
+            r#"{"factors":[]}"#.into(),
+        )])
+        .await;
+        let config = TokenLifecycleConfig::new(url, "test-key".into());
+
+        state
+            .verify_mfa_code(&store, &config, "123456")
+            .await
+            .unwrap();
+        server.await.unwrap();
+
+        assert_eq!(requests.lock().unwrap().len(), 1);
+        assert_eq!(
+            store
+                .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("saved-refresh")
+        );
     }
 }

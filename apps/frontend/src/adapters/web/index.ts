@@ -352,6 +352,7 @@ export {
   syncBrokerData,
   syncTriggerCycle,
   updateDevice,
+  verifySyncSessionMfa,
 } from "../shared/connect";
 
 // AI Providers Commands

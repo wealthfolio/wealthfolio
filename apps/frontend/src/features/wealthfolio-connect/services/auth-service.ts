@@ -5,6 +5,7 @@ import {
   clearSyncSession as clearSyncSessionApi,
   postLoginBootstrap as postLoginBootstrapApi,
   restoreSyncSession as restoreSyncSessionApi,
+  verifySyncSessionMfa as verifySyncSessionMfaApi,
 } from "@/adapters";
 import type { PostLoginBootstrapResult } from "@/adapters/types";
 
@@ -39,6 +40,14 @@ export const restoreSyncSession = async (): Promise<{
   refreshToken: string;
 }> => {
   return restoreSyncSessionApi();
+};
+
+/**
+ * Pass the code step for the saved login. The backend verifies the code with its
+ * own token and keeps the rotated login, so the app never holds a newer token.
+ */
+export const verifySyncSessionMfa = async (code: string): Promise<void> => {
+  return verifySyncSessionMfaApi(code);
 };
 
 export const postLoginBootstrap = async (): Promise<PostLoginBootstrapResult> => {

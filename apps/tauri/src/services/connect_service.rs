@@ -180,6 +180,18 @@ impl ConnectService {
         Ok(())
     }
 
+    /// Pass the code step for the saved login and keep the rotated tokens.
+    pub async fn verify_mfa_code(&self, code: &str) -> Result<(), String> {
+        if !is_cloud_sync_enabled() {
+            return Err("Cloud sync feature is disabled in this build.".to_string());
+        }
+        let config = token_lifecycle_config().ok_or("Connect auth unavailable")?;
+        self.token_lifecycle
+            .verify_mfa_code(self.secret_store.as_ref(), &config, code)
+            .await
+            .map_err(|err| err.to_string())
+    }
+
     pub async fn clear_session_with<F, Fut>(&self, after_clear: F) -> Result<bool, String>
     where
         F: FnOnce() -> Fut,

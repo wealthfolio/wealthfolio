@@ -170,6 +170,11 @@ pub struct StoreSyncSessionRequest {
     pub confirm_rebind: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct VerifySyncSessionMfaRequest {
+    pub code: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncSessionStatus {
@@ -531,6 +536,29 @@ async fn restore_sync_session(
     }))
 }
 
+/// The code step for the saved login runs here, with the backend's own token,
+/// so the backend keeps the rotated login (see `verify_mfa_code`).
+async fn verify_sync_session_mfa(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<VerifySyncSessionMfaRequest>,
+) -> ApiResult<Json<()>> {
+    ensure_cloud_sync_enabled()?;
+    let code = body.code.trim();
+    if code.is_empty() {
+        return Err(ApiError::BadRequest(
+            "Enter the code from your authenticator app.".into(),
+        ));
+    }
+    let config = token_lifecycle_config()
+        .ok_or_else(|| ApiError::Forbidden("Connect auth unavailable".into()))?;
+    state
+        .token_lifecycle
+        .verify_mfa_code(state.secret_store.as_ref(), &config, code)
+        .await
+        .map_err(map_token_lifecycle_error)?;
+    Ok(Json(()))
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Token Management
 // ─────────────────────────────────────────────────────────────────────────────
@@ -570,6 +598,7 @@ fn map_token_lifecycle_error(err: TokenLifecycleError) -> ApiError {
         TokenLifecycleError::NotConfigured(message)
         | TokenLifecycleError::RefreshFailed(message)
         | TokenLifecycleError::Internal(message) => ApiError::Internal(message),
+        TokenLifecycleError::MfaCodeRejected(message) => ApiError::BadRequest(message),
     }
 }
 
@@ -1223,6 +1252,7 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/connect/session", delete(clear_sync_session))
         .route("/connect/session/status", get(get_sync_session_status))
         .route("/connect/session/restore", get(restore_sync_session))
+        .route("/connect/session/mfa", post(verify_sync_session_mfa))
         // List operations (fetch from cloud without syncing)
         .route("/connect/connections", get(list_broker_connections))
         .route("/connect/accounts", get(list_broker_accounts))

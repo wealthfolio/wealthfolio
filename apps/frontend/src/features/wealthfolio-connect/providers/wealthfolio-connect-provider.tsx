@@ -39,6 +39,7 @@ import {
   getSyncSessionStatus,
   restoreSyncSession,
   storeSyncSession,
+  verifySyncSessionMfa,
 } from "../services/auth-service";
 import { getUserInfo } from "../services/broker-service";
 import type { UserInfo } from "../types";
@@ -237,9 +238,8 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const [sessionEnded, setSessionEnded] = useState(false);
   // Counts installed logins, so a late check can't clear a newer one.
   const loginGenerationRef = useRef(0);
-  // A verified session the backend hasn't accepted yet (e.g. broker sync was
-  // running). It can be two rotations ahead of the backend's token, so retry the
-  // handoff instead of restoring the backend's older token over it.
+  // A new login, verified with its code, that the backend hasn't accepted yet
+  // (e.g. broker sync was running). Retrying the handoff saves another code.
   const verifiedPendingRef = useRef<Session | null>(null);
 
   const setIsMfaRequired = useCallback((next: boolean) => {
@@ -961,50 +961,54 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
 
   // Runs in verifyMfaCode's transition. Returns the verified session, or null
   // when the saved login turned out to be deleted (now signed out).
-  const verifyCode = useCallback(
-    async (challenge: MfaChallenge | null, code: string): Promise<Session | null> => {
-      const backendOwned = challenge?.kind !== "sign-in";
+  // A new sign-in's code step. The SDK owns this login until it is stored, so
+  // its own refreshes don't touch the backend's token.
+  const verifySignInCode = useCallback(
+    async (code: string): Promise<Session> => {
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) throw factorsError;
+      // The code may come from any of the user's authenticators (e.g. a backup app),
+      // as on the dashboard: try each until one accepts it. Without a verified
+      // authenticator (2FA turned off meanwhile) the login needs no code.
+      let verifyError: AuthError | null = null;
+      for (const factor of factors.totp) {
+        ({ error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+          factorId: factor.id,
+          code,
+        }));
+        if (!verifyError || !isMfaCodeRejected(verifyError)) break;
+      }
+      if (verifyError) throw verifyError;
+      const {
+        data: { session: next },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!next) throw new Error(t("connect:authErrors.noSessionReturned"));
+      return next;
+    },
+    [supabase, t],
+  );
+
+  // The saved login's code step runs in the backend with its own token, so the
+  // backend keeps the rotated login and the app never holds a newer one. Returns
+  // the stepped-up session, or null when the login turned out to be deleted.
+  const verifySavedLoginCode = useCallback(
+    async (code: string): Promise<Session | null> => {
       try {
-        if (backendOwned) {
-          // The backend owns this session's refresh token and may have rotated it.
-          // Use its current tokens so the SDK never refreshes with a used one.
-          const { accessToken, refreshToken } = await restoreSyncSession();
-          const { error: setErr } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (setErr) throw setErr;
-        }
-        // listFactors and challengeAndVerify use the SDK session, which refreshes
-        // itself within 90 s of expiry. The backend hands out tokens with more time
-        // left than that, so verifying is the only rotation: if the handoff below
-        // fails, the backend's token is the verified one's parent, which Supabase
-        // still accepts.
-        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-        if (factorsError) throw factorsError;
-        // The code may come from any of the user's authenticators (e.g. a backup app),
-        // as on the dashboard: try each until one accepts it. Without a verified
-        // authenticator (2FA turned off meanwhile) the session needs no code.
-        let verifyError: AuthError | null = null;
-        for (const factor of factors.totp) {
-          ({ error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
-            factorId: factor.id,
-            code,
-          }));
-          if (!verifyError || !isMfaCodeRejected(verifyError)) break;
-        }
-        if (verifyError) throw verifyError;
-        const {
-          data: { session: next },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-        if (!next) throw new Error(t("connect:authErrors.noSessionReturned"));
-        return next;
+        await verifySyncSessionMfa(code);
+        const { accessToken, refreshToken } = await restoreSyncSession();
+        const { data, error: setErr } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (setErr) throw setErr;
+        if (!data.session) throw new Error(t("connect:authErrors.noSessionReturned"));
+        return data.session;
       } catch (cause) {
-        // The saved login can be deleted at any point of the step (e.g. 2FA turned
-        // on elsewhere); the sign-in screen then asks for a code.
-        if (!backendOwned || !isSavedLoginGone(cause)) throw cause;
+        // E.g. 2FA was turned on elsewhere, which deletes the login; the sign-in
+        // screen then asks for a code.
+        if (!isSavedLoginGone(cause)) throw cause;
         await expireSavedLogin();
         return null;
       }
@@ -1016,23 +1020,36 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     async (code: string) => {
       await runAuthTransition(async () => {
         const challenge = mfaChallengeRef.current;
-        if (!challenge && !sessionRef.current) return;
-        // After a failed handoff, retry it rather than verifying again.
-        const next = verifiedPendingRef.current ?? (await verifyCode(challenge, code));
-        if (!next) return;
-        verifiedPendingRef.current = next;
-        // Verifying rotated the refresh token; the backend must keep the new one.
-        if (!(await storeTokens(next))) {
-          verifiedPendingRef.current = null;
-          setMfaChallenge(null);
+        if (challenge?.kind === "sign-in") {
+          // After a failed handoff, retry it rather than asking for another code.
+          const next = verifiedPendingRef.current ?? (await verifySignInCode(code));
+          verifiedPendingRef.current = next;
+          if (!(await storeTokens(next))) {
+            setMfaChallenge(null);
+            return;
+          }
+          setSession(next);
+          setUser(next.user);
+          requestPostLoginSync(challenge.source, next);
           return;
         }
+        if (!challenge && !sessionRef.current) return;
+        const next = await verifySavedLoginCode(code);
+        if (!next) return;
         setSession(next);
         setUser(next.user);
-        requestPostLoginSync(challenge?.kind === "sign-in" ? challenge.source : "mfa", next);
+        requestPostLoginSync("mfa", next);
       });
     },
-    [runAuthTransition, verifyCode, storeTokens, setMfaChallenge, setSession, requestPostLoginSync],
+    [
+      runAuthTransition,
+      verifySignInCode,
+      verifySavedLoginCode,
+      storeTokens,
+      setMfaChallenge,
+      setSession,
+      requestPostLoginSync,
+    ],
   );
 
   const cancelMfaChallenge = useCallback(async () => {

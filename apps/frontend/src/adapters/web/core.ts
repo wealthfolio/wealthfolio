@@ -324,6 +324,7 @@ export const COMMANDS: CommandMap = {
   clear_sync_session: { method: "DELETE", path: "/connect/session" },
   get_sync_session_status: { method: "GET", path: "/connect/session/status" },
   restore_sync_session: { method: "GET", path: "/connect/session/restore" },
+  verify_sync_session_mfa: { method: "POST", path: "/connect/session/mfa" },
   list_broker_connections: { method: "GET", path: "/connect/connections" },
   list_broker_accounts: { method: "GET", path: "/connect/accounts" },
   sync_broker_data: { method: "POST", path: "/connect/sync" },
@@ -1821,6 +1822,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         confirmRebind?: boolean;
       };
       body = JSON.stringify({ refreshToken, confirmRebind });
+      break;
+    }
+    case "verify_sync_session_mfa": {
+      const { code } = payload as { code: string };
+      body = JSON.stringify({ code });
       break;
     }
     case "list_devices":

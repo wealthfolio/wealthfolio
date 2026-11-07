@@ -33,7 +33,7 @@ pub use post_login_bootstrap::{
 pub use token_lifecycle::{
     clear_restored_sync_identity, ensure_profile_access_token, ensure_valid_access_token,
     TokenLifecycleConfig, TokenLifecycleError, TokenLifecycleState, CLOUD_ACCESS_TOKEN_KEY,
-    CLOUD_REFRESH_TOKEN_KEY, SESSION_EXPIRED_CODE,
+    CLOUD_REFRESH_TOKEN_KEY, MFA_CODE_REJECTED_CODE, SESSION_EXPIRED_CODE,
 };
 
 #[cfg(feature = "broker")]

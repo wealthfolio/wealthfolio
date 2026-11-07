@@ -25,9 +25,15 @@ const REJECTED_CODE_ERRORS = new Set([
 ]);
 
 export function isMfaCodeRejected(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" && REJECTED_CODE_ERRORS.has(code);
+  if (error && typeof error === "object") {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string" && REJECTED_CODE_ERRORS.has(code)) return true;
+  }
+  // The backend's code step reports it as CONNECT_MFA_CODE_REJECTED
+  // (crates/connect token_lifecycle.rs).
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : undefined;
+  return !!message && /\bCONNECT_MFA_CODE_REJECTED\b/.test(message);
 }
 
 export function hasVerifiedTotpFactor(user: User | null | undefined): boolean {

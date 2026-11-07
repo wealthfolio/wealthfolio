@@ -299,6 +299,18 @@ async fn disconnect_cloud_session(context: &ServiceContext) -> Result<(), String
         })
 }
 
+/// The code step for the saved login runs here, with the backend's own token,
+/// so the backend keeps the rotated login (see `verify_mfa_code`).
+#[tauri::command]
+pub async fn verify_sync_session_mfa(code: String, state: ConnectAccess) -> Result<(), String> {
+    let code = code.trim();
+    if code.is_empty() {
+        return Err("Enter the code from your authenticator app.".into());
+    }
+    let context = state.context()?;
+    context.connect_service().verify_mfa_code(code).await
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreSyncSessionResponse {

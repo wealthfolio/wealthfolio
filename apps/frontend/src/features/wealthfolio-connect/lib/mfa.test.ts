@@ -23,6 +23,8 @@ describe("two-factor helpers", () => {
     [{ code: "mfa_verification_failed" }, true],
     [{ code: "mfa_challenge_expired" }, true],
     [{ code: "over_request_rate_limit" }, false],
+    [new Error("CONNECT_MFA_CODE_REJECTED: Invalid TOTP code entered (requestId=x)"), true],
+    ["CONNECT_MFA_CODE_REJECTED: Invalid TOTP code entered", true],
     [new Error("network"), false],
     [undefined, false],
   ])("tells a rejected code from other failures: %s", (error, expected) => {

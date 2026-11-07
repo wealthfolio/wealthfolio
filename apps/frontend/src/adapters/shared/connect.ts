@@ -299,6 +299,11 @@ export const restoreSyncSession = async (): Promise<{
   return invoke<{ accessToken: string; refreshToken: string }>("restore_sync_session");
 };
 
+/** The backend verifies the authenticator code for the saved login and keeps the result. */
+export const verifySyncSessionMfa = async (code: string): Promise<void> => {
+  return invoke<void>("verify_sync_session_mfa", { code });
+};
+
 export const storeSyncSession = async (
   refreshToken: string,
   confirmRebind = false,
