@@ -17,6 +17,7 @@ import {
   type TimePeriod,
 } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
+import { PeriodNavigation } from "@/features/spending/components/period-navigation";
 import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
 import { yearRange } from "@/features/spending/lib/year-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -227,7 +228,7 @@ export function NetWorthContent() {
         <div className="flex items-start gap-2">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              {(period.customMonth || period.customYear !== null) && (
+              {period.isHistorical && (
                 <span className="text-muted-foreground w-full text-xs">
                   {t("common:currentValue")}
                 </span>
@@ -243,7 +244,7 @@ export function NetWorthContent() {
               <PrivacyToggle variant="ghost" />
               <HealthStatusIndicator />
             </div>
-            <div className="text-md flex space-x-3">
+            <div className="text-md flex flex-wrap items-center gap-x-3">
               {isHistoryLoading ? (
                 <div className="flex items-center gap-3 pt-1">
                   <Skeleton className="h-4 w-24" />
@@ -282,12 +283,15 @@ export function NetWorthContent() {
                   )}
                 </>
               )}
-              <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                {period.customMonth || period.customYear !== null
-                  ? t("insights:networth.breakdown_table.change_over", {
-                      period: localizedPeriodLabel,
-                    })
-                  : localizedPeriodLabel}
+              <span className="ms-1 inline-flex max-w-full items-center gap-1">
+                <span className="lg:text-md text-muted-foreground text-sm font-light">
+                  {period.isHistorical
+                    ? t("insights:networth.breakdown_table.change_over", {
+                        period: localizedPeriodLabel,
+                      })
+                    : localizedPeriodLabel}
+                </span>
+                <PeriodNavigation navigation={period.navigation} />
               </span>
             </div>
           </div>
@@ -324,7 +328,7 @@ export function NetWorthContent() {
                   className="w-auto"
                   onIntervalSelect={period.selectPreset}
                   isLoading={isHistoryLoading}
-                  value={periodCode}
+                  value={period.selectedPreset}
                 />
                 <SpendingDatePicker
                   customMonth={period.customMonth}
@@ -332,7 +336,9 @@ export function NetWorthContent() {
                   customYear={period.customYear}
                   maxYear={period.maxYear}
                   onCustomYearChange={period.selectYear}
-                  navigation={period.navigation}
+                  selectionLabel={
+                    period.customMonth || period.customYear !== null ? period.label : undefined
+                  }
                   maxMonth={period.maxMonth}
                   onCustomMonthChange={period.selectMonth}
                   onCustomRangeChange={period.selectRange}

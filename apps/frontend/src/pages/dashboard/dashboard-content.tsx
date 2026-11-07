@@ -16,6 +16,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
 import { GainAmount, GainPercent, IntervalSelector } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
+import { PeriodNavigation } from "@/features/spending/components/period-navigation";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
@@ -189,7 +190,7 @@ export function DashboardContent({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            {(period.customMonth || period.customYear !== null) && (
+            {period.isHistorical && (
               <span className="text-muted-foreground w-full text-xs">
                 {t("common:currentValue")}
               </span>
@@ -245,10 +246,13 @@ export function DashboardContent({
                 )}
               </>
             )}
-            <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-              {period.customMonth || period.customYear !== null
-                ? t("common:periodReturn", { period: period.label })
-                : period.label}
+            <span className="ms-1 inline-flex max-w-full items-center gap-1">
+              <span className="lg:text-md text-muted-foreground text-sm font-light">
+                {period.isHistorical
+                  ? t("common:periodReturn", { period: period.label })
+                  : period.label}
+              </span>
+              <PeriodNavigation navigation={period.navigation} />
             </span>
           </div>
         </div>
@@ -279,7 +283,7 @@ export function DashboardContent({
                   onIntervalSelect={period.selectPreset}
                   onHaptic={triggerHaptic}
                   isLoading={isValuationHistoryLoading}
-                  value={selectedInterval}
+                  value={period.selectedPreset}
                 />
                 <SpendingDatePicker
                   customMonth={period.customMonth}
@@ -287,7 +291,9 @@ export function DashboardContent({
                   customYear={period.customYear}
                   maxYear={period.maxYear}
                   onCustomYearChange={period.selectYear}
-                  navigation={period.navigation}
+                  selectionLabel={
+                    period.customMonth || period.customYear !== null ? period.label : undefined
+                  }
                   maxMonth={period.maxMonth}
                   onCustomMonthChange={period.selectMonth}
                   onCustomRangeChange={period.selectRange}

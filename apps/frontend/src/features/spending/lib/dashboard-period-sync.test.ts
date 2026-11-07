@@ -7,6 +7,9 @@ import {
   portfolioViewForPick,
   spendingViewForPick,
   stepCalendarPick,
+  stepDashboardPeriod,
+  getPresetWindow,
+  spendingPeriodRange,
   type DashboardPeriodPick,
 } from "./dashboard-period-sync";
 
@@ -27,6 +30,113 @@ function spending(pick: DashboardPeriodPick) {
 }
 
 describe("dashboard period sync", () => {
+  it.each([
+    ["1D", "2026-03-29", "2026-03-30"],
+    ["1W", "2026-03-17", "2026-03-24"],
+    ["1M", "2026-01-31", "2026-02-28"],
+    ["3M", "2025-09-30", "2025-12-31"],
+    ["6M", "2025-03-31", "2025-09-30"],
+    ["YTD", "2025-01-01", "2025-03-31"],
+    ["1Y", "2024-03-31", "2025-03-31"],
+    ["5Y", "2016-03-31", "2021-03-31"],
+  ] as const)(
+    "navigates %s by the selected interval and returns to the live preset",
+    (code, from, to) => {
+      const original: DashboardPeriodPick = { kind: "portfolio", code };
+      const prior = stepDashboardPeriod(original, -1, TODAY)!;
+      expect(portfolioViewForPick(prior, TODAY)?.range).toEqual({
+        from: parseLocalDate(from),
+        to: parseLocalDate(to),
+      });
+      expect(getPresetWindow(prior)).toEqual({ preset: original, anchor: TODAY, offset: -1 });
+      const older = stepDashboardPeriod(prior, -1, TODAY)!;
+      expect(stepDashboardPeriod(older, 1, TODAY)).toEqual(prior);
+      expect(stepDashboardPeriod(prior, 1, "2026-04-01")).toEqual(original);
+      expect(stepDashboardPeriod(original, 1, TODAY)).toBeNull();
+    },
+  );
+
+  it.each([
+    ["3M", "2025-09-30", "2025-12-31"],
+    ["6M", "2025-03-31", "2025-09-30"],
+    ["YTD", "2025-01-01", "2025-03-31"],
+    ["1Y", "2024-03-31", "2025-03-31"],
+  ] as const)(
+    "keeps Spending %s dates and interval identity across navigation",
+    (code, from, to) => {
+      const original: DashboardPeriodPick = { kind: "spending", code };
+      const prior = stepDashboardPeriod(original, -1, TODAY)!;
+      const view = spendingViewForPick(prior, TODAY);
+      expect(view).toMatchObject({
+        kind: "range",
+        range: { from: parseLocalDate(from), to: parseLocalDate(to) },
+        preset: original,
+      });
+      expect(stepDashboardPeriod(prior, 1, TODAY)).toEqual(original);
+    },
+  );
+
+  it("retains leap-day anchors over repeated month and year steps", () => {
+    const start: DashboardPeriodPick = { kind: "portfolio", code: "1M" };
+    const previous = stepDashboardPeriod(start, -1, "2024-03-31")!;
+    expect(isoRange(portfolioViewForPick(previous, "2024-03-31")?.range)).toEqual([
+      "2024-01-31",
+      "2024-02-29",
+    ]);
+    const older = stepDashboardPeriod(previous, -1, "2024-03-31")!;
+    expect(isoRange(portfolioViewForPick(older, "2024-03-31")?.range)).toEqual([
+      "2023-12-31",
+      "2024-01-31",
+    ]);
+    expect(stepDashboardPeriod(older, 1, "2024-03-31")).toEqual(previous);
+    expect(isoRange(spendingPeriodRange("LAST_MONTH", "2024-03-31"))).toEqual([
+      "2024-02-01",
+      "2024-02-29",
+    ]);
+  });
+
+  it("replaces the Last month shortcut with full calendar-month navigation and a return to This month", () => {
+    const prior = stepDashboardPeriod({ kind: "spending", code: "MTD" }, -1, "2026-09-15");
+    expect(prior).toEqual({ kind: "month", monthKey: "2026-08" });
+    expect(spendingViewForPick(prior!, "2026-09-15")).toEqual({
+      kind: "month",
+      monthKey: "2026-08",
+    });
+    expect(stepDashboardPeriod(prior!, 1, "2026-09-15")).toEqual({ kind: "spending", code: "MTD" });
+    expect(stepDashboardPeriod({ kind: "spending", code: "LAST_MONTH" }, -1, "2026-09-15")).toEqual(
+      { kind: "month", monthKey: "2026-07" },
+    );
+    expect(stepDashboardPeriod({ kind: "spending", code: "LAST_MONTH" }, 1, "2026-09-15")).toEqual({
+      kind: "spending",
+      code: "MTD",
+    });
+    expect(stepDashboardPeriod({ kind: "spending", code: "MTD" }, 1, "2026-09-15")).toBeNull();
+  });
+
+  it("keeps ALL and manual ranges unstepped, respects the date floor, and rejects malformed metadata", () => {
+    expect(stepDashboardPeriod({ kind: "portfolio", code: "ALL" }, -1, TODAY)).toBeNull();
+    expect(
+      stepDashboardPeriod({ kind: "range", from: "2025-01-01", to: "2025-03-01" }, -1, TODAY),
+    ).toBeNull();
+    expect(stepDashboardPeriod({ kind: "portfolio", code: "5Y" }, -1, "1975-01-01")).toBeNull();
+    for (const presetWindow of [
+      null,
+      {},
+      { preset: { kind: "portfolio", code: "6M" }, anchor: "bad", offset: -1 },
+      { preset: { kind: "portfolio", code: "ALL" }, anchor: TODAY, offset: -1 },
+      { preset: { kind: "portfolio", code: "6M" }, anchor: TODAY, offset: -1e15 },
+    ]) {
+      const pick = {
+        kind: "range",
+        from: "2025-03-31",
+        to: "2025-09-30",
+        presetWindow,
+      } as unknown as DashboardPeriodPick;
+      expect(getPresetWindow(pick)).toBeUndefined();
+      expect(stepDashboardPeriod(pick, -1, TODAY)).toBeNull();
+      expect(portfolioViewForPick(pick, TODAY)?.range).toBeDefined();
+    }
+  });
   it("keeps every supported portfolio preset readable from the shared preference", () => {
     const codes = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ALL"] as const;
     for (const code of codes) {

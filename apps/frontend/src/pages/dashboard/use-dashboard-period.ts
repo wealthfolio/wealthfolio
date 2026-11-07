@@ -3,8 +3,10 @@ import {
   DASHBOARD_PERIOD_STORAGE_KEY,
   portfolioPeriodRange,
   portfolioViewForPick,
+  portfolioPresetForSpendingPeriod,
+  getPresetWindow,
   rangePick,
-  stepCalendarPick,
+  stepDashboardPeriod,
   type DashboardPeriodPick,
 } from "@/features/spending/lib/dashboard-period-sync";
 import { addMonthsToMonthKey, monthLabel } from "@/features/spending/lib/month-period";
@@ -53,11 +55,35 @@ export function useDashboardPeriod(
   const customYear =
     pick?.kind === "year" && view.code === null ? parseCalendarYear(pick.year, todayISO) : null;
   const customRange = pick?.kind === "range" && view.code === null ? view.range : undefined;
+  const presetWindow = getPresetWindow(pick);
+  const selectedPreset = presetWindow
+    ? presetWindow.preset.kind === "portfolio"
+      ? presetWindow.preset.code
+      : portfolioPresetForSpendingPeriod(presetWindow.preset.code)
+    : view.code;
+  const navigationPick: DashboardPeriodPick = customMonth
+    ? { kind: "month", monthKey: customMonth }
+    : customYear !== null
+      ? { kind: "year", year: customYear }
+      : presetWindow && pick
+        ? pick
+        : { kind: "portfolio", code: view.code ?? "ALL" };
 
   const label = useMemo(() => {
     if (view.code) return t(`ui:interval.${view.code}`);
     if (customMonth) return monthLabel(customMonth, dateFormatting);
     if (customYear !== null) return yearLabel(customYear, dateFormatting);
+    if (presetWindow && view.range?.from && view.range.to) {
+      return dateFormatting.formatCalendarDateRange(
+        localDateParts(view.range.from),
+        localDateParts(view.range.to),
+        {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        },
+      );
+    }
     const format = (date: Date | undefined) =>
       date
         ? dateFormatting.formatCalendarDate(localDateParts(date), {
@@ -67,13 +93,14 @@ export function useDashboardPeriod(
           })
         : "";
     return `${format(view.range?.from)} – ${format(view.range?.to)}`;
-  }, [customMonth, customYear, dateFormatting, t, view]);
+  }, [customMonth, customYear, dateFormatting, presetWindow, t, view]);
 
   const selectPreset = (code: TimePeriod) => {
     setPick({ kind: "portfolio", code });
     setLastPreset(code);
   };
-  const clearCustom = () => setPick({ kind: "portfolio", code: lastPreset });
+  const clearCustom = () =>
+    setPick(presetWindow?.preset ?? { kind: "portfolio", code: lastPreset });
   // Clear returns to the preset this tab showed before the custom pick, which
   // can differ from the last preset picked (Net Worth's own ALL, for example).
   const pickCustom = (next: DashboardPeriodPick) => {
@@ -83,26 +110,25 @@ export function useDashboardPeriod(
 
   return {
     code: view.code,
+    selectedPreset,
     range: view.range,
     label,
     customMonth,
     customYear,
     customRange,
+    isHistorical: !!customMonth || customYear !== null || !!presetWindow,
     // Same bound as the Spending picker: the current month is This month there.
     maxMonth: addMonthsToMonthKey(todayISO.slice(0, 7), -1),
     maxYear: Number(todayISO.slice(0, 4)) - 1,
-    navigation:
-      customMonth || customYear !== null
-        ? {
-            label,
-            previousDisabled: !stepCalendarPick(pick, -1, todayISO),
-            nextDisabled: !stepCalendarPick(pick, 1, todayISO),
-            onStep: (direction: -1 | 1) => {
-              const next = stepCalendarPick(pick, direction, todayISO);
-              if (next) setPick(next);
-            },
-          }
-        : undefined,
+    navigation: {
+      label,
+      previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
+      nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+      onStep: (direction: -1 | 1) => {
+        const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+        if (next) pickCustom(next);
+      },
+    },
     selectPreset,
     selectMonth: (monthKey: string | null) =>
       monthKey ? pickCustom({ kind: "month", monthKey }) : clearCustom(),

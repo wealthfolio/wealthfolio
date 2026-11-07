@@ -14,6 +14,23 @@ function dates(range: { from?: Date; to?: Date } | undefined) {
 describe("useDashboardPeriod", () => {
   beforeEach(() => localStorage.clear());
 
+  it("exposes navigation immediately for 6M, shares its window, and restores it after reload", () => {
+    const first = renderHook(() => useDashboardPeriod(TODAY));
+    act(() => first.result.current.selectPreset("6M"));
+    expect(first.result.current.navigation.previousDisabled).toBe(false);
+    expect(first.result.current.navigation.nextDisabled).toBe(true);
+    act(() => first.result.current.navigation.onStep(-1));
+    expect(first.result.current.selectedPreset).toBe("6M");
+    expect(first.result.current.code).toBeNull();
+    expect(dates(first.result.current.range)).toEqual(["2025-03-31", "2025-09-30"]);
+    const second = renderHook(() => useDashboardPeriod(TODAY));
+    expect(second.result.current.selectedPreset).toBe("6M");
+    expect(dates(second.result.current.range)).toEqual(dates(first.result.current.range));
+    act(() => second.result.current.navigation.onStep(1));
+    expect(first.result.current.code).toBe("6M");
+    expect(first.result.current.customRange).toBeUndefined();
+  });
+
   it("persists and synchronizes a stepped year, then clears back to the previous preset", () => {
     const investments = renderHook(() => useDashboardPeriod(TODAY));
     const netWorth = renderHook(() => useDashboardPeriod(TODAY));
@@ -30,7 +47,8 @@ describe("useDashboardPeriod", () => {
     expect(reopened.result.current.customYear).toBe(2024);
     act(() => reopened.result.current.selectYear(null));
     expect(netWorth.result.current.code).toBe("6M");
-    expect(netWorth.result.current.navigation).toBeUndefined();
+    expect(netWorth.result.current.navigation.previousDisabled).toBe(false);
+    expect(netWorth.result.current.navigation.nextDisabled).toBe(true);
   });
 
   it("keeps each tab's own preset until a period is picked", () => {
