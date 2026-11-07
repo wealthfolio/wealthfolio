@@ -168,5 +168,20 @@
   },
   "more_count_one": "+{{count}} de plus",
   "more_count_other": "+{{count}} de plus",
-  "more_count_many": "+{{count}} de plus"
+  "more_count_many": "+{{count}} de plus",
+  "billing": {
+    "title": "Relevés de carte",
+    "closing_day": "Jour de clôture (1–31)",
+    "due_day": "Jour d’échéance (1–31)",
+    "schedule_hint": "Les mois courts utilisent leur dernier jour. L’échéance est le premier jour choisi après la clôture. Les modifications s’appliquent aussi aux relevés précédents.",
+    "setup": "Définissez les jours de clôture et d’échéance dans les paramètres du compte.",
+    "load_error": "Impossible de charger les relevés.",
+    "previous": "Relevés précédents",
+    "closed": "Clôturé",
+    "open": "En cours",
+    "due": "Échéance le {{date}}",
+    "statement_balance": "Solde à la clôture",
+    "balance_so_far": "Solde actuel",
+    "balance_hint": "Les soldes utilisent les opérations enregistrées, y compris les dettes antérieures impayées. Un montant positif est dû ; un montant négatif est un crédit. Les paiements ultérieurs ne modifient pas le solde d’un relevé clôturé."
+  }
 }

@@ -696,6 +696,7 @@
     "accountNameMax": "名稱不得超過 50 個字元。",
     "accountNumberMax": "帳號不得超過 64 個字元。",
     "accountCurrency": "請選擇貨幣。",
-    "creditCardTracking": "信用卡帳戶不能使用持倉追蹤模式。"
+    "creditCardTracking": "信用卡帳戶不能使用持倉追蹤模式。",
+    "creditCardBillingDays": "結帳日和繳款日必須為 1 至 31 的整數。"
   }
 }

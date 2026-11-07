@@ -168,5 +168,20 @@
   },
   "more_count_one": "+{{count}} más",
   "more_count_other": "+{{count}} más",
-  "more_count_many": "+{{count}} más"
+  "more_count_many": "+{{count}} más",
+  "billing": {
+    "title": "Estados de cuenta",
+    "closing_day": "Día de cierre (1–31)",
+    "due_day": "Día de vencimiento (1–31)",
+    "schedule_hint": "Los meses cortos usan su último día. El vencimiento es la primera fecha elegida posterior al cierre. Los cambios también se aplican a los estados anteriores.",
+    "setup": "Configura los días de cierre y vencimiento en los ajustes de la cuenta.",
+    "load_error": "No se pudieron cargar los estados de cuenta.",
+    "previous": "Estados anteriores",
+    "closed": "Cerrado",
+    "open": "Abierto",
+    "due": "Vence el {{date}}",
+    "statement_balance": "Saldo al cierre",
+    "balance_so_far": "Saldo hasta ahora",
+    "balance_hint": "Los saldos usan las transacciones registradas, incluida la deuda anterior pendiente. Los importes positivos se deben; los negativos son crédito. Los pagos posteriores no cambian el saldo de un estado cerrado."
+  }
 }

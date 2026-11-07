@@ -403,6 +403,14 @@ pub trait ActivityRepositoryTrait: Send + Sync {
 /// Trait defining the contract for Activity service operations.
 #[async_trait]
 pub trait ActivityServiceTrait: Send + Sync {
+    async fn get_credit_card_statements(
+        &self,
+        _account_id: &str,
+    ) -> Result<Vec<crate::accounts::CreditCardStatement>> {
+        Err(crate::Error::Unexpected(
+            "Card statements are unavailable".to_string(),
+        ))
+    }
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     /// Returns activities from both active and archived accounts.

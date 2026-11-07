@@ -696,6 +696,7 @@
     "accountNameMax": "Der Name darf höchstens 50 Zeichen enthalten.",
     "accountNumberMax": "Die Kontonummer darf höchstens 64 Zeichen enthalten.",
     "accountCurrency": "Bitte wählen Sie eine Währung.",
-    "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden."
+    "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden.",
+    "creditCardBillingDays": "Abrechnungs- und Fälligkeitstag müssen ganze Zahlen von 1 bis 31 sein."
   }
 }

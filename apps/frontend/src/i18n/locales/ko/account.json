@@ -165,5 +165,20 @@
     "twr_hover_hint": " 값 위에 마우스를 올리면 누적 TWR을 볼 수 있습니다.",
     "irr_hover_hint": " 값 위에 마우스를 올리면 선택한 기간의 IRR을 볼 수 있습니다."
   },
-  "more_count_other": "+{{count}}개 더보기"
+  "more_count_other": "+{{count}}개 더보기",
+  "billing": {
+    "title": "카드 청구 명세서",
+    "closing_day": "마감일 (1–31)",
+    "due_day": "결제일 (1–31)",
+    "schedule_hint": "짧은 달은 마지막 날을 사용합니다. 결제일은 마감 후 처음 도래하는 지정일입니다. 변경 사항은 이전 명세서에도 적용됩니다.",
+    "setup": "계좌 설정에서 마감일과 결제일을 지정하세요.",
+    "load_error": "명세서를 불러올 수 없습니다.",
+    "previous": "이전 명세서",
+    "closed": "마감됨",
+    "open": "진행 중",
+    "due": "결제일 {{date}}",
+    "statement_balance": "마감 시 잔액",
+    "balance_so_far": "현재까지 잔액",
+    "balance_hint": "잔액은 기록된 거래를 기준으로 하며 이전 미납 부채를 포함합니다. 양수는 지불할 금액, 음수는 초과 납부액입니다. 이후 결제는 마감된 명세서 잔액을 변경하지 않습니다."
+  }
 }

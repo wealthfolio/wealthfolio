@@ -168,5 +168,20 @@
   },
   "more_count_one": "+{{count}} mais",
   "more_count_other": "+{{count}} mais",
-  "more_count_many": "+{{count}} mais"
+  "more_count_many": "+{{count}} mais",
+  "billing": {
+    "title": "Faturas",
+    "closing_day": "Dia de fechamento (1–31)",
+    "due_day": "Dia de vencimento (1–31)",
+    "schedule_hint": "Meses mais curtos usam o último dia. O vencimento é a primeira ocorrência do dia escolhido após o fechamento. Alterações também se aplicam às faturas anteriores.",
+    "setup": "Configure os dias de fechamento e vencimento nas configurações da conta.",
+    "load_error": "Não foi possível carregar as faturas.",
+    "previous": "Faturas anteriores",
+    "closed": "Fechada",
+    "open": "Aberta",
+    "due": "Vence em {{date}}",
+    "statement_balance": "Saldo no fechamento",
+    "balance_so_far": "Saldo até agora",
+    "balance_hint": "Os saldos usam os lançamentos registrados, incluindo dívidas anteriores não pagas. Valores positivos são devidos; negativos são crédito. Pagamentos posteriores não alteram o saldo de uma fatura fechada."
+  }
 }

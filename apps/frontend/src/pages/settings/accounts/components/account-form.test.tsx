@@ -353,3 +353,56 @@ describe("AccountForm documentation links", () => {
     },
   );
 });
+
+describe("AccountForm credit card billing", () => {
+  beforeEach(() => mutations.update.mockClear());
+
+  it("saves billing days through account metadata and preserves other settings", async () => {
+    renderForm({ accountType: "CREDIT_CARD", meta: '{"broker":{"kept":true}}' });
+    fireEvent.click(screen.getByRole("switch", { name: "account:billing.title" }));
+    fireEvent.change(screen.getByLabelText("account:billing.closing_day"), {
+      target: { value: "31" },
+    });
+    fireEvent.change(screen.getByLabelText("account:billing.due_day"), { target: { value: "10" } });
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(mutations.update.mock.calls[0][0].meta)).toEqual({
+      broker: { kept: true },
+      creditCardBilling: { closingDay: 31, dueDay: 10 },
+    });
+  });
+
+  it("can disable billing without removing other metadata", async () => {
+    renderForm({
+      accountType: "CREDIT_CARD",
+      meta: JSON.stringify({
+        allocation: { cashCategoryId: "kept" },
+        creditCardBilling: { closingDay: 15, dueDay: 25 },
+      }),
+    });
+    expect(screen.getByLabelText("account:billing.closing_day")).toHaveValue(15);
+    fireEvent.click(screen.getByRole("switch", { name: "account:billing.title" }));
+    expect(screen.queryByLabelText("account:billing.closing_day")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(mutations.update.mock.calls[0][0].meta)).toEqual({
+      allocation: { cashCategoryId: "kept" },
+    });
+  });
+
+  it.each(["0", "32", "1.5", ""])("refuses invalid billing day %s before saving", async (value) => {
+    renderForm({
+      accountType: "CREDIT_CARD",
+      meta: '{"creditCardBilling":{"closingDay":15,"dueDay":25}}',
+    });
+    fireEvent.change(screen.getByLabelText("account:billing.closing_day"), { target: { value } });
+    fireEvent.submit(screen.getByTestId("account-form"));
+    await screen.findByText("common:validation.creditCardBillingDays");
+    expect(mutations.update).not.toHaveBeenCalled();
+  });
+
+  it("does not offer billing for other account types", () => {
+    renderForm({ accountType: "CASH" });
+    expect(screen.queryByRole("switch", { name: "account:billing.title" })).not.toBeInTheDocument();
+  });
+});

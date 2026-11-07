@@ -166,5 +166,20 @@
     "irr_hover_hint": " Hover the value to see the selected-period IRR."
   },
   "more_count_one": "+{{count}} more",
-  "more_count_other": "+{{count}} more"
+  "more_count_other": "+{{count}} more",
+  "billing": {
+    "title": "Billing statements",
+    "closing_day": "Closing day (1–31)",
+    "due_day": "Payment due day (1–31)",
+    "schedule_hint": "Short months use their last day. The due date is the first due day after closing. Changes also apply to earlier statements.",
+    "setup": "Set closing and payment due days in account settings.",
+    "load_error": "Could not load statements.",
+    "previous": "Previous statements",
+    "closed": "Closed",
+    "open": "Open",
+    "due": "Due {{date}}",
+    "statement_balance": "Statement balance",
+    "balance_so_far": "Balance so far",
+    "balance_hint": "Balances use your recorded transactions, including earlier unpaid debt. Positive amounts are owed; negative amounts are credit. Later payments do not change a closed statement balance."
+  }
 }

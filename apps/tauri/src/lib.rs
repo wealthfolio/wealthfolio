@@ -291,6 +291,7 @@ pub fn run() {
             profiles::recover_profile_password,
             // Account commands
             commands::account::get_accounts,
+            commands::account::get_credit_card_statements,
             commands::account::create_account,
             commands::account::update_account,
             commands::account::delete_account,

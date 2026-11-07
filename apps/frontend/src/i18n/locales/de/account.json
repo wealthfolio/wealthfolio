@@ -166,5 +166,20 @@
   "to_this_account_in": "auf dieses Konto in",
   "your_total_is": "Ihr Gesamtbetrag beträgt",
   "more_count_one": "+{{count}} weitere",
-  "more_count_other": "+{{count}} weitere"
+  "more_count_other": "+{{count}} weitere",
+  "billing": {
+    "title": "Kreditkartenabrechnungen",
+    "closing_day": "Abrechnungstag (1–31)",
+    "due_day": "Fälligkeitstag (1–31)",
+    "schedule_hint": "Kurze Monate verwenden ihren letzten Tag. Die Zahlung ist am ersten gewählten Tag nach dem Abschluss fällig. Änderungen gelten auch für frühere Abrechnungen.",
+    "setup": "Lege den Abrechnungs- und Fälligkeitstag in den Kontoeinstellungen fest.",
+    "load_error": "Abrechnungen konnten nicht geladen werden.",
+    "previous": "Frühere Abrechnungen",
+    "closed": "Abgeschlossen",
+    "open": "Offen",
+    "due": "Fällig am {{date}}",
+    "statement_balance": "Saldo bei Abschluss",
+    "balance_so_far": "Bisheriger Saldo",
+    "balance_hint": "Die Salden beruhen auf erfassten Buchungen einschließlich früherer unbezahlter Schulden. Positive Beträge sind geschuldet, negative sind Guthaben. Spätere Zahlungen ändern den Saldo einer abgeschlossenen Abrechnung nicht."
+  }
 }
