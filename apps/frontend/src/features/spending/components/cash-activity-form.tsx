@@ -799,6 +799,10 @@ export function CashActivityForm({
         const currentParentLabel = currentParent
           ? getCategoryLabel(t, currentParent.taxonomyId, currentParent.id, currentParent.name)
           : "";
+        const neutralLabel =
+          watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
+            ? t("spending:cashForm.neutralTransfer")
+            : t("spending:transactions.neutral");
         return (
           <FormItem className={cn(isMobile && "gap-0")}>
             {" "}
@@ -822,9 +826,8 @@ export function CashActivityForm({
                 )}
               >
                 {isMobile && <FormRowLabel>{t("spending:filters.category")}</FormRowLabel>}
-                {watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
-                  ? t("spending:cashForm.neutralTransfer")
-                  : t("spending:transactions.neutral")}
+                {/* On a phone the value sits at the row's end, like the other rows'. */}
+                {isMobile ? <FormRowValue>{neutralLabel}</FormRowValue> : neutralLabel}
               </div>
             ) : (
               <QuickCategorizePopover
