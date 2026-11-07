@@ -20,6 +20,9 @@ and this project adheres to
   `lucide-react` fails to load; bundle your own icon instead. Other icon names,
   including the deprecated aliases such as `Trash2` and `Loader2`, still work.
   Some icons are redrawn: `Trash` now has the two inner lines, like `Trash2`.
+  New addons from the templates declare `minWealthfolioVersion` 3.13.0, the
+  first release with Lucide 1.x, so an addon that uses a Lucide 1.x icon cannot
+  be installed on a host that only has 0.561.
 
 ### Fixed
 
