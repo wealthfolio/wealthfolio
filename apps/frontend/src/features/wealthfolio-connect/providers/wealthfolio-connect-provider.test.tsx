@@ -1247,6 +1247,21 @@ describe("Two-factor authentication turned on elsewhere", () => {
     expect(result.current.user?.id).toBe("B");
   });
 
+  it("turns the code step into a sign-in when the factor lookup finds the login deleted", async () => {
+    mocks.getUserInfo.mockRejectedValue(new Error(MFA_REQUIRED));
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "A" } }, error: null });
+    const { result } = await connectedA();
+    await waitFor(() => expect(result.current.isMfaRequired).toBe(true));
+    mocks.listFactors.mockImplementationOnce(async () => {
+      mocks.onAuth("SIGNED_OUT");
+      return { data: null, error: missing() };
+    });
+    await act(() => result.current.verifyMfaCode("123456"));
+    expect(mocks.challengeAndVerify).not.toHaveBeenCalled();
+    expect(result.current.sessionEnded).toBe(true);
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
   it("explains a login the backend found expired at startup", async () => {
     mocks.configured = true;
     mocks.restore.mockImplementation(async () => {

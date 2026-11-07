@@ -963,49 +963,51 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   // when the saved login turned out to be deleted (now signed out).
   const verifyCode = useCallback(
     async (challenge: MfaChallenge | null, code: string): Promise<Session | null> => {
-      if (challenge?.kind !== "sign-in") {
-        // The backend owns this session's refresh token and may have rotated it.
-        // Use its current tokens so the SDK never refreshes with a used one.
-        try {
+      const backendOwned = challenge?.kind !== "sign-in";
+      try {
+        if (backendOwned) {
+          // The backend owns this session's refresh token and may have rotated it.
+          // Use its current tokens so the SDK never refreshes with a used one.
           const { accessToken, refreshToken } = await restoreSyncSession();
           const { error: setErr } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
           if (setErr) throw setErr;
-        } catch (cause) {
-          if (!isSavedLoginGone(cause)) throw cause;
-          // Turning on 2FA elsewhere deleted this login; the sign-in screen asks for a code.
-          await expireSavedLogin();
-          return null;
         }
+        // listFactors and challengeAndVerify use the SDK session, which refreshes
+        // itself within 90 s of expiry. The backend hands out tokens with more time
+        // left than that, so verifying is the only rotation: if the handoff below
+        // fails, the backend's token is the verified one's parent, which Supabase
+        // still accepts.
+        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+        if (factorsError) throw factorsError;
+        // The code may come from any of the user's authenticators (e.g. a backup app),
+        // as on the dashboard: try each until one accepts it. Without a verified
+        // authenticator (2FA turned off meanwhile) the session needs no code.
+        let verifyError: AuthError | null = null;
+        for (const factor of factors.totp) {
+          ({ error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+            factorId: factor.id,
+            code,
+          }));
+          if (!verifyError || !isMfaCodeRejected(verifyError)) break;
+        }
+        if (verifyError) throw verifyError;
+        const {
+          data: { session: next },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!next) throw new Error(t("connect:authErrors.noSessionReturned"));
+        return next;
+      } catch (cause) {
+        // The saved login can be deleted at any point of the step (e.g. 2FA turned
+        // on elsewhere); the sign-in screen then asks for a code.
+        if (!backendOwned || !isSavedLoginGone(cause)) throw cause;
+        await expireSavedLogin();
+        return null;
       }
-      // listFactors and challengeAndVerify use the SDK session, which refreshes
-      // itself within 90 s of expiry. The backend hands out tokens with more time
-      // left than that, so verifying is the only rotation: if the handoff below
-      // fails, the backend's token is the verified one's parent, which Supabase
-      // still accepts.
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-      if (factorsError) throw factorsError;
-      // The code may come from any of the user's authenticators (e.g. a backup app),
-      // as on the dashboard: try each until one accepts it. Without a verified
-      // authenticator (2FA turned off meanwhile) the session needs no code.
-      let verifyError: AuthError | null = null;
-      for (const factor of factors.totp) {
-        ({ error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
-          factorId: factor.id,
-          code,
-        }));
-        if (!verifyError || !isMfaCodeRejected(verifyError)) break;
-      }
-      if (verifyError) throw verifyError;
-      const {
-        data: { session: next },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!next) throw new Error(t("connect:authErrors.noSessionReturned"));
-      return next;
     },
     [supabase, expireSavedLogin, t],
   );
