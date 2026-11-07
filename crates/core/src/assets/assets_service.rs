@@ -1450,7 +1450,7 @@ impl AssetService {
             .filter(|ccy| {
                 existing_asset.quote_ccy.trim().is_empty()
                     || normalize_currency_code(ccy)
-                        == normalize_currency_code(&existing_asset.quote_ccy)
+                        .eq_ignore_ascii_case(normalize_currency_code(&existing_asset.quote_ccy))
             })
             .unwrap_or_else(|| existing_asset.quote_ccy.clone());
 
@@ -6320,9 +6320,10 @@ mod tests {
         let repo = Arc::new(TestAssetRepository::with_assets(vec![
             listing("cspx", "CSPX", "USD"),
             listing("vod", "VOD", "GBP"),
+            listing("lloy", "LLOY", "gbp"),
         ]));
         let quotes = TestQuoteService::default();
-        for symbol in ["CSPX", "VOD"] {
+        for symbol in ["CSPX", "VOD", "LLOY"] {
             quotes.profiles.lock().unwrap().insert(
                 symbol.to_string(),
                 ProviderProfile {
@@ -6336,9 +6337,11 @@ mod tests {
 
         service.enrich_asset_profile("cspx").await.unwrap();
         service.enrich_asset_profile("vod").await.unwrap();
+        service.enrich_asset_profile("lloy").await.unwrap();
 
         assert_eq!(repo.get_by_id("cspx").unwrap().quote_ccy, "USD");
         assert_eq!(repo.get_by_id("vod").unwrap().quote_ccy, "GBp");
+        assert_eq!(repo.get_by_id("lloy").unwrap().quote_ccy, "GBp");
     }
 
     fn test_market_asset() -> Asset {
