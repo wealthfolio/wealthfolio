@@ -46,7 +46,15 @@ import type {
   UpdateAssetProfile,
 } from "@/lib/types";
 import type { HoldingInput } from "@/adapters";
-import type { AlternativeAssetHolding } from "@/lib/types";
+import type {
+  AccountScope,
+  AllocationTarget,
+  AllocationTargetWeight,
+  AlternativeAssetHolding,
+  DriftReport,
+  TaxonomyCategory,
+  TaxonomyWithCategories,
+} from "@/lib/types";
 import type {
   CashActivitySearchRequest,
   CashActivitySearchResponse,
@@ -66,6 +74,8 @@ import {
 import type {
   ActivityUpdate as SDKActivityUpdate,
   ActivityType,
+  AllocationDrift as SDKAllocationDrift,
+  AllocationTarget as SDKAllocationTarget,
   CategorizationRule as SDKCategorizationRule,
   CategorizationRuleInput,
   Goal as SDKGoal,
@@ -105,6 +115,70 @@ function toSDKCategorizationRule(rule: InternalCategorizationRule): SDKCategoriz
 }
 
 /**
+ * Converts an internal allocation target and its weights to the addon-facing
+ * shape. `categories` is keyed by `${taxonomyId}:${categoryId}` (category ids
+ * are only unique within a taxonomy); only the categories the target weights
+ * reach the addon.
+ */
+function toSDKAllocationTarget(
+  target: AllocationTarget,
+  weights: AllocationTargetWeight[],
+  categories: Map<string, TaxonomyCategory>,
+): SDKAllocationTarget {
+  return {
+    id: target.id,
+    name: target.name,
+    scopeType: target.scopeType,
+    scopeId: target.scopeId ?? null,
+    taxonomyId: target.taxonomyId,
+    driftBandBps: target.driftBandBps,
+    bandType: target.bandType,
+    relativeFactorBps: target.relativeFactorBps,
+    allowSells: target.allowSells,
+    wholeSharesOnly: target.wholeSharesOnly,
+    minTradeAmount: target.minTradeAmount,
+    maxTurnoverBps: target.maxTurnoverBps ?? null,
+    weights: weights.map((weight) => {
+      const category = categories.get(`${weight.taxonomyId}:${weight.categoryId}`);
+      return {
+        categoryId: weight.categoryId,
+        categoryKey: category?.key ?? weight.categoryId,
+        categoryName: category?.name ?? weight.categoryId,
+        targetBps: weight.targetBps,
+      };
+    }),
+    createdAt: target.createdAt,
+    updatedAt: target.updatedAt,
+  };
+}
+
+function toSDKAllocationDrift(report: DriftReport): SDKAllocationDrift {
+  return {
+    targetId: report.targetId,
+    scopeType: report.scopeType,
+    scopeId: report.scopeId ?? null,
+    baseCurrency: report.baseCurrency,
+    totalValue: report.totalValue,
+    maxDriftBps: report.maxDriftBps,
+    outOfBandCount: report.outOfBandCount,
+    deployableCash: report.deployableCash,
+    rows: report.rows.map((row) => ({
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      currentBps: row.currentBps,
+      targetBps: row.targetBps,
+      driftBps: row.driftBps,
+      currentValue: row.currentValue,
+      targetValue: row.targetValue,
+      valueDelta: row.valueDelta,
+      effectiveBandBps: row.effectiveBandBps,
+      status: row.status,
+      isCash: row.isCash,
+    })),
+  };
+}
+
+/**
  * Internal HostAPI interface that matches the actual command function signatures
  * This allows us to maintain type safety internally while providing a clean SDK interface
  */
@@ -114,6 +188,16 @@ export interface InternalHostAPI {
   getActivities(accountId?: string): Promise<ActivityDetails[]>;
   getAccounts(): Promise<Account[]>;
   getAlternativeHoldings(): Promise<AlternativeAssetHolding[]>;
+
+  // Allocation targets (read-only)
+  listAllocationTargets(): Promise<AllocationTarget[]>;
+  listAllocationTargetWeights(targetId: string): Promise<AllocationTargetWeight[]>;
+  getAllocationTargetDrift(
+    targetId: string,
+    filter: AccountScope,
+    options?: { includeHoldings?: boolean },
+  ): Promise<DriftReport>;
+  getTaxonomy(id: string): Promise<TaxonomyWithCategories | null>;
 
   // Exchange rates
   getExchangeRates(): Promise<ExchangeRate[]>;
@@ -598,6 +682,46 @@ export function createSDKHostAPIBridge(
     "alternative-assets",
     guard,
   );
+  const listLiveAllocationTargets = async (): Promise<AllocationTarget[]> =>
+    (await internalAPI.listAllocationTargets()).filter((target) => !target.archivedAt);
+  const allocationTargets = guardNamespace(
+    {
+      getAll: async (): Promise<SDKAllocationTarget[]> => {
+        const targets = await listLiveAllocationTargets();
+        const taxonomyIds = [...new Set(targets.map((target) => target.taxonomyId))];
+        const taxonomies = await Promise.all(taxonomyIds.map((id) => internalAPI.getTaxonomy(id)));
+        const categories = new Map<string, TaxonomyCategory>();
+        for (const taxonomy of taxonomies) {
+          for (const category of taxonomy?.categories ?? []) {
+            categories.set(`${category.taxonomyId}:${category.id}`, category);
+          }
+        }
+        return Promise.all(
+          targets.map(async (target) =>
+            toSDKAllocationTarget(
+              target,
+              await internalAPI.listAllocationTargetWeights(target.id),
+              categories,
+            ),
+          ),
+        );
+      },
+      getDrift: async (targetId: string): Promise<SDKAllocationDrift | null> => {
+        const targets = await listLiveAllocationTargets();
+        if (!targets.some((target) => target.id === targetId)) return null;
+        // Drift always covers the target's own scope; the web runtime still
+        // requires a well-formed filter, which it then ignores.
+        const report = await internalAPI.getAllocationTargetDrift(
+          targetId,
+          { type: "all" },
+          { includeHoldings: false },
+        );
+        return toSDKAllocationDrift(report);
+      },
+    },
+    "allocation-targets",
+    guard,
+  );
   const quotes = guardNamespace(
     {
       update: internalAPI.updateQuote,
@@ -801,6 +925,7 @@ export function createSDKHostAPIBridge(
     market: market as unknown as SDKApiWithoutSecrets["market"],
     assets: assets as unknown as SDKApiWithoutSecrets["assets"],
     alternativeAssets: alternativeAssets as unknown as SDKApiWithoutSecrets["alternativeAssets"],
+    allocationTargets: allocationTargets as unknown as SDKApiWithoutSecrets["allocationTargets"],
     quotes: quotes as unknown as SDKApiWithoutSecrets["quotes"],
     performance: performance as unknown as SDKApiWithoutSecrets["performance"],
     exchangeRates: exchangeRates as unknown as SDKApiWithoutSecrets["exchangeRates"],
