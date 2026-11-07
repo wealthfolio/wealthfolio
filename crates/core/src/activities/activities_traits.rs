@@ -219,6 +219,29 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Broker records the user deleted, which a re-sync suppresses rather than
+    /// bringing back. Defaults to none, for repositories that keep no tombstones.
+    fn list_suppressed_activities(
+        &self,
+        account_ids: Option<Vec<String>>,
+    ) -> Result<Vec<SuppressedActivity>> {
+        let _ = account_ids;
+        Ok(Vec::new())
+    }
+    /// Drops the tombstones and puts the recorded rows back, so the next sync
+    /// updates them in place rather than inserting duplicates. Passing every id
+    /// is how a user asks for the whole feed again. A linked group comes back
+    /// whole; a row whose asset is gone is left for the next sync to re-import.
+    async fn restore_suppressed_activities(
+        &self,
+        deletion_ids: Vec<String>,
+    ) -> Result<Vec<Activity>> {
+        Err(crate::activities::ActivityError::NotFound(format!(
+            "No suppressed activities with ids {}",
+            deletion_ids.join(", ")
+        ))
+        .into())
+    }
     /// Deletes the reviewed rows only if their stored groups contain no other
     /// rows. The check and deletion must share the writer transaction.
     async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {
@@ -512,6 +535,21 @@ pub trait ActivityServiceTrait: Send + Sync {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Broker records the user deleted, which a re-sync suppresses rather than
+    /// bringing back.
+    fn list_suppressed_activities(
+        &self,
+        account_ids: Option<Vec<String>>,
+    ) -> Result<Vec<SuppressedActivity>>;
+    /// Un-suppresses them, putting the recorded rows back. Passing every id is
+    /// how a user asks for the whole feed again. A row deleted with a linked
+    /// group comes back with the whole group. A row whose asset has since been
+    /// deleted is not put back; its tombstone is dropped, so the next sync
+    /// imports it again.
+    async fn restore_suppressed_activities(
+        &self,
+        deletion_ids: Vec<String>,
+    ) -> Result<Vec<Activity>>;
     /// Deletes exactly the reviewed rows, rejecting newly linked/grouped rows
     /// atomically, and returns every deleted record.
     async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {

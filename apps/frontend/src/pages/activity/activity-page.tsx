@@ -35,6 +35,7 @@ import ActivityTable from "./components/activity-table/activity-table";
 import ActivityTableMobile from "./components/activity-table/activity-table-mobile";
 import { ActivityViewControls, type ActivityViewMode } from "./components/activity-view-controls";
 import { NeedsReviewBanner } from "./components/needs-review-banner";
+import { SuppressedActivitiesCard } from "./components/suppressed-activities-card";
 import { BulkHoldingsModal } from "./components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "./components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "./components/transfer-match-dialog";
@@ -64,6 +65,12 @@ interface InvestmentFilterOverrides {
 const ALL_ACCOUNT_SCOPE: AccountScope = { type: "all" };
 const EMPTY_ACTIVITY_TYPES: ActivityType[] = [];
 const EMPTY_INSTRUMENT_TYPES: string[] = [];
+
+/** A row a broker feed owns, and therefore one a re-sync would bring back. */
+function isBrokerSyncedActivity(activity?: Partial<ActivityDetails> | null): boolean {
+  const source = activity?.sourceSystem?.trim().toUpperCase();
+  return !!source && source !== "MANUAL" && source !== "CSV";
+}
 
 function parseLocalDate(value?: string): Date | undefined {
   if (!value) return undefined;
@@ -754,6 +761,8 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
         </div>
       )}
 
+      <SuppressedActivitiesCard />
+
       {isMobileViewport ? (
         <ActivityMobileControls
           accounts={investmentAccounts}
@@ -892,6 +901,7 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
         isDeleting={isDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
         conversion={isConversionActivity(selectedActivity)}
+        brokerSynced={isBrokerSyncedActivity(selectedActivity)}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
