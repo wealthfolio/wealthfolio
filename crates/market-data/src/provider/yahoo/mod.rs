@@ -1299,8 +1299,9 @@ mod tests {
         assert_eq!(mapped("Germany").as_deref(), Some("DE"));
         // A taxonomy spelling Yahoo does not use.
         assert_eq!(mapped("Russia").as_deref(), Some("RU"));
+        assert_eq!(mapped("Ivory Coast").as_deref(), Some("CI"));
         // Unresolvable, so the raw value survives for the classifier to try.
-        assert_eq!(mapped("Ivory Coast").as_deref(), Some("Ivory Coast"));
+        assert_eq!(mapped("Antarctica").as_deref(), Some("Antarctica"));
     }
 
     #[test]
