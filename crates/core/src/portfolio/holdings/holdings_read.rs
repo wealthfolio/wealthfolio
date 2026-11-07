@@ -209,10 +209,42 @@ impl HoldingsRead {
             MarkerScope::Account(id) => accounts.contains(id),
             MarkerScope::Asset(id) => assets.contains(id.as_str()),
             MarkerScope::Prices(_) => false,
-        }) || self
-            .last_valued
-            .get(account_id)
-            .is_some_and(|last| *last < day)
+        }) || self.day_advance_pending(account_id, day)
+    }
+
+    /// The calendar moving alone does not change accounting. Posted facts that
+    /// became due since the last run (including shared splits) do.
+    pub fn day_advance_pending(&self, account_id: &str, day: NaiveDate) -> bool {
+        let Some(last) = self.last_valued.get(account_id).filter(|last| **last < day) else {
+            return false;
+        };
+        let accounts = self.dependency_accounts(account_id);
+        let assets: HashSet<&str> = self
+            .activities
+            .iter()
+            .filter(|activity| accounts.contains(&activity.account_id))
+            .filter_map(|activity| activity.asset_id.as_deref())
+            .chain(
+                self.snapshots
+                    .get(account_id)
+                    .into_iter()
+                    .flat_map(|snapshot| snapshot.positions.keys().map(String::as_str)),
+            )
+            .collect();
+        let timezone = crate::utils::time_utils::parse_user_timezone_or_default(&self.timezone);
+        self.activities.iter().any(|activity| {
+            let date =
+                crate::utils::time_utils::activity_date_in_tz(activity.activity_date, timezone);
+            activity.is_posted()
+                && *last < date
+                && date <= day
+                && (accounts.contains(&activity.account_id)
+                    || (activity.effective_type() == crate::activities::ACTIVITY_TYPE_SPLIT
+                        && activity
+                            .asset_id
+                            .as_deref()
+                            .is_some_and(|asset| assets.contains(asset))))
+        })
     }
 
     pub fn position_pending(&self, account_id: &str, day: NaiveDate) -> bool {

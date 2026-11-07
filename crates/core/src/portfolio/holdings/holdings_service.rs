@@ -339,7 +339,11 @@ impl HoldingsService {
                         scope.incomplete_accounts.push(IncompleteHoldingsAccount {
                             account_id: id.clone(),
                             status: "pending",
-                            reason_code: "PROJECTION_PENDING",
+                            reason_code: if read.day_advance_pending(id, read.day) {
+                                "DAY_ADVANCE_PENDING"
+                            } else {
+                                "PROJECTION_PENDING"
+                            },
                         })
                     }
                     Err(_) => scope.incomplete_accounts.push(IncompleteHoldingsAccount {
@@ -4273,6 +4277,45 @@ mod tests {
             assert_eq!(result.cost_basis, Some(money(dec!(140), dec!(140))));
             assert_eq!(result.income, Some(money(dec!(7), dec!(7))));
             assert!(fixture.store.pending_markers().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn unchanged_transaction_accounts_remain_readable_across_midnight() {
+            let account = account("unchanged", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            drop(clock);
+            let _clock = crate::utils::clock::freeze(fixture.now + chrono::Duration::days(1));
+            let rows = holdings.get_holdings(&account.id, "CAD").await.unwrap();
+            let row = rows.iter().find(|row| row.instrument.is_some()).unwrap();
+            assert_eq!(row.quantity, dec!(1));
+            assert_eq!(row.cost_basis, Some(money(dec!(100), dec!(100))));
+            assert!(fixture.store.pending_markers().unwrap().is_empty());
+        }
+
+        #[test]
+        fn day_readiness_uses_posted_local_dates_and_shared_splits() {
+            let day = NaiveDate::from_ymd_opt(2025, 1, 16).unwrap();
+            let mut due = buy("first", "CAD", dec!(100));
+            due.activity_date = "2025-01-17T00:30:00Z".parse().unwrap();
+            let mut read = HoldingsRead {
+                timezone: "America/New_York".into(),
+                last_valued: HashMap::from([("first".into(), day.pred_opt().unwrap())]),
+                activities: vec![buy("first", "CAD", dec!(100)), due],
+                ..Default::default()
+            };
+            assert!(read.day_advance_pending("first", day));
+            read.activities[1].status = crate::activities::ActivityStatus::Draft;
+            assert!(!read.day_advance_pending("first", day));
+            read.activities[1].status = crate::activities::ActivityStatus::Posted;
+            read.activities[1].account_id = "another-account".into();
+            assert!(!read.day_advance_pending("first", day));
+            read.activities[1].activity_type = crate::activities::ACTIVITY_TYPE_SPLIT.into();
+            assert!(read.day_advance_pending("first", day));
+            read.activities[1].asset_id = Some("unrelated".into());
+            assert!(!read.day_advance_pending("first", day));
         }
 
         #[tokio::test]
