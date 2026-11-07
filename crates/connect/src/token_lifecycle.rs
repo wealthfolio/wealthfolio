@@ -2246,10 +2246,19 @@ mod tests {
 
     type AuthRequests = Arc<std::sync::Mutex<Vec<String>>>;
 
+    /// Holds back the answer to request `index` (0-based): signals when it
+    /// arrives, then waits to be released.
+    type HeldResponse = (
+        usize,
+        tokio::sync::oneshot::Sender<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    );
+
     /// A fake Supabase Auth server: answers each request in order, checking its
     /// request line, and records the requests.
     async fn serve_auth_responses(
         responses: Vec<(&'static str, u16, String)>,
+        mut held: Option<HeldResponse>,
     ) -> (String, AuthRequests, tokio::task::JoinHandle<()>) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -2257,7 +2266,7 @@ mod tests {
         let requests: AuthRequests = Arc::default();
         let seen = requests.clone();
         let server = tokio::spawn(async move {
-            for (request_line, status, body) in responses {
+            for (index, (request_line, status, body)) in responses.into_iter().enumerate() {
                 let (mut stream, _) = listener.accept().await.unwrap();
                 let mut request = Vec::new();
                 let header_end = loop {
@@ -2278,6 +2287,11 @@ mod tests {
                 let text = String::from_utf8_lossy(&request).to_string();
                 assert!(text.starts_with(request_line), "{text}");
                 seen.lock().unwrap().push(text);
+                if held.as_ref().is_some_and(|(at, _, _)| *at == index) {
+                    let (_, received, release) = held.take().unwrap();
+                    received.send(()).unwrap();
+                    release.await.unwrap();
+                }
                 stream.write_all(format!(
                     "HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()
                 ).as_bytes()).await.unwrap();
@@ -2322,7 +2336,7 @@ mod tests {
                     r#"{{"access_token":"{stepped_up}","refresh_token":"rotated-refresh","expires_in":3600}}"#
                 ),
             ),
-        ])
+        ], None)
         .await;
         let config = TokenLifecycleConfig::new(url, "test-key".into());
 
@@ -2360,23 +2374,27 @@ mod tests {
     #[tokio::test]
     async fn rejected_code_keeps_the_saved_login() {
         let (store, state, saved_access) = saved_login_with_cached_token().await;
-        let (url, _, server) = serve_auth_responses(vec![
-            (
-                "GET /auth/v1/user ",
-                200,
-                r#"{"factors":[{"id":"phone","factor_type":"totp","status":"verified"}]}"#.into(),
-            ),
-            (
-                "POST /auth/v1/factors/phone/challenge ",
-                200,
-                r#"{"id":"c1"}"#.into(),
-            ),
-            (
-                "POST /auth/v1/factors/phone/verify ",
-                422,
-                WRONG_CODE.into(),
-            ),
-        ])
+        let (url, _, server) = serve_auth_responses(
+            vec![
+                (
+                    "GET /auth/v1/user ",
+                    200,
+                    r#"{"factors":[{"id":"phone","factor_type":"totp","status":"verified"}]}"#
+                        .into(),
+                ),
+                (
+                    "POST /auth/v1/factors/phone/challenge ",
+                    200,
+                    r#"{"id":"c1"}"#.into(),
+                ),
+                (
+                    "POST /auth/v1/factors/phone/verify ",
+                    422,
+                    WRONG_CODE.into(),
+                ),
+            ],
+            None,
+        )
         .await;
         let config = TokenLifecycleConfig::new(url, "test-key".into());
 
@@ -2415,7 +2433,7 @@ mod tests {
             403,
             r#"{"code":"session_not_found","message":"Session from session_id claim in JWT does not exist"}"#
                 .into(),
-        )])
+        )], None)
         .await;
         let config = TokenLifecycleConfig::new(url, "test-key".into());
 
@@ -2437,11 +2455,10 @@ mod tests {
     #[tokio::test]
     async fn login_without_an_authenticator_needs_no_code() {
         let (store, state, _) = saved_login_with_cached_token().await;
-        let (url, requests, server) = serve_auth_responses(vec![(
-            "GET /auth/v1/user ",
-            200,
-            r#"{"factors":[]}"#.into(),
-        )])
+        let (url, requests, server) = serve_auth_responses(
+            vec![("GET /auth/v1/user ", 200, r#"{"factors":[]}"#.into())],
+            None,
+        )
         .await;
         let config = TokenLifecycleConfig::new(url, "test-key".into());
 
@@ -2459,5 +2476,84 @@ mod tests {
                 .as_deref(),
             Some("saved-refresh")
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn code_step_holds_the_token_lock_until_the_rotated_login_is_kept() {
+        let state = Arc::new(TokenLifecycleState::new());
+        let store = Arc::new(MemorySecrets::default());
+        state
+            .store_session(store.as_ref(), "saved-refresh")
+            .await
+            .unwrap();
+        cache_migration_token(&state).await;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let stepped_up = fake_jwt_with_exp(now + 3600);
+        let (received_tx, received_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let (url, _, server) = serve_auth_responses(
+            vec![
+                (
+                    "GET /auth/v1/user ",
+                    200,
+                    r#"{"factors":[{"id":"phone","factor_type":"totp","status":"verified"}]}"#
+                        .into(),
+                ),
+                ("POST /auth/v1/factors/phone/challenge ", 200, r#"{"id":"c1"}"#.into()),
+                (
+                    "POST /auth/v1/factors/phone/verify ",
+                    200,
+                    format!(
+                        r#"{{"access_token":"{stepped_up}","refresh_token":"rotated-refresh","expires_in":3600}}"#
+                    ),
+                ),
+            ],
+            Some((2, received_tx, release_rx)),
+        )
+        .await;
+        let config = TokenLifecycleConfig::new(url, "test-key".into());
+        let verify = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move {
+                state
+                    .verify_mfa_code(store.as_ref(), &config, "123456")
+                    .await
+            }
+        });
+        received_rx.await.unwrap();
+
+        // A sync worker asks for a token, then the user signs out, while Supabase
+        // is still answering the verification.
+        let mut access = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move { ensure_valid_access_token(store.as_ref(), &state, None).await }
+        });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let mut logout = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move { state.clear_session(store.as_ref()).await }
+        });
+        assert!(tokio::time::timeout(Duration::from_millis(20), &mut access)
+            .await
+            .is_err());
+        assert!(tokio::time::timeout(Duration::from_millis(20), &mut logout)
+            .await
+            .is_err());
+
+        release_tx.send(()).unwrap();
+        verify.await.unwrap().unwrap();
+        server.await.unwrap();
+        // The worker gets the stepped-up token, never the one it replaced.
+        assert_eq!(access.await.unwrap().unwrap(), stepped_up);
+        logout.await.unwrap().unwrap();
+        assert!(store.get_secret(CLOUD_REFRESH_TOKEN_KEY).unwrap().is_none());
+        assert!(state.cache.read().await.is_none());
+        assert!(!state.is_session_configured(store.as_ref()).unwrap());
     }
 }

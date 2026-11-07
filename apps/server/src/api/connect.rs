@@ -556,6 +556,8 @@ async fn verify_sync_session_mfa(
         .verify_mfa_code(state.secret_store.as_ref(), &config, code)
         .await
         .map_err(map_token_lifecycle_error)?;
+    // Backups refused with MFA_REQUIRED can retry now instead of after their delay.
+    state.backup_scheduler.wake();
     Ok(Json(()))
 }
 

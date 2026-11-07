@@ -308,7 +308,10 @@ pub async fn verify_sync_session_mfa(code: String, state: ConnectAccess) -> Resu
         return Err("Enter the code from your authenticator app.".into());
     }
     let context = state.context()?;
-    context.connect_service().verify_mfa_code(code).await
+    context.connect_service().verify_mfa_code(code).await?;
+    // Backups refused with MFA_REQUIRED can retry now instead of after their delay.
+    context.backup_scheduler.wake();
+    Ok(())
 }
 
 #[derive(Serialize)]
