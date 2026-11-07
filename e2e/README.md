@@ -133,6 +133,7 @@ npx playwright test && npx playwright show-report
 
 | File                                   | What it tests                                                                                                               |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `health-activity-reasons.spec.ts`      | Persisted engine activity reasons rendered in French on desktop and Arabic on mobile, with RTL and overflow checks          |
 | `01-happy-path.spec.ts`                | Onboarding, accounts, deposits, trades                                                                                      |
 | `02-activities.spec.ts`                | All activity types                                                                                                          |
 | `03-fx-cash-balance.spec.ts`           | FX cash balances                                                                                                            |

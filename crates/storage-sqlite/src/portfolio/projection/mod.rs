@@ -1041,6 +1041,12 @@ mod tests {
                         activity_id: "sell-1".to_string(),
                         kind: ActivityIssueKind::Oversold,
                         message: "oversold".to_string(),
+                        reason: Some(
+                            serde_json::from_value(serde_json::json!({
+                            "code": "INSUFFICIENT_QUANTITY",
+                            "params": { "action": "SELL", "asset": "aapl", "requested": "15", "held": "10", "excess": "5" }
+                        })).expect("activity reason fixture"),
+                        ),
                     }],
                 )],
                 consumed: seen.clone(),
@@ -1054,6 +1060,12 @@ mod tests {
                 activity_id: "sell-1".to_string(),
                 kind: ActivityIssueKind::Oversold,
                 message: "oversold".to_string(),
+                reason: Some(
+                    serde_json::from_value(serde_json::json!({
+                            "code": "INSUFFICIENT_QUANTITY",
+                            "params": { "action": "SELL", "asset": "aapl", "requested": "15", "held": "10", "excess": "5" }
+                        })).expect("activity reason fixture")
+                ),
             }]
         );
 

@@ -137,8 +137,8 @@ pub struct ConsistencyIssueInfo {
     pub snapshot_min_date: Option<NaiveDate>,
     /// Latest supported date for snapshot-specific consistency issues.
     pub snapshot_max_date: Option<NaiveDate>,
-    /// What the engine reported about the activity (engine activity issues only).
-    pub engine_message: Option<String>,
+    /// The engine decision, with its fallback message and optional typed reason.
+    pub engine_issue: Option<crate::portfolio::projection::ActivityIssue>,
 }
 
 /// Health check that detects data consistency problems.
@@ -929,13 +929,17 @@ fn build_engine_activity_issue(
         .iter()
         .zip(&affected_items)
         .map(|(i, item)| {
-            let message = i.engine_message.as_deref().unwrap_or_default();
+            let message = i
+                .engine_issue
+                .as_ref()
+                .map(|issue| issue.message.as_str())
+                .unwrap_or_default();
             format!("{}\n{}\nActivity: {}", item.name, message, i.record_id)
         })
         .collect::<Vec<_>>()
         .join("\n\n");
     let count = issues.len();
-    HealthIssue::builder()
+    let mut issue = HealthIssue::builder()
         .id(format!("{}:{}", copy.id, data_hash))
         .severity(copy.severity)
         .category(HealthCategory::DataConsistency)
@@ -951,7 +955,19 @@ fn build_engine_activity_issue(
         .affected_items(affected_items)
         .details(details)
         .data_hash(data_hash)
-        .build()
+        .build();
+    // Add per-activity evidence to the existing fallback diagnostic. Its
+    // fingerprint continues to depend on activity IDs, not wording or reasons.
+    if let Some(diagnostic) = issue
+        .diagnostics
+        .as_mut()
+        .and_then(|items| items.first_mut())
+    {
+        for (evidence, info) in diagnostic.evidence.iter_mut().zip(issues) {
+            evidence.activity_issue = info.engine_issue.clone();
+        }
+    }
+    issue
 }
 
 /// Accounts whose recorded projection no longer matches their facts: the
@@ -1770,7 +1786,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }
     }
 
@@ -1812,11 +1828,22 @@ mod tests {
     // #2533: the Health Center and get_health_status say why each activity
     // was rejected and which activity it is.
     #[test]
-    fn engine_activity_issue_details_carry_the_engine_message_and_activity_id() {
+    fn engine_activity_issue_details_carry_the_engine_issue_and_activity_id() {
         let check = DataConsistencyCheck::new();
         let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
         let mut rejected = engine_issue(ConsistencyIssueType::RejectedActivity, "buy-1");
-        rejected.engine_message = Some("no USD/GBp rate on 2025-01-06".to_string());
+        rejected.engine_issue = Some(crate::portfolio::projection::ActivityIssue {
+            activity_id: "buy-1".to_string(),
+            kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+            message: "no USD/GBp rate on 2025-01-06".to_string(),
+            reason: Some(
+                wealthfolio_portfolio_engine::ActivityReason::MissingFxRate {
+                    from: "USD".to_string(),
+                    to: "GBp".to_string(),
+                    date: NaiveDate::from_ymd_opt(2025, 1, 6).expect("valid test date"),
+                },
+            ),
+        });
         let issues = check.analyze(&[rejected], &ctx);
         assert_eq!(
             issues[0].details.as_deref(),
@@ -1829,6 +1856,29 @@ mod tests {
         assert_eq!(diagnostics[0].code, "REJECTED_ACTIVITY");
         assert_eq!(diagnostics[0].title, issues[0].title);
         assert_eq!(diagnostics[0].explanation, issues[0].message);
+        let activity = diagnostics[0].evidence[0]
+            .activity_issue
+            .as_ref()
+            .expect("activity evidence");
+        assert_eq!(activity.activity_id, "buy-1");
+        assert!(matches!(
+            activity.reason,
+            Some(wealthfolio_portfolio_engine::ActivityReason::MissingFxRate { .. })
+        ));
+
+        let mut changed = engine_issue(ConsistencyIssueType::RejectedActivity, "buy-1");
+        changed.engine_issue = Some(crate::portfolio::projection::ActivityIssue {
+            activity_id: "buy-1".to_string(),
+            kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+            message: "a different message".to_string(),
+            reason: None,
+        });
+        let changed = check.analyze(&[changed], &ctx);
+        assert_eq!(
+            issues[0].id, changed[0].id,
+            "reason and wording do not change dismissal identity"
+        );
+        assert_eq!(issues[0].data_hash, changed[0].data_hash);
     }
 
     #[test]
@@ -1857,7 +1907,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1892,7 +1942,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1927,7 +1977,7 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
-                engine_message: None,
+                engine_issue: None,
             }],
             &ctx,
         );
@@ -1977,7 +2027,7 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
-                engine_message: None,
+                engine_issue: None,
             }],
             &ctx,
         );
@@ -2027,7 +2077,7 @@ mod tests {
             snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
             snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
             snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
-            engine_message: None,
+            engine_issue: None,
         };
         let mut second = first.clone();
         second.record_id = "activity-2".to_string();
@@ -2082,7 +2132,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2122,7 +2172,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
-                engine_message: None,
+                engine_issue: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::OrphanActivityAccount,
@@ -2145,7 +2195,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
-                engine_message: None,
+                engine_issue: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::NegativePosition,
@@ -2168,7 +2218,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
-                engine_message: None,
+                engine_issue: None,
             },
         ];
 
@@ -2204,7 +2254,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }
     }
 
@@ -2382,7 +2432,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-            engine_message: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2443,7 +2493,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
-                engine_message: None,
+                engine_issue: None,
             }
         }
 
