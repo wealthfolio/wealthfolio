@@ -57,6 +57,7 @@ interface SpendingPeriodToggleProps {
   variant?: "default" | "secondary";
   /** Size pass-through. Default "xs" matches the prior insights placement. */
   size?: "compact" | "xs" | "sm" | "md";
+  hideLastMonth?: boolean;
   className?: string;
 }
 
@@ -65,6 +66,7 @@ export function SpendingPeriodToggle({
   onValueChange,
   variant = "secondary",
   size = "xs",
+  hideLastMonth = false,
   className,
 }: SpendingPeriodToggleProps) {
   const labels = useSpendingPeriodLabels();
@@ -72,7 +74,7 @@ export function SpendingPeriodToggle({
     <AnimatedToggleGroup
       variant={variant}
       size={size}
-      items={REPORTS_PERIODS.filter((p) => p !== "LAST_MONTH").map((p) => ({
+      items={REPORTS_PERIODS.filter((p) => !hideLastMonth || p !== "LAST_MONTH").map((p) => ({
         value: p,
         label: labels[p],
       }))}
@@ -92,6 +94,7 @@ interface SpendingPeriodSelectorProps {
   maxYear?: number;
   onCustomYearChange?: (year: number | null) => void;
   selectionLabel?: string;
+  hideLastMonth?: boolean;
   maxMonth: string;
   onCustomMonthChange: (monthKey: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
@@ -113,6 +116,7 @@ export function SpendingPeriodSelector({
   maxYear,
   onCustomYearChange,
   selectionLabel,
+  hideLastMonth,
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
@@ -133,6 +137,7 @@ export function SpendingPeriodSelector({
       aria-busy={isLoading ? "true" : undefined}
     >
       <SpendingPeriodToggle
+        hideLastMonth={hideLastMonth}
         value={value}
         onValueChange={onValueChange}
         size={isMobile ? "compact" : "sm"}
