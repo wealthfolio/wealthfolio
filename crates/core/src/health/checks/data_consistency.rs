@@ -137,6 +137,8 @@ pub struct ConsistencyIssueInfo {
     pub snapshot_min_date: Option<NaiveDate>,
     /// Latest supported date for snapshot-specific consistency issues.
     pub snapshot_max_date: Option<NaiveDate>,
+    /// What the engine reported about the activity (engine activity issues only).
+    pub engine_message: Option<String>,
 }
 
 /// Health check that detects data consistency problems.
@@ -922,6 +924,16 @@ fn build_engine_activity_issue(
             AffectedItem::activity(i.record_id.clone(), format!("{} — {}", i.description, date))
         })
         .collect();
+    // One block per activity: its label, what the engine said, and its ID.
+    let details = issues
+        .iter()
+        .zip(&affected_items)
+        .map(|(i, item)| {
+            let message = i.engine_message.as_deref().unwrap_or_default();
+            format!("{}\n{}\nActivity: {}", item.name, message, i.record_id)
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
     let count = issues.len();
     HealthIssue::builder()
         .id(format!("{}:{}", copy.id, data_hash))
@@ -937,6 +949,7 @@ fn build_engine_activity_issue(
         .message(copy.message)
         .affected_count(count as u32)
         .affected_items(affected_items)
+        .details(details)
         .data_hash(data_hash)
         .build()
 }
@@ -1757,6 +1770,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }
     }
 
@@ -1795,6 +1809,21 @@ mod tests {
         assert_eq!(by_code("data_missing_activity_amount").affected_count, 1);
     }
 
+    // #2533: the Health Center and get_health_status say why each activity
+    // was rejected and which activity it is.
+    #[test]
+    fn engine_activity_issue_details_carry_the_engine_message_and_activity_id() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let mut rejected = engine_issue(ConsistencyIssueType::RejectedActivity, "buy-1");
+        rejected.engine_message = Some("no USD/GBp rate on 2025-01-06".to_string());
+        let issues = check.analyze(&[rejected], &ctx);
+        assert_eq!(
+            issues[0].details.as_deref(),
+            Some("Brokerage — 2025-01-06\nno USD/GBp rate on 2025-01-06\nActivity: buy-1")
+        );
+    }
+
     #[test]
     fn test_orphan_activity_account() {
         let check = DataConsistencyCheck::new();
@@ -1821,6 +1850,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1855,6 +1885,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1889,6 +1920,7 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+                engine_message: None,
             }],
             &ctx,
         );
@@ -1938,6 +1970,7 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+                engine_message: None,
             }],
             &ctx,
         );
@@ -1987,6 +2020,7 @@ mod tests {
             snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
             snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
             snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+            engine_message: None,
         };
         let mut second = first.clone();
         second.record_id = "activity-2".to_string();
@@ -2041,6 +2075,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2080,6 +2115,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_message: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::OrphanActivityAccount,
@@ -2102,6 +2138,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_message: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::NegativePosition,
@@ -2124,6 +2161,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_message: None,
             },
         ];
 
@@ -2159,6 +2197,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }
     }
 
@@ -2336,6 +2375,7 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            engine_message: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2396,6 +2436,7 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_message: None,
             }
         }
 
