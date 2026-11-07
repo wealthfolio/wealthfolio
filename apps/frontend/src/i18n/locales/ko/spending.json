@@ -250,6 +250,12 @@
     "filteredNet": "필터 순액"
   },
   "period": {
+    "month": "월",
+    "year": "연도",
+    "previousPeriod": "이전 기간",
+    "nextPeriod": "다음 기간",
+    "previousYears": "이전 연도",
+    "nextYears": "이후 연도",
     "thisMonth": "이번 달",
     "mtdShort": "이번 달",
     "lastMonth": "지난달",

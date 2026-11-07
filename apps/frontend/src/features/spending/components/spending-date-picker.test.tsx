@@ -25,6 +25,76 @@ const open = async (user: ReturnType<typeof userEvent.setup>) =>
 // Role queries scan the open two-month range calendar, so on shared CI runners
 // a test can exceed the default 5s.
 describe("SpendingDatePicker", { timeout: 15_000 }, () => {
+  it("selects a completed year, pages older years, and clears the year intent", async () => {
+    const user = userEvent.setup();
+    const onYear = vi.fn();
+    const onMonth = vi.fn();
+    render(
+      <SpendingDatePicker
+        customMonth={null}
+        customYear={2025}
+        maxYear={2025}
+        maxMonth="2026-08"
+        onCustomMonthChange={onMonth}
+        onCustomYearChange={onYear}
+      />,
+    );
+    await open(user);
+    expect(screen.getByRole("button", { name: "2025" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "2026" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Earlier years" }));
+    expect(screen.getByRole("button", { name: "Earlier years" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "2016" }));
+    expect(onYear).toHaveBeenCalledWith(2016);
+    expect(onMonth).not.toHaveBeenCalled();
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(onYear).toHaveBeenLastCalledWith(null);
+  });
+
+  it("separates stepping from browsing and exposes the selected period to assistive technology", async () => {
+    const user = userEvent.setup();
+    const onStep = vi.fn();
+    render(
+      <SpendingDatePicker
+        customMonth={null}
+        customYear={2025}
+        maxYear={2025}
+        maxMonth="2026-08"
+        onCustomMonthChange={vi.fn()}
+        onCustomYearChange={vi.fn()}
+        navigation={{ label: "2025", onStep, previousDisabled: false, nextDisabled: true }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    expect(onStep).toHaveBeenCalledWith(-1);
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+    const trigger = screen.getByRole("button", { name: "2025, Select dates" });
+    await user.click(trigger);
+    expect(screen.queryByRole("button", { name: "Previous period" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeInTheDocument();
+  });
+
+  it("browses months within the selected year when switching modes", async () => {
+    const user = userEvent.setup();
+    const onMonth = vi.fn();
+    render(
+      <SpendingDatePicker
+        customMonth={null}
+        customYear={2024}
+        maxYear={2025}
+        maxMonth="2026-08"
+        onCustomMonthChange={onMonth}
+        onCustomYearChange={vi.fn()}
+      />,
+    );
+    await open(user);
+    await user.click(screen.getByRole("button", { name: /^Month$/ }));
+    await user.click(screen.getByRole("button", { name: "February" }));
+    expect(onMonth).toHaveBeenCalledWith("2024-02");
+  });
   it("selects a month immediately through the existing picker", async () => {
     const { user, onCustomMonthChange } = setup();
     await open(user);

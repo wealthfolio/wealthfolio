@@ -6,6 +6,7 @@ import {
   pickForPortfolioRange,
   portfolioViewForPick,
   spendingViewForPick,
+  stepCalendarPick,
   type DashboardPeriodPick,
 } from "./dashboard-period-sync";
 
@@ -26,6 +27,41 @@ function spending(pick: DashboardPeriodPick) {
 }
 
 describe("dashboard period sync", () => {
+  it("shares calendar-year identity without converting it to a relative preset", () => {
+    const pick: DashboardPeriodPick = { kind: "year", year: 2025 };
+    expect(portfolio(pick)).toEqual({ code: null, range: ["2025-01-01", "2025-12-31"] });
+    expect(spending(pick)).toEqual(pick);
+    expect(portfolioViewForPick(pick, "2027-01-01")?.range).toEqual(
+      portfolioViewForPick(pick, "2026-12-31")?.range,
+    );
+    expect(portfolioViewForPick({ kind: "year", year: 2026 }, TODAY)).toBeNull();
+    expect(
+      spendingViewForPick({ kind: "year", year: "bad" } as unknown as DashboardPeriodPick, TODAY),
+    ).toBeNull();
+  });
+
+  it("steps only explicit calendar units, across leap years and month-end boundaries", () => {
+    expect(stepCalendarPick({ kind: "year", year: 2025 }, -1, TODAY)).toEqual({
+      kind: "year",
+      year: 2024,
+    });
+    expect(stepCalendarPick({ kind: "year", year: 2025 }, 1, TODAY)).toBeNull();
+    expect(stepCalendarPick({ kind: "year", year: 1970 }, -1, TODAY)).toBeNull();
+    expect(stepCalendarPick({ kind: "month", monthKey: "2024-03" }, -1, TODAY)).toEqual({
+      kind: "month",
+      monthKey: "2024-02",
+    });
+    expect(stepCalendarPick({ kind: "month", monthKey: "2025-12" }, 1, TODAY)).toEqual({
+      kind: "month",
+      monthKey: "2026-01",
+    });
+    expect(stepCalendarPick({ kind: "month", monthKey: "2026-02" }, 1, TODAY)).toBeNull();
+    expect(stepCalendarPick({ kind: "month", monthKey: "1970-01" }, -1, TODAY)).toBeNull();
+    expect(stepCalendarPick({ kind: "portfolio", code: "1Y" }, -1, TODAY)).toBeNull();
+    expect(
+      stepCalendarPick({ kind: "range", from: "2025-01-01", to: "2025-12-31" }, -1, TODAY),
+    ).toBeNull();
+  });
   it("keeps the presets both selectors share", () => {
     for (const code of ["3M", "6M", "YTD", "1Y"] as const) {
       expect(spending({ kind: "portfolio", code })).toEqual({ kind: "period", code });

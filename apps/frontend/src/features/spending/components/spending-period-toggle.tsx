@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { AnimatedToggleGroup, useIsMobile } from "@wealthfolio/ui";
 
-import { SpendingDatePicker } from "./spending-date-picker";
+import { SpendingDatePicker, type CalendarNavigation } from "./spending-date-picker";
 import { REPORTS_PERIODS, type ReportsPeriod } from "../lib/reports-period";
 
 function useSpendingPeriodLabels(): Record<ReportsPeriod, ReactNode> {
@@ -85,6 +85,10 @@ interface SpendingPeriodSelectorProps {
   onValueChange: (next: ReportsPeriod) => void;
   customMonth: string | null;
   customRange?: DateRange;
+  customYear?: number | null;
+  maxYear?: number;
+  onCustomYearChange?: (year: number | null) => void;
+  navigation?: CalendarNavigation;
   maxMonth: string;
   onCustomMonthChange: (monthKey: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
@@ -102,6 +106,10 @@ export function SpendingPeriodSelector({
   onValueChange,
   customMonth,
   customRange,
+  customYear,
+  maxYear,
+  onCustomYearChange,
+  navigation,
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
@@ -131,6 +139,10 @@ export function SpendingPeriodSelector({
       <SpendingDatePicker
         customMonth={customMonth}
         customRange={customRange}
+        customYear={customYear}
+        maxYear={maxYear}
+        onCustomYearChange={onCustomYearChange}
+        navigation={navigation}
         maxMonth={maxMonth}
         onCustomMonthChange={onCustomMonthChange}
         onCustomRangeChange={onCustomRangeChange}

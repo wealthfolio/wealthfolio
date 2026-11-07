@@ -25,6 +25,12 @@ import { useCashActivities } from "../hooks/use-cash-activities";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import {
+  parseCalendarYear,
+  SPENDING_YEAR_PARAM,
+  yearLabel,
+  yearReportsRange,
+} from "../lib/year-period";
 import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
 import {
@@ -182,7 +188,8 @@ export default function SpendingInsightsPage({
     ? searchParams.get(SPENDING_MONTH_PARAM)
     : null;
   const urlRange = useMemo(() => spendingRangeFromParams(searchParams), [searchParams]);
-  const hasUrlPeriod = !!urlPeriod || !!urlMonth || !!urlRange;
+  const urlYear = parseCalendarYear(searchParams.get(SPENDING_YEAR_PARAM), todayISO);
+  const hasUrlPeriod = !!urlPeriod || !!urlMonth || !!urlRange || urlYear !== null;
   const sharedView = useMemo(
     () => (!hasUrlPeriod && sharedPick ? spendingViewForPick(sharedPick, todayISO) : null),
     [hasUrlPeriod, sharedPick, todayISO],
@@ -194,18 +201,22 @@ export default function SpendingInsightsPage({
       : (normalizeReportsPeriod(persistedPeriod) ?? DEFAULT_REPORTS_PERIOD));
   const [stage, setStage] = usePersistentState<InsightsStage>(STAGE_STORAGE_KEY, "where");
   const customRange = urlRange ?? (sharedView?.kind === "range" ? sharedView.range : undefined);
-  const customMonth = customRange
+  const customYear = customRange
     ? null
-    : (urlMonth ??
-      (hasUrlPeriod
-        ? null
-        : sharedView
-          ? sharedView.kind === "month"
-            ? sharedView.monthKey
-            : null
-          : parseMonthKey(persistedMonth)
-            ? persistedMonth
-            : null));
+    : (urlYear ?? (sharedView?.kind === "year" ? sharedView.year : null));
+  const customMonth =
+    customRange || customYear !== null
+      ? null
+      : (urlMonth ??
+        (hasUrlPeriod
+          ? null
+          : sharedView
+            ? sharedView.kind === "month"
+              ? sharedView.monthKey
+              : null
+            : parseMonthKey(persistedMonth)
+              ? persistedMonth
+              : null));
   const sharePeriod = useCallback(
     (code: ReportsPeriod) => {
       setSharedPick({ kind: "spending", code });
@@ -260,6 +271,16 @@ export default function SpendingInsightsPage({
     [setPersistedMonth, setSharedPick, sharePeriod, period],
   );
 
+  const selectCustomYear = useCallback(
+    (year: number | null) => {
+      if (year !== null && parseCalendarYear(year, todayISO) === null) return;
+      setPersistedMonth(null);
+      if (year !== null) setSharedPick({ kind: "year", year });
+      else sharePeriod(period);
+    },
+    [todayISO, setPersistedMonth, setSharedPick, sharePeriod, period],
+  );
+
   // ?stage=where|changed|when drives the page when present. A period named in
   // the URL (?period=, ?spendingMonth=, ?spendingFrom=&spendingTo=) is applied
   // once like a pick and then dropped from the URL.
@@ -269,10 +290,11 @@ export default function SpendingInsightsPage({
       setStage(urlStage as InsightsStage);
     }
     if (!hasUrlPeriod) return;
-    if (urlRange || urlMonth) {
+    if (urlRange || urlMonth || urlYear !== null) {
       setPersistedPeriod(period);
       setSpendingInterval(period);
       if (urlRange) selectCustomRange(urlRange);
+      else if (urlYear !== null) selectCustomYear(urlYear);
       else selectCustomMonth(urlMonth);
     } else {
       selectPeriod(period);
@@ -283,6 +305,7 @@ export default function SpendingInsightsPage({
         for (const param of [
           "period",
           SPENDING_MONTH_PARAM,
+          SPENDING_YEAR_PARAM,
           SPENDING_RANGE_FROM_PARAM,
           SPENDING_RANGE_TO_PARAM,
         ]) {
@@ -298,7 +321,9 @@ export default function SpendingInsightsPage({
 
   const selectionKey = customRange
     ? `${formatDateISO(customRange.from)}:${formatDateISO(customRange.to)}`
-    : (customMonth ?? period);
+    : customYear !== null
+      ? `year:${customYear}`
+      : (customMonth ?? period);
   const [offsetBinding, setOffsetBinding] = useState({ selectionKey, offset: 0 });
   const eventsWindowOffset = offsetBinding.selectionKey === selectionKey ? offsetBinding.offset : 0;
   const setEventsWindowOffset = (next: number) =>
@@ -312,20 +337,25 @@ export default function SpendingInsightsPage({
     () =>
       customRange
         ? spendingRangeToReportsRange(customRange, appTimezone)
-        : (monthRange ?? periodToReportsRange(period, appTimezone)),
-    [customRange, monthRange, period, appTimezone],
+        : customYear !== null
+          ? yearReportsRange(customYear, appTimezone)
+          : (monthRange ?? periodToReportsRange(period, appTimezone)),
+    [customRange, customYear, monthRange, period, appTimezone],
   );
   const whatChangedWindow = useMemo(() => {
-    if (customRange || customMonth || period !== "MTD") return null;
+    if (customRange || customMonth || customYear !== null || period !== "MTD") return null;
     const current = monthToDateRange(appTimezone);
     return {
       current,
       prior: previousMonthMatchingRange(current, appTimezone),
     };
-  }, [customRange, customMonth, period, appTimezone]);
+  }, [customRange, customMonth, customYear, period, appTimezone]);
   const eventsRange = useMemo(
-    () => shiftRangeBack(range, period, eventsWindowOffset, appTimezone, !!customRange),
-    [range, period, eventsWindowOffset, appTimezone, customRange],
+    () =>
+      customYear !== null
+        ? yearReportsRange(customYear - eventsWindowOffset, appTimezone)
+        : shiftRangeBack(range, period, eventsWindowOffset, appTimezone, !!customRange),
+    [range, period, eventsWindowOffset, appTimezone, customRange, customYear],
   );
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
   const incomeTaxonomy = useTaxonomy(INCOME_TAXONOMY);
@@ -340,8 +370,11 @@ export default function SpendingInsightsPage({
   // One server call returns budgets + actuals + uncategorized + prior, all
   // computed against the same window — the math is reconciled by construction.
   const customPriorRange = useMemo(
-    () => (customRange ? comparisonRange(range, "prior", appTimezone) : null),
-    [customRange, range, appTimezone],
+    () =>
+      customRange || customYear !== null
+        ? comparisonRange(range, "prior", appTimezone, customYear)
+        : null,
+    [customRange, customYear, range, appTimezone],
   );
   const insightRequest = useMemo(
     () => ({
@@ -433,7 +466,7 @@ export default function SpendingInsightsPage({
 
   // Custom selections also scope the weekday × hour heatmap.
   const heatmapRequest = useMemo(() => {
-    if (customRange)
+    if (customRange || customYear !== null)
       return { startDate: range.start.toISOString(), endDate: range.end.toISOString() };
     const end = getZonedDateParts(new Date(), appTimezone);
     const start = addCalendarDays(end, -HEATMAP_WEEKS * 7);
@@ -441,7 +474,7 @@ export default function SpendingInsightsPage({
       startDate: zonedCalendarDateBoundaryToDate(start, "start", appTimezone).toISOString(),
       endDate: zonedCalendarDateBoundaryToDate(end, "end", appTimezone).toISOString(),
     };
-  }, [appTimezone, customRange, range]);
+  }, [appTimezone, customRange, customYear, range]);
   const { data: heatmapActivities = [] } = useCashActivities(heatmapRequest);
   const {
     data: heatmapInsight,
@@ -539,10 +572,13 @@ export default function SpendingInsightsPage({
   const periodToggle = useMemo(
     () => (
       <SpendingPeriodSelector
-        value={customMonth || customRange ? null : period}
+        value={customMonth || customRange || customYear !== null ? null : period}
         onValueChange={selectPeriod}
         customMonth={customMonth}
         customRange={customRange}
+        customYear={customYear}
+        maxYear={Number(todayISO.slice(0, 4)) - 1}
+        onCustomYearChange={selectCustomYear}
         onCustomRangeChange={selectCustomRange}
         maxMonth={maxPickerMonth}
         onCustomMonthChange={selectCustomMonth}
@@ -552,6 +588,9 @@ export default function SpendingInsightsPage({
     [
       customMonth,
       customRange,
+      customYear,
+      selectCustomYear,
+      todayISO,
       period,
       selectPeriod,
       selectCustomRange,
@@ -578,7 +617,7 @@ export default function SpendingInsightsPage({
         {(isMobile || !onToolbarActionsChange) && (
           <div className="flex justify-end">{periodToggle}</div>
         )}
-        {(customRange || customMonth) && (
+        {(customRange || customMonth || customYear !== null) && (
           <p className="text-muted-foreground text-sm" data-testid="spending-selected-range">
             {customRange ? (
               <>
@@ -600,6 +639,8 @@ export default function SpendingInsightsPage({
                   { month: "short", day: "numeric", year: "numeric" },
                 )}
               </>
+            ) : customYear !== null ? (
+              yearLabel(customYear, dateFormatting)
             ) : customMonth ? (
               monthLabel(customMonth, dateFormatting)
             ) : null}
@@ -681,9 +722,11 @@ export default function SpendingInsightsPage({
                     to: formatDateISO(customRange.to),
                     days: range.days,
                   }
-                : undefined
+                : customYear !== null
+                  ? { from: `${customYear}-01-01`, to: `${customYear}-12-31`, days: range.days }
+                  : undefined
             }
-            customRange={!!customRange}
+            customRange={!!customRange || customYear !== null}
             heatmapActivities={heatmapActivities}
             accountTypeById={accountTypeById}
             dailySpendByDate={heatmapDailySpendByDate}

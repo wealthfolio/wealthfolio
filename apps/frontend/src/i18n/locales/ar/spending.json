@@ -748,6 +748,12 @@
     "title": "الميزانية الإجمالية"
   },
   "period": {
+    "month": "شهر",
+    "year": "سنة",
+    "previousPeriod": "الفترة السابقة",
+    "nextPeriod": "الفترة التالية",
+    "previousYears": "سنوات سابقة",
+    "nextYears": "سنوات لاحقة",
     "chooseCustomDates": "اختر تواريخ مخصصة",
     "chooseMonth": "اختر شهرًا",
     "clearMonth": "مسح اختيار الشهر",

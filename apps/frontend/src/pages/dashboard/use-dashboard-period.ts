@@ -4,10 +4,12 @@ import {
   portfolioPeriodRange,
   portfolioViewForPick,
   rangePick,
+  stepCalendarPick,
   type DashboardPeriodPick,
 } from "@/features/spending/lib/dashboard-period-sync";
 import { addMonthsToMonthKey, monthLabel } from "@/features/spending/lib/month-period";
 import { localDateParts } from "@/features/spending/lib/timezone";
+import { parseCalendarYear, yearLabel } from "@/features/spending/lib/year-period";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import type { DateRange } from "@/lib/types";
 import { useDateFormatting, type TimePeriod } from "@wealthfolio/ui";
@@ -48,11 +50,14 @@ export function useDashboardPeriod(
     [pick, savedPreset, todayISO],
   );
   const customMonth = pick?.kind === "month" && view.code === null ? pick.monthKey : null;
+  const customYear =
+    pick?.kind === "year" && view.code === null ? parseCalendarYear(pick.year, todayISO) : null;
   const customRange = pick?.kind === "range" && view.code === null ? view.range : undefined;
 
   const label = useMemo(() => {
     if (view.code) return t(`ui:interval.${view.code}`);
     if (customMonth) return monthLabel(customMonth, dateFormatting);
+    if (customYear !== null) return yearLabel(customYear, dateFormatting);
     const format = (date: Date | undefined) =>
       date
         ? dateFormatting.formatCalendarDate(localDateParts(date), {
@@ -62,7 +67,7 @@ export function useDashboardPeriod(
           })
         : "";
     return `${format(view.range?.from)} – ${format(view.range?.to)}`;
-  }, [customMonth, dateFormatting, t, view]);
+  }, [customMonth, customYear, dateFormatting, t, view]);
 
   const selectPreset = (code: TimePeriod) => {
     setPick({ kind: "portfolio", code });
@@ -81,12 +86,30 @@ export function useDashboardPeriod(
     range: view.range,
     label,
     customMonth,
+    customYear,
     customRange,
     // Same bound as the Spending picker: the current month is This month there.
     maxMonth: addMonthsToMonthKey(todayISO.slice(0, 7), -1),
+    maxYear: Number(todayISO.slice(0, 4)) - 1,
+    navigation:
+      customMonth || customYear !== null
+        ? {
+            label,
+            previousDisabled: !stepCalendarPick(pick, -1, todayISO),
+            nextDisabled: !stepCalendarPick(pick, 1, todayISO),
+            onStep: (direction: -1 | 1) => {
+              const next = stepCalendarPick(pick, direction, todayISO);
+              if (next) setPick(next);
+            },
+          }
+        : undefined,
     selectPreset,
     selectMonth: (monthKey: string | null) =>
       monthKey ? pickCustom({ kind: "month", monthKey }) : clearCustom(),
+    selectYear: (year: number | null) => {
+      if (year === null) clearCustom();
+      else if (parseCalendarYear(year, todayISO) !== null) pickCustom({ kind: "year", year });
+    },
     selectRange: (range: DateRange | undefined) => {
       if (!range) clearCustom();
       else if (range.from && range.to) pickCustom(rangePick({ from: range.from, to: range.to }));

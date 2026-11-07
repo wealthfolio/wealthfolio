@@ -48,6 +48,7 @@ import {
   portfolioPresetForSpendingPeriod,
   rangePick,
   spendingViewForPick,
+  stepCalendarPick,
   type DashboardPeriodPick,
   type SpendingPeriodView,
 } from "../lib/dashboard-period-sync";
@@ -90,6 +91,7 @@ import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
 import { SpendingDeltaLine } from "./spending-delta-line";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
+import { parseCalendarYear, SPENDING_YEAR_PARAM, yearLabel, yearRange } from "../lib/year-period";
 
 const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
@@ -97,6 +99,7 @@ type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y"
 
 type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
+  | { kind: "year"; year: number; restoreCode: SpendingDashboardPeriod }
   | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod }
   | { kind: "range"; range: SpendingDateRange; restoreCode: SpendingDashboardPeriod };
 
@@ -217,17 +220,21 @@ function selectionFromParams(
   persistedInterval: string,
   persistedMonth: string | null,
   shared: SpendingPeriodView | null,
+  todayISO: string,
 ): SpendingSelection {
   const intervalParam = params.get("spendingInterval");
   const monthParam = params.get(SPENDING_MONTH_PARAM);
   const restoreCode = normalizeSpendingDashboardPeriod(intervalParam ?? persistedInterval);
   const customRange = spendingRangeFromParams(params);
   if (customRange) return { kind: "range", range: customRange, restoreCode };
+  const year = parseCalendarYear(params.get(SPENDING_YEAR_PARAM), todayISO);
+  if (year !== null) return { kind: "year", year, restoreCode };
   // Without URL params (a link's are applied once and then removed), follow the
   // period last picked on any dashboard tab or the insights page.
   if (intervalParam === null && monthParam === null && shared) {
     if (shared.kind === "period") return { kind: "period", code: shared.code };
     if (shared.kind === "month") return { kind: "month", monthKey: shared.monthKey, restoreCode };
+    if (shared.kind === "year") return { kind: "year", year: shared.year, restoreCode };
     return { kind: "range", range: shared.range, restoreCode };
   }
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
@@ -249,6 +256,7 @@ function budgetMonthStateForSelection(
 }
 
 function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: string): string {
+  if (selection.kind === "year") return `year:${selection.year}`;
   if (selection.kind === "month") return `month:${selection.monthKey}`;
   if (selection.kind === "range") {
     return `range:${formatDateISO(selection.range.from)}:${formatDateISO(selection.range.to)}`;
@@ -262,6 +270,9 @@ function selectionData(
   formatting: Pick<FormattingApi, "formatCalendarDate">,
   timezone?: string | null,
 ) {
+  if (selection.kind === "year") {
+    return { range: yearRange(selection.year), description: yearLabel(selection.year, formatting) };
+  }
   if (selection.kind === "month") {
     return {
       range: monthRange(selection.monthKey),
@@ -308,6 +319,7 @@ function priorRange(
   selection?: SpendingSelection,
 ): DateRange | undefined {
   if (!range?.from || !range?.to) return undefined;
+  if (selection?.kind === "year") return yearRange(selection.year - 1);
   if (selection && usesCalendarMonthComparison(selection)) {
     return previousFullMonthRange(range);
   }
@@ -390,8 +402,9 @@ export default function SpendingTabContent() {
     [sharedPick, todayISO],
   );
   const selection = useMemo(
-    () => selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView),
-    [searchParams, persistedInterval, persistedMonth, sharedView],
+    () =>
+      selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView, todayISO),
+    [searchParams, persistedInterval, persistedMonth, sharedView, todayISO],
   );
   const shareSpendingPeriod = (code: SpendingDashboardPeriod) => {
     setSharedPick({ kind: "spending", code });
@@ -400,6 +413,7 @@ export default function SpendingTabContent() {
   const selectedPeriod = selection.kind === "period" ? selection.code : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
   const customRange = selection.kind === "range" ? selection.range : undefined;
+  const customYear = selection.kind === "year" ? selection.year : null;
   const restoreCode = selection.kind === "period" ? selection.code : selection.restoreCode;
   const { range: dateRange, description: selectedIntervalDescription } = useMemo(
     () => selectionData(selection, dateFormatting, appTimezone),
@@ -628,11 +642,42 @@ export default function SpendingTabContent() {
     setBudgetMonthTouched(false);
   };
 
+  const handleCustomYearSelect = (year: number | null) => {
+    if (year !== null && parseCalendarYear(year, todayISO) === null) return;
+    setPersistedMonth(null);
+    if (year !== null) {
+      setPersistedInterval(restoreCode);
+      setPersistedInsightPeriod(restoreCode);
+      setSharedPick({ kind: "year", year });
+    } else shareSpendingPeriod(restoreCode);
+    setBudgetMonthKey(currentBudgetMonthKey);
+    setBudgetMonthTouched(false);
+  };
+  const calendarPick: DashboardPeriodPick | null =
+    customYear !== null
+      ? { kind: "year", year: customYear }
+      : customMonth
+        ? { kind: "month", monthKey: customMonth }
+        : null;
+  const calendarNavigation = calendarPick
+    ? {
+        label: selectedIntervalDescription,
+        previousDisabled: !stepCalendarPick(calendarPick, -1, todayISO),
+        nextDisabled: !stepCalendarPick(calendarPick, 1, todayISO),
+        onStep: (direction: -1 | 1) => {
+          const next = stepCalendarPick(calendarPick, direction, todayISO);
+          if (next?.kind === "year") handleCustomYearSelect(next.year);
+          if (next?.kind === "month") handleCustomMonthSelect(next.monthKey);
+        },
+      }
+    : undefined;
+
   // Apply a period named in the URL once, then drop it from the URL.
   useEffect(() => {
     const linked = [
       "spendingInterval",
       SPENDING_MONTH_PARAM,
+      SPENDING_YEAR_PARAM,
       SPENDING_RANGE_FROM_PARAM,
       SPENDING_RANGE_TO_PARAM,
     ].filter((param) => searchParams.has(param));
@@ -642,6 +687,7 @@ export default function SpendingTabContent() {
       setPersistedInterval(selection.restoreCode);
       setPersistedInsightPeriod(selection.restoreCode);
       if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
+      else if (selection.kind === "year") handleCustomYearSelect(selection.year);
       else handleCustomRangeSelect(selection.range);
     }
     setSearchParams(
@@ -657,6 +703,7 @@ export default function SpendingTabContent() {
   }, [searchParams]);
 
   const granularity: "day" | "week" | "month" = useMemo(() => {
+    if (selection.kind === "year") return "month";
     if (selection.kind === "month") return "day";
     if (selection.kind === "range") {
       const days = calendarDaysBetweenInclusive(
@@ -1106,6 +1153,10 @@ export default function SpendingTabContent() {
               onValueChange={handleIntervalSelect}
               customMonth={customMonth}
               customRange={customRange}
+              customYear={customYear}
+              maxYear={Number(todayISO.slice(0, 4)) - 1}
+              onCustomYearChange={handleCustomYearSelect}
+              navigation={calendarNavigation}
               maxMonth={maxPickerMonth}
               onCustomMonthChange={handleCustomMonthSelect}
               onCustomRangeChange={handleCustomRangeSelect}

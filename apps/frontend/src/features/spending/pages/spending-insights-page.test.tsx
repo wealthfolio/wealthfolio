@@ -346,6 +346,75 @@ it.each(["changed", "when"])(
 );
 
 describe("period shared with the dashboard", () => {
+  it.each(["2026", "1969", "2025.5", "invalid"])(
+    "rejects invalid year %s in a link and uses its valid preset",
+    (year) => {
+      render(
+        <MemoryRouter initialEntries={[`/insights?tab=spending&spendingYear=${year}&period=3M`]}>
+          <SpendingInsightsPage />
+          <Location />
+        </MemoryRouter>,
+      );
+      expect(sharedPick()).toEqual({ kind: "spending", code: "3M" });
+      expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+      expect(screen.queryByTestId("spending-selected-range")).not.toBeInTheDocument();
+    },
+  );
+
+  it("prioritizes a custom range over a conflicting year link", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/insights?tab=spending&spendingYear=2025&spendingFrom=2024-02-01&spendingTo=2024-02-29",
+        ]}
+      >
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    expect(sharedPick()).toEqual({ kind: "range", from: "2024-02-01", to: "2024-02-29" });
+  });
+
+  it("consumes a year link once, preserving year identity and calendar comparisons", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "spending", code: "MTD" }));
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/insights?tab=spending&spendingYear=2025&spendingMonth=2024-06&period=YTD",
+        ]}
+      >
+        <SpendingInsightsPage />
+        <Location />
+      </MemoryRouter>,
+    );
+    expect(sharedPick()).toEqual({ kind: "year", year: 2025 });
+    expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    expect(insightQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2025-01-01T05:00:00.000Z",
+        endDate: "2026-01-01T04:59:59.999Z",
+        compareStartDate: "2024-01-01T05:00:00.000Z",
+        compareEndDate: "2025-01-01T04:59:59.999Z",
+      }),
+      undefined,
+    );
+    expect(screen.queryByRole("button", { name: "Previous period" })).not.toBeInTheDocument();
+  });
+
+  it("follows a dashboard year instead of an old month preference", () => {
+    localStorage.setItem("spending-month", JSON.stringify("2024-06"));
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
+    render(
+      <MemoryRouter initialEntries={["/insights?tab=spending"]}>
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    expect(insightQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ compareStartDate: "2024-01-01T05:00:00.000Z" }),
+      undefined,
+    );
+  });
   function renderAt(search: string) {
     render(
       <MemoryRouter initialEntries={[`/spending/insights${search}`]}>

@@ -6,6 +6,7 @@
  */
 
 import type { DateRange } from "@/lib/types";
+import { yearReportsRange } from "./year-period";
 
 import {
   addCalendarDays,
@@ -105,8 +106,10 @@ export function comparisonRange(
   range: ReportsRange,
   mode: ComparisonMode,
   timezone?: string | null,
+  calendarYear?: number | null,
 ): ReportsRange | null {
   if (mode === "none") return null;
+  if (calendarYear != null) return yearReportsRange(calendarYear - 1, timezone);
   const startParts = getZonedDateParts(range.start, timezone);
   const endParts = getZonedDateParts(range.end, timezone);
   if (mode === "yoy") {

@@ -18,6 +18,7 @@ import {
 } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
 import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
+import { yearRange } from "@/features/spending/lib/year-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo, useState } from "react";
@@ -88,11 +89,14 @@ export function NetWorthContent() {
     if (!dateRange?.from || periodCode === "ALL") return null;
     const end = dateRange.to ?? currentDate;
     const rangeMs = end.getTime() - dateRange.from.getTime();
-    const priorStart = new Date(dateRange.from.getTime() - rangeMs);
+    const priorStart =
+      period.customYear !== null
+        ? yearRange(period.customYear - 1).from
+        : new Date(dateRange.from.getTime() - rangeMs);
     const yearStart = new Date(end.getTime() - 366 * MS_PER_DAY);
     const start = priorStart < yearStart ? priorStart : yearStart;
     return { startDate: formatDateISO(start), endDate: formatDateISO(end) };
-  }, [currentDate, dateRange, periodCode]);
+  }, [currentDate, dateRange, periodCode, period.customYear]);
 
   const { data: historyData, isLoading: isHistoryLoading } = useNetWorthHistory({
     startDate: historyDates?.startDate ?? "",
@@ -155,8 +159,13 @@ export function NetWorthContent() {
   }, [longHistory, periodCode, currentDate, velocity]);
   const momentum = useMemo(() => {
     if (!historyDates || periodCode === "ALL") return null;
-    return computeMomentum(longHistory, historyDates.startDate, historyDates.endDate);
-  }, [longHistory, historyDates, periodCode]);
+    return computeMomentum(
+      longHistory,
+      historyDates.startDate,
+      historyDates.endDate,
+      period.customYear,
+    );
+  }, [longHistory, historyDates, periodCode, period.customYear]);
 
   // Net worth change over the selected range, on the same baseline rules as the
   // breakdown rows so the header and the table agree.
@@ -218,6 +227,11 @@ export function NetWorthContent() {
         <div className="flex items-start gap-2">
           <div>
             <div className="flex flex-wrap items-center gap-2">
+              {(period.customMonth || period.customYear !== null) && (
+                <span className="text-muted-foreground w-full text-xs">
+                  {t("common:currentValue")}
+                </span>
+              )}
               <Balance
                 isLoading={isLoading}
                 targetValue={parsedData?.netWorth ?? 0}
@@ -269,7 +283,11 @@ export function NetWorthContent() {
                 </>
               )}
               <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                {localizedPeriodLabel}
+                {period.customMonth || period.customYear !== null
+                  ? t("insights:networth.breakdown_table.change_over", {
+                      period: localizedPeriodLabel,
+                    })
+                  : localizedPeriodLabel}
               </span>
             </div>
           </div>
@@ -311,6 +329,10 @@ export function NetWorthContent() {
                 <SpendingDatePicker
                   customMonth={period.customMonth}
                   customRange={period.customRange}
+                  customYear={period.customYear}
+                  maxYear={period.maxYear}
+                  onCustomYearChange={period.selectYear}
+                  navigation={period.navigation}
                   maxMonth={period.maxMonth}
                   onCustomMonthChange={period.selectMonth}
                   onCustomRangeChange={period.selectRange}
