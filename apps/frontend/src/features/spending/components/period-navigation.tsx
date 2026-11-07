@@ -22,6 +22,9 @@ export function PeriodNavigation({ navigation }: PeriodNavigationProps) {
       aria-label={navigation.label}
       data-no-swipe-drag
     >
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {navigation.label}
+      </span>
       <Button
         type="button"
         variant="ghost"
