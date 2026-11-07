@@ -47,7 +47,7 @@ export function portfolioPeriodRange(code: TimePeriod, todayISO: string): DateRa
 
 /** The Investments/Net Worth preset a Spending preset moves them to. */
 export function portfolioPresetForSpendingPeriod(code: ReportsPeriod): TimePeriod {
-  return code === "MTD" || code === "LAST_MONTH" ? "1M" : code;
+  return code === "MTD" || code === "LAST_MONTH" ? "1M" : code === "LAST_YEAR" ? "1Y" : code;
 }
 
 /** What Investments and Net Worth show for a pick, or null when the pick is unreadable. */

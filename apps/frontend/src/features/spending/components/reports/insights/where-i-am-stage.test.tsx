@@ -3,11 +3,11 @@ import { DirectionProvider, FormattingProvider, type TextDirection } from "@weal
 import { cloneElement, isValidElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { WhereIAmStage } from "./where-i-am-stage";
+import { spendingRangeToReportsRange } from "../../../lib/date-range-params";
+import { comparisonRange } from "../../../lib/reports-period";
 import type { BudgetSnapshot } from "../../../types/budget";
 import type { MonthlyReport } from "../../../types/report";
-import { comparisonRange } from "../../../lib/reports-period";
-import { spendingRangeToReportsRange } from "../../../lib/date-range-params";
+import { WhereIAmStage } from "./where-i-am-stage";
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
@@ -59,7 +59,7 @@ function setup(custom: boolean, direction: TextDirection = "ltr") {
         <FormattingProvider locale="en-US" timezone={timezone}>
           <WhereIAmStage
             range={range}
-            priorRange={custom ? comparisonRange(range, "prior", timezone)! : undefined}
+            priorRange={custom ? comparisonRange(range, "prior", timezone, "MTD")! : undefined}
             currentReport={report(300)}
             priorReport={report(150)}
             months={[]}

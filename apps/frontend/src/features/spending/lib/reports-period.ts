@@ -18,9 +18,17 @@ import {
   type ZonedCalendarDate,
 } from "./timezone";
 
-export type ReportsPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
+export type ReportsPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y" | "LAST_YEAR";
 
-export const REPORTS_PERIODS: ReportsPeriod[] = ["MTD", "LAST_MONTH", "3M", "6M", "YTD", "1Y"];
+export const REPORTS_PERIODS: ReportsPeriod[] = [
+  "MTD",
+  "LAST_MONTH",
+  "3M",
+  "6M",
+  "YTD",
+  "1Y",
+  "LAST_YEAR",
+];
 
 export const DEFAULT_REPORTS_PERIOD: ReportsPeriod = "MTD";
 
@@ -44,6 +52,8 @@ export function periodToReportsRange(
 ): ReportsRange {
   const now = new Date();
   const today = getZonedDateParts(now, timezone);
+  const isLeapYear = today.year % 4 == 0;
+  const daysToSubtract = isLeapYear ? 366 : 365;
 
   // For MTD/This month we span the full calendar month so "X days left in May"
   // reads correctly and forecasts can project past today. Last month also uses
@@ -86,8 +96,16 @@ export function periodToReportsRange(
         return { start: { year: today.year, month: 1, day: 1 }, end: today };
       case "1Y":
         return {
-          start: addCalendarMonths({ year: today.year, month: today.month, day: 1 }, -11),
+          start: addCalendarDays(
+            { year: today.year, month: today.month, day: today.day },
+            -daysToSubtract + 2,
+          ),
           end: today,
+        };
+      case "LAST_YEAR":
+        return {
+          start: { year: today.year - 1, month: 1, day: 1 },
+          end: { year: today.year - 1, month: 12, day: 31 },
         };
     }
   })();
@@ -105,6 +123,7 @@ export function comparisonRange(
   range: ReportsRange,
   mode: ComparisonMode,
   timezone?: string | null,
+  period?: ReportsPeriod,
 ): ReportsRange | null {
   if (mode === "none") return null;
   const startParts = getZonedDateParts(range.start, timezone);
@@ -119,12 +138,22 @@ export function comparisonRange(
       months: range.months,
     };
   }
-  // mode === "prior" — equally sized window ending the day before `range.start`
-  const priorEnd = addCalendarDays(startParts, -1);
-  const priorStart = addCalendarDays(priorEnd, -(range.days - 1));
+  // mode === "prior" — semantically correct prior period based on the period type
+  let priorRange: { start: ZonedCalendarDate; end: ZonedCalendarDate };
+
+  if (period) {
+    // Use period-aware logic to find the semantically correct prior period
+    priorRange = getPriorPeriodRange(startParts, period);
+  } else {
+    // Fallback to day-based subtraction if period is not provided
+    const priorEnd = addCalendarDays(startParts, -1);
+    const priorStart = addCalendarDays(priorEnd, -(range.days - 1));
+    priorRange = { start: priorStart, end: priorEnd };
+  }
+
   return {
-    start: zonedCalendarDateBoundaryToDate(priorStart, "start", timezone),
-    end: zonedCalendarDateBoundaryToDate(priorEnd, "end", timezone),
+    start: zonedCalendarDateBoundaryToDate(priorRange.start, "start", timezone),
+    end: zonedCalendarDateBoundaryToDate(priorRange.end, "end", timezone),
     days: range.days,
     months: range.months,
   };
@@ -148,6 +177,8 @@ export function periodLabel(period: ReportsPeriod): string {
     case "YTD":
       return "Year to date";
     case "1Y":
+      return "Past 12 months";
+    case "LAST_YEAR":
       return "Past year";
   }
 }
@@ -170,4 +201,76 @@ function subtractCalendarYear(date: ZonedCalendarDate): ZonedCalendarDate {
     month: date.month,
     day: Math.min(date.day, daysInCalendarMonth(year, date.month)),
   };
+}
+
+/**
+ * Get the semantically correct prior period range based on the period type.
+ * This ensures that comparable periods maintain their semantic meaning:
+ * - MTD (Mar 1–31) → LAST_MONTH (Feb 1–29)
+ * - YTD (Jan 1–Dec 31, 2024) → Prior full year (Jan 1–Dec 31, 2023)
+ * - 1Y (Jan 1–Dec 31, 2024) → Prior full year (Jan 1–Dec 31, 2023)
+ */
+function getPriorPeriodRange(
+  currentStart: ZonedCalendarDate,
+  period: ReportsPeriod,
+): { start: ZonedCalendarDate; end: ZonedCalendarDate } {
+  let start, end;
+
+  switch (period) {
+    case "MTD":
+    case "LAST_MONTH":
+      // Prior period is LAST_MONTH (full previous month)
+      const lastMonth = addCalendarMonths(
+        { year: currentStart.year, month: currentStart.month, day: 1 },
+        -1,
+      );
+      start = { year: lastMonth.year, month: lastMonth.month, day: 1 };
+      end = {
+        year: lastMonth.year,
+        month: lastMonth.month,
+        day: daysInCalendarMonth(lastMonth.year, lastMonth.month),
+      };
+      break;
+
+    case "3M":
+      // Prior 3-month window: the 3 months immediately before the current start
+      const threeMonthsBeforeStart = addCalendarMonths(
+        { year: currentStart.year, month: currentStart.month, day: 1 },
+        -3,
+      );
+      // End is the day before current start
+      start = threeMonthsBeforeStart;
+      end = addCalendarDays(currentStart, -1);
+      break;
+
+    case "6M":
+      // Prior 6-month window: the 6 months immediately before the current start
+      const sixMonthsBeforeStart = addCalendarMonths(
+        { year: currentStart.year, month: currentStart.month, day: currentStart.day },
+        -6,
+      );
+      // End is the day before current start
+      start = sixMonthsBeforeStart;
+      end = addCalendarDays(currentStart, -1);
+      break;
+
+    case "YTD":
+    case "LAST_YEAR":
+      // Prior period is the full prior year
+      start = { year: currentStart.year - 1, month: 1, day: 1 };
+      end = { year: currentStart.year - 1, month: 12, day: 31 };
+      break;
+
+    case "1Y":
+      // The 1 year immediately before the current start
+      const twelveMonthsBeforeStart = addCalendarMonths(
+        { year: currentStart.year, month: currentStart.month, day: currentStart.day },
+        -12,
+      );
+      start = twelveMonthsBeforeStart;
+      end = addCalendarDays(currentStart, -1);
+      break;
+  }
+
+  return { start, end };
 }
