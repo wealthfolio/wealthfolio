@@ -3,10 +3,10 @@ pub(crate) mod tests {
     use crate::accounts::{Account, AccountServiceTrait, AccountUpdate, NewAccount};
     use crate::activities::activities_model::*;
     use crate::activities::{
-        ActivityRepositoryTrait, ActivityService, ActivityServiceTrait, ImportRun,
-        ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT,
-        ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-        ACTIVITY_TYPE_WITHDRAWAL,
+        ActivityCharge, ActivityChargeCategory, ActivityRepositoryTrait, ActivityService,
+        ActivityServiceTrait, ImportRun, ImportRunRepositoryTrait, ImportRunStatus,
+        TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_DEPOSIT,
+        ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
     };
     use crate::assets::{
         normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
@@ -4521,6 +4521,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -5322,6 +5323,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         }
     }
 
@@ -9366,6 +9368,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9443,6 +9446,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9519,6 +9523,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9586,6 +9591,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9660,6 +9666,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9734,6 +9741,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -9818,6 +9826,7 @@ pub(crate) mod tests {
                 force_import: false,
                 is_external: None,
                 source_group_id: None,
+                charges: None,
             }])
             .await
             .expect("import check should succeed");
@@ -9919,6 +9928,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10016,6 +10026,7 @@ pub(crate) mod tests {
                 force_import: false,
                 is_external: None,
                 source_group_id: None,
+                charges: None,
             },
             ActivityImport {
                 id: None,
@@ -10052,6 +10063,7 @@ pub(crate) mod tests {
                 force_import: false,
                 is_external: None,
                 source_group_id: None,
+                charges: None,
             },
         ];
 
@@ -10136,6 +10148,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
         let mut tsx = nyse.clone();
         tsx.exchange_mic = Some("XTSE".to_string());
@@ -10207,6 +10220,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
         let mut second = first.clone();
         second.provider_symbol = Some("XAU-OZ".to_string());
@@ -10456,6 +10470,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10531,6 +10546,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10599,6 +10615,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10674,6 +10691,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10746,6 +10764,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10815,6 +10834,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10890,6 +10910,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -10973,6 +10994,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11046,6 +11068,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11115,6 +11138,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11235,6 +11259,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11306,6 +11331,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11377,6 +11403,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11448,6 +11475,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11516,6 +11544,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11585,6 +11614,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11656,6 +11686,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11736,6 +11767,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11811,6 +11843,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11895,6 +11928,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -11971,6 +12005,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12043,6 +12078,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12123,6 +12159,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let transfer_in = ActivityImport {
@@ -12160,6 +12197,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12268,6 +12306,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let transfer_in = ActivityImport {
@@ -12305,6 +12344,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12392,6 +12432,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(false),
             source_group_id: None,
+            charges: None,
         };
 
         let transfer_out = ActivityImport {
@@ -12429,6 +12470,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(false),
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12552,6 +12594,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(false),
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -12686,6 +12729,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let transfer_in_duplicate = ActivityImport {
@@ -12723,6 +12767,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: Some(true),
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -14772,6 +14817,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
         (activity_service, activity_repository, import)
     }
@@ -15024,6 +15070,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15100,6 +15147,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15240,6 +15288,7 @@ pub(crate) mod tests {
             force_import: true,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15333,6 +15382,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         // First row: normal import. Second row: identical but force_import=true.
@@ -15433,6 +15483,7 @@ pub(crate) mod tests {
             force_import: true, // flag set but no duplicate exists
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15813,6 +15864,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15883,6 +15935,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -15953,6 +16006,7 @@ pub(crate) mod tests {
                 force_import: false,
                 is_external: None,
                 source_group_id: None,
+                charges: None,
             };
 
             let result = activity_service
@@ -16035,6 +16089,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -16118,6 +16173,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -16189,6 +16245,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -16269,6 +16326,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         };
 
         let result = activity_service
@@ -16941,6 +16999,7 @@ pub(crate) mod tests {
             force_import: false,
             is_external: None,
             source_group_id: None,
+            charges: None,
         }
     }
 
@@ -19693,5 +19752,700 @@ pub(crate) mod tests {
             .unwrap();
         assert!(!bulk.errors.is_empty());
         assert_eq!(repository.get_activity("adj").unwrap().subtype, None);
+    }
+
+    // --- Fee and tax lines (metadata.charges) ---
+
+    fn charges_import_row(
+        currency: &str,
+        fee: Decimal,
+        tax: Decimal,
+        charges: serde_json::Value,
+    ) -> NewActivity {
+        NewActivity {
+            id: Some("charges-import".to_string()),
+            account_id: "acc-1".to_string(),
+            asset: Some(AssetResolutionInput {
+                id: Some("SEC:AZN:XLON".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(14082)),
+            currency: currency.to_string(),
+            fee: Some(fee),
+            tax: Some(tax),
+            amount: None,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: Some(json!({ "charges": charges }).to_string()),
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        }
+    }
+
+    async fn prepare_charges_import(row: NewActivity) -> PrepareActivitiesResult {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let account = create_test_account("acc-1", "GBP");
+        account_service.add_account(account.clone());
+        asset_service.add_asset(create_test_asset("SEC:AZN:XLON", "GBp"));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        activity_service
+            .prepare_activities_for_import(vec![row], &account)
+            .await
+            .expect("import preparation should run")
+    }
+
+    fn stored_charges(metadata: Option<&str>) -> serde_json::Value {
+        let metadata: serde_json::Value =
+            serde_json::from_str(metadata.expect("metadata should be stored"))
+                .expect("metadata should be JSON");
+        metadata["charges"].clone()
+    }
+
+    #[tokio::test]
+    async fn test_import_converts_pence_charge_lines_with_the_totals() {
+        let result = prepare_charges_import(charges_import_row(
+            "GBp",
+            dec!(999),
+            dec!(150),
+            json!([
+                { "category": "fee", "label": " Commission ", "amount": 800 },
+                { "category": "fee", "label": "Exchange fee", "amount": "199" },
+                { "category": "tax", "label": "Stamp duty", "amount": 150 },
+            ]),
+        ))
+        .await;
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let prepared = &result.prepared[0].activity;
+        assert_eq!(prepared.fee, Some(dec!(9.99)));
+        assert_eq!(prepared.tax, Some(dec!(1.50)));
+        let charges = stored_charges(prepared.metadata.as_deref());
+        assert_eq!(
+            charges,
+            json!([
+                { "category": "fee", "label": "Commission", "amount": "8.00" },
+                { "category": "fee", "label": "Exchange fee", "amount": "1.99" },
+                { "category": "tax", "label": "Stamp duty", "amount": "1.50" },
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_charge_lines_preserve_totals_and_other_metadata() {
+        let valid = json!([
+            {"category": "fee", "label": "Commission", "amount": "500"},
+            {"category": "tax", "label": "Tax", "amount": "200"},
+        ]);
+        let invalid = json!([{"category": "fee", "label": "Wrong", "amount": "600"}]);
+        for charges in [Some(valid.clone()), Some(invalid), None] {
+            let (service, _) = service_with_stored_charges("GBp");
+            let mut row = charges_import_row("GBp", dec!(-500), dec!(-200), json!([]));
+            row.account_id = "acc-usd".into();
+            row.asset = Some(AssetResolutionInput {
+                id: Some("asset-1".into()),
+                ..Default::default()
+            });
+            let mut metadata = json!({"other": "preserved"});
+            if let Some(lines) = &charges {
+                metadata["charges"] = lines.clone();
+            }
+            row.metadata = Some(metadata.to_string());
+            let result = service
+                .prepare_activities_for_sync(vec![row], &create_test_account("acc-usd", "USD"))
+                .await
+                .unwrap();
+            assert!(result.errors.is_empty(), "{:?}", result.errors);
+            assert_eq!(result.prepared.len(), 1);
+            let prepared = &result.prepared[0].activity;
+            assert_eq!(prepared.currency, "GBP");
+            assert_eq!(prepared.fee, Some(dec!(5)));
+            assert_eq!(prepared.tax, Some(dec!(2)));
+            let metadata: serde_json::Value =
+                serde_json::from_str(prepared.metadata.as_deref().unwrap()).unwrap();
+            assert_eq!(metadata["other"], "preserved");
+            if charges.as_ref() == Some(&valid) {
+                assert_eq!(metadata["charges"][0]["amount"], "5.00");
+                assert_eq!(metadata["charges"][1]["amount"], "2.00");
+            } else {
+                assert!(metadata.get("charges").is_none());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_import_rejects_charge_lines_that_miss_a_total() {
+        // The lines cover the fee but say nothing about the tax.
+        let result = prepare_charges_import(charges_import_row(
+            "GBP",
+            dec!(5),
+            dec!(2),
+            json!([{ "category": "fee", "label": "Commission", "amount": 5 }]),
+        ))
+        .await;
+
+        assert!(result.prepared.is_empty());
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0]
+                .1
+                .contains("Tax lines must add up to the tax total"),
+            "{:?}",
+            result.errors
+        );
+    }
+
+    #[tokio::test]
+    async fn test_import_rejects_unlabelled_charge_lines() {
+        let result = prepare_charges_import(charges_import_row(
+            "GBP",
+            dec!(5),
+            dec!(0),
+            json!([{ "category": "fee", "label": "  ", "amount": 5 }]),
+        ))
+        .await;
+
+        assert!(result.prepared.is_empty());
+        assert!(
+            result.errors[0].1.contains("needs a label"),
+            "{:?}",
+            result.errors
+        );
+    }
+
+    fn service_with_stored_charges(
+        currency: &str,
+    ) -> (ActivityService, Arc<MockActivityRepository>) {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-usd", "USD"));
+        asset_service.add_asset(create_test_asset("asset-1", currency));
+        let mut existing = create_stored_activity("activity-charges", "acc-usd", Some("asset-1"));
+        existing.currency = crate::fx::currency::normalize_currency_code(currency).to_string();
+        existing.amount = Some(dec!(107));
+        existing.fee = Some(dec!(5));
+        existing.tax = Some(dec!(2));
+        existing.metadata = Some(json!({
+            "contract_multiplier": 1,
+            "charges": [
+                { "category": "fee", "label": "Commission", "amount": "5" },
+                { "category": "tax", "label": "Stamp duty", "amount": "2" },
+            ],
+        }));
+        activity_repository.add_activity(existing);
+        let service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        (service, activity_repository)
+    }
+
+    fn charges_update(
+        fee: Option<Option<Decimal>>,
+        metadata: Option<serde_json::Value>,
+    ) -> ActivityUpdate {
+        ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
+            id: "activity-charges".to_string(),
+            account_id: "acc-usd".to_string(),
+            asset: Some(AssetResolutionInput {
+                id: Some("asset-1".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: None,
+            fx_rate: None,
+            metadata: metadata.map(|metadata| metadata.to_string()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_keeps_charge_lines_when_totals_are_unchanged() {
+        let (service, _) = service_with_stored_charges("USD");
+        let updated = service
+            .update_activity(charges_update(Some(Some(dec!(5))), None))
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert_eq!(metadata["charges"][0]["label"], "Commission");
+    }
+
+    #[tokio::test]
+    async fn test_update_drops_charge_lines_when_a_total_changes_without_them() {
+        let (service, _) = service_with_stored_charges("USD");
+        let updated = service
+            .update_activity(charges_update(Some(Some(dec!(6))), None))
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert!(metadata.get("charges").is_none(), "{metadata}");
+        assert_eq!(metadata["contract_multiplier"], 1, "other keys survive");
+    }
+
+    #[tokio::test]
+    async fn test_update_resending_the_stored_lines_with_a_new_total_drops_them() {
+        // The activity grid sends the whole stored blob back with its edit.
+        let (service, repository) = service_with_stored_charges("USD");
+        let stored = repository
+            .get_activity("activity-charges")
+            .unwrap()
+            .metadata;
+        let updated = service
+            .update_activity(charges_update(Some(Some(dec!(6))), stored))
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert!(metadata.get("charges").is_none(), "{metadata}");
+    }
+
+    #[tokio::test]
+    async fn test_update_stores_new_charge_lines_that_add_up() {
+        let (service, _) = service_with_stored_charges("USD");
+        let updated = service
+            .update_activity(charges_update(
+                Some(Some(dec!(6))),
+                Some(json!({ "charges": [
+                    { "category": "fee", "label": "Commission", "amount": 4 },
+                    { "category": "fee", "label": "Exchange fee", "amount": 2 },
+                    { "category": "tax", "label": "Stamp duty", "amount": 2 },
+                ] })),
+            ))
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert_eq!(metadata["charges"][1]["label"], "Exchange fee");
+        assert_eq!(metadata["charges"][1]["amount"], "2");
+        assert_eq!(metadata["contract_multiplier"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_rejects_new_charge_lines_that_miss_the_stored_tax() {
+        // The update leaves the stored tax of 2 in place.
+        let (service, repository) = service_with_stored_charges("USD");
+        let error = service
+            .update_activity(charges_update(
+                None,
+                Some(json!({ "charges": [
+                    { "category": "fee", "label": "Commission", "amount": 5 },
+                ] })),
+            ))
+            .await
+            .expect_err("lines must add up to the totals");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Tax lines must add up to the tax total"),
+            "{error}"
+        );
+        let stored = repository.get_activity("activity-charges").unwrap();
+        assert_eq!(
+            stored.metadata.unwrap()["charges"][1]["label"],
+            "Stamp duty"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_with_null_charges_removes_them() {
+        let (service, _) = service_with_stored_charges("USD");
+        let updated = service
+            .update_activity(charges_update(None, Some(json!({ "charges": null }))))
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert!(metadata.get("charges").is_none(), "{metadata}");
+    }
+
+    #[tokio::test]
+    async fn test_update_reconciles_lines_after_resolving_minor_currency() {
+        for (minor, major, multiplier) in [
+            ("GBp", "GBP", dec!(100)),
+            ("ZAc", "ZAR", dec!(100)),
+            ("ILA", "ILS", dec!(100)),
+            ("USX", "USD", dec!(100)),
+            ("KWF", "KWD", dec!(1000)),
+        ] {
+            for fee in [dec!(5), dec!(5) * multiplier] {
+                let (service, repository) = service_with_stored_charges(minor);
+                let mut update = charges_update(Some(Some(fee)), None);
+                update.currency.clear();
+                let preview = service.preview_activity_update(update.clone()).unwrap();
+                let expected_fee = fee / multiplier;
+                assert_eq!(preview.activity.update.fee, Some(Some(expected_fee)));
+                let drops_lines = expected_fee != dec!(5);
+                if drops_lines {
+                    assert!(stored_charges(preview.activity.update.metadata.as_deref()).is_null());
+                } else {
+                    assert!(preview.activity.update.metadata.is_none());
+                }
+                assert!(repository
+                    .get_activity("activity-charges")
+                    .unwrap()
+                    .metadata
+                    .unwrap()
+                    .get("charges")
+                    .is_some());
+                let saved = service.update_activity(update).await.unwrap();
+                assert_eq!(saved.currency, major);
+                assert_eq!(saved.fee, Some(expected_fee));
+                assert_eq!(
+                    saved.metadata.unwrap().get("charges").is_none(),
+                    drops_lines
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_converts_new_minor_lines_with_omitted_fee() {
+        for (minor, multiplier) in [
+            ("GBp", dec!(100)),
+            ("ZAc", dec!(100)),
+            ("ILA", dec!(100)),
+            ("USX", dec!(100)),
+            ("KWF", dec!(1000)),
+        ] {
+            for currency in ["", minor] {
+                let (service, _) = service_with_stored_charges(minor);
+                let mut update = charges_update(
+                    None,
+                    Some(json!({ "charges": [
+                    { "category": "fee", "label": "New fee", "amount": (dec!(5) * multiplier).to_string() },
+                    { "category": "tax", "label": "New tax", "amount": (dec!(2) * multiplier).to_string() },
+                ] })),
+                );
+                update.currency = currency.to_string();
+                let preview = service.preview_activity_update(update.clone()).unwrap();
+                let expected = stored_charges(preview.activity.update.metadata.as_deref());
+                assert_eq!(
+                    expected[0]["amount"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<Decimal>()
+                        .unwrap(),
+                    dec!(5)
+                );
+                let saved = service.update_activity(update).await.unwrap();
+                assert_eq!(saved.fee, Some(dec!(5)));
+                assert_eq!(saved.tax, Some(dec!(2)));
+                assert_eq!(saved.metadata.unwrap()["charges"], expected);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_clears_empty_charge_lists_without_currency_or_existing_lines() {
+        for clear in [serde_json::Value::Null, json!([])] {
+            for had_lines in [false, true] {
+                let (service, repository) = service_with_stored_charges("USD");
+                if !had_lines {
+                    repository.activities.lock().unwrap()[0].metadata =
+                        Some(json!({"other": true}));
+                }
+                let mut update = charges_update(None, Some(json!({"charges": clear})));
+                update.currency.clear();
+                let preview = service.preview_activity_update(update.clone()).unwrap();
+                assert!(stored_charges(preview.activity.update.metadata.as_deref()).is_null());
+                let saved = service.update_activity(update).await.unwrap();
+                assert!(saved.metadata.unwrap().get("charges").is_none());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bulk_charge_validation_is_atomic_and_normalizes_create_and_update() {
+        let (service, repository) = service_with_stored_charges("GBp");
+        let mut create = charges_import_row(
+            "GBp",
+            dec!(500),
+            dec!(200),
+            json!([
+                {"category": "fee", "label": "Commission", "amount": "500"},
+                {"category": "tax", "label": "Tax", "amount": "200"},
+            ]),
+        );
+        create.account_id = "acc-usd".into();
+        create.asset = Some(AssetResolutionInput {
+            id: Some("asset-1".into()),
+            ..Default::default()
+        });
+        let invalid = charges_update(
+            None,
+            Some(json!({"charges": [
+                {"category": "fee", "label": "Wrong", "amount": "6"},
+            ]})),
+        );
+        let before = stored_snapshot(&repository);
+        let rejected = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![create.clone()],
+                updates: vec![invalid],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert_eq!(rejected.errors.len(), 1);
+        assert_eq!(stored_snapshot(&repository), before);
+        let mut update = charges_update(Some(Some(dec!(6))), None);
+        update.currency.clear();
+        let saved = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![create],
+                updates: vec![update],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(saved.errors.is_empty(), "{:?}", saved.errors);
+        assert_eq!(saved.created[0].fee, Some(dec!(5)));
+        assert_eq!(
+            saved.created[0].metadata.as_ref().unwrap()["charges"][0]["amount"],
+            "5.00"
+        );
+        assert_eq!(saved.updated[0].fee, Some(dec!(0.06)));
+        assert!(saved.updated[0]
+            .metadata
+            .as_ref()
+            .unwrap()
+            .get("charges")
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn test_transfer_pair_charge_edits_preserve_counterpart_lines_in_preview_and_save() {
+        for bulk in [false, true] {
+            let repository = Arc::new(MockActivityRepository::new());
+            seed_internal_cash_transfer_pair(&repository, "charged-pair");
+            for activity in repository.activities.lock().unwrap().iter_mut() {
+                activity.fee = Some(dec!(5));
+                activity.metadata.as_mut().unwrap()["charges"] = json!([
+                    {"category": "fee", "label": activity.id.clone(), "amount": "5"},
+                ]);
+            }
+            let service = preview_test_service(repository.clone(), Arc::new(MockFxService::new()));
+            let mut update = create_test_activity_update("pair-out", "acc-a", None, "USD");
+            update.activity_type = "TRANSFER_OUT".into();
+            update.quantity = None;
+            update.unit_price = None;
+            update.fee = Some(Some(dec!(6)));
+            update.tax = None;
+            update.amount = Some(Some(dec!(150)));
+            let before = stored_snapshot(&repository);
+            let preview = service.preview_activity_update(update.clone()).unwrap();
+            assert!(stored_charges(preview.activity.update.metadata.as_deref()).is_null());
+            let linked = preview.linked.unwrap();
+            assert!(linked.update.metadata.is_none());
+            assert_eq!(
+                linked.existing.metadata.unwrap()["charges"][0]["label"],
+                "pair-in"
+            );
+            assert_eq!(stored_snapshot(&repository), before);
+            if bulk {
+                let saved = service
+                    .bulk_mutate_activities(ActivityBulkMutationRequest {
+                        creates: vec![],
+                        updates: vec![update],
+                        delete_ids: vec![],
+                    })
+                    .await
+                    .unwrap();
+                assert!(saved.errors.is_empty(), "{:?}", saved.errors);
+                assert_eq!(saved.updated.len(), 2);
+            } else {
+                service.update_activity(update).await.unwrap();
+            }
+            let primary = repository.get_activity("pair-out").unwrap();
+            let counterpart = repository.get_activity("pair-in").unwrap();
+            assert!(primary.metadata.unwrap().get("charges").is_none());
+            assert_eq!(
+                counterpart.metadata.unwrap()["charges"][0]["label"],
+                "pair-in"
+            );
+            assert_eq!(counterpart.fee, Some(dec!(5)));
+            assert_eq!(counterpart.amount, Some(dec!(150)));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_import_check_and_apply_agree_on_minor_charge_precision() {
+        for minor in ["GBp", "ZAc", "ILA", "USX", "KWF"] {
+            for inferred in [false, true] {
+                for fee in [dec!(1), dec!(0.0000000000000000000000000001)] {
+                    let (service, _) = service_with_stored_charges(minor);
+                    let mut row = create_test_card_import("WITHDRAWAL", "", None);
+                    row.account_id = Some("acc-usd".to_string());
+                    row.currency = minor.to_string();
+                    if inferred {
+                        row.activity_type = "BUY".to_string();
+                        row.asset_id = Some("asset-1".to_string());
+                        row.quantity = Some(dec!(1));
+                        row.unit_price = Some(dec!(100));
+                        row.currency.clear();
+                    }
+                    row.fee = Some(fee);
+                    row.charges = Some(vec![ActivityCharge {
+                        category: ActivityChargeCategory::Fee,
+                        label: "Commission".to_string(),
+                        amount: fee,
+                    }]);
+                    let checked = service
+                        .check_activities_import(vec![row])
+                        .await
+                        .unwrap()
+                        .remove(0);
+                    assert_eq!(checked.currency, minor);
+                    let valid = fee == dec!(1);
+                    assert_eq!(
+                        checked.is_valid, valid,
+                        "{minor}, inferred={inferred}: {:?}",
+                        checked.errors
+                    );
+                    if !valid {
+                        assert!(checked.errors.as_ref().unwrap().contains_key("charges"));
+                    }
+                    let applied = service
+                        .prepare_activities_for_import(
+                            vec![checked.into()],
+                            &create_test_account("acc-usd", "USD"),
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        applied.errors.is_empty(),
+                        valid,
+                        "{minor}: {:?}",
+                        applied.errors
+                    );
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_import_check_flags_charge_lines_that_miss_a_total() {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-usd", "USD"));
+        let service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let row = |fee: Decimal| {
+            let mut row = create_test_card_import("WITHDRAWAL", "", None);
+            row.account_id = Some("acc-usd".to_string());
+            row.fee = Some(fee);
+            row.charges = Some(vec![ActivityCharge {
+                category: ActivityChargeCategory::Fee,
+                label: "Wire fee".to_string(),
+                amount: dec!(1.5),
+            }]);
+            row
+        };
+
+        let result = service
+            .check_activities_import(vec![row(dec!(1.5)), row(dec!(2))])
+            .await
+            .expect("import check should succeed");
+
+        assert!(result[0].is_valid, "{:?}", result[0].errors);
+        assert!(!result[1].is_valid);
+        assert!(
+            result[1]
+                .errors
+                .as_ref()
+                .and_then(|errors| errors.get("charges"))
+                .is_some_and(
+                    |messages| messages[0].contains("Fee lines must add up to the fee total")
+                )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_converts_pence_charge_lines_and_rejects_a_mismatch() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        account_service.add_account(create_test_account("acc-1", "GBP"));
+        asset_service.add_asset(create_test_asset("SEC:AZN:XLON", "GBp"));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let row = |id: &str, fee: Decimal| {
+            let mut row = charges_import_row(
+                "GBp",
+                fee,
+                dec!(704),
+                json!([
+                    { "category": "fee", "label": "Commission", "amount": 999 },
+                    { "category": "tax", "label": "Stamp duty", "amount": 704 },
+                ]),
+            );
+            row.id = Some(id.to_string());
+            row
+        };
+
+        let created = activity_service
+            .create_activity(row("charges-create", dec!(999)))
+            .await
+            .expect("lines that add up should be stored");
+        assert_eq!(created.fee, Some(dec!(9.99)));
+        assert_eq!(
+            created.metadata.expect("metadata should be stored")["charges"],
+            json!([
+                { "category": "fee", "label": "Commission", "amount": "9.99" },
+                { "category": "tax", "label": "Stamp duty", "amount": "7.04" },
+            ])
+        );
+
+        let error = activity_service
+            .create_activity(row("charges-mismatch", dec!(1000)))
+            .await
+            .expect_err("lines must add up to the fee");
+        assert!(
+            error
+                .to_string()
+                .contains("Fee lines must add up to the fee total"),
+            "{error}"
+        );
     }
 }

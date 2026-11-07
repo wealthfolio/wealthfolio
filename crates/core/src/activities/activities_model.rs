@@ -1285,6 +1285,15 @@ pub struct ActivityImport {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_group_id: Option<String>,
+    /// Labelled lines that make up `fee` and `tax`, such as commission and
+    /// stamp duty. They must add up to both totals; stored in the
+    /// activity's metadata.
+    #[serde(
+        default,
+        deserialize_with = "super::charges::deserialize_import_charges"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charges: Option<Vec<super::ActivityCharge>>,
 }
 
 /// Model for sorting activities
@@ -2201,13 +2210,15 @@ impl From<ActivityImport> for NewActivity {
             || import.activity_type == ACTIVITY_TYPE_TRANSFER_OUT;
         let metadata = match (import.activity_type.as_str(), import.is_external) {
             (ACTIVITY_TYPE_CREDIT, Some(is_external)) => {
-                Some(serde_json::json!({ "flow": { "is_external": is_external } }).to_string())
+                Some(serde_json::json!({ "flow": { "is_external": is_external } }))
             }
             (_, Some(true)) if is_transfer => {
-                Some(serde_json::json!({ "flow": { "is_external": true } }).to_string())
+                Some(serde_json::json!({ "flow": { "is_external": true } }))
             }
             _ => None,
         };
+        let metadata = super::charges::metadata_with_charges(metadata, import.charges)
+            .map(|metadata| metadata.to_string());
 
         NewActivity {
             id: import.id,

@@ -10,6 +10,13 @@ and this project adheres to
 
 - `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
   dividends. `income` still counts every income type. Absent on older hosts.
+- `ActivityImport.charges` and the `ActivityCharge` type: labelled lines that
+  break an imported row's `fee` and `tax` down as the statement listed them
+  (commission, stamp duty, ...). Each line is `fee` or `tax`, a free-text label
+  and an amount in the row's currency. The lines must add up to both totals or
+  the row is rejected, and `checkImport` flags it. They are stored in the
+  activity's `metadata.charges` and change no calculation. Older hosts ignore
+  the field.
 
 ### Fixed
 

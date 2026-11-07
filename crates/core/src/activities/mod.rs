@@ -7,6 +7,7 @@ mod activities_service;
 mod activities_traits;
 mod activity_cash_migration;
 mod cash_balances;
+mod charges;
 mod compiler;
 mod conversion_pairs;
 mod csv_parser;
@@ -52,6 +53,7 @@ pub use cash_balances::{
     application_order, running_cash_balances, shows_cash_balance, shows_running_cash_balance,
     ActivityCashBalance, CashLedgerActivity,
 };
+pub use charges::{ActivityCharge, ActivityChargeCategory, CHARGES_METADATA_KEY};
 pub use compiler::{ActivityCompiler, DefaultActivityCompiler};
 pub use conversion_pairs::{is_conversion_row, ConversionPair, ConversionPairResolution};
 pub use csv_parser::{parse_csv, ParseConfig, ParseError, ParsedCsvResult};
