@@ -103,18 +103,25 @@ function hideOtherScreensPopups(topId: string | undefined) {
   return `${others}{display:none!important}`;
 }
 
+/** Focuses `element`, letting a script focus it if it is not focusable. */
+function focusTarget(element: HTMLElement) {
+  if (element.tabIndex < 0 && !element.hasAttribute("tabindex")) element.tabIndex = -1;
+  element.focus({ preventScroll: true });
+}
+
 /**
  * Moves focus with the screen on top, for keyboard and screen reader users: to
  * a pushed screen's heading, and back to whatever had focus when a screen was
- * covered once it is shown again.
+ * covered once it is shown again. Returns the screen when it took focus itself
+ * because its page has no heading yet.
  */
 function focusScreen(
   container: HTMLElement | null,
   screenId: string,
   restore: Element | undefined,
-) {
+): HTMLElement | undefined {
   const layer = container?.querySelector<HTMLElement>(`[data-stack-screen="${screenId}"]`);
-  if (!layer) return;
+  if (!layer || layer.hasAttribute("inert")) return;
   if (restore instanceof HTMLElement && restore.isConnected && layer.contains(restore)) {
     restore.focus({ preventScroll: true });
     return;
@@ -130,9 +137,9 @@ function focusScreen(
   ) {
     return;
   }
-  const heading = layer.querySelector<HTMLElement>("h1") ?? layer;
-  if (heading.tabIndex < 0 && !heading.hasAttribute("tabindex")) heading.tabIndex = -1;
-  heading.focus({ preventScroll: true });
+  const heading = layer.querySelector<HTMLElement>("h1");
+  focusTarget(heading ?? layer);
+  return heading ? undefined : layer;
 }
 
 interface StackLayerProps {
@@ -198,6 +205,7 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
   const reduceMotion = useReducedMotion();
   const { appSwipe, browserSwipe } = useBackSwipeOwner();
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeScreenId = topScreen(state)?.id;
   // Focus to restore per screen, and the screen to focus once a transition ends.
   const focusOrigins = useRef(new Map<string, Element>());
   const pendingFocus = useRef<{ screenId: string; restore: boolean } | null>(null);
@@ -289,9 +297,26 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
     const target = pendingFocus.current;
     if (transition || !target) return;
     pendingFocus.current = null;
+    if (target.screenId !== activeScreenId) return;
     const restore = target.restore ? focusOrigins.current.get(target.screenId) : undefined;
-    focusScreen(containerRef.current, target.screenId, restore);
-  }, [transition]);
+    const layer = focusScreen(containerRef.current, target.screenId, restore);
+    if (!layer) return;
+    // The page has no heading yet, such as while it loads: move focus to the
+    // heading when it renders if the container still has focus. Navigation away
+    // or the next transition stops waiting.
+    const observer = new MutationObserver(() => {
+      if (document.activeElement !== layer || layer.hasAttribute("inert")) {
+        observer.disconnect();
+        return;
+      }
+      const heading = layer.querySelector<HTMLElement>("h1");
+      if (!heading) return;
+      observer.disconnect();
+      focusTarget(heading);
+    });
+    observer.observe(layer, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [transition, activeScreenId]);
 
   const onStart = useCallback(
     (containerWidth: number) => {
