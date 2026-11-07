@@ -239,15 +239,8 @@ function AccountScopeCommand({
               if (event.key === "Enter" || event.key === " ") event.stopPropagation();
             }}
           >
-            {showAddPortfolio ? (
-              <Icons.Plus
-                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "me-1 h-4 w-4")}
-              />
-            ) : (
-              <Icons.Settings
-                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "me-1 h-4 w-4")}
-              />
-            )}
+            {/* A tile like the rows' keeps the footer's icon and label in line with theirs. */}
+            <IconTile icon={showAddPortfolio ? Icons.Plus : Icons.Settings} />
             {t(
               showAddPortfolio
                 ? "settings:portfolios.add_button"
