@@ -11,7 +11,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     const api = `${BASE_URL}/api/v1`;
     const create = await page.request.post(`${api}/accounts`, {
       data: {
-        name: `Billing ${direction}`,
+        name: `Billing ${direction} ${Date.now().toString(36)}`,
         accountType: "CREDIT_CARD",
         currency: "USD",
         isDefault: false,
@@ -97,8 +97,9 @@ for (const direction of ["ltr", "rtl"] as const) {
       .filter({ has: page.getByText("Billing statements", { exact: true }) })
       .filter({ visible: true })
       .first();
-    await expect(panel.getByText("$45.40", { exact: true })).toBeVisible();
-    await expect(panel.getByText("$100.40", { exact: true })).toBeVisible();
+    // RTL formatters surround amounts with Unicode direction isolates.
+    await expect(panel.getByText(/\$45\.40/)).toBeVisible();
+    await expect(panel.getByText(/\$100\.40/)).toBeVisible();
     await expect(panel.getByText("Statement balance", { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("billing.png"), fullPage: true });
     const href = `/activities?account=${account.id}&from=${result[1].startDate}&to=${closingDay}`;

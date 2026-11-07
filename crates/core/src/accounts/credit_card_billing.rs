@@ -118,9 +118,10 @@ pub fn credit_card_statements(
 ) -> Result<Vec<CreditCardStatement>> {
     if account.account_type != account_types::CREDIT_CARD
         || account.tracking_mode != TrackingMode::Transactions
+        || account.is_archived
     {
         return Err(invalid(
-            "Billing statements require a transaction-tracked credit card account",
+            "Billing statements require a non-archived, transaction-tracked credit card account",
         ));
     }
     let Some(settings) = CreditCardBillingSettings::from_meta(account.meta.as_deref())? else {

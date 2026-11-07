@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { useFormField } from "@wealthfolio/ui/components/ui/form";
 
 interface CreditCardBillingFieldsProps {
   value?: string | null;
@@ -10,6 +11,7 @@ interface CreditCardBillingFieldsProps {
 
 export function CreditCardBillingFields({ value, onChange }: CreditCardBillingFieldsProps) {
   const { t } = useTranslation();
+  const { error, formMessageId } = useFormField();
   let meta: Record<string, unknown> = {};
   try {
     const parsed = JSON.parse(value ?? "{}");
@@ -54,7 +56,10 @@ export function CreditCardBillingFields({ value, onChange }: CreditCardBillingFi
                   step={1}
                   required
                   value={billing?.[key] ?? ""}
-                  aria-describedby="card-billing-hint"
+                  aria-invalid={!!error}
+                  aria-describedby={
+                    error ? `card-billing-hint ${formMessageId}` : "card-billing-hint"
+                  }
                   onChange={(event) =>
                     onChange(
                       JSON.stringify({

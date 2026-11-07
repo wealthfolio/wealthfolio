@@ -13,7 +13,6 @@ use axum::{
 };
 use serde::Deserialize;
 use wealthfolio_core::accounts::AccountServiceTrait;
-use wealthfolio_core::activities::ActivityServiceTrait;
 
 async fn credit_card_statements(
     Path(id): Path<String>,

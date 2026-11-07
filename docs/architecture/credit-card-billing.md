@@ -21,7 +21,8 @@ visible cycle, so unpaid debt and credit carry forward. Positive means owed;
 negative means credit. Each currency stays separate, without a market-data or FX
 request. Pending, draft, voided, future-dated and other-account rows do not
 contribute. A history containing securities returns an error instead of a
-misleading cash-only balance.
+misleading cash-only balance. Archived and non-transaction-tracked cards also
+reject the read: the standard ledger excludes archived accounts.
 
 A closed statement shows the balance at its close. Subsequent payments appear in
 the next cycle and reduce the current card balance; they do not rewrite the

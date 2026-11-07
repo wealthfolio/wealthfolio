@@ -190,6 +190,9 @@ fn unconfigured_cards_have_no_statements_and_non_cards_are_rejected() {
     account.tracking_mode = TrackingMode::NotSet;
     assert!(credit_card_statements(&account, &[], date("2026-11-07"), chrono_tz::UTC).is_err());
     account.tracking_mode = TrackingMode::Transactions;
+    account.is_archived = true;
+    assert!(credit_card_statements(&account, &[], date("2026-11-07"), chrono_tz::UTC).is_err());
+    account.is_archived = false;
     account.account_type = account_types::CASH.into();
     assert!(credit_card_statements(&account, &[], date("2026-11-07"), chrono_tz::UTC).is_err());
 }
