@@ -278,7 +278,8 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     expect(changed.ok()).toBe(true);
     await page.reload();
     await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
-    await expect(balanceValue).toHaveText("$0.00", { timeout: 30000 });
+    // The headline total uses the region's symbol for the CAD reporting currency.
+    await expect(balanceValue).toHaveText("CA$0.00", { timeout: 30000 });
     await expect(page.getByText("No accounts to display in this portfolio.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Manage portfolios" })).toHaveAttribute(
       "href",

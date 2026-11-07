@@ -125,6 +125,13 @@ test("Spending dashboard opens its transaction form directly", async ({ page }) 
   });
   expect(settings.ok).toBe(true);
   await gotoAppPath(page, "/?tab=spending");
+  // Spending joins the tabs once settings load; Investments' menu has its own
+  // "Add transaction", which opens the investment form instead.
+  await expect(
+    page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+  ).toHaveAttribute("aria-current", "page");
+  // Creation lives in the tab's overflow menu.
+  await page.getByRole("button", { name: "More options", exact: true }).first().click();
   await page.getByRole("button", { name: "Add transaction", exact: true }).click();
   const form = page.getByRole("dialog", { name: "Add Transaction", exact: true });
   await expect(form).toBeVisible();
