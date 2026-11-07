@@ -6,6 +6,7 @@ import {
   portfolioPresetForSpendingPeriod,
   getPresetWindow,
   rangePick,
+  stepCalendarPick,
   stepDashboardPeriod,
   type DashboardPeriodPick,
 } from "@/features/spending/lib/dashboard-period-sync";
@@ -107,6 +108,11 @@ export function useDashboardPeriod(
     if (view.code) setLastPreset(view.code);
     setPick(next);
   };
+  // Portfolio tabs have rolling 1M; only Spending has a current calendar-month preset.
+  const stepPeriod = (direction: -1 | 1) =>
+    navigationPick.kind === "month"
+      ? stepCalendarPick(navigationPick, direction, todayISO)
+      : stepDashboardPeriod(navigationPick, direction, todayISO);
 
   return {
     code: view.code,
@@ -122,10 +128,10 @@ export function useDashboardPeriod(
     maxYear: Number(todayISO.slice(0, 4)) - 1,
     navigation: {
       label,
-      previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
-      nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+      previousDisabled: !stepPeriod(-1),
+      nextDisabled: !stepPeriod(1),
       onStep: (direction: -1 | 1) => {
-        const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+        const next = stepPeriod(direction);
         if (next) pickCustom(next);
       },
     },

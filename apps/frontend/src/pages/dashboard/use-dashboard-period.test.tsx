@@ -80,6 +80,23 @@ describe("useDashboardPeriod", () => {
     expect(netWorth.result.current.code).toBe("1Y");
   });
 
+  it.each(["dashboard-interval", "networth-interval"])(
+    "keeps calendar-month navigation bounded to completed months on %s",
+    (key) => {
+      const { result } = renderHook(() => useDashboardPeriod(TODAY, { key, initial: "3M" }));
+      act(() => result.current.selectMonth("2026-02"));
+      expect(result.current.navigation.nextDisabled).toBe(true);
+      act(() => result.current.navigation.onStep(1));
+      expect(result.current.customMonth).toBe("2026-02");
+      act(() => result.current.navigation.onStep(-1));
+      expect(result.current.customMonth).toBe("2026-01");
+      expect(result.current.navigation.nextDisabled).toBe(false);
+      act(() => result.current.navigation.onStep(1));
+      expect(result.current.customMonth).toBe("2026-02");
+      expect(result.current.navigation.nextDisabled).toBe(true);
+    },
+  );
+
   it("clears a custom period back to the preset this tab showed", () => {
     // An old Investments preset is stored, but Net Worth shows its own ALL.
     localStorage.setItem("dashboard-interval", JSON.stringify("3M"));
