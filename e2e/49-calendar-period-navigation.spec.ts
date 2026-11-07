@@ -21,56 +21,59 @@ for (const mobile of [false, true]) {
           })
         ).json());
       const headers = { "x-wf-profile-scope": session.scopeId };
-      expect(
-        (
-          await page.request.put(`${BASE_URL}/api/v1/settings`, {
-            headers,
-            data: {
-              onboardingCompleted: true,
-              language: "en",
-              timezone: "UTC",
-              baseCurrency: "USD",
-              autoUpdateCheckEnabled: false,
-            },
-          })
-        ).ok(),
-      ).toBeTruthy();
-      const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
-        headers,
-        data: {
-          name: `Calendar ${mobile}-${direction}`,
-          accountType: "CASH",
-          currency: "USD",
-          isDefault: false,
-          isActive: true,
-          trackingMode: "TRANSACTIONS",
-        },
-      });
-      expect(response.ok()).toBeTruthy();
-      const { id } = await response.json();
-      for (const [date, activityType, amount] of [
-        ["2019-01-02", "DEPOSIT", 1000],
-        ["2024-01-01", "WITHDRAWAL", 25],
-        ["2025-06-01", "WITHDRAWAL", 50],
-      ] as const) {
-        const activity = await page.request.post(`${BASE_URL}/api/v1/activities`, {
-          headers,
-          data: {
-            accountId: id,
-            activityType,
-            activityDate: `${date}T15:00:00Z`,
-            amount,
-            currency: "USD",
-            fee: 0,
-            needsReview: false,
-          },
-        });
-        expect(activity.ok()).toBeTruthy();
-      }
+      const originalSettings = await (
+        await page.request.get(`${BASE_URL}/api/v1/settings`, { headers })
+      ).json();
       const oldSettings = await (
         await page.request.get(`${BASE_URL}/api/v1/spending/settings`, { headers })
       ).json();
       try {
+        expect(
+          (
+            await page.request.put(`${BASE_URL}/api/v1/settings`, {
+              headers,
+              data: {
+                onboardingCompleted: true,
+                language: "en",
+                timezone: "UTC",
+                baseCurrency: "USD",
+                autoUpdateCheckEnabled: false,
+              },
+            })
+          ).ok(),
+        ).toBeTruthy();
+        const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
+          headers,
+          data: {
+            name: `Calendar ${mobile}-${direction}`,
+            accountType: "CASH",
+            currency: "USD",
+            isDefault: false,
+            isActive: true,
+            trackingMode: "TRANSACTIONS",
+          },
+        });
+        expect(response.ok()).toBeTruthy();
+        const { id } = await response.json();
+        for (const [date, activityType, amount] of [
+          ["2019-01-02", "DEPOSIT", 1000],
+          ["2024-01-01", "WITHDRAWAL", 25],
+          ["2025-06-01", "WITHDRAWAL", 50],
+        ] as const) {
+          const activity = await page.request.post(`${BASE_URL}/api/v1/activities`, {
+            headers,
+            data: {
+              accountId: id,
+              activityType,
+              activityDate: `${date}T15:00:00Z`,
+              amount,
+              currency: "USD",
+              fee: 0,
+              needsReview: false,
+            },
+          });
+          expect(activity.ok()).toBeTruthy();
+        }
         expect(
           (
             await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
@@ -196,6 +199,10 @@ for (const mobile of [false, true]) {
           const arrow = await visible("Previous period").boundingBox();
           expect(headline).not.toBeNull();
           expect(arrow).not.toBeNull();
+          if (mobile) {
+            expect(arrow!.width).toBeGreaterThanOrEqual(44);
+            expect(arrow!.height).toBeGreaterThanOrEqual(44);
+          }
           expect(
             Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2),
           ).toBeLessThan(3);
@@ -263,6 +270,10 @@ for (const mobile of [false, true]) {
           await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
         }
       } finally {
+        await page.request.put(`${BASE_URL}/api/v1/settings`, {
+          headers,
+          data: originalSettings,
+        });
         await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
           headers,
           data: oldSettings,

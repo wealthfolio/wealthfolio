@@ -474,12 +474,12 @@ describe("period shared with the dashboard", () => {
     expect(screen.getByTestId("location")).not.toHaveTextContent("period=");
   });
 
-  it("shares a period picked here with the dashboard", async () => {
+  it("keeps the Last month shortcut on Insights and shares it with the dashboard", async () => {
     const user = renderAt("?stage=where");
-    await user.click(screen.getByRole("button", { name: /This month/ }));
+    await user.click(screen.getByRole("button", { name: /Last month/ }));
     expect(JSON.parse(localStorage.getItem("dashboard-period") ?? "null")).toEqual({
       kind: "spending",
-      code: "MTD",
+      code: "LAST_MONTH",
     });
     expect(JSON.parse(localStorage.getItem("dashboard-interval") ?? "null")).toBe("1M");
     // Back/forward can only revive what is in the URL, so a pick never goes there.
