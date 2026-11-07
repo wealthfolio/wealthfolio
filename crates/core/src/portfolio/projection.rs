@@ -145,13 +145,18 @@ pub trait ProjectionStoreTrait: Send + Sync {
         ))
     }
 
-    /// Fences refolds discovered without an existing marker (for example day
+    /// Fences calculations discovered without an existing marker (for example day
     /// advancement). Only newly created markers may be added to consumption.
-    async fn ensure_refold_markers(
+    async fn ensure_calculation_markers(
         &self,
         _accounts: &[(String, NaiveDate)],
     ) -> Result<Vec<ProjectionMarker>> {
         Ok(Vec::new())
+    }
+
+    /// Records failure only if the attempted inputs are still current.
+    async fn record_failed_calculations(&self, _attempted: &[ProjectionMarker]) -> Result<()> {
+        Ok(())
     }
 
     /// Every marker with a dirty day.

@@ -457,7 +457,29 @@ impl PortfolioCoordinator {
             resolved,
             cadence: self.deps.window_cadence,
         };
-        match run::execute(&context, &plan).await {
+        // Fence all attempted account writes, including unmarked day advances.
+        // Keep the captured versions for a failure just as for successful publication.
+        let fenced = self
+            .deps
+            .projections
+            .ensure_calculation_markers(
+                &plan
+                    .refold
+                    .iter()
+                    .chain(plan.revalue.iter())
+                    .map(|(id, from)| (id.clone(), *from))
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+        let attempted: Vec<_> = markers
+            .iter()
+            .chain(&fenced)
+            .filter(
+                |marker| matches!(&marker.scope, MarkerScope::Account(id) if accounts.contains(id)),
+            )
+            .cloned()
+            .collect();
+        match run::execute(&context, &plan, fenced).await {
             Ok(completion) => {
                 for (account, issues) in &completion.activity_issues {
                     for issue in issues
@@ -486,18 +508,29 @@ impl PortfolioCoordinator {
                 consumed.extend(markers.into_iter().filter(|marker| {
                     !matches!(&marker.scope, MarkerScope::Account(id) if excluded.contains(id))
                 }));
-                self.deps
+                let committed = self
+                    .deps
                     .projections
                     .complete_run(crate::portfolio::projection::RunCompletion {
                         consumed,
                         ..completion
                     })
-                    .await
-                    .map_err(|error| {
-                        Error::Unexpected(format!("could not commit the portfolio run: {error}"))
-                    })?;
+                    .await;
+                if let Err(error) = committed {
+                    self.deps
+                        .projections
+                        .record_failed_calculations(&attempted)
+                        .await?;
+                    return Err(Error::Unexpected(format!(
+                        "could not commit the portfolio run: {error}"
+                    )));
+                }
             }
             Err(error) => {
+                self.deps
+                    .projections
+                    .record_failed_calculations(&attempted)
+                    .await?;
                 let message = error.to_string();
                 failures.extend(failures_for(&accounts, "PROJECTION_FAILED", &message));
             }

@@ -194,7 +194,13 @@ export const getHolding = async (accountId: string, assetId: string): Promise<Ho
 };
 
 export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_asset_holdings", { assetId });
+  const scope = await getAssetHoldingsScope(assetId);
+  if (scope.incompleteAccounts.length > 0) throw new Error("Holdings scope is incomplete");
+  return scope.holdings;
+};
+
+export const getAssetHoldingsScope = async (assetId: string): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_asset_holdings", { assetId });
 };
 
 export const getAssetLots = async (

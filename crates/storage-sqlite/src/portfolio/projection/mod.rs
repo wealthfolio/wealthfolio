@@ -219,7 +219,7 @@ impl ProjectionStoreTrait for ProjectionStore {
         holdings::read(&mut conn, accounts, day, detail_asset)
     }
 
-    async fn ensure_refold_markers(
+    async fn ensure_calculation_markers(
         &self,
         accounts: &[(String, NaiveDate)],
     ) -> Result<Vec<ProjectionMarker>> {
@@ -239,6 +239,12 @@ impl ProjectionStoreTrait for ProjectionStore {
                         .as_ref()
                         .is_some_and(|row| row.dirty_from.is_some())
                     {
+                        diesel::sql_query(
+                            "UPDATE projection_state SET failed_version = NULL WHERE scope = ?",
+                        )
+                        .bind::<Text, _>(&account)
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
                         continue;
                     }
                     diesel::sql_query(INVALIDATE)
@@ -261,6 +267,18 @@ impl ProjectionStoreTrait for ProjectionStore {
                 Ok(added)
             })
             .await
+    }
+
+    async fn record_failed_calculations(&self, attempted: &[ProjectionMarker]) -> Result<()> {
+        let attempted = attempted.to_vec();
+        self.writer.exec(move |conn: &mut SqliteConnection| {
+            for marker in attempted {
+                diesel::sql_query("UPDATE projection_state SET failed_version = version WHERE scope = ? AND version = ? AND dirty_from IS NOT NULL")
+                    .bind::<Text, _>(marker.scope.key()).bind::<BigInt, _>(marker.version)
+                    .execute(conn).map_err(StorageError::from)?;
+            }
+            Ok(())
+        }).await
     }
 
     fn pending_markers(&self) -> Result<Vec<ProjectionMarker>> {
@@ -437,7 +455,7 @@ impl ProjectionStoreTrait for ProjectionStore {
                     // that change is not in the run, so the marker stays.
                     let statement = match marker.scope {
                         MarkerScope::Account(_) => {
-                            "UPDATE projection_state SET dirty_from = NULL \
+                            "UPDATE projection_state SET dirty_from = NULL, failed_version = NULL \
                              WHERE scope = ? AND version = ?"
                         }
                         _ => "DELETE FROM projection_state WHERE scope = ? AND version = ?",
@@ -1215,7 +1233,7 @@ mod tests {
                     .unwrap();
             }
             let fenced = store
-                .ensure_refold_markers(&[("acc1".into(), date(2))])
+                .ensure_calculation_markers(&[("acc1".into(), date(2))])
                 .await
                 .unwrap();
             assert_eq!(fenced.len(), usize::from(edit != "before"));
@@ -1241,6 +1259,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn failed_calculation_status_is_versioned_and_cleared_on_retry() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        let account = MarkerScope::Account("acc1".into());
+        let captured = store
+            .pending_markers()
+            .unwrap()
+            .into_iter()
+            .find(|marker| marker.scope == account)
+            .unwrap();
+        store.invalidate(account.clone(), date(2)).await.unwrap();
+        store.record_failed_calculations(&[captured]).await.unwrap();
+        assert!(
+            store
+                .holdings_read(&["acc1".into()], date(2), None)
+                .unwrap()
+                .failed_accounts
+                .is_empty(),
+            "a newer edit must not inherit an obsolete failure"
+        );
+        let current = store
+            .pending_markers()
+            .unwrap()
+            .into_iter()
+            .find(|marker| marker.scope == account)
+            .unwrap();
+        store
+            .record_failed_calculations(std::slice::from_ref(&current))
+            .await
+            .unwrap();
+        assert!(store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap()
+            .failed_accounts
+            .contains("acc1"));
+        store
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
+            .await
+            .unwrap();
+        assert!(store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap()
+            .failed_accounts
+            .is_empty());
+        store.record_failed_calculations(&[current]).await.unwrap();
+        sql(
+            &db,
+            "UPDATE activities SET notes = 'edited' WHERE account_id = 'acc1'",
+        );
+        assert!(
+            store
+                .holdings_read(&["acc1".into()], date(2), None)
+                .unwrap()
+                .failed_accounts
+                .is_empty(),
+            "existing triggers invalidate the failed version without a new trigger"
+        );
+    }
+
+    #[tokio::test]
+    async fn out_of_policy_snapshot_is_unavailable_even_with_pending_markers() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        store
+            .write_window(vec![window(2, None, &[2])])
+            .await
+            .unwrap();
+        sql(
+            &db,
+            "UPDATE holdings_snapshots SET snapshot_date = '0024-01-02' WHERE account_id = 'acc1'",
+        );
+        let read = store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap();
+        assert_eq!(
+            read.unavailable_reason("acc1"),
+            Some("ACCOUNTING_UNAVAILABLE")
+        );
+        assert!(!read.snapshots.contains_key("acc1"));
+    }
+
+    #[tokio::test]
     async fn issue_2487_existing_dirty_fence_does_not_change_captured_versions() {
         let db = setup();
         let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
@@ -1250,7 +1350,7 @@ mod tests {
             .unwrap();
         let captured = store.pending_markers().unwrap();
         assert!(store
-            .ensure_refold_markers(&[("acc1".into(), date(2))])
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
             .await
             .unwrap()
             .is_empty());
@@ -1277,7 +1377,7 @@ mod tests {
             .await
             .unwrap();
         let fenced = store
-            .ensure_refold_markers(&[("acc1".into(), date(2))])
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
             .await
             .unwrap();
         store

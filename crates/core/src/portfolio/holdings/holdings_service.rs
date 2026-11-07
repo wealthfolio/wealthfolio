@@ -69,6 +69,18 @@ pub trait HoldingsServiceTrait: Send + Sync {
 
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
 
+    /// Per-account rows for an asset, captured together without aggregating accounts.
+    async fn get_asset_holdings_scope(
+        &self,
+        _account_ids: &[String],
+        _asset_id: &str,
+        _base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        Err(CoreError::Unexpected(
+            "asset holdings scope is not configured".into(),
+        ))
+    }
+
     /// An asset's lot view: its transaction lots and, when asked, each
     /// holdings account's latest snapshot position, read today (carried
     /// across the splits recorded since, engine rules R1.5). The one entry
@@ -136,6 +148,12 @@ pub struct HoldingsService {
     timezone: Arc<RwLock<String>>,
     lot_repository: Option<Arc<dyn LotRepositoryTrait>>,
     projection_store: Option<Arc<dyn ProjectionStoreTrait>>,
+}
+
+enum ReadView {
+    Aggregate,
+    Accounts,
+    Asset(String),
 }
 
 #[cfg(test)]
@@ -243,21 +261,47 @@ impl HoldingsService {
         scope_id: &str,
         include_closed: bool,
         detail_asset: Option<&str>,
+        view: ReadView,
     ) -> Result<HoldingsScope> {
         let store = self
             .projection_store
             .clone()
             .ok_or_else(|| CoreError::Repository("holdings read store is not configured".into()))?;
-        let ids = account_ids.to_vec();
+        let mut ids = account_ids.to_vec();
+        let aggregate = matches!(&view, ReadView::Aggregate);
+        let live_accounts_only = matches!(&view, ReadView::Asset(_));
+        let asset_id = match view {
+            ReadView::Asset(id) => Some(id),
+            _ => None,
+        };
         let day = self.today_in_user_timezone();
         let detail_asset = detail_asset.map(str::to_owned);
         let base = base_currency.to_string();
         let (read, converter, mut scope) = blocking(move || {
             let mut read = store.holdings_read(&ids, day, detail_asset.as_deref())?;
+            if live_accounts_only {
+                ids.retain(|id| {
+                    read.accounts.iter().any(|account| {
+                        account.id == *id
+                            && crate::accounts::account_supports_portfolio_scope(
+                                account,
+                                crate::accounts::AccountPurpose::Holdings,
+                            )
+                    })
+                });
+            }
             read.carry_observed_splits()?;
             let converter = Arc::new(CurrencyConverter::new(read.fx_rates.clone())?);
             let mut scope = HoldingsScope::default();
             for id in &ids {
+                if let Some(reason_code) = read.unavailable_reason(id) {
+                    scope.incomplete_accounts.push(IncompleteHoldingsAccount {
+                        account_id: id.clone(),
+                        status: "unavailable",
+                        reason_code,
+                    });
+                    continue;
+                }
                 match Self::prepare_read(
                     &read,
                     &converter,
@@ -265,7 +309,7 @@ impl HoldingsService {
                     &base,
                     include_closed,
                     detail_asset.as_deref(),
-                    ids.len() > 1,
+                    aggregate,
                 ) {
                     Ok(holdings) => scope.holdings.extend(holdings),
                     Err(CoreError::HoldingsPending(_)) => {
@@ -306,7 +350,7 @@ impl HoldingsService {
                     }),
                 }
             }
-            scope.holdings = if ids.len() > 1 {
+            scope.holdings = if aggregate {
                 merge_holdings(holdings, &scope_id)?
             } else {
                 holdings
@@ -315,6 +359,14 @@ impl HoldingsService {
                 for holding in &mut scope.holdings {
                     holding.weight = None;
                 }
+            }
+            if let Some(asset_id) = asset_id {
+                scope.holdings.retain(|holding| {
+                    holding
+                        .instrument
+                        .as_ref()
+                        .is_some_and(|instrument| instrument.id == asset_id)
+                });
             }
             Ok(scope)
         })
@@ -1120,8 +1172,36 @@ impl HoldingsServiceTrait for HoldingsService {
         scope_id: &str,
         include_closed: bool,
     ) -> Result<HoldingsScope> {
-        self.read_scope(account_ids, base_currency, scope_id, include_closed, None)
-            .await
+        self.read_scope(
+            account_ids,
+            base_currency,
+            scope_id,
+            include_closed,
+            None,
+            if account_ids.len() > 1 {
+                ReadView::Aggregate
+            } else {
+                ReadView::Accounts
+            },
+        )
+        .await
+    }
+
+    async fn get_asset_holdings_scope(
+        &self,
+        account_ids: &[String],
+        asset_id: &str,
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        self.read_scope(
+            account_ids,
+            base_currency,
+            asset_id,
+            false,
+            None,
+            ReadView::Asset(asset_id.into()),
+        )
+        .await
     }
 
     async fn get_asset_lot_view(
@@ -1208,6 +1288,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 account_id,
                 false,
                 Some(asset_id),
+                ReadView::Accounts,
             )
             .await?
             .require_complete()?;
@@ -2736,6 +2817,7 @@ mod tests {
         fn account(id: &str, currency: &str, mode: TrackingMode) -> Account {
             Account {
                 id: id.into(),
+                account_type: "SECURITIES".into(),
                 currency: currency.into(),
                 is_active: true,
                 tracking_mode: mode,
@@ -2886,7 +2968,19 @@ mod tests {
             assert_eq!(snapshot.positions[ASSET_ID].total_cost_basis, dec!(120));
             assert_eq!(fixture.lot_cost(&account.id).await, dec!(100));
             assert!(!fixture.store.pending_markers().unwrap().is_empty());
-            assert_pending(&holdings, &account.id, "CAD").await;
+            let failed_scope = holdings
+                .get_holdings_scope(std::slice::from_ref(&account.id), "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert_eq!(failed_scope.incomplete_accounts[0].status, "unavailable");
+            assert_eq!(
+                failed_scope.incomplete_accounts[0].reason_code,
+                "PROJECTION_FAILED"
+            );
+            assert!(matches!(
+                failed_scope.require_complete(),
+                Err(CoreError::HoldingsUnavailable(_))
+            ));
 
             // A successful retry repairs the mismatch; tracking mode never changed.
             run(&coordinator).await;
@@ -3767,6 +3861,155 @@ mod tests {
                 scope.require_complete(),
                 Err(CoreError::HoldingsPending(_))
             ));
+        }
+
+        #[tokio::test]
+        async fn failed_calculation_is_unavailable_until_retry_or_new_inputs() {
+            let account = account("account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            fixture.store.fail_next_persists(1);
+            let report = coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            assert!(!report.failures.is_empty());
+            let scope = holdings
+                .get_holdings_scope(std::slice::from_ref(&account.id), "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert_eq!(
+                scope.incomplete_accounts[0].reason_code,
+                "PROJECTION_FAILED"
+            );
+            assert_eq!(scope.incomplete_accounts[0].status, "unavailable");
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(account.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            assert_pending(&holdings, &account.id, "CAD").await;
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn unsupported_account_is_unavailable_across_runs_and_recovers_after_edit() {
+            let mut account = account("unsupported", "CAD", TrackingMode::Transactions);
+            account.meta = Some(
+                r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#
+                    .into(),
+            );
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            for _ in 0..2 {
+                let report = coordinator
+                    .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                    .await
+                    .unwrap();
+                assert!(report
+                    .failures
+                    .iter()
+                    .any(|failure| failure.code == "UNSUPPORTED_COST_BASIS"));
+                let scope = holdings
+                    .get_holdings_scope(
+                        std::slice::from_ref(&account.id),
+                        "CAD",
+                        &account.id,
+                        false,
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(scope.incomplete_accounts[0].status, "unavailable");
+                assert_eq!(
+                    scope.incomplete_accounts[0].reason_code,
+                    "UNSUPPORTED_COST_BASIS"
+                );
+            }
+            account.meta = None;
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn asset_scope_keeps_per_account_rows_and_reports_pending_peer() {
+            let first = account("first", "CAD", TrackingMode::Transactions);
+            let second = account("second", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&first.id, "CAD", dec!(100)),
+                    buy(&second.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![first.clone(), second.clone()]);
+            run(&coordinator).await;
+            let ids = [first.id.clone(), second.id.clone()];
+            let scope = holdings
+                .get_asset_holdings_scope(&ids, ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(
+                fixture.store.holdings_read_count(),
+                1,
+                "the asset scope captures every account in one read"
+            );
+            assert_eq!(scope.holdings.len(), 2);
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.quantity == dec!(1) && ids.contains(&holding.account_id)));
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(first.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(&ids, ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(scope.holdings.len(), 1);
+            assert_eq!(scope.holdings[0].account_id, second.id);
+            assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+        }
+
+        #[tokio::test]
+        async fn asset_scope_excludes_archived_active_accounts_inside_the_capture() {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let mut archived = account("archived", "CAD", TrackingMode::Transactions);
+            archived.is_archived = true;
+            let fixture = Fixture::new(
+                vec![
+                    buy(&healthy.id, "CAD", dec!(100)),
+                    buy(&archived.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) =
+                fixture.services(vec![healthy.clone(), archived.clone()]);
+            run(&coordinator).await;
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(archived.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(
+                    &[healthy.id.clone(), archived.id.clone()],
+                    ASSET_ID,
+                    "CAD",
+                )
+                .await
+                .unwrap();
+            assert!(scope.incomplete_accounts.is_empty());
+            assert_eq!(scope.holdings.len(), 1);
+            assert_eq!(scope.holdings[0].account_id, healthy.id);
         }
 
         #[test]
@@ -5629,6 +5872,48 @@ mod tests {
         assert_eq!(holdings[0].market_value.base, None);
         assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, None);
         assert_eq!(holdings[0].weight, None);
+    }
+
+    #[tokio::test]
+    async fn unpriced_security_stays_visible_without_fabricating_portfolio_weights() {
+        let snapshot = AccountStateSnapshot {
+            account_id: "account".into(),
+            currency: "USD".into(),
+            positions: HashMap::from([
+                ("priced".into(), test_position("account", "priced")),
+                ("unpriced".into(), test_position("account", "unpriced")),
+            ]),
+            ..Default::default()
+        };
+        let service = test_service(
+            snapshot,
+            vec![
+                test_asset("priced", "USD", InstrumentType::Equity),
+                test_asset("unpriced", "USD", InstrumentType::Equity),
+            ],
+            HashMap::from([("priced".into(), dec!(110))]),
+        );
+        let holdings = service.get_holdings("account", "USD").await.unwrap();
+        assert_eq!(holdings.len(), 2);
+        assert_eq!(
+            holdings
+                .iter()
+                .find(|holding| holding.instrument.as_ref().unwrap().id == "priced")
+                .unwrap()
+                .market_value
+                .base,
+            Some(dec!(110))
+        );
+        assert_eq!(
+            holdings
+                .iter()
+                .find(|holding| holding.instrument.as_ref().unwrap().id == "unpriced")
+                .unwrap()
+                .market_value
+                .base,
+            None
+        );
+        assert!(holdings.iter().all(|holding| holding.weight.is_none()));
     }
 
     #[test]

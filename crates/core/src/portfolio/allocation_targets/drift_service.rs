@@ -575,6 +575,15 @@ mod tests {
         }
     }
 
+    #[test]
+    fn known_cash_is_still_available_with_an_unpriced_security() {
+        let cash = make_cash_holding(dec!(100), "USD");
+        let mut unpriced = cash.clone();
+        unpriced.holding_type = HoldingType::Security;
+        unpriced.market_value = MonetaryValue::unavailable();
+        assert_eq!(tracked_cash(&[cash, unpriced]).unwrap(), dec!(100));
+    }
+
     fn holding_contribution(category_id: &str, value: Decimal) -> HoldingAllocationContribution {
         HoldingAllocationContribution {
             id: format!("asset:{category_id}:0"),

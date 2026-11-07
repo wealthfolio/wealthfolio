@@ -300,6 +300,7 @@ diesel::table! {
         dirty_from -> Nullable<Text>,
         version -> BigInt,
         activity_issues -> Text,
+        failed_version -> Nullable<BigInt>,
     }
 }
 

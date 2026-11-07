@@ -315,7 +315,7 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     state: ProfileAccess,
     asset_id: String,
-) -> Result<Vec<Holding>, String> {
+) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
     debug!("Get holdings for asset {} across all accounts", asset_id);
     let base_currency = context.get_base_currency();
@@ -324,21 +324,17 @@ pub async fn get_asset_holdings(
         .get_active_accounts()
         .map_err(|e| format!("Failed to get accounts: {}", e))?;
 
-    let mut result = Vec::new();
-    for account in accounts {
-        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
-            continue;
-        }
-        if let Some(holding) = context
-            .holdings_service()
-            .get_holding(&account.id, &asset_id, &base_currency)
-            .await
-            .map_err(|e| e.to_string())?
-        {
-            result.push(holding);
-        }
-    }
-    Ok(result)
+    let ids = accounts
+        .into_iter()
+        .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
+        .map(|account| account.id)
+        .collect::<Vec<_>>();
+    context
+        .holdings_service()
+        .get_asset_holdings_scope(&ids, &asset_id, &base_currency)
+        .await
+        .map(Into::into)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

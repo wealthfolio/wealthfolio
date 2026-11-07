@@ -1649,6 +1649,17 @@ mod tests {
         AllocationService::new(Arc::new(NoopHoldings), Arc::new(NoopTaxonomies))
     }
 
+    #[tokio::test]
+    async fn allocations_reject_a_partial_valuation_instead_of_reweighting_priced_holdings() {
+        let priced = make_holding("priced", dec!(100));
+        let mut unpriced = make_holding("unpriced", dec!(50));
+        unpriced.market_value = MonetaryValue::unavailable();
+        let result = svc()
+            .compute_allocations_from_holdings(&[priced, unpriced], "USD", &[])
+            .await;
+        assert!(matches!(result, Err(crate::Error::HoldingsUnavailable(_))));
+    }
+
     fn now() -> NaiveDateTime {
         Utc::now().naive_utc()
     }

@@ -18,6 +18,7 @@ pub struct HoldingsRead {
     pub accounts: Vec<Account>,
     pub snapshots: HashMap<String, AccountStateSnapshot>,
     pub unavailable_accounts: HashSet<String>,
+    pub failed_accounts: HashSet<String>,
     pub assets: HashMap<String, Asset>,
     /// Requested accounts and their transitive transfer counterparties, plus
     /// split rows for held assets (including splits recorded in other accounts).
@@ -112,9 +113,7 @@ impl HoldingsRead {
         Ok(())
     }
 
-    /// Marker dependencies include closed positions and transfer counterparties;
-    /// limiting these to today's open assets can expose an obsolete lot book.
-    pub fn history_pending(&self, account_id: &str, day: NaiveDate) -> bool {
+    fn dependency_accounts(&self, account_id: &str) -> BTreeSet<String> {
         let mut accounts = BTreeSet::from([account_id.to_string()]);
         loop {
             let groups: HashSet<&str> = self
@@ -139,6 +138,43 @@ impl HoldingsRead {
                 break;
             }
         }
+        accounts
+    }
+
+    /// A permanent exclusion or a failed attempt is not an in-progress calculation.
+    pub fn unavailable_reason(&self, account_id: &str) -> Option<&'static str> {
+        if self.unavailable_accounts.contains(account_id) {
+            return Some("ACCOUNTING_UNAVAILABLE");
+        }
+        if self.accounts.iter().any(|account| {
+            account.id == account_id && account.tracking_mode == TrackingMode::Holdings
+        }) {
+            return None;
+        }
+        let dependencies = self.dependency_accounts(account_id);
+        if self
+            .accounts
+            .iter()
+            .filter(|account| dependencies.contains(&account.id) && !account.is_archived)
+            .any(|account| {
+                account
+                    .accounting_settings()
+                    .and_then(|settings| settings.ensure_supported_for_calculation())
+                    .is_err()
+            })
+        {
+            return Some("UNSUPPORTED_COST_BASIS");
+        }
+        self.failed_accounts
+            .iter()
+            .any(|account| dependencies.contains(account))
+            .then_some("PROJECTION_FAILED")
+    }
+
+    /// Marker dependencies include closed positions and transfer counterparties;
+    /// limiting these to today's open assets can expose an obsolete lot book.
+    pub fn history_pending(&self, account_id: &str, day: NaiveDate) -> bool {
+        let accounts = self.dependency_accounts(account_id);
         let assets: HashSet<&str> = self
             .activities
             .iter()

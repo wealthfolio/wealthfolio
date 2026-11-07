@@ -94,10 +94,10 @@ pub(super) fn read(
                     unavailable_accounts.insert(account.id.clone());
                 } else {
                     match AccountStateSnapshot::try_from(row) {
-                        Ok(snapshot) => {
+                        Ok(snapshot) if !wealthfolio_core::portfolio::snapshot::snapshot_date_requires_remediation(snapshot.snapshot_date, day) => {
                             snapshots.insert(account.id.clone(), snapshot);
                         }
-                        Err(_) => {
+                        Ok(_) | Err(_) => {
                             unavailable_accounts.insert(account.id.clone());
                         }
                     }
@@ -173,11 +173,18 @@ pub(super) fn read(
         }
         let markers = load_markers(conn)?;
         let last_valued = load_last_valued(conn)?;
+        let failed_accounts = projection_state::table
+            .filter(projection_state::scope.eq_any(&closure))
+            .filter(projection_state::dirty_from.is_not_null())
+            .filter(projection_state::failed_version.eq(projection_state::version.nullable()))
+            .select(projection_state::scope).load::<String>(conn).map_err(StorageError::from)?
+            .into_iter().collect();
         Ok(HoldingsRead {
             day,
             accounts,
             snapshots,
             unavailable_accounts,
+            failed_accounts,
             assets: asset_rows
                 .into_iter()
                 .map(|a| (a.id.clone(), a.into()))

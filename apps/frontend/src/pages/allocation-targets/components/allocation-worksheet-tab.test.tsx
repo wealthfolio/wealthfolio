@@ -351,6 +351,34 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not calculate a worksheet from a partial valuation", async () => {
+    const priced = holdingsFor("acc-1")[0];
+    holdingsRef.current = {
+      "acc-1": [priced, { ...priced, id: "unpriced", marketValue: { local: null, base: null } }],
+    };
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <AllocationWorksheetTab
+              profile={profile}
+              driftReport={driftReport}
+              accountScope={{ type: "all" }}
+              sourceVersion="source-1"
+              isSourceLoading={false}
+            />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(/holdings are unavailable/i);
+      expect(generateMock).not.toHaveBeenCalled();
+      expect(previewMock).not.toHaveBeenCalled();
+    } finally {
+      holdingsRef.current = null;
+    }
+  });
+
   it.each([
     { locale: "US", direction: "ltr" as const, bps: 250, label: "2.5%" },
     { locale: "ES", direction: "ltr" as const, bps: 250, label: "2,5 %" },

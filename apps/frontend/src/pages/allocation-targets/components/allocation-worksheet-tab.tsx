@@ -989,7 +989,7 @@ export function AllocationWorksheetTab({
       isSourceLoading ||
       assetsLoading ||
       accountsLoading ||
-      holdingsLoading
+      !holdingsComplete
     ) {
       return;
     }
@@ -1056,6 +1056,7 @@ export function AllocationWorksheetTab({
     draftStorageKey,
     eligibleAssets,
     holdingsLoading,
+    holdingsComplete,
     isSourceLoading,
     profile?.allowSells,
     scopedAccountIds,
@@ -1106,6 +1107,7 @@ export function AllocationWorksheetTab({
     assetsLoading ||
     accountsLoading ||
     holdingsLoading ||
+    !holdingsComplete ||
     latestQuotes.isFetching;
 
   // Validates and projects the worksheet as it stands. Mode, rule and eligible

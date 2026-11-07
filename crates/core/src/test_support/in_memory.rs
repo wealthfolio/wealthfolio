@@ -1727,6 +1727,7 @@ struct MarkerRow {
     dirty_from: Option<NaiveDate>,
     version: i64,
     activity_issues: Vec<ActivityIssue>,
+    failed_version: Option<i64>,
 }
 
 /// Projection store over the other doubles (not transactional; tests only).
@@ -1744,6 +1745,7 @@ pub struct InMemoryProjectionStore {
     lots: Arc<dyn LotRepositoryTrait>,
     valuations: Arc<dyn ValuationRepositoryTrait>,
     holdings_sources: RwLock<Option<InMemoryHoldingsSources>>,
+    holdings_read_count: std::sync::atomic::AtomicUsize,
 }
 
 pub struct InMemoryHoldingsSources {
@@ -1788,6 +1790,7 @@ impl InMemoryProjectionStore {
             lots,
             valuations,
             holdings_sources: RwLock::new(None),
+            holdings_read_count: std::sync::atomic::AtomicUsize::new(0),
         };
         store.mark(MarkerScope::All, GENESIS);
         store
@@ -1796,6 +1799,11 @@ impl InMemoryProjectionStore {
     /// Makes the next `count` writes fail with a storage error.
     pub fn set_holdings_sources(&self, sources: InMemoryHoldingsSources) {
         *self.holdings_sources.write().unwrap() = Some(sources);
+    }
+
+    pub fn holdings_read_count(&self) -> usize {
+        self.holdings_read_count
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Makes the next `count` writes fail with a storage error.
@@ -1846,7 +1854,7 @@ fn in_window(day: NaiveDate, start: NaiveDate, end: Option<NaiveDate>) -> bool {
 
 #[async_trait]
 impl ProjectionStoreTrait for InMemoryProjectionStore {
-    async fn ensure_refold_markers(
+    async fn ensure_calculation_markers(
         &self,
         accounts: &[(String, NaiveDate)],
     ) -> Result<Vec<ProjectionMarker>> {
@@ -1855,6 +1863,7 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
         for (account, from) in accounts {
             let row = markers.entry(account.clone()).or_default();
             if row.dirty_from.is_some() {
+                row.failed_version = None;
                 continue;
             }
             row.dirty_from = Some(*from);
@@ -1868,6 +1877,19 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
         Ok(added)
     }
 
+    async fn record_failed_calculations(&self, attempted: &[ProjectionMarker]) -> Result<()> {
+        let mut rows = self.markers.write().unwrap();
+        for marker in attempted {
+            if let Some(row) = rows
+                .get_mut(&marker.scope.key())
+                .filter(|row| row.version == marker.version && row.dirty_from.is_some())
+            {
+                row.failed_version = Some(marker.version);
+            }
+        }
+        Ok(())
+    }
+
     fn holdings_read(
         &self,
         requested: &[String],
@@ -1875,6 +1897,8 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
         detail_asset: Option<&str>,
     ) -> Result<crate::portfolio::holdings::HoldingsRead> {
         use crate::portfolio::holdings::HoldingsRead;
+        self.holdings_read_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let sources = self.holdings_sources.read().unwrap();
         let sources = sources
             .as_ref()
@@ -1921,7 +1945,16 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
         }
         let base_currency = sources.base_currency.read().unwrap().clone();
         let timezone = sources.timezone.read().unwrap().clone();
+        let failed_accounts = self
+            .markers
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|(_, row)| row.failed_version == Some(row.version) && row.dirty_from.is_some())
+            .map(|(scope, _)| scope.clone())
+            .collect();
         Ok(HoldingsRead {
+            failed_accounts,
             day,
             accounts,
             snapshots,
@@ -2089,6 +2122,7 @@ impl ProjectionStoreTrait for InMemoryProjectionStore {
                     MarkerScope::Account(_) => {
                         if let Some(row) = markers.get_mut(&key) {
                             row.dirty_from = None;
+                            row.failed_version = None;
                         }
                     }
                     _ => {

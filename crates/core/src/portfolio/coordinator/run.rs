@@ -154,7 +154,11 @@ pub(super) struct RunContext {
 /// accounts from the fold and the revalued ones from their stored keyframes,
 /// and writes their rows together. Returns what the run commits last (the
 /// caller adds the consumed markers).
-pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunCompletion> {
+pub(super) async fn execute(
+    context: &RunContext,
+    plan: &Plan,
+    fenced: Vec<crate::portfolio::projection::ProjectionMarker>,
+) -> Result<RunCompletion> {
     let resolved = Arc::clone(&context.resolved);
     let starts: BTreeSet<NaiveDate> = plan
         .refold
@@ -219,19 +223,6 @@ pub(super) async fn execute(context: &RunContext, plan: &Plan) -> Result<RunComp
     let mut state: Option<ProjectionState> = None;
     let mut started: BTreeSet<AccountId> = BTreeSet::new();
     let mut written: BTreeSet<String> = BTreeSet::new();
-
-    // Day advancement and transfer closure can discover a refold without a
-    // persisted dirty marker. Fence those writes using the existing markers.
-    let fenced = context
-        .projections
-        .ensure_refold_markers(
-            &plan
-                .refold
-                .iter()
-                .map(|(id, from)| (id.clone(), *from))
-                .collect::<Vec<_>>(),
-        )
-        .await?;
 
     for window in windows(context.cadence, range, &starts) {
         let refold = writers(&plan.refold, window, &mut written);

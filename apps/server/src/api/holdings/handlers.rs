@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use wealthfolio_core::portfolios::{AccountScope, ResolvedAccountScope};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_core::{
-    accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait, TrackingMode},
+    accounts::{AccountPurpose, AccountServiceTrait, TrackingMode},
     lots::AssetLotView,
     portfolio::{
         allocation::{AllocationHoldings, PortfolioAllocations},
@@ -256,7 +256,7 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AssetHoldingsQuery>,
-) -> ApiResult<Json<Vec<Holding>>> {
+) -> ApiResult<Json<HoldingsListResponse>> {
     let base = state
         .base_currency
         .read()
@@ -264,20 +264,23 @@ pub async fn get_asset_holdings(
         .clone();
     let accounts = state.account_service.get_active_accounts()?;
 
-    let mut result = Vec::new();
-    for account in accounts {
-        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
-            continue;
-        }
-        if let Some(holding) = state
+    let ids = accounts
+        .into_iter()
+        .filter(|account| {
+            wealthfolio_core::accounts::account_supports_portfolio_scope(
+                account,
+                AccountPurpose::Holdings,
+            )
+        })
+        .map(|account| account.id)
+        .collect::<Vec<_>>();
+    Ok(Json(
+        state
             .holdings_service
-            .get_holding(&account.id, &q.asset_id, &base)
+            .get_asset_holdings_scope(&ids, &q.asset_id, &base)
             .await?
-        {
-            result.push(holding);
-        }
-    }
-    Ok(Json(result))
+            .into(),
+    ))
 }
 
 pub async fn get_asset_lots(

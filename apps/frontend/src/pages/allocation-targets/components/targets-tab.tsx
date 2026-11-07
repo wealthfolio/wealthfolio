@@ -281,9 +281,9 @@ function SellProtectionSection({
   );
 
   const uniqueAssets = holdings.reduce<
-    { assetId: string; symbol: string; name: string; value: number }[]
+    { assetId: string; symbol: string; name: string; value: number | null }[]
   >((acc, h) => {
-    if (!h.instrument || h.marketValue.base == null) return acc;
+    if (!h.instrument) return acc;
     if (acc.some((a) => a.assetId === h.instrument!.id)) return acc;
     acc.push({
       assetId: h.instrument.id,
@@ -302,7 +302,9 @@ function SellProtectionSection({
         a.symbol.toLowerCase().includes(assetSearch.toLowerCase()) ||
         a.name.toLowerCase().includes(assetSearch.toLowerCase()),
     )
-    .sort((a, b) => b.value - a.value);
+    .sort((a, b) =>
+      a.value == null ? (b.value == null ? 0 : 1) : b.value == null ? -1 : b.value - a.value,
+    );
 
   const protectedAssets = uniqueAssets.filter((a) => protectedAssetIds.has(a.assetId));
   const availableAccounts = accounts.filter((a) => !protectedAccountIds.has(a.id));
@@ -522,11 +524,7 @@ function TargetEditor({
     useAllocationTargetWeights(target?.id ?? null);
   const targetConstraintsQuery = useTargetConstraints(target?.id);
   const holdingsQuery = useHoldings(accountScope);
-  const holdings =
-    holdingsQuery.isComplete &&
-    holdingsQuery.holdings.every((holding) => holding.marketValue.base != null)
-      ? holdingsQuery.holdings
-      : [];
+  const holdings = holdingsQuery.isComplete ? holdingsQuery.holdings : [];
   const [constraintsDraft, setConstraintsDraft] = useState<AllocationTargetConstraint[]>([]);
   const constraintsDraftLoaded = React.useRef(false);
 
