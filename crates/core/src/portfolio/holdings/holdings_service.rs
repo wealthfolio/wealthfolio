@@ -4358,6 +4358,7 @@ mod tests {
                     activity_id: read.activities[0].id.clone(),
                     kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
                     message: "Rejected input".into(),
+                    reason: None,
                 });
             assert!(!read.position_pending(&account.id, day));
         }
