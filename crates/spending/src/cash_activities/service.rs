@@ -1221,10 +1221,7 @@ impl CashActivityService {
             .get_activity(activity_id)
             .map_err(|e| match e {
                 CoreError::Activity(ActivityError::NotFound(_)) => {
-                    anyhow::Error::from(SpendingError::NotFound {
-                        entity: "Activity",
-                        id: activity_id.to_string(),
-                    })
+                    anyhow::Error::from(SpendingError::ActivityNotFound)
                 }
                 other => anyhow::anyhow!(other.to_string()),
             })?;
@@ -3704,29 +3701,33 @@ mod tests {
 
     /// An activity id the client got wrong is a "not found" the client can act
     /// on, not a server fault. Reads that fail for other reasons stay faults.
+    /// The message leaves the id out: MCP tool errors go to the audit log.
     #[tokio::test]
     async fn unknown_activity_is_not_found_and_other_read_errors_are_not() {
         let (service, assignments, _) = make_service(activity("WITHDRAWAL"));
-        let not_found = |error: anyhow::Error| match error.downcast_ref::<SpendingError>() {
-            Some(SpendingError::NotFound { entity, id }) => {
-                assert_eq!(*entity, "Activity");
-                id.clone()
-            }
-            other => panic!("expected NotFound, got {other:?}: {error}"),
+        let assert_not_found = |error: anyhow::Error| {
+            assert!(
+                matches!(
+                    error.downcast_ref::<SpendingError>(),
+                    Some(SpendingError::ActivityNotFound)
+                ),
+                "expected ActivityNotFound, got {error}"
+            );
+            assert!(!error.to_string().contains("missing"), "{error}");
         };
 
         let error = service
             .assign_category("missing", SPENDING_TAXONOMY, "groceries")
             .await
             .unwrap_err();
-        assert_eq!(not_found(error), "missing");
+        assert_not_found(error);
         let error = service
             .unassign_category("missing", SPENDING_TAXONOMY)
             .await
             .unwrap_err();
-        assert_eq!(not_found(error), "missing");
+        assert_not_found(error);
         let error = service.list_splits("missing").await.unwrap_err();
-        assert_eq!(not_found(error), "missing");
+        assert_not_found(error);
         let error = service
             .bulk_assign_categories(&[
                 BulkCategoryAssignment {
@@ -3744,7 +3745,7 @@ mod tests {
             ])
             .await
             .unwrap_err();
-        assert_eq!(not_found(error), "missing");
+        assert_not_found(error);
         assert!(assignments.assignments.lock().unwrap().is_empty());
 
         let error = service
