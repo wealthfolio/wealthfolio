@@ -5,6 +5,11 @@
       "title_other": "{{count}} 項持有部位缺少手動估值",
       "message": "手動／自訂持有部位需要先提供手動估值，才能納入績效統計。"
     },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}} 的估值未更新",
+      "title_other": "{{count}} 項資產的估值未更新",
+      "message": "部分手動估值的資產已超過 {{days}} 天未更新，淨資產可能不是最新的。"
+    },
     "price_no_market_data": {
       "title_one": "{{symbol}} 沒有市場資料",
       "title_other": "{{count}} 項持有部位沒有市場資料",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "重建歷史",
     "add_price": "新增價格",
     "update_cost_basis": "更新成本基礎",
+    "update_value": "更新估值",
     "review_transaction": "檢查交易",
     "review_entry": "查看紀錄"
   },

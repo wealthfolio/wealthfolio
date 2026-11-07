@@ -75,11 +75,26 @@ export default function AssetsPage() {
       <SettingsHeader
         heading={t("settings:nav.items.securities")}
         text={t("asset:securities.subtitle")}
+        actionsInline
       >
-        <Button onClick={() => setCreateDialogOpen(true)} size="sm">
-          <Icons.Plus className="me-2 h-4 w-4" />
-          {t("asset:securities.add_security")}
-        </Button>
+        <>
+          <Button
+            size="icon"
+            className="sm:hidden"
+            onClick={() => setCreateDialogOpen(true)}
+            aria-label={t("asset:securities.add_security")}
+          >
+            <Icons.Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            className="hidden sm:inline-flex"
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            <Icons.Plus className="me-2 h-4 w-4" />
+            {t("asset:securities.add_security")}
+          </Button>
+        </>
       </SettingsHeader>
       <Separator />
       <div className="w-full">

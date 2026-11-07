@@ -78,6 +78,13 @@ struct TargetAccounts {
     currencies: HashMap<String, String>,
 }
 
+/// What a category's cash-flow bucket check reads: the Spending accounts'
+/// types, and the transfer groups with both legs on those accounts.
+struct BucketContext {
+    account_types: HashMap<String, String>,
+    transfer_groups: HashSet<String>,
+}
+
 impl CashActivityService {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -856,7 +863,7 @@ impl CashActivityService {
     }
 
     pub async fn unassign_category(&self, activity_id: &str, taxonomy_id: &str) -> Result<()> {
-        self.ensure_activity_assignment_allowed(activity_id, taxonomy_id, false)
+        self.ensure_activity_assignment_allowed(activity_id, taxonomy_id)
             .await?;
         self.assignments.unassign(activity_id, taxonomy_id).await
     }
@@ -867,6 +874,10 @@ impl CashActivityService {
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
         let mut activity_ids = HashSet::new();
         let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
+        // Read at most once for the whole batch, when the first row gets this
+        // far: it loads every activity on the Spending accounts, which costs
+        // too much to repeat for each row.
+        let mut bucket_context = None;
         for item in items {
             if !activity_ids.insert(&item.activity_id) {
                 return Err(SpendingError::InvalidInput {
@@ -874,8 +885,14 @@ impl CashActivityService {
                 }
                 .into());
             }
-            self.ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
+            let activity = self
+                .ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id)
                 .await?;
+            let context = match &bucket_context {
+                Some(context) => context,
+                None => bucket_context.insert(self.bucket_context().await?),
+            };
+            ensure_assignment_bucket(&activity, &item.taxonomy_id, context)?;
             categories_by_taxonomy
                 .entry(item.taxonomy_id.clone())
                 .or_default()
@@ -933,7 +950,7 @@ impl CashActivityService {
         expected: crate::activity_splits::SplitReviewState,
         taxonomy_id: &str,
     ) -> Result<()> {
-        self.ensure_activity_assignment_allowed(&expected.activity.id, taxonomy_id, false)
+        self.ensure_activity_assignment_allowed(&expected.activity.id, taxonomy_id)
             .await?;
         self.splits
             .replace_reviewed(expected, taxonomy_id, Vec::new())
@@ -1114,7 +1131,6 @@ impl CashActivityService {
         &self,
         activity_id: &str,
         taxonomy_id: &str,
-        enforce_bucket: bool,
     ) -> Result<Activity> {
         if taxonomy_id != SPENDING_TAXONOMY
             && taxonomy_id != INCOME_TAXONOMY
@@ -1125,52 +1141,26 @@ impl CashActivityService {
             }
             .into());
         }
-        let activity = self.ensure_activity_in_spending_scope(activity_id).await?;
-        if !enforce_bucket {
-            return Ok(activity);
-        }
+        self.ensure_activity_in_spending_scope(activity_id).await
+    }
 
+    async fn bucket_context(&self) -> Result<BucketContext> {
         let s = self.settings.get().await?;
         let TargetAccounts {
             ids: target_accounts,
             types: account_types,
             ..
         } = self.resolve_target_accounts(None, &s.account_ids)?;
-        let Some(account_type) = account_types.get(&activity.account_id) else {
-            return Err(SpendingError::InvalidInput {
-                message: "Activity account does not support spending tracking".to_string(),
-            }
-            .into());
-        };
         let context_activities = self
             .activity_repo
             .get_activities_by_account_ids(&target_accounts)
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = context_activities.iter().collect();
         let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
-        let bucket = cash_flow_bucket_from_classification(classify_activity_for_aggregation(
-            &activity,
-            account_type,
-            &transfer_groups,
-        ));
-        let Some(expected_taxonomy) = bucket.taxonomy_id() else {
-            return Err(SpendingError::InvalidInput {
-                message: "Neutral activities cannot be categorized. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
-            }
-            .into());
-        };
-        if expected_taxonomy != taxonomy_id {
-            return Err(SpendingError::InvalidInput {
-                message: format!(
-                    "{} activities can only use {} categories. Categories label the cash-flow bucket; they do not change it.",
-                    bucket.label(),
-                    bucket.taxonomy_label(),
-                ),
-            }
-            .into());
-        }
-
-        Ok(activity)
+        Ok(BucketContext {
+            account_types,
+            transfer_groups,
+        })
     }
 
     async fn ensure_activity_split_allowed(
@@ -1257,6 +1247,43 @@ impl CashActivityService {
         }
         Ok(activity)
     }
+}
+
+/// Categories label an activity's cash-flow bucket, so the taxonomy must be
+/// the bucket's own.
+fn ensure_assignment_bucket(
+    activity: &Activity,
+    taxonomy_id: &str,
+    context: &BucketContext,
+) -> Result<()> {
+    let Some(account_type) = context.account_types.get(&activity.account_id) else {
+        return Err(SpendingError::InvalidInput {
+            message: "Activity account does not support spending tracking".to_string(),
+        }
+        .into());
+    };
+    let bucket = cash_flow_bucket_from_classification(classify_activity_for_aggregation(
+        activity,
+        account_type,
+        &context.transfer_groups,
+    ));
+    let Some(expected_taxonomy) = bucket.taxonomy_id() else {
+        return Err(SpendingError::InvalidInput {
+            message: "Neutral activities cannot be categorized. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
+        }
+        .into());
+    };
+    if expected_taxonomy != taxonomy_id {
+        return Err(SpendingError::InvalidInput {
+            message: format!(
+                "{} activities can only use {} categories. Categories label the cash-flow bucket; they do not change it.",
+                bucket.label(),
+                bucket.taxonomy_label(),
+            ),
+        }
+        .into());
+    }
+    Ok(())
 }
 
 fn retain_classified_cash_activities(
@@ -1452,6 +1479,7 @@ fn activity_date_in_range(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
 
     use async_trait::async_trait;
@@ -1596,6 +1624,8 @@ mod tests {
 
     struct MockActivityRepo {
         activities: Vec<Activity>,
+        /// Calls to `get_activities_by_account_ids`, the full-history read.
+        account_loads: AtomicUsize,
     }
 
     #[async_trait]
@@ -1634,6 +1664,7 @@ mod tests {
             &self,
             account_ids: &[String],
         ) -> wealthfolio_core::Result<Vec<Activity>> {
+            self.account_loads.fetch_add(1, Ordering::SeqCst);
             Ok(self
                 .activities
                 .iter()
@@ -1888,10 +1919,24 @@ mod tests {
 
         async fn assign_many_single_select_clearing_splits(
             &self,
-            _: Vec<NewActivityTaxonomyAssignment>,
+            items: Vec<NewActivityTaxonomyAssignment>,
             _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-            unimplemented!()
+            let rows: Vec<ActivityTaxonomyAssignment> = items
+                .into_iter()
+                .map(|item| ActivityTaxonomyAssignment {
+                    id: format!("asg-{}", item.activity_id),
+                    activity_id: item.activity_id,
+                    taxonomy_id: item.taxonomy_id,
+                    category_id: item.category_id,
+                    weight: item.weight,
+                    source: item.source,
+                    created_at: now_naive(),
+                    updated_at: now_naive(),
+                })
+                .collect();
+            self.assignments.lock().unwrap().extend(rows.clone());
+            Ok(rows)
         }
 
         async fn assign_rule_many_single_select(
@@ -2504,7 +2549,23 @@ mod tests {
         Arc<MockAssignmentRepo>,
         Arc<MockSplitRepo>,
     ) {
-        let activity_repo = Arc::new(MockActivityRepo { activities });
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities,
+            account_loads: AtomicUsize::new(0),
+        });
+        make_service_from_repo(activity_repo, fx, excluded_category_ids, categories)
+    }
+
+    fn make_service_from_repo(
+        activity_repo: Arc<MockActivityRepo>,
+        fx: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+        excluded_category_ids: Vec<String>,
+        categories: Vec<Category>,
+    ) -> (
+        CashActivityService,
+        Arc<MockAssignmentRepo>,
+        Arc<MockSplitRepo>,
+    ) {
         let account_repo = Arc::new(MockAccountRepo {
             account: account(account_types::CASH),
         });
@@ -3566,6 +3627,68 @@ mod tests {
                 .unwrap();
             assert_eq!(response.total_count, expected_count);
         }
+    }
+
+    /// Each row's bucket check needs every activity on the Spending accounts.
+    /// A batch reads that history at most once, not once per row (#2509),
+    /// still checks every row against it, and skips the read when no row
+    /// reaches the bucket check.
+    #[tokio::test]
+    async fn bulk_assignment_reads_the_spending_history_once_per_batch() {
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![
+                cash_row("a", "WITHDRAWAL", 10, "USD"),
+                cash_row("b", "WITHDRAWAL", 20, "USD"),
+                cash_row("c", "WITHDRAWAL", 30, "USD"),
+                cash_row("neutral", "CREDIT", 40, "USD"),
+            ],
+            account_loads: AtomicUsize::new(0),
+        });
+        let (service, assignments, _) = make_service_from_repo(
+            activity_repo.clone(),
+            MockFx::none(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let batch = |ids: &[&str]| -> Vec<BulkCategoryAssignment> {
+            ids.iter()
+                .map(|id| BulkCategoryAssignment {
+                    activity_id: id.to_string(),
+                    taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                    category_id: "groceries".to_string(),
+                    expected_splits: None,
+                })
+                .collect()
+        };
+
+        assert!(service
+            .bulk_assign_categories(&[])
+            .await
+            .unwrap()
+            .is_empty());
+        let mut wrong_taxonomy = batch(&["a", "b"]);
+        wrong_taxonomy[0].taxonomy_id = "not_a_taxonomy".to_string();
+        let error = service
+            .bulk_assign_categories(&wrong_taxonomy)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("not assignable"));
+        assert_eq!(activity_repo.account_loads.load(Ordering::SeqCst), 0);
+
+        let error = service
+            .bulk_assign_categories(&batch(&["a", "neutral", "b"]))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("cannot be categorized"));
+        assert!(assignments.assignments.lock().unwrap().is_empty());
+        assert_eq!(activity_repo.account_loads.load(Ordering::SeqCst), 1);
+
+        let written = service
+            .bulk_assign_categories(&batch(&["a", "b", "c"]))
+            .await
+            .unwrap();
+        assert_eq!(written.len(), 3);
+        assert_eq!(activity_repo.account_loads.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]

@@ -187,7 +187,8 @@
     "duplicate": "복제",
     "unlinkTransfer": "이체 연결 해제",
     "linkTransfer": "이체 연결...",
-    "deleteConfirmMany_other": "거래 {{count}}건을 삭제하시겠습니까?"
+    "deleteConfirmMany_other": "거래 {{count}}건을 삭제하시겠습니까?",
+    "convertToTransfer": "이체로 변환..."
   },
   "cashFlow": {
     "income": "수입",
@@ -843,6 +844,9 @@
     "manage": "관리 →"
   },
   "cashForm": {
+    "none": "없음",
+    "addExpense": "지출 추가",
+    "addIncome": "수입 추가",
     "accountRequired": "계좌를 선택하세요.",
     "pickDate": "날짜 선택",
     "amountNonNegative": "금액은 음수가 될 수 없습니다.",
@@ -860,6 +864,8 @@
     "spendingCategory": "지출 카테고리",
     "activityUpdated": "활동이 업데이트되었습니다.",
     "activityCreated": "활동이 생성되었습니다.",
+    "expenseAdded": "지출을 추가했습니다.",
+    "incomeAdded": "수입을 추가했습니다.",
     "saveFailed": "활동을 저장하지 못했습니다: {{message}}",
     "editTitle": "거래 수정",
     "addTitle": "거래 추가",
@@ -926,7 +932,7 @@
     "stageWhenLabel": "시기와 장소",
     "stageWhenSub": "지출 시점 및 지출 이벤트",
     "spendingAbovePrefix": "지출이",
-    "pctAbove": "{{pct}}% 더 많습니다",
+    "pctAbove": "{{pct}} 더 많습니다",
     "thePriorPeriod": "이전 기간보다.",
     "moreThan": "{{prior}}보다 {{more}} 더 많음",
     "uncategorizedCount_one": "미분류 거래 {{count}}건",

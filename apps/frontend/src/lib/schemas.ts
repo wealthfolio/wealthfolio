@@ -6,6 +6,8 @@ import {
   ActivityType,
   activityTypeSchema,
   quoteModeSchema,
+  MIN_CONTRIBUTION_YEAR,
+  MAX_CONTRIBUTION_YEAR,
 } from "./constants";
 import { tryParseDate } from "./utils";
 import {
@@ -99,7 +101,11 @@ export const newAccountSchema = z
       .max(50, {
         message: "common:validation.accountNameMax",
       }),
-    group: z.string().optional(),
+    group: z
+      .string()
+      .nullable()
+      .transform((value) => (value === "" ? null : value))
+      .optional(),
     // Blank clears the stored number; left out, the stored number stays.
     accountNumber: z
       .string()
@@ -400,7 +406,8 @@ export const createContributionLimitSchema = (t?: TFunction) => {
     contributionYear: z
       .number({ error: invalidYear })
       .int({ message: invalidYear })
-      .min(1900, { message: invalidYear }),
+      .min(MIN_CONTRIBUTION_YEAR, { message: invalidYear })
+      .max(MAX_CONTRIBUTION_YEAR, { message: invalidYear }),
     limitAmount: z.coerce
       .number({
         error: invalidTypeError(
@@ -419,6 +426,7 @@ export const createContributionLimitSchema = (t?: TFunction) => {
     accountIds: z.string().nullable().optional(),
     startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
     endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+    isRecurring: z.boolean().optional(),
   });
 };
 

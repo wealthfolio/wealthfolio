@@ -103,6 +103,8 @@ export {
   getImportTemplate,
   getBrokerSyncProfile,
   findTransferMatchCandidates,
+  convertToInternalTransfer,
+  reviewConvertToTransferSplitEffects,
   getTransferPairForActivity,
   getAccountImportMapping,
   linkAccountTemplate,
@@ -248,6 +250,8 @@ export {
   deleteContributionLimit,
   getContributionLimit,
   updateContributionLimit,
+  getContributionLimitDetails,
+  setContributionActivityExcluded,
 } from "../shared/contribution-limits";
 
 // Exchange Rates Commands

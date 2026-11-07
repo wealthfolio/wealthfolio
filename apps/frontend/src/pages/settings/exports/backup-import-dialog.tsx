@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useDateFormatting } from "@wealthfolio/ui";
+import { useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import {
   discardDatabaseBackupImport,
   getDatabaseEncryptionStatus,
@@ -44,7 +44,8 @@ export function BackupImportDialog({
   /** Fetches a new caller preview after this one was used; the caller remounts the dialog. */
   onRetry?: () => Promise<void>;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const formatting = useDateFormatting();
   const id = useId();
   const reduceMotion = useReducedMotion();
@@ -287,7 +288,7 @@ export function BackupImportDialog({
                           <div key={label} className="flex flex-col gap-0.5 px-4">
                             <dt className="text-muted-foreground text-xs">{label}</dt>
                             <dd className="order-first text-xl font-semibold tracking-tight tabular-nums">
-                              {value.toLocaleString(i18n.resolvedLanguage)}
+                              {numbers.formatDecimal(value)}
                             </dd>
                           </div>
                         ))}
@@ -417,7 +418,7 @@ export function BackupImportDialog({
                 {error && <BackupAlert error={error} />}
               </motion.div>
             </div>
-            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-[max(1.5rem,var(--inset-bottom))] sm:pb-6">
+            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-6 sm:pb-6">
               <Button
                 type="button"
                 variant="ghost"

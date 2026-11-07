@@ -259,3 +259,31 @@ describe("a back swipe in the iOS app", () => {
     expect(under()).not.toBe("none");
   });
 });
+
+describe("focus after a push", () => {
+  afterEach(() => {
+    pages.withPopup = false;
+  });
+
+  it("leaves focus in a dialog the pushed screen's page opened", async () => {
+    pages.withPopup = true;
+    const { container, rerender } = render(outletFor(stackOf(1)));
+    rerender(outletFor(stackOf(2)));
+    // Found through its screen's portal: a role query would also match dialogs
+    // other tests in this file left open.
+    const dialog = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(
+        '[data-portal-scope="holdings:1"] [role="dialog"]',
+      );
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+
+    // The push settles once the screen underneath is hidden; then the stack moves
+    // focus unless the page already put it somewhere, as this dialog did.
+    const under = container.querySelector<HTMLElement>('[data-stack-screen="holdings:0"]')!;
+    await waitFor(() => expect(under).not.toBeVisible());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+  });
+});

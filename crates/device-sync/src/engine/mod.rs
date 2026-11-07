@@ -80,6 +80,7 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::AiMessage => "ai_message",
         SyncEntity::AiThreadTag => "ai_thread_tag",
         SyncEntity::ContributionLimit => "contribution_limit",
+        SyncEntity::ContributionLimitV2 => "contribution_limit_v2",
         SyncEntity::Platform => "platform",
         SyncEntity::Snapshot => "snapshot",
         SyncEntity::CustomProvider => "custom_provider",
@@ -226,28 +227,6 @@ where
         pushed_count: 0,
         pulled_count: 0,
     };
-
-    match ports.is_sync_allowed().await {
-        Ok(true) => {}
-        Ok(false) => {
-            return ctx
-                .fail(
-                    "subscription_required",
-                    "Device sync is paused: an active subscription is required.".to_string(),
-                    Some(300),
-                )
-                .await
-        }
-        Err(err) => {
-            return ctx
-                .fail(
-                    "subscription_check_error",
-                    format!("Could not verify sync subscription: {}", err),
-                    Some(60),
-                )
-                .await
-        }
-    }
 
     let identity = match ports.get_sync_identity() {
         Some(value) => value,
@@ -1240,7 +1219,7 @@ mod tests {
     struct TestPorts {
         has_cloud_session: bool,
         session_read_results: Arc<std::sync::Mutex<VecDeque<Result<bool, String>>>>,
-        sync_allowed: Result<bool, String>,
+        reconcile_error: Option<TransportError>,
         token_lookup_gate: Option<(Arc<Mutex<()>>, Arc<tokio::sync::Notify>)>,
         cursor: i64,
         identity: Option<SyncIdentity>,
@@ -1271,7 +1250,7 @@ mod tests {
             Self {
                 has_cloud_session: true,
                 session_read_results: Arc::new(std::sync::Mutex::new(VecDeque::new())),
-                sync_allowed: Ok(true),
+                reconcile_error: None,
                 token_lookup_gate: None,
                 cursor: 0,
                 identity,
@@ -1547,6 +1526,9 @@ mod tests {
             _token: &str,
             _device_id: &str,
         ) -> Result<crate::ReconcileReadyStateResponse, TransportError> {
+            if let Some(error) = &self.reconcile_error {
+                return Err(error.clone());
+            }
             let active = self.active_reconcile_count.fetch_add(1, Ordering::SeqCst) + 1;
             loop {
                 let current_max = self.max_active_reconcile_count.load(Ordering::SeqCst);
@@ -1577,10 +1559,6 @@ mod tests {
                 .unwrap()
                 .pop_front()
                 .unwrap_or(Ok(self.has_cloud_session))
-        }
-
-        async fn is_sync_allowed(&self) -> Result<bool, String> {
-            self.sync_allowed.clone()
         }
 
         fn get_sync_identity(&self) -> Option<SyncIdentity> {
@@ -1686,7 +1664,12 @@ mod tests {
     #[tokio::test]
     async fn inactive_subscription_preserves_pending_changes_and_resumes() {
         let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
-        ports.sync_allowed = Ok(false);
+        ports.reconcile_error = Some(TransportError {
+            message: "Subscription required".into(),
+            retry_class: ApiRetryClass::Permanent,
+            error_code: Some("SUBSCRIPTION_REQUIRED".into()),
+            details: None,
+        });
         ports.pending_outbox.lock().await.push(outbox_event(
             "event-1",
             "019cb093-06a8-7534-8677-546317b17957",
@@ -1695,10 +1678,9 @@ mod tests {
         let paused = run_sync_cycle(&ports, false).await.unwrap();
         assert_eq!(paused.status, "subscription_required");
         assert_eq!(ports.pending_outbox.lock().await.len(), 1);
-        assert!(ports.persisted_trust_states.lock().await.is_empty());
         assert_eq!(ports.max_active_reconcile_count.load(Ordering::SeqCst), 0);
         assert!((299_000..=300_000).contains(&compute_cycle_delay_ms(&ports, 0).await));
-        ports.sync_allowed = Ok(true);
+        ports.reconcile_error = None;
         let resumed = run_sync_cycle(&ports, false).await.unwrap();
         assert_eq!(resumed.status, "ok");
         assert_eq!(ports.push_batches.lock().await.len(), 1);
@@ -1733,16 +1715,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn subscription_lookup_failure_cannot_push_or_pull() {
+    async fn reconcile_failure_cannot_push_or_pull() {
         let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
-        ports.sync_allowed = Err("service unavailable".to_string());
+        ports.reconcile_error = Some(TransportError {
+            message: "service unavailable".into(),
+            retry_class: ApiRetryClass::Retryable,
+            error_code: None,
+            details: None,
+        });
         assert_eq!(
             run_sync_cycle(&ports, false).await.unwrap().status,
-            "subscription_check_error"
+            "reconcile_error"
         );
         assert!(ports.push_batches.lock().await.is_empty());
         assert!(ports.applied_events.lock().await.is_empty());
-        assert!(ports.persisted_trust_states.lock().await.is_empty());
     }
 
     #[tokio::test(start_paused = true)]

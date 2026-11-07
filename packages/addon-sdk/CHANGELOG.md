@@ -6,6 +6,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
+  dividends. `income` still counts every income type. Absent on older hosts.
+
 ### Fixed
 
 - Removed `Account.balance` from the SDK type to match the account metadata

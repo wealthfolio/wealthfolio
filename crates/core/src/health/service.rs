@@ -26,6 +26,7 @@ use crate::errors::Result;
 use crate::lots::LotRepositoryTrait;
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
+use crate::portfolio::net_worth::{NetWorthServiceTrait, StaleAssetInfo};
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
     AccountStateSnapshot, HoldingsTimeline, Position, SnapshotServiceTrait,
@@ -73,6 +74,8 @@ pub struct HealthService {
     transfer_integrity_check: TransferIntegrityCheck,
     /// Projection freshness (the coordinator), when wired by the host.
     projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
+    /// Net worth, whose stale valuations are reported when wired by the host.
+    net_worth: Option<Arc<dyn NetWorthServiceTrait>>,
 }
 
 fn is_price_staleness_candidate(
@@ -97,6 +100,7 @@ impl HealthService {
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
             projection_freshness: None,
+            net_worth: None,
         }
     }
 
@@ -106,6 +110,12 @@ impl HealthService {
         freshness: Arc<dyn ProjectionFreshnessTrait>,
     ) -> Self {
         self.projection_freshness = Some(freshness);
+        self
+    }
+
+    /// Reports manually valued assets that Net worth lists as stale.
+    pub fn with_net_worth(mut self, net_worth: Arc<dyn NetWorthServiceTrait>) -> Self {
+        self.net_worth = Some(net_worth);
         self
     }
 
@@ -126,6 +136,7 @@ impl HealthService {
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
             projection_freshness: None,
+            net_worth: None,
         }
     }
 
@@ -151,6 +162,47 @@ impl HealthService {
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
     ) -> Result<HealthStatus> {
+        self.run_checks_with_stale_valuations(
+            base_currency,
+            total_portfolio_value,
+            holdings,
+            latest_quote_times,
+            quote_sync_errors,
+            fx_pairs,
+            fx_conflicts,
+            unclassified_assets,
+            consistency_issues,
+            legacy_migration_info,
+            unconfigured_accounts,
+            configured_timezone,
+            client_timezone,
+            invalid_transfer_groups,
+            &[],
+        )
+        .await
+    }
+
+    /// Runs all checks, including stale manual valuations, which only a full
+    /// check gathers.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_checks_with_stale_valuations(
+        &self,
+        base_currency: &str,
+        total_portfolio_value: f64,
+        holdings: &[AssetHoldingInfo],
+        latest_quote_times: &std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
+        quote_sync_errors: &[QuoteSyncErrorInfo],
+        fx_pairs: &[FxPairInfo],
+        fx_conflicts: &[FxConflictInfo],
+        unclassified_assets: &[UnclassifiedAssetInfo],
+        consistency_issues: &[ConsistencyIssueInfo],
+        legacy_migration_info: &Option<LegacyMigrationInfo>,
+        unconfigured_accounts: &[UnconfiguredAccountInfo],
+        configured_timezone: Option<&str>,
+        client_timezone: Option<&str>,
+        invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        stale_manual_valuations: &[StaleAssetInfo],
+    ) -> Result<HealthStatus> {
         let config = self.config.read().await.clone();
         let ctx = HealthContext::new(config, base_currency, total_portfolio_value);
 
@@ -169,6 +221,10 @@ impl HealthService {
         let price_issues = self.price_check.analyze(holdings, latest_quote_times, &ctx);
         debug!("Price staleness check found {} issues", price_issues.len());
         all_issues.extend(price_issues);
+        all_issues.extend(
+            self.price_check
+                .analyze_stale_manual_valuations(stale_manual_valuations),
+        );
 
         // Run quote sync error check
         debug!(
@@ -473,6 +529,18 @@ impl HealthService {
         let today = user_today(parse_user_timezone_or_default(
             timezone.as_deref().unwrap_or_default(),
         ));
+        let stale_valuations = net_worth_stale_valuations(self.net_worth.as_deref(), today).await;
+        let stale_manual_valuations = if stale_valuations.is_empty() {
+            Vec::new()
+        } else {
+            match asset_service.get_assets() {
+                Ok(assets) => manually_valued(stale_valuations, &assets),
+                Err(error) => {
+                    warn!("Failed to load assets for stale valuations: {}", error);
+                    Vec::new()
+                }
+            }
+        };
         let projection_freshness = self.projection_freshness.clone();
         let handle = tokio::runtime::Handle::current();
         let gather_history = async move {
@@ -711,7 +779,7 @@ impl HealthService {
             blocking(move || handle.block_on(gather_history)).await?;
 
         // Run checks with gathered data
-        self.run_checks_with_data(
+        self.run_checks_with_stale_valuations(
             base_currency,
             total_portfolio_value,
             &all_holdings,
@@ -726,6 +794,7 @@ impl HealthService {
             configured_timezone,
             client_timezone,
             &invalid_transfer_groups,
+            &stale_manual_valuations,
         )
         .await
     }
@@ -758,6 +827,39 @@ impl HealthService {
 
         Ok(filtered)
     }
+}
+
+/// Net worth's stale valuations as of `today`. Without a Net worth service, or
+/// when it fails, there are none to report.
+async fn net_worth_stale_valuations(
+    net_worth: Option<&dyn NetWorthServiceTrait>,
+    today: NaiveDate,
+) -> Vec<StaleAssetInfo> {
+    let Some(net_worth) = net_worth else {
+        return Vec::new();
+    };
+    match net_worth.get_net_worth(today).await {
+        Ok(response) => response.stale_assets,
+        Err(error) => {
+            warn!("Failed to read stale valuations from net worth: {}", error);
+            Vec::new()
+        }
+    }
+}
+
+/// Keeps the stale valuations of manually priced assets. Market-priced assets
+/// are left to the price staleness check, and rows that are not assets (account
+/// cash and investment totals) are dropped.
+fn manually_valued(stale: Vec<StaleAssetInfo>, assets: &[Asset]) -> Vec<StaleAssetInfo> {
+    let manual_asset_ids: HashSet<&str> = assets
+        .iter()
+        .filter(|asset| asset.quote_mode == QuoteMode::Manual)
+        .map(|asset| asset.id.as_str())
+        .collect();
+    stale
+        .into_iter()
+        .filter(|valuation| manual_asset_ids.contains(valuation.asset_id.as_str()))
+        .collect()
 }
 
 /// Investment accounts checked for a negative cash balance or total value.
@@ -3488,5 +3590,171 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.total_count(), 0);
+    }
+
+    fn stale(asset_id: &str, days_stale: i64) -> StaleAssetInfo {
+        StaleAssetInfo {
+            asset_id: asset_id.to_string(),
+            name: Some(format!("{asset_id} name")),
+            valuation_date: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            days_stale,
+        }
+    }
+
+    fn manual_asset(id: &str, kind: AssetKind) -> Asset {
+        Asset {
+            kind,
+            quote_mode: QuoteMode::Manual,
+            instrument_type: None,
+            instrument_symbol: None,
+            instrument_exchange_mic: None,
+            ..health_asset(id)
+        }
+    }
+
+    /// Net worth that reports the given stale valuations, or fails without any.
+    struct StubNetWorth(Option<Vec<StaleAssetInfo>>);
+
+    #[async_trait]
+    impl NetWorthServiceTrait for StubNetWorth {
+        async fn get_net_worth(
+            &self,
+            date: NaiveDate,
+        ) -> Result<crate::portfolio::net_worth::NetWorthResponse> {
+            let stale_assets = self
+                .0
+                .clone()
+                .ok_or_else(|| crate::errors::Error::Asset("net worth unavailable".to_string()))?;
+            let mut response =
+                crate::portfolio::net_worth::NetWorthResponse::empty(date, "USD".to_string());
+            response.stale_assets = stale_assets;
+            Ok(response)
+        }
+
+        async fn get_net_worth_history(
+            &self,
+            _start_date: NaiveDate,
+            _end_date: NaiveDate,
+        ) -> Result<Vec<crate::portfolio::net_worth::NetWorthHistoryPoint>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn stale_valuations_keep_only_manually_priced_assets() {
+        let assets = vec![
+            manual_asset("house", AssetKind::Property),
+            manual_asset("mortgage", AssetKind::Liability),
+            health_asset("aapl"),
+        ];
+        let kept = manually_valued(
+            vec![
+                stale("house", 120),
+                stale("aapl", 95),
+                stale("INVESTMENTS:acc-1", 100),
+                stale("mortgage", 200),
+                stale("deleted-asset", 300),
+            ],
+            &assets,
+        );
+
+        let ids: Vec<&str> = kept.iter().map(|v| v.asset_id.as_str()).collect();
+        assert_eq!(ids, vec!["house", "mortgage"]);
+    }
+
+    #[tokio::test]
+    async fn stale_valuations_need_a_working_net_worth_service() {
+        let today = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        assert!(net_worth_stale_valuations(None, today).await.is_empty());
+
+        let failing = StubNetWorth(None);
+        assert!(net_worth_stale_valuations(Some(&failing), today)
+            .await
+            .is_empty());
+
+        let working = StubNetWorth(Some(vec![stale("house", 120)]));
+        let found = net_worth_stale_valuations(Some(&working), today).await;
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].asset_id, "house");
+    }
+
+    async fn stale_valuation_issues(
+        service: &HealthService,
+        stale_valuations: &[StaleAssetInfo],
+    ) -> Vec<HealthIssue> {
+        service
+            .run_checks_with_stale_valuations(
+                "USD",
+                0.0,
+                &[],
+                &HashMap::new(),
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                &None,
+                &[],
+                Some("UTC"),
+                None,
+                &[],
+                stale_valuations,
+            )
+            .await
+            .unwrap()
+            .issues
+            .into_iter()
+            .filter(|issue| issue.code.as_deref() == Some("price_manual_valuation_stale"))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn stale_valuation_dismissal_holds_until_the_assets_change() {
+        let service = HealthService::new(Arc::new(MockDismissalStore::new()));
+
+        let issues = stale_valuation_issues(&service, &[stale("house", 120)]).await;
+        assert_eq!(issues.len(), 1);
+        let issue = &issues[0];
+        assert_eq!(issue.severity, crate::health::Severity::Warning);
+        assert_eq!(
+            issue.category,
+            crate::health::HealthCategory::PriceStaleness
+        );
+        service
+            .dismiss_issue(&issue.id, &issue.data_hash)
+            .await
+            .unwrap();
+
+        // Another day older is the same set of assets, so it stays dismissed.
+        assert!(stale_valuation_issues(&service, &[stale("house", 121)])
+            .await
+            .is_empty());
+
+        // A newly stale asset brings the issue back.
+        let issues =
+            stale_valuation_issues(&service, &[stale("house", 122), stale("car", 91)]).await;
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].affected_count, 2);
+    }
+
+    #[tokio::test]
+    async fn stale_valuation_dismissal_ends_with_a_new_value() {
+        let service = HealthService::new(Arc::new(MockDismissalStore::new()));
+        let issues = stale_valuation_issues(&service, &[stale("house", 120)]).await;
+        service
+            .dismiss_issue(&issues[0].id, &issues[0].data_hash)
+            .await
+            .unwrap();
+
+        // The house gets a new value (no issue while it is fresh), and that
+        // value goes stale too. The earlier dismissal must not hide it.
+        assert!(stale_valuation_issues(&service, &[]).await.is_empty());
+        let restaled = StaleAssetInfo {
+            valuation_date: NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+            ..stale("house", 95)
+        };
+        let issues = stale_valuation_issues(&service, &[restaled]).await;
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].affected_count, 1);
     }
 }

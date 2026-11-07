@@ -99,8 +99,14 @@
   "limits_add_button": "한도 추가",
   "limits_add_aria": "납입 한도 추가",
   "limits_current_year": "올해 ({{year}})",
+  "limits_future_years": "다가오는 연도",
   "limits_previous_years": "이전 연도",
   "limits_show_previous": "표시",
+  "limits_projected_badge": "예상",
+  "limits_projected_description": "{{year}}년 반복 한도에서 자동 생성되었습니다. 이 연도의 금액을 변경하려면 추가하세요.",
+  "limits_projected_add_button": "이 연도 추가",
+  "limits_projected_add_aria": "{{year}}년 {{group}} 추가 ({{accounts}})",
+  "limits_no_accounts_selected": "선택한 계좌 없음",
   "limits_empty_title": "{{year}}년 납입 한도가 없습니다!",
   "limits_empty_description": "올해에 대한 납입 한도가 없습니다. 납입 한도를 추가해 보세요.",
   "limits_add_first": "납입 한도 추가",
@@ -131,6 +137,8 @@
   "limits_form_start_date_label": "시작일",
   "limits_form_end_date_label": "종료일",
   "limits_form_date_description": "기본값은 선택한 연도의 1월 1일부터 12월 31일까지입니다",
+  "limits_form_recurring_label": "매년 반복",
+  "limits_form_recurring_description": "해당 연도를 추가하거나 수정할 때까지 동일한 금액으로 향후 연도의 예상 한도를 자동으로 표시합니다.",
   "limits_form_updating": "수정 중...",
   "limits_form_saving": "저장 중...",
   "limits_form_update_button": "수정",
@@ -1741,6 +1749,35 @@
         "name": "네트워크 접근",
         "description": "호스트 네트워크 중개자를 통해 선언된 외부 HTTPS 호스트에 접근"
       }
+    }
+  },
+  "limits_detail": {
+    "view_details": "상세 보기",
+    "back": "납입 한도",
+    "counted": "계산된 납입액",
+    "annual_limit": "한도 금액",
+    "remaining": "남은 한도",
+    "over": "한도 초과",
+    "activities": "납입 거래",
+    "review_activity": "{{activity}} 검토",
+    "transaction_details": "거래 상세",
+    "treatment": "이 한도에서의 처리",
+    "automatic": "자동으로 계산",
+    "excluded": "이 한도에서 제외",
+    "save": "처리 저장",
+    "counted_amount": "계산된 금액",
+    "usage_after_save": "저장 후 한도 사용액",
+    "recalculate": "저장 시 계산",
+    "activity_unchanged": "이 한도의 사용액만 변경됩니다. 계좌 거래는 변경되지 않습니다.",
+    "save_success": "납입 처리를 저장했습니다.",
+    "save_error": "납입 처리를 저장할 수 없습니다.",
+    "load_error": "이 납입 한도를 불러올 수 없습니다.",
+    "no_activities": "이 기간에 납입 거래가 없습니다.",
+    "treatments": {
+      "counted": "계산됨",
+      "excludedByUser": "직접 제외함",
+      "internalTransfer": "내부 이체",
+      "notExternal": "외부로 표시되지 않음"
     }
   }
 }

@@ -99,8 +99,14 @@
   "limits_add_button": "Aggiungi limite",
   "limits_add_aria": "Aggiungi limite di contributo",
   "limits_current_year": "Anno corrente ({{year}})",
+  "limits_future_years": "Anni futuri",
   "limits_previous_years": "Anni precedenti",
   "limits_show_previous": "Mostra",
+  "limits_projected_badge": "Proiettato",
+  "limits_projected_description": "Generato automaticamente dal tuo limite ricorrente del {{year}}. Aggiungilo per personalizzare l'importo di quest'anno.",
+  "limits_projected_add_button": "Aggiungi quest'anno",
+  "limits_projected_add_aria": "Aggiungi {{group}} per il {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "Nessun conto selezionato",
   "limits_empty_title": "Nessun limite di contributo per il {{year}}!",
   "limits_empty_description": "Non hai limiti di contributo per l'anno corrente. Inizia ad aggiungere i tuoi limiti di contributo.",
   "limits_add_first": "Aggiungi un limite di contributo",
@@ -131,6 +137,8 @@
   "limits_form_start_date_label": "Data di inizio",
   "limits_form_end_date_label": "Data di fine",
   "limits_form_date_description": "Le date predefinite vanno dal 1° gennaio al 31 dicembre dell'anno selezionato",
+  "limits_form_recurring_label": "Si ripete ogni anno",
+  "limits_form_recurring_description": "Mostra automaticamente un limite proiettato per gli anni futuri con lo stesso importo, finché non aggiungi o modifichi quell'anno.",
   "limits_form_updating": "Aggiornamento...",
   "limits_form_saving": "Salvataggio...",
   "limits_form_update_button": "Aggiorna",
@@ -1819,6 +1827,35 @@
         "name": "Accesso alla rete",
         "description": "Accesso agli host HTTPS esterni dichiarati tramite il broker di rete dell’host"
       }
+    }
+  },
+  "limits_detail": {
+    "view_details": "Mostra dettagli",
+    "back": "Limiti di contribuzione",
+    "counted": "Contributi conteggiati",
+    "annual_limit": "Importo del limite",
+    "remaining": "Margine rimanente",
+    "over": "Limite superato",
+    "activities": "Movimenti contributivi",
+    "review_activity": "Esamina {{activity}}",
+    "transaction_details": "Dettagli della transazione",
+    "treatment": "Trattamento per questo limite",
+    "automatic": "Conteggia automaticamente",
+    "excluded": "Escludi da questo limite",
+    "save": "Salva trattamento",
+    "counted_amount": "Importo conteggiato",
+    "usage_after_save": "Utilizzo del limite dopo il salvataggio",
+    "recalculate": "Calcolato al salvataggio",
+    "activity_unchanged": "Cambia solo l’utilizzo di questo limite. I movimenti del conto restano invariati.",
+    "save_success": "Trattamento del contributo salvato.",
+    "save_error": "Impossibile salvare il trattamento del contributo.",
+    "load_error": "Impossibile caricare questo limite di contribuzione.",
+    "no_activities": "Nessun movimento contributivo in questo periodo.",
+    "treatments": {
+      "counted": "Conteggiato",
+      "excludedByUser": "Escluso da te",
+      "internalTransfer": "Trasferimento interno",
+      "notExternal": "Non contrassegnato come esterno"
     }
   }
 }

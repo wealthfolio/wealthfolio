@@ -519,7 +519,13 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                 inputMax={SAVE_UP_MAX_ANNUAL_RETURN}
                 step={0.001}
                 suffix="%"
-                format={(v) => (v * 100).toFixed(1)}
+                format={(v) =>
+                  numberFormatting.formatDecimal(v * 100, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                    useGrouping: false,
+                  })
+                }
                 warning={highReturnWarning(annualReturn)}
               />
             </>

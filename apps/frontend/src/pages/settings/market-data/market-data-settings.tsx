@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/components/external-link";
 import {
   getProviderDescription,
   getProviderCoverage,
@@ -419,14 +420,14 @@ function ProviderSettings({
                         <p className="text-xs font-medium">
                           {t("settings:market_data_page.website")}
                         </p>
-                        <a
+                        <ExternalLink
                           href={provider.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary text-xs hover:underline"
                         >
                           {provider.url}
-                        </a>
+                        </ExternalLink>
                       </div>
                     </div>
                   )}

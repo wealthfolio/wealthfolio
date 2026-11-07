@@ -8,7 +8,7 @@ import zhConnect from "@/i18n/locales/zh/connect.json";
 import zhGoals from "@/i18n/locales/zh/goals.json";
 import zhHealth from "@/i18n/locales/zh/health.json";
 import zhActivity from "@/i18n/locales/zh/activity.json";
-import { formatErrorMessage } from "./use-chat-runtime";
+import { formatChatError, formatErrorMessage } from "./use-chat-runtime";
 import {
   userFacingSyncErrorMessage,
   rawSyncErrorMessage,
@@ -73,6 +73,21 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     expect(formatErrorMessage("429", translator.t)).toContain("**Rate limit exceeded**");
   });
 
+  it("explains a chat too long for the model from its error code", async () => {
+    const translator = createInstance();
+    await translator.init({
+      lng: "zh",
+      resources: { zh: { ai: zhAi }, en: { ai: enAi } },
+      interpolation: { escapeValue: false },
+    });
+    const overflow = formatChatError("CONTEXT_OVERFLOW", "prompt is too long", translator.t);
+    expect(overflow).toContain("**对话过长**");
+    expect(overflow).toContain("[AI 提供方设置](/settings/ai-providers)");
+    expect(formatChatError("STREAM_ERROR", "429 rate limit", translator.t)).toContain(
+      "**请求过于频繁**",
+    );
+  });
+
   it("uses the current language for sync messages and leaves logging details raw", async () => {
     const raw =
       'Portfolio "Family USD" contains a deleted account link. Open Settings > Portfolios.';
@@ -120,6 +135,13 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     const navigation = { route: "/holdings/asset-1", label: "Add Price", query: { tab: "quotes" } };
     expect(translateHealthAction(i18n.t, navigation)).toBe("添加价格");
     expect(navigation.route).toBe("/holdings/asset-1");
+    expect(
+      translateHealthAction(i18n.t, {
+        ...navigation,
+        label: "Update Value",
+        query: { tab: "history" },
+      }),
+    ).toBe("更新估值");
     const snapshot = {
       route: "/accounts/account-1",
       label: "Review entry",

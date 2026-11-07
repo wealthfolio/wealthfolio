@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Maggiori dettagli",
     "unlink_transfer": "Scollega trasferimento",
-    "link_transfer": "Collega trasferimento..."
+    "link_transfer": "Collega trasferimento...",
+    "convert_to_transfer": "Converti in trasferimento..."
   },
   "date_sheet": {
     "title": "Movimenti del {{date}}",
@@ -471,7 +472,17 @@
     "error_search": "Impossibile cercare i movimenti.",
     "within_days_one": "Entro {{count}} giorno",
     "within_days_many": "Entro {{count}} giorni",
-    "within_days_other": "Entro {{count}} giorni"
+    "within_days_other": "Entro {{count}} giorni",
+    "convert_title": "Converti in trasferimento",
+    "convert_desc": "Trasforma questa attività in un trasferimento tra i tuoi conti. Scegli l'attività corrispondente nell'altro conto o creala lì.",
+    "convert_no_matches": "Nessuna attività corrispondente entro 7 giorni.",
+    "convert_new": "Creala in un altro conto",
+    "convert_removes_split": "La conversione in trasferimento rimuove la divisione.",
+    "convert_account": "Altro conto",
+    "convert_amount": "Importo in {{currency}}",
+    "convert_button": "Converti in trasferimento",
+    "convert_success": "Convertita in trasferimento",
+    "convert_error": "Impossibile convertire in trasferimento"
   },
   "form": {
     "section_conversion": "Switch",
@@ -506,6 +517,7 @@
     "label_cost_basis": "Costo di carico",
     "label_split_ratio": "Rapporto di frazionamento",
     "label_acquisition_date": "Data di acquisizione",
+    "label_amount_before_tax": "Importo lordo",
     "label_withholding_tax": "Ritenuta d'acconto",
     "label_dividend_amount": "Importo del dividendo",
     "label_interest_amount": "Importo dell'interesse",
@@ -578,6 +590,7 @@
     "sent_amount": "Importo inviato",
     "received_amount": "Importo ricevuto",
     "contract_multiplier": "Moltiplicatore del contratto",
+    "sell_all": "Vendi tutto",
     "available_amount": "Disponibile: {{amount}}",
     "total_debit": "Addebito totale",
     "total_credit": "Accredito totale",
@@ -603,7 +616,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "Maggiori informazioni su {{label}}",
     "bulk_add_existing_title": "Aggiungi posizioni esistenti",
-    "bulk_add_existing_desc": "Aggiungi rapidamente più posizioni al tuo portafoglio. Inserisci le tue posizioni attuali con simboli ticker, quantità e costi medi. Questo non influirà sul tuo saldo disponibile.",
+    "bulk_add_existing_desc": "Aggiungi le tue posizioni attuali senza modificare il saldo di liquidità.",
     "bulk_col_shares": "Azioni",
     "bulk_col_average_cost": "Costo medio",
     "bulk_col_total_value": "Valore totale",
@@ -661,6 +674,7 @@
     "err_split_ratio_gt_zero": "Il rapporto di frazionamento deve essere maggiore di 0.",
     "err_withholding_tax_number": "La ritenuta d'acconto deve essere un numero.",
     "err_withholding_tax_non_negative": "La ritenuta d'acconto non può essere negativa.",
+    "err_charges_exceed_amount_before_tax": "Imposte e commissioni non possono superare l'importo lordo.",
     "err_fmv_number": "Il valore equo di mercato per unità deve essere un numero.",
     "err_fmv_gt_zero": "Il valore equo di mercato per unità deve essere maggiore di 0.",
     "err_received_quantity_number": "La quantità ricevuta deve essere un numero.",
@@ -809,12 +823,6 @@
     "day_count_other": "{{count}} movimenti",
     "day_count_many": "{{count}} movimenti",
     "day_end_cash": "Liquidità"
-  },
-  "mobile_type_category": {
-    "trade": "Operazione",
-    "cash": "Liquidità",
-    "income": "Reddito",
-    "other": "Altro"
   },
   "mobile_type_transfer_desc": "Sposta liquidità o titoli tra conti",
   "mobile_type_adjustment_label": "Rettifica",

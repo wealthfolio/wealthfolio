@@ -1,6 +1,8 @@
 import { act, render, screen, waitFor, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { FormattingProvider } from "@wealthfolio/ui";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
@@ -27,7 +29,12 @@ vi.mock("../adapters/budget", () => ({
   upsertBudgetRolloverSetting: vi.fn(),
   upsertBudgetTarget: vi.fn(),
 }));
-import { assignCategoryToGroup, getBudget, updateBudgetGroup } from "../adapters/budget";
+import {
+  assignCategoryToGroup,
+  getBudget,
+  updateBudgetGroup,
+  upsertBudgetRolloverSetting,
+} from "../adapters/budget";
 
 const NEEDS_ID = "032ecb02-5912-42e8-9724-2cd566fc08d5";
 const WANTS_ID = "a409e0d6-9152-49c8-a5b4-a147a8ac636e";
@@ -105,7 +112,7 @@ function budgetSnapshot(
   };
 }
 
-async function setup(budget: BudgetSnapshot) {
+async function setup(budget: BudgetSnapshot, locale = "US", direction: "ltr" | "rtl" = "ltr") {
   vi.mocked(getBudget).mockResolvedValue(budget);
   const i18n = createInstance();
   await i18n.use(initReactI18next).init({
@@ -120,17 +127,26 @@ async function setup(budget: BudgetSnapshot) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
   });
-  render(
-    <MemoryRouter>
-      <I18nextProvider i18n={i18n}>
-        <QueryClientProvider client={queryClient}>
-          <BudgetEditor mode="setup" periodKey="default" />
-        </QueryClientProvider>
-      </I18nextProvider>
-    </MemoryRouter>,
+  const editor = (region: string) => (
+    <DirectionProvider direction={direction}>
+      <FormattingProvider locale={region}>
+        <MemoryRouter>
+          <I18nextProvider i18n={i18n}>
+            <QueryClientProvider client={queryClient}>
+              <BudgetEditor mode="setup" periodKey="default" />
+            </QueryClientProvider>
+          </I18nextProvider>
+        </MemoryRouter>
+      </FormattingProvider>
+    </DirectionProvider>
   );
+  const view = render(editor(locale));
   await screen.findAllByRole("button", { name: zhSpending.budgetEditor.expandGroup });
-  return { i18n, user: userEvent.setup() };
+  return {
+    i18n,
+    user: userEvent.setup(),
+    setRegion: (region: string) => view.rerender(editor(region)),
+  };
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -204,3 +220,313 @@ it("keeps a group's raw editable name across language changes", async () => {
     expect(updateBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, { name: "My essentials" }, "default"),
   );
 });
+
+it.each([
+  { direction: "ltr" as const, nextRegion: "ES" },
+  { direction: "rtl" as const, nextRegion: "ES" },
+  { direction: "ltr" as const, nextRegion: "US" },
+  { direction: "rtl" as const, nextRegion: "US" },
+])(
+  "saves a negative Spain rollover draft in $direction after selecting $nextRegion",
+  async ({ direction, nextRegion }) => {
+    const budget = budgetSnapshot();
+    budget.computed.groupRows[0].rolloverEnabled = true;
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    const { i18n, user, setRegion } = await setup(budget, "ES", direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const input = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    expect(input).toHaveValue("-123,5");
+    await user.click(input);
+    await user.keyboard("{End}{Backspace}6");
+    setRegion(nextRegion);
+    expect(input).toHaveValue(nextRegion === "US" ? "-123.6" : "-123,6");
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ startingBalance: "-123.6", enabled: true }),
+        "default",
+      ),
+    );
+  },
+);
+
+it.each(["ltr", "rtl"] as const)(
+  "does not save any group edits with an invalid starting balance in %s",
+  async (direction) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    vi.mocked(updateBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user } = await setup(budget, "ES", direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const name = within(dialog).getByRole("textbox", { name: zhCommon.name });
+    await user.clear(name);
+    await user.type(name, "New name");
+    const colors = within(dialog).getAllByRole("button", { name: /#/ });
+    await user.click(colors[0]);
+    const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    for (const invalid of ["12abc", "12,3,4"]) {
+      await user.clear(balance);
+      if (invalid) await user.type(balance, invalid);
+      await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+      expect(updateBudgetGroup).not.toHaveBeenCalled();
+      expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+      expect(dialog).toBeInTheDocument();
+    }
+    // The retained draft remains correctable; explicit zero must still save.
+    await user.clear(balance);
+    await user.type(balance, "0");
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(updateBudgetGroup).toHaveBeenCalledWith(
+        NEEDS_ID,
+        expect.objectContaining({ name: "New name" }),
+        "default",
+      ),
+    );
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ startingBalance: "0", enabled: true }),
+        "default",
+      ),
+    );
+  },
+);
+
+it("can disable rollover after entering an invalid starting balance", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings = [
+    {
+      id: "rollover-needs",
+      targetType: "group",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      enabled: true,
+      startMonth: "2025-03",
+      startingBalance: "-123.5",
+      createdAt: "",
+      updatedAt: "",
+    },
+  ];
+  vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+  const { i18n, user } = await setup(budget, "ES");
+  await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+  const dialog = await screen.findByRole("dialog");
+  const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+  await user.clear(balance);
+  await user.type(balance, "12abc");
+  await user.click(
+    within(dialog).getByRole("switch", { name: i18n.t("spending:budgetEditor.enableRollover") }),
+  );
+  await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+  await waitFor(() =>
+    expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, startingBalance: "-123.5" }),
+      "default",
+    ),
+  );
+  expect(updateBudgetGroup).not.toHaveBeenCalled();
+});
+
+it.each([
+  { locale: "US", direction: "ltr" as const, blank: "", nextRegion: "US" },
+  { locale: "US", direction: "rtl" as const, blank: " ", nextRegion: "US" },
+  { locale: "ES", direction: "ltr" as const, blank: "", nextRegion: "ES" },
+  { locale: "ES", direction: "rtl" as const, blank: " ", nextRegion: "ES" },
+  { locale: "ES", direction: "rtl" as const, blank: "", nextRegion: "US" },
+  { locale: "US", direction: "ltr" as const, blank: " ", nextRegion: "ES" },
+])(
+  "saves an empty starting balance as zero with pending group edits in $locale $direction → $nextRegion",
+  async ({ locale, direction, blank, nextRegion }) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        groupId: NEEDS_ID,
+        taxonomyId: null,
+        categoryId: null,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "-123.5",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(budget);
+    vi.mocked(updateBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user, setRegion } = await setup(budget, locale, direction);
+    await user.click(screen.getByRole("button", { name: "编辑 必要支出" }));
+    const dialog = await screen.findByRole("dialog");
+    const name = within(dialog).getByRole("textbox", { name: zhCommon.name });
+    await user.clear(name);
+    await user.type(name, "New name");
+    await user.click(within(dialog).getAllByRole("button", { name: /#/ })[0]);
+    const balance = within(dialog).getByLabelText(i18n.t("spending:budgetEditor.startingBalance"));
+    expect(balance).toHaveAttribute("placeholder", "0");
+    await user.clear(balance);
+    if (blank) await user.type(balance, blank);
+    setRegion(nextRegion);
+    expect(balance).toHaveValue(blank);
+    await user.click(within(dialog).getByRole("button", { name: zhCommon.save }));
+    await waitFor(() =>
+      expect(updateBudgetGroup).toHaveBeenCalledWith(
+        NEEDS_ID,
+        expect.objectContaining({ name: "New name", color: "#fecaca" }),
+        "default",
+      ),
+    );
+    await waitFor(() =>
+      expect(upsertBudgetRolloverSetting).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: true, startingBalance: "0" }),
+        "default",
+      ),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  },
+);
+
+it.each([
+  { enabled: true, direction: "ltr" as const },
+  { enabled: true, direction: "rtl" as const },
+  { enabled: false, direction: "ltr" as const },
+  { enabled: false, direction: "rtl" as const },
+  { enabled: undefined, direction: "ltr" as const },
+  { enabled: undefined, direction: "rtl" as const },
+])(
+  "Setup rollover reads saved category state ($enabled) and toggles both ways in $direction",
+  async ({ enabled, direction }) => {
+    const budget = budgetSnapshot();
+    if (enabled !== undefined) {
+      budget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled,
+          startMonth: "2025-03",
+          startingBalance: "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+    }
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+    });
+    expect(item).toHaveTextContent(
+      i18n.t(enabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+    );
+
+    // Mutation invalidation reloads a default-period snapshot whose computed
+    // rollover flags remain false, even when the saved setting is enabled.
+    for (const [index, nextEnabled] of [!enabled, !!enabled].entries()) {
+      const nextBudget = structuredClone(budget);
+      nextBudget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled: nextEnabled,
+          startMonth: "2025-03",
+          startingBalance: enabled === undefined ? "0" : "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+      vi.mocked(getBudget).mockResolvedValue(nextBudget);
+      vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(nextBudget);
+      await user.click(item);
+      await waitFor(() =>
+        expect(upsertBudgetRolloverSetting).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({
+            targetType: "category",
+            taxonomyId: "spending_categories",
+            categoryId: "cat_housing",
+            enabled: nextEnabled,
+            startingBalance: enabled === undefined ? "0" : "25",
+          }),
+          "default",
+        ),
+      );
+      await waitFor(() =>
+        expect(item).toHaveTextContent(
+          i18n.t(nextEnabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+        ),
+      );
+    }
+  },
+);
+
+it.each(["ltr", "rtl"] as const)(
+  "Setup rollover respects saved group rollover in %s",
+  async (direction) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        taxonomyId: null,
+        categoryId: null,
+        groupId: NEEDS_ID,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "25",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+    });
+    expect(item).toHaveTextContent(i18n.t("spending:budgetEditor.groupWide"));
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(item);
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+  },
+);

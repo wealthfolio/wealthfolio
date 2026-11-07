@@ -188,7 +188,8 @@
     "unlinkTransfer": "Unlink transfer",
     "linkTransfer": "Link transfer...",
     "deleteConfirmMany_one": "Are you sure you want to delete {{count}} transaction?",
-    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?"
+    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?",
+    "convertToTransfer": "Make it a transfer..."
   },
   "cashFlow": {
     "income": "Income",
@@ -851,6 +852,9 @@
     "manage": "Manage →"
   },
   "cashForm": {
+    "none": "None",
+    "addExpense": "Add expense",
+    "addIncome": "Add income",
     "accountRequired": "Please select an account.",
     "pickDate": "Pick a date",
     "amountNonNegative": "Amount must be non-negative.",
@@ -868,6 +872,8 @@
     "spendingCategory": "Spending Category",
     "activityUpdated": "Activity updated.",
     "activityCreated": "Activity created.",
+    "expenseAdded": "Expense added.",
+    "incomeAdded": "Income added.",
     "saveFailed": "Failed to save activity: {{message}}",
     "editTitle": "Edit Transaction",
     "addTitle": "Add Transaction",
@@ -934,7 +940,7 @@
     "stageWhenLabel": "When & where",
     "stageWhenSub": "When you spend & spending events",
     "spendingAbovePrefix": "Spending is",
-    "pctAbove": "{{pct}}% above",
+    "pctAbove": "{{pct}} above",
     "thePriorPeriod": "the prior period.",
     "moreThan": "{{more}} more than {{prior}}",
     "uncategorizedCount_one": "{{count}} uncategorized transaction",

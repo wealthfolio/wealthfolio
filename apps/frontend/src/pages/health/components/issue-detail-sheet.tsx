@@ -20,6 +20,7 @@ import {
   type FormattingApi,
   buttonVariants,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
@@ -256,8 +257,12 @@ function isPriceDateDiagnostic(diagnostic: HealthDiagnostic): boolean {
   );
 }
 
+// The date labels the backend sends. Other labels can be user-entered asset names,
+// which may contain the word "date", so match exactly.
+const DATE_EVIDENCE_LABELS = new Set(["Date", "Trade date"]);
+
 function isDateEvidence(label: string): boolean {
-  return /date/i.test(label);
+  return DATE_EVIDENCE_LABELS.has(label);
 }
 
 function getEvidenceDisplay(row: HealthDiagnostic["evidence"][number]): {
@@ -416,6 +421,7 @@ export function IssueDetailSheet({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
 
   if (!issue) return null;
 
@@ -518,7 +524,7 @@ export function IssueDetailSheet({
                     {issue.affectedMvPct != null && issue.affectedMvPct > 0 && (
                       <div>
                         <p className="text-2xl font-semibold tabular-nums">
-                          {(issue.affectedMvPct * 100).toFixed(1)}%
+                          {numbers.formatPercent(issue.affectedMvPct, { digits: 1 })}
                         </p>
                         <p className="text-muted-foreground text-xs">
                           {t("health:detail.portfolioImpact")}

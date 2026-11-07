@@ -19,11 +19,7 @@ import { cn } from "@/lib/utils";
 
 import { AddDepositButton } from "./allocation-worksheet-account-allocation";
 import { displayUnits } from "./allocation-worksheet-amounts";
-import {
-  formatDecimalInput,
-  formatSignedAmount,
-  isShortOfFunding,
-} from "./allocation-worksheet-utils";
+import { formatSignedAmount, isShortOfFunding } from "./allocation-worksheet-utils";
 
 /** A change the review cannot include yet, and why. */
 export interface HeldLine {
@@ -78,7 +74,7 @@ export function ReviewPanel({
 }: ReviewPanelProps) {
   const { t } = useTranslation();
   const { formatAmount, formatPrice } = useAmountFormatting();
-  const { formatQuantity } = useNumberFormatting();
+  const { formatQuantity, formatDecimal } = useNumberFormatting();
   const { formatDateTime } = useDateFormatting();
 
   const warningsByLine = new Map<string, string[]>();
@@ -256,7 +252,9 @@ export function ReviewPanel({
                                 {t("allocation:worksheet.fxConversionSource", {
                                   from: line.fxSource.fromCurrency,
                                   to: line.fxSource.toCurrency,
-                                  rate: formatDecimalInput(line.fxSource.value, 6),
+                                  rate: formatDecimal(line.fxSource.value, {
+                                    maximumFractionDigits: 6,
+                                  }),
                                   date: formatDateTime(line.fxSource.timestamp),
                                 })}
                               </p>

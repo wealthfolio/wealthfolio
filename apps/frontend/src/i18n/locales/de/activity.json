@@ -225,7 +225,8 @@
   "operations": {
     "more_details": "Weitere Details",
     "unlink_transfer": "Übertragung trennen",
-    "link_transfer": "Übertragung verknüpfen..."
+    "link_transfer": "Übertragung verknüpfen...",
+    "convert_to_transfer": "In Überweisung umwandeln..."
   },
   "date_sheet": {
     "title": "Aktivitäten am {{date}}",
@@ -363,7 +364,17 @@
     "error_load_pair": "Das verknüpfte Übertragungspaar konnte nicht geladen werden.",
     "error_search": "Aktivitäten konnten nicht durchsucht werden.",
     "within_days_one": "Innerhalb von {{count}} Tag",
-    "within_days_other": "Innerhalb von {{count}} Tagen"
+    "within_days_other": "Innerhalb von {{count}} Tagen",
+    "convert_title": "In Überweisung umwandeln",
+    "convert_desc": "Machen Sie aus dieser Aktivität eine Überweisung zwischen Ihren Konten. Wählen Sie die passende Aktivität im anderen Konto oder legen Sie sie dort an.",
+    "convert_no_matches": "Keine passende Aktivität innerhalb von 7 Tagen.",
+    "convert_new": "Im anderen Konto anlegen",
+    "convert_removes_split": "Beim Umwandeln in eine Überweisung wird die Aufteilung entfernt.",
+    "convert_account": "Anderes Konto",
+    "convert_amount": "Betrag in {{currency}}",
+    "convert_button": "In Überweisung umwandeln",
+    "convert_success": "In eine Überweisung umgewandelt",
+    "convert_error": "Umwandlung in eine Überweisung fehlgeschlagen"
   },
   "form": {
     "section_conversion": "Fondsumtausch",
@@ -398,6 +409,7 @@
     "label_cost_basis": "Einstandswert",
     "label_split_ratio": "Split-Verhältnis",
     "label_acquisition_date": "Erwerbsdatum",
+    "label_amount_before_tax": "Betrag vor Steuern",
     "label_withholding_tax": "Quellensteuer",
     "label_dividend_amount": "Dividendenbetrag",
     "label_interest_amount": "Zinsbetrag",
@@ -470,6 +482,7 @@
     "sent_amount": "Gesendeter Betrag",
     "received_amount": "Erhaltener Betrag",
     "contract_multiplier": "Kontraktmultiplikator",
+    "sell_all": "Alles verkaufen",
     "available_amount": "Verfügbar: {{amount}}",
     "total_debit": "Gesamtbelastung",
     "total_credit": "Gesamtgutschrift",
@@ -495,7 +508,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "Weitere Informationen zu {{label}}",
     "bulk_add_existing_title": "Bestehende Positionen hinzufügen",
-    "bulk_add_existing_desc": "Fügen Sie schnell mehrere Positionen zu Ihrem Portfolio hinzu. Erfassen Sie Ihre aktuellen Positionen mit Symbolen, Mengen und durchschnittlichen Einstandskosten. Dies wirkt sich nicht auf Ihren Barbestand aus.",
+    "bulk_add_existing_desc": "Fügen Sie Ihre aktuellen Positionen hinzu, ohne Ihren Bargeldbestand zu ändern.",
     "bulk_col_shares": "Anteile",
     "bulk_col_average_cost": "Durchschnittskosten",
     "bulk_col_total_value": "Gesamtwert",
@@ -553,6 +566,7 @@
     "err_split_ratio_gt_zero": "Das Split-Verhältnis muss größer als 0 sein.",
     "err_withholding_tax_number": "Die Quellensteuer muss eine Zahl sein.",
     "err_withholding_tax_non_negative": "Die Quellensteuer darf nicht negativ sein.",
+    "err_charges_exceed_amount_before_tax": "Steuern und Gebühren dürfen den Betrag vor Steuern nicht übersteigen.",
     "err_fmv_number": "Der Marktwert pro Einheit muss eine Zahl sein.",
     "err_fmv_gt_zero": "Der Marktwert pro Einheit muss größer als 0 sein.",
     "err_received_quantity_number": "Die erhaltene Menge muss eine Zahl sein.",
@@ -691,12 +705,6 @@
     "day_count_one": "{{count}} Aktivität",
     "day_count_other": "{{count}} Aktivitäten",
     "day_end_cash": "Bargeld"
-  },
-  "mobile_type_category": {
-    "trade": "Handel",
-    "cash": "Bargeld",
-    "income": "Erträge",
-    "other": "Sonstiges"
   },
   "mobile_type_transfer_desc": "Bargeld oder Wertpapiere zwischen Konten verschieben",
   "mobile_type_adjustment_label": "Anpassung",

@@ -188,7 +188,8 @@
     "unlinkTransfer": "取消連結轉帳",
     "linkTransfer": "連結轉帳……",
     "deleteConfirmMany_other": "確定要刪除 {{count}} 筆交易嗎？",
-    "deleteConfirmMany_one": "確定要刪除 {{count}} 筆交易嗎？"
+    "deleteConfirmMany_one": "確定要刪除 {{count}} 筆交易嗎？",
+    "convertToTransfer": "轉為轉帳..."
   },
   "cashFlow": {
     "income": "收入",
@@ -851,6 +852,9 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "none": "無",
+    "addExpense": "新增支出",
+    "addIncome": "新增收入",
     "accountRequired": "請選取一個帳戶。",
     "pickDate": "選取日期",
     "amountNonNegative": "金額不能為負數。",
@@ -868,6 +872,8 @@
     "spendingCategory": "支出類別",
     "activityUpdated": "活動已更新。",
     "activityCreated": "活動已建立。",
+    "expenseAdded": "已新增支出。",
+    "incomeAdded": "已新增收入。",
     "saveFailed": "儲存活動失敗：{{message}}",
     "editTitle": "編輯交易",
     "addTitle": "新增交易",
@@ -934,7 +940,7 @@
     "stageWhenLabel": "何時與何地",
     "stageWhenSub": "何時消費與支出事件",
     "spendingAbovePrefix": "支出",
-    "pctAbove": "高出 {{pct}}%",
+    "pctAbove": "高出 {{pct}}",
     "thePriorPeriod": "較上一週期。",
     "moreThan": "比 {{prior}} 多 {{more}}",
     "uncategorizedCount_one": "{{count}} 筆未歸類交易",

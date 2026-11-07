@@ -327,7 +327,8 @@
   "operations": {
     "more_details": "更多详情",
     "unlink_transfer": "取消关联转账",
-    "link_transfer": "关联转账……"
+    "link_transfer": "关联转账……",
+    "convert_to_transfer": "转为转账..."
   },
   "date_sheet": {
     "title": "{{date}} 的活动",
@@ -463,7 +464,17 @@
     "error_load_suggestions": "无法加载建议匹配项。",
     "error_load_pair": "无法加载关联的转账对。",
     "error_search": "无法搜索活动。",
-    "within_days_other": "{{count}} 天内"
+    "within_days_other": "{{count}} 天内",
+    "convert_title": "转为转账",
+    "convert_desc": "将此活动转为账户之间的转账。选择另一账户中对应的活动，或在该账户中创建。",
+    "convert_no_matches": "7 天内没有匹配的活动。",
+    "convert_new": "在另一账户中创建",
+    "convert_removes_split": "转为转账后将移除拆分。",
+    "convert_account": "另一账户",
+    "convert_amount": "{{currency}} 金额",
+    "convert_button": "转为转账",
+    "convert_success": "已转为转账",
+    "convert_error": "转为转账失败"
   },
   "form": {
     "section_conversion": "基金转换",
@@ -498,6 +509,7 @@
     "label_cost_basis": "成本基础",
     "label_split_ratio": "拆股比例",
     "label_acquisition_date": "取得日期",
+    "label_amount_before_tax": "税前金额",
     "label_withholding_tax": "预扣税",
     "label_dividend_amount": "股息金额",
     "label_interest_amount": "利息金额",
@@ -570,6 +582,7 @@
     "sent_amount": "转出金额",
     "received_amount": "收到金额",
     "contract_multiplier": "合约乘数",
+    "sell_all": "全部卖出",
     "available_amount": "可用：{{amount}}",
     "total_debit": "实付总额",
     "total_credit": "实收总额",
@@ -595,7 +608,7 @@
     "fx_conversion": "1 {{from}} = {{rate}} {{to}}",
     "more_info_about": "关于 {{label}} 的更多信息",
     "bulk_add_existing_title": "添加现有持仓",
-    "bulk_add_existing_desc": "快速将多项持仓添加到您的投资组合中。输入您当前的持仓，包括股票代码、数量和平均成本。这不会影响您的现金余额。",
+    "bulk_add_existing_desc": "添加当前持仓，不改变现金余额。",
     "bulk_col_shares": "股数",
     "bulk_col_average_cost": "平均成本",
     "bulk_col_total_value": "总价值",
@@ -653,6 +666,7 @@
     "err_split_ratio_gt_zero": "拆股比例必须大于 0。",
     "err_withholding_tax_number": "预扣税必须为数字。",
     "err_withholding_tax_non_negative": "预扣税不能为负数。",
+    "err_charges_exceed_amount_before_tax": "税款和费用不能超过税前金额。",
     "err_fmv_number": "每单位公允市值必须为数字。",
     "err_fmv_gt_zero": "每单位公允市值必须大于 0。",
     "err_received_quantity_number": "收到数量必须为数字。",
@@ -787,12 +801,6 @@
     "day_count_one": "{{count}} 条活动",
     "day_count_other": "{{count}} 条活动",
     "day_end_cash": "现金"
-  },
-  "mobile_type_category": {
-    "trade": "交易",
-    "cash": "现金",
-    "income": "收入",
-    "other": "其他"
   },
   "mobile_type_transfer_desc": "在账户之间转移现金或证券",
   "mobile_type_adjustment_label": "调整",

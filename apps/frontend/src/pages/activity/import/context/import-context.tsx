@@ -77,6 +77,8 @@ export interface DraftActivity {
   symbolName?: string;
   quoteCcy?: string;
   instrumentType?: string;
+  /** Provider quote type of the resolved asset (e.g. "MUTUALFUND"); classifies a new asset. */
+  instrumentTypeLabel?: string;
   quoteMode?: string;
   providerId?: string;
   providerSymbol?: string;
@@ -284,7 +286,15 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
       "currency" in updates && !("currencySource" in updates)
         ? { ...updates, currencySource: "manual" as const }
         : updates;
-    return { ...draft, ...normalizedUpdates, isEdited: true };
+    // A quote type belongs to the asset it was resolved for, not to an edited identity.
+    const identityChanged = (
+      ["symbol", "exchangeMic", "instrumentType", "providerId", "providerSymbol", "isin"] as const
+    ).some((field) => field in updates && updates[field] !== draft[field]);
+    const labelUpdate =
+      identityChanged && !("instrumentTypeLabel" in updates)
+        ? { instrumentTypeLabel: undefined }
+        : {};
+    return { ...draft, ...normalizedUpdates, ...labelUpdate, isEdited: true };
   };
 
   const updatesAffectAssetPreview = (updates: Partial<DraftActivity>) =>

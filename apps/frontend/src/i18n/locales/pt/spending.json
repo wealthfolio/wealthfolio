@@ -193,7 +193,8 @@
     "linkTransfer": "Vincular transferência...",
     "deleteConfirmMany_one": "Tem certeza que deseja excluir {{count}} transação?",
     "deleteConfirmMany_other": "Tem certeza que deseja excluir {{count}} transações?",
-    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?"
+    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?",
+    "convertToTransfer": "Converter em transferência..."
   },
   "cashFlow": {
     "income": "Receitas",
@@ -894,6 +895,9 @@
     "manage": "Gerenciar →"
   },
   "cashForm": {
+    "none": "Nenhum",
+    "addExpense": "Adicionar despesa",
+    "addIncome": "Adicionar receita",
     "accountRequired": "Selecione uma conta.",
     "pickDate": "Escolha uma data",
     "amountNonNegative": "O valor não pode ser negativo.",
@@ -911,6 +915,8 @@
     "spendingCategory": "Categoria de gasto",
     "activityUpdated": "Atividade atualizada.",
     "activityCreated": "Atividade criada.",
+    "expenseAdded": "Despesa adicionada.",
+    "incomeAdded": "Receita adicionada.",
     "saveFailed": "Não foi possível salvar a atividade: {{message}}",
     "editTitle": "Editar transação",
     "addTitle": "Adicionar transação",
@@ -984,7 +990,7 @@
     "stageWhenLabel": "Quando e onde",
     "stageWhenSub": "Quando você gasta e eventos de gasto",
     "spendingAbovePrefix": "Os gastos estão",
-    "pctAbove": "{{pct}}% acima",
+    "pctAbove": "{{pct}} acima",
     "thePriorPeriod": "do período anterior.",
     "moreThan": "{{more}} mais que {{prior}}",
     "uncategorizedCount_one": "{{count}} transação sem categoria",

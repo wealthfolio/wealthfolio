@@ -478,7 +478,12 @@ pub struct AccountUpdate {
     pub id: Option<String>,
     pub name: String,
     pub account_type: String,
-    pub group: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_account_group",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub group: Option<Option<String>>,
     pub is_default: bool,
     pub is_active: bool,
     pub platform_id: Option<String>,
@@ -488,6 +493,12 @@ pub struct AccountUpdate {
     pub provider_account_id: Option<String>,
     pub is_archived: Option<bool>,
     pub tracking_mode: Option<TrackingMode>,
+}
+
+pub fn deserialize_account_group<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 impl AccountUpdate {

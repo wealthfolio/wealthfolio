@@ -247,8 +247,9 @@
     "asset_type_bond": "سند",
     "asset_type_option": "خيار",
     "asset_type_stock": "سهم",
+    "sell_all": "بيع الكل",
     "available_amount": "المتاح: {{amount}}",
-    "bulk_add_existing_desc": "أضف عدة حيازات إلى محفظتك بسرعة. أدخل مراكزك الحالية مع رموز الأسهم والكميات ومتوسط التكاليف. لن يؤثر ذلك على رصيدك النقدي.",
+    "bulk_add_existing_desc": "أضف مراكزك الحالية دون تغيير رصيدك النقدي.",
     "bulk_add_existing_title": "إضافة الحيازات الحالية",
     "bulk_col_average_cost": "متوسط التكلفة",
     "bulk_col_shares": "الأسهم",
@@ -359,6 +360,7 @@
     "err_ticker_required": "رمز السهم مطلوب",
     "err_underlying_required": "رمز الأصل الأساسي مطلوب.",
     "err_withholding_tax_non_negative": "يجب ألا تكون ضريبة الاستقطاع سالبة.",
+    "err_charges_exceed_amount_before_tax": "لا يمكن أن تتجاوز الضرائب والرسوم المبلغ قبل الضريبة.",
     "err_withholding_tax_number": "يجب أن تكون ضريبة الاستقطاع رقمًا.",
     "expiration": "انتهاء الصلاحية",
     "external_transfer": "تحويل خارجي",
@@ -403,6 +405,7 @@
     "label_tax": "الضريبة",
     "label_to_account": "إلى الحساب",
     "label_transfer_rate": "سعر صرف التحويل",
+    "label_amount_before_tax": "المبلغ قبل الضريبة",
     "label_withholding_tax": "ضريبة الاستقطاع",
     "more_info_about": "مزيد من المعلومات حول {{label}}",
     "option_call": "خيار شراء",
@@ -1303,12 +1306,6 @@
   "mobile_type_adjustment_desc": "تصحيح أو تعديل غير متعلق بالتداول",
   "mobile_type_adjustment_label": "تعديل",
   "mobile_type_buy_desc": "شراء أصل",
-  "mobile_type_category": {
-    "cash": "نقد",
-    "income": "دخل",
-    "other": "أخرى",
-    "trade": "تداول"
-  },
   "mobile_type_deposit_desc": "إضافة أموال إلى الحساب",
   "mobile_type_dividend_desc": "استلام دفعة من توزيعات الأرباح",
   "mobile_type_fee_desc": "رسوم الحساب أو المعاملة",
@@ -1341,7 +1338,8 @@
   "operations": {
     "link_transfer": "ربط التحويل...",
     "more_details": "مزيد من التفاصيل",
-    "unlink_transfer": "إلغاء ربط التحويل"
+    "unlink_transfer": "إلغاء ربط التحويل",
+    "convert_to_transfer": "جعله تحويلاً..."
   },
   "optional_field": "اختياري",
   "page": {
@@ -1510,7 +1508,17 @@
     "within_days_one": "خلال {{count}} يوم",
     "within_days_other": "خلال {{count}} يوم",
     "within_days_two": "خلال يومين",
-    "within_days_zero": "خلال {{count}} يوم"
+    "within_days_zero": "خلال {{count}} يوم",
+    "convert_title": "تحويل إلى تحويل بين الحسابات",
+    "convert_desc": "حوّل هذا النشاط إلى تحويل بين حساباتك. اختر النشاط المطابق في الحساب الآخر، أو أنشئه هناك.",
+    "convert_no_matches": "لا يوجد نشاط مطابق خلال 7 أيام.",
+    "convert_new": "إنشاؤه في حساب آخر",
+    "convert_removes_split": "يؤدي تحويلها إلى تحويل بين الحسابات إلى إزالة التقسيم.",
+    "convert_account": "الحساب الآخر",
+    "convert_amount": "المبلغ بـ {{currency}}",
+    "convert_button": "تحويل إلى تحويل",
+    "convert_success": "تم التحويل إلى تحويل بين الحسابات",
+    "convert_error": "تعذّر التحويل إلى تحويل بين الحسابات"
   },
   "type_add_holding": "إضافة حيازة",
   "type_add_holding_desc": "سجّل حيازة أصل جديدة. يشبه هذا «الشراء» لكنه لا يؤثر في رصيدك النقدي. استخدمه للحيازات الأولية، أو الأصول المحوّلة من شركة وساطة أخرى، أو الحيازات المستلمة (مثل الهدايا أو الميراث)، أو لتسجيل عملية شراء بسرعة دون إدخال إيداع منفصل.",

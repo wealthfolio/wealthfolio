@@ -78,7 +78,6 @@
       "link_explanation": "关联现有房产不会改变您的净资产。"
     },
     "failed_to_load": "加载净资产失败",
-    "stale_valuations_tooltip": "陈旧估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
     "no_history_data": "暂无可用的历史数据",
     "breakdown": "明细",

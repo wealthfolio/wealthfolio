@@ -226,7 +226,6 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
 
         {/* Net Worth (main filled area) */}
         <Area
-          isAnimationActive={true}
           animationDuration={300}
           animationEasing="ease-out"
           connectNulls={true}

@@ -27,7 +27,6 @@ use openidconnect::{
     Audience, EmptyAdditionalClaims, IssuerUrl, JsonWebKeyId, Nonce, PrivateSigningKey,
     StandardClaims, SubjectIdentifier,
 };
-use rand::{rngs::OsRng, RngCore};
 use serde_json::json;
 use tempfile::tempdir;
 use tokio::net::TcpListener;
@@ -146,7 +145,7 @@ fn set_oidc_env(issuer: &str, db_path: std::path::PathBuf) {
     std::env::remove_var("WF_AUTH_PASSWORD_HASH");
 
     let mut secret = [0u8; 32];
-    OsRng.fill_bytes(&mut secret);
+    rand::fill(&mut secret);
     std::env::set_var("WF_SECRET_KEY", BASE64.encode(secret));
     std::env::set_var("WF_CORS_ALLOW_ORIGINS", "http://localhost:3000");
 

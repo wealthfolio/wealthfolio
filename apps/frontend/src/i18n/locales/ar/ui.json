@@ -125,6 +125,8 @@
     "nextMonth": "الشهر التالي",
     "nextYear": "السنة التالية",
     "pick": "اختر تاريخًا",
+    "time": "الوقت",
+    "done": "تم",
     "previousMonth": "الشهر السابق",
     "previousYear": "السنة السابقة"
   },
@@ -211,6 +213,7 @@
     "typeToSearch": "اكتب للبحث"
   },
   "sheet": {
+    "back": "رجوع",
     "close": "إغلاق"
   },
   "page": {

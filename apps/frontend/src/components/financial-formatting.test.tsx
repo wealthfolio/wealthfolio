@@ -1,3 +1,4 @@
+import { StarRatingDisplay } from "@wealthfolio/ui";
 import { render, screen } from "@testing-library/react";
 import { FormattingProvider, GainAmount, GainPercent } from "@wealthfolio/ui";
 import { describe, expect, it, vi } from "vitest";
@@ -152,4 +153,14 @@ describe("localized financial components", () => {
     );
     expect(container.textContent).toMatch(/^\+12,50[\u00a0\u202f ]%$/);
   });
+});
+
+it("uses the selected region for shared rating values", () => {
+  render(
+    <FormattingProvider locale="ES">
+      <StarRatingDisplay rating={4.5} reviewCount={12000} />
+    </FormattingProvider>,
+  );
+  expect(screen.getByText("4,5")).toBeInTheDocument();
+  expect(screen.getByText(/12\.000 reviews/)).toBeInTheDocument();
 });

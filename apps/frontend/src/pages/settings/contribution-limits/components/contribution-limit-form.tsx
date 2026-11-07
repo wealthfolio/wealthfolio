@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
-import { useForm, useWatch, type Resolver } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -24,9 +24,9 @@ import {
   DatePickerInput,
   Input,
   Spinner,
+  Switch,
 } from "@wealthfolio/ui";
 
-import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { createContributionLimitSchema, newContributionLimitSchema } from "@/lib/schemas";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { MoneyInput } from "@wealthfolio/ui";
@@ -42,6 +42,11 @@ interface ContributionLimitFormProps {
   onSuccess?: () => void;
 }
 
+/** Local midnight on 1 January and 31 December, as the date picker gives for a picked day. */
+function yearStartAndEnd(year: number) {
+  return { startDate: new Date(year, 0, 1), endDate: new Date(year, 11, 31) };
+}
+
 export function ContributionLimitForm({
   defaultValues,
   onSuccess = () => {},
@@ -52,39 +57,31 @@ export function ContributionLimitForm({
 
   const schema = useMemo(() => createContributionLimitSchema(t), [t]);
 
+  // A saved limit keeps each date it has; one without dates starts with its year's.
+  const savedStart = defaultValues?.startDate;
+  const savedEnd = defaultValues?.endDate;
   const form = useForm<NewContributionLimit>({
     resolver: zodResolver(schema) as Resolver<NewContributionLimit>,
     defaultValues: {
       ...defaultValues,
-      startDate: defaultValues?.startDate ? new Date(defaultValues.startDate) : undefined,
-      endDate: defaultValues?.endDate ? new Date(defaultValues.endDate) : undefined,
+      ...(savedStart || savedEnd
+        ? {
+            startDate: savedStart ? new Date(savedStart) : undefined,
+            endDate: savedEnd ? new Date(savedEnd) : undefined,
+          }
+        : defaultValues?.contributionYear
+          ? yearStartAndEnd(defaultValues.contributionYear)
+          : {}),
     },
   });
 
-  // Function to update dates based on year
-  const updateDatesBasedOnYear = (year: number) => {
+  // Changing the year moves the dates to that year.
+  const updateDatesBasedOnYear = (year: number | undefined) => {
     if (!year || isNaN(year)) return;
-
-    // Local midnight, as the date picker gives for a picked day
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31);
-
+    const { startDate, endDate } = yearStartAndEnd(year);
     form.setValue("startDate", startDate);
     form.setValue("endDate", endDate);
   };
-
-  // Watch for changes to contributionYear
-  const contributionYear = useWatch({
-    control: form.control,
-    name: "contributionYear",
-  });
-
-  // Update dates when year changes
-  useEffectOnChange(() => {
-    if (contributionYear) {
-      updateDatesBasedOnYear(contributionYear);
-    }
-  }, [contributionYear]);
 
   async function onSubmit(data: NewContributionLimit) {
     const { id, ...rest } = data;
@@ -195,7 +192,12 @@ export function ContributionLimitForm({
                               placeholder={t("settings:limits_form_year_placeholder")}
                               maxDecimalPlaces={0}
                               value={field.value}
-                              onValueChange={(value) => field.onChange(value)}
+                              onValueChange={(value, isUserEdit) => {
+                                if (isUserEdit && value !== field.value) {
+                                  updateDatesBasedOnYear(value);
+                                }
+                                field.onChange(value);
+                              }}
                             />
                           </FormControl>
 
@@ -253,6 +255,26 @@ export function ContributionLimitForm({
                     {t("settings:limits_form_date_description")}
                   </p>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="isRecurring"
+                  render={({ field }) => (
+                    <FormItem className="border-border/60 flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base font-medium">
+                          {t("settings:limits_form_recurring_label")}
+                        </FormLabel>
+                        <FormDescription className="text-muted-foreground text-sm">
+                          {t("settings:limits_form_recurring_description")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </div>
             </CardContent>
           </Card>

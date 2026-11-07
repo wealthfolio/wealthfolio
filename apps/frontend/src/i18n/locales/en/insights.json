@@ -79,7 +79,6 @@
       "link_explanation": "Linking an existing property does not change your net worth."
     },
     "failed_to_load": "Failed to load net worth",
-    "stale_valuations_tooltip": "Stale valuations (90+ days):",
     "days_ago": "{{count}}d ago",
     "no_history_data": "No history data available",
     "breakdown": "Breakdown",

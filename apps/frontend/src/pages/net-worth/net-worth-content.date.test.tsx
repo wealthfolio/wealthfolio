@@ -14,6 +14,9 @@ vi.mock("@/hooks/use-alternative-assets", () => queryMocks);
 vi.mock("@/hooks/use-portfolio-allocations", () => ({
   usePortfolioAllocations: () => ({ allocations: undefined }),
 }));
+vi.mock("@/hooks/use-health", () => ({
+  useHealthStatus: () => ({ data: undefined, isLoading: false }),
+}));
 vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
 vi.mock("@/lib/net-worth-category-label", () => ({
   getNetWorthCategoryLabel: (_t: unknown, _category: string, name: string) => name,

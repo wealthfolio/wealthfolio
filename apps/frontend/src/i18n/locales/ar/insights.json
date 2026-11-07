@@ -162,7 +162,6 @@
     "no_assets_found": "لم يتم العثور على أصول.",
     "no_history_data": "لا تتوفر بيانات سجل",
     "not_updated_over_90_days": "لم يتم التحديث منذ أكثر من 90 يومًا.",
-    "stale_valuations_tooltip": "تقييمات قديمة (أكثر من 90 يومًا):",
     "trend": {
       "not_enough_history": "السجل غير كافٍ"
     },

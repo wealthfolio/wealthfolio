@@ -31,7 +31,7 @@ use wealthfolio_connect::{
         BrokerApiClient, PlansResponse, SyncAccountsResponse, SyncActivitiesResponse,
         SyncConnectionsResponse, UserInfo,
     },
-    ensure_valid_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
+    ensure_profile_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
     ConnectApiClient, PostLoginBootstrapReason, PostLoginBootstrapResult,
     PostLoginBootstrapSyncResult, PostLoginBrokerBootstrapDecision, SyncConfig, SyncOrchestrator,
     SyncProgressPayload, SyncProgressReporter, SyncResult, TokenLifecycleConfig,
@@ -369,13 +369,11 @@ async fn post_login_bootstrap(
 }
 
 pub(crate) async fn run_broker_bootstrap(state: Arc<AppState>) -> PostLoginBootstrapSyncResult {
-    let entitlement_state = Arc::clone(&state);
     let connections_state = Arc::clone(&state);
     let guard_state = Arc::clone(&state);
 
     let decision = prepare_post_login_broker_bootstrap(
         crate::features::connect_sync_enabled(),
-        move || async move { has_broker_sync(&entitlement_state).await },
         move || async move {
             let client = create_connect_client(&connections_state)
                 .await
@@ -386,15 +384,15 @@ pub(crate) async fn run_broker_bootstrap(state: Arc<AppState>) -> PostLoginBoots
     )
     .await;
 
-    let guard = match decision {
-        PostLoginBrokerBootstrapDecision::Start(guard) => guard,
+    let (guard, connections) = match decision {
+        PostLoginBrokerBootstrapDecision::Start(guard, connections) => (guard, connections),
         PostLoginBrokerBootstrapDecision::Skip(reason) => {
             return PostLoginBootstrapSyncResult::skipped(reason);
         }
     };
 
     tokio::spawn(async move {
-        match perform_broker_sync_with_guard(&state, guard).await {
+        match perform_broker_sync_with_guard(&state, guard, Some(connections)).await {
             Ok(_result) => {
                 info!("[Connect] Broker bootstrap sync completed successfully");
             }
@@ -549,26 +547,20 @@ pub(crate) async fn mint_access_token(state: &AppState) -> ApiResult<String> {
         ));
     }
     let config = token_lifecycle_config();
-    let token = ensure_valid_access_token(
-        state.secret_store.as_ref(),
-        state.token_lifecycle.as_ref(),
-        config.as_ref(),
-    )
-    .await
-    .map_err(map_token_lifecycle_error)?;
     let (registry, id) = state
         .profile_binding
         .get()
         .ok_or_else(|| ApiError::Forbidden("Profile binding unavailable".into()))?;
-    wealthfolio_connect::token_lifecycle::admit_profile_binding(
-        &token,
-        &config.ok_or_else(|| ApiError::Forbidden("Connect auth unavailable".into()))?,
+    let token = ensure_profile_access_token(
+        state.secret_store.as_ref(),
+        state.token_lifecycle.as_ref(),
+        config.as_ref(),
         &cloud_api_base_url()?,
         registry.as_ref(),
         *id,
     )
     .await
-    .map_err(ApiError::Forbidden)?;
+    .map_err(map_token_lifecycle_error)?;
     Ok(token)
 }
 
@@ -589,11 +581,6 @@ async fn sync_broker_connections(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<SyncConnectionsResponse>> {
     ensure_connect_sync_enabled()?;
-    if !has_broker_sync(&state).await.map_err(ApiError::Internal)? {
-        return Err(ApiError::Forbidden(
-            "An active broker-sync subscription is required.".to_string(),
-        ));
-    }
     info!("[Connect] Syncing broker connections...");
 
     let client = create_connect_client(&state).await?;
@@ -628,11 +615,6 @@ async fn sync_broker_accounts(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<SyncAccountsResponse>> {
     ensure_connect_sync_enabled()?;
-    if !has_broker_sync(&state).await.map_err(ApiError::Internal)? {
-        return Err(ApiError::Forbidden(
-            "An active broker-sync subscription is required.".to_string(),
-        ));
-    }
     info!("[Connect] Syncing broker accounts...");
 
     let client = create_connect_client(&state).await?;
@@ -664,11 +646,6 @@ async fn sync_broker_activities(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<SyncActivitiesResponse>> {
     ensure_connect_sync_enabled()?;
-    if !has_broker_sync(&state).await.map_err(ApiError::Internal)? {
-        return Err(ApiError::Forbidden(
-            "An active broker-sync subscription is required.".to_string(),
-        ));
-    }
     info!("[Connect] Running activities-only broker sync");
     let result = perform_broker_activities_only_sync(&state)
         .await
@@ -683,38 +660,24 @@ async fn sync_broker_activities(
 
 /// Trigger a full broker data sync (connections → accounts → activities).
 /// Returns immediately with 202 Accepted. Sync runs in background and emits SSE events.
-async fn sync_broker_data(axum::Extension(state): axum::Extension<Arc<AppState>>) -> StatusCode {
-    if let Err(err) = ensure_connect_sync_enabled() {
-        error!("[Connect] Broker sync skipped: {}", err);
-        return StatusCode::NOT_IMPLEMENTED;
-    }
-
-    // Check plan entitlement before starting sync
-    match has_broker_sync(&state).await {
-        Ok(true) => {}
-        Ok(false) => {
-            info!("[Connect] Broker sync skipped: plan does not include broker sync");
-            return StatusCode::FORBIDDEN;
-        }
-        Err(e) => {
-            error!(
-                "[Connect] Broker sync skipped: could not verify entitlement ({})",
-                e
-            );
-            return StatusCode::FORBIDDEN;
-        }
-    }
-
+async fn sync_broker_data(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<StatusCode> {
+    ensure_connect_sync_enabled()?;
+    let client = create_connect_client(&state).await?;
     let Some(guard) = try_acquire_broker_sync_guard(&state) else {
-        info!("[Connect] Broker sync skipped: sync already running");
-        return StatusCode::CONFLICT;
+        return Ok(StatusCode::CONFLICT);
     };
-
+    // Authorize using a real protected operation before accepting background work.
+    let connections = client
+        .list_connections()
+        .await
+        .map_err(|error| ApiError::Forbidden(error.to_string()))?;
     info!("[Connect] Starting broker data sync (non-blocking)...");
 
     // Spawn background task to perform the sync
     tokio::spawn(async move {
-        match perform_broker_sync_with_guard(&state, guard).await {
+        match perform_broker_sync_with_guard(&state, guard, Some(connections)).await {
             Ok(_result) => {
                 info!("[Connect] Broker sync completed successfully");
                 // Events are emitted by the orchestrator via EventBusProgressReporter
@@ -726,33 +689,7 @@ async fn sync_broker_data(axum::Extension(state): axum::Extension<Arc<AppState>>
         }
     });
 
-    StatusCode::ACCEPTED
-}
-
-/// Check if the current user's plan includes broker sync.
-/// Used by the scheduler to skip sync for basic-plan users.
-pub async fn has_broker_sync(state: &AppState) -> Result<bool, String> {
-    ensure_connect_sync_enabled().map_err(|e| e.to_string())?;
-    let client = create_connect_client(state)
-        .await
-        .map_err(|e| e.to_string())?;
-    client.has_broker_sync().await.map_err(|e| e.to_string())
-}
-
-pub async fn has_device_sync(state: &AppState) -> Result<bool, String> {
-    create_connect_client(state)
-        .await
-        .map_err(|err| err.to_string())?
-        .has_device_sync()
-        .await
-        .map_err(|err| err.to_string())
-}
-
-pub async fn ensure_device_sync_subscription(state: &AppState) -> Result<(), String> {
-    if !has_device_sync(state).await? {
-        return Err("Device sync is paused: an active subscription is required.".to_string());
-    }
-    Ok(())
+    Ok(StatusCode::ACCEPTED)
 }
 
 /// Core broker sync logic - syncs connections, accounts, and activities from cloud to local DB.
@@ -761,12 +698,13 @@ pub async fn ensure_device_sync_subscription(state: &AppState) -> Result<(), Str
 pub async fn perform_broker_sync(state: &AppState) -> Result<SyncResult, String> {
     let guard = try_acquire_broker_sync_guard(state)
         .ok_or_else(|| "Broker sync already running".to_string())?;
-    perform_broker_sync_with_guard(state, guard).await
+    perform_broker_sync_with_guard(state, guard, None).await
 }
 
 async fn perform_broker_sync_with_guard(
     state: &AppState,
     _guard: BrokerSyncRunGuard,
+    connections: Option<Vec<wealthfolio_connect::broker::BrokerConnection>>,
 ) -> Result<SyncResult, String> {
     ensure_connect_sync_enabled().map_err(|e| e.to_string())?;
     // Create API client
@@ -782,6 +720,11 @@ async fn perform_broker_sync_with_guard(
         }
     };
 
+    let connections = match connections {
+        Some(connections) => connections,
+        None => client.list_connections().await.map_err(|e| e.to_string())?,
+    };
+
     // Create progress reporter and orchestrator
     let reporter = Arc::new(EventBusProgressReporter::new(state.event_bus.clone()));
     let orchestrator = SyncOrchestrator::new(
@@ -792,7 +735,9 @@ async fn perform_broker_sync_with_guard(
 
     // Run the sync via the centralized orchestrator
     // Note: Asset enrichment is handled automatically via domain events (AssetsCreated)
-    orchestrator.sync_all(&client).await
+    orchestrator
+        .sync_all_with_connections(&client, Some(connections))
+        .await
 }
 
 /// Sync only brokerage activities for existing TRANSACTIONS accounts.
@@ -1372,18 +1317,10 @@ mod tests {
 
     #[tokio::test]
     async fn broker_preflight_feature_disabled_skips_without_checks() {
-        let entitlement_calls = Arc::new(AtomicUsize::new(0));
         let list_calls = Arc::new(AtomicUsize::new(0));
 
         let decision = prepare_post_login_broker_bootstrap(
             false,
-            {
-                let entitlement_calls = Arc::clone(&entitlement_calls);
-                move || async move {
-                    entitlement_calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(true)
-                }
-            },
             {
                 let list_calls = Arc::clone(&list_calls);
                 move || async move {
@@ -1399,43 +1336,22 @@ mod tests {
             decision,
             PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::FeatureDisabled)
         ));
-        assert_eq!(entitlement_calls.load(Ordering::SeqCst), 0);
         assert_eq!(list_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
-    async fn broker_preflight_no_entitlement_skips_without_listing_connections() {
+    async fn broker_preflight_server_denial_skips_without_starting() {
         let list_calls = Arc::new(AtomicUsize::new(0));
-
+        let start_calls = Arc::new(AtomicUsize::new(0));
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(false) },
             {
                 let list_calls = Arc::clone(&list_calls);
                 move || async move {
                     list_calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(vec![broker_connection(Some("connected"), false)])
+                    Err("API error 403: SUBSCRIPTION_CANCELED".to_string())
                 }
             },
-            || Some(()),
-        )
-        .await;
-
-        assert!(matches!(
-            decision,
-            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled)
-        ));
-        assert_eq!(list_calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn broker_preflight_zero_connections_skips_without_starting() {
-        let start_calls = Arc::new(AtomicUsize::new(0));
-
-        let decision = prepare_post_login_broker_bootstrap(
-            true,
-            || async { Ok(true) },
-            || async { Ok(vec![]) },
             {
                 let start_calls = Arc::clone(&start_calls);
                 move || {
@@ -1444,6 +1360,26 @@ mod tests {
                 }
             },
         )
+        .await;
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled)
+        ));
+        assert_eq!(list_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(start_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_zero_connections_skips_without_starting() {
+        let start_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_broker_bootstrap(true, || async { Ok(vec![]) }, {
+            let start_calls = Arc::clone(&start_calls);
+            move || {
+                start_calls.fetch_add(1, Ordering::SeqCst);
+                Some(())
+            }
+        })
         .await;
 
         assert!(matches!(
@@ -1457,7 +1393,6 @@ mod tests {
     async fn broker_preflight_requires_active_usable_connection() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async {
                 Ok(vec![
                     broker_connection(Some("disconnected"), false),
@@ -1479,7 +1414,6 @@ mod tests {
     async fn broker_preflight_active_connection_starts() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async { Ok(vec![broker_connection(Some("connected"), false)]) },
             || Some("guard"),
         )
@@ -1487,7 +1421,7 @@ mod tests {
 
         assert!(matches!(
             decision,
-            PostLoginBrokerBootstrapDecision::Start("guard")
+            PostLoginBrokerBootstrapDecision::Start("guard", _)
         ));
     }
 
@@ -1495,7 +1429,6 @@ mod tests {
     async fn broker_preflight_already_running_skips() {
         let decision = prepare_post_login_broker_bootstrap(
             true,
-            || async { Ok(true) },
             || async { Ok(vec![broker_connection(Some("connected"), false)]) },
             || None::<()>,
         )

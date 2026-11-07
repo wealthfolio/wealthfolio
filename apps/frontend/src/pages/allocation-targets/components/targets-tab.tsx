@@ -15,6 +15,8 @@ import {
   Icons,
   Skeleton,
   stripBidiControls,
+  useNumericDraft,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
@@ -510,6 +512,7 @@ function TargetEditor({
   onUnsavedChange?: (dirty: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { data: taxonomies = [] } = useTaxonomies({ scope: "asset" });
   const { accounts } = useAccounts({ filterActive: false, includeArchived: true });
   const { data: portfolios = [] } = usePortfolios();
@@ -580,9 +583,16 @@ function TargetEditor({
   const [allowSells, setAllowSells] = useState(target?.allowSells ?? true);
   const [minTradeAmount, setMinTradeAmount] = useState(target?.minTradeAmount ?? "0");
   const [wholeSharesOnly, setWholeSharesOnly] = useState(target?.wholeSharesOnly ?? false);
-  const [maxTurnoverPctDisplay, setMaxTurnoverPctDisplay] = useState(
-    target?.maxTurnoverBps != null ? String(target.maxTurnoverBps / 100) : "",
+  const turnoverDraft = useNumericDraft(
+    target?.maxTurnoverBps == null ? undefined : target.maxTurnoverBps / 100,
+    { acceptPercent: true },
   );
+  const turnoverPercent =
+    turnoverDraft.result.status === "valid"
+      ? turnoverDraft.result.value
+      : turnoverDraft.result.status === "empty"
+        ? null
+        : undefined;
   const [weights, setWeights] = useState<WeightDraft[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -648,6 +658,7 @@ function TargetEditor({
           sortOrder: category.sortOrder,
         })),
         t,
+        numbers,
       )
     : null;
   const selectedPresetName = selectedPreset
@@ -693,9 +704,7 @@ function TargetEditor({
       setAllowSells(target?.allowSells ?? false);
       setMinTradeAmount(target?.minTradeAmount ?? "0");
       setWholeSharesOnly(target?.wholeSharesOnly ?? false);
-      setMaxTurnoverPctDisplay(
-        target?.maxTurnoverBps != null ? String(target.maxTurnoverBps / 100) : "",
-      );
+      turnoverDraft.reset();
     } else {
       setTaxonomyId("asset_classes");
       setStartId("current");
@@ -707,7 +716,7 @@ function TargetEditor({
       setAllowSells(true);
       setMinTradeAmount("0");
       setWholeSharesOnly(false);
-      setMaxTurnoverPctDisplay("");
+      turnoverDraft.reset();
     }
     setWeights([]);
     setHasUnsavedChanges(false);
@@ -774,7 +783,11 @@ function TargetEditor({
 
   const totalBps = weights.reduce((sum, weight) => sum + weight.targetBps, 0);
   const isSaving = saveTarget.isPending;
-  const canSave = !cannotTargetScope && targetName.trim().length > 0 && totalBps === 10000;
+  const validTurnover =
+    turnoverPercent === null ||
+    (turnoverPercent !== undefined && turnoverPercent >= 0 && turnoverPercent <= 100);
+  const canSave =
+    !cannotTargetScope && targetName.trim().length > 0 && totalBps === 10000 && validTurnover;
   const selectedStartName =
     startId === "saved"
       ? t("allocation:editor.savedTarget")
@@ -803,8 +816,7 @@ function TargetEditor({
         rebalanceGoal: target?.rebalanceGoal ?? "nearest_band",
         minTradeAmount: minTradeAmount === "" ? "0" : minTradeAmount,
         wholeSharesOnly,
-        maxTurnoverBps:
-          maxTurnoverPctDisplay === "" ? null : Math.round(parseFloat(maxTurnoverPctDisplay) * 100),
+        maxTurnoverBps: turnoverPercent == null ? null : Math.round(turnoverPercent * 100),
       } as const;
 
       const saved = await saveTarget.mutateAsync({
@@ -856,9 +868,7 @@ function TargetEditor({
       setAllowSells(target.allowSells ?? false);
       setMinTradeAmount(target.minTradeAmount ?? "0");
       setWholeSharesOnly(target.wholeSharesOnly ?? false);
-      setMaxTurnoverPctDisplay(
-        target.maxTurnoverBps != null ? String(target.maxTurnoverBps / 100) : "",
-      );
+      turnoverDraft.reset();
       if (savedWeightDrafts) setWeights(savedWeightDrafts);
     } else {
       setTaxonomyId("asset_classes");
@@ -1124,13 +1134,11 @@ function TargetEditor({
                 </div>
                 <div className="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border px-3 focus-within:ring-2">
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={maxTurnoverPctDisplay}
-                    onChange={(e) => {
-                      setMaxTurnoverPctDisplay(e.target.value);
+                    type="text"
+                    inputMode="decimal"
+                    {...turnoverDraft.inputProps}
+                    onChange={(event) => {
+                      turnoverDraft.inputProps.onChange(event);
                       markDirty();
                     }}
                     placeholder={t("allocation:editor.noLimit")}

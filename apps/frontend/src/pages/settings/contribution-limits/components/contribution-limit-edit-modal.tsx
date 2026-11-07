@@ -15,7 +15,7 @@ export function ContributionLimitEditModal({
 }: ContributionLimitEditModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-162.5">
+      <DialogContent className="overflow-y-auto [--overlay-max-height:90vh] sm:max-w-162.5">
         <ContributionLimitForm
           defaultValues={
             limit ?? {
@@ -24,6 +24,7 @@ export function ContributionLimitEditModal({
               accountIds: "",
               startDate: new Date(new Date().getFullYear(), 0, 1),
               endDate: new Date(new Date().getFullYear(), 11, 31),
+              isRecurring: false,
             }
           }
           onSuccess={() => {

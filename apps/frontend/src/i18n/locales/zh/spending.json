@@ -187,7 +187,8 @@
     "duplicate": "复制",
     "unlinkTransfer": "取消关联转账",
     "linkTransfer": "关联转账……",
-    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？"
+    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？",
+    "convertToTransfer": "转为转账..."
   },
   "cashFlow": {
     "income": "收入",
@@ -843,6 +844,9 @@
     "manage": "管理 →"
   },
   "cashForm": {
+    "none": "无",
+    "addExpense": "添加支出",
+    "addIncome": "添加收入",
     "accountRequired": "请选择一个账户。",
     "pickDate": "选择日期",
     "amountNonNegative": "金额不能为负数。",
@@ -860,6 +864,8 @@
     "spendingCategory": "支出类别",
     "activityUpdated": "活动已更新。",
     "activityCreated": "活动已创建。",
+    "expenseAdded": "已添加支出。",
+    "incomeAdded": "已添加收入。",
     "saveFailed": "保存活动失败：{{message}}",
     "editTitle": "编辑交易",
     "addTitle": "添加交易",
@@ -926,7 +932,7 @@
     "stageWhenLabel": "何时与何地",
     "stageWhenSub": "何时消费及支出事件",
     "spendingAbovePrefix": "支出",
-    "pctAbove": "高出 {{pct}}%",
+    "pctAbove": "高出 {{pct}}",
     "thePriorPeriod": "较上一周期。",
     "moreThan": "比 {{prior}} 多 {{more}}",
     "uncategorizedCount_one": "{{count}} 笔未归类交易",

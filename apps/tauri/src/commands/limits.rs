@@ -4,7 +4,9 @@ use crate::context::ServiceContext;
 use log::debug;
 use wealthfolio_core::{
     accounts::{account_supports_purpose, AccountPurpose},
-    limits::{ContributionLimit, DepositsCalculation, NewContributionLimit},
+    limits::{
+        ContributionLimit, ContributionLimitDetails, DepositsCalculation, NewContributionLimit,
+    },
 };
 
 fn validate_contribution_limit_accounts(
@@ -119,4 +121,36 @@ pub async fn calculate_deposits_for_contribution_limit(
         .limits_service()
         .calculate_deposits_for_contribution_limit(&limit_id, &base_currency)
         .map_err(|e| format!("Failed to calculate deposits for contribution limit: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_contribution_limit_details(
+    limit_id: String,
+    state: ProfileAccess,
+) -> Result<ContributionLimitDetails, String> {
+    let context = state.context()?;
+    let base_currency = context
+        .base_currency
+        .read()
+        .map_err(|_| "Base currency state is unavailable".to_string())?
+        .clone();
+    context
+        .limits_service()
+        .get_contribution_limit_details(&limit_id, &base_currency)
+        .map_err(|e| format!("Failed to load contribution limit details: {}", e))
+}
+
+#[tauri::command]
+pub async fn set_contribution_activity_excluded(
+    limit_id: String,
+    activity_id: String,
+    excluded: bool,
+    state: ProfileAccess,
+) -> Result<(), String> {
+    state
+        .context()?
+        .limits_service()
+        .set_contribution_activity_excluded(&limit_id, &activity_id, excluded)
+        .await
+        .map_err(|e| format!("Failed to save contribution treatment: {}", e))
 }

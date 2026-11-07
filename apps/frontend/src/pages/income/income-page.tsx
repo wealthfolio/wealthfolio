@@ -27,7 +27,11 @@ import {
   AnimatedToggleGroup,
   GainPercent,
   PrivacyAmount,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   useAmountFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -84,6 +88,7 @@ export default function IncomePage() {
   const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
   const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
 
   const accountFilter = useAccountScopeStore((state) => state.scope);
   const setAccountScope = useAccountScopeStore((state) => state.setScope);
@@ -158,8 +163,8 @@ export default function IncomePage() {
   const interestPercentage = totalIncome > 0 ? (interestIncome / totalIncome) * 100 : 0;
 
   const topDividendStocks = Object.values(periodSummary.byAsset)
-    .filter((asset) => asset.income > 0)
-    .sort((a, b) => b.income - a.income)
+    .filter((asset) => asset.dividendIncome > 0)
+    .sort((a, b) => b.dividendIncome - a.dividendIncome)
     .slice(0, 10);
 
   const monthlyIncomeData: [string, number][] = Object.entries(periodSummary.byMonth)
@@ -317,7 +322,7 @@ export default function IncomePage() {
                                   />
                                   <div className="flex flex-1 items-center justify-between gap-2 leading-none">
                                     <span className="text-muted-foreground">{name}</span>
-                                    <span className="text-foreground font-mono font-medium tabular-nums">
+                                    <span className="text-foreground font-medium tabular-nums">
                                       {isBalanceHidden
                                         ? "••••"
                                         : amountFormatting.formatDecimalAmount(
@@ -429,7 +434,11 @@ export default function IncomePage() {
                               backgroundColor: chartColor,
                             }}
                           >
-                            {source.percentage > 0 ? `${source.percentage.toFixed(1)}%` : ""}
+                            {source.percentage > 0
+                              ? numberFormatting.formatPercent(source.percentage / 100, {
+                                  digits: 1,
+                                })
+                              : ""}
                           </div>
                         </div>
                       </div>
@@ -473,13 +482,16 @@ export default function IncomePage() {
                     {(() => {
                       const top5Stocks = topDividendStocks.slice(0, 5);
                       const otherStocks = topDividendStocks.slice(5);
-                      const otherTotal = otherStocks.reduce((sum, asset) => sum + asset.income, 0);
+                      const otherTotal = otherStocks.reduce(
+                        (sum, asset) => sum + asset.dividendIncome,
+                        0,
+                      );
 
                       const chartItems = [
                         ...top5Stocks.map((asset) => ({
                           symbol: asset.symbol,
                           companyName: asset.name,
-                          income: asset.income,
+                          income: asset.dividendIncome,
                           isOther: false,
                         })),
                         ...(otherTotal > 0
@@ -510,36 +522,34 @@ export default function IncomePage() {
                           dividendIncome > 0 ? (item.income / dividendIncome) * 100 : 0;
 
                         return (
-                          <div
-                            key={index}
-                            className="group relative h-5 cursor-pointer rounded-lg transition-all duration-300 ease-in-out hover:brightness-110"
-                            style={{
-                              width: `${percentage}%`,
-                              backgroundColor: item.isOther
-                                ? "var(--chart-stone)"
-                                : colors[index % colors.length],
-                            }}
-                          >
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 transform group-hover:block">
-                              <div className="bg-popover text-popover-foreground min-w-45 rounded-lg border px-3 py-2 shadow-md">
-                                <div className="text-sm font-medium">{item.symbol}</div>
-                                <div className="text-muted-foreground text-xs">
-                                  {item.companyName}
-                                </div>
-                                <div className="text-sm font-medium">
-                                  <PrivacyAmount value={item.income} currency={currency} />
-                                </div>
-                                <div className="text-muted-foreground text-xs">
-                                  {t("income:percent_of_total", {
-                                    percent: percentage.toFixed(1),
-                                  })}
-                                </div>
-                                {/* Tooltip arrow */}
-                                <div className="border-t-border absolute top-full left-1/2 h-0 w-0 -translate-x-1/2 transform border-s-4 border-e-4 border-t-4 border-s-transparent border-e-transparent"></div>
+                          <Tooltip key={index}>
+                            <TooltipTrigger
+                              render={<div />}
+                              className="h-5 cursor-pointer rounded-lg transition-all duration-300 ease-in-out hover:brightness-110"
+                              style={{
+                                width: `${percentage}%`,
+                                backgroundColor: item.isOther
+                                  ? "var(--chart-stone)"
+                                  : colors[index % colors.length],
+                              }}
+                            />
+                            <TooltipContent className="bg-popover text-popover-foreground min-w-45 rounded-lg border px-3 py-2 shadow-md">
+                              <div className="text-sm font-medium">{item.symbol}</div>
+                              <div className="text-muted-foreground text-xs">
+                                {item.companyName}
                               </div>
-                            </div>
-                          </div>
+                              <div className="text-sm font-medium">
+                                <PrivacyAmount value={item.income} currency={currency} />
+                              </div>
+                              <div className="text-muted-foreground text-xs">
+                                {t("income:percent_of_total", {
+                                  percent: numberFormatting.formatPercent(percentage / 100, {
+                                    digits: 1,
+                                  }),
+                                })}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         );
                       });
                     })()}
@@ -556,7 +566,7 @@ export default function IncomePage() {
                         </span>
                       </div>
                       <div className="text-success text-sm">
-                        <PrivacyAmount value={asset.income} currency={currency} />
+                        <PrivacyAmount value={asset.dividendIncome} currency={currency} />
                       </div>
                     </div>
                   ))}

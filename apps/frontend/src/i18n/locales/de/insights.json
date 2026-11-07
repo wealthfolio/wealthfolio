@@ -79,7 +79,6 @@
       "link_explanation": "Das Verknüpfen einer vorhandenen Immobilie ändert dein Nettovermögen nicht."
     },
     "failed_to_load": "Nettovermögen konnte nicht geladen werden",
-    "stale_valuations_tooltip": "Veraltete Bewertungen (90+ Tage):",
     "days_ago": "vor {{count}} T",
     "no_history_data": "Keine Verlaufsdaten verfügbar",
     "breakdown": "Aufschlüsselung",

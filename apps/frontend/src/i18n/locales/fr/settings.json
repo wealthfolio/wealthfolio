@@ -99,8 +99,14 @@
   "limits_add_button": "Ajouter une limite",
   "limits_add_aria": "Ajouter une limite de cotisation",
   "limits_current_year": "Année en cours ({{year}})",
+  "limits_future_years": "Années à venir",
   "limits_previous_years": "Années précédentes",
   "limits_show_previous": "Afficher",
+  "limits_projected_badge": "Projeté",
+  "limits_projected_description": "Généré automatiquement à partir de votre limite récurrente de {{year}}. Ajoutez-la pour personnaliser le montant de cette année.",
+  "limits_projected_add_button": "Ajouter cette année",
+  "limits_projected_add_aria": "Ajouter {{group}} pour {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "Aucun compte sélectionné",
   "limits_empty_title": "Aucune limite de cotisation pour {{year}} !",
   "limits_empty_description": "Vous n'avez aucune limite de cotisation pour l'année en cours. Commencez par ajouter vos limites de cotisation.",
   "limits_add_first": "Ajouter une limite de cotisation",
@@ -131,6 +137,8 @@
   "limits_form_start_date_label": "Date de début",
   "limits_form_end_date_label": "Date de fin",
   "limits_form_date_description": "Les dates sont par défaut du 1er janvier au 31 décembre de l'année sélectionnée",
+  "limits_form_recurring_label": "Se répète chaque année",
+  "limits_form_recurring_description": "Affiche automatiquement une limite projetée pour les années futures avec le même montant, jusqu'à ce que vous ajoutiez ou modifiiez cette année.",
   "limits_form_updating": "Mise à jour...",
   "limits_form_saving": "Enregistrement...",
   "limits_form_update_button": "Mettre à jour",
@@ -1819,6 +1827,35 @@
         "name": "Accès réseau",
         "description": "Accès aux hôtes HTTPS externes déclarés via le relais réseau de l’application hôte"
       }
+    }
+  },
+  "limits_detail": {
+    "view_details": "Voir les détails",
+    "back": "Plafonds de cotisation",
+    "counted": "Cotisations comptabilisées",
+    "annual_limit": "Montant du plafond",
+    "remaining": "Marge restante",
+    "over": "Plafond dépassé",
+    "activities": "Opérations de cotisation",
+    "review_activity": "Examiner {{activity}}",
+    "transaction_details": "Détails de l’opération",
+    "treatment": "Traitement pour ce plafond",
+    "automatic": "Comptabiliser automatiquement",
+    "excluded": "Exclure de ce plafond",
+    "save": "Enregistrer le traitement",
+    "counted_amount": "Montant comptabilisé",
+    "usage_after_save": "Utilisation du plafond après enregistrement",
+    "recalculate": "Calculé à l’enregistrement",
+    "activity_unchanged": "Seule l’utilisation de ce plafond change. Les opérations du compte restent inchangées.",
+    "save_success": "Traitement de la cotisation enregistré.",
+    "save_error": "Impossible d’enregistrer le traitement de la cotisation.",
+    "load_error": "Impossible de charger ce plafond de cotisation.",
+    "no_activities": "Aucune opération de cotisation sur cette période.",
+    "treatments": {
+      "counted": "Comptabilisé",
+      "excludedByUser": "Exclu par vous",
+      "internalTransfer": "Virement interne",
+      "notExternal": "Non marqué comme externe"
     }
   }
 }

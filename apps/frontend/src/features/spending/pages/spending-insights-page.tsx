@@ -804,7 +804,9 @@ function ForeignCurrencyBanner({
     const v = nativeTotals[ccy];
     if (v == null) return ccy;
     // Intl rejects malformed codes → fall back to bare magnitude + code.
-    if (!/^[A-Za-z]{3}$/.test(ccy)) return `${Math.abs(v).toFixed(0)} ${ccy}`;
+    if (!/^[A-Za-z]{3}$/.test(ccy)) {
+      return `${amountFormatting.formatDecimalAmount(Math.abs(v), ccy, { maximumFractionDigits: 0 })} ${ccy}`;
+    }
     return amountFormatting.formatRoundedAmount(Math.abs(v), ccy);
   };
   const asOfDate = dateFormatting.formatDate(asOf, {

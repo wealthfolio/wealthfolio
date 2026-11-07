@@ -15,8 +15,9 @@
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::rand_core::UnwrapErr;
+use rand::rngs::SysRng;
+use rand::Rng;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use wealthfolio_storage_sqlite::agent::PatRepository;
@@ -26,10 +27,10 @@ pub const PAT_PREFIX: &str = "wfp_";
 /// Length of the lookup prefix stored alongside the hash (chars after `wfp_`).
 pub const TOKEN_PREFIX_LEN: usize = 12;
 
-/// Generates a fresh PAT: `wfp_` + 43-char base64url of 32 OsRng bytes.
+/// Generates a fresh PAT: `wfp_` + 43-char base64url of 32 OS RNG bytes.
 pub fn generate_token() -> String {
     let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
+    UnwrapErr(SysRng).fill_bytes(&mut bytes);
     format!("{PAT_PREFIX}{}", URL_SAFE_NO_PAD.encode(bytes))
 }
 
@@ -42,8 +43,7 @@ pub fn token_prefix(token: &str) -> Option<&str> {
 
 /// SHA-256 hex of the full presented token string.
 pub fn hash_token(token: &str) -> String {
-    let digest = Sha256::digest(token.as_bytes());
-    format!("{digest:x}")
+    hex::encode(Sha256::digest(token.as_bytes()))
 }
 
 /// A presented PAT that matched a stored, unrevoked, unexpired row.
@@ -100,4 +100,20 @@ pub async fn authenticate(repo: &PatRepository, presented: &str) -> Option<Authe
         scopes,
         fingerprint: format!("sha256:{}", &presented_hash[..16]),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn golden_token_hash_and_fingerprint() {
+        // Stored token hashes must keep matching after a sha2 upgrade. Synthetic token;
+        // never regenerate these values to make an upgrade pass.
+        let token = "wfp_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
+        assert_eq!(token_prefix(token), Some("AAECAwQFBgcI"));
+        let hash = "9309065465d70c06db77b4db692a67fa79c5c3b2497da20794aa0e55d67a4bd7";
+        assert_eq!(hash_token(token), hash);
+        assert_eq!(crate::token_fingerprint(token), format!("sha256:{hash}"));
+    }
 }

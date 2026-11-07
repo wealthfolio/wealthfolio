@@ -82,7 +82,6 @@
       "link_explanation": "Vincular um imóvel existente não altera seu patrimônio líquido."
     },
     "failed_to_load": "Não foi possível carregar o patrimônio líquido",
-    "stale_valuations_tooltip": "Valorações desatualizadas (mais de 90 dias):",
     "days_ago": "há {{count}} d",
     "no_history_data": "Não há dados de histórico disponíveis",
     "breakdown": "Detalhamento",

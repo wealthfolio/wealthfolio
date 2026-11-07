@@ -688,7 +688,8 @@ async fn build_context(
         Arc::new(HealthDismissalRepository::new(pool.clone(), writer.clone()));
     let health_service = Arc::new(
         HealthService::new(health_dismissal_repository)
-            .with_projection_freshness(portfolio_coordinator.clone()),
+            .with_projection_freshness(portfolio_coordinator.clone())
+            .with_net_worth(net_worth_service.clone()),
     );
 
     // Create AI environment and chat service

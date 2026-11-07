@@ -8,6 +8,7 @@ import { ContributionLimitForm } from "./contribution-limit-form";
 const mocks = vi.hoisted(() => ({
   // Swapped for a real save in tests that need one.
   useAddLimit: null as null | (() => unknown),
+  updateLimit: vi.fn(),
 }));
 
 vi.mock("../use-contribution-limit-mutations", () => ({
@@ -16,7 +17,7 @@ vi.mock("../use-contribution-limit-mutations", () => ({
       mutateAsync: vi.fn(),
       isPending: false,
     },
-    updateContributionLimitMutation: { mutateAsync: vi.fn(), isPending: false },
+    updateContributionLimitMutation: { mutateAsync: mocks.updateLimit, isPending: false },
   }),
 }));
 
@@ -107,6 +108,122 @@ describe("ContributionLimitForm dates", () => {
     expect(mutateAsync.mock.calls[0][0]).toMatchObject({
       startDate: new Date(2026, 0, 1).toISOString(),
       endDate: new Date(2026, 11, 31).toISOString(),
+    });
+    mocks.useAddLimit = null;
+  });
+
+  // An April–March tax year, saved as the date picker gives its days.
+  const taxYear = {
+    id: "limit-1",
+    groupName: "ISA",
+    contributionYear: 2026,
+    limitAmount: 20000,
+    startDate: new Date(2026, 3, 1).toISOString(),
+    endDate: new Date(2027, 2, 31).toISOString(),
+  };
+
+  it("keeps a saved limit's dates when it is opened and updated", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm defaultValues={taxYear} />
+      </Dialog>,
+    );
+    expect(monthSegments().map((segment) => segment.getAttribute("aria-valuenow"))).toEqual([
+      "4",
+      "3",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    expect(mocks.updateLimit.mock.calls[0][0].updatedLimit).toMatchObject({
+      startDate: taxYear.startDate,
+      endDate: taxYear.endDate,
+    });
+  });
+
+  it("moves the dates to a year typed one digit at a time", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm defaultValues={taxYear} />
+      </Dialog>,
+    );
+
+    const year = screen.getByPlaceholderText("e.g., 2024");
+    for (const value of ["", "2", "20", "202", "2027"]) {
+      fireEvent.change(year, { target: { value } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    expect(mocks.updateLimit.mock.calls[0][0].updatedLimit).toMatchObject({
+      contributionYear: 2027,
+      startDate: new Date(2027, 0, 1).toISOString(),
+      endDate: new Date(2027, 11, 31).toISOString(),
+    });
+  });
+
+  it("initializes a legacy limit without dates from its year", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{ ...taxYear, startDate: undefined, endDate: undefined }}
+        />
+      </Dialog>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    expect(mocks.updateLimit.mock.calls[0][0].updatedLimit).toMatchObject({
+      startDate: new Date(2026, 0, 1).toISOString(),
+      endDate: new Date(2026, 11, 31).toISOString(),
+    });
+  });
+
+  it("keeps a saved limit's only date instead of filling in its year", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm defaultValues={{ ...taxYear, endDate: null }} />
+      </Dialog>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    const { updatedLimit } = mocks.updateLimit.mock.calls[0][0];
+    expect(updatedLimit.startDate).toBe(taxYear.startDate);
+    expect(updatedLimit.endDate ?? null).toBeNull();
+  });
+
+  it("keeps the dates it opens with until the year is changed", async () => {
+    const mutateAsync = vi.fn();
+    mocks.useAddLimit = () => ({ mutateAsync, isPending: false });
+    // A projected limit for a tax year that doesn't follow the calendar year.
+    const startDate = new Date(2027, 3, 6);
+    const endDate = new Date(2028, 3, 5);
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{
+            groupName: "ISA",
+            contributionYear: 2027,
+            limitAmount: 20000,
+            startDate,
+            endDate,
+          }}
+        />
+      </Dialog>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
     });
     mocks.useAddLimit = null;
   });

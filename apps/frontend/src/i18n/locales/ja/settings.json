@@ -99,8 +99,14 @@
   "limits_add_button": "上限を追加",
   "limits_add_aria": "拠出上限を追加",
   "limits_current_year": "今年 ({{year}}年)",
+  "limits_future_years": "今後の年",
   "limits_previous_years": "過去の年",
   "limits_show_previous": "表示",
+  "limits_projected_badge": "予測",
+  "limits_projected_description": "{{year}}年の定期上限から自動生成されました。今年の金額を変更するには追加してください。",
+  "limits_projected_add_button": "今年分を追加",
+  "limits_projected_add_aria": "{{year}}年の{{group}}を追加 ({{accounts}})",
+  "limits_no_accounts_selected": "口座が選択されていません",
   "limits_empty_title": "{{year}}年の拠出上限がありません",
   "limits_empty_description": "今年の拠出上限がまだ登録されていません。拠出上限の登録から始めましょう。",
   "limits_add_first": "拠出上限を追加",
@@ -131,6 +137,8 @@
   "limits_form_start_date_label": "開始日",
   "limits_form_end_date_label": "終了日",
   "limits_form_date_description": "日付は選択した年の1月1日から12月31日が初期値になります",
+  "limits_form_recurring_label": "毎年繰り返す",
+  "limits_form_recurring_description": "その年を追加または編集するまで、同じ金額で今後の年の予測上限を自動的に表示します。",
   "limits_form_updating": "更新中...",
   "limits_form_saving": "保存中...",
   "limits_form_update_button": "更新",
@@ -1741,6 +1749,35 @@
         "name": "ネットワークアクセス",
         "description": "ホストのネットワーク仲介を通じた宣言済み外部 HTTPS ホストへのアクセス"
       }
+    }
+  },
+  "limits_detail": {
+    "view_details": "詳細を表示",
+    "back": "拠出限度額",
+    "counted": "計上された拠出額",
+    "annual_limit": "限度額",
+    "remaining": "残りの枠",
+    "over": "限度額超過",
+    "activities": "拠出取引",
+    "review_activity": "{{activity}}を確認",
+    "transaction_details": "取引の詳細",
+    "treatment": "この限度額での扱い",
+    "automatic": "自動的に計上",
+    "excluded": "この限度額から除外",
+    "save": "扱いを保存",
+    "counted_amount": "計上額",
+    "usage_after_save": "保存後の限度額使用額",
+    "recalculate": "保存時に計算",
+    "activity_unchanged": "この限度額の使用額のみが変わります。口座の取引は変更されません。",
+    "save_success": "拠出の扱いを保存しました。",
+    "save_error": "拠出の扱いを保存できませんでした。",
+    "load_error": "この拠出限度額を読み込めませんでした。",
+    "no_activities": "この期間に拠出取引はありません。",
+    "treatments": {
+      "counted": "計上済み",
+      "excludedByUser": "手動で除外",
+      "internalTransfer": "内部振替",
+      "notExternal": "外部として未指定"
     }
   }
 }

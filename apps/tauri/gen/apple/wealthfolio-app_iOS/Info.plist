@@ -24,7 +24,7 @@
 				<string>wealthfolio</string>
 			</array>
 			<key>CFBundleURLName</key>
-			<string>wealthfolio</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).wealthfolio</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>

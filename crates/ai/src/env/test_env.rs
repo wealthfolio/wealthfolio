@@ -14,10 +14,10 @@ use wealthfolio_core::{
     activities::{
         Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
         ActivityImport, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityServiceTrait,
-        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ImportAssetCandidate,
-        ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, ImportTemplateScope,
-        InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-        SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
+        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ConvertToTransferRequest,
+        ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
+        ImportTemplateScope, InternalTransferPairRequest, InternalTransferPairResponse,
+        NewActivity, SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
         TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
@@ -560,6 +560,13 @@ impl ActivityServiceTrait for MockActivityService {
         _request: InternalTransferPairRequest,
     ) -> CoreResult<InternalTransferPairResponse> {
         unimplemented!("MockActivityService::save_internal_transfer_pair")
+    }
+
+    async fn convert_to_internal_transfer(
+        &self,
+        _request: ConvertToTransferRequest,
+    ) -> CoreResult<InternalTransferPairResponse> {
+        unimplemented!("MockActivityService::convert_to_internal_transfer")
     }
 
     async fn link_transfer_activities(
@@ -2073,6 +2080,21 @@ impl wealthfolio_core::portfolio::net_worth::NetWorthServiceTrait for EmptyNetWo
 struct EmptyContributionLimitService;
 #[async_trait::async_trait]
 impl wealthfolio_core::limits::ContributionLimitServiceTrait for EmptyContributionLimitService {
+    fn get_contribution_limit_details(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::limits::ContributionLimitDetails> {
+        unimplemented!("empty fixture")
+    }
+    async fn set_contribution_activity_excluded(
+        &self,
+        _: &str,
+        _: &str,
+        _: bool,
+    ) -> wealthfolio_core::errors::Result<()> {
+        unimplemented!("read-only fixture")
+    }
     fn get_contribution_limits(
         &self,
     ) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::limits::ContributionLimit>> {

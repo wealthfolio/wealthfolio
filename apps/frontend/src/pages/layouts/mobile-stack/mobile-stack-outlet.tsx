@@ -119,11 +119,14 @@ function focusScreen(
     restore.focus({ preventScroll: true });
     return;
   }
-  // The page already focused something itself, such as a form's first field.
+  // The page already focused something itself, such as a form's first field, in
+  // the screen or in one of its popups (a sheet renders outside the screen).
+  const active = document.activeElement;
   if (
-    document.activeElement &&
-    document.activeElement !== layer &&
-    layer.contains(document.activeElement)
+    active &&
+    active !== layer &&
+    (layer.contains(active) ||
+      active.closest(`[data-portal-scope=${JSON.stringify(screenId)}]`) !== null)
   ) {
     return;
   }

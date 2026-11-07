@@ -78,7 +78,6 @@
       "link_explanation": "기존 부동산을 연결해도 순자산은 바뀌지 않습니다."
     },
     "failed_to_load": "순자산을 불러오지 못했습니다",
-    "stale_valuations_tooltip": "오래된 평가 (90일 이상):",
     "days_ago": "{{count}}일 전",
     "no_history_data": "사용 가능한 이력 데이터가 없습니다",
     "breakdown": "세부 내역",

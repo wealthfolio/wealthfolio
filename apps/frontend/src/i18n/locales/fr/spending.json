@@ -193,7 +193,8 @@
     "linkTransfer": "Associer un virement...",
     "deleteConfirmMany_one": "Voulez-vous vraiment supprimer {{count}} transaction ?",
     "deleteConfirmMany_other": "Voulez-vous vraiment supprimer {{count}} transactions ?",
-    "deleteConfirmMany_many": "Voulez-vous vraiment supprimer {{count}} transactions ?"
+    "deleteConfirmMany_many": "Voulez-vous vraiment supprimer {{count}} transactions ?",
+    "convertToTransfer": "Convertir en virement..."
   },
   "cashFlow": {
     "income": "Revenus",
@@ -894,6 +895,9 @@
     "manage": "Gérer →"
   },
   "cashForm": {
+    "none": "Aucun",
+    "addExpense": "Ajouter une dépense",
+    "addIncome": "Ajouter un revenu",
     "accountRequired": "Veuillez sélectionner un compte.",
     "pickDate": "Choisissez une date",
     "amountNonNegative": "Le montant doit être non négatif.",
@@ -911,6 +915,8 @@
     "spendingCategory": "Catégorie de dépense",
     "activityUpdated": "Activité mise à jour.",
     "activityCreated": "Activité créée.",
+    "expenseAdded": "Dépense ajoutée.",
+    "incomeAdded": "Revenu ajouté.",
     "saveFailed": "Échec de l'enregistrement de l'activité : {{message}}",
     "editTitle": "Modifier la transaction",
     "addTitle": "Ajouter une transaction",
@@ -984,7 +990,7 @@
     "stageWhenLabel": "Quand et où",
     "stageWhenSub": "Quand vous dépensez et événements de dépenses",
     "spendingAbovePrefix": "Les dépenses sont",
-    "pctAbove": "{{pct}} % au-dessus",
+    "pctAbove": "{{pct}} au-dessus",
     "thePriorPeriod": "de la période précédente.",
     "moreThan": "{{more}} de plus que {{prior}}",
     "uncategorizedCount_one": "{{count}} transaction non catégorisée",

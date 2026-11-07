@@ -329,7 +329,7 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
             },
             "quantity": {
                 "type": "number",
-                "description": "Number of shares or units. Required for BUY/SELL/SPLIT and asset-backed income subtypes like DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD"
+                "description": "Number of shares or units. Required for BUY/SELL and asset-backed income subtypes like DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD. Not used for SPLIT, whose ratio goes in amount"
             },
             "unitPrice": {
                 "type": "number",
@@ -337,7 +337,7 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
             },
             "amount": {
                 "type": "number",
-                "description": "Total cash amount or taxable income amount. For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, provide either amount or unitPrice"
+                "description": "Final cash that moved: a buy's total including charges, a sell's proceeds after them. For DIVIDEND and INTEREST, the cash received after withholding tax, with the withheld tax in `tax` (a 100 dividend with 15 withheld is amount 85, tax 15). For INTEREST on a credit card, the interest charged. For DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD, the value of the shares or tokens received; provide either amount or unitPrice. For SPLIT, the split ratio (2 for a 2-for-1 split)"
             },
             "fee": {
                 "type": "number",
@@ -345,7 +345,7 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
             },
             "tax": {
                 "type": "number",
-                "description": "Trade-level tax amount (optional)"
+                "description": "Tax charged or withheld, such as dividend withholding tax (optional). Already reflected in amount; it is not deducted again"
             },
             "account": {
                 "type": "string",
@@ -744,8 +744,13 @@ fn validate_draft(draft: &ActivityDraft) -> ValidationResult {
             if draft.symbol.is_none() && draft.asset_id.is_none() {
                 missing_fields.push("symbol".to_string());
             }
-            if draft.quantity.is_none() {
-                missing_fields.push("quantity".to_string());
+            // Core stores the split ratio in `amount`, takes its absolute
+            // value and rejects zero; it does not read quantity.
+            let has_ratio = draft
+                .amount
+                .is_some_and(|ratio| ratio.is_finite() && ratio != 0.0);
+            if !has_ratio {
+                missing_fields.push("amount".to_string());
             }
         }
         // Either amount (for cash) or (symbol + quantity) for assets
@@ -923,6 +928,54 @@ mod tests {
         let draft = buy_draft();
         let validation = validate_draft(&draft);
         assert!(validation.is_valid, "{:?}", validation);
+    }
+
+    fn split_draft() -> ActivityDraft {
+        ActivityDraft {
+            activity_type: "SPLIT".to_string(),
+            quantity: None,
+            unit_price: None,
+            amount: Some(2.0),
+            fee: None,
+            price_source: "none".to_string(),
+            ..buy_draft()
+        }
+    }
+
+    #[test]
+    fn split_draft_without_ratio_reports_missing_amount() {
+        // Core stores a split's ratio in `amount` and rejects a split
+        // without one, so this draft would fail at commit.
+        let mut draft = split_draft();
+        draft.quantity = Some(4.0);
+        draft.amount = None;
+        let validation = validate_draft(&draft);
+        assert!(!validation.is_valid);
+        assert_eq!(validation.missing_fields, vec!["amount".to_string()]);
+    }
+
+    #[test]
+    fn split_draft_with_zero_or_non_finite_ratio_reports_missing_amount() {
+        for ratio in [0.0, f64::NAN, f64::INFINITY] {
+            let mut draft = split_draft();
+            draft.amount = Some(ratio);
+            let validation = validate_draft(&draft);
+            assert_eq!(
+                validation.missing_fields,
+                vec!["amount".to_string()],
+                "ratio {ratio}"
+            );
+        }
+    }
+
+    #[test]
+    fn split_draft_needs_ratio_not_quantity() {
+        // Core reads only `amount` for a split and takes its absolute value.
+        assert!(validate_draft(&split_draft()).is_valid);
+
+        let mut negative = split_draft();
+        negative.amount = Some(-2.0);
+        assert!(validate_draft(&negative).is_valid);
     }
 
     #[test]

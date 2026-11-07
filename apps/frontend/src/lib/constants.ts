@@ -4,6 +4,10 @@ import { z } from "zod";
 export const DECIMAL_PRECISION = 8;
 export const DISPLAY_DECIMAL_PRECISION = 2;
 
+// Must match crates/core/src/limits/limits_model.rs.
+export const MIN_CONTRIBUTION_YEAR = 1900;
+export const MAX_CONTRIBUTION_YEAR = 9999;
+
 // Wealthfolio Connect Portal URL - centralized configuration
 export const WEALTHFOLIO_CONNECT_PORTAL_URL = "https://connect.wealthfolio.app";
 

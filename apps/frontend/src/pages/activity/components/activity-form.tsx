@@ -181,6 +181,7 @@ export function ActivityForm({
             onCancel={onClose}
             isLoading={isLoading}
             isEditing={isEditing}
+            originalActivity={activity}
           />
 
           {/* Display mutation error inside sheet */}

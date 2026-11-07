@@ -164,7 +164,7 @@ export function ExchangeRatesSettings() {
               <Icons.PlusCircle className="me-2 h-4 w-4" />
               {t("settings:fx_add")}
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="overflow-y-auto [--overlay-max-height:90vh]">
               <AddExchangeRateForm
                 onSubmit={(newRate) => {
                   addExchangeRate(newRate);

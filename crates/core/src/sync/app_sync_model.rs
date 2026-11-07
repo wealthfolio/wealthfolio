@@ -83,7 +83,9 @@ pub const APP_SYNC_TABLES: &[&str] = &[
 /// Schema version stamped on uploaded snapshots. Version 4 uses compressed binary
 /// encryption and includes broker holdings, activities and their import records.
 /// Older clients must not restore it with their manual-only import filters.
-pub const SNAPSHOT_SCHEMA_VERSION: i32 = 4;
+/// Version 5 includes recurring contribution limits and per-limit exclusions. Do not
+/// reuse older snapshots that cannot preserve these settings.
+pub const SNAPSHOT_SCHEMA_VERSION: i32 = 5;
 
 /// A remote snapshot is reusable only when it covers the required event cursor
 /// and contains at least the schema required by the local client.
@@ -115,6 +117,8 @@ pub enum SyncEntity {
     AiMessage,
     AiThreadTag,
     ContributionLimit,
+    /// Full limit payload including recurrence and exclusions; legacy clients skip it.
+    ContributionLimitV2,
     Platform,
     Snapshot,
     CustomProvider,
@@ -150,6 +154,15 @@ pub enum SyncEntity {
 }
 
 impl SyncEntity {
+    /// Wire versions share the ordinary row fields and deletion tombstone.
+    /// Recurrence uses the V2 entity's own conflict metadata.
+    pub fn conflict_entity(self) -> Self {
+        match self {
+            Self::ContributionLimitV2 => Self::ContributionLimit,
+            entity => entity,
+        }
+    }
+
     /// Whether this entity's IDs are derived from natural or user keys (an
     /// account and a date, an activity and a taxonomy, a setting key), so a
     /// deleted ID can legitimately be written again.
@@ -188,6 +201,7 @@ impl SyncEntity {
             | SyncEntity::AiMessage
             | SyncEntity::AiThreadTag
             | SyncEntity::ContributionLimit
+            | SyncEntity::ContributionLimitV2
             | SyncEntity::Platform
             | SyncEntity::CustomProvider
             | SyncEntity::CustomTaxonomy
@@ -389,6 +403,13 @@ mod tests {
             10,
             SNAPSHOT_SCHEMA_VERSION
         ));
+        // Version 4 snapshots do not contain recurring contribution limits.
+        assert!(!snapshot_covers_cursor_and_schema(
+            11,
+            4,
+            10,
+            SNAPSHOT_SCHEMA_VERSION
+        ));
     }
 
     #[test]
@@ -438,6 +459,7 @@ mod tests {
             SyncEntity::AiMessage,
             SyncEntity::AiThreadTag,
             SyncEntity::ContributionLimit,
+            SyncEntity::ContributionLimitV2,
             SyncEntity::Platform,
             SyncEntity::Snapshot,
             SyncEntity::CustomProvider,
@@ -483,6 +505,7 @@ mod tests {
             "\"ai_message\"",
             "\"ai_thread_tag\"",
             "\"contribution_limit\"",
+            "\"contribution_limit_v2\"",
             "\"platform\"",
             "\"snapshot\"",
             "\"custom_provider\"",

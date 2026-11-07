@@ -29,6 +29,7 @@ pub struct AccountDB {
     pub id: String,
     pub name: String,
     pub account_type: String,
+    #[diesel(treat_none_as_null = true)]
     pub group: Option<String>,
     pub currency: String,
     pub is_default: bool,
@@ -131,7 +132,7 @@ impl From<AccountUpdate> for AccountDB {
             id: domain.id.unwrap_or_default(),
             name: domain.name,
             account_type: domain.account_type,
-            group: domain.group,
+            group: domain.group.flatten(),
             currency: String::new(), // This will be filled from existing record
             is_default: domain.is_default,
             is_active: domain.is_active,

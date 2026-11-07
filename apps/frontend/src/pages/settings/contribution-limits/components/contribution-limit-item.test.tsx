@@ -1,8 +1,12 @@
-import { render, screen } from "@/test/render";
+import { render as renderWithFormatting, screen, type RenderOptions } from "@/test/render";
 import { FormattingProvider } from "@wealthfolio/ui";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ContributionLimitItem } from "./contribution-limit-item";
+
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  renderWithFormatting(<MemoryRouter>{ui}</MemoryRouter>, options);
 
 vi.mock("../use-contribution-limit-mutations", () => ({
   useContributionLimitProgress: () => ({ data: undefined, isLoading: false }),
