@@ -2,7 +2,7 @@ import { act, render, screen, fireEvent, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import enCommon from "@/i18n/locales/en/common.json";
@@ -346,6 +346,29 @@ it.each(["changed", "when"])(
 );
 
 describe("period shared with the dashboard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["2026", "invalid"])(
+    "consumes invalid year-only link %s without replacing the shared selection",
+    (year) => {
+      localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
+      render(
+        <MemoryRouter initialEntries={[`/insights?tab=spending&spendingYear=${year}`]}>
+          <SpendingInsightsPage />
+          <Location />
+        </MemoryRouter>,
+      );
+      expect(sharedPick()).toEqual({ kind: "year", year: 2025 });
+      expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+      expect(screen.getByTestId("location")).not.toHaveTextContent("spendingYear");
+      expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    },
+  );
+
   it.each(["2026", "1969", "2025.5", "invalid"])(
     "rejects invalid year %s in a link and uses its valid preset",
     (year) => {

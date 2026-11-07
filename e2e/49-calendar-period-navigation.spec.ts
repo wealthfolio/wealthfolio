@@ -8,6 +8,7 @@ for (const mobile of [false, true]) {
     }, testInfo) => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
+      await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
       await completeOnboardingIfNeeded(page);
       const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
         data: {
