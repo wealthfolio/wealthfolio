@@ -83,9 +83,13 @@ for (const mobile of [false, true]) {
           ).ok(),
         ).toBeTruthy();
         const reportRequests: { startDate: string; endDate: string }[] = [];
+        const insightRequests: { startDate: string; endDate: string }[] = [];
         page.on("request", (request) => {
           if (new URL(request.url()).pathname === "/api/v1/spending/report") {
             reportRequests.push(request.postDataJSON());
+          }
+          if (new URL(request.url()).pathname === "/api/v1/spending/insight") {
+            insightRequests.push(request.postDataJSON());
           }
         });
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=2025`);
@@ -166,8 +170,61 @@ for (const mobile of [false, true]) {
         await expect(periodButton("2024")).toBeVisible();
         await gotoAppPath(page, `/insights?tab=spending&dir=${direction}`);
         await expect(page.getByTestId("spending-selected-range")).toContainText("2024");
+        const insightsHeader = page.getByTestId("spending-period-header");
+        const previousInsight = insightsHeader.getByRole("button", { name: "Previous period" });
+        const nextInsight = insightsHeader.getByRole("button", { name: "Next period" });
+        await expect(visible("Last month")).toHaveCount(0);
+        await expect(
+          page.getByRole("button", { name: "Prev", exact: true }).filter({ visible: true }),
+        ).toHaveCount(0);
+        await previousInsight.click();
+        await expect(page.getByTestId("spending-selected-range")).toContainText("2023");
+        await nextInsight.click();
+        await expect(page.getByTestId("spending-selected-range")).toContainText("2024");
+        await visible("6M").click();
+        await expect(nextInsight).toBeDisabled();
+        const arrowBox = await previousInsight.boundingBox();
+        expect(arrowBox).not.toBeNull();
+        if (mobile) {
+          expect(arrowBox!.width).toBeGreaterThanOrEqual(44);
+          expect(arrowBox!.height).toBeGreaterThanOrEqual(44);
+        }
+        await previousInsight.click();
+        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+        await expect
+          .poll(() => insightRequests)
+          .toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                startDate: "2025-09-15T00:00:00.000Z",
+                endDate: "2026-03-15T23:59:59.999Z",
+              }),
+            ]),
+          );
+        await page.reload();
+        await expect(nextInsight).toBeEnabled();
+        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+        await page.screenshot({
+          path: testInfo.outputPath("insights-period-navigation.png"),
+          animations: "disabled",
+        });
+        await nextInsight.click();
+        await expect(nextInsight).toBeDisabled();
+        await visible(mobile ? "MTD" : "This month").click();
+        await previousInsight.click();
+        await expect(page.getByTestId("spending-selected-range")).toContainText("August 2026");
+        await nextInsight.click();
+        await expect(visible(mobile ? "MTD" : "This month")).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+        await expect(nextInsight).toBeDisabled();
 
-        await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}`);
+        // Restore the calendar year before continuing the dashboard picker flow.
+        await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=2024`);
         await spendingPeriodButton("2024").click();
         await expect(popup).toBeVisible();
         await popup.getByRole("button", { name: "Month", exact: true }).click();

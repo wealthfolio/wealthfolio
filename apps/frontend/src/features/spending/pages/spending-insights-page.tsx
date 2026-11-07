@@ -21,6 +21,7 @@ import { WhatChangedStage } from "../components/reports/insights/what-changed-st
 import { WhenWhereStage } from "../components/reports/insights/when-where-stage";
 import { WhereIAmStage } from "../components/reports/insights/where-i-am-stage";
 import { SpendingPeriodSelector } from "../components/spending-period-toggle";
+import { PeriodNavigation } from "../components/period-navigation";
 import { useCashActivities } from "../hooks/use-cash-activities";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
@@ -48,6 +49,7 @@ import {
   portfolioPresetForSpendingPeriod,
   rangePick,
   spendingViewForPick,
+  stepDashboardPeriod,
   type DashboardPeriodPick,
 } from "../lib/dashboard-period-sync";
 import {
@@ -77,6 +79,7 @@ import {
   daysInCalendarMonth,
   formatZonedDateKey,
   getZonedDateParts,
+  localDateParts,
   zonedCalendarDateBoundaryToDate,
 } from "../lib/timezone";
 
@@ -194,11 +197,15 @@ export default function SpendingInsightsPage({
     () => (!hasUrlPeriod && sharedPick ? spendingViewForPick(sharedPick, todayISO) : null),
     [hasUrlPeriod, sharedPick, todayISO],
   );
+  const rangePreset = sharedView?.kind === "range" ? sharedView.preset : undefined;
+  const presetWindow = sharedView?.kind === "range" ? sharedView.presetWindow : undefined;
   const period =
     urlPeriod ??
     (sharedView?.kind === "period"
       ? sharedView.code
-      : (normalizeReportsPeriod(persistedPeriod) ?? DEFAULT_REPORTS_PERIOD));
+      : (normalizeReportsPeriod(rangePreset?.code) ??
+        normalizeReportsPeriod(persistedPeriod) ??
+        DEFAULT_REPORTS_PERIOD));
   const [stage, setStage] = usePersistentState<InsightsStage>(STAGE_STORAGE_KEY, "where");
   const customRange = urlRange ?? (sharedView?.kind === "range" ? sharedView.range : undefined);
   const customYear = customRange
@@ -266,9 +273,10 @@ export default function SpendingInsightsPage({
       if (next && (!next.from || !next.to)) return;
       setPersistedMonth(null);
       if (next?.from && next.to) setSharedPick(rangePick({ from: next.from, to: next.to }));
+      else if (presetWindow) setSharedPick(presetWindow.preset);
       else sharePeriod(period);
     },
-    [setPersistedMonth, setSharedPick, sharePeriod, period],
+    [setPersistedMonth, setSharedPick, sharePeriod, period, presetWindow],
   );
 
   const selectCustomYear = useCallback(
@@ -568,11 +576,74 @@ export default function SpendingInsightsPage({
     () => addMonthsToMonthKey(currentMonthKey(appTimezone), -1),
     [appTimezone],
   );
+  const periodDescription = customRange
+    ? `${dateFormatting.formatCalendarDate(localDateParts(customRange.from), {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })} – ${dateFormatting.formatCalendarDate(localDateParts(customRange.to), {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}`
+    : customYear !== null
+      ? yearLabel(customYear, dateFormatting)
+      : customMonth
+        ? monthLabel(customMonth, dateFormatting)
+        : t(
+            `spending:tabContent.${
+              {
+                MTD: "intervalMtd",
+                LAST_MONTH: "intervalLastMonth",
+                "3M": "interval3M",
+                "6M": "interval6M",
+                YTD: "intervalYtd",
+                "1Y": "interval1Y",
+              }[period]
+            }`,
+          );
+  const navigationPick: DashboardPeriodPick =
+    customYear !== null
+      ? { kind: "year", year: customYear }
+      : customMonth
+        ? { kind: "month", monthKey: customMonth }
+        : customRange
+          ? presetWindow
+            ? { ...rangePick(customRange), presetWindow }
+            : (rangePreset ?? rangePick(customRange))
+          : { kind: "spending", code: period };
+  const periodNavigation = {
+    label: periodDescription,
+    previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
+    nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+    onStep: (direction: -1 | 1) => {
+      const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+      if (!next) return;
+      if (navigationPick.kind === "spending" && next.kind !== "spending") {
+        setPersistedPeriod(navigationPick.code);
+        setSpendingInterval(navigationPick.code);
+        setPortfolioPreset(portfolioPresetForSpendingPeriod(navigationPick.code));
+      }
+      if (next.kind === "month") selectCustomMonth(next.monthKey);
+      else if (next.kind === "year") selectCustomYear(next.year);
+      else if (next.kind === "spending") selectPeriod(next.code);
+      else {
+        setPersistedMonth(null);
+        setSharedPick(next);
+      }
+    },
+  };
 
   const periodToggle = useMemo(
     () => (
       <SpendingPeriodSelector
-        value={customMonth || customRange || customYear !== null ? null : period}
+        value={
+          customMonth || customYear !== null
+            ? null
+            : customRange
+              ? normalizeReportsPeriod(rangePreset?.code)
+              : period
+        }
         onValueChange={selectPeriod}
         customMonth={customMonth}
         customRange={customRange}
@@ -589,6 +660,7 @@ export default function SpendingInsightsPage({
       customMonth,
       customRange,
       customYear,
+      rangePreset,
       selectCustomYear,
       todayISO,
       period,
@@ -617,35 +689,21 @@ export default function SpendingInsightsPage({
         {(isMobile || !onToolbarActionsChange) && (
           <div className="flex justify-end">{periodToggle}</div>
         )}
-        {(customRange || customMonth || customYear !== null) && (
-          <p className="text-muted-foreground text-sm" data-testid="spending-selected-range">
-            {customRange ? (
-              <>
-                {dateFormatting.formatCalendarDate(
-                  {
-                    year: customRange.from.getFullYear(),
-                    month: customRange.from.getMonth() + 1,
-                    day: customRange.from.getDate(),
-                  },
-                  { month: "short", day: "numeric", year: "numeric" },
-                )}
-                {" – "}
-                {dateFormatting.formatCalendarDate(
-                  {
-                    year: customRange.to.getFullYear(),
-                    month: customRange.to.getMonth() + 1,
-                    day: customRange.to.getDate(),
-                  },
-                  { month: "short", day: "numeric", year: "numeric" },
-                )}
-              </>
-            ) : customYear !== null ? (
-              yearLabel(customYear, dateFormatting)
-            ) : customMonth ? (
-              monthLabel(customMonth, dateFormatting)
-            ) : null}
+        <div
+          className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
+          data-testid="spending-period-header"
+        >
+          <p
+            data-testid={
+              customRange || customMonth || customYear !== null
+                ? "spending-selected-range"
+                : undefined
+            }
+          >
+            {periodDescription}
           </p>
-        )}
+          <PeriodNavigation navigation={periodNavigation} />
+        </div>
         <StageNav stage={stage} onStageChange={setStageAndUrl} />
 
         {insight?.foreignCurrencies && insight.foreignCurrencies.length > 0 && (

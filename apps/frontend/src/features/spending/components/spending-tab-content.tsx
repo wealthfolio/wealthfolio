@@ -1184,7 +1184,6 @@ export default function SpendingTabContent() {
           )}
           <div className="flex w-full justify-center">
             <SpendingPeriodSelector
-              hideLastMonth
               className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
               value={selectedPeriod}
               onValueChange={handleIntervalSelect}
