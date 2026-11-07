@@ -631,6 +631,8 @@
     "asset_description": "名称、購入情報、その他の詳細を編集します",
     "name": "名称",
     "name_placeholder": "資産名を入力...",
+    "ownership_pct": "所有割合",
+    "ownership_pct_description": "この資産に対するあなたの持分です。純資産の合計にのみ影響し、表示される値は常に100%になります。新しい持分は今日以降だけでなく、純資産の履歴全体に適用されます。",
     "purchase_information": "購入情報",
     "purchase_information_description": "損益を把握するための購入情報(任意)",
     "purchase_price_per_unit": "購入価格(単位あたり)",
@@ -709,7 +711,9 @@
       "name_must_be_less_than_100_characters": "名前は 100 文字未満にする必要があります",
       "interest_rate_must_be_0_or_greater": "金利は 0 以上である必要があります",
       "description_must_be_less_than_200_characters": "説明は 200 文字未満にする必要があります",
-      "original_amount_must_be_greater_than_0": "元の金額は 0 より大きくなければなりません"
+      "original_amount_must_be_greater_than_0": "元の金額は 0 より大きくなければなりません",
+      "ownership_must_be_greater_than_0": "所有割合は 0 より大きくなければなりません",
+      "ownership_must_be_100_or_less": "所有割合は 100 以下でなければなりません"
     }
   },
   "updateValuation": {

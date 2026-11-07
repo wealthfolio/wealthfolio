@@ -1,6 +1,6 @@
 import { useAccountScopeStore } from "@/lib/account-scope-store";
 import type { AccountScope } from "@/lib/types";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,9 @@ import { HoldingsPage } from "./holdings-page";
 const mocks = vi.hoisted(() => ({
   useAccounts: vi.fn(),
   useHoldingsWithClosedProbe: vi.fn(),
+  updateAlternativeAssetMetadata: vi.fn(),
+  invalidateAlternativeAssetQueries: vi.fn(),
+  assetDetailsSheetProps: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: mocks.useAccounts }));
@@ -32,7 +35,9 @@ vi.mock("@/lib/settings-provider", () => ({
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
-vi.mock("@/adapters", () => ({ updateAlternativeAssetMetadata: vi.fn() }));
+vi.mock("@/adapters", () => ({
+  updateAlternativeAssetMetadata: mocks.updateAlternativeAssetMetadata,
+}));
 
 // Render only the active view's actions + content, as SwipablePage does on desktop.
 vi.mock("@/components/page", () => ({
@@ -68,8 +73,12 @@ vi.mock("@/components/classification/classification-sheet", () => ({
 }));
 vi.mock("@/pages/asset/alternative-assets", () => ({
   AlternativeAssetQuickAddModal: () => null,
-  AssetDetailsSheet: () => null,
+  AssetDetailsSheet: (props: unknown) => {
+    mocks.assetDetailsSheetProps(props);
+    return null;
+  },
   UpdateValuationModal: () => null,
+  invalidateAlternativeAssetQueries: mocks.invalidateAlternativeAssetQueries,
 }));
 vi.mock("./components/holdings-table", () => ({ HoldingsTable: () => null }));
 vi.mock("./components/holdings-table-mobile", () => ({ HoldingsTableMobile: () => null }));
@@ -139,5 +148,36 @@ describe("HoldingsPage account scope", () => {
 
     expect(useAccountScopeStore.getState().scope).toEqual({ type: "all" });
     expect(toolbarUpdateButton()).not.toBeInTheDocument();
+  });
+});
+
+describe("HoldingsPage alternative asset edits", () => {
+  beforeEach(() => {
+    mocks.useAccounts.mockReturnValue({ accounts: [], isLoading: false });
+    mocks.useHoldingsWithClosedProbe.mockReturnValue({
+      holdings: [],
+      isLoading: false,
+      hasHiddenClosedPositions: false,
+    });
+  });
+
+  it("refreshes every alternative asset query after saving details", async () => {
+    // Edits such as the ownership share apply to past values too, so the save
+    // must refresh net worth history like the asset page's edit does.
+    renderPage();
+    const { onSave } = mocks.assetDetailsSheetProps.mock.lastCall?.[0] as {
+      onSave: (assetId: string, metadata: Record<string, string>) => Promise<void>;
+    };
+
+    await act(() => onSave("house", { ownership_pct: "50" }));
+
+    expect(mocks.updateAlternativeAssetMetadata).toHaveBeenCalledWith(
+      "house",
+      { ownership_pct: "50" },
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(mocks.invalidateAlternativeAssetQueries).toHaveBeenCalledTimes(1);
   });
 });
