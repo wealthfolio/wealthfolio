@@ -2383,13 +2383,25 @@ export interface AffectedItem {
   route?: string;
 }
 
-/**
- * A single supporting-evidence row for a diagnostic.
- */
+/** Stable engine reason code and raw interpolation values. */
+export interface ActivityReason {
+  code: string;
+  params?: Record<string, string>;
+}
+
+export interface EngineActivityIssue {
+  activityId: string;
+  kind: "REJECTED" | "OVERSOLD" | "MISSING_AMOUNT";
+  message: string;
+  reason?: ActivityReason;
+}
+
+/** A single supporting-evidence row for a diagnostic. */
 export interface Evidence {
   label: string;
   value: string;
   route?: string;
+  activityIssue?: EngineActivityIssue;
 }
 
 /**

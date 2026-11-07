@@ -280,5 +280,17 @@
       "pendingText": "非表示にしています..."
     },
     "affectedItems_other": "影響を受ける項目({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "取引: {{id}}",
+    "missing_fx_rate": "{{date}}の{{from}}から{{to}}への為替レートがありません。",
+    "close_buy_without_short_position": "この買付は{{asset}}のポジションを決済する指定ですが、決済できる売りポジションがありません。",
+    "sell_short_intent_required": "この売却は{{asset}}の売りポジションを増やします。空売りとして指定してください。",
+    "conversion_insufficient_holdings": "この転換には{{asset}}が{{requested}}単位必要ですが、口座には{{held}}単位しかありません。",
+    "conversion_currency_mismatch": "{{fromAsset}}は{{fromCurrency}}建て、{{toAsset}}は{{toCurrency}}建てで保有されています。転換では同じ通貨を維持する必要があります。",
+    "return_of_capital_amount_required": "この資本払戻しの金額を入力してください。",
+    "sell_without_position": "売却できる{{asset}}のポジションがありません。現金への影響のみが反映されました。",
+    "insufficient_quantity": "この取引は{{asset}}を{{requested}}単位減らしますが、保有は{{held}}単位のみでした。残りの{{excess}}単位には取得原価がありません。",
+    "missing_final_cash": "この計上済み取引には最終現金額がないため、現金残高は変更されませんでした。"
   }
 }

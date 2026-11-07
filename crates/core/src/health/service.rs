@@ -579,6 +579,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        engine_issue: None,
                     }
                 })
                 .collect();
@@ -622,6 +623,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        engine_issue: None,
                     });
                 }
             }
@@ -731,6 +733,7 @@ impl HealthService {
                             snapshot_source: None,
                             snapshot_min_date: None,
                             snapshot_max_date: None,
+                            engine_issue: None,
                         }
                     })),
                     Err(error) => warn!("Failed to check projection freshness: {}", error),
@@ -924,6 +927,7 @@ fn gather_invalid_snapshot_date_issues(
                 snapshot_source: Some(snapshot.source),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(max_snapshot_read_date(today)),
+                engine_issue: None,
             });
         }
     }
@@ -971,6 +975,7 @@ fn gather_invalid_activity_date_issues(
                 snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(today),
+                engine_issue: None,
             })
         })
         .collect()
@@ -1210,6 +1215,7 @@ fn missing_lot_disposal_sells_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1347,6 +1353,7 @@ fn incomplete_basis_trade_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1409,6 +1416,7 @@ fn missing_currency_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1466,6 +1474,7 @@ fn engine_activity_issues(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: Some(issue),
             })
         })
         .collect()
@@ -1766,6 +1775,7 @@ fn value_asset_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2030,6 +2040,7 @@ fn basis_source_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2064,6 +2075,7 @@ fn missing_valuation_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2691,6 +2703,7 @@ mod tests {
             activity_id: id.to_string(),
             kind,
             message: "reported".to_string(),
+            reason: None,
         };
         let infos = engine_activity_issues(
             vec![
@@ -2709,6 +2722,10 @@ mod tests {
         assert_eq!(infos[0].record_id, "sell-1");
         assert_eq!(infos[0].description, account.name);
         assert_eq!(infos[0].account_id.as_deref(), Some("acc-1"));
+        assert_eq!(
+            infos[0].engine_issue.as_ref().map(|i| i.message.as_str()),
+            Some("reported")
+        );
     }
 
     // Regression for #1388: activities persisted without a currency (pre-fix CSV
