@@ -282,21 +282,21 @@ export default function SpendingInsightsPage({
   );
 
   // ?stage=where|changed|when drives the page when present. A period named in
-  // the URL (?period=, ?spendingMonth=, ?spendingFrom=&spendingTo=) is applied
+  // the URL (?period=, ?spendingMonth=, ?spendingYear=, ?spendingFrom=&spendingTo=) is applied
   // once like a pick and then dropped from the URL.
   useEffect(() => {
     const urlStage = searchParams.get("stage");
     if (urlStage && VALID_STAGES.includes(urlStage as InsightsStage) && urlStage !== stage) {
       setStage(urlStage as InsightsStage);
     }
-    if (!hasUrlPeriod) return;
+    if (!hasUrlPeriod && !searchParams.has(SPENDING_YEAR_PARAM)) return;
     if (urlRange || urlMonth || urlYear !== null) {
       setPersistedPeriod(period);
       setSpendingInterval(period);
       if (urlRange) selectCustomRange(urlRange);
       else if (urlYear !== null) selectCustomYear(urlYear);
       else selectCustomMonth(urlMonth);
-    } else {
+    } else if (hasUrlPeriod) {
       selectPeriod(period);
     }
     setSearchParams(
