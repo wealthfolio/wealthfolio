@@ -443,8 +443,8 @@ export function IssueDetailSheet({
   const hasActivityEvidence = diagnostics.some((diagnostic) =>
     diagnostic.evidence.some((evidence) => evidence.activityIssue),
   );
-  const shouldRenderDetails =
-    !hasActivityEvidence && (!hasDiagnostics || isFallbackDiagnosticIssue(issue, diagnostics));
+  const hasFallbackDiagnostic = isFallbackDiagnosticIssue(issue, diagnostics);
+  const shouldRenderDetails = !hasActivityEvidence && (!hasDiagnostics || hasFallbackDiagnostic);
   const detailItems =
     issue.details
       ?.split(/\n\s*\n/)
@@ -565,7 +565,9 @@ export function IssueDetailSheet({
                           <p className="text-sm font-medium">
                             {shouldGroupByAsset
                               ? t("health:sheet.pricesByInvestment")
-                              : group.title}
+                              : hasActivityEvidence && hasFallbackDiagnostic
+                                ? translateIssueText(t, issue, "title")
+                                : group.title}
                           </p>
                           {shouldGroupByAsset && (
                             <p className="text-muted-foreground text-xs">
@@ -579,7 +581,9 @@ export function IssueDetailSheet({
                         </div>
                         {!shouldGroupByAsset && (
                           <p className="text-muted-foreground text-xs leading-relaxed">
-                            {group.explanation}
+                            {hasActivityEvidence && hasFallbackDiagnostic
+                              ? translateIssueText(t, issue, "message")
+                              : group.explanation}
                           </p>
                         )}
                         {shouldGroupByAsset && (

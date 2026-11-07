@@ -755,6 +755,8 @@ describe("localized engine activity evidence", () => {
       renderIssueSheet({
         ...baseIssue,
         id: "missing_activity_amount:hash",
+        code: "data_missing_activity_amount",
+        params: { count: 1 },
         title: "Transaction has no amount",
         message: "Review these transactions",
         details: "raw English details",
@@ -791,6 +793,8 @@ describe("localized engine activity evidence", () => {
       ).toBeInTheDocument();
       expect(screen.queryByText("raw English message")).not.toBeInTheDocument();
       expect(screen.queryByText("raw English details")).not.toBeInTheDocument();
+      expect(screen.queryByText("Transaction has no amount")).not.toBeInTheDocument();
+      expect(screen.queryByText("Review these transactions")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Brokerage/ })).toHaveAttribute(
         "href",
         "/activities?activity=fee-1&healthContext=activity",

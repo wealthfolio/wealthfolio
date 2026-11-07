@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import frHealth from "../apps/frontend/src/i18n/locales/fr/health.json";
-import arHealth from "../apps/frontend/src/i18n/locales/ar/health.json";
+import frHealth from "../apps/frontend/src/i18n/locales/fr/health.json" with { type: "json" };
+import arHealth from "../apps/frontend/src/i18n/locales/ar/health.json" with { type: "json" };
 import type { HealthIssue } from "../apps/frontend/src/lib/types";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
@@ -60,7 +60,8 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
       ?.flatMap((diagnostic) => diagnostic.evidence)
       .find((row) => row.activityIssue?.activityId === activityId);
     const asset = evidence?.activityIssue?.reason?.params?.asset;
-    if (!asset || !evidence?.activityIssue) throw new Error("Missing structured activity evidence");
+    if (!asset || !evidence?.activityIssue || !issue)
+      throw new Error("Missing structured activity evidence");
     for (const [language, catalog, direction, width] of [
       ["fr", frHealth, "ltr", 1440],
       ["ar", arHealth, "rtl", 390],
@@ -80,6 +81,8 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
           catalog.activityReasons.close_buy_without_short_position.replace("{{asset}}", asset),
         );
       await expect(sheet.getByText(activityId, { exact: false }).first()).toBeVisible();
+      await expect(sheet.getByText(issue.title, { exact: true })).toHaveCount(0);
+      await expect(sheet.getByText(issue.message, { exact: true })).toHaveCount(0);
       await expect(sheet.getByText(evidence.activityIssue.message, { exact: true })).toHaveCount(0);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
