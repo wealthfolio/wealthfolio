@@ -712,16 +712,17 @@ export default function SpendingInsightsPage({
           className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
           data-testid="spending-period-header"
         >
-          <p
-            data-testid={
-              customRange || customMonth || customYear !== null
-                ? "spending-selected-range"
-                : undefined
-            }
-          >
-            {periodDescription}
-          </p>
-          <PeriodNavigation navigation={periodNavigation} />
+          <PeriodNavigation navigation={periodNavigation}>
+            <p
+              data-testid={
+                customRange || customMonth || customYear !== null
+                  ? "spending-selected-range"
+                  : undefined
+              }
+            >
+              {periodDescription}
+            </p>
+          </PeriodNavigation>
         </div>
         <StageNav stage={stage} onStageChange={setStageAndUrl} />
 

@@ -6,7 +6,7 @@ for (const mobile of [false, true]) {
     test(`calendar years and adjacent months stay shared on ${mobile ? "phone" : "desktop"} in ${direction}`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(120_000);
+      test.setTimeout(180_000);
       page.setDefaultTimeout(15_000);
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
       await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
@@ -108,7 +108,7 @@ for (const mobile of [false, true]) {
         // Mobile keeps neighboring tabs mounted with the same period labels.
         const spendingPane = page
           .locator("[data-virtual-scroll-parent]")
-          .filter({ has: page.getByText(/^Spent ·/) })
+          .filter({ has: page.getByText(/^Spent(?: ·|$)/) })
           .last();
         const spendingPeriodButton = (label: string) =>
           spendingPane.getByRole("button", { name: new RegExp(`${label}\\u2069?, Select dates`) });
@@ -278,7 +278,7 @@ for (const mobile of [false, true]) {
         ]) {
           await visible(code).click();
           await expect(periodAction(/^Previous/)).toBeEnabled();
-          const headline = await spendingPane.getByText(/^Spent ·/).boundingBox();
+          const headline = await spendingPane.getByText(/^Spent(?: ·|$)/).boundingBox();
           const arrow = await periodAction(/^Previous/).boundingBox();
           expect(headline).not.toBeNull();
           expect(arrow).not.toBeNull();
@@ -287,18 +287,27 @@ for (const mobile of [false, true]) {
             expect(arrow!.height).toBeGreaterThanOrEqual(44);
           }
           if (mobile) {
-            expect(arrow!.y).toBeGreaterThanOrEqual(headline!.y);
-            expect(arrow!.y).toBeLessThan(headline!.y + headline!.height + 48);
+            const aligned =
+              Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2) < 3;
+            const wrapped =
+              arrow!.y >= headline!.y + headline!.height &&
+              arrow!.y < headline!.y + headline!.height + 48;
+            expect(aligned || wrapped).toBe(true);
           } else {
             expect(
               Math.abs(arrow!.y + arrow!.height / 2 - headline!.y - headline!.height / 2),
             ).toBeLessThan(3);
           }
-          if (code === "6M")
+          if (code === "6M") {
             await page.screenshot({
               path: testInfo.outputPath("header-6m-navigation.png"),
               animations: "disabled",
             });
+            await spendingPane.getByTestId("period-navigation").screenshot({
+              path: testInfo.outputPath("compact-period-control.png"),
+              animations: "disabled",
+            });
+          }
           await periodAction(/^Previous/).click();
           await expect
             .poll(() => reportRequests)
@@ -340,6 +349,38 @@ for (const mobile of [false, true]) {
           "true",
         );
         await expect(periodAction(/^Next/)).toBeDisabled();
+
+        for (const [selection, expectedCode] of [
+          ["spendingMonth=2025-02", "MTD"],
+          ["spendingYear=2024", "YTD"],
+          ["spendingInterval=LAST_MONTH", "MTD"],
+        ]) {
+          await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&${selection}`);
+          await expect(periodAction("Back to latest")).toBeVisible();
+          await spendingPane
+            .getByRole("button", { name: "Previous budget month", exact: true })
+            .click();
+          const manageBudget = spendingPane.getByRole("link", { name: /^Manage/ });
+          await expect(manageBudget).not.toHaveAttribute("href", "/spending/budget?month=2026-09");
+          await periodAction("Back to latest").click();
+          await expect(
+            visible(
+              mobile && expectedCode === "MTD"
+                ? "MTD"
+                : expectedCode === "MTD"
+                  ? "This month"
+                  : "YTD",
+            ),
+          ).toHaveAttribute("aria-pressed", "true");
+          const selectedPick = await page.evaluate(
+            (profileId) =>
+              JSON.parse(localStorage.getItem(`profile:${profileId}:dashboard-period`) ?? "null"),
+            session.profileId,
+          );
+          expect(selectedPick).toEqual({ kind: "spending", code: expectedCode });
+          await expect(manageBudget).toHaveAttribute("href", "/spending/budget?month=2026-09");
+          await expect(periodAction("Back to latest")).toHaveCount(0);
+        }
 
         for (const tab of ["investments", "net-worth"]) {
           await gotoAppPath(page, `/dashboard?tab=${tab}&dir=${direction}`);

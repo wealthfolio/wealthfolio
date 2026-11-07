@@ -244,14 +244,11 @@ export function DashboardContent({
                 )}
               </>
             )}
-            <span className="ms-1 inline-flex max-w-full flex-wrap items-center gap-2">
-              <span className="lg:text-md text-muted-foreground text-sm font-light">
-                {period.isHistorical
-                  ? t("common:periodReturn", { period: period.label })
-                  : period.label}
-              </span>
-              <PeriodNavigation navigation={period.navigation} />
-            </span>
+            <PeriodNavigation navigation={period.navigation}>
+              {period.isHistorical
+                ? t("common:periodReturn", { period: period.label })
+                : period.label}
+            </PeriodNavigation>
           </div>
         </div>
       </div>
