@@ -52,7 +52,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.65.0",
     "@tanstack/eslint-plugin-query": "^5.105.0",
     "@tauri-apps/cli": "^2.12.4",
     "@typescript/native": "npm:typescript@^7.0.2",

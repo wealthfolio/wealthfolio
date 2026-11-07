@@ -74,6 +74,11 @@ for (const direction of ["ltr", "rtl"] as const) {
   }) => {
     await page.setViewportSize({ width: 320, height: 844 });
     await gotoAppPath(page, `/?tab=spending&dir=${direction}`);
+    // Spending joins the tabs once settings load; until then the header shows
+    // Investments' menu, which has no "Add expense".
+    await expect(
+      page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+    ).toHaveAttribute("aria-current", "page");
     const add = page.getByRole("button", { name: "More options", exact: true }).first();
     await expect(add).toBeInViewport();
     const bounds = await tapArea(add);
@@ -193,6 +198,10 @@ test("compact dashboard tabs share a row with square actions and keep swipe navi
   );
   const accounts = page.getByRole("heading", { name: "Accounts", exact: true });
   await expect(accounts).toBeVisible();
+  // Swipe once Spending has joined the tabs, not while the carousel changes.
+  await expect(
+    page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+  ).toBeVisible();
   const swipeY = (await accounts.boundingBox())!.y + 10;
   // A real finger gesture in the page body still switches the carousel.
   const cdp = await page.context().newCDPSession(page);
