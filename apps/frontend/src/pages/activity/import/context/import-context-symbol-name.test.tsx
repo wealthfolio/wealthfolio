@@ -1,15 +1,28 @@
 import { checkActivitiesImport } from "@/adapters";
-import type { ActivityImport } from "@/lib/types";
-import { act, render } from "@testing-library/react";
+import type { ActivityImport, NewAsset } from "@/lib/types";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { buildNewAssetFromDraft } from "../utils/asset-review-utils";
+import { AssetReviewStep } from "../steps/asset-review-step";
+import {
+  buildImportAssetCandidateFromDraft,
+  buildNewAssetFromDraft,
+} from "../utils/asset-review-utils";
 import { ImportProvider, useImportContext, type DraftActivity } from "./import-context";
 
 vi.mock("@/adapters", () => ({
   checkActivitiesImport: vi.fn(),
   previewImportAssets: vi.fn(),
+  getExchanges: vi.fn().mockResolvedValue([{ mic: "XNAS", longName: "NASDAQ" }]),
   logger: { error: vi.fn() },
 }));
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { baseCurrency: "USD" } }),
+}));
+vi.mock("@/components/ticker-search", () => ({ default: () => null }));
+vi.mock("@/components/ticker-avatar", () => ({ TickerAvatar: () => null }));
 
 const reviewedFund: DraftActivity = {
   rowIndex: 0,
@@ -57,7 +70,7 @@ beforeEach(() => {
   );
 });
 
-function renderContext(drafts: DraftActivity[]) {
+function renderContext(drafts: DraftActivity[], children?: ReactNode) {
   let context!: ReturnType<typeof useImportContext>;
   function Probe() {
     context = useImportContext();
@@ -66,6 +79,7 @@ function renderContext(drafts: DraftActivity[]) {
   render(
     <ImportProvider>
       <Probe />
+      {children}
     </ImportProvider>,
   );
   act(() => context.dispatch({ type: "SET_DRAFT_ACTIVITIES", payload: drafts }));
@@ -73,7 +87,58 @@ function renderContext(drafts: DraftActivity[]) {
 }
 
 it("keeps a reviewed asset name through validation, revalidation, and fallback creation", async () => {
-  const context = renderContext([reviewedFund, otherRow]);
+  const unnamedFund = { ...reviewedFund, symbolName: undefined };
+  const key = buildImportAssetCandidateFromDraft(unnamedFund)!.key;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const context = renderContext(
+    [unnamedFund, otherRow],
+    <QueryClientProvider client={client}>
+      <AssetReviewStep />
+    </QueryClientProvider>,
+  );
+
+  const previewAsset: NewAsset = {
+    kind: "INVESTMENT",
+    name: "Example Credit Bond Fund",
+    displayCode: "EXCFX",
+    isActive: true,
+    quoteMode: "MARKET",
+    quoteCcy: "USD",
+    instrumentType: "EQUITY",
+    instrumentTypeLabel: "MUTUALFUND",
+    instrumentSymbol: "EXCFX",
+    instrumentExchangeMic: "XNAS",
+  };
+  act(() =>
+    context().dispatch({
+      type: "SET_ASSET_PREVIEW_ITEMS",
+      payload: [
+        {
+          key,
+          status: "AUTO_RESOLVED_NEW_ASSET",
+          resolutionSource: "provider_resolution",
+          draft: previewAsset,
+        },
+      ],
+    }),
+  );
+  expect(context().state.draftActivities[0].symbolName).toBeUndefined();
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Example Credit Bond Fund" },
+  });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: "Quote mode" }));
+  await user.click(await screen.findByRole("option", { name: "Manual" }));
+  fireEvent.click(screen.getByRole("button", { name: "Use Edited Asset" }));
+  await waitFor(() =>
+    expect(context().state.draftActivities[0].symbolName).toBe("Example Credit Bond Fund"),
+  );
+  expect(context().state.pendingImportAssets[key].draft).toMatchObject({
+    name: "Example Credit Bond Fund",
+    quoteMode: "MANUAL",
+  });
 
   await act(() => context().validateDrafts(context().state.draftActivities));
 
@@ -89,6 +154,7 @@ it("keeps a reviewed asset name through validation, revalidation, and fallback c
       payload: { rowIndex: 1, updates: { activityType: "DIVIDEND" } },
     }),
   );
+  expect(context().state.pendingImportAssets).toEqual({});
   await act(() => context().validateDrafts(context().state.draftActivities));
 
   const revalidated = context().state.draftActivities[0];
