@@ -620,9 +620,10 @@ export default function SpendingInsightsPage({
       const next = stepDashboardPeriod(navigationPick, direction, todayISO);
       if (!next) return;
       if (navigationPick.kind === "spending" && next.kind !== "spending") {
-        setPersistedPeriod(navigationPick.code);
-        setSpendingInterval(navigationPick.code);
-        setPortfolioPreset(portfolioPresetForSpendingPeriod(navigationPick.code));
+        const visiblePreset = navigationPick.code === "LAST_MONTH" ? "MTD" : navigationPick.code;
+        setPersistedPeriod(visiblePreset);
+        setSpendingInterval(visiblePreset);
+        setPortfolioPreset(portfolioPresetForSpendingPeriod(visiblePreset));
       }
       if (next.kind === "month") selectCustomMonth(next.monthKey);
       else if (next.kind === "year") selectCustomYear(next.year);

@@ -564,6 +564,10 @@ describe("period shared with the dashboard", () => {
   it("continues a dashboard 1M pick instead of treating it as a manual range", async () => {
     localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "1M" }));
     const user = renderAt("?stage=where");
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     await user.click(screen.getByRole("button", { name: "Previous period" }));
     expect(sharedPick()).toMatchObject({
       kind: "range",
@@ -589,6 +593,19 @@ describe("period shared with the dashboard", () => {
     await user.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  });
+
+  it("clears an older month opened from a legacy Last month link to This month", async () => {
+    const user = renderAt("?stage=where&period=LAST_MONTH");
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    expect(sharedPick()).toEqual({ kind: "month", monthKey: "2026-07" });
+    await user.click(screen.getByRole("button", { name: "Select dates" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });
 
