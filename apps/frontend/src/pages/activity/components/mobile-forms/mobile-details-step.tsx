@@ -159,10 +159,19 @@ export function MobileDetailsStep({
   const sourceCurrency = watch("sourceCurrency" as any) as string | undefined;
   const destinationCurrency = watch("destinationCurrency" as any) as string | undefined;
 
-  // Filter accounts by activity type (exclude HOLDINGS accounts for unsupported types)
+  const isTransfer = TRANSFER_ACTIVITY_TYPES.includes(activityType);
+  const transferMode = isTransfer ? ((watch("transferMode" as any) as string) ?? "cash") : null;
+
+  // Cards support cash transfers in either direction, but never securities transfers.
+  // Other accounts keep the activity restrictions for their tracking mode.
   const filteredAccounts = useMemo(
-    () => accounts.filter((acc) => restrictionAllowsType(acc.restrictionLevel, activityType)),
-    [accounts, activityType],
+    () =>
+      accounts.filter((acc) =>
+        isTransfer && isLiabilityAccountType(acc.accountType)
+          ? transferMode === "cash"
+          : restrictionAllowsType(acc.restrictionLevel, activityType),
+      ),
+    [accounts, activityType, isTransfer, transferMode],
   );
   const assetCurrency = watch("currency");
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
@@ -183,8 +192,6 @@ export function MobileDetailsStep({
   const optMultiplier = isOption ? ((watch("contractMultiplier" as any) as number) ?? 100) : 1;
 
   // Transfer state
-  const isTransfer = TRANSFER_ACTIVITY_TYPES.includes(activityType);
-  const transferMode = isTransfer ? ((watch("transferMode" as any) as string) ?? "cash") : null;
   const isExternal = isTransfer ? ((watch("isExternal" as any) as boolean) ?? false) : false;
   const direction = isTransfer ? ((watch("direction" as any) as string) ?? "out") : null;
   // The field's label, which its picker screen also takes as its title.
