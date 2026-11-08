@@ -18,12 +18,12 @@ use crate::accounts::{
     account_types, is_liability_account_type, Account, AccountServiceTrait, TrackingMode,
 };
 use crate::activities::{
-    Activity, ActivityServiceTrait, TransferLinkState, TransferPairResolution, ACTIVITY_TYPE_BUY,
-    ACTIVITY_TYPE_TRANSFER_IN,
+    Activity, ActivityServiceTrait, TransferLinkState, TransferPairResolution,
+    ACTIVITY_SUBTYPE_POSITION_CLOSE, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_TRANSFER_IN,
 };
 use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
-use crate::lots::LotRepositoryTrait;
+use crate::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
 use crate::portfolio::net_worth::{NetWorthServiceTrait, StaleAssetInfo};
@@ -692,6 +692,7 @@ impl HealthService {
             .await;
             consistency_issues.extend(missing_lot_disposal_sells);
             let incomplete_basis_trades = gather_incomplete_basis_trade_activities(
+                lot_repository.as_ref(),
                 asset_service.as_ref(),
                 &accounts,
                 &health_activities,
@@ -1088,7 +1089,17 @@ async fn gather_missing_lot_disposal_sells(
         .collect();
     let mut disposal_activity_ids_by_account: HashMap<String, std::collections::HashSet<String>> =
         HashMap::new();
+    let mut lots_by_account = HashMap::new();
     for account_id in sell_account_ids {
+        match lot_repository.get_all_lots_for_account(&account_id).await {
+            Ok(lots) => {
+                lots_by_account.insert(account_id.clone(), lots);
+            }
+            Err(e) => warn!(
+                "Failed to load lots during missing lot disposal health check: {}",
+                e
+            ),
+        }
         match lot_repository
             .get_lot_disposals_for_account(&account_id)
             .await
@@ -1135,6 +1146,7 @@ async fn gather_missing_lot_disposal_sells(
         accounts,
         activities,
         &disposal_activity_ids_by_account,
+        &lots_by_account,
         &assets_by_id,
         timezone,
     )
@@ -1144,6 +1156,7 @@ fn missing_lot_disposal_sells_from_data(
     accounts: &[Account],
     activities: &[Activity],
     disposal_activity_ids_by_account: &HashMap<String, std::collections::HashSet<String>>,
+    lots_by_account: &HashMap<String, Vec<LotRecord>>,
     assets_by_id: &HashMap<String, Asset>,
     timezone: Option<&str>,
 ) -> Vec<ConsistencyIssueInfo> {
@@ -1161,6 +1174,22 @@ fn missing_lot_disposal_sells_from_data(
         .map(|account| (account.id.clone(), account))
         .collect();
 
+    let short_openings: HashSet<_> = lots_by_account
+        .values()
+        .flatten()
+        .filter(|lot| {
+            lot.original_quantity
+                .parse::<Decimal>()
+                .is_ok_and(|qty| qty < Decimal::ZERO)
+        })
+        .filter_map(|lot| {
+            Some((
+                lot.account_id.as_str(),
+                lot.asset_id.as_str(),
+                lot.open_activity_id.as_deref()?,
+            ))
+        })
+        .collect();
     let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
     activities
         .iter()
@@ -1174,6 +1203,15 @@ fn missing_lot_disposal_sells_from_data(
             disposal_activity_ids_by_account
                 .get(&activity.account_id)
                 .is_some_and(|disposal_activity_ids| !disposal_activity_ids.contains(&activity.id))
+        })
+        // A short-opening sale creates a negative lot instead of a disposal.
+        // Closed lots retain this evidence after the short has been covered.
+        .filter(|activity| {
+            !short_openings.contains(&(
+                activity.account_id.as_str(),
+                activity.asset_id.as_deref().unwrap_or_default(),
+                activity.id.as_str(),
+            ))
         })
         .filter_map(|activity| {
             let account = eligible_accounts.get(&activity.account_id)?;
@@ -1216,11 +1254,11 @@ fn missing_lot_disposal_sells_from_data(
 }
 
 /// Detects incomplete cost basis at the source for TRANSACTIONS-tracked accounts:
-/// a lot-creating acquisition with a positive quantity but no price. `add_lot` derives
-/// `cost_basis = qty * unit_price + fees` (ignoring `amount`), so a null/zero
-/// `unit_price` produces a zero-cost lot and thus an incomplete basis. Reported
-/// against the exact activity for a precise deep-link.
+/// a lot-creating acquisition with a positive quantity but no price. Matched
+/// short closures consume existing basis rather than acquiring a new lot.
+/// Reported against the exact activity for a precise deep-link.
 async fn gather_incomplete_basis_trade_activities(
+    lot_repository: &dyn LotRepositoryTrait,
     asset_service: &dyn AssetServiceTrait,
     accounts: &[Account],
     activities: &[Activity],
@@ -1243,7 +1281,7 @@ async fn gather_incomplete_basis_trade_activities(
         return Vec::new();
     }
 
-    let asset_ids: Vec<String> = activities
+    let candidates: Vec<&Activity> = activities
         .iter()
         .filter(|activity| {
             activity.is_posted()
@@ -1255,13 +1293,46 @@ async fn gather_incomplete_basis_trade_activities(
                     .is_some_and(|qty| qty.is_sign_positive() && !qty.is_zero())
                 && activity.unit_price.is_none_or(|price| price.is_zero())
         })
+        .collect();
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+    let mut lots_by_account = HashMap::new();
+    let mut disposals_by_account = HashMap::new();
+    let close_account_ids: HashSet<&str> = candidates
+        .iter()
+        .filter(|activity| is_short_closing_buy(activity))
+        .map(|activity| activity.account_id.as_str())
+        .collect();
+    for account_id in close_account_ids {
+        match lot_repository.get_all_lots_for_account(account_id).await {
+            Ok(lots) => {
+                lots_by_account.insert(account_id.to_string(), lots);
+            }
+            Err(e) => warn!(
+                "Failed to load lots during incomplete basis health check: {}",
+                e
+            ),
+        }
+        match lot_repository
+            .get_lot_disposals_for_account(account_id)
+            .await
+        {
+            Ok(disposals) => {
+                disposals_by_account.insert(account_id.to_string(), disposals);
+            }
+            Err(e) => warn!(
+                "Failed to load disposals during incomplete basis health check: {}",
+                e
+            ),
+        }
+    }
+    let asset_ids: Vec<String> = candidates
+        .iter()
         .filter_map(|activity| activity.asset_id.clone())
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
-    if asset_ids.is_empty() {
-        return Vec::new();
-    }
     let assets_by_id: HashMap<String, Asset> = asset_service
         .get_assets_by_asset_ids(&asset_ids)
         .await
@@ -1276,12 +1347,21 @@ async fn gather_incomplete_basis_trade_activities(
         .map(|asset| (asset.id.clone(), asset))
         .collect();
 
-    incomplete_basis_trade_activities_from_data(accounts, activities, &assets_by_id, timezone)
+    incomplete_basis_trade_activities_from_data(
+        accounts,
+        activities,
+        &lots_by_account,
+        &disposals_by_account,
+        &assets_by_id,
+        timezone,
+    )
 }
 
 fn incomplete_basis_trade_activities_from_data(
     accounts: &[Account],
     activities: &[Activity],
+    lots_by_account: &HashMap<String, Vec<LotRecord>>,
+    disposals_by_account: &HashMap<String, Vec<LotDisposal>>,
     assets_by_id: &HashMap<String, Asset>,
     timezone: Option<&str>,
 ) -> Vec<ConsistencyIssueInfo> {
@@ -1312,6 +1392,19 @@ fn incomplete_basis_trade_activities_from_data(
                     .quantity
                     .is_some_and(|qty| qty.is_sign_positive() && !qty.is_zero())
                 && activity.unit_price.is_none_or(|price| price.is_zero())
+        })
+        .filter(|activity| {
+            !is_matched_short_closure(
+                activity,
+                lots_by_account
+                    .get(&activity.account_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default(),
+                disposals_by_account
+                    .get(&activity.account_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default(),
+            )
         })
         .filter_map(|activity| {
             let account = eligible_accounts.get(&activity.account_id)?;
@@ -1350,6 +1443,66 @@ fn incomplete_basis_trade_activities_from_data(
             })
         })
         .collect()
+}
+
+fn is_activity_short_lot(activity: &Activity, lot: &LotRecord) -> bool {
+    lot.account_id == activity.account_id
+        && activity.asset_id.as_deref() == Some(lot.asset_id.as_str())
+        && lot
+            .original_quantity
+            .parse::<Decimal>()
+            .is_ok_and(|qty| qty < Decimal::ZERO)
+}
+
+fn is_short_closing_buy(activity: &Activity) -> bool {
+    activity
+        .effective_type()
+        .eq_ignore_ascii_case(ACTIVITY_TYPE_BUY)
+        && crate::activities::NewActivity::canonicalize_subtype_for_activity(
+            activity.effective_type(),
+            activity.subtype.as_deref(),
+        )
+        .as_deref()
+            == Some(ACTIVITY_SUBTYPE_POSITION_CLOSE)
+}
+
+fn is_matched_short_closure(
+    activity: &Activity,
+    lots: &[LotRecord],
+    disposals: &[LotDisposal],
+) -> bool {
+    if !is_short_closing_buy(activity) {
+        return false;
+    }
+    let Some(quantity) = activity.quantity.filter(|qty| *qty > Decimal::ZERO) else {
+        return false;
+    };
+    // A close must not exempt an acquisition that actually opened a long lot.
+    if lots
+        .iter()
+        .any(|lot| lot.open_activity_id.as_deref() == Some(activity.id.as_str()))
+    {
+        return false;
+    }
+    let covered = disposals
+        .iter()
+        .filter(|disposal| {
+            disposal.disposal_activity_id == activity.id
+                && disposal.account_id == activity.account_id
+                && activity.asset_id.as_deref() == Some(disposal.asset_id.as_str())
+        })
+        .try_fold(Decimal::ZERO, |covered, disposal| {
+            let quantity = disposal.quantity.parse::<Decimal>().ok()?;
+            if quantity >= Decimal::ZERO
+                || !lots
+                    .iter()
+                    .any(|lot| lot.id == disposal.lot_id && is_activity_short_lot(activity, lot))
+            {
+                return None;
+            }
+            covered.checked_add(-quantity)
+        });
+    covered == Some(quantity)
 }
 
 fn is_lot_creating_basis_source(activity: &Activity) -> bool {
@@ -2907,6 +3060,8 @@ mod tests {
         let issues = incomplete_basis_trade_activities_from_data(
             &accounts,
             &activities,
+            &HashMap::new(),
+            &HashMap::new(),
             &assets_by_id,
             None,
         );
@@ -3124,6 +3279,8 @@ mod tests {
         let issues = incomplete_basis_trade_activities_from_data(
             &accounts,
             &activities,
+            &HashMap::new(),
+            &HashMap::new(),
             &assets_by_id,
             None,
         );
@@ -3307,6 +3464,376 @@ mod tests {
         assert_eq!(groups[0].legs[0].account_name, "Cash");
     }
 
+    fn short_lot(remaining: Decimal) -> LotRecord {
+        LotRecord {
+            id: "short-lot".to_string(),
+            account_id: "business".to_string(),
+            asset_id: "aapl".to_string(),
+            open_date: "2026-10-01".to_string(),
+            open_activity_id: Some("short-open".to_string()),
+            original_quantity: "-10".to_string(),
+            remaining_quantity: remaining.to_string(),
+            cost_per_unit: "20".to_string(),
+            original_cost_basis: "-200".to_string(),
+            remaining_cost_basis: (remaining * dec!(20)).to_string(),
+            original_cost_basis_base: "-200".to_string(),
+            remaining_cost_basis_base: (remaining * dec!(20)).to_string(),
+            fee_allocated: "0".to_string(),
+            fee_allocated_base: "0".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
+            currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: "1".to_string(),
+            fx_rate_to_account: Some("1".to_string()),
+            account_currency: Some("USD".to_string()),
+            cost_basis_method: "FIFO".to_string(),
+            split_ratio: "1".to_string(),
+            is_closed: remaining.is_zero(),
+            close_date: remaining.is_zero().then(|| "2026-10-02".to_string()),
+            close_activity_id: remaining.is_zero().then(|| "short-cover".to_string()),
+            created_at: "2026-10-01T10:00:00Z".to_string(),
+            updated_at: "2026-10-02T10:00:00Z".to_string(),
+        }
+    }
+
+    fn short_disposal(quantity: Decimal, price: Decimal, fee: Decimal) -> LotDisposal {
+        let proceeds = quantity * price - fee;
+        let cost = quantity * dec!(20);
+        LotDisposal {
+            id: "cover-disposal".to_string(),
+            lot_id: "short-lot".to_string(),
+            account_id: "business".to_string(),
+            asset_id: "aapl".to_string(),
+            disposal_activity_id: "short-cover".to_string(),
+            disposal_date: "2026-10-02".to_string(),
+            quantity: quantity.to_string(),
+            proceeds: proceeds.to_string(),
+            cost_basis: cost.to_string(),
+            realized_pnl: (proceeds - cost).to_string(),
+            proceeds_base: proceeds.to_string(),
+            cost_basis_base: cost.to_string(),
+            realized_pnl_base: (proceeds - cost).to_string(),
+            currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: "1".to_string(),
+            cost_basis_method: "FIFO".to_string(),
+            created_at: "2026-10-02T10:00:00Z".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn short_opening_sell_is_not_reported_before_or_after_cover() {
+        use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
+        use crate::assets::AssetService;
+        use crate::test_support::in_memory::{
+            InMemoryAssetRepository, InMemoryLotRepository, InMemoryQuoteService,
+        };
+
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut opening = sell_activity("short-open", "business", "aapl");
+        opening.subtype = Some(ACTIVITY_SUBTYPE_POSITION_OPEN.to_string());
+        opening.quantity = Some(dec!(10));
+        opening.unit_price = Some(dec!(20));
+        opening.amount = Some(dec!(200));
+        let assets = vec![health_asset("aapl")];
+        let asset_service = AssetService::new(
+            Arc::new(InMemoryAssetRepository::new(assets.clone())),
+            Arc::new(InMemoryQuoteService::new(vec![], assets)),
+        )
+        .unwrap();
+        let repository = InMemoryLotRepository::new(
+            HashSet::from(["short-open".to_string(), "short-cover".to_string()]),
+            HashSet::from(["aapl".to_string()]),
+        );
+
+        for remaining in [dec!(-10), dec!(-6), dec!(0)] {
+            repository
+                .replace_lots_for_account("business", &[short_lot(remaining)])
+                .await
+                .unwrap();
+            let disposals = if remaining == dec!(-10) {
+                vec![]
+            } else {
+                vec![short_disposal(-dec!(10) - remaining, dec!(15), dec!(0))]
+            };
+            repository
+                .sync_lot_disposals_for_account("business", &[], &disposals, true)
+                .await
+                .unwrap();
+            let issues = gather_missing_lot_disposal_sells(
+                &repository,
+                &asset_service,
+                &accounts,
+                &[opening.clone()],
+                None,
+            )
+            .await;
+            assert!(issues.is_empty(), "short remaining {remaining}");
+        }
+    }
+
+    #[test]
+    fn short_opening_sell_with_missing_or_unrelated_lot_is_still_reported() {
+        use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
+
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut opening = sell_activity("short-open", "business", "aapl");
+        opening.subtype = Some(ACTIVITY_SUBTYPE_POSITION_OPEN.to_string());
+        let disposals = HashMap::from([("business".to_string(), HashSet::new())]);
+        for failure in [
+            "missing",
+            "account",
+            "asset",
+            "activity",
+            "long",
+            "invalid quantity",
+        ] {
+            let mut lot = short_lot(dec!(-10));
+            match failure {
+                "account" => lot.account_id = "other".to_string(),
+                "asset" => lot.asset_id = "other".to_string(),
+                "activity" => lot.open_activity_id = Some("other".to_string()),
+                "long" => lot.original_quantity = "10".to_string(),
+                "invalid quantity" => lot.original_quantity = "invalid".to_string(),
+                _ => {}
+            }
+            let lots = HashMap::from([(
+                "business".to_string(),
+                if failure == "missing" {
+                    vec![]
+                } else {
+                    vec![lot]
+                },
+            )]);
+            let issues = missing_lot_disposal_sells_from_data(
+                &accounts,
+                &[opening.clone()],
+                &disposals,
+                &lots,
+                &HashMap::new(),
+                None,
+            );
+            assert_eq!(issues.len(), 1, "{failure}");
+        }
+    }
+
+    #[test]
+    fn short_lot_evidence_does_not_hide_unmatched_long_sales() {
+        use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
+
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut opening = sell_activity("short-open", "business", "aapl");
+        opening.subtype = Some(ACTIVITY_SUBTYPE_POSITION_OPEN.to_string());
+        let ordinary = sell_activity("ordinary", "business", "aapl");
+        let mut close = sell_activity("long-close", "business", "aapl");
+        close.subtype = Some(ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+        let issues = missing_lot_disposal_sells_from_data(
+            &accounts,
+            &[opening, ordinary, close],
+            &HashMap::from([(
+                "business".to_string(),
+                HashSet::from(["short-cover".to_string()]),
+            )]),
+            &HashMap::from([("business".to_string(), vec![short_lot(dec!(0))])]),
+            &HashMap::new(),
+            None,
+        );
+        let ids: Vec<_> = issues
+            .iter()
+            .map(|issue| issue.record_id.as_str())
+            .collect();
+        assert_eq!(ids, ["ordinary", "long-close"]);
+    }
+
+    #[test]
+    fn matched_short_disposals_do_not_exempt_unknown_long_acquisition_costs() {
+        use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
+
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        for price in [None, Some(dec!(0))] {
+            for subtype in [None, Some(ACTIVITY_SUBTYPE_POSITION_OPEN)] {
+                let mut buy = buy_activity("short-cover", "business", "aapl", price);
+                buy.subtype = subtype.map(str::to_string);
+                buy.quantity = Some(dec!(10));
+                let issues = incomplete_basis_trade_activities_from_data(
+                    &accounts,
+                    &[buy],
+                    &HashMap::from([("business".to_string(), vec![short_lot(dec!(0))])]),
+                    &HashMap::from([(
+                        "business".to_string(),
+                        vec![short_disposal(dec!(-10), dec!(0), dec!(0))],
+                    )]),
+                    &HashMap::new(),
+                    None,
+                );
+                assert_eq!(issues.len(), 1, "price {price:?}, subtype {subtype:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn short_cover_can_match_multiple_lot_disposals() {
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut cover = buy_activity("short-cover", "business", "aapl", Some(dec!(0)));
+        // Use a supported imported alias as well as canonical subtypes in the other tests.
+        cover.subtype = Some("BUY_TO_COVER".to_string());
+        cover.quantity = Some(dec!(10));
+        let first = short_lot(dec!(0));
+        let mut second = first.clone();
+        second.id = "short-lot-2".to_string();
+        let first_disposal = short_disposal(dec!(-4), dec!(0), dec!(0));
+        let mut second_disposal = short_disposal(dec!(-6), dec!(0), dec!(0));
+        second_disposal.id = "cover-disposal-2".to_string();
+        second_disposal.lot_id = second.id.clone();
+        let issues = incomplete_basis_trade_activities_from_data(
+            &accounts,
+            &[cover],
+            &HashMap::from([("business".to_string(), vec![first, second])]),
+            &HashMap::from([(
+                "business".to_string(),
+                vec![first_disposal, second_disposal],
+            )]),
+            &HashMap::new(),
+            None,
+        );
+        assert!(issues.is_empty());
+    }
+
+    #[tokio::test]
+    async fn matched_zero_price_short_closures_are_not_incomplete_acquisitions() {
+        use crate::assets::AssetService;
+        use crate::test_support::in_memory::{
+            InMemoryAssetRepository, InMemoryLotRepository, InMemoryQuoteService,
+        };
+
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut asset = health_asset("aapl");
+        asset.instrument_type = Some(InstrumentType::Option);
+        let assets = vec![asset];
+        let asset_service = AssetService::new(
+            Arc::new(InMemoryAssetRepository::new(assets.clone())),
+            Arc::new(InMemoryQuoteService::new(vec![], assets)),
+        )
+        .unwrap();
+        let repository = InMemoryLotRepository::new(
+            HashSet::from(["short-open".to_string(), "short-cover".to_string()]),
+            HashSet::from(["aapl".to_string()]),
+        );
+        for fee in [dec!(0), dec!(1.25)] {
+            for quantity in [dec!(4), dec!(10)] {
+                let mut cover = buy_activity("short-cover", "business", "aapl", Some(dec!(0)));
+                cover.subtype = Some(ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+                cover.quantity = Some(quantity);
+                cover.fee = Some(fee);
+                cover.amount = Some(fee);
+                repository
+                    .replace_lots_for_account("business", &[short_lot(quantity - dec!(10))])
+                    .await
+                    .unwrap();
+                repository
+                    .sync_lot_disposals_for_account(
+                        "business",
+                        &[],
+                        &[short_disposal(-quantity, dec!(0), fee)],
+                        true,
+                    )
+                    .await
+                    .unwrap();
+                // Only the closing BUY is supplied: account selection must not depend on a SELL.
+                let issues = gather_incomplete_basis_trade_activities(
+                    &repository,
+                    &asset_service,
+                    &accounts,
+                    &[cover],
+                    None,
+                )
+                .await;
+                assert!(issues.is_empty(), "cover {quantity}, fee {fee}");
+            }
+        }
+    }
+
+    #[test]
+    fn zero_price_short_closures_require_matching_lots_and_full_disposals() {
+        let accounts = vec![health_account(
+            "business",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        )];
+        let mut cover = buy_activity("short-cover", "business", "aapl", Some(dec!(0)));
+        cover.subtype = Some(ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+        cover.quantity = Some(dec!(10));
+        for failure in [
+            "missing lot",
+            "missing disposal",
+            "wrong lot",
+            "wrong activity",
+            "wrong account",
+            "wrong asset",
+            "long lot",
+            "positive disposal",
+            "partial disposal",
+            "new long lot",
+        ] {
+            let mut lots = vec![short_lot(dec!(0))];
+            let mut disposals = vec![short_disposal(dec!(-10), dec!(0), dec!(0))];
+            match failure {
+                "missing lot" => lots.clear(),
+                "missing disposal" => disposals.clear(),
+                "wrong lot" => disposals[0].lot_id = "other".to_string(),
+                "wrong activity" => disposals[0].disposal_activity_id = "other".to_string(),
+                "wrong account" => disposals[0].account_id = "other".to_string(),
+                "wrong asset" => disposals[0].asset_id = "other".to_string(),
+                "long lot" => lots[0].original_quantity = "10".to_string(),
+                "positive disposal" => disposals[0].quantity = "10".to_string(),
+                "partial disposal" => disposals[0].quantity = "-4".to_string(),
+                "new long lot" => {
+                    let mut long = short_lot(dec!(1));
+                    long.id = "new-long".to_string();
+                    long.open_activity_id = Some(cover.id.clone());
+                    long.original_quantity = "1".to_string();
+                    lots.push(long);
+                }
+                _ => unreachable!(),
+            }
+            let issues = incomplete_basis_trade_activities_from_data(
+                &accounts,
+                &[cover.clone()],
+                &HashMap::from([("business".to_string(), lots)]),
+                &HashMap::from([("business".to_string(), disposals)]),
+                &HashMap::new(),
+                None,
+            );
+            assert_eq!(issues.len(), 1, "{failure}");
+            assert_eq!(issues[0].activity_id.as_deref(), Some("short-cover"));
+        }
+    }
+
     #[test]
     fn sell_with_matching_lot_disposal_is_not_reported() {
         let accounts = vec![health_account(
@@ -3325,6 +3852,7 @@ mod tests {
             &accounts,
             &activities,
             &disposals,
+            &HashMap::new(),
             &assets,
             Some("America/Toronto"),
         );
@@ -3347,6 +3875,7 @@ mod tests {
             &accounts,
             &activities,
             &disposals,
+            &HashMap::new(),
             &assets,
             Some("America/Toronto"),
         );
