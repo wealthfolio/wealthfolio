@@ -160,7 +160,9 @@ impl IntoResponse for ApiError {
                 }
             }
         };
-        if status == StatusCode::INTERNAL_SERVER_ERROR {
+        // Legacy core failures can retain HTTP 400 while their public code is
+        // internal_error. Keep their safe classification available to operators.
+        if status == StatusCode::INTERNAL_SERVER_ERROR || error.error_code == "internal_error" {
             let (kind, io_kind, os_code) = match &self {
                 ApiError::Core(error) => safe_error_diagnostic(error),
                 ApiError::Anyhow(error) => safe_error_diagnostic(error.as_ref()),
@@ -356,6 +358,41 @@ mod tests {
             for value in PRIVATE.split_whitespace() {
                 assert!(!String::from_utf8_lossy(&bytes).contains(value));
             }
+        }
+    }
+
+    #[test]
+    fn legacy_internal_failures_log_only_safe_diagnostics() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().write(bytes)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let output = Capture(Arc::new(Mutex::new(Vec::new())));
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            let response = ApiError::Core(CoreError::Secret(PRIVATE.into())).into_response();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        });
+        let logged = String::from_utf8(output.0.lock().unwrap().clone()).unwrap();
+        assert!(logged.contains("API request failed"));
+        assert!(logged.contains("secret_store"));
+        for private in PRIVATE.split_whitespace() {
+            assert!(!logged.contains(private));
         }
     }
 
