@@ -1303,6 +1303,7 @@
     "scope_locked_market_data_title": "Requis par Données de marché — écrire",
     "scope_locked_classification_title": "Requis par Classification des actifs — appliquer/écrire",
     "scope_locked_accounts_title": "Requis par Comptes — écrire",
+    "scope_locked_holdings_title": "Requis par Positions — écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {
@@ -1369,6 +1370,10 @@
       "accounts_write": {
         "label": "Comptes — écrire",
         "description": "Créer des comptes et modifier leur nom, type, groupe, numéro, mode de suivi et leur état masqué ou archivé. Nécessite la portée comptes (lecture)."
+      },
+      "holdings_write": {
+        "label": "Positions — écrire",
+        "description": "Enregistrer des instantanés de positions (positions et liquidités à une date) pour les comptes qui suivent des positions. Nécessite la portée positions (lecture)."
       }
     },
     "preset": {

@@ -1247,6 +1247,7 @@
     "scope_locked_market_data_title": "시장 데이터 — 쓰기에 필요",
     "scope_locked_classification_title": "자산 분류 — 적용/쓰기에 필요",
     "scope_locked_accounts_title": "계좌 — 쓰기에 필요",
+    "scope_locked_holdings_title": "보유 종목 — 쓰기에 필요",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "토큰",
     "scope": {
@@ -1313,6 +1314,10 @@
       "accounts_write": {
         "label": "계좌 — 쓰기",
         "description": "계좌를 만들고 이름, 유형, 그룹, 번호, 추적 모드, 숨김 또는 보관 상태를 변경합니다. 계좌 (읽기) 범위가 필요합니다."
+      },
+      "holdings_write": {
+        "label": "보유 종목 — 쓰기",
+        "description": "보유 종목을 추적하는 계좌의 보유 스냅샷(특정 날짜의 포지션과 현금)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
       }
     },
     "preset": {

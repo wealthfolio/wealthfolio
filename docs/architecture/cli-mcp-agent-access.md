@@ -873,8 +873,9 @@ Rules:
   `activities:write` (which itself requires `activities:draft`), classification
   commits require `classification:write` (which itself requires
   `classification:suggest`), quote imports require `market-data:write` (which
-  itself requires `holdings:read`), and account changes require `accounts:write`
-  (which itself requires `accounts:read`).
+  itself requires `holdings:read`), account changes require `accounts:write`
+  (which itself requires `accounts:read`), and holdings snapshots require
+  `holdings:write` (which itself requires `holdings:read`).
 - CSV / activity-row content must not be persisted in raw audit logs: the
   write/import tools redact their `activities`/row arguments to a count
   (`"[N rows]"`) via per-tool audit sanitization.
@@ -887,6 +888,9 @@ Rules:
 ```text
 prepare_account_change             -- preview creating or updating one account
 commit_account_change              -- save it
+get_holdings_snapshots             -- list an account's snapshot dates, or read one
+prepare_holdings_snapshot          -- preview one date's positions and cash
+commit_holdings_snapshot           -- save it
 ```
 
 These let an agent create the accounts it imports into, and fix an account's
@@ -920,6 +924,49 @@ account's meta (cost basis settings) as stored; an update that changes nothing
 writes nothing. Both tools need `accounts:read` and `accounts:write`; the in-app
 assistant does not get them.
 
+The snapshot tools set up a HOLDINGS-mode account, whose holdings come from
+dated snapshots instead of activities. `get_holdings_snapshots`
+(`holdings:read`) lists an account's snapshot dates with their source, or
+returns one date's positions (asset id, symbol, quantity, average cost,
+currency) and cash. `prepare_holdings_snapshot` and `commit_holdings_snapshot`
+(`holdings:read` and `holdings:write`) take an account, a date and every
+position held on it, and accept only HOLDINGS-mode accounts that are not
+connected to a broker (a broker's sync writes those snapshots). A snapshot
+replaces whatever is stored on its date, so positions left out are not held
+then; the preview says so and lists each position as added, changed, unchanged
+or removed against that date's snapshot or, when there is none, the latest
+earlier one. Cash left out (or null) is carried forward from that compared
+snapshot, never zeroed; an empty list means no cash. A position names an asset
+by `assetId`, or a reviewed listing (symbol, quote currency, instrument type
+and, for an equity not priced by hand, exchange MIC: the rule
+`AssetResolutionInput::reviewed_metadata_is_sufficient` applies to holdings
+imports), so neither the preview nor the save looks a symbol up with a market
+data provider. A listing that names a stored asset, as saving would match it
+(`AssetServiceTrait::find_asset_by_listing`, the instrument-key lookup
+`get_or_create_minimal_asset` uses), is that asset: the preview compares and
+deduplicates it by its id; new listings with one instrument key
+(`listing_instrument_key`, such as `BTC` and `BTC-USD`) are one asset too. A
+stored position keeps its own currency, which can differ from its asset's quote
+(a GBP cost for a GBp quote). A quote mode is set only on a new asset; a row
+that would change a stored asset's mode is refused, since that would reprice the
+asset in every account. The compared snapshot is read as one row through
+`SnapshotServiceTrait::get_latest_holdings_keyframe`: the latest saved snapshot
+for a HOLDINGS-mode account, the latest calculated one otherwise, each one
+repository query. Quote and cash currencies are read as core spells them:
+uppercased, except minor units such as GBp, so `usd` is USD. Dates follow the
+holdings import's rules (a real day, not in the future). The commit saves
+through `ManualSnapshotService::save_manual_holdings`, the function behind the
+app's holdings form, so new assets, FX pair registration and the
+`HoldingsChanged` event (and the recalculation it plans) are the same. That
+includes the form's one price write: a hand-priced asset with no price on or
+before the date gets its average cost as its first price; the preview lists
+these in `firstPrices`. Other prices go through `commit_quote_import`. Up to 200
+positions per snapshot; the audit log keeps the account, date, asset ids,
+symbols and counts, never quantities, costs or cash. The tools reach the
+snapshot and FX services through `AgentEnvironment::snapshot_service` and
+`fx_service`, whose default bodies return `None`, so test environments need no
+change.
+
 ### Deferred Indefinitely
 
 Classification writes, taxonomy create/edit/delete, activity/account deletion,
@@ -948,7 +995,7 @@ accounts:read            get_accounts, get_cash_balances, get_portfolios
 holdings:read            get_holdings, get_asset_allocation,
                          get_valuation_history, get_income, get_net_worth,
                          get_asset, get_quote_history,
-                         get_market_data_providers
+                         get_market_data_providers, get_holdings_snapshots
 performance:read         get_performance
 activities:read          search_activities, get_import_mapping,
                          find_transfer_matches
@@ -990,6 +1037,8 @@ market-data:write        prepare_quote_import, commit_quote_import,
                          (each also requires holdings:read)
 accounts:write           prepare_account_change, commit_account_change
                          (each also requires accounts:read)
+holdings:write           prepare_holdings_snapshot, commit_holdings_snapshot
+                         (each also requires holdings:read)
 ```
 
 Spending tools no longer accept `classification:*` or `activities:read` as a
@@ -1010,8 +1059,10 @@ Dependency rules: `activities:write` requires `activities:draft`, and
 without the matching draft/suggest capability). `market-data:write` requires
 `holdings:read`: both quote tools return stored quotes, so the scope reaches no
 tool without it. `accounts:write` requires `accounts:read` for the same reason:
-the account change preview shows the stored accounts. Token creation validates
-these, and no preset grants `market-data:write` or `accounts:write`.
+the account change preview shows the stored accounts, and `holdings:write`
+requires `holdings:read`, as the snapshot preview shows the stored holdings.
+Token creation validates these, and no preset grants `market-data:write`,
+`accounts:write` or `holdings:write`.
 
 Presets (`AgentScopeSet` constructors):
 

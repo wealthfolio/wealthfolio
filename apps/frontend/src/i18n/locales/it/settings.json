@@ -1303,6 +1303,7 @@
     "scope_locked_market_data_title": "Richiesto da Dati di mercato — scrittura",
     "scope_locked_classification_title": "Richiesto da Classificazione degli asset — applica/scrittura",
     "scope_locked_accounts_title": "Richiesto da Conti — scrittura",
+    "scope_locked_holdings_title": "Richiesto da Posizioni — scrittura",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1369,6 +1370,10 @@
       "accounts_write": {
         "label": "Conti — scrittura",
         "description": "Crea conti e modificane nome, tipo, gruppo, numero, modalità di monitoraggio e stato nascosto o archiviato. Richiede l'ambito conti (lettura)."
+      },
+      "holdings_write": {
+        "label": "Posizioni — scrittura",
+        "description": "Salva istantanee delle posizioni (posizioni e liquidità a una data) per i conti che monitorano le posizioni. Richiede l'ambito posizioni (lettura)."
       }
     },
     "preset": {

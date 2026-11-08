@@ -1016,6 +1016,69 @@ impl AssetService {
         (!default_yahoo).then_some(config)
     }
 
+    /// The stored asset a listing names by its instrument key, as
+    /// `get_or_create_minimal_asset` matches it. Reads only.
+    fn listing_match(
+        &self,
+        meta: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        let key = Self::listing_key(meta, context_currency)?;
+        self.asset_repository
+            .find_by_instrument_key(&key)
+            .ok()
+            .flatten()
+    }
+
+    /// The instrument key `get_or_create_minimal_asset` looks a listing up
+    /// by; two listings with one key save as one asset.
+    fn listing_key(
+        meta: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<String> {
+        let inferred_instrument_type = meta
+            .instrument_symbol
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .or(meta.display_code.as_ref().filter(|s| !s.is_empty()))
+            .map(|_| {
+                meta.instrument_type
+                    .clone()
+                    .unwrap_or(InstrumentType::Equity)
+            });
+        let canonical = canonicalize_market_identity(
+            inferred_instrument_type.clone(),
+            meta.instrument_symbol
+                .as_deref()
+                .or(meta.display_code.as_deref()),
+            meta.instrument_exchange_mic.as_deref(),
+            context_currency,
+        );
+        let sym = canonical.instrument_symbol.filter(|sym| !sym.is_empty())?;
+        let instrument_type = inferred_instrument_type.unwrap_or(InstrumentType::Equity);
+        let spec = AssetSpec {
+            id: None,
+            display_code: canonical.display_code.or(meta.display_code.clone()),
+            instrument_symbol: Some(sym),
+            instrument_exchange_mic: canonical
+                .instrument_exchange_mic
+                .or(meta.instrument_exchange_mic.clone()),
+            instrument_type: Some(instrument_type),
+            quote_ccy: canonical
+                .quote_ccy
+                .unwrap_or_else(|| context_currency.unwrap_or("USD").to_string()),
+            requested_quote_ccy: meta.requested_quote_ccy.clone(),
+            kind: meta.kind.clone().unwrap_or(AssetKind::Investment),
+            quote_mode: None,
+            name: meta.name.clone(),
+            provider_config: meta.provider_config.clone(),
+            provider_id: meta.provider_id.clone(),
+            provider_symbol: meta.provider_symbol.clone(),
+            metadata: None,
+        };
+        spec.instrument_key()
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn resolve_quote_ccy(
         &self,
@@ -2376,6 +2439,22 @@ impl AssetServiceTrait for AssetService {
         Ok(asset)
     }
 
+    fn find_asset_by_listing(
+        &self,
+        metadata: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        self.listing_match(metadata, context_currency)
+    }
+
+    fn listing_instrument_key(
+        &self,
+        metadata: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<String> {
+        Self::listing_key(metadata, context_currency)
+    }
+
     /// Creates a minimal asset without network calls.
     /// Returns the existing asset if found, or creates a new minimal one.
     async fn get_or_create_minimal_asset(
@@ -2454,56 +2533,14 @@ impl AssetServiceTrait for AssetService {
         }
 
         // Try to find existing asset by instrument_key before creating a new one
-
-        if let Some(ref meta) = metadata {
-            let canonical = canonicalize_market_identity(
-                inferred_instrument_type.clone(),
-                meta.instrument_symbol
-                    .as_deref()
-                    .or(meta.display_code.as_deref()),
-                meta.instrument_exchange_mic.as_deref(),
-                context_currency.as_deref(),
-            );
-            if let Some(ref sym) = canonical.instrument_symbol {
-                if !sym.is_empty() {
-                    let instrument_type = inferred_instrument_type
-                        .clone()
-                        .unwrap_or(InstrumentType::Equity);
-                    let spec = AssetSpec {
-                        id: None,
-                        display_code: canonical.display_code.or(meta.display_code.clone()),
-                        instrument_symbol: Some(sym.clone()),
-                        instrument_exchange_mic: canonical
-                            .instrument_exchange_mic
-                            .or(meta.instrument_exchange_mic.clone()),
-                        instrument_type: Some(instrument_type.clone()),
-                        quote_ccy: canonical.quote_ccy.unwrap_or_else(|| {
-                            context_currency
-                                .clone()
-                                .unwrap_or_else(|| "USD".to_string())
-                        }),
-                        requested_quote_ccy: meta.requested_quote_ccy.clone(),
-                        kind: meta.kind.clone().unwrap_or(AssetKind::Investment),
-                        quote_mode: None,
-                        name: meta.name.clone(),
-                        provider_config: meta.provider_config.clone(),
-                        provider_id: meta.provider_id.clone(),
-                        provider_symbol: meta.provider_symbol.clone(),
-                        metadata: None,
-                    };
-                    if let Some(key) = spec.instrument_key() {
-                        if let Ok(Some(existing)) =
-                            self.asset_repository.find_by_instrument_key(&key)
-                        {
-                            if !existing.is_active {
-                                self.asset_repository.reactivate(&existing.id).await?;
-                            }
-
-                            return Ok(existing);
-                        }
-                    }
-                }
+        if let Some(existing) = metadata
+            .as_ref()
+            .and_then(|meta| self.listing_match(meta, context_currency.as_deref()))
+        {
+            if !existing.is_active {
+                self.asset_repository.reactivate(&existing.id).await?;
             }
+            return Ok(existing);
         }
 
         // Use metadata kind if provided, otherwise default to Investment
@@ -3334,6 +3371,44 @@ mod tests {
                 matches!(asset.to_instrument_id(), Some(super::super::InstrumentId::Bond { isin }) if isin.as_ref() == "US037833EZ91")
             );
         }
+    }
+
+    #[tokio::test]
+    async fn find_asset_by_listing_matches_what_saving_a_listing_reuses() {
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let listing = super::super::AssetMetadata {
+            instrument_symbol: Some("AAPL".into()),
+            display_code: Some("AAPL".into()),
+            instrument_exchange_mic: Some("XNAS".into()),
+            instrument_type: Some(InstrumentType::Equity),
+            requested_quote_ccy: Some("USD".into()),
+            ..Default::default()
+        };
+        assert!(service
+            .find_asset_by_listing(&listing, Some("USD"))
+            .is_none());
+
+        let created = service
+            .get_or_create_minimal_asset("first", Some("USD".into()), Some(listing.clone()), None)
+            .await
+            .unwrap();
+        let found = service
+            .find_asset_by_listing(&listing, Some("USD"))
+            .expect("the created asset is found");
+        assert_eq!(found.id, created.id);
+        // Saving the same listing again under a new id reuses that asset.
+        let reused = service
+            .get_or_create_minimal_asset("second", Some("USD".into()), Some(listing.clone()), None)
+            .await
+            .unwrap();
+        assert_eq!(reused.id, created.id);
+
+        let other = super::super::AssetMetadata {
+            instrument_symbol: Some("MSFT".into()),
+            display_code: Some("MSFT".into()),
+            ..listing
+        };
+        assert!(service.find_asset_by_listing(&other, Some("USD")).is_none());
     }
 
     fn treasury_test_asset() -> Asset {

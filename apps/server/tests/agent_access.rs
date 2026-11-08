@@ -333,6 +333,15 @@ async fn mcp_pat_lifecycle() {
     .await;
     assert_eq!(status, 400);
 
+    // holdings:write without holdings:read is rejected (dependency).
+    let (status, _) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "holdings write only", "scopes": ["holdings:write"] }),
+    )
+    .await;
+    assert_eq!(status, 400);
+
     // accounts:write without accounts:read is rejected (dependency).
     let (status, _) = create_pat(
         &server,
@@ -363,8 +372,8 @@ async fn mcp_pat_lifecycle() {
         .collect();
     assert_eq!(
         tools.len(),
-        44,
-        "read-only catalog must expose 44 tools (including Spending reads and proposals): {names:?}"
+        45,
+        "read-only catalog must expose 45 tools (including Spending reads and proposals): {names:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -531,6 +540,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
             "budget:write",
             "market-data:write",
             "accounts:write",
+            "holdings:write",
         ])
         .collect();
     let (status, created) = create_pat(
@@ -540,7 +550,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     )
     .await;
     assert_eq!(status, 201);
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 16);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 17);
     let pat = created["token"].as_str().unwrap().to_string();
 
     let session = mcp_initialize(&server, &pat).await;
@@ -557,8 +567,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        77,
-        "full-scope token must see all 77 tools: {names:?}"
+        80,
+        "full-scope token must see all 80 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -574,6 +584,9 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "commit_activity_deletions",
         "prepare_account_change",
         "commit_account_change",
+        "get_holdings_snapshots",
+        "prepare_holdings_snapshot",
+        "commit_holdings_snapshot",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -925,6 +938,273 @@ async fn mcp_creates_and_updates_accounts_after_a_preview() {
     assert_eq!(stored["group"], "Retirement");
     assert_eq!(stored["accountNumber"], "NL91ABNA0417164300");
     assert_eq!(stored["trackingMode"], "HOLDINGS");
+}
+
+/// #2468: an agent saves holdings snapshots for a HOLDINGS-mode account after a
+/// preview. A new hand-priced listing creates its asset, a later snapshot that
+/// leaves cash out carries it forward, a snapshot on a stored date replaces it
+/// (positions left out are removed), and a TRANSACTIONS-mode account is refused.
+#[tokio::test]
+async fn mcp_saves_holdings_snapshots_after_a_preview() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let account = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Pension", "accountType": "SECURITIES", "currency": "USD",
+            "isDefault": false, "isActive": true, "trackingMode": "HOLDINGS"
+        }),
+    )
+    .await;
+    let transactions = create_eur_account(&server, &cookie, "Brokerage").await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({
+            "name": "snapshot writer", "scopes": ["holdings:read", "holdings:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+    let id = account["id"].as_str().unwrap();
+
+    let first = serde_json::json!({
+        "accountId": id, "date": "2026-01-31",
+        "positions": [{
+            "symbol": "PRIVCO", "name": "Private Co", "quoteCcy": "USD",
+            "instrumentType": "EQUITY", "quoteMode": "MANUAL",
+            "quantity": 10, "averageCost": "12.5"
+        }],
+        "cash": [{ "currency": "USD", "amount": "250.5" }]
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_holdings_snapshot",
+        first.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], true, "{preview}");
+    assert_eq!(preview["summary"]["added"], 1, "{preview}");
+    assert_eq!(preview["cash"]["source"], "entered", "{preview}");
+    // The hand-priced listing has no price yet: its average cost becomes one.
+    assert_eq!(preview["firstPrices"][0]["price"], "12.5", "{preview}");
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_holdings_snapshot", first).await;
+    assert_eq!(saved["committed"], true, "{saved}");
+    let asset_id = saved["assetIds"][0].as_str().unwrap().to_string();
+
+    // The stored asset again by its listing is the same position, and a
+    // snapshot never changes a stored asset's quote mode.
+    for (positions, expected) in [
+        (
+            serde_json::json!([
+                { "assetId": asset_id, "quantity": 1 },
+                {
+                    "symbol": "PRIVCO", "quoteCcy": "USD", "instrumentType": "EQUITY",
+                    "quoteMode": "MANUAL", "quantity": 2
+                }
+            ]),
+            "listed twice",
+        ),
+        (
+            serde_json::json!([{ "assetId": asset_id, "quoteMode": "MARKET", "quantity": 1 }]),
+            "quoteMode",
+        ),
+        // Two new listings that save as one asset.
+        (
+            serde_json::json!([
+                { "symbol": "BTC", "quoteCcy": "USD", "instrumentType": "CRYPTO", "quantity": 1 },
+                { "symbol": "BTC-USD", "quoteCcy": "USD", "instrumentType": "CRYPTO", "quantity": 2 }
+            ]),
+            "listed twice",
+        ),
+    ] {
+        let refused = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_holdings_snapshot",
+            serde_json::json!({ "accountId": id, "date": "2026-02-15", "positions": positions }),
+        )
+        .await;
+        assert_eq!(refused["committed"], false, "{refused}");
+        assert!(
+            refused["errors"].to_string().contains(expected),
+            "{expected}: {refused}"
+        );
+    }
+
+    // A later snapshot that leaves cash out keeps it.
+    let second = serde_json::json!({
+        "accountId": id, "date": "2026-02-28",
+        "positions": [{ "assetId": asset_id, "quantity": "12", "averageCost": 12.5 }]
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_holdings_snapshot",
+        second.clone(),
+    )
+    .await;
+    assert_eq!(preview["comparedWith"]["date"], "2026-01-31", "{preview}");
+    assert_eq!(preview["comparedWith"]["replaced"], false, "{preview}");
+    assert_eq!(preview["positions"][0]["outcome"], "changed", "{preview}");
+    assert_eq!(preview["positions"][0]["quantityBefore"], "10", "{preview}");
+    assert_eq!(preview["cash"]["source"], "carried_forward", "{preview}");
+    assert_eq!(preview["firstPrices"], serde_json::json!([]), "{preview}");
+    assert_eq!(preview["cash"]["after"][0]["amount"], "250.5", "{preview}");
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_holdings_snapshot", second).await;
+    assert_eq!(saved["committed"], true, "{saved}");
+
+    let dates = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_holdings_snapshots",
+        serde_json::json!({ "accountId": id }),
+    )
+    .await;
+    assert_eq!(dates["snapshots"][0]["date"], "2026-02-28", "{dates}");
+    assert_eq!(dates["snapshots"][1]["date"], "2026-01-31", "{dates}");
+    let february = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_holdings_snapshots",
+        serde_json::json!({ "accountId": id, "date": "2026-02-28" }),
+    )
+    .await;
+    assert_eq!(
+        february["positions"][0]["assetId"],
+        asset_id.as_str(),
+        "{february}"
+    );
+    assert_eq!(february["positions"][0]["quantity"], "12", "{february}");
+    assert_eq!(february["cash"][0]["amount"], "250.5", "{february}");
+
+    // The same date again replaces it: positions left out are removed.
+    let replace = serde_json::json!({
+        "accountId": id, "date": "2026-02-28", "positions": [], "cash": []
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_holdings_snapshot",
+        replace.clone(),
+    )
+    .await;
+    assert_eq!(preview["comparedWith"]["replaced"], true, "{preview}");
+    assert_eq!(preview["summary"]["removed"], 1, "{preview}");
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_holdings_snapshot", replace).await;
+    assert_eq!(saved["committed"], true, "{saved}");
+
+    let refused = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_holdings_snapshot",
+        serde_json::json!({
+            "accountId": transactions["id"], "date": "2026-01-31",
+            "positions": [{ "assetId": asset_id, "quantity": 1 }]
+        }),
+    )
+    .await;
+    assert_eq!(refused["committed"], false, "{refused}");
+    assert!(
+        refused["errors"][0].as_str().unwrap().contains("HOLDINGS"),
+        "{refused}"
+    );
+}
+
+/// A stored position whose cost is in another unit than its asset's quote
+/// (a GBP cost for a GBp-quoted asset) keeps that currency when a snapshot
+/// lists it again, and an equal quantity and cost show as unchanged.
+#[tokio::test]
+async fn mcp_snapshots_keep_a_stored_positions_cost_currency() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let account = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "ISA", "accountType": "SECURITIES", "currency": "GBP",
+            "isDefault": false, "isActive": true, "trackingMode": "HOLDINGS"
+        }),
+    )
+    .await;
+    let id = account["id"].as_str().unwrap();
+    let response = server
+        .client
+        .post(format!("{}/api/v1/snapshots", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({
+            "accountId": id, "snapshotDate": "2026-01-31", "cashBalances": {},
+            "holdings": [{
+                "symbol": "PRIVGB", "name": "Private GB", "quantity": "5",
+                "currency": "GBP", "quoteCcy": "GBp", "averageCost": "1.5",
+                "dataSource": "MANUAL", "assetKind": "OTHER"
+            }]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success(), "{}", response.status());
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "snapshots", "scopes": ["holdings:read", "holdings:write"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+    let stored = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_holdings_snapshots",
+        serde_json::json!({ "accountId": id, "date": "2026-01-31" }),
+    )
+    .await;
+    assert_eq!(stored["positions"][0]["currency"], "GBP", "{stored}");
+    let asset_id = stored["positions"][0]["assetId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let again = serde_json::json!({
+        "accountId": id, "date": "2026-02-28",
+        "positions": [{ "assetId": asset_id, "quantity": 5, "averageCost": 1.5 }]
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_holdings_snapshot",
+        again.clone(),
+    )
+    .await;
+    assert_eq!(preview["positions"][0]["outcome"], "unchanged", "{preview}");
+    assert_eq!(preview["positions"][0]["currency"], "GBP", "{preview}");
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_holdings_snapshot", again).await;
+    assert_eq!(saved["committed"], true, "{saved}");
+    let february = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_holdings_snapshots",
+        serde_json::json!({ "accountId": id, "date": "2026-02-28" }),
+    )
+    .await;
+    assert_eq!(february["positions"][0]["currency"], "GBP", "{february}");
 }
 
 /// Mints a read/draft/write activity token and opens an MCP session.

@@ -832,6 +832,24 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
         Ok(Self::decode_snapshots(rows)?.into_iter().next())
     }
 
+    fn get_latest_saved_snapshot_on_or_before(
+        &self,
+        account_id_param: &str,
+        date: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        use crate::schema::holdings_snapshots::dsl::*;
+        let mut conn = get_connection(&self.pool)?;
+        let rows = holdings_snapshots
+            .filter(account_id.eq(account_id_param))
+            .filter(source.ne("CALCULATED"))
+            .filter(snapshot_date.le(date.format("%Y-%m-%d").to_string()))
+            .order(snapshot_date.desc())
+            .limit(1)
+            .load::<AccountStateSnapshotDB>(&mut conn)
+            .map_err(StorageError::from)?;
+        Ok(Self::decode_snapshots(rows)?.into_iter().next())
+    }
+
     fn get_snapshot_metadata_by_account(
         &self,
         account_id_param: &str,
@@ -1056,6 +1074,37 @@ mod tests {
             base_currency: None,
             source,
         }
+    }
+
+    #[tokio::test]
+    async fn latest_saved_and_calculated_snapshots_are_read_by_source() {
+        let (repo, pool, _temp_dir) = create_test_repository().await;
+        let account = "mode-switched";
+        create_test_account(&pool, account);
+        let day = |d| NaiveDate::from_ymd_opt(2025, 1, d).unwrap();
+        repo.save_snapshots(&[
+            create_test_snapshot(account, day(5), SnapshotSource::ManualEntry),
+            create_test_snapshot(account, day(10), SnapshotSource::CsvImport),
+            create_test_snapshot(account, day(20), SnapshotSource::Calculated),
+        ])
+        .await
+        .unwrap();
+
+        let saved = |date| {
+            repo.get_latest_saved_snapshot_on_or_before(account, date)
+                .unwrap()
+                .map(|snapshot| snapshot.snapshot_date)
+        };
+        // A later calculated row does not hide the latest saved one.
+        assert_eq!(saved(day(25)), Some(day(10)));
+        assert_eq!(saved(day(9)), Some(day(5)));
+        assert_eq!(saved(day(4)), None);
+        assert_eq!(
+            repo.get_latest_calculated_snapshot_on_or_before(account, day(25))
+                .unwrap()
+                .map(|snapshot| snapshot.snapshot_date),
+            Some(day(20))
+        );
     }
 
     #[tokio::test]

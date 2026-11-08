@@ -1264,6 +1264,7 @@
     "scope_locked_market_data_title": "「市場資料 — 寫入」需要此權限",
     "scope_locked_classification_title": "「資產分類 — 套用/寫入」需要此權限",
     "scope_locked_accounts_title": "「帳戶 — 寫入」需要此權限",
+    "scope_locked_holdings_title": "「持有部位 — 寫入」需要此權限",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "權杖",
     "scope": {
@@ -1330,6 +1331,10 @@
       "accounts_write": {
         "label": "帳戶 — 寫入",
         "description": "建立帳戶，並變更其名稱、類型、群組、帳號、追蹤模式，以及隱藏或封存狀態。需要帳戶（讀取）範圍。"
+      },
+      "holdings_write": {
+        "label": "持有部位 — 寫入",
+        "description": "為以持有部位追蹤的帳戶儲存持有部位快照（某一日期的部位與現金）。需要持有部位與價值（讀取）範圍。"
       }
     },
     "preset": {

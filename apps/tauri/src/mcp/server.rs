@@ -28,7 +28,7 @@ budgets. Write capabilities (drafting and committing activities, classification 
 organizing spending, and managing budgets) depend on the scopes granted to the access token in use. \
 For wrong or missing prices, get_asset shows an asset's listing, quote currency, provider and stored quotes, \
 prepare_asset_update fixes its listing, currency or provider, and refresh_market_data refetches prices. \
-Creating and updating accounts needs accounts:write.";
+Creating and updating accounts needs accounts:write; saving holdings snapshots needs holdings:write.";
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
