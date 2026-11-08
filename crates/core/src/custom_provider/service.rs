@@ -56,9 +56,7 @@ impl CustomProviderService {
             .into());
         }
         if RESERVED_CODES.contains(&code.as_str()) {
-            return Err(
-                ValidationError::InvalidInput(format!("Code '{}' is reserved", code)).into(),
-            );
+            return Err(ValidationError::CustomProviderCodeReserved.into());
         }
 
         for src in &payload.sources {
@@ -113,13 +111,7 @@ impl CustomProviderService {
         }
         let asset_count = self.repo.get_asset_count_for_provider(provider_id)?;
         if asset_count > 0 {
-            return Err(ValidationError::InvalidInput(format!(
-                "Cannot delete '{}': {} asset(s) still use it as their market data provider \
-                 or in a symbol mapping. Change their provider or remove the mapping first, \
-                 then try again.",
-                provider_id, asset_count
-            ))
-            .into());
+            return Err(ValidationError::CustomProviderInUse.into());
         }
         self.repo.delete(provider_id).await?;
         info!("Deleted custom provider: {}", provider_id);

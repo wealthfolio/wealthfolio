@@ -727,6 +727,8 @@
     "unavailable": "Esta operação está indisponível.",
     "providerKeyMissing": "Adicione uma chave de API para este provedor nas configurações.",
     "providerUnknown": "Selecione um provedor compatível.",
-    "providerUnavailable": "O provedor não conseguiu concluir a solicitação. Confira as configurações do provedor."
+    "providerUnavailable": "O provedor não conseguiu concluir a solicitação. Confira as configurações do provedor.",
+    "customProviderCodeReserved": "Este código de provedor está reservado. Escolha outro código.",
+    "customProviderInUse": "Altere o provedor dos ativos afetados ou remova os seus mapeamentos de símbolos antes de o eliminar."
   }
 }

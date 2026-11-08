@@ -68,13 +68,16 @@ describe("extra repayment validation", () => {
     render(
       <LoanBalanceEventDialog
         {...props}
-        onSubmit={vi.fn().mockRejectedValue(new Error("Balance changed"))}
+        onSubmit={vi.fn().mockRejectedValue(new Error("FAKE-KEY-2531 /private/portfolio.db"))}
       />,
     );
     const input = screen.getByLabelText("Repayment Amount");
     fireEvent.change(input, { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: "Record Repayment" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Balance changed"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Enter valid loan details."),
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("FAKE-KEY");
     fireEvent.change(input, { target: { value: "50" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

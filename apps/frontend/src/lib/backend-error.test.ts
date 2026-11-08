@@ -23,6 +23,46 @@ afterEach(async () => {
 });
 
 describe("public backend errors", () => {
+  it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(
+    "preserves reviewed backup codes without private suffixes (%s)",
+    (code) => {
+      for (const payload of [
+        `${code}: ${privateMessage}`,
+        `API error (409): ${code}: ${privateMessage}`,
+        new Error(`API error (403): ${code}: ${privateMessage}`),
+        { errorCode: code, message: privateMessage },
+      ]) {
+        const error = backendError(payload);
+        expect(error?.errorCode).toBe(code);
+        expect(String(error)).not.toContain("FAKE-KEY");
+        expect(JSON.stringify(error)).not.toContain("/private");
+      }
+      expect(backendError(`API error (409): ${code}_OTHER: ${privateMessage}`)).toBeUndefined();
+      expect(backendError(`${privateMessage}: ${code}`)).toBeUndefined();
+    },
+  );
+
+  it.each(["custom_provider_code_reserved", "custom_provider_in_use"])(
+    "translates actionable validation without interpolating data (%s)",
+    async (errorCode) => {
+      const i18n = createInstance();
+      await i18n.init({
+        lng: "en",
+        resources: { en: { common: en }, fr: { common: fr }, ar: { common: ar } },
+      });
+      const key =
+        errorCode === "custom_provider_in_use"
+          ? "customProviderInUse"
+          : "customProviderCodeReserved";
+      const error = backendError({ errorCode, message: privateMessage });
+      expect(backendErrorText(error, i18n.t)).toBe(en.backendErrors[key]);
+      await i18n.changeLanguage("fr");
+      expect(backendErrorText(error, i18n.t)).toBe(fr.backendErrors[key]);
+      await i18n.changeLanguage("ar");
+      expect(backendErrorText(error, i18n.t)).toBe(ar.backendErrors[key]);
+      expect(String(error)).not.toContain("FAKE-KEY");
+    },
+  );
   it.each([false, true])("retains only the reviewed outcome metadata (%s)", (outcomeUnknown) => {
     const error = backendError({
       message: privateMessage,

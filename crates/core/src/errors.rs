@@ -43,6 +43,43 @@ impl PublicError {
         )
     }
 
+    /// Recover only reviewed control outcomes from legacy string boundaries.
+    /// Device-sync's API wrapper is accepted; diagnostic suffixes are discarded.
+    pub fn from_control_message(message: &str) -> Option<Self> {
+        let message = if let Some(api) = message.strip_prefix("API error (") {
+            let (status, message) = api.split_once("): ")?;
+            if status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit()) {
+                return None;
+            }
+            message
+        } else {
+            message
+        };
+        match message.split(':').next()? {
+            "CONNECT_REBIND_REQUIRED" => Some(Self::new(
+                "CONNECT_REBIND_REQUIRED",
+                "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
+            )),
+            "PROFILE_LOCKED" => Some(Self::new(
+                "PROFILE_LOCKED",
+                "PROFILE_LOCKED: Unlock this profile to continue.",
+            )),
+            "PROFILE_STALE" => Some(Self::new(
+                "PROFILE_STALE",
+                "PROFILE_STALE: This profile session has ended.",
+            )),
+            "BACKUP_REAUTHENTICATION_REQUIRED" => Some(Self::new(
+                "BACKUP_REAUTHENTICATION_REQUIRED",
+                "Sign in again to continue this backup operation.",
+            )),
+            "BACKUP_MANUAL_LIMIT" => Some(Self::new(
+                "BACKUP_MANUAL_LIMIT",
+                "The daily manual backup limit has been reached.",
+            )),
+            _ => None,
+        }
+    }
+
     /// Preserve typed core classifications through wrapping errors, without
     /// exposing arbitrary sources or context strings.
     pub fn from_error(error: &(dyn std::error::Error + 'static)) -> Self {
@@ -68,6 +105,12 @@ impl Error {
             Self::Validation(ValidationError::InvalidSnapshotDate { .. }) => PublicError::new(
                 "INVALID_SNAPSHOT_DATE",
                 "This date is outside the supported snapshot range.",
+            ),
+            Self::Validation(ValidationError::CustomProviderCodeReserved) => PublicError::new(
+                "custom_provider_code_reserved", "This provider code is reserved. Choose a different code.",
+            ),
+            Self::Validation(ValidationError::CustomProviderInUse) => PublicError::new(
+                "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
             Self::Validation(_) => PublicError::invalid_input(),
             Self::ConstraintViolation(_)
@@ -260,6 +303,14 @@ pub enum ValidationError {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
+    /// A built-in provider owns this code; no user-supplied code is public.
+    #[error("This provider code is reserved. Choose a different code.")]
+    CustomProviderCodeReserved,
+
+    /// Provider deletion is blocked by existing asset references.
+    #[error("Change the provider for affected assets or remove their symbol mappings before deleting it.")]
+    CustomProviderInUse,
+
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]
     Loan(#[from] crate::assets::loan::LoanError),
@@ -334,6 +385,47 @@ impl From<Error> for String {
 #[cfg(test)]
 mod public_error_tests {
     use super::*;
+
+    #[test]
+    fn legacy_control_codes_discard_private_suffixes_and_reject_unknown_codes() {
+        let private = "FAKE-KEY-2531 /private/portfolio.db account_balance";
+        for code in [
+            "BACKUP_REAUTHENTICATION_REQUIRED",
+            "BACKUP_MANUAL_LIMIT",
+            "PROFILE_LOCKED",
+            "PROFILE_STALE",
+            "CONNECT_REBIND_REQUIRED",
+        ] {
+            for message in [
+                format!("{code}: {private}"),
+                format!("API error (409): {code}: {private}"),
+            ] {
+                let public = PublicError::from_control_message(&message).unwrap();
+                assert_eq!(public.error_code, code);
+                assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+            }
+            assert!(
+                PublicError::from_control_message(&format!("{code}_OTHER: {private}")).is_none()
+            );
+            assert!(PublicError::from_control_message(&format!("{private}: {code}")).is_none());
+        }
+    }
+
+    #[test]
+    fn actionable_custom_provider_refusals_have_public_codes() {
+        for (error, code) in [
+            (
+                ValidationError::CustomProviderCodeReserved,
+                "custom_provider_code_reserved",
+            ),
+            (
+                ValidationError::CustomProviderInUse,
+                "custom_provider_in_use",
+            ),
+        ] {
+            assert_eq!(Error::from(error).public_error().error_code, code);
+        }
+    }
 
     #[test]
     fn public_errors_exclude_secrets_paths_and_database_details() {

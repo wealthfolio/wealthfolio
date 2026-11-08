@@ -96,8 +96,16 @@ const CONTEXT_OVERFLOW = "CONTEXT_OVERFLOW";
  * Format a failed turn's error from its backend code, else from its message.
  */
 export function formatChatError(code: string, message: string, t: TFunction = i18n.t): string {
+  const settingsLink = `[${t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
+  switch (code) {
+    case "PROVIDER_RATE_LIMITED":
+      return t("ai:runtimeErrors.rateLimit");
+    case "PROVIDER_AUTH":
+      return t("ai:runtimeErrors.authentication", { settingsLink });
+    case "PROVIDER_TIMEOUT":
+      return t("ai:runtimeErrors.timeout", { settingsLink });
+  }
   if (code === CONTEXT_OVERFLOW) {
-    const settingsLink = `[${t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
     return t("ai:runtimeErrors.contextOverflow", { settingsLink });
   }
   return formatErrorMessage(message, t);

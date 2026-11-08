@@ -267,14 +267,9 @@ function ProviderSettings({
                     <div className="max-h-60 overflow-auto p-2">
                       {provider.uniqueErrors.length > 0 ? (
                         <ul className="space-y-2">
-                          {provider.uniqueErrors.map((_error, index) => (
-                            <li
-                              key={index}
-                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words"
-                            >
-                              {t("common:backendErrors.providerUnavailable")}
-                            </li>
-                          ))}
+                          <li className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words">
+                            {t("common:backendErrors.providerUnavailable")}
+                          </li>
                         </ul>
                       ) : (
                         <p className="text-muted-foreground p-2 text-xs">

@@ -80,6 +80,19 @@ it("normalizes errors for direct IPC calls too", async () => {
   expect(String(failure)).not.toContain("FAKE-KEY");
 });
 
+it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(
+  "keeps the backup recovery code across desktop IPC (%s)",
+  async (code) => {
+    mocks.invoke.mockRejectedValueOnce(
+      `API error (409): ${code}: FAKE-KEY-2531 /private/portfolio.db`,
+    );
+    const failure = await invoke("cloud_backup_capture").catch((cause: unknown) => cause);
+    expect(failure).toHaveProperty("errorCode", code);
+    expect(String(failure)).not.toContain("FAKE-KEY");
+    expect(JSON.stringify(vi.mocked(logError).mock.calls)).not.toContain("/private");
+  },
+);
+
 it("does not trust transport Error objects as public messages", async () => {
   mocks.invoke.mockRejectedValue(new Error("FAKE-KEY-2531 /private/portfolio.db"));
   const failure = await tauriInvoke("get_settings").catch((error: unknown) => error);

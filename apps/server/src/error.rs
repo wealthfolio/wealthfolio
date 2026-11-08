@@ -93,19 +93,12 @@ impl IntoResponse for ApiError {
             Self::NotImplemented(_) => {
                 PublicError::new("not_implemented", "This operation is unavailable.")
             }
-            Self::BadRequest(_) => PublicError::invalid_input(),
-            Self::Unauthorized(_) => PublicError::new("unauthorized", "Sign in to continue."),
-            // Connect's existing login boundary carries this reviewed control
-            // outcome as a string. Preserve its code, never its error suffix.
-            Self::Forbidden(reason)
-                if reason.split(':').next() == Some("CONNECT_REBIND_REQUIRED") =>
-            {
-                PublicError::new(
-                    "CONNECT_REBIND_REQUIRED",
-                    "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
-                )
+            Self::BadRequest(reason) => {
+                PublicError::from_control_message(reason).unwrap_or_else(PublicError::invalid_input)
             }
-            Self::Forbidden(_) => PublicError::new("forbidden", "This operation is not allowed."),
+            Self::Unauthorized(_) => PublicError::new("unauthorized", "Sign in to continue."),
+            Self::Forbidden(reason) => PublicError::from_control_message(reason)
+                .unwrap_or_else(|| PublicError::new("forbidden", "This operation is not allowed.")),
             Self::Internal(_) => PublicError::internal(),
             Self::Anyhow(error) => {
                 if let Some(error) =
@@ -316,6 +309,52 @@ mod tests {
             assert_eq!(json["errorCode"], expected);
             for private in PRIVATE.split_whitespace() {
                 assert!(!String::from_utf8_lossy(&body).contains(private));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn backup_and_profile_control_codes_survive_http_sanitization() {
+        for (error, code, status) in [
+            (
+                ApiError::BadRequest(format!(
+                    "API error (403): BACKUP_REAUTHENTICATION_REQUIRED: {PRIVATE}"
+                )),
+                "BACKUP_REAUTHENTICATION_REQUIRED",
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                ApiError::BadRequest(format!("API error (409): BACKUP_MANUAL_LIMIT: {PRIVATE}")),
+                "BACKUP_MANUAL_LIMIT",
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                ApiError::Forbidden(format!("PROFILE_LOCKED: {PRIVATE}")),
+                "PROFILE_LOCKED",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                ApiError::Forbidden(format!("PROFILE_STALE: {PRIVATE}")),
+                "PROFILE_STALE",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                ApiError::BadRequest(format!(
+                    "API error (409): BACKUP_MANUAL_LIMIT_OTHER: {PRIVATE}"
+                )),
+                "invalid_input",
+                StatusCode::BAD_REQUEST,
+            ),
+        ] {
+            let response = error.into_response();
+            assert_eq!(response.status(), status);
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(json["errorCode"], code);
+            for value in PRIVATE.split_whitespace() {
+                assert!(!String::from_utf8_lossy(&bytes).contains(value));
             }
         }
     }

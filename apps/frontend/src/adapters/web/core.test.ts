@@ -8,6 +8,31 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(
+  "keeps the reviewed backup code from HTTP without diagnostic text (%s)",
+  async (errorCode) => {
+    installProfileSession({ profileId: "test", scopeId: "scope-test" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 400,
+            errorCode,
+            message: "FAKE-KEY-2531 /private/portfolio.db",
+          }),
+          { status: 400 },
+        ),
+      ),
+    );
+    const error = await invoke("cloud_backup_capture").catch((cause: unknown) => cause);
+    expect(error).toHaveProperty("errorCode", errorCode);
+    expect(error).toHaveProperty("outcomeUnknown", false);
+    expect(String(error)).not.toContain("FAKE-KEY");
+    expect(JSON.stringify(error)).not.toContain("/private");
+  },
+);
+
 it.each(["internal_error", "future_error", undefined])(
   "does not log or throw raw HTTP error messages (%s) and preserves outcomeUnknown",
   async (errorCode) => {

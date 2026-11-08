@@ -699,6 +699,8 @@
     "unavailable": "この操作は利用できません。",
     "providerKeyMissing": "設定でこのプロバイダーの API キーを追加してください。",
     "providerUnknown": "対応しているプロバイダーを選択してください。",
-    "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。"
+    "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。",
+    "customProviderCodeReserved": "このプロバイダーコードは予約されています。別のコードを選択してください。",
+    "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。"
   }
 }

@@ -699,6 +699,8 @@
     "unavailable": "此操作不可用。",
     "providerKeyMissing": "请在设置中为此提供方添加 API 密钥。",
     "providerUnknown": "请选择受支持的提供方。",
-    "providerUnavailable": "提供方无法完成请求。请检查提供方设置。"
+    "providerUnavailable": "提供方无法完成请求。请检查提供方设置。",
+    "customProviderCodeReserved": "此提供方代码已被保留。请选择其他代码。",
+    "customProviderInUse": "删除前，请更改相关资产的提供方或移除其代码映射。"
   }
 }
