@@ -1,6 +1,6 @@
 use super::assets_model::{
-    normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetSpec, EnsureAssetsResult,
-    InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
+    normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetProfileUpdatePreview,
+    AssetSpec, EnsureAssetsResult, InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
 };
 use super::{AssetResolutionInput, AssetResolutionOutput};
 use crate::errors::Result;
@@ -23,6 +23,18 @@ pub trait AssetServiceTrait: Send + Sync {
         asset_id: &str,
         payload: UpdateAssetProfile,
     ) -> Result<Asset>;
+    /// What `update_asset_profile` would store for `payload`, and another asset
+    /// that already has the updated identity, without writing anything.
+    fn preview_asset_profile_update(
+        &self,
+        asset_id: &str,
+        payload: UpdateAssetProfile,
+    ) -> Result<AssetProfileUpdatePreview> {
+        let _ = (asset_id, payload);
+        Err(crate::Error::Unexpected(
+            "Asset profile previews are not supported".to_string(),
+        ))
+    }
     /// Updates only asset metadata. Implementations should avoid re-resolving market identity.
     async fn update_asset_metadata(
         &self,

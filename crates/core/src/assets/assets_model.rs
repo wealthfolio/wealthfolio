@@ -947,6 +947,16 @@ pub struct UpdateAssetProfile {
     pub metadata: Option<Value>,
 }
 
+/// The result of previewing an asset profile update.
+#[derive(Debug, Clone)]
+pub struct AssetProfileUpdatePreview {
+    /// The profile `update_asset_profile` would store.
+    pub profile: UpdateAssetProfile,
+    /// Another asset that already has the updated identity; the update would
+    /// be refused.
+    pub conflicting_asset: Option<Asset>,
+}
+
 /// Optional asset metadata that can be passed during activity creation.
 /// Allows users to provide/override asset details inline.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

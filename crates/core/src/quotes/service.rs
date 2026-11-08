@@ -600,6 +600,36 @@ pub trait QuoteServiceTrait: Send + Sync {
         Ok(ResolvedQuote::default())
     }
 
+    /// Resolve the latest quote for an asset as a sync would fetch it: with
+    /// its whole provider configuration (preferred provider, custom provider
+    /// and every per-provider symbol). When the asset prefers a provider and
+    /// another one answered, the result carries no currency or price. Only
+    /// enabled providers are asked.
+    async fn resolve_asset_quote(&self, asset: &Asset) -> Result<ResolvedQuote> {
+        let provider = asset_resolution_provider_id(asset);
+        let provider_symbol = provider.as_deref().and_then(|provider| {
+            asset
+                .provider_overrides()
+                .and_then(|overrides| overrides.get(provider))
+                .and_then(|o| o.get("symbol").or_else(|| o.get("isin")))
+                .and_then(|symbol| symbol.as_str())
+                .map(str::to_string)
+        });
+        self.resolve_symbol_quote(
+            asset
+                .instrument_symbol
+                .as_deref()
+                .or(asset.display_code.as_deref())
+                .unwrap_or_default(),
+            asset.instrument_exchange_mic.as_deref(),
+            asset.instrument_type.as_ref(),
+            Some(asset.quote_ccy.as_str()),
+            provider.as_deref(),
+            provider_symbol.as_deref(),
+        )
+        .await
+    }
+
     /// Get asset profile from provider.
     ///
     /// Uses the asset's exchange_mic to build provider-specific symbols
@@ -1845,6 +1875,42 @@ where
         }
 
         Ok(ResolvedQuote::default())
+    }
+
+    async fn resolve_asset_quote(&self, asset: &Asset) -> Result<ResolvedQuote> {
+        let probe = Asset {
+            id: format!("_QUOTE_RESOLVE_{}", asset.id),
+            ..asset.clone()
+        };
+        let requested_provider = asset_resolution_provider_id(asset);
+        match self.client.read().await.fetch_latest_quote(&probe).await {
+            Ok(quote) => {
+                let resolved_provider_id = quote.data_source.clone();
+                if !resolved_provider_matches_requested(
+                    &resolved_provider_id,
+                    requested_provider.as_deref(),
+                ) {
+                    return Ok(ResolvedQuote {
+                        resolved_provider_id: Some(resolved_provider_id),
+                        ..ResolvedQuote::default()
+                    });
+                }
+                let currency = Some(quote.currency.trim().to_string()).filter(|c| !c.is_empty());
+                let price = (!quote.close.is_zero()).then_some(quote.close);
+                Ok(ResolvedQuote {
+                    currency,
+                    price,
+                    resolved_provider_id: Some(resolved_provider_id),
+                })
+            }
+            Err(err) => {
+                debug!(
+                    "resolve_asset_quote: provider lookup failed for asset {}: {}",
+                    asset.id, err
+                );
+                Ok(ResolvedQuote::default())
+            }
+        }
     }
 
     async fn get_asset_profile(&self, asset: &Asset) -> Result<ProviderProfile> {
@@ -5260,6 +5326,22 @@ mod tests {
             NoopActivityRepository,
         >,
     > {
+        quote_service_with_provider(asset_ids, Arc::new(OneQuoteProvider), sink).await
+    }
+
+    async fn quote_service_with_provider(
+        asset_ids: &[&str],
+        provider: Arc<dyn wealthfolio_market_data::MarketDataProvider>,
+        sink: Arc<CountingSink>,
+    ) -> Result<
+        QuoteService<
+            RangeQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            PositionStatusAssetRepository,
+            NoopActivityRepository,
+        >,
+    > {
         let mut service = QuoteService::new(
             Arc::new(RangeQuoteStore {
                 quotes: Vec::new(),
@@ -5285,12 +5367,9 @@ mod tests {
         )
         .await?
         .with_event_sink(sink);
-        let client = MarketDataClient::new_with_extra(
-            Arc::new(MockSecretStore),
-            vec![],
-            vec![Arc::new(OneQuoteProvider)],
-        )
-        .await?;
+        let client =
+            MarketDataClient::new_with_extra(Arc::new(MockSecretStore), vec![], vec![provider])
+                .await?;
         service.client = Arc::new(RwLock::new(client));
         *service.sync_service.write().await = Some(Arc::new(QuoteSyncService::new(
             service.client.clone(),
@@ -5338,6 +5417,81 @@ mod tests {
         let result = service.reset_all_provider_history().await?;
         assert!(result.results.is_empty());
         assert_eq!(sink.0.load(Ordering::SeqCst), 0);
+        Ok(())
+    }
+
+    /// Records the instrument it is asked for; quotes it in GBp.
+    #[derive(Default)]
+    struct RecordingProvider(Mutex<Vec<serde_json::Value>>);
+
+    #[async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for RecordingProvider {
+        fn id(&self) -> &'static str {
+            "YAHOO"
+        }
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            wealthfolio_market_data::FixtureProvider::new("unused").capabilities()
+        }
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            Default::default()
+        }
+        async fn get_latest_quote(
+            &self,
+            _: &wealthfolio_market_data::QuoteContext,
+            instrument: wealthfolio_market_data::ProviderInstrument,
+        ) -> std::result::Result<
+            wealthfolio_market_data::Quote,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            self.0
+                .lock()
+                .unwrap()
+                .push(serde_json::to_value(instrument).unwrap());
+            Ok(wealthfolio_market_data::Quote::new(
+                Utc::now(),
+                rust_decimal::Decimal::TEN,
+                "GBp".into(),
+                "YAHOO".into(),
+            ))
+        }
+        async fn get_historical_quotes(
+            &self,
+            _: &wealthfolio_market_data::QuoteContext,
+            _: wealthfolio_market_data::ProviderInstrument,
+            _: chrono::DateTime<Utc>,
+            _: chrono::DateTime<Utc>,
+        ) -> std::result::Result<
+            Vec<wealthfolio_market_data::Quote>,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            unreachable!("resolution fetches the latest quote")
+        }
+    }
+
+    /// The asset update check asks with the asset's own provider symbols even
+    /// when it prefers no provider, as a sync does.
+    #[tokio::test]
+    async fn resolve_asset_quote_uses_symbol_overrides_without_a_preferred_provider() -> Result<()>
+    {
+        let provider = Arc::new(RecordingProvider::default());
+        let service =
+            quote_service_with_provider(&[], provider.clone(), Arc::new(CountingSink::default()))
+                .await?;
+        let asset = Asset {
+            instrument_symbol: Some("CSPX".to_string()),
+            instrument_exchange_mic: Some("XLON".to_string()),
+            quote_ccy: "GBp".to_string(),
+            provider_config: Some(serde_json::json!({
+                "overrides": { "YAHOO": { "type": "equity_symbol", "symbol": "SXR8.DE" } }
+            })),
+            ..reset_test_asset("cspx")
+        };
+        let resolved = service.resolve_asset_quote(&asset).await?;
+        assert_eq!(resolved.currency.as_deref(), Some("GBp"));
+        assert_eq!(
+            provider.0.lock().unwrap().as_slice(),
+            &[serde_json::json!({ "type": "equity_symbol", "symbol": "SXR8.DE" })]
+        );
         Ok(())
     }
 }

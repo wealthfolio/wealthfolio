@@ -696,6 +696,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn asset_update_tools_need_holdings_read_and_market_data_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let assistant = AgentToolCatalog::assistant_catalog();
+        for (name, access) in [
+            ("prepare_asset_update", crate::tool::AgentToolAccess::Draft),
+            ("commit_asset_update", crate::tool::AgentToolAccess::Write),
+        ] {
+            let tool = catalog.get(name).expect(name);
+            assert_eq!(tool.access_level(), access, "{name}");
+            assert!(assistant.get(name).is_none(), "{name}");
+            for granted in [
+                AgentScopeSet::from_strs(["holdings:read"]),
+                AgentScopeSet::from_strs(["market-data:write"]),
+            ] {
+                let err = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        name,
+                        serde_json::json!({ "assetId": "a", "quoteCurrency": "USD" }),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "{name}: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn refresh_market_data_needs_holdings_read_and_market_data_write() {
         let catalog = AgentToolCatalog::mcp_catalog();
         let tool = catalog.get("refresh_market_data").expect("registered");
