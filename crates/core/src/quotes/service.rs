@@ -468,6 +468,13 @@ pub trait QuoteServiceTrait: Send + Sync {
 
     /// Get all historical quotes for a symbol.
     fn get_historical_quotes(&self, symbol: &str) -> Result<Vec<Quote>>;
+    /// Prices the user entered or imported for an asset (source `MANUAL`),
+    /// whatever the asset's current pricing mode.
+    fn get_manual_quotes(&self, asset_id: &str) -> Result<Vec<Quote>> {
+        let mut quotes = self.get_historical_quotes(asset_id)?;
+        quotes.retain(|quote| quote.data_source == DATA_SOURCE_MANUAL);
+        Ok(quotes)
+    }
 
     /// Every stored quote of one asset, one row per source and day, with the
     /// currency each row was stored with, newest day first. Unlike the other
@@ -1347,6 +1354,24 @@ where
         end: Option<NaiveDate>,
     ) -> Result<Vec<Quote>> {
         self.quote_store.all_sources_in_range(asset_id, start, end)
+    }
+
+    fn get_manual_quotes(&self, asset_id: &str) -> Result<Vec<Quote>> {
+        // Uses the partial index on manual quotes rather than the full history.
+        let floor = Day::from_ymd(1900, 1, 1).expect("1900-01-01 is a valid day");
+        let ceiling = Day::from_ymd(9999, 12, 31).expect("9999-12-31 is a valid day");
+        let mut quotes = self.quote_store.range(
+            &AssetId::new(asset_id),
+            floor,
+            ceiling,
+            Some(&QuoteSource::Manual),
+        )?;
+        if let Ok(asset) = self.asset_repo.get_by_id(asset_id) {
+            for quote in quotes.iter_mut() {
+                reconcile_quote_currency(quote, &asset);
+            }
+        }
+        Ok(quotes)
     }
 
     fn get_all_historical_quotes(&self) -> Result<HashMap<String, Vec<(NaiveDate, Quote)>>> {

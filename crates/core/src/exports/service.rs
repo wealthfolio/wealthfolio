@@ -22,7 +22,7 @@ use crate::accounts::{
 };
 use crate::activities::ActivityServiceTrait;
 use crate::assets::loan::loan_calculation;
-use crate::assets::{AlternativeAssetServiceTrait, Asset, AssetServiceTrait, QuoteMode};
+use crate::assets::{AlternativeAssetServiceTrait, Asset, AssetServiceTrait};
 use crate::errors::{Error, Result, ValidationError};
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
@@ -40,7 +40,10 @@ use crate::portfolio::valuation::{DailyAccountValuation, ValuationServiceTrait};
 use crate::portfolios::{AccountScope, PortfolioServiceTrait};
 use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::taxonomies::TaxonomyServiceTrait;
-use crate::utils::time_utils::{parse_user_timezone_or_default, user_date_from_utc, user_today};
+use crate::utils::time_utils::{
+    local_date_range_utc_bounds, parse_user_timezone_or_default, user_date_from_utc, user_today,
+    UtcDateRangeBounds,
+};
 
 const ARCHIVE_README: &str = "README.txt";
 
@@ -603,6 +606,13 @@ impl DataExportService {
         let Some(all) = summaries.iter().find(|summary| summary.period == "ALL") else {
             return Ok(Vec::new());
         };
+        // Income in a currency with no rate is left out of the totals.
+        let unconverted = all
+            .unconverted_currencies
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("; ");
         let mut rows = all
             .by_account
             .values()
@@ -628,6 +638,7 @@ impl DataExportService {
                     .with("accountId", account_id)
                     .with("income", decimal_value(amount))
                     .with("currency", all.currency.clone())
+                    .with("unconvertedCurrencies", unconverted.clone())
             })
             .collect())
     }
@@ -673,6 +684,14 @@ impl DataExportService {
                         decimal_value(in_period("TWO_YEARS_AGO", &asset.asset_id)),
                     )
                     .with("currency", all.currency.clone())
+                    .with(
+                        "unconvertedCurrencies",
+                        all.unconverted_currencies
+                            .iter()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    )
             })
             .collect())
     }
@@ -724,19 +743,16 @@ impl DataExportService {
             .collect()
     }
 
+    /// The export's dates as an exact UTC window in the user's timezone, so
+    /// activities are picked by the day they show in the app.
+    fn activity_bounds(&self, options: &ExportOptions) -> Result<UtcDateRangeBounds> {
+        local_date_range_utc_bounds(options.start_date, options.end_date, self.timezone())
+    }
+
     fn activity_count(&self, accounts: &[Account], options: &ExportOptions) -> Result<usize> {
-        let active = self.sources.activities.search_activities(
-            0,
-            1,
-            None,
-            None,
-            None,
-            None,
-            None,
-            options.start_date,
-            options.end_date,
-            None,
-            None,
+        let bounds = self.activity_bounds(options)?;
+        let active = self.sources.activities.search_activities_in_utc_range(
+            0, 1, None, None, None, None, None, bounds.0, bounds.1, None, None,
         )?;
         let mut count = usize::try_from(active.meta.total_row_count).unwrap_or(0);
         if options.include_archived {
@@ -747,16 +763,13 @@ impl DataExportService {
                 .collect::<HashSet<_>>();
             if !archived.is_empty() {
                 // Account-scoped reads skip archived accounts, so filter the full list.
-                let tz = self.timezone();
                 count += self
                     .sources
                     .activities
                     .get_activities_including_archived_accounts()?
                     .into_iter()
                     .filter(|activity| archived.contains(activity.account_id.as_str()))
-                    .filter(|activity| {
-                        options.in_range(user_date_from_utc(activity.activity_date, tz))
-                    })
+                    .filter(|activity| within_bounds(&bounds, activity.activity_date))
                     .count();
             }
         }
@@ -768,10 +781,11 @@ impl DataExportService {
         format: ExportFileFormat,
         options: &ExportOptions,
     ) -> Result<Vec<ExportRecord>> {
+        let bounds = self.activity_bounds(options)?;
         let mut response = self.sources.activities.export_activities(
             options.include_archived,
-            options.start_date,
-            options.end_date,
+            bounds.0,
+            bounds.1,
         )?;
         // Rows of cash and credit-card accounts carry their running balance.
         self.sources
@@ -940,6 +954,24 @@ impl DataExportService {
                 }
             })
             .collect::<Vec<_>>();
+        let mut rows = rows;
+        let mut accounts_with_cash = snapshots.values().collect::<Vec<_>>();
+        accounts_with_cash.sort_by(|a, b| a.account_id.cmp(&b.account_id));
+        for snapshot in accounts_with_cash {
+            rows.extend(historical_cash_rows(
+                &snapshot.account_id,
+                names.get(&snapshot.account_id).cloned(),
+                &snapshot.cash_balances,
+                as_of,
+                &base_currency,
+                |amount, currency| {
+                    self.sources
+                        .fx
+                        .convert_currency_for_date(amount, currency, &base_currency, as_of)
+                        .ok()
+                },
+            ));
+        }
         ExportRecord::from_records(&rows)
     }
 
@@ -1022,12 +1054,14 @@ impl DataExportService {
             .assets
             .get_assets()?
             .into_iter()
-            .filter(|asset| asset.quote_mode == QuoteMode::Manual && !asset.is_alternative())
+            .filter(|asset| !asset.is_alternative())
             .collect::<Vec<_>>();
         assets.sort_by_key(asset_symbol);
         let mut rows = Vec::new();
         for asset in &assets {
-            let mut quotes = self.sources.quotes.get_historical_quotes(&asset.id)?;
+            // Prices the user entered or imported, on any asset: an override on
+            // a market-priced asset counts, provider history on a manual one doesn't.
+            let mut quotes = self.sources.quotes.get_manual_quotes(&asset.id)?;
             quotes.sort_by_key(|quote| quote.timestamp);
             for quote in quotes {
                 let date = quote.timestamp.date_naive();
@@ -1562,6 +1596,54 @@ fn limit_progress_columns(
     ]
 }
 
+/// Whether an instant falls in a `[start, end)` UTC window; open ends match all.
+fn within_bounds(bounds: &UtcDateRangeBounds, instant: chrono::DateTime<chrono::Utc>) -> bool {
+    bounds.0.is_none_or(|start| instant >= start) && bounds.1.is_none_or(|end| instant < end)
+}
+
+/// One holdings row per non-zero cash balance of an account on a past day.
+/// Cash is its own price: quantity and market value are the balance.
+fn historical_cash_rows(
+    account_id: &str,
+    account_name: Option<String>,
+    cash_balances: &HashMap<String, Decimal>,
+    as_of: NaiveDate,
+    base_currency: &str,
+    convert: impl Fn(Decimal, &str) -> Option<Decimal>,
+) -> Vec<HistoricalHoldingRow> {
+    let mut currencies = cash_balances
+        .iter()
+        .filter(|(_, amount)| !amount.is_zero())
+        .collect::<Vec<_>>();
+    currencies.sort();
+    currencies
+        .into_iter()
+        .map(|(currency, amount)| HistoricalHoldingRow {
+            as_of_date: as_of,
+            account_id: account_id.to_string(),
+            account_name: account_name.clone(),
+            asset_id: format!("CASH-{currency}"),
+            symbol: Some(currency.clone()),
+            name: Some(format!("Cash ({currency})")),
+            quantity: *amount,
+            contract_multiplier: Decimal::ONE,
+            average_cost: Decimal::ONE,
+            cost_basis: *amount,
+            cost_basis_currency: currency.clone(),
+            price_date: Some(as_of),
+            price: Some(Decimal::ONE),
+            price_currency: Some(currency.clone()),
+            market_value: Some(*amount),
+            base_currency: base_currency.to_string(),
+            market_value_base: if currency == base_currency {
+                Some(*amount)
+            } else {
+                convert(*amount, currency)
+            },
+        })
+        .collect()
+}
+
 /// Month keys (`YYYY-MM`) for budget actuals: the export's dates, or the
 /// twelve months up to the current one.
 fn budget_months(options: &ExportOptions, today: NaiveDate) -> Vec<String> {
@@ -1892,6 +1974,51 @@ mod tests {
         assert!(month_in_range("2026-02", &ranged));
         assert!(!month_in_range("2026-03", &ranged));
         assert!(month_in_range("1999-01", &ExportOptions::default()));
+    }
+
+    #[test]
+    fn past_holdings_include_each_cash_balance() {
+        let balances = HashMap::from([
+            ("USD".to_string(), Decimal::from(250)),
+            ("EUR".to_string(), Decimal::from(100)),
+            ("CAD".to_string(), Decimal::ZERO),
+        ]);
+        let rows = historical_cash_rows(
+            "acct",
+            Some("Brokerage".into()),
+            &balances,
+            date(2025, 12, 31),
+            "USD",
+            |amount, currency| (currency == "EUR").then(|| amount * Decimal::from(2)),
+        );
+
+        assert_eq!(rows.len(), 2, "zero balances are left out");
+        assert_eq!(rows[0].asset_id, "CASH-EUR");
+        assert_eq!(rows[0].market_value, Some(Decimal::from(100)));
+        assert_eq!(rows[0].market_value_base, Some(Decimal::from(200)));
+        assert_eq!(rows[1].asset_id, "CASH-USD");
+        assert_eq!(rows[1].market_value_base, Some(Decimal::from(250)));
+        assert_eq!(rows[1].account_name.as_deref(), Some("Brokerage"));
+    }
+
+    #[test]
+    fn activity_dates_follow_the_users_timezone() {
+        // 02:00 UTC on Jan 3 is still Jan 2 in Toronto.
+        let options = ExportOptions {
+            start_date: Some(date(2026, 1, 2)),
+            end_date: Some(date(2026, 1, 2)),
+            ..ExportOptions::default()
+        };
+        let bounds = local_date_range_utc_bounds(
+            options.start_date,
+            options.end_date,
+            chrono_tz::America::Toronto,
+        )
+        .unwrap();
+        let late_evening: chrono::DateTime<chrono::Utc> = "2026-01-03T02:00:00Z".parse().unwrap();
+        let next_morning: chrono::DateTime<chrono::Utc> = "2026-01-03T06:00:00Z".parse().unwrap();
+        assert!(within_bounds(&bounds, late_evening));
+        assert!(!within_bounds(&bounds, next_morning));
     }
 
     #[test]

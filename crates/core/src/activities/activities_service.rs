@@ -6465,11 +6465,14 @@ impl ActivityServiceTrait for ActivityService {
     fn export_activities(
         &self,
         include_archived: bool,
-        date_from: Option<NaiveDate>,
-        date_to: Option<NaiveDate>,
+        date_from_utc: Option<DateTime<Utc>>,
+        date_to_utc_exclusive: Option<DateTime<Utc>>,
     ) -> Result<ActivitySearchResponse> {
-        self.activity_repository
-            .export_activities(include_archived, date_from, date_to)
+        self.activity_repository.export_activities(
+            include_archived,
+            date_from_utc,
+            date_to_utc_exclusive,
+        )
     }
 
     /// Balances come from each account's whole history, not the page: a row's
