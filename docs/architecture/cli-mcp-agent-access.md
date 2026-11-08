@@ -891,6 +891,7 @@ commit_account_change              -- save it
 get_holdings_snapshots             -- list an account's snapshot dates, or read one
 prepare_holdings_snapshot          -- preview one date's positions and cash
 commit_holdings_snapshot           -- save it
+get_exchange_rates                 -- read stored exchange rates
 ```
 
 These let an agent create the accounts it imports into, and fix an account's
@@ -967,6 +968,14 @@ snapshot and FX services through `AgentEnvironment::snapshot_service` and
 `fx_service`, whose default bodies return `None`, so test environments need no
 change.
 
+`get_exchange_rates` (`holdings:read`) reads the stored rates valuations use,
+through `FxServiceTrait`; it never fetches from a provider. Without dates it
+returns the latest rate of each registered pair, optionally only pairs involving
+the given currencies. With dates (up to 31) it returns each given currency's
+rate into `to` (the base currency by default) on each date, through
+`get_exchange_rates_for_dates`, the lookup valuations use; a pair without a
+stored rate returns an error for that row.
+
 ### Deferred Indefinitely
 
 Classification writes, taxonomy create/edit/delete, activity/account deletion,
@@ -995,7 +1004,8 @@ accounts:read            get_accounts, get_cash_balances, get_portfolios
 holdings:read            get_holdings, get_asset_allocation,
                          get_valuation_history, get_income, get_net_worth,
                          get_asset, get_quote_history,
-                         get_market_data_providers, get_holdings_snapshots
+                         get_market_data_providers, get_holdings_snapshots,
+                         get_exchange_rates
 performance:read         get_performance
 activities:read          search_activities, get_import_mapping,
                          find_transfer_matches

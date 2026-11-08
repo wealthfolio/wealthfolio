@@ -592,6 +592,7 @@ mod tests {
         assert!(!names.contains(&"get_holdings_snapshots"));
         assert!(!names.contains(&"prepare_holdings_snapshot"));
         assert!(!names.contains(&"commit_holdings_snapshot"));
+        assert!(!names.contains(&"get_exchange_rates"));
     }
 
     #[tokio::test]
@@ -807,6 +808,7 @@ mod tests {
             "get_holdings_snapshots",
             "prepare_holdings_snapshot",
             "commit_holdings_snapshot",
+            "get_exchange_rates",
         ] {
             let err = catalog
                 .execute(

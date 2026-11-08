@@ -372,8 +372,8 @@ async fn mcp_pat_lifecycle() {
         .collect();
     assert_eq!(
         tools.len(),
-        45,
-        "read-only catalog must expose 45 tools (including Spending reads and proposals): {names:?}"
+        46,
+        "read-only catalog must expose 46 tools (including Spending reads and proposals): {names:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -567,8 +567,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        80,
-        "full-scope token must see all 80 tools: {names:?}"
+        81,
+        "full-scope token must see all 81 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -587,6 +587,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "get_holdings_snapshots",
         "prepare_holdings_snapshot",
         "commit_holdings_snapshot",
+        "get_exchange_rates",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -1121,6 +1122,59 @@ async fn mcp_saves_holdings_snapshots_after_a_preview() {
         refused["errors"][0].as_str().unwrap().contains("HOLDINGS"),
         "{refused}"
     );
+}
+
+/// An agent reads stored exchange rates: the latest ones, and a currency's
+/// rate into the base currency on a date. A pair without a stored rate is an
+/// error row, not a failed call; dates without currencies are refused.
+#[tokio::test]
+async fn mcp_reads_stored_exchange_rates() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "fx reader", "scopes": ["holdings:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let latest = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_exchange_rates",
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(latest["rates"].is_array(), "{latest}");
+
+    let dated = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_exchange_rates",
+        serde_json::json!({ "currencies": ["zzz", "usd"], "dates": ["2026-01-15"], "to": "USD" }),
+    )
+    .await;
+    // The target currency itself is skipped; the unknown one has no rate.
+    assert_eq!(dated["count"], 1, "{dated}");
+    assert_eq!(dated["rates"][0]["from"], "ZZZ", "{dated}");
+    assert_eq!(dated["rates"][0]["to"], "USD", "{dated}");
+    assert!(dated["rates"][0]["rate"].is_null(), "{dated}");
+    assert!(dated["rates"][0]["error"].is_string(), "{dated}");
+
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "get_exchange_rates",
+        serde_json::json!({ "dates": ["2026-01-15"] }),
+    )
+    .await;
+    assert!(error.contains("currencies"), "{error}");
 }
 
 /// A stored position whose cost is in another unit than its asset's quote

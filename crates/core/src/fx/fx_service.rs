@@ -730,6 +730,38 @@ mod tests {
     }
 
     #[test]
+    fn get_exchange_rate_for_date_scales_minor_units() {
+        let date = NaiveDate::from_ymd_opt(2026, 5, 18).unwrap();
+        let repo = Arc::new(MockFxRepository::default());
+        repo.historical_rates
+            .lock()
+            .unwrap()
+            .push(make_historical_rate(
+                "GBP",
+                "USD",
+                Decimal::new(125, 2),
+                date,
+            ));
+        let service = FxService::new(repo);
+        service.initialize().unwrap();
+
+        // One penny is a hundredth of a pound, either way round.
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("GBp", "USD", date)
+                .unwrap(),
+            Decimal::new(125, 4)
+        );
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("USD", "GBp", date)
+                .unwrap()
+                .round_dp(6),
+            Decimal::new(80, 0)
+        );
+    }
+
+    #[test]
     fn get_exchange_rate_for_date_falls_back_to_nearest_when_no_exact_match() {
         // Only a rate on 2026-05-10 exists; a lookup for 2026-05-18 (no quote,
         // e.g. a weekend/holiday) should fall back to the nearest available
