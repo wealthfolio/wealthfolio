@@ -739,6 +739,11 @@ pub async fn admit(
 
 pub async fn mcp(State(root): State<Arc<WebProfiles>>, request: Request<Body>) -> Response {
     use tower::ServiceExt;
+    // The PAT lives in the profile's database, so a cold profile starts before
+    // the router verifies it. Skip that work for requests that cannot match.
+    if crate::mcp::auth::bearer_pat(request.headers()).is_none() {
+        return crate::mcp::auth::unauthorized();
+    }
     let id = match request
         .headers()
         .get(wealthfolio_core::profiles::PROFILE_ID_HEADER)
@@ -761,6 +766,15 @@ pub async fn mcp(State(root): State<Arc<WebProfiles>>, request: Request<Body>) -
     } else {
         let state = match root.runtime(id).await {
             Ok(state) => state,
+            // The caller is not authenticated yet: keep startup details in the
+            // server log, which `startup_failure` already wrote.
+            Err((StatusCode::INTERNAL_SERVER_ERROR, _)) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "PROFILE_STARTUP_FAILED: The profile could not start. See the server log.",
+                )
+                    .into_response()
+            }
             Err(e) => return e.into_response(),
         };
         let router = crate::mcp::router(state, &root.config);
