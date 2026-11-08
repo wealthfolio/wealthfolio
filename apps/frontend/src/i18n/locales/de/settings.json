@@ -1263,6 +1263,7 @@
     "scope_locked_title": "Erforderlich für Aktivitäten — bestätigen/schreiben",
     "scope_locked_market_data_title": "Erforderlich für Marktdaten — schreiben",
     "scope_locked_classification_title": "Erforderlich für Anlageklassifizierung — anwenden/schreiben",
+    "scope_locked_accounts_title": "Erforderlich für Konten — schreiben",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1325,6 +1326,10 @@
       "budget_write": {
         "label": "Budgets verwalten",
         "description": "Standard- und Monatsbudgets, Gruppen, Puffer und Überträge ändern. Erfordert Ausgaben ansehen."
+      },
+      "accounts_write": {
+        "label": "Konten — schreiben",
+        "description": "Konten anlegen und Name, Typ, Gruppe, Nummer, Erfassungsmodus sowie Ausblenden oder Archivieren ändern. Erfordert die Berechtigung Konten (Lesen)."
       }
     },
     "preset": {

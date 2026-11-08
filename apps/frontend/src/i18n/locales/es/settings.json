@@ -1302,6 +1302,7 @@
     "scope_locked_title": "Requerido por Actividades: confirmar/escribir",
     "scope_locked_market_data_title": "Requerido por Datos de mercado: escribir",
     "scope_locked_classification_title": "Requerido por Clasificación de activos: aplicar/escribir",
+    "scope_locked_accounts_title": "Requerido por Cuentas: escribir",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1364,6 +1365,10 @@
       "budget_write": {
         "label": "Gestionar presupuestos",
         "description": "Modificar presupuestos predeterminados y mensuales, grupos, reservas y saldos transferidos. Requiere Ver gastos."
+      },
+      "accounts_write": {
+        "label": "Cuentas: escribir",
+        "description": "Crear cuentas y cambiar su nombre, tipo, grupo, número, modo de seguimiento y si están ocultas o archivadas. Requiere el ámbito de cuentas (lectura)."
       }
     },
     "preset": {

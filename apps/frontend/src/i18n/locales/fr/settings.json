@@ -1302,6 +1302,7 @@
     "scope_locked_title": "Requis par Activités — valider/écrire",
     "scope_locked_market_data_title": "Requis par Données de marché — écrire",
     "scope_locked_classification_title": "Requis par Classification des actifs — appliquer/écrire",
+    "scope_locked_accounts_title": "Requis par Comptes — écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {
@@ -1364,6 +1365,10 @@
       "budget_write": {
         "label": "Gérer les budgets",
         "description": "Modifier les budgets par défaut et mensuels, groupes, réserves et reports. Nécessite la consultation des dépenses."
+      },
+      "accounts_write": {
+        "label": "Comptes — écrire",
+        "description": "Créer des comptes et modifier leur nom, type, groupe, numéro, mode de suivi et leur état masqué ou archivé. Nécessite la portée comptes (lecture)."
       }
     },
     "preset": {
