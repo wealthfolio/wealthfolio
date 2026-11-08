@@ -690,6 +690,7 @@ async fn build_context(
     );
 
     // Create AI environment and chat service
+    let portfolio_job_binding = super::ai_environment::PortfolioJobBinding::default();
     let ai_environment = Arc::new(TauriAiEnvironment::new(
         base_currency.clone(),
         timezone.clone(),
@@ -721,6 +722,7 @@ async fn build_context(
         snapshot_service.clone(),
         lots_repository.clone(),
         custom_provider_service.clone(),
+        portfolio_job_binding.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();
@@ -808,6 +810,7 @@ async fn build_context(
             ai_provider_service,
             ai_chat_service,
             agent_environment,
+            portfolio_job_binding,
             mcp_audit_repository,
             pat_repository,
             addon_service,

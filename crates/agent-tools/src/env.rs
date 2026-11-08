@@ -106,6 +106,20 @@ pub trait AgentEnvironment: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Queue a portfolio job that syncs market data with `mode`, then brings
+    /// valuations up to date: the job the app's price refresh buttons start,
+    /// with the host's one-at-a-time lock and retries. Returns once the job
+    /// is queued. The default reports that this environment cannot start one.
+    async fn request_portfolio_job(
+        &self,
+        mode: wealthfolio_core::quotes::MarketSyncMode,
+    ) -> wealthfolio_core::Result<()> {
+        let _ = mode;
+        Err(wealthfolio_core::Error::Unexpected(
+            "Refreshing market data is not available in this environment".to_string(),
+        ))
+    }
+
     /// Run the Health Center's full checks, as its "run checks" does, and
     /// cache the result. Hosts implement it with the services the checks
     /// read; the default reports that this environment cannot run them.

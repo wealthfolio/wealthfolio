@@ -696,6 +696,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn refresh_market_data_needs_holdings_read_and_market_data_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let tool = catalog.get("refresh_market_data").expect("registered");
+        assert_eq!(tool.access_level(), crate::tool::AgentToolAccess::Write);
+        assert!(!tool.is_additive());
+        assert!(AgentToolCatalog::assistant_catalog()
+            .get("refresh_market_data")
+            .is_none());
+        for granted in [
+            AgentScopeSet::from_strs(["holdings:read"]),
+            AgentScopeSet::from_strs(["market-data:write"]),
+        ] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    "refresh_market_data",
+                    serde_json::json!({ "mode": "latest" }),
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(err, AgentToolError::ScopeDenied { .. }), "{err}");
+        }
+    }
+
+    #[tokio::test]
     async fn asset_market_data_reads_are_denied_without_holdings_read() {
         let catalog = AgentToolCatalog::mcp_catalog();
         let granted = AgentScopeSet::from_strs(["classification:read", "market-data:write"]);

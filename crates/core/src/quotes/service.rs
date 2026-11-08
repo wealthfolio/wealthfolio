@@ -397,6 +397,8 @@ pub struct SparseAssetMarketFacts {
 /// Unified trait for all quote operations.
 #[async_trait]
 pub trait QuoteServiceTrait: Send + Sync {
+    /// Replace an asset's provider quotes with a fresh fetch, keeping MANUAL
+    /// and BROKER rows. Emits one `PriceHistoryChanged` when it succeeds.
     async fn reset_provider_history(
         &self,
         _asset_id: &str,
@@ -406,6 +408,8 @@ pub trait QuoteServiceTrait: Send + Sync {
         ))
     }
 
+    /// Reset every eligible asset; emits one `PriceHistoryChanged` when any
+    /// asset was replaced.
     async fn reset_all_provider_history(&self) -> Result<super::ResetAllProviderHistoryResult> {
         Err(Error::Repository(
             "Provider history reset is not supported".into(),
@@ -2006,17 +2010,25 @@ where
         &self,
         asset_id: &str,
     ) -> Result<super::ResetProviderHistoryResult> {
-        self.get_sync_service()
+        let result = self
+            .get_sync_service()
             .await?
             .reset_provider_history(asset_id)
-            .await
+            .await?;
+        self.event_sink.emit(DomainEvent::PriceHistoryChanged);
+        Ok(result)
     }
 
     async fn reset_all_provider_history(&self) -> Result<super::ResetAllProviderHistoryResult> {
-        self.get_sync_service()
+        let result = self
+            .get_sync_service()
             .await?
             .reset_all_provider_history()
-            .await
+            .await?;
+        if !result.results.is_empty() {
+            self.event_sink.emit(DomainEvent::PriceHistoryChanged);
+        }
+        Ok(result)
     }
 
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
@@ -3558,6 +3570,38 @@ mod tests {
 
     #[async_trait]
     impl QuoteStore for RangeQuoteStore {
+        /// A market equity whose stored provider history can be reset; the
+        /// asset id `FAIL` fails at commit.
+        fn provider_history_reset_context(
+            &self,
+            asset_id: &str,
+        ) -> Result<crate::quotes::ProviderHistoryResetContext> {
+            Ok(crate::quotes::ProviderHistoryResetContext {
+                asset: reset_test_asset(asset_id),
+                fingerprint: String::new(),
+                earliest_provider_date: None,
+                provider_configuration: Vec::new(),
+            })
+        }
+
+        async fn replace_provider_history(
+            &self,
+            context: crate::quotes::ProviderHistoryResetContext,
+            quotes: Vec<Quote>,
+        ) -> Result<crate::quotes::ResetProviderHistoryResult> {
+            if context.asset.id == "FAIL" {
+                return Err(Error::Repository("commit failed".into()));
+            }
+            Ok(crate::quotes::ResetProviderHistoryResult {
+                asset_id: context.asset.id,
+                source: "YAHOO".into(),
+                from_date: String::new(),
+                to_date: String::new(),
+                inserted_count: quotes.len(),
+                deleted_count: 0,
+            })
+        }
+
         async fn save_quote(&self, _quote: &Quote) -> Result<Quote> {
             unimplemented!("unused in this test")
         }
@@ -4141,14 +4185,14 @@ mod tests {
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn get_holdings_snapshot_bounds_for_assets(
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn check_existing_duplicates(
@@ -5133,5 +5177,167 @@ mod tests {
     fn test_extract_provider_id_from_sync_error_unknown_format() {
         let error = "Market data operation failed: All providers failed";
         assert_eq!(extract_provider_id_from_sync_error(error), None);
+    }
+
+    fn reset_test_asset(asset_id: &str) -> Asset {
+        Asset {
+            id: asset_id.to_string(),
+            kind: AssetKind::Investment,
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_symbol: Some("AAPL".to_string()),
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "USD".to_string(),
+            is_active: true,
+            ..Default::default()
+        }
+    }
+
+    /// Serves one historical quote for any equity, without network.
+    struct OneQuoteProvider;
+
+    #[async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for OneQuoteProvider {
+        fn id(&self) -> &'static str {
+            "YAHOO"
+        }
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            wealthfolio_market_data::FixtureProvider::new("unused").capabilities()
+        }
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            Default::default()
+        }
+        async fn get_latest_quote(
+            &self,
+            _: &wealthfolio_market_data::QuoteContext,
+            _: wealthfolio_market_data::ProviderInstrument,
+        ) -> std::result::Result<
+            wealthfolio_market_data::Quote,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            unreachable!("a reset fetches history")
+        }
+        async fn get_historical_quotes(
+            &self,
+            _: &wealthfolio_market_data::QuoteContext,
+            _: wealthfolio_market_data::ProviderInstrument,
+            _start: chrono::DateTime<Utc>,
+            end: chrono::DateTime<Utc>,
+        ) -> std::result::Result<
+            Vec<wealthfolio_market_data::Quote>,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            Ok(vec![wealthfolio_market_data::Quote::new(
+                end,
+                rust_decimal::Decimal::TEN,
+                "USD".into(),
+                "YAHOO".into(),
+            )])
+        }
+    }
+
+    #[derive(Default)]
+    struct CountingSink(AtomicUsize);
+
+    impl crate::events::DomainEventSink for CountingSink {
+        fn emit(&self, event: DomainEvent) {
+            if matches!(event, DomainEvent::PriceHistoryChanged) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+
+    /// A quote service over `asset_ids` whose provider serves one quote for
+    /// any equity; resets of the asset id `FAIL` fail at commit.
+    async fn reset_quote_service(
+        asset_ids: &[&str],
+        sink: Arc<CountingSink>,
+    ) -> Result<
+        QuoteService<
+            RangeQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            PositionStatusAssetRepository,
+            NoopActivityRepository,
+        >,
+    > {
+        let mut service = QuoteService::new(
+            Arc::new(RangeQuoteStore {
+                quotes: Vec::new(),
+                range_calls: Arc::new(AtomicUsize::new(0)),
+            }),
+            Arc::new(MockSyncStateStore {
+                provider_sync_stats: vec![],
+                with_errors: vec![],
+                states: Arc::new(Mutex::new(HashMap::new())),
+            }),
+            Arc::new(MockProviderSettingsStore { providers: vec![] }),
+            Arc::new(PositionStatusAssetRepository {
+                assets: asset_ids
+                    .iter()
+                    .map(|id| (id.to_string(), reset_test_asset(id)))
+                    .collect(),
+                reactivated: Arc::new(Mutex::new(Vec::new())),
+                deactivated: Arc::new(Mutex::new(Vec::new())),
+                list_by_asset_ids_calls: Arc::new(AtomicUsize::new(0)),
+            }),
+            Arc::new(NoopActivityRepository),
+            Arc::new(MockSecretStore),
+        )
+        .await?
+        .with_event_sink(sink);
+        let client = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![],
+            vec![Arc::new(OneQuoteProvider)],
+        )
+        .await?;
+        service.client = Arc::new(RwLock::new(client));
+        *service.sync_service.write().await = Some(Arc::new(QuoteSyncService::new(
+            service.client.clone(),
+            service.quote_store.clone(),
+            service.sync_state_store.clone(),
+            service.asset_repo.clone(),
+            service.activity_repo.clone(),
+        )));
+        Ok(service)
+    }
+
+    /// Core emits `PriceHistoryChanged` once per successful reset, so the
+    /// hosts and the MCP tool no longer emit it themselves.
+    #[tokio::test]
+    async fn provider_history_reset_emits_one_price_history_event() -> Result<()> {
+        let sink = Arc::new(CountingSink::default());
+        let service = reset_quote_service(&["RESET"], sink.clone()).await?;
+
+        let reset = service.reset_provider_history("RESET").await?;
+        assert_eq!(reset.inserted_count, 1);
+        assert_eq!(sink.0.load(Ordering::SeqCst), 1);
+
+        assert!(service.reset_provider_history("FAIL").await.is_err());
+        assert_eq!(
+            sink.0.load(Ordering::SeqCst),
+            1,
+            "a failed reset emits nothing"
+        );
+        Ok(())
+    }
+
+    /// A reset of every asset emits one event when any asset was replaced,
+    /// however many were, and none when nothing was.
+    #[tokio::test]
+    async fn reset_of_all_assets_emits_one_event_only_when_one_was_replaced() -> Result<()> {
+        let sink = Arc::new(CountingSink::default());
+        let service = reset_quote_service(&["BULK_A", "BULK_B", "FAIL"], sink.clone()).await?;
+        let result = service.reset_all_provider_history().await?;
+        assert_eq!(result.results.len(), 2);
+        assert_eq!(result.failures.len(), 1);
+        assert_eq!(sink.0.load(Ordering::SeqCst), 1);
+
+        let sink = Arc::new(CountingSink::default());
+        let service = reset_quote_service(&["FAIL"], sink.clone()).await?;
+        let result = service.reset_all_provider_history().await?;
+        assert!(result.results.is_empty());
+        assert_eq!(sink.0.load(Ordering::SeqCst), 0);
+        Ok(())
     }
 }

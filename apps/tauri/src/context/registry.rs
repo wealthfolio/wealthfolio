@@ -80,6 +80,8 @@ pub struct ServiceContext {
     pub ai_provider_service: Arc<dyn AiProviderServiceTrait>,
     pub ai_chat_service: Arc<ChatService<TauriAiEnvironment>>,
     pub agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment>,
+    /// Lets the agent environment start portfolio jobs; set on install.
+    pub portfolio_job_binding: super::ai_environment::PortfolioJobBinding,
     pub mcp_audit_repository: Arc<McpAuditRepository>,
     pub pat_repository: Arc<PatRepository>,
     pub addon_service: Arc<AddonService>,

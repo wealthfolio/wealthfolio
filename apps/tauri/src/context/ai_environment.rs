@@ -3,7 +3,9 @@
 //! Provides the wealthfolio-ai crate with access to Tauri services
 //! for tool execution and settings management.
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock, Weak};
+
+use tauri::AppHandle;
 
 use wealthfolio_ai::{AgentEnvironment, AiEnvironment, ChatRepositoryTrait};
 use wealthfolio_core::{
@@ -21,7 +23,7 @@ use wealthfolio_core::{
     performance::PerformanceServiceTrait,
     portfolio::{net_worth::NetWorthServiceTrait, snapshot::SnapshotServiceTrait},
     portfolios::PortfolioServiceTrait,
-    quotes::QuoteServiceTrait,
+    quotes::{MarketSyncMode, QuoteServiceTrait},
     secrets::SecretStore,
     settings::SettingsServiceTrait,
     taxonomies::TaxonomyServiceTrait,
@@ -32,6 +34,12 @@ use wealthfolio_spending::cash_activities::{CashActivityService, CashActivitySer
 use wealthfolio_spending::categorization_rules::{
     CategorizationRulesService, CategorizationRulesServiceTrait,
 };
+
+/// The app handle and profile context portfolio jobs run with. The context
+/// owns this environment, so the environment is built first and the binding
+/// is set once the context is installed; it holds the context weakly so the
+/// profile can still close.
+pub type PortfolioJobBinding = Arc<OnceLock<(AppHandle, Weak<super::ServiceContext>)>>;
 
 /// Tauri-side implementation of AiEnvironment.
 ///
@@ -69,6 +77,7 @@ pub struct TauriAiEnvironment {
     snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
     custom_provider_service: Arc<CustomProviderService>,
+    portfolio_jobs: PortfolioJobBinding,
 }
 
 impl TauriAiEnvironment {
@@ -105,6 +114,7 @@ impl TauriAiEnvironment {
         snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
         lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
         custom_provider_service: Arc<CustomProviderService>,
+        portfolio_jobs: PortfolioJobBinding,
     ) -> Self {
         Self {
             base_currency,
@@ -137,6 +147,7 @@ impl TauriAiEnvironment {
             snapshot_service,
             lot_repository,
             custom_provider_service,
+            portfolio_jobs,
         }
     }
 }
@@ -240,6 +251,22 @@ impl AgentEnvironment for TauriAiEnvironment {
 
     fn custom_providers(&self) -> wealthfolio_core::Result<Vec<CustomProviderWithSources>> {
         self.custom_provider_service.get_all()
+    }
+
+    async fn request_portfolio_job(&self, mode: MarketSyncMode) -> wealthfolio_core::Result<()> {
+        let unavailable = || {
+            wealthfolio_core::Error::Unexpected(
+                "The profile is not ready to refresh market data".to_string(),
+            )
+        };
+        let (handle, context) = self.portfolio_jobs.get().ok_or_else(unavailable)?;
+        let context = context.upgrade().ok_or_else(unavailable)?;
+        let payload = crate::events::PortfolioRequestPayload::builder()
+            .account_ids(None)
+            .market_sync_mode(mode)
+            .build();
+        crate::listeners::handle_portfolio_request(handle.clone(), context, payload, false);
+        Ok(())
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

@@ -19,8 +19,8 @@ const INSTRUCTIONS: &str = "Read and write access to the user's Wealthfolio port
 holdings, valuations, performance, activities, income, goals, health, classifications, spending, and \
 budgets. Write capabilities (drafting and committing activities, classification suggestions and commits, \
 organizing spending, and managing budgets) depend on the scopes granted to the access token in use. \
-For wrong or missing prices, get_asset shows an asset's listing, quote currency, provider and stored quotes. \
-Creating and updating accounts needs accounts:write.";
+For wrong or missing prices, get_asset shows an asset's listing, quote currency, provider and stored quotes, \
+and refresh_market_data refetches prices. Creating and updating accounts needs accounts:write.";
 
 /// Builds the `/mcp` router: the Streamable HTTP MCP service behind PAT
 /// bearer authentication.

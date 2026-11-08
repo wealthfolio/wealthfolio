@@ -35,6 +35,7 @@ pub mod propose_categories;
 pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
+pub mod refresh_market_data;
 pub mod spending_budgets;
 pub mod spending_events;
 pub mod spending_import_metadata;
@@ -324,14 +325,15 @@ pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
     ]
 }
 
-/// MCP-only asset and market-data reads: one asset's market-data setup and
-/// price state, its stored quotes, and the providers. Not exposed to the
-/// in-app assistant until it has a use for them.
+/// MCP-only asset and market-data tools: one asset's market-data setup and
+/// price state, its stored quotes, the providers, and price refreshes. Not
+/// exposed to the in-app assistant, which has no confirmation step for them.
 pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(asset_market_data::GetAsset),
         Arc::new(asset_market_data::GetQuoteHistory),
         Arc::new(asset_market_data::GetMarketDataProviders),
+        Arc::new(refresh_market_data::RefreshMarketData),
     ]
 }
 
