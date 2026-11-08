@@ -500,6 +500,22 @@ describe("period shared with the dashboard", () => {
     return userEvent.setup();
   }
 
+  it.each([
+    ["3M", "2026-01-01T05:00:00.000Z", "2026-04-01T03:59:59.999Z"],
+    ["6M", "2025-04-01T04:00:00.000Z", "2025-10-01T03:59:59.999Z"],
+    ["1Y", "2023-10-01T04:00:00.000Z", "2024-10-01T03:59:59.999Z"],
+  ])(
+    "compares a historical calendar-aligned %s window with the preceding calendar block",
+    async (code, start, end) => {
+      const user = renderAt(`?stage=where&period=${code}`);
+      await user.click(screen.getByRole("button", { name: "Previous period" }));
+      expect(insightQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ compareStartDate: start, compareEndDate: end }),
+        undefined,
+      );
+    },
+  );
+
   it("follows the period picked on the dashboard when the URL names none", () => {
     localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
     renderAt("?stage=where");

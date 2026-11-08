@@ -27,6 +27,7 @@ for (const mobile of [false, true]) {
       const oldSettings = await (
         await page.request.get(`${BASE_URL}/api/v1/spending/settings`, { headers })
       ).json();
+      let createdAccountId: string | undefined;
       try {
         expect(
           (
@@ -55,6 +56,7 @@ for (const mobile of [false, true]) {
         });
         expect(response.ok()).toBeTruthy();
         const { id } = await response.json();
+        createdAccountId = id;
         for (const [date, activityType, amount] of [
           ["2019-01-02", "DEPOSIT", 1000],
           ["2024-01-01", "WITHDRAWAL", 25],
@@ -405,6 +407,15 @@ for (const mobile of [false, true]) {
           headers,
           data: oldSettings,
         });
+        if (createdAccountId) {
+          expect(
+            (
+              await page.request.delete(`${BASE_URL}/api/v1/accounts/${createdAccountId}`, {
+                headers,
+              })
+            ).ok(),
+          ).toBeTruthy();
+        }
       }
     });
   }

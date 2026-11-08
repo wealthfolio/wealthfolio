@@ -315,8 +315,18 @@ function usesCalendarMonthComparison(selection: SpendingSelection) {
 function priorRange(
   range: DateRange | undefined,
   selection?: SpendingSelection,
+  todayISO?: string,
 ): DateRange | undefined {
   if (!range?.from || !range?.to) return undefined;
+  if (selection?.kind === "range" && selection.presetWindow?.alignment === "calendar" && todayISO) {
+    const prior = stepDashboardPeriod(
+      { ...rangePick(selection.range), presetWindow: selection.presetWindow },
+      -1,
+      todayISO,
+    );
+    const view = prior ? spendingViewForPick(prior, todayISO) : null;
+    if (view?.kind === "range") return view.range;
+  }
   if (selection?.kind === "year") return yearRange(selection.year - 1);
   if (selection && usesCalendarMonthComparison(selection)) {
     return previousFullMonthRange(range);
@@ -445,8 +455,8 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
   // "About the same as prior period" delta line. Track whether we actually
   // have a prior window and gate the query on it.
   const priorRangeForReport = useMemo(
-    () => priorRange(dateRange, selection),
-    [dateRange, selection],
+    () => priorRange(dateRange, selection, todayISO),
+    [dateRange, selection, todayISO],
   );
   const priorReportReq = useMemo(
     () =>
