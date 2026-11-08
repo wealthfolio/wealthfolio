@@ -1373,7 +1373,7 @@
       },
       "holdings_write": {
         "label": "Positions — écrire",
-        "description": "Enregistrer des instantanés de positions (positions et liquidités à une date) pour les comptes qui suivent des positions. Nécessite la portée positions (lecture)."
+        "description": "Enregistrer des instantanés de positions (positions et liquidités à une date) pour les comptes qui suivent des positions, et ajouter des actifs alternatifs et des passifs. Nécessite la portée positions (lecture)."
       }
     },
     "preset": {

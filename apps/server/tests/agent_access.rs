@@ -567,8 +567,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        81,
-        "full-scope token must see all 81 tools: {names:?}"
+        83,
+        "full-scope token must see all 83 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -588,6 +588,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "prepare_holdings_snapshot",
         "commit_holdings_snapshot",
         "get_exchange_rates",
+        "prepare_alternative_asset",
+        "commit_alternative_asset",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -1259,6 +1261,134 @@ async fn mcp_snapshots_keep_a_stored_positions_cost_currency() {
     )
     .await;
     assert_eq!(february["positions"][0]["currency"], "GBP", "{february}");
+}
+
+/// #1857: an agent creates a EUR mortgage in a USD-base profile after a
+/// preview, records 24 monthly balances in one quote import, and net worth
+/// counts the latest balance converted into USD. Loans with terms stay in the
+/// app; a repeated create is refused as a name clash.
+#[tokio::test]
+async fn mcp_creates_a_liability_and_records_its_dated_balances() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let response = server
+        .client
+        .put(format!("{}/api/v1/settings", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({ "baseCurrency": "USD" }))
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success(), "{}", response.status());
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({
+            "name": "liabilities",
+            "scopes": ["holdings:read", "holdings:write", "market-data:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let mortgage = serde_json::json!({
+        "kind": "LIABILITY", "name": "Mortgage", "currency": "EUR",
+        "currentValue": 300000, "valueDate": "2024-01-31", "subType": "mortgage"
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_alternative_asset",
+        mortgage.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], true, "{preview}");
+    assert!(
+        preview["warnings"].to_string().contains("EUR/USD"),
+        "{preview}"
+    );
+    let created = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_alternative_asset",
+        mortgage.clone(),
+    )
+    .await;
+    assert_eq!(created["committed"], true, "{created}");
+    let asset_id = created["assetId"].as_str().unwrap().to_string();
+    let again = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_alternative_asset",
+        mortgage,
+    )
+    .await;
+    assert_eq!(again["committed"], false, "{again}");
+
+    // 24 month-end balances, 2024-02 to 2026-01, 1,000 lower each month.
+    let balances: Vec<serde_json::Value> = (0..24i32)
+        .map(|index| {
+            // Month index from 2024-01: the month after the balance's month.
+            let next = 2 + index;
+            let first_of_next = chrono::NaiveDate::from_ymd_opt(
+                2024 + next / 12,
+                u32::try_from(next % 12 + 1).unwrap(),
+                1,
+            )
+            .unwrap();
+            let month_end = first_of_next.pred_opt().unwrap();
+            serde_json::json!({
+                "assetId": asset_id, "date": month_end.to_string(),
+                "price": 299000 - index * 1000, "currency": "EUR"
+            })
+        })
+        .collect();
+    assert_eq!(balances[0]["date"], "2024-02-29");
+    assert_eq!(balances[23]["date"], "2026-01-31");
+    let imported = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_quote_import",
+        serde_json::json!({ "quotes": balances }),
+    )
+    .await;
+    assert_eq!(imported["committed"], true, "{imported}");
+    assert_eq!(imported["saved"], 24, "{imported}");
+
+    // With a EUR/USD rate, net worth converts the latest balance (276,000 EUR).
+    api_post(
+        &server,
+        &cookie,
+        "exchange-rates",
+        serde_json::json!({
+            "fromCurrency": "EUR", "toCurrency": "USD", "rate": "1.1", "source": "MANUAL"
+        }),
+    )
+    .await;
+    let net_worth: serde_json::Value = server
+        .client
+        .get(format!("{}/api/v1/net-worth", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let total = &net_worth["liabilities"]["total"];
+    let total = total
+        .as_f64()
+        .or_else(|| total.as_str().and_then(|value| value.parse().ok()))
+        .unwrap_or_else(|| panic!("{net_worth}"));
+    assert!((total - 303_600.0).abs() < 0.01, "{net_worth}");
+    assert_eq!(net_worth["currency"], "USD", "{net_worth}");
 }
 
 /// Mints a read/draft/write activity token and opens an MCP session.

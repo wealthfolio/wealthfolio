@@ -11,7 +11,7 @@ use std::sync::Arc;
 use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::ActivityServiceTrait,
-    assets::AssetServiceTrait,
+    assets::{AlternativeAssetServiceTrait, AssetServiceTrait},
     fx::FxServiceTrait,
     goals::GoalServiceTrait,
     health::{HealthServiceTrait, HealthStatus},
@@ -133,6 +133,12 @@ pub trait AgentEnvironment: Send + Sync {
     /// snapshot registers. The default has none, as for
     /// [`Self::snapshot_service`].
     fn fx_service(&self) -> Option<Arc<dyn FxServiceTrait>> {
+        None
+    }
+
+    /// The alternative asset service, for creating alternative assets and
+    /// liabilities. The default has none, as for [`Self::snapshot_service`].
+    fn alternative_asset_service(&self) -> Option<Arc<dyn AlternativeAssetServiceTrait>> {
         None
     }
 

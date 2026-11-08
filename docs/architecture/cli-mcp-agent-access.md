@@ -892,6 +892,8 @@ get_holdings_snapshots             -- list an account's snapshot dates, or read 
 prepare_holdings_snapshot          -- preview one date's positions and cash
 commit_holdings_snapshot           -- save it
 get_exchange_rates                 -- read stored exchange rates
+prepare_alternative_asset          -- preview creating an alternative asset or liability
+commit_alternative_asset           -- create it
 ```
 
 These let an agent create the accounts it imports into, and fix an account's
@@ -976,6 +978,31 @@ rate into `to` (the base currency by default) on each date, through
 `get_exchange_rates_for_dates`, the lookup valuations use; a pair without a
 stored rate returns an error for that row.
 
+`prepare_alternative_asset` and `commit_alternative_asset` (`holdings:read` and
+`holdings:write`) create one property, vehicle, collectible, precious metal,
+private equity holding, other asset or liability through
+`AlternativeAssetServiceTrait::create_alternative_asset`, as the app's quick-add
+form does: the value on its date is saved as a manual price. A liability is a
+manual balance with a type (mortgage, auto, student or personal loan, HELOC,
+other) and optionally the asset it finances; it takes no loan setup, so loans
+with an interest rate, term and payment schedule stay in the app. Purchase price
+and date are for assets only, and a precious metal needs its metal, quantity and
+unit. A name another asset of the same kind already has is refused unless
+`allowDuplicateName` is set, so a repeated create adds nothing. Dated values and
+balances go through `prepare_quote_import` / `commit_quote_import`
+(`market-data:write`), which accept manual alternative assets: a batch of
+monthly balances is one call and one recalculation. The quote import takes
+prices above zero only, so a paid-off (zero) balance is entered as the
+`currentValue` at creation or in the app. The commit is the one additive MCP
+write besides `commit_categorization_rule`: it creates an asset, its first
+manual price and, for a non-base currency, its FX pair, and changes nothing
+stored. Creating an alternative asset in another currency than the base one
+registers the pair to the base currency in core (`with_fx_registration`), as
+account creation does; before, no pair was registered and net worth history
+counted the value unconverted. The audit log keeps the kind, currency, dates and
+link, never names or amounts. The tools reach the service through
+`AgentEnvironment::alternative_asset_service`, `None` by default.
+
 ### Deferred Indefinitely
 
 Classification writes, taxonomy create/edit/delete, activity/account deletion,
@@ -1047,7 +1074,8 @@ market-data:write        prepare_quote_import, commit_quote_import,
                          (each also requires holdings:read)
 accounts:write           prepare_account_change, commit_account_change
                          (each also requires accounts:read)
-holdings:write           prepare_holdings_snapshot, commit_holdings_snapshot
+holdings:write           prepare_holdings_snapshot, commit_holdings_snapshot,
+                         prepare_alternative_asset, commit_alternative_asset
                          (each also requires holdings:read)
 ```
 

@@ -262,7 +262,7 @@ mod tests {
     /// removes existing data: creating or importing activities can rewrite an
     /// asset's quote mode and that day's manual quote, and linking transfers
     /// rewrites both legs.
-    const ADDITIVE_TOOLS: &[&str] = &["commit_categorization_rule"];
+    const ADDITIVE_TOOLS: &[&str] = &["commit_alternative_asset", "commit_categorization_rule"];
 
     #[test]
     fn mcp_catalog_labels_each_tool_read_only_or_write() {

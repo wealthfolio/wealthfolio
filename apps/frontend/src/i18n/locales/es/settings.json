@@ -1373,7 +1373,7 @@
       },
       "holdings_write": {
         "label": "Posiciones: escribir",
-        "description": "Guardar instantáneas de posiciones (posiciones y efectivo en una fecha) en cuentas que siguen posiciones. Requiere el ámbito de posiciones (lectura)."
+        "description": "Guardar instantáneas de posiciones (posiciones y efectivo en una fecha) en cuentas que siguen posiciones, y añadir activos alternativos y pasivos. Requiere el ámbito de posiciones (lectura)."
       }
     },
     "preset": {
