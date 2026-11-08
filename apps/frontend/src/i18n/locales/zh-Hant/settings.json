@@ -1629,6 +1629,8 @@
       "performance_calculateHistory": "計算歷史績效",
       "performance_calculateSummary": "計算績效摘要",
       "performance_calculateAccountsSimple": "計算基本帳戶績效",
+      "allocation-targets_getAll": "查看您的資產配置目標",
+      "allocation-targets_getDrift": "將持倉與配置目標進行比較",
       "currency_getAll": "查看匯率",
       "currency_update": "更新匯率",
       "currency_add": "新增匯率",
@@ -1678,6 +1680,10 @@
       "accounts": {
         "name": "帳戶管理",
         "description": "存取帳戶資訊及設定"
+      },
+      "allocation-targets": {
+        "name": "資產配置目標",
+        "description": "唯讀存取您的資產配置目標及持倉與目標的比較"
       },
       "alternative-assets": {
         "name": "另類資產",

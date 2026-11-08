@@ -1602,6 +1602,8 @@
       "performance_calculateHistory": "パフォーマンス履歴を計算",
       "performance_calculateSummary": "パフォーマンス概要を計算",
       "performance_calculateAccountsSimple": "口座の基本パフォーマンスを計算",
+      "allocation-targets_getAll": "資産配分目標を表示",
+      "allocation-targets_getDrift": "保有資産を配分目標と比較",
       "currency_getAll": "為替レートを表示",
       "currency_update": "為替レートを更新",
       "currency_add": "新しい為替レートを追加",
@@ -1651,6 +1653,10 @@
       "accounts": {
         "name": "口座管理",
         "description": "口座情報と設定へのアクセス"
+      },
+      "allocation-targets": {
+        "name": "資産配分目標",
+        "description": "資産配分目標と、目標に対する保有資産の比較への読み取り専用アクセス"
       },
       "alternative-assets": {
         "name": "代替資産",

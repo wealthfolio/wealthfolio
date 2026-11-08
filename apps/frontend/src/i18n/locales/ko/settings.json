@@ -1602,6 +1602,8 @@
       "performance_calculateHistory": "성과 기록 계산",
       "performance_calculateSummary": "성과 요약 계산",
       "performance_calculateAccountsSimple": "기본 계좌 성과 계산",
+      "allocation-targets_getAll": "자산 배분 목표 보기",
+      "allocation-targets_getDrift": "보유 자산을 배분 목표와 비교",
       "currency_getAll": "환율 보기",
       "currency_update": "환율 업데이트",
       "currency_add": "새 환율 추가",
@@ -1651,6 +1653,10 @@
       "accounts": {
         "name": "계좌 관리",
         "description": "계좌 정보 및 설정에 접근"
+      },
+      "allocation-targets": {
+        "name": "자산 배분 목표",
+        "description": "자산 배분 목표 및 목표 대비 보유 자산 비교에 읽기 전용으로 접근"
       },
       "alternative-assets": {
         "name": "대체 자산",

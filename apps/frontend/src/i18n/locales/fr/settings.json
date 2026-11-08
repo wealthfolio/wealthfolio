@@ -1680,6 +1680,8 @@
       "performance_calculateHistory": "Calculer l’historique des performances",
       "performance_calculateSummary": "Calculer le résumé des performances",
       "performance_calculateAccountsSimple": "Calculer les performances de base des comptes",
+      "allocation-targets_getAll": "Consulter vos objectifs d’allocation",
+      "allocation-targets_getDrift": "Comparer vos positions à un objectif d’allocation",
       "currency_getAll": "Consulter les taux de change",
       "currency_update": "Mettre à jour les taux de change",
       "currency_add": "Ajouter des taux de change",
@@ -1729,6 +1731,10 @@
       "accounts": {
         "name": "Gestion des comptes",
         "description": "Accès aux informations et aux paramètres des comptes"
+      },
+      "allocation-targets": {
+        "name": "Objectifs d’allocation",
+        "description": "Accès en lecture seule à vos objectifs d’allocation et à la comparaison de vos positions avec ces objectifs"
       },
       "alternative-assets": {
         "name": "Actifs alternatifs",
