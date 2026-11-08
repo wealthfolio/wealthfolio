@@ -4459,6 +4459,80 @@ pub(crate) mod tests {
         }
     }
 
+    /// The service over one stored BUY of FUND, and the update that edits it.
+    fn free_buy_edit(stored: Activity) -> (ActivityService, ActivityUpdate) {
+        let update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
+            id: stored.id.clone(),
+            account_id: "acc-final".to_string(),
+            asset: Some(AssetResolutionInput {
+                id: Some("FUND".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: Some(Some(dec!(3))),
+            unit_price: Some(Some(dec!(0))),
+            currency: "USD".to_string(),
+            fee: Some(Some(dec!(0))),
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+        };
+        let service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], Some(stored));
+        (service, update)
+    }
+
+    /// Editing a paid BUY down to a zero price recalculates its total to zero
+    /// instead of keeping the old one.
+    #[tokio::test]
+    async fn free_buy_edit_recalculates_zero_total() {
+        let mut stored = create_stored_activity("paid-buy", "acc-final", Some("FUND"));
+        stored.quantity = Some(dec!(3));
+        stored.unit_price = Some(dec!(10));
+        stored.amount = Some(dec!(30));
+        let (service, update) = free_buy_edit(stored);
+
+        let updated = service
+            .update_activity(update)
+            .await
+            .expect("the edit should save");
+
+        assert_eq!(updated.amount, Some(dec!(0)));
+        assert_eq!(updated.status, ActivityStatus::Posted);
+    }
+
+    /// A free allotment an older import left as a draft without a total posts
+    /// when the user approves it, with the calculated zero total.
+    #[tokio::test]
+    async fn approving_a_free_buy_draft_posts_it_with_zero_total() {
+        let mut stored = create_stored_activity("free-draft", "acc-final", Some("FUND"));
+        stored.quantity = Some(dec!(3));
+        stored.unit_price = Some(dec!(0));
+        stored.amount = None;
+        stored.status = ActivityStatus::Draft;
+        stored.needs_review = true;
+        let (service, mut update) = free_buy_edit(stored);
+        update.status = Some(ActivityStatus::Posted);
+        update.needs_review = Some(false);
+
+        let updated = service
+            .update_activity(update)
+            .await
+            .expect("approving the draft should save");
+
+        assert_eq!(updated.amount, Some(dec!(0)));
+        assert_eq!(updated.status, ActivityStatus::Posted);
+        assert!(!updated.needs_review);
+    }
+
     #[tokio::test]
     async fn reinvested_dividend_rounds_its_calculated_value() {
         let activity_service =
