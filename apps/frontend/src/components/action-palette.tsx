@@ -13,6 +13,7 @@ export interface ActionPaletteItem {
   testId?: string;
   variant?: "default" | "destructive";
   disabled?: boolean;
+  checked?: boolean;
 }
 
 export interface ActionPaletteGroup {
@@ -117,6 +118,7 @@ export function ActionPalette({
                       <button
                         data-testid={item.testId}
                         disabled={item.disabled}
+                        aria-pressed={item.checked}
                         onClick={() => handleItemClick(item)}
                         className={cn(
                           "disabled:pointer-events-none disabled:opacity-50",
@@ -135,6 +137,7 @@ export function ActionPalette({
                           )}
                         />
                         <span className="text-base font-medium">{item.label}</span>
+                        {item.checked && <Icons.Check className="ms-auto size-4 shrink-0" />}
                       </button>
                     </React.Fragment>
                   );

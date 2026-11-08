@@ -41,6 +41,7 @@ import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-acti
 import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { comparisonBuckets, type ComparisonChartRow } from "../lib/chart-comparison";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
   DASHBOARD_INTERVAL_STORAGE_KEY,
@@ -99,7 +100,7 @@ import { parseCalendarYear, SPENDING_YEAR_PARAM, yearLabel, yearRange } from "..
 
 const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
-type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
+type SpendingDashboardPeriod = "1W" | "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
 type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
@@ -114,6 +115,7 @@ type SpendingSelection =
     };
 
 const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
+  "1W",
   "MTD",
   "LAST_MONTH",
   "3M",
@@ -124,6 +126,7 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
 
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
 const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
+  "1W": "spending:tabContent.interval1W",
   MTD: "spending:tabContent.intervalMtd",
   LAST_MONTH: "spending:tabContent.intervalLastMonth",
   "3M": "spending:tabContent.interval3M",
@@ -351,7 +354,11 @@ function barKeyToRange(
   return { from: `${key}-01`, to: `${key}-${String(lastDay).padStart(2, "0")}` };
 }
 
-export default function SpendingTabContent() {
+interface SpendingTabContentProps {
+  compareEnabled?: boolean;
+}
+
+export default function SpendingTabContent({ compareEnabled = false }: SpendingTabContentProps) {
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -446,6 +453,9 @@ export default function SpendingTabContent() {
       priorRangeForReport ? rangeToReportRequest(priorRangeForReport, appTimezone) : reportReq,
     [priorRangeForReport, reportReq, appTimezone],
   );
+  const comparisonAvailable =
+    !!dateRange?.from && !!dateRange.to && !!priorRangeForReport?.from && !!priorRangeForReport.to;
+  const showComparison = compareEnabled && comparisonAvailable;
 
   const {
     data: report,
@@ -453,10 +463,12 @@ export default function SpendingTabContent() {
     isError: reportErrored,
     refetch: refetchReport,
   } = useSpendingReport(reportReq);
-  const { data: priorReport, isLoading: isPriorLoading } = useSpendingReport(
-    priorReportReq,
-    /* enabled */ priorRangeForReport !== undefined,
-  );
+  const {
+    data: priorReport,
+    isLoading: isPriorLoading,
+    isError: priorReportErrored,
+    refetch: refetchPriorReport,
+  } = useSpendingReport(priorReportReq, /* enabled */ priorRangeForReport !== undefined);
   const { data: activities = [], isError: activitiesErrored } = useCashActivities({
     startDate: reportReq.startDate,
     endDate: reportReq.endDate,
@@ -667,22 +679,6 @@ export default function SpendingTabContent() {
             : (selection.preset ?? rangePick(selection.range))
           : { kind: "spending", code: selection.kind === "period" ? selection.code : restoreCode };
   const periodNavigation = {
-    step:
-      selection.kind === "range"
-        ? (selection.preset?.code ?? null)
-        : selection.kind === "period"
-          ? selection.code
-          : selection.kind,
-    onReset:
-      customMonth ||
-      customYear !== null ||
-      (selection.kind === "range" && selection.presetWindow) ||
-      (selection.kind === "period" && selection.code === "LAST_MONTH")
-        ? () => {
-            if (selection.kind === "range") handleCustomRangeSelect(undefined);
-            else handleIntervalSelect(customYear !== null ? "YTD" : "MTD");
-          }
-        : undefined,
     label: selectedIntervalDescription.startsWith("spending:")
       ? t(selectedIntervalDescription)
       : selectedIntervalDescription,
@@ -762,6 +758,7 @@ export default function SpendingTabContent() {
       return days <= 45 ? "day" : days <= 180 ? "week" : "month";
     }
     switch (selection.code) {
+      case "1W":
       case "MTD":
       case "LAST_MONTH":
         return "day";
@@ -886,6 +883,62 @@ export default function SpendingTabContent() {
           : t("spending:tabContent.monthlyAvg");
     return { barData: data, avgValue: avg, avgLabel: labelByGranularity };
   }, [report?.byDay, granularity, dateRange, appTimezone, t]);
+
+  const chartData = useMemo<ComparisonChartRow[]>(() => {
+    if (!showComparison) return barData.map((entry) => ({ ...entry, priorValue: null }));
+    const current = comparisonBuckets(report?.byDay ?? [], dateRange, granularity, todayISO);
+    const prior = comparisonBuckets(
+      priorReport?.byDay ?? [],
+      priorRangeForReport,
+      granularity,
+      todayISO,
+    );
+    return Array.from({ length: Math.max(current.length, prior.length) }, (_, index) => ({
+      key: current[index]?.key ?? prior[index]?.key ?? String(index),
+      label: numberFormatting.formatDecimal(index + 1),
+      value: current[index] && !current[index].future ? current[index].value : null,
+      future: current[index]?.future ?? true,
+      from: current[index]?.from,
+      to: current[index]?.to,
+      priorValue: prior[index] && !prior[index].future ? prior[index].value : null,
+      priorFrom: prior[index]?.from,
+      priorTo: prior[index]?.to,
+    }));
+  }, [
+    showComparison,
+    barData,
+    report?.byDay,
+    priorReport?.byDay,
+    dateRange,
+    priorRangeForReport,
+    granularity,
+    todayISO,
+    numberFormatting,
+  ]);
+
+  const comparisonLabels = useMemo(() => {
+    const label = (range: DateRange | undefined) =>
+      range?.from && range.to
+        ? dateFormatting.formatCalendarDateRange(
+            localDateParts(range.from),
+            localDateParts(range.to),
+            { month: "short", day: "numeric", year: "numeric" },
+          )
+        : "";
+    return { current: label(dateRange), prior: label(priorRangeForReport) };
+  }, [dateFormatting, dateRange, priorRangeForReport]);
+
+  const comparisonBucketLabel = (from?: string, to?: string) => {
+    if (!from || !to) return "—";
+    const first = dateFormatting.formatCalendarDate(from, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return from === to
+      ? first
+      : `${first} – ${dateFormatting.formatCalendarDate(to, { month: "short", day: "numeric", year: "numeric" })}`;
+  };
 
   const categoriesMeta = useMemo(() => {
     const meta = new Map<
@@ -1029,9 +1082,18 @@ export default function SpendingTabContent() {
       <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="flex flex-wrap items-center gap-x-1">
-              <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
+            <div
+              className="flex max-w-full flex-wrap items-center gap-x-1"
+              data-testid="dashboard-period-header"
+            >
+              <div
+                className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase"
+                data-testid="dashboard-period-caption"
+              >
                 {t("spending:tabContent.spentLabel")}
+                {selectedIntervalDescription
+                  ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
+                  : ""}
                 {excludedCategoryCount > 0 && (
                   <>
                     {" · "}
@@ -1093,12 +1155,52 @@ export default function SpendingTabContent() {
           backgroundImage: `linear-gradient(to top, ${themeBg(theme, 0.3)}, ${themeBg(theme, 0.15)} 50%, transparent 100%)`,
         }}
       >
+        {showComparison && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pb-2 md:px-6 lg:px-8">
+            <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-sm"
+                  style={{ backgroundColor: theme.deep }}
+                />
+                {comparisonLabels.current}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="bg-muted-foreground size-2 shrink-0 rounded-sm opacity-40"
+                />
+                {comparisonLabels.prior}
+              </span>
+              <span>
+                {t(
+                  `spending:tabContent.${granularity === "day" ? "comparisonDays" : granularity === "week" ? "comparisonWeeks" : "comparisonMonths"}`,
+                )}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="h-70 [&_.recharts-layer]:outline-none [&_.recharts-rectangle]:outline-none [&_.recharts-surface]:outline-none">
-          {isLoading ? (
+          {isLoading || (showComparison && isPriorLoading) ? (
             <div className="flex h-full items-center justify-center">
               <Skeleton className="h-full w-full" />
             </div>
-          ) : barData.length === 0 ? (
+          ) : showComparison && priorReportErrored ? (
+            <div
+              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-sm"
+              role="alert"
+            >
+              <p>{t("spending:tabContent.loadError")}</p>
+              <button
+                type="button"
+                className="text-foreground underline underline-offset-4"
+                onClick={() => void refetchPriorReport()}
+              >
+                {t("common:retry")}
+              </button>
+            </div>
+          ) : chartData.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.CreditCard className="text-muted-foreground/30 mb-3 h-12 w-12" />
               <p className="text-muted-foreground text-sm">
@@ -1107,7 +1209,11 @@ export default function SpendingTabContent() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+              <BarChart
+                data={chartData}
+                barGap={showComparison ? 2 : undefined}
+                margin={{ top: 8, right: 24, left: 16, bottom: 8 }}
+              >
                 <defs>
                   <linearGradient id="spending-bar" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={theme.deep} stopOpacity={0.95} />
@@ -1126,19 +1232,81 @@ export default function SpendingTabContent() {
                   cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
-                    const p = payload[0].payload as {
-                      key: string;
-                      label: string;
-                      value: number;
-                      future: boolean;
-                    };
+                    const p = payload[0].payload as ComparisonChartRow;
                     return (
-                      <div className="bg-background rounded-md border px-3 py-2 text-xs shadow-sm">
-                        <div className="text-muted-foreground">{p.key}</div>
-                        <div className="text-foreground font-semibold tabular-nums">
-                          {p.future ? "—" : <PrivacyAmount value={p.value} currency={currency} />}
-                        </div>
-                        {avgValue > 0 && (
+                      <div className="bg-background max-w-[calc(100vw-2rem)] rounded-md border px-3 py-2 text-xs shadow-sm">
+                        {showComparison ? (
+                          <div className="space-y-2">
+                            <div className="text-muted-foreground">
+                              {t(
+                                `spending:tabContent.${granularity === "day" ? "comparisonDays" : granularity === "week" ? "comparisonWeeks" : "comparisonMonths"}`,
+                              )}{" "}
+                              · {p.label}
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  aria-hidden
+                                  className="size-2 shrink-0 rounded-sm"
+                                  style={{ backgroundColor: theme.deep }}
+                                />
+                                {p.from
+                                  ? comparisonBucketLabel(p.from, p.to)
+                                  : comparisonLabels.current}
+                              </span>
+                              <span className="shrink-0 font-medium tabular-nums">
+                                {p.value === null || p.future ? (
+                                  "—"
+                                ) : (
+                                  <PrivacyAmount value={p.value} currency={currency} />
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  aria-hidden
+                                  className="bg-muted-foreground size-2 shrink-0 rounded-sm opacity-40"
+                                />
+                                {p.priorFrom
+                                  ? comparisonBucketLabel(p.priorFrom, p.priorTo)
+                                  : comparisonLabels.prior}
+                              </span>
+                              <span className="shrink-0 font-medium tabular-nums">
+                                {p.priorValue === null ? (
+                                  "—"
+                                ) : (
+                                  <PrivacyAmount value={p.priorValue} currency={currency} />
+                                )}
+                              </span>
+                            </div>
+                            {p.value !== null && p.priorValue !== null && !p.future && (
+                              <div className="border-border flex items-center justify-between gap-4 border-t pt-2">
+                                <span className="text-muted-foreground">
+                                  {t("spending:tabContent.comparisonDifference")}
+                                </span>
+                                <span className="font-medium tabular-nums">
+                                  <PrivacyAmount
+                                    value={p.value - p.priorValue}
+                                    currency={currency}
+                                  />
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="text-muted-foreground">{p.key}</div>
+                            <div className="text-foreground font-semibold tabular-nums">
+                              {p.future || p.value === null ? (
+                                "—"
+                              ) : (
+                                <PrivacyAmount value={p.value} currency={currency} />
+                              )}
+                            </div>
+                          </>
+                        )}
+                        {!showComparison && avgValue > 0 && (
                           <div className="text-muted-foreground/70 mt-1 flex items-center gap-1.5 tabular-nums">
                             <span
                               aria-hidden
@@ -1156,7 +1324,7 @@ export default function SpendingTabContent() {
                     );
                   }}
                 />
-                {avgValue > 0 && (
+                {!showComparison && avgValue > 0 && (
                   <ReferenceLine
                     y={avgValue}
                     stroke="var(--muted-foreground)"
@@ -1166,14 +1334,18 @@ export default function SpendingTabContent() {
                 )}
                 <Bar
                   dataKey="value"
+                  name={comparisonLabels.current}
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={28}
+                  maxBarSize={showComparison ? 20 : 28}
                   isAnimationActive={false}
                   onClick={(data: unknown) => {
-                    const entry = ((data as { payload?: (typeof barData)[number] })?.payload ??
-                      data) as (typeof barData)[number];
-                    if (!entry || entry.future || entry.value <= 0) return;
-                    const bucket = barKeyToRange(entry.key, granularity);
+                    const entry = ((data as { payload?: ComparisonChartRow })?.payload ??
+                      data) as ComparisonChartRow;
+                    if (!entry || entry.future || entry.value === null || entry.value <= 0) return;
+                    const bucket =
+                      entry.from && entry.to
+                        ? { from: entry.from, to: entry.to }
+                        : barKeyToRange(entry.key, granularity);
                     const rangeStart = dateRange?.from
                       ? formatDateISO(dateRange.from)
                       : bucket.from;
@@ -1183,15 +1355,57 @@ export default function SpendingTabContent() {
                     navigate(`/activities?tab=spending&from=${from}&to=${to}`);
                   }}
                 >
-                  {barData.map((entry, i) => (
+                  {chartData.map((entry, i) => (
                     <Cell
                       key={`cell-${i}`}
                       fill={entry.future ? FUTURE_BAR : "url(#spending-bar)"}
                       opacity={entry.future ? 0.7 : 1}
-                      style={{ cursor: entry.future || entry.value <= 0 ? "default" : "pointer" }}
+                      style={{
+                        cursor:
+                          entry.future || entry.value === null || entry.value <= 0
+                            ? "default"
+                            : "pointer",
+                      }}
                     />
                   ))}
                 </Bar>
+                {showComparison && (
+                  <Bar
+                    dataKey="priorValue"
+                    name={comparisonLabels.prior}
+                    fill="var(--muted-foreground)"
+                    fillOpacity={0.4}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={20}
+                    isAnimationActive={false}
+                    onClick={(data: unknown) => {
+                      const entry = ((data as { payload?: ComparisonChartRow })?.payload ??
+                        data) as ComparisonChartRow;
+                      if (
+                        !entry?.priorFrom ||
+                        !entry.priorTo ||
+                        entry.priorValue === null ||
+                        entry.priorValue <= 0
+                      )
+                        return;
+                      navigate(
+                        `/activities?tab=spending&from=${entry.priorFrom}&to=${entry.priorTo}`,
+                      );
+                    }}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={`prior-${index}`}
+                        style={{
+                          cursor:
+                            entry.priorValue !== null && entry.priorValue > 0
+                              ? "pointer"
+                              : "default",
+                        }}
+                      />
+                    ))}
+                  </Bar>
+                )}
               </BarChart>
             </ResponsiveContainer>
           )}

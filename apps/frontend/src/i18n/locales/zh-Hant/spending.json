@@ -255,18 +255,6 @@
     "month": "月",
     "year": "年",
     "previousPeriod": "上一個期間",
-    "previousStep": "前<unit>{{period}}</unit>",
-    "nextStep": "後<unit>{{period}}</unit>",
-    "backToLatest": "返回目前期間",
-    "stepUnits": {
-      "day": "1天",
-      "week": "1週",
-      "month": "1個月",
-      "threeMonths": "3個月",
-      "sixMonths": "6個月",
-      "year": "1年",
-      "fiveYears": "5年"
-    },
     "nextPeriod": "下一個期間",
     "previousYears": "更早年份",
     "nextYears": "更晚年份",
@@ -951,6 +939,11 @@
     "time": "時間"
   },
   "tabContent": {
+    "comparePriorPeriod": "與上一期間比較",
+    "comparisonDays": "期間內天數",
+    "comparisonWeeks": "期間內週數",
+    "comparisonMonths": "期間內月份",
+    "comparisonDifference": "差額",
     "stageWhereLabel": "我的現狀",
     "stageWhereSub": "進度、預算與類別明細",
     "stageChangedLabel": "發生了什麼變化",
@@ -998,6 +991,7 @@
     "fromPriorPeriod": "較上一週期",
     "intervalMtd": "本月",
     "intervalLastMonth": "上月",
+    "interval1W": "過去7天",
     "interval3M": "過去 3 個月",
     "interval6M": "過去 6 個月",
     "intervalYtd": "年初至今",

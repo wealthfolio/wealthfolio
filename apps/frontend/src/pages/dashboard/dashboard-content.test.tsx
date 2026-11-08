@@ -454,7 +454,10 @@ describe("DashboardContent", () => {
 
     const privacy = screen.getByRole("button", { name: "Hide Balance" });
     expect(privacy.closest("a")).toBeNull();
-    await userEvent.tab();
+    // Header navigation comes before the balance controls in keyboard order.
+    for (let tabs = 0; tabs < 3 && document.activeElement !== privacy; tabs++) {
+      await userEvent.tab();
+    }
     expect(privacy).toHaveFocus();
     await new Promise((resolve) => setTimeout(resolve, 800));
     expect(screen.queryByRole("button", { name: "Update prices" })).not.toBeInTheDocument();

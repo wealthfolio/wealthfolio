@@ -262,18 +262,6 @@
     "month": "Mois",
     "year": "Année",
     "previousPeriod": "Période précédente",
-    "previousStep": "Précédent : <unit>{{period}}</unit>",
-    "nextStep": "Suivant : <unit>{{period}}</unit>",
-    "backToLatest": "Revenir à la période actuelle",
-    "stepUnits": {
-      "day": "jour",
-      "week": "semaine",
-      "month": "mois",
-      "threeMonths": "3 mois",
-      "sixMonths": "6 mois",
-      "year": "an",
-      "fiveYears": "5 ans"
-    },
     "nextPeriod": "Période suivante",
     "previousYears": "Années précédentes",
     "nextYears": "Années suivantes",
@@ -1001,6 +989,11 @@
     "deselectDay": "Désélectionner toutes les transactions du {{date}}"
   },
   "tabContent": {
+    "comparePriorPeriod": "Comparer à la période précédente",
+    "comparisonDays": "Jour de la période",
+    "comparisonWeeks": "Semaine de la période",
+    "comparisonMonths": "Mois de la période",
+    "comparisonDifference": "Écart",
     "stageWhereLabel": "Où j'en suis",
     "stageWhereSub": "Rythme, budget et répartition par catégorie",
     "stageChangedLabel": "Ce qui a changé",
@@ -1051,6 +1044,7 @@
     "fromPriorPeriod": "par rapport à la période précédente",
     "intervalMtd": "ce mois-ci",
     "intervalLastMonth": "le mois dernier",
+    "interval1W": "7 derniers jours",
     "interval3M": "3 derniers mois",
     "interval6M": "6 derniers mois",
     "intervalYtd": "depuis le début de l'année",

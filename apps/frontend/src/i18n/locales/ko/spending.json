@@ -253,18 +253,6 @@
     "month": "월",
     "year": "연도",
     "previousPeriod": "이전 기간",
-    "previousStep": "이전 <unit>{{period}}</unit>",
-    "nextStep": "다음 <unit>{{period}}</unit>",
-    "backToLatest": "현재 기간으로 돌아가기",
-    "stepUnits": {
-      "day": "1일",
-      "week": "1주",
-      "month": "1개월",
-      "threeMonths": "3개월",
-      "sixMonths": "6개월",
-      "year": "1년",
-      "fiveYears": "5년"
-    },
     "nextPeriod": "다음 기간",
     "previousYears": "이전 연도",
     "nextYears": "이후 연도",
@@ -943,6 +931,11 @@
     "deselectDay": "{{date}} 거래 모두 선택 해제"
   },
   "tabContent": {
+    "comparePriorPeriod": "이전 기간과 비교",
+    "comparisonDays": "기간 내 일",
+    "comparisonWeeks": "기간 내 주",
+    "comparisonMonths": "기간 내 월",
+    "comparisonDifference": "차이",
     "stageWhereLabel": "현재 위치",
     "stageWhereSub": "진행 페이스, 예산 및 카테고리 분석",
     "stageChangedLabel": "변화 내용",
@@ -990,6 +983,7 @@
     "fromPriorPeriod": "이전 기간 대비",
     "intervalMtd": "이번 달",
     "intervalLastMonth": "지난달",
+    "interval1W": "지난 7일",
     "interval3M": "최근 3개월",
     "interval6M": "최근 6개월",
     "intervalYtd": "연초 이후",

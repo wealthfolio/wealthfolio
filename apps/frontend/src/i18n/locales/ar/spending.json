@@ -751,18 +751,6 @@
     "month": "شهر",
     "year": "سنة",
     "previousPeriod": "الفترة السابقة",
-    "previousStep": "السابق: <unit>{{period}}</unit>",
-    "nextStep": "التالي: <unit>{{period}}</unit>",
-    "backToLatest": "العودة إلى الفترة الحالية",
-    "stepUnits": {
-      "day": "يوم",
-      "week": "أسبوع",
-      "month": "شهر",
-      "threeMonths": "٣ أشهر",
-      "sixMonths": "٦ أشهر",
-      "year": "سنة",
-      "fiveYears": "٥ سنوات"
-    },
     "nextPeriod": "الفترة التالية",
     "previousYears": "سنوات سابقة",
     "nextYears": "سنوات لاحقة",
@@ -952,6 +940,11 @@
     "categoryProtected": "التقسيمات محمية. عدّلها أو استبدلها صراحةً في محرر التقسيمات."
   },
   "tabContent": {
+    "comparePriorPeriod": "المقارنة بالفترة السابقة",
+    "comparisonDays": "اليوم من الفترة",
+    "comparisonWeeks": "الأسبوع من الفترة",
+    "comparisonMonths": "الشهر من الفترة",
+    "comparisonDifference": "الفرق",
     "aboutSame": "تقريبًا مثل الفترة السابقة",
     "aiCategorizePrompt": "ساعدني في تصنيف جميع معاملاتي غير المصنفة.",
     "askAiCategorize": "اطلب من الذكاء الاصطناعي التصنيف",
@@ -969,6 +962,7 @@
     "excludedCategoriesHint_zero": "تم استبعاد {{count}} فئات",
     "fromPriorPeriod": "عن الفترة السابقة",
     "interval1Y": "السنة الماضية",
+    "interval1W": "آخر ٧ أيام",
     "interval3M": "آخر 3 أشهر",
     "interval6M": "آخر 6 أشهر",
     "intervalLastMonth": "الشهر الماضي",

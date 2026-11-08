@@ -128,18 +128,6 @@ export function useDashboardPeriod(
     maxYear: Number(todayISO.slice(0, 4)) - 1,
     navigation: {
       label,
-      step: customMonth
-        ? ("month" as const)
-        : customYear !== null
-          ? ("year" as const)
-          : selectedPreset,
-      onReset:
-        customMonth || customYear !== null || presetWindow
-          ? () => {
-              if (presetWindow) setPick(presetWindow.preset);
-              else selectPreset(customMonth ? "1M" : "YTD");
-            }
-          : undefined,
       previousDisabled: !stepPeriod(-1),
       nextDisabled: !stepPeriod(1),
       onStep: (direction: -1 | 1) => {

@@ -180,13 +180,25 @@ export function DashboardContent({
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="px-4 pt-2 pb-1 md:px-6 lg:px-8">
+      <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="min-w-0">
           {scope.type === "portfolio" && scopeLabel && (
             <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
               {scopeLabel}
             </p>
           )}
+          <div
+            className="flex max-w-full flex-wrap items-center gap-x-1"
+            data-testid="dashboard-period-header"
+          >
+            <div
+              className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase"
+              data-testid="dashboard-period-caption"
+            >
+              {t("dashboard:tabs.investments")} · {period.label}
+            </div>
+            <PeriodNavigation navigation={period.navigation} />
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {period.isHistorical && (
               <span className="text-muted-foreground w-full text-xs">
@@ -244,11 +256,11 @@ export function DashboardContent({
                 )}
               </>
             )}
-            <PeriodNavigation navigation={period.navigation}>
-              {period.isHistorical
-                ? t("common:periodReturn", { period: period.label })
-                : period.label}
-            </PeriodNavigation>
+            {period.isHistorical && (
+              <span className="text-muted-foreground text-sm font-light">
+                {t("common:periodReturn", { period: period.label })}
+              </span>
+            )}
           </div>
         </div>
       </div>

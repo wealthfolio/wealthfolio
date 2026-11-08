@@ -49,6 +49,10 @@ export default function PortfolioPage() {
   const dashboardPortfolio = useDashboardPortfolio();
   const { isEnabled: spendingEnabled } = useSpendingSettings();
   const { isFocusMode, toggleFocusMode } = useNavigationMode();
+  const [spendingCompareEnabled, setSpendingCompareEnabled] = useState(false);
+  const toggleSpendingComparison = useCallback(() => {
+    setSpendingCompareEnabled((enabled) => !enabled);
+  }, []);
 
   // Alternative asset quick-add modal state
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -168,13 +172,18 @@ export default function PortfolioPage() {
         icon: SpendingTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
-            <SpendingTabContent />
+            <SpendingTabContent compareEnabled={spendingCompareEnabled} />
           </Suspense>
         ),
         actions: (
           <>
             {commonActions}
-            <DashboardActions view="spending" spendingEnabled={spendingEnabled} />
+            <DashboardActions
+              view="spending"
+              spendingEnabled={spendingEnabled}
+              compareEnabled={spendingCompareEnabled}
+              onCompareToggle={toggleSpendingComparison}
+            />
           </>
         ),
       });
@@ -188,6 +197,8 @@ export default function PortfolioPage() {
     handleAddAsset,
     handleAddLiability,
     spendingEnabled,
+    spendingCompareEnabled,
+    toggleSpendingComparison,
     dashboardPortfolio,
   ]);
 
