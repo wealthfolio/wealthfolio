@@ -1,3 +1,4 @@
+import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
@@ -7,7 +8,6 @@ import { cn } from "@/lib/utils";
 import {
   AmountDisplay,
   Badge,
-  GainPercent,
   Input,
   Separator,
   useAmountFormatting,
@@ -240,7 +240,7 @@ export const HoldingsTableMobile = ({
                     <p className="text-muted-foreground font-medium">—</p>
                   ) : (
                     <AmountDisplay
-                      value={holding.marketValue?.local ?? 0}
+                      value={holding.marketValue?.local}
                       currency={holding.localCurrency}
                       isHidden={isBalanceHidden}
                       className="font-medium"
@@ -249,7 +249,8 @@ export const HoldingsTableMobile = ({
                   {isCash && (
                     <p className="text-muted-foreground text-xs">
                       {t("holdings:weight_value", {
-                        value: formatting.formatPercent(holding.weight ?? 0),
+                        value:
+                          holding.weight == null ? "—" : formatting.formatPercent(holding.weight),
                       })}
                     </p>
                   )}
@@ -261,10 +262,10 @@ export const HoldingsTableMobile = ({
                         <AmountDisplay
                           value={
                             performanceMode === "return"
-                              ? (holding.totalReturn?.local ?? holding.totalGain?.local ?? 0)
+                              ? holding.totalReturn?.local
                               : performanceMode === "pnl"
-                                ? (holding.totalGain?.local ?? 0)
-                                : (holding.dayChange?.local ?? 0)
+                                ? holding.totalGain?.local
+                                : holding.dayChange?.local
                           }
                           currency={holding.localCurrency}
                           isHidden={isBalanceHidden}
@@ -272,13 +273,13 @@ export const HoldingsTableMobile = ({
                           className="text-xs"
                         />
                         <Separator orientation="vertical" className="mx-1 h-4" />
-                        <GainPercent
+                        <HoldingPerformancePercent
                           value={
                             performanceMode === "return"
-                              ? (holding.totalReturnPct ?? holding.totalGainPct ?? 0)
+                              ? holding.totalReturnPct
                               : performanceMode === "pnl"
-                                ? (holding.totalGainPct ?? 0)
-                                : (holding.dayChangePct ?? 0)
+                                ? holding.totalGainPct
+                                : holding.dayChangePct
                           }
                           className="text-xs"
                         />

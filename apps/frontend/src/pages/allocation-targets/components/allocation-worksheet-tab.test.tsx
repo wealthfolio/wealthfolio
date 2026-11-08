@@ -71,7 +71,7 @@ vi.mock("../hooks/use-allocation-worksheet", () => ({
 }));
 vi.mock("@/adapters", () => ({
   getHoldingsList: vi.fn((filter: { accountId: string }) =>
-    Promise.resolve(holdingsFor(filter.accountId)),
+    Promise.resolve({ holdings: holdingsFor(filter.accountId), incompleteAccounts: [] }),
   ),
   getAssetTaxonomyAssignments: vi.fn(() => Promise.resolve([])),
   listTargetConstraints: vi.fn(() => Promise.resolve(constraintsRef.current)),
@@ -349,6 +349,34 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("does not calculate a worksheet from a partial valuation", async () => {
+    const priced = holdingsFor("acc-1")[0];
+    holdingsRef.current = {
+      "acc-1": [priced, { ...priced, id: "unpriced", marketValue: { local: null, base: null } }],
+    };
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <AllocationWorksheetTab
+              profile={profile}
+              driftReport={driftReport}
+              accountScope={{ type: "all" }}
+              sourceVersion="source-1"
+              isSourceLoading={false}
+            />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(/holdings are unavailable/i);
+      expect(generateMock).not.toHaveBeenCalled();
+      expect(previewMock).not.toHaveBeenCalled();
+    } finally {
+      holdingsRef.current = null;
+    }
   });
 
   it.each([

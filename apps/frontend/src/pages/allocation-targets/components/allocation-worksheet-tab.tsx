@@ -886,8 +886,20 @@ export function AllocationWorksheetTab({
       };
     }),
   });
-  const scopedHoldings = holdingQueries.flatMap((query) => query.data ?? []);
-  const holdingsLoading = holdingQueries.some((query) => query.isPending);
+  const holdingsComplete = holdingQueries.every(
+    (query) =>
+      query.isSuccess &&
+      query.data.incompleteAccounts.length === 0 &&
+      query.data.holdings.every((holding) => holding.marketValue.base != null),
+  );
+  const scopedHoldings = holdingsComplete
+    ? holdingQueries.flatMap((query) => query.data?.holdings ?? [])
+    : [];
+  const holdingsLoading = holdingQueries.some(
+    (query) =>
+      query.isLoading ||
+      query.data?.incompleteAccounts.some((account) => account.status === "pending"),
+  );
   const holdingsVersion = holdingQueries.map((query) => query.dataUpdatedAt).join("|");
   // What the chosen accounts can deploy, as the core counts it: one rule per
   // account and in total. The drift report's figure spans the whole scope and
@@ -977,7 +989,7 @@ export function AllocationWorksheetTab({
       isSourceLoading ||
       assetsLoading ||
       accountsLoading ||
-      holdingsLoading
+      !holdingsComplete
     ) {
       return;
     }
@@ -1044,6 +1056,7 @@ export function AllocationWorksheetTab({
     draftStorageKey,
     eligibleAssets,
     holdingsLoading,
+    holdingsComplete,
     isSourceLoading,
     profile?.allowSells,
     scopedAccountIds,
@@ -1094,6 +1107,7 @@ export function AllocationWorksheetTab({
     assetsLoading ||
     accountsLoading ||
     holdingsLoading ||
+    !holdingsComplete ||
     latestQuotes.isFetching;
 
   // Validates and projects the worksheet as it stands. Mode, rule and eligible
@@ -1165,6 +1179,14 @@ export function AllocationWorksheetTab({
   }
   if (!profile || !driftReport)
     return loadingHeading ? <div className="mb-5">{loadingHeading}</div> : null;
+  if (!holdingsComplete) {
+    return (
+      <div className="space-y-5">
+        {loadingHeading}
+        <p role="alert">{t("holdings:scope_unavailable")}</p>
+      </div>
+    );
+  }
 
   const currency = driftReport.baseCurrency;
   const fundingByAccount = new Map(

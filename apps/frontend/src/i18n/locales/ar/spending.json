@@ -748,6 +748,12 @@
     "title": "الميزانية الإجمالية"
   },
   "period": {
+    "month": "شهر",
+    "year": "سنة",
+    "previousPeriod": "الفترة السابقة",
+    "nextPeriod": "الفترة التالية",
+    "previousYears": "سنوات سابقة",
+    "nextYears": "سنوات لاحقة",
     "chooseCustomDates": "اختر تواريخ مخصصة",
     "chooseMonth": "اختر شهرًا",
     "clearMonth": "مسح اختيار الشهر",
@@ -934,6 +940,11 @@
     "categoryProtected": "التقسيمات محمية. عدّلها أو استبدلها صراحةً في محرر التقسيمات."
   },
   "tabContent": {
+    "comparePriorPeriod": "المقارنة بالفترة السابقة",
+    "comparisonDays": "اليوم من الفترة",
+    "comparisonWeeks": "الأسبوع من الفترة",
+    "comparisonMonths": "الشهر من الفترة",
+    "comparisonDifference": "الفرق",
     "aboutSame": "تقريبًا مثل الفترة السابقة",
     "aiCategorizePrompt": "ساعدني في تصنيف جميع معاملاتي غير المصنفة.",
     "askAiCategorize": "اطلب من الذكاء الاصطناعي التصنيف",
@@ -951,6 +962,7 @@
     "excludedCategoriesHint_zero": "تم استبعاد {{count}} فئات",
     "fromPriorPeriod": "عن الفترة السابقة",
     "interval1Y": "السنة الماضية",
+    "interval1W": "آخر ٧ أيام",
     "interval3M": "آخر 3 أشهر",
     "interval6M": "آخر 6 أشهر",
     "intervalLastMonth": "الشهر الماضي",

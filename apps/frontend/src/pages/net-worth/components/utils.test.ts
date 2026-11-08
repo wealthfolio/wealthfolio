@@ -256,6 +256,22 @@ describe("net worth utils", () => {
     ]);
   });
 
+  it("compares explicit years to the complete prior calendar year, including its first day", () => {
+    const momentum = computeMomentum(
+      [
+        point({ date: "2024-01-01", netWorth: 100 }),
+        point({ date: "2024-01-02", netWorth: 225 }),
+        point({ date: "2024-12-31", netWorth: 300 }),
+        point({ date: "2025-01-01", netWorth: 400 }),
+        point({ date: "2025-12-31", netWorth: 700 }),
+      ],
+      "2025-01-01",
+      "2025-12-31",
+      2025,
+    );
+    expect(momentum).toMatchObject({ currentChange: 300, priorChange: 200, beatBy: 100 });
+  });
+
   it("removes cash from investment allocation and rescales the remaining categories", () => {
     const allocation: TaxonomyAllocation = {
       taxonomyId: "asset-class",

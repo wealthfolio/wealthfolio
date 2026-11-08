@@ -250,6 +250,12 @@
     "filteredNet": "筛选净额"
   },
   "period": {
+    "month": "月",
+    "year": "年",
+    "previousPeriod": "上一个期间",
+    "nextPeriod": "下一个期间",
+    "previousYears": "更早年份",
+    "nextYears": "更晚年份",
     "thisMonth": "本月",
     "mtdShort": "MTD",
     "lastMonth": "上月",
@@ -925,6 +931,11 @@
     "deselectDay": "取消选择 {{date}} 的所有交易"
   },
   "tabContent": {
+    "comparePriorPeriod": "与上一期间比较",
+    "comparisonDays": "期间内天数",
+    "comparisonWeeks": "期间内周数",
+    "comparisonMonths": "期间内月份",
+    "comparisonDifference": "差额",
     "stageWhereLabel": "我的现状",
     "stageWhereSub": "进度、预算及类别明细",
     "stageChangedLabel": "发生了什么变化",
@@ -972,6 +983,7 @@
     "fromPriorPeriod": "较上一周期",
     "intervalMtd": "本月",
     "intervalLastMonth": "上月",
+    "interval1W": "过去7天",
     "interval3M": "过去 3 个月",
     "interval6M": "过去 6 个月",
     "intervalYtd": "年初至今",

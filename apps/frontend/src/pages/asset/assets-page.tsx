@@ -17,6 +17,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 
 import { useHoldings } from "@/hooks/use-holdings";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useIsCompactTableViewport } from "@/hooks/use-platform";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -37,11 +38,13 @@ export default function AssetsPage() {
   const refetchQuotesMutation = useSyncMarketDataMutation(true);
   const updateQuotesMutation = useSyncMarketDataMutation(false);
   const isCompactTableViewport = useIsCompactTableViewport();
-  const { holdings } = useHoldings({ type: "all" });
+  const holdingsQuery = useHoldings({ type: "all" });
+  const { holdings } = holdingsQuery;
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
 
   const heldAssetIds = useMemo(() => {
+    if (!holdingsQuery.isComplete) return null;
     const ids = new Set<string>();
     for (const h of holdings) {
       if (h.instrument?.id) {
@@ -49,7 +52,7 @@ export default function AssetsPage() {
       }
     }
     return ids;
-  }, [holdings]);
+  }, [holdings, holdingsQuery.isComplete]);
 
   const parsedAssets = useMemo(() => assets.map(toParsedAsset), [assets]);
   const visibleAssets = useMemo(
@@ -97,6 +100,7 @@ export default function AssetsPage() {
         </>
       </SettingsHeader>
       <Separator />
+      <HoldingsScopeNotice {...holdingsQuery} />
       <div className="w-full">
         {isCompactTableViewport ? (
           <AssetsTableMobile

@@ -1,4 +1,6 @@
 {
+  "periodReturn": "Retorno {{period}}",
+  "currentValue": "Valor atual",
   "app_name": "Wealthfolio",
   "welcome": "Bem-vindo",
   "loading": "Carregando...",

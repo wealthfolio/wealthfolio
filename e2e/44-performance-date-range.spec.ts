@@ -1,11 +1,13 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
-function allTimeResponse(page: Page) {
+function allTimeResponse(page: Page, itemId: string) {
   return page.waitForResponse((response: Response) => {
     if (!response.url().endsWith("/performance/history") || !response.ok()) return false;
     const body = response.request().postDataJSON();
-    return body.itemType === "account" && !body.startDate && !body.endDate;
+    return (
+      body.itemType === "account" && body.itemId === itemId && !body.startDate && !body.endDate
+    );
   });
 }
 
@@ -41,9 +43,41 @@ for (const mobile of [false, true]) {
         },
       });
       expect(deposit.ok()).toBeTruthy();
+      // The account's history is calculated in the background after the deposit.
+      await expect
+        .poll(
+          async () => {
+            const history = await page.request.post(`${BASE_URL}/api/v1/performance/history`, {
+              data: { itemType: "account", itemId: id, filter: { type: "account", accountId: id } },
+            });
+            return history.ok() ? (await history.json()).period?.startDate : null;
+          },
+          { timeout: 60_000 },
+        )
+        .toMatch(/^2024-01-/);
+      // Earlier specs leave older activities in the shared profile: chart only this account.
+      const state = await (
+        await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
+      ).json();
+      await page.addInitScript(
+        ({ profileId, item }) => {
+          const key = (name: string) => `profile:${profileId}:${name}`;
+          localStorage.setItem(key("performance:selectedItems"), JSON.stringify([item]));
+          localStorage.setItem(key("performance:selectedItemId"), JSON.stringify(item.id));
+        },
+        {
+          profileId: state.session?.profileId ?? state.profiles[0].id,
+          item: {
+            id,
+            type: "account",
+            name: `Calendar ${mobile}-${direction}`,
+            accountScope: { type: "account", accountId: id },
+          },
+        },
+      );
       await gotoAppPath(page, `/insights?tab=performance&dir=${direction}`);
       const all = page.getByRole("button", { name: "ALL", exact: true }).filter({ visible: true });
-      const responsePromise = allTimeResponse(page);
+      const responsePromise = allTimeResponse(page, id);
       await all.click();
       const response = await responsePromise;
       const { period } = await response.json();
@@ -62,7 +96,7 @@ for (const mobile of [false, true]) {
         await dialog.getByRole("button", { name: "Done", exact: true }).click();
         await expect(dialog).toHaveCount(0);
         // Reload crosses the persistence boundary and starts a fresh query.
-        const persisted = allTimeResponse(page);
+        const persisted = allTimeResponse(page, id);
         await page.reload();
         await persisted;
 
@@ -74,7 +108,7 @@ for (const mobile of [false, true]) {
         await dialog.getByRole("button", { name: "Clear", exact: true }).click();
         await dialog.getByRole("button", { name: "Done", exact: true }).click();
         await expect(dialog).toHaveCount(0);
-        const cleared = allTimeResponse(page);
+        const cleared = allTimeResponse(page, id);
         await page.reload();
         await cleared;
       } else {

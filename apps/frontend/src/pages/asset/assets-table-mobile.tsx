@@ -34,7 +34,7 @@ import { getNoQuoteReasonText, isStaleQuote, ParsedAsset } from "./asset-utils";
 interface AssetsTableMobileProps {
   assets: ParsedAsset[];
   latestQuotes?: Record<string, LatestQuoteSnapshot>;
-  heldAssetIds: Set<string>;
+  heldAssetIds: Set<string> | null;
   isLoading?: boolean;
   onEdit: (asset: ParsedAsset) => void;
   onDelete: (asset: ParsedAsset) => void;
@@ -107,7 +107,7 @@ export function AssetsTableMobile({
     }
 
     // Filter by holding status (held/not held)
-    if (selectedStatus.length > 0) {
+    if (selectedStatus.length > 0 && heldAssetIds != null) {
       filtered = filtered.filter((asset) => {
         const held = heldAssetIds.has(asset.id) ? "true" : "false";
         return selectedStatus.includes(held);
@@ -396,13 +396,17 @@ export function AssetsTableMobile({
                     { label: t("asset:mobileTable.past"), value: "false" },
                   ].map((option) => {
                     const isSelected = selectedStatus.includes(option.value);
-                    const count = assets.filter(
-                      (a) => (heldAssetIds.has(a.id) ? "true" : "false") === option.value,
-                    ).length;
+                    const count =
+                      heldAssetIds == null
+                        ? "—"
+                        : assets.filter(
+                            (a) => (heldAssetIds.has(a.id) ? "true" : "false") === option.value,
+                          ).length;
                     return (
                       <button
                         key={option.value}
                         type="button"
+                        disabled={heldAssetIds == null}
                         onClick={() => {
                           setSelectedStatus((prev) =>
                             isSelected

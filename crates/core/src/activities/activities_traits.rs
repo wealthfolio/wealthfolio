@@ -543,6 +543,10 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         request: UnlinkedTransfersRequest,
     ) -> Result<UnlinkedTransfers>;
+    /// The Match transfers review over the transfers the Health Center
+    /// reports: pairs certain enough to link together, and the rest with
+    /// their candidates. Runs off the async workers.
+    async fn review_transfer_matches(&self) -> Result<TransferMatchReview>;
     async fn save_internal_transfer_pair(
         &self,
         request: InternalTransferPairRequest,
@@ -556,6 +560,13 @@ pub trait ActivityServiceTrait: Send + Sync {
         activity_a_id: String,
         activity_b_id: String,
     ) -> Result<(Activity, Activity)>;
+    /// Links each posted pair as `link_transfer_activities` does, on its own:
+    /// a failing pair is reported and the others still go through. One
+    /// activities-changed event covers every linked pair.
+    async fn link_transfer_pairs(
+        &self,
+        pairs: Vec<TransferPairLinkRequest>,
+    ) -> Result<LinkTransferPairsResult>;
     async fn unlink_transfer_activities(
         &self,
         activity_a_id: String,

@@ -60,6 +60,12 @@ pub enum Error {
     #[error("Repository error: {0}")]
     Repository(String),
 
+    #[error("Holdings values are unavailable: {0}")]
+    HoldingsUnavailable(String),
+
+    #[error("Holdings are updating for accounts {0:?}")]
+    HoldingsPending(Vec<String>),
+
     #[error("Holdings calculation failed: {0}")]
     Calculation(#[from] CalculatorError),
 

@@ -12,7 +12,7 @@ import { ActivitySplitReviewProvider } from "@/features/spending/components/acti
 import { ActivityStatus } from "@/lib/constants";
 import type { ActivitySplit } from "@/features/spending/types/cash-activity";
 import type { Account, Activity, TransferMatchCandidate } from "@/lib/types";
-import { fireEvent, render, screen, waitFor, within } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { TransferMatchDialog } from "./transfer-match-dialog";
 
 vi.mock("@/adapters", () => ({
@@ -98,13 +98,123 @@ describe("transfer activity summary", () => {
     ]);
     renderActivity();
 
-    const reason = await screen.findByText("Same currency");
-    const candidate = reason.closest("button");
+    const candidate = (await screen.findByText("Candidate account")).closest("button");
     expect(candidate).not.toBeNull();
-    expect(within(candidate!).getByText("CAD")).toBeInTheDocument();
+    expect(within(candidate!).getByText("CA$105.31")).toBeInTheDocument();
     expect(screen.getAllByText("CA$105.31")).toHaveLength(2);
-    expect(screen.getAllByText("CAD", { selector: "span" })).toHaveLength(2);
-    expect(screen.queryByText("USD", { selector: "span" })).not.toBeInTheDocument();
+    // The source's details list its own currency.
+    const details = screen.getByTestId("transfer-match-details");
+    expect(within(details).getByRole("cell", { name: "CAD" })).toBeInTheDocument();
+    expect(screen.queryByText("USD")).not.toBeInTheDocument();
+  });
+
+  it("names a suggested security by the activity's ticker when both hold it", async () => {
+    // Suggestions carry only the asset's id, here a UUID like the app's.
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: {
+          ...activity,
+          id: "synthetic-candidate",
+          accountId: "candidate-account",
+          activityType: "TRANSFER_IN",
+          assetId: "6f1d3c2e-asset",
+          quantity: "25",
+        },
+        matchKind: "security",
+        confidence: "high",
+        score: 100,
+        reasons: [],
+        warnings: [],
+      },
+    ]);
+    const security = { ...activity, assetId: "6f1d3c2e-asset", assetSymbol: "WMT", quantity: "25" };
+    render(
+      <TransferMatchDialog
+        open
+        mode="link"
+        sourceActivity={security}
+        counterpartId="synthetic-candidate"
+        accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const details = screen.getByTestId("transfer-match-details");
+    await waitFor(() => expect(within(details).getAllByText("25 WMT")).toHaveLength(2));
+    expect(screen.queryByText(/6f1d3c2e-asset/)).not.toBeInTheDocument();
+    expect(within(details).queryByText(/differs/)).not.toBeInTheDocument();
+  });
+
+  it("loads the suggestions again on Retry", async () => {
+    vi.mocked(findTransferMatchCandidates)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([
+        {
+          activity: { ...activity, id: "synthetic-candidate", accountId: "candidate-account" },
+          matchKind: "cash",
+          confidence: "high",
+          score: 100,
+          reasons: [],
+          warnings: [],
+        },
+      ]);
+    renderActivity({});
+
+    expect(await screen.findByText("Could not load suggested matches.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Candidate account")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load suggested matches.")).not.toBeInTheDocument();
+  });
+
+  it("lets a late answer for an earlier activity pick nothing", async () => {
+    let answerFirst: (candidates: TransferMatchCandidate[]) => void = () => undefined;
+    vi.mocked(findTransferMatchCandidates)
+      .mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)))
+      .mockResolvedValueOnce([]);
+    const props = {
+      mode: "link" as const,
+      accounts: [account, { ...account, id: "candidate-account", name: "Candidate account" }],
+      onOpenChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <TransferMatchDialog
+        {...props}
+        open
+        sourceActivity={{ ...activity, id: "first" }}
+        counterpartId="first-match"
+      />,
+    );
+    // Closed and opened for another activity before the first answer arrives.
+    rerender(<TransferMatchDialog {...props} open={false} sourceActivity={null} />);
+    rerender(
+      <TransferMatchDialog
+        {...props}
+        open
+        sourceActivity={{ ...activity, id: "second" }}
+        counterpartId="second-match"
+      />,
+    );
+    await screen.findByText("No matches within 7 days of this activity.");
+
+    await act(async () =>
+      answerFirst([
+        {
+          activity: { ...activity, id: "first-match", accountId: "candidate-account" },
+          matchKind: "cash",
+          confidence: "high",
+          score: 100,
+          reasons: [],
+          warnings: [],
+        },
+      ]),
+    );
+
+    expect(screen.getByRole("button", { name: /Candidate account/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Link" })).toBeDisabled();
   });
 
   it("preserves the security quantity and symbol label", async () => {
@@ -165,7 +275,7 @@ describe("converting a deposit or withdrawal into a transfer", () => {
     const onOpenChange = vi.fn();
     renderConversion(onOpenChange);
 
-    fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
+    fireEvent.click((await screen.findByText("Candidate account")).closest("button")!);
     fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
@@ -194,7 +304,7 @@ describe("converting a deposit or withdrawal into a transfer", () => {
 
     expect(await screen.findByText("Split · 2 lines")).toBeInTheDocument();
     expect(screen.getByText("Converting it to a transfer removes the split.")).toBeInTheDocument();
-    fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
+    fireEvent.click((await screen.findByText("Candidate account")).closest("button")!);
     expect(screen.getAllByText("Split · 2 lines")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
 
@@ -251,7 +361,7 @@ describe("converting a deposit or withdrawal into a transfer", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Search within 30 days" }));
 
-    fireEvent.click((await screen.findByText("Late deposit")).closest("button")!);
+    fireEvent.click((await screen.findByText(/Late deposit/)).closest("button")!);
     expect(searchActivities).toHaveBeenCalledWith(
       0,
       250,

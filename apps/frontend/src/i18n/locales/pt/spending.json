@@ -259,6 +259,12 @@
     "filteredNet": "Líquido filtrado"
   },
   "period": {
+    "month": "Mês",
+    "year": "Ano",
+    "previousPeriod": "Período anterior",
+    "nextPeriod": "Próximo período",
+    "previousYears": "Anos anteriores",
+    "nextYears": "Anos seguintes",
     "thisMonth": "Este mês",
     "mtdShort": "MTD",
     "lastMonth": "Mês passado",
@@ -983,6 +989,11 @@
     "deselectDay": "Desmarcar todas as transações de {{date}}"
   },
   "tabContent": {
+    "comparePriorPeriod": "Comparar com o período anterior",
+    "comparisonDays": "Dia do período",
+    "comparisonWeeks": "Semana do período",
+    "comparisonMonths": "Mês do período",
+    "comparisonDifference": "Diferença",
     "stageWhereLabel": "Onde estou",
     "stageWhereSub": "Ritmo, orçamento e detalhamento por categoria",
     "stageChangedLabel": "O que mudou",
@@ -1033,6 +1044,7 @@
     "fromPriorPeriod": "em relação ao período anterior",
     "intervalMtd": "neste mês",
     "intervalLastMonth": "mês passado",
+    "interval1W": "últimos 7 dias",
     "interval3M": "últimos 3 meses",
     "interval6M": "últimos 6 meses",
     "intervalYtd": "no ano",

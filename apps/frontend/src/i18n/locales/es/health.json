@@ -316,5 +316,17 @@
     "affectedItems_one": "Elemento afectado ({{count}})",
     "affectedItems_other": "Elementos afectados ({{count}})",
     "affectedItems_many": "Elementos afectados ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Actividad: {{id}}",
+    "missing_fx_rate": "No hay un tipo de cambio de {{from}} a {{to}} disponible para el {{date}}.",
+    "close_buy_without_short_position": "Esta compra está marcada para cerrar una posición en {{asset}}, pero no hay ninguna posición corta que cerrar.",
+    "sell_short_intent_required": "Esta venta aumentaría la posición corta en {{asset}}. Márquela como venta en corto.",
+    "conversion_insufficient_holdings": "Esta conversión requiere {{requested}} unidades de {{asset}}, pero la cuenta solo tiene {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} se mantiene en {{fromCurrency}} y {{toAsset}} en {{toCurrency}}. Una conversión debe conservar la misma divisa.",
+    "return_of_capital_amount_required": "Introduzca un importe para esta devolución de capital.",
+    "sell_without_position": "No hay ninguna posición en {{asset}} que vender. Solo se aplicó el efecto en el efectivo.",
+    "insufficient_quantity": "Esta transacción retira {{requested}} unidades de {{asset}}, pero solo había {{held}}. Las {{excess}} unidades restantes no tienen base de coste.",
+    "missing_final_cash": "Esta transacción contabilizada no tiene un importe final en efectivo, por lo que no modificó el saldo de efectivo."
   }
 }

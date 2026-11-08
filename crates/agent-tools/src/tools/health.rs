@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use wealthfolio_core::portfolio::projection::ActivityIssue;
 
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -39,6 +40,31 @@ pub struct HealthIssueDto {
     pub affected_mv_pct: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
+    /// Per-activity machine-readable reasons, alongside the readable details.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub activity_issues: Vec<ActivityIssue>,
+}
+
+impl From<&wealthfolio_core::health::HealthIssue> for HealthIssueDto {
+    fn from(issue: &wealthfolio_core::health::HealthIssue) -> Self {
+        Self {
+            id: issue.id.clone(),
+            severity: issue.severity.as_str().to_string(),
+            category: issue.category.as_str().to_string(),
+            title: issue.title.clone(),
+            message: issue.message.clone(),
+            affected_count: issue.affected_count,
+            affected_mv_pct: issue.affected_mv_pct,
+            details: issue.details.clone(),
+            activity_issues: issue
+                .diagnostics
+                .iter()
+                .flatten()
+                .flat_map(|diagnostic| diagnostic.evidence.iter())
+                .filter_map(|evidence| evidence.activity_issue.clone())
+                .collect(),
+        }
+    }
 }
 
 /// Output envelope for get_health_status tool.
@@ -75,7 +101,8 @@ impl AgentTool for GetHealthStatus {
                 Each issue has `severity` (same scale), `category` (PRICE_STALENESS | FX_INTEGRITY | \
                 CLASSIFICATION | DATA_CONSISTENCY | ACCOUNT_CONFIGURATION | SETTINGS_CONFIGURATION), \
                 `title`, `message`, `affectedCount`, optional `affectedMvPct` (share of portfolio \
-                market value impacted, as a fraction 0.0-1.0), and optional `details`. \
+                market value impacted, as a fraction 0.0-1.0), optional `details`, and optional \
+                `activityIssues` (activityId, kind, fallback message and optional reason with code/params). \
                 `isStale` is true when the cache is older than 5 minutes. \
                 Use this to diagnose data problems (missing prices, stale FX rates, negative \
                 balances, unclassified assets) and guide the user to fixes in the Health Center."
@@ -147,16 +174,7 @@ impl AgentTool for GetHealthStatus {
         let issues = status
             .issues
             .iter()
-            .map(|issue| HealthIssueDto {
-                id: issue.id.clone(),
-                severity: issue.severity.as_str().to_string(),
-                category: issue.category.as_str().to_string(),
-                title: issue.title.clone(),
-                message: issue.message.clone(),
-                affected_count: issue.affected_count,
-                affected_mv_pct: issue.affected_mv_pct,
-                details: issue.details.clone(),
-            })
+            .map(HealthIssueDto::from)
             .collect::<Vec<_>>();
 
         let output = GetHealthStatusOutput {
@@ -168,5 +186,41 @@ impl AgentTool for GetHealthStatus {
         Ok(AgentToolResult {
             content: serde_json::to_value(output)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wealthfolio_core::health::{Evidence, HealthCategory, HealthIssue};
+
+    #[test]
+    fn health_tool_exposes_activity_ids_and_structured_reasons() {
+        let activity: ActivityIssue = serde_json::from_value(serde_json::json!({
+            "activityId": "buy-1", "kind": "REJECTED", "message": "no USD/GBp rate",
+            "reason": { "code": "MISSING_FX_RATE", "params": { "from": "USD", "to": "GBp", "date": "2025-01-06" } }
+        })).expect("activity fixture");
+        let mut issue = HealthIssue::builder()
+            .id("rejected_activity:hash")
+            .category(HealthCategory::DataConsistency)
+            .title("Rejected")
+            .message("Review these transactions")
+            .details("readable fallback")
+            .data_hash("hash")
+            .build();
+        let mut evidence = Evidence::new("Item", "Brokerage");
+        evidence.activity_issue = Some(activity);
+        issue.diagnostics.as_mut().expect("fallback diagnostic")[0]
+            .evidence
+            .push(evidence);
+        let result =
+            serde_json::to_value(HealthIssueDto::from(&issue)).expect("serialized tool output");
+        assert_eq!(result["details"], "readable fallback");
+        assert_eq!(result["activityIssues"][0]["activityId"], "buy-1");
+        assert_eq!(
+            result["activityIssues"][0]["reason"]["code"],
+            "MISSING_FX_RATE"
+        );
+        assert_eq!(result["activityIssues"][0]["reason"]["params"]["to"], "GBp");
     }
 }

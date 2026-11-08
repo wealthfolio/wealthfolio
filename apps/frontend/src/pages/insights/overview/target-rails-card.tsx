@@ -144,7 +144,7 @@ export function TargetRailsCard({
           ref={selectorRef}
           role="group"
           aria-label={t("allocation:header.selectTarget")}
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-1 flex [scrollbar-width:none] gap-1.5 overflow-x-auto px-1 pb-1 [&::-webkit-scrollbar]:hidden"
         >
           {targets.map((p) => (
             <button

@@ -17,7 +17,9 @@ import {
   type TimePeriod,
 } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
+import { PeriodNavigation } from "@/features/spending/components/period-navigation";
 import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
+import { yearRange } from "@/features/spending/lib/year-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo, useState } from "react";
@@ -88,11 +90,14 @@ export function NetWorthContent() {
     if (!dateRange?.from || periodCode === "ALL") return null;
     const end = dateRange.to ?? currentDate;
     const rangeMs = end.getTime() - dateRange.from.getTime();
-    const priorStart = new Date(dateRange.from.getTime() - rangeMs);
+    const priorStart =
+      period.customYear !== null
+        ? yearRange(period.customYear - 1).from
+        : new Date(dateRange.from.getTime() - rangeMs);
     const yearStart = new Date(end.getTime() - 366 * MS_PER_DAY);
     const start = priorStart < yearStart ? priorStart : yearStart;
     return { startDate: formatDateISO(start), endDate: formatDateISO(end) };
-  }, [currentDate, dateRange, periodCode]);
+  }, [currentDate, dateRange, periodCode, period.customYear]);
 
   const { data: historyData, isLoading: isHistoryLoading } = useNetWorthHistory({
     startDate: historyDates?.startDate ?? "",
@@ -155,8 +160,13 @@ export function NetWorthContent() {
   }, [longHistory, periodCode, currentDate, velocity]);
   const momentum = useMemo(() => {
     if (!historyDates || periodCode === "ALL") return null;
-    return computeMomentum(longHistory, historyDates.startDate, historyDates.endDate);
-  }, [longHistory, historyDates, periodCode]);
+    return computeMomentum(
+      longHistory,
+      historyDates.startDate,
+      historyDates.endDate,
+      period.customYear,
+    );
+  }, [longHistory, historyDates, periodCode, period.customYear]);
 
   // Net worth change over the selected range, on the same baseline rules as the
   // breakdown rows so the header and the table agree.
@@ -214,10 +224,27 @@ export function NetWorthContent() {
   return (
     <div className="flex min-h-full flex-col">
       {/* Top section: Net Worth value */}
-      <div className="px-4 pt-2 pb-1 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex items-start gap-2">
-          <div>
+          <div className="min-w-0">
+            <div
+              className="flex max-w-full flex-wrap items-center gap-x-1"
+              data-testid="dashboard-period-header"
+            >
+              <div
+                className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase"
+                data-testid="dashboard-period-caption"
+              >
+                {t("dashboard:tabs.net_worth")} · {localizedPeriodLabel}
+              </div>
+              <PeriodNavigation navigation={period.navigation} />
+            </div>
             <div className="flex flex-wrap items-center gap-2">
+              {period.isHistorical && (
+                <span className="text-muted-foreground w-full text-xs">
+                  {t("common:currentValue")}
+                </span>
+              )}
               <Balance
                 isLoading={isLoading}
                 targetValue={parsedData?.netWorth ?? 0}
@@ -229,7 +256,7 @@ export function NetWorthContent() {
               <PrivacyToggle variant="ghost" />
               <HealthStatusIndicator />
             </div>
-            <div className="text-md flex space-x-3">
+            <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
               {isHistoryLoading ? (
                 <div className="flex items-center gap-3 pt-1">
                   <Skeleton className="h-4 w-24" />
@@ -268,9 +295,13 @@ export function NetWorthContent() {
                   )}
                 </>
               )}
-              <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                {localizedPeriodLabel}
-              </span>
+              {period.isHistorical && (
+                <span className="text-muted-foreground text-sm font-light">
+                  {t("insights:networth.breakdown_table.change_over", {
+                    period: localizedPeriodLabel,
+                  })}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -306,11 +337,17 @@ export function NetWorthContent() {
                   className="w-auto"
                   onIntervalSelect={period.selectPreset}
                   isLoading={isHistoryLoading}
-                  value={periodCode}
+                  value={period.selectedPreset}
                 />
                 <SpendingDatePicker
                   customMonth={period.customMonth}
                   customRange={period.customRange}
+                  customYear={period.customYear}
+                  maxYear={period.maxYear}
+                  onCustomYearChange={period.selectYear}
+                  selectionLabel={
+                    period.customMonth || period.customYear !== null ? period.label : undefined
+                  }
                   maxMonth={period.maxMonth}
                   onCustomMonthChange={period.selectMonth}
                   onCustomRangeChange={period.selectRange}

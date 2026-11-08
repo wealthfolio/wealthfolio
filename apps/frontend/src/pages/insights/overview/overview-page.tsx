@@ -2,6 +2,7 @@ import { TopMoversCard, ConcentrationCard } from "./holdings-highlight-cards";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { isAlternativeAssetKind } from "@/lib/constants";
@@ -71,11 +72,8 @@ export function OverviewPage({
   const accountFilter: AccountScope = useMemo(() => filterProp ?? { type: "all" }, [filterProp]);
   const selectedAccountScopeKey = accountScopeKey(accountFilter);
 
-  const {
-    holdings,
-    dataUpdatedAt: holdingsUpdatedAt,
-    isLoading: holdingsLoading,
-  } = useHoldings(accountFilter);
+  const holdingsQuery = useHoldings(accountFilter);
+  const { holdings, dataUpdatedAt: holdingsUpdatedAt, isLoading: holdingsLoading } = holdingsQuery;
   const { currentValuation, isLoading: currentValuationLoading } = useCurrentValuation(
     accountFilter,
     { includeAccounts: true },
@@ -520,7 +518,12 @@ export function OverviewPage({
               onCardClick={() => openAllocationSheet(allocations?.sectors)}
             />
           ),
-          composition: <PortfolioComposition holdings={nonCashHoldings} isLoading={isLoading} />,
+          composition:
+            holdingsQuery.isComplete || holdingsLoading ? (
+              <PortfolioComposition holdings={nonCashHoldings} isLoading={isLoading} />
+            ) : (
+              <HoldingsScopeNotice {...holdingsQuery} />
+            ),
           targets: (
             <TargetRailsCard
               targets={scopedLiveTargets}
@@ -532,32 +535,41 @@ export function OverviewPage({
               onViewDetails={() => setWorkspaceView("details")}
             />
           ),
-          movers: (
-            <TopMoversCard
-              holdings={portfolioHoldings}
-              currency={baseCurrency}
-              isLoading={isLoading}
-            />
-          ),
-          concentration: (
-            <ConcentrationCard
-              holdings={portfolioHoldings}
-              currency={baseCurrency}
-              isLoading={isLoading}
-            />
-          ),
-          breakdown: (
-            <PortfolioExplorer
-              allocations={allocations}
-              holdings={holdings ?? []}
-              accounts={accounts}
-              accountIds={filteredAccountIds}
-              accountValuations={currentValuation?.accounts}
-              currency={baseCurrency}
-              isLoading={isLoading}
-              onOpenAllocation={openAllocationSheet}
-            />
-          ),
+          movers:
+            !holdingsQuery.isComplete && !holdingsLoading ? (
+              <HoldingsScopeNotice {...holdingsQuery} />
+            ) : (
+              <TopMoversCard
+                holdings={portfolioHoldings}
+                currency={baseCurrency}
+                isLoading={isLoading}
+              />
+            ),
+          concentration:
+            !holdingsQuery.isComplete && !holdingsLoading ? (
+              <HoldingsScopeNotice {...holdingsQuery} />
+            ) : (
+              <ConcentrationCard
+                holdings={portfolioHoldings}
+                currency={baseCurrency}
+                isLoading={isLoading}
+              />
+            ),
+          breakdown:
+            !holdingsQuery.isComplete && !holdingsLoading ? (
+              <HoldingsScopeNotice {...holdingsQuery} />
+            ) : (
+              <PortfolioExplorer
+                allocations={allocations}
+                holdings={holdings ?? []}
+                accounts={accounts}
+                accountIds={filteredAccountIds}
+                accountValuations={currentValuation?.accounts}
+                currency={baseCurrency}
+                isLoading={isLoading}
+                onOpenAllocation={openAllocationSheet}
+              />
+            ),
         }}
       />
 

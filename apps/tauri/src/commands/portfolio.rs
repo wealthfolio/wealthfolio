@@ -22,7 +22,7 @@ use wealthfolio_core::{
     },
     allocation::{AllocationHoldings, PortfolioAllocations},
     health::HealthServiceTrait,
-    holdings::{Holding, HoldingListItem},
+    holdings::{Holding, HoldingsListResponse, HoldingsScope},
     income::IncomeSummary,
     lots::AssetLotView,
     performance::{
@@ -247,13 +247,15 @@ pub async fn get_holdings_list(
     state: ProfileAccess,
     filter: AccountScopeInput,
     include_closed: Option<bool>,
-) -> Result<Vec<HoldingListItem>, String> {
+) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
     debug!("Get holdings list...");
     let filter = filter.into_account_filter()?;
-    let holdings =
-        get_holdings_for_filter(context.as_ref(), filter, include_closed.unwrap_or(false)).await?;
-    Ok(holdings.into_iter().map(HoldingListItem::from).collect())
+    Ok(
+        get_holdings_scope_for_filter(context.as_ref(), filter, include_closed.unwrap_or(false))
+            .await?
+            .into(),
+    )
 }
 
 async fn get_holdings_for_filter(
@@ -261,30 +263,33 @@ async fn get_holdings_for_filter(
     filter: AccountScope,
     include_closed: bool,
 ) -> Result<Vec<Holding>, String> {
+    get_holdings_scope_for_filter(state, filter, include_closed)
+        .await?
+        .require_complete()
+        .map_err(|e| e.to_string())
+}
+
+async fn get_holdings_scope_for_filter(
+    state: &ServiceContext,
+    filter: AccountScope,
+    include_closed: bool,
+) -> Result<HoldingsScope, String> {
     let base_currency = state.get_base_currency();
     let resolved = resolve_scope(&filter, state).await?;
     let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
     if account_ids.is_empty() {
-        return Ok(Vec::new());
+        return Ok(HoldingsScope::default());
     }
-    if account_ids.len() == 1 {
-        state
-            .holdings_service()
-            .get_holdings_with_options(&account_ids[0], &base_currency, include_closed)
-            .await
-            .map_err(|e| e.to_string())
-    } else {
-        state
-            .holdings_service()
-            .get_holdings_for_accounts_with_options(
-                &account_ids,
-                &base_currency,
-                &resolved.scope_id,
-                include_closed,
-            )
-            .await
-            .map_err(|e| e.to_string())
-    }
+    state
+        .holdings_service()
+        .get_holdings_scope(
+            &account_ids,
+            &base_currency,
+            &resolved.scope_id,
+            include_closed,
+        )
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -310,7 +315,7 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     state: ProfileAccess,
     asset_id: String,
-) -> Result<Vec<Holding>, String> {
+) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
     debug!("Get holdings for asset {} across all accounts", asset_id);
     let base_currency = context.get_base_currency();
@@ -319,20 +324,17 @@ pub async fn get_asset_holdings(
         .get_active_accounts()
         .map_err(|e| format!("Failed to get accounts: {}", e))?;
 
-    let mut result = Vec::new();
-    for account in accounts {
-        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
-            continue;
-        }
-        if let Ok(Some(holding)) = context
-            .holdings_service()
-            .get_holding(&account.id, &asset_id, &base_currency)
-            .await
-        {
-            result.push(holding);
-        }
-    }
-    Ok(result)
+    let ids = accounts
+        .into_iter()
+        .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
+        .map(|account| account.id)
+        .collect::<Vec<_>>();
+    context
+        .holdings_service()
+        .get_asset_holdings_scope(&ids, &asset_id, &base_currency)
+        .await
+        .map(Into::into)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1655,7 +1657,10 @@ pub async fn delete_snapshot(
             snapshot_id
                 .as_deref()
                 .map(|id| snapshot.id == id)
-                .unwrap_or(snapshot.snapshot_date == date)
+                .unwrap_or(
+                    snapshot.snapshot_date == date
+                        && snapshot.source != SnapshotSource::Calculated.as_str(),
+                )
         })
         .ok_or_else(|| format!("No snapshot found for date {}", date))?;
 
@@ -1681,21 +1686,11 @@ pub async fn delete_snapshot(
     }
 
     // Delete via the service so snapshot deletion stays behind one entry point.
-    if let Some(snapshot_id) = snapshot_id.as_deref() {
-        context
-            .snapshot_service()
-            .delete_snapshot_for_account_by_id(&account_id, snapshot_id)
-            .await
-            .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
-    } else if let Some(target_date) = target_date {
-        context
-            .snapshot_service()
-            .delete_snapshot_for_account(&account_id, &[target_date])
-            .await
-            .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
-    } else {
-        return Err("snapshotId is required to delete a malformed snapshot".to_string());
-    }
+    context
+        .snapshot_service()
+        .delete_snapshot_for_account_by_id(&account_id, &snapshot.id)
+        .await
+        .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
 
     info!(
         "Deleted {:?} snapshot for account {} on date {}",

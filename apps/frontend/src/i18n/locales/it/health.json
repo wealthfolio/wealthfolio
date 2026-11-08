@@ -316,5 +316,17 @@
     "affectedItems_one": "Elemento interessato ({{count}})",
     "affectedItems_many": "Elementi interessati ({{count}})",
     "affectedItems_other": "Elementi interessati ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Operazione: {{id}}",
+    "missing_fx_rate": "Nessun tasso di cambio da {{from}} a {{to}} è disponibile per il {{date}}.",
+    "close_buy_without_short_position": "Questo acquisto è contrassegnato per chiudere una posizione in {{asset}}, ma non esiste una posizione corta da chiudere.",
+    "sell_short_intent_required": "Questa vendita aumenterebbe la posizione corta in {{asset}}. Contrassegnala come vendita allo scoperto.",
+    "conversion_insufficient_holdings": "Questa conversione richiede {{requested}} unità di {{asset}}, ma il conto ne detiene solo {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} è detenuto in {{fromCurrency}} e {{toAsset}} in {{toCurrency}}. Una conversione deve mantenere la stessa valuta.",
+    "return_of_capital_amount_required": "Inserisci un importo per questo rimborso di capitale.",
+    "sell_without_position": "Non esiste una posizione in {{asset}} da vendere. È stato applicato solo l’effetto sulla liquidità.",
+    "insufficient_quantity": "Questa transazione rimuove {{requested}} unità di {{asset}}, ma ne erano detenute solo {{held}}. Le {{excess}} unità rimanenti non hanno una base di costo.",
+    "missing_final_cash": "Questa transazione contabilizzata non ha un importo finale in contanti, quindi non ha modificato il saldo di liquidità."
   }
 }

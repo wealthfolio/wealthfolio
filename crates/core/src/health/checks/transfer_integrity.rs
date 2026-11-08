@@ -38,6 +38,9 @@ pub struct InvalidTransferGroupInfo {
     /// Internal grouping key — used for identity/change-detection only, never shown to the user.
     pub group_id: String,
     pub legs: Vec<TransferLegDetail>,
+    /// Listed by the Match transfers review: a transfer missing its other side.
+    /// A linked pair with a conflicting external marker is not.
+    pub in_transfer_review: bool,
 }
 
 impl InvalidTransferGroupInfo {
@@ -47,6 +50,9 @@ impl InvalidTransferGroupInfo {
         Some(dates.fold((first, first), |(min, max), d| (min.min(d), max.max(d))))
     }
 }
+
+/// The Match transfers review page.
+const TRANSFER_REVIEW_ROUTE: &str = "/activities/transfers";
 
 /// Health check that detects incomplete / invalid transfer groups.
 pub struct TransferIntegrityCheck;
@@ -83,20 +89,32 @@ impl TransferIntegrityCheck {
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        // Deeplink: transfers filtered to the affected date window.
-        let all_dates: Vec<NaiveDate> = groups
-            .iter()
-            .flat_map(|g| g.legs.iter().map(|l| l.date))
-            .collect();
-        let mut query = json!({ "types": "TRANSFER_IN,TRANSFER_OUT", "healthContext": "activity" });
-        if let (Some(from), Some(to)) = (all_dates.iter().min(), all_dates.iter().max()) {
-            query["from"] = json!(from.format("%Y-%m-%d").to_string());
-            query["to"] = json!(to.format("%Y-%m-%d").to_string());
-        }
-        let navigate = NavigateAction {
-            route: "/activities".to_string(),
-            query: Some(query),
-            label: "Review Transactions".to_string(),
+        // The Match transfers review lists each transfer missing its other side
+        // with its likely match; each affected item still opens its own leg.
+        // It does not list linked pairs with a conflicting external marker, so
+        // when only those are left, open the transfers in their date window.
+        let navigate = if groups.iter().any(|group| group.in_transfer_review) {
+            NavigateAction {
+                route: TRANSFER_REVIEW_ROUTE.to_string(),
+                query: None,
+                label: "Match transfers".to_string(),
+            }
+        } else {
+            let all_dates: Vec<NaiveDate> = groups
+                .iter()
+                .flat_map(|g| g.legs.iter().map(|l| l.date))
+                .collect();
+            let mut query =
+                json!({ "types": "TRANSFER_IN,TRANSFER_OUT", "healthContext": "activity" });
+            if let (Some(from), Some(to)) = (all_dates.iter().min(), all_dates.iter().max()) {
+                query["from"] = json!(from.format("%Y-%m-%d").to_string());
+                query["to"] = json!(to.format("%Y-%m-%d").to_string());
+            }
+            NavigateAction {
+                route: "/activities".to_string(),
+                query: Some(query),
+                label: "Review Transactions".to_string(),
+            }
         };
 
         let title = if count == 1 {
@@ -308,6 +326,37 @@ mod tests {
         assert!(check.analyze(&[], &ctx).is_empty());
     }
 
+    /// The review lists no linked pair, so a conflicting marker alone opens the
+    /// transfers in its date window; with a transfer to match, the review.
+    #[test]
+    fn navigates_to_the_review_only_when_it_lists_a_reported_transfer() {
+        let check = TransferIntegrityCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let conflict = InvalidTransferGroupInfo {
+            group_id: "conflicting_external_marker:paired-out".to_string(),
+            legs: vec![leg("acc_cash", "TRANSFER_OUT")],
+            in_transfer_review: false,
+        };
+        let missing_side = InvalidTransferGroupInfo {
+            group_id: "ungrouped:lone-in".to_string(),
+            legs: vec![leg("acc_tfsa", "TRANSFER_IN")],
+            in_transfer_review: true,
+        };
+
+        let issues = check.analyze(std::slice::from_ref(&conflict), &ctx);
+        let navigate = issues[0].navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, "/activities");
+        let query = navigate.query.as_ref().expect("query");
+        assert_eq!(query["types"], "TRANSFER_IN,TRANSFER_OUT");
+        assert_eq!(query["from"], "2026-06-02");
+        assert_eq!(query["to"], "2026-06-02");
+
+        let issues = check.analyze(&[conflict, missing_side], &ctx);
+        let navigate = issues[0].navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, TRANSFER_REVIEW_ROUTE);
+        assert!(navigate.query.is_none());
+    }
+
     #[test]
     fn single_leg_group_produces_error_issue_without_group_id() {
         let check = TransferIntegrityCheck::new();
@@ -316,6 +365,7 @@ mod tests {
         let groups = vec![InvalidTransferGroupInfo {
             group_id: "wf-transfer-80RGYWMp5UoNHnwO98ymz".to_string(),
             legs: vec![leg("acc_checking", "TRANSFER_OUT")],
+            in_transfer_review: true,
         }];
 
         let issues = check.analyze(&groups, &ctx);
@@ -324,7 +374,9 @@ mod tests {
         assert_eq!(issue.severity, Severity::Error);
         assert_eq!(issue.category, HealthCategory::DataConsistency);
         assert_eq!(issue.affected_count, 1);
-        assert!(issue.navigate_action.is_some());
+        let navigate = issue.navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, "/activities/transfers");
+        assert!(navigate.query.is_none());
 
         // The technical group_id must never leak into user-facing text.
         let id = "wf-transfer-80RGYWMp5UoNHnwO98ymz";
@@ -357,10 +409,12 @@ mod tests {
             InvalidTransferGroupInfo {
                 group_id: "g1".to_string(),
                 legs: vec![leg("a1", "TRANSFER_OUT")],
+                in_transfer_review: true,
             },
             InvalidTransferGroupInfo {
                 group_id: "g2".to_string(),
                 legs: vec![leg("a2", "TRANSFER_IN")],
+                in_transfer_review: true,
             },
         ];
 

@@ -74,6 +74,7 @@ describe("AccountHoldings", () => {
     mocks.useHoldingsWithClosedProbe.mockReturnValue({
       holdings: [],
       isLoading: false,
+      isComplete: true,
       hasHiddenClosedPositions: true,
     });
 
@@ -86,6 +87,7 @@ describe("AccountHoldings", () => {
     mocks.useHoldingsWithClosedProbe.mockReturnValue({
       holdings: [],
       isLoading: false,
+      isComplete: true,
       hasHiddenClosedPositions: false,
     });
 
@@ -93,6 +95,25 @@ describe("AccountHoldings", () => {
 
     expect(screen.queryByTestId("holdings-table")).not.toBeInTheDocument();
   });
+
+  it.each(["pending", "unavailable"])(
+    "shows %s holdings as incomplete instead of onboarding",
+    (status) => {
+      mocks.useHoldingsWithClosedProbe.mockReturnValue({
+        holdings: [],
+        isLoading: false,
+        isComplete: false,
+        isError: status === "unavailable",
+        incompleteAccounts: [{ accountId: account.id, status }],
+        hasHiddenClosedPositions: false,
+      });
+      render(<AccountHoldings accountId={account.id} showTitle={false} />);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        status === "pending" ? /calculations are incomplete/i : /holdings are unavailable/i,
+      );
+      expect(screen.queryByText(/get started/i)).not.toBeInTheDocument();
+    },
+  );
 
   it("resolves a hidden account's tracking mode", () => {
     const hiddenHoldingsAccount: Account = {
@@ -106,6 +127,7 @@ describe("AccountHoldings", () => {
     mocks.useHoldingsWithClosedProbe.mockReturnValue({
       holdings: [],
       isLoading: false,
+      isComplete: true,
       hasHiddenClosedPositions: false,
     });
 
@@ -127,6 +149,7 @@ describe("AccountHoldings", () => {
     mocks.useHoldingsWithClosedProbe.mockReturnValue({
       holdings: [{ id: "cash-usd", holdingType: "cash" } as Holding],
       isLoading: false,
+      isComplete: true,
       hasHiddenClosedPositions: false,
     });
 
@@ -144,6 +167,7 @@ describe("AccountHoldings", () => {
     mocks.useHoldingsWithClosedProbe.mockReturnValue({
       holdings: [cashHolding],
       isLoading: false,
+      isComplete: true,
       hasHiddenClosedPositions: false,
     });
 
@@ -161,6 +185,7 @@ describe("AccountHoldings", () => {
       mocks.useHoldingsWithClosedProbe.mockReturnValue({
         holdings: [],
         isLoading: false,
+        isComplete: true,
         hasHiddenClosedPositions: false,
       });
     });

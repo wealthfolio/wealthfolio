@@ -1,4 +1,5 @@
 import type { Holding } from "@/lib/types";
+import { subtractAmounts } from "./monetary-value";
 
 export type HoldingPerformanceMetric =
   | "unrealizedGain"
@@ -15,7 +16,8 @@ type HoldingPerformanceValues = Pick<
 
 type HoldingPerformanceModeValues = HoldingPerformanceValues & Pick<Holding, "dayChangePct">;
 
-function percentFromBasis(amount: number, basis: number): number | null {
+function percentFromBasis(amount: number | null, basis: number | null): number | null {
+  if (amount == null || basis == null) return null;
   const exposure = Math.abs(basis);
   if (exposure > 0) return amount / exposure;
   return amount === 0 ? 0 : null;
@@ -33,7 +35,7 @@ export function getBaseHoldingPerformancePercent(
 
   if (metric === "realizedGain") {
     if (holding.realizedGain == null || holding.returnBasis == null) return null;
-    const disposedBasis = holding.returnBasis.base - (holding.costBasis?.base ?? 0);
+    const disposedBasis = subtractAmounts(holding.returnBasis.base, holding.costBasis?.base);
     return percentFromBasis(holding.realizedGain.base, disposedBasis);
   }
 
@@ -52,13 +54,7 @@ export function getBaseHoldingPerformancePercentForMode(
   }
   if (mode === "daily") return holding.dayChangePct ?? null;
   if (mode === "return") {
-    return (
-      getBaseHoldingPerformancePercent(holding, "totalReturn") ??
-      getBaseHoldingPerformancePercent(holding, "totalGain")
-    );
+    return getBaseHoldingPerformancePercent(holding, "totalReturn");
   }
-  return (
-    getBaseHoldingPerformancePercent(holding, "totalGain") ??
-    getBaseHoldingPerformancePercent(holding, "unrealizedGain")
-  );
+  return getBaseHoldingPerformancePercent(holding, "totalGain");
 }

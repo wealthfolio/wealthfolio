@@ -474,6 +474,22 @@ export interface ActivityImport {
    */
   sourceGroupId?: string;
   comment?: string;
+  /**
+   * Labelled lines that make up `fee` and `tax`, such as commission and stamp
+   * duty. Lines must add up to both totals or the row is rejected; they are
+   * stored in the activity's `metadata.charges` and change no calculation.
+   */
+  charges?: ActivityCharge[];
+}
+
+/**
+ * One labelled part of an activity's fee or tax, in the activity's currency
+ * (a GBp line is converted to GBP like the totals).
+ */
+export interface ActivityCharge {
+  category: 'fee' | 'tax';
+  label: string;
+  amount: number | string;
 }
 
 export interface ImportActivitiesSummary {
@@ -817,8 +833,8 @@ export interface SpendingReport {
 }
 
 export interface MonetaryValue {
-  local: number;
-  base: number;
+  local: number | null;
+  base: number | null;
 }
 
 export interface Lot {
@@ -879,7 +895,7 @@ export interface Holding {
   dayChange?: MonetaryValue | null;
   dayChangePct?: number | null;
   prevCloseValue?: MonetaryValue | null;
-  weight: number;
+  weight: number | null;
   asOfDate: string;
 }
 

@@ -15,6 +15,7 @@ vi.mock("@/hooks/use-holdings", () => ({
       { id: "h-1", instrument: { id: "asset-a", symbol: "FUNDA" }, quantity: holdings.quantity },
     ],
     isLoading: false,
+    isComplete: true,
   }),
 }));
 

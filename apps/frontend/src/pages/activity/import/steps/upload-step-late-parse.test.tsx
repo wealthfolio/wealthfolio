@@ -17,7 +17,6 @@ const { accounts, accountQuery } = vi.hoisted(() => {
       id: "account-1",
       name: "Broker",
       accountType: "SECURITIES",
-      balance: 0,
       currency: "USD",
       isDefault: false,
       isActive: true,

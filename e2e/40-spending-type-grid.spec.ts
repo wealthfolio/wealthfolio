@@ -65,6 +65,11 @@ for (const scenario of [
   }) => {
     await page.setViewportSize({ width: scenario.width, height: 844 });
     await gotoAppPath(page, `/?tab=spending&dir=${scenario.direction}`);
+    // Spending joins the tabs once settings load; Investments' menu has its own
+    // "Add transaction", which opens the investment form instead.
+    await expect(
+      page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+    ).toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: "More options", exact: true }).first().click();
     await page.getByRole("button", { name: "Add transaction", exact: true }).click();
     const dialog = page.getByRole("dialog");

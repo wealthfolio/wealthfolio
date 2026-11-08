@@ -1,4 +1,9 @@
-import { importActivitySchema, importMappingSchema, parseConfigSchema } from "@/lib/schemas";
+import {
+  activityChargeSchema,
+  importActivitySchema,
+  importMappingSchema,
+  parseConfigSchema,
+} from "@/lib/schemas";
 import * as z from "zod";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import {
@@ -443,15 +448,69 @@ export interface TransferMatchCandidateRequest {
   limit?: number;
 }
 
+export type TransferMatchReason =
+  | "same_asset"
+  | "same_quantity"
+  | "same_amount"
+  | "same_currency"
+  | "same_date"
+  | "same_time"
+  | "same_account"
+  | "cash_fx_conversion";
+
+export type TransferMatchWarning =
+  | { code: "dates_differ"; days: number }
+  | { code: "currencies_differ"; source: string; candidate: string }
+  | { code: "prices_differ" }
+  | { code: "another_match" };
+
 export interface TransferMatchCandidate {
   activity: Activity;
   matchKind: "cash" | "security" | "cash_fx_conversion";
+  /** "high" only for a certain match, which the core decides. */
   confidence: "high" | "medium" | "low";
   score: number;
   reasons: string[];
   warnings: string[];
+  /** `reasons` as codes to translate, in the same order. */
+  reasonCodes?: TransferMatchReason[];
+  /** `warnings` as codes to translate, in the same order. */
+  warningCodes?: TransferMatchWarning[];
+}
+
+export type TransferLinkState =
+  | "linked"
+  | "linked_but_marked_external"
+  | "external"
+  | "needs_counterpart"
+  | "broken_link";
+
+/** A posted transfer with no linked other side, and its best candidates. */
+export interface UnlinkedTransfer {
+  activity: Activity;
+  linkState: TransferLinkState;
+  candidates: TransferMatchCandidate[];
+}
+
+/** The Match transfers review, newest first. */
+export interface TransferMatchReview {
+  /** Pairs certain enough to link together; the only candidate is the other side. */
+  certain: UnlinkedTransfer[];
+  /** The rest, each with its best candidates (possibly none). */
+  needsReview: UnlinkedTransfer[];
+}
+
+export interface TransferPairLinkRequest {
+  activityAId: string;
+  activityBId: string;
+}
+
+export interface LinkTransferPairsResult {
+  linked: { transferInId: string; transferOutId: string }[];
+  errors: { index: number; message: string }[];
 }
 export type ActivityImport = z.infer<typeof importActivitySchema>;
+export type ActivityCharge = z.infer<typeof activityChargeSchema>;
 export type ImportMappingData = z.infer<typeof importMappingSchema>;
 export type ParseConfig = z.infer<typeof parseConfigSchema>;
 export type ImportTemplateScope = "SYSTEM" | "USER";
@@ -710,8 +769,19 @@ export interface Instrument {
 }
 
 export interface MonetaryValue {
-  local: number;
-  base: number;
+  local: number | null;
+  base: number | null;
+}
+
+export interface IncompleteHoldingsAccount {
+  accountId: string;
+  status: "pending" | "unavailable";
+  reasonCode: string;
+}
+
+export interface HoldingsListResponse {
+  holdings: Holding[];
+  incompleteAccounts: IncompleteHoldingsAccount[];
 }
 
 export interface Lot {
@@ -813,7 +883,7 @@ export interface Holding {
   dayChange?: MonetaryValue | null;
   dayChangePct?: number | null;
   prevCloseValue?: MonetaryValue | null;
-  weight: number;
+  weight: number | null;
   asOfDate: string;
   /** Source account IDs for aggregated holdings (portfolio/multi-account scope). Empty for single-account. */
   sourceAccountIds?: string[];
@@ -2383,13 +2453,25 @@ export interface AffectedItem {
   route?: string;
 }
 
-/**
- * A single supporting-evidence row for a diagnostic.
- */
+/** Stable engine reason code and raw interpolation values. */
+export interface ActivityReason {
+  code: string;
+  params?: Record<string, string>;
+}
+
+export interface EngineActivityIssue {
+  activityId: string;
+  kind: "REJECTED" | "OVERSOLD" | "MISSING_AMOUNT";
+  message: string;
+  reason?: ActivityReason;
+}
+
+/** A single supporting-evidence row for a diagnostic. */
 export interface Evidence {
   label: string;
   value: string;
   route?: string;
+  activityIssue?: EngineActivityIssue;
 }
 
 /**

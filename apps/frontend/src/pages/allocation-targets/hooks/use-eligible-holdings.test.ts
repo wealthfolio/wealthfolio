@@ -10,6 +10,7 @@ function holding(assetId: string, symbol: string): Holding {
     id: assetId,
     accountId: "account-1",
     holdingType: HoldingType.SECURITY,
+    marketValue: { local: 100, base: 100 },
     instrument: {
       id: assetId,
       symbol,
@@ -21,6 +22,16 @@ function holding(assetId: string, symbol: string): Holding {
 }
 
 describe("useEligibleHoldingsSelection", () => {
+  it("retains instrument choices when valuations are unknown", () => {
+    const unpriced = { ...holding("asset-b", "B"), marketValue: { local: null, base: null } };
+    const { result } = renderHook(() =>
+      useEligibleHoldingsSelection([holding("asset-a", "A"), unpriced], "context"),
+    );
+    expect(result.current.selectedAssetIds).toEqual(["asset-a", "asset-b"]);
+    expect(
+      result.current.eligibleHoldings.find((holding) => holding.assetId === "asset-b")?.value,
+    ).toBeNull();
+  });
   it("starts all current instruments selected and omits a full allowlist", () => {
     const { result } = renderHook(() =>
       useEligibleHoldingsSelection([holding("asset-b", "B"), holding("asset-a", "A")], "context-a"),

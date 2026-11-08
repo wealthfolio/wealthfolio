@@ -502,6 +502,36 @@ const conversion: ActivityImport[] = [
 ];
 ```
 
+Use `charges` to keep the fee and tax lines a statement lists. Each line is a
+`fee` or `tax` with a free-text label and an amount in the row's currency. The
+fee lines must add up to `fee` and the tax lines to `tax`, or the row is
+rejected (`checkImport` reports it under `errors.charges`). Lines in a minor
+unit such as GBp are converted to the major unit with the totals. The lines are
+stored in the activity's `metadata.charges` and only describe the totals: every
+calculation keeps using `fee` and `tax`. Editing a total later without sending
+new lines drops them.
+
+```typescript
+const buy: ActivityImport = {
+  accountId: "account-123",
+  activityType: "BUY",
+  date: "2026-09-04",
+  symbol: "AZN.L",
+  quantity: 10,
+  unitPrice: 140.82,
+  currency: "GBP",
+  fee: 9.99,
+  tax: 7.04,
+  charges: [
+    { category: "fee", label: "Commission", amount: 8 },
+    { category: "fee", label: "Exchange fee", amount: 1.99 },
+    { category: "tax", label: "Stamp duty", amount: 7.04 },
+  ],
+  isValid: true,
+  isDraft: false,
+};
+```
+
 #### `checkImport(activities: ActivityImport[]): Promise<ActivityImport[]>`
 
 Validates and normalizes activities without importing them.

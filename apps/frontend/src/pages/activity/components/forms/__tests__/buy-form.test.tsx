@@ -9,12 +9,14 @@ import type { Holding } from "@/lib/types";
 interface UseHoldingsResult {
   holdings: Holding[];
   isLoading: boolean;
+  isComplete: boolean;
 }
 
 const holdingsHook = vi.hoisted(() => ({
   useHoldings: vi.fn<() => UseHoldingsResult>(() => ({
     holdings: [],
     isLoading: false,
+    isComplete: true,
   })),
 }));
 
@@ -240,6 +242,7 @@ describe("BuyForm", () => {
     holdingsHook.useHoldings.mockReturnValue({
       holdings: [],
       isLoading: false,
+      isComplete: true,
     });
   });
 
@@ -607,6 +610,7 @@ describe("BuyForm", () => {
           } as Holding,
         ],
         isLoading: false,
+        isComplete: true,
       });
 
       render(
@@ -651,6 +655,7 @@ describe("BuyForm", () => {
           } as Holding,
         ],
         isLoading: false,
+        isComplete: true,
       });
 
       render(

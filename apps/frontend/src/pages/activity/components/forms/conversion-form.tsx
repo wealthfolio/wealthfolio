@@ -150,7 +150,11 @@ export function ConversionForm({
 
   // Today's holdings: a warning only, since the conversion may be dated in
   // the past. The engine decides when it folds, from the history.
-  const { holdings, isLoading: isHoldingsLoading } = useHoldings({ type: "account", accountId });
+  const {
+    holdings,
+    isLoading: isHoldingsLoading,
+    isComplete: holdingsComplete,
+  } = useHoldings({ type: "account", accountId });
   const heldQuantity = useMemo(() => {
     // An existing asset is found by id: one symbol can name two listings.
     const holding = fromExistingAssetId
@@ -179,7 +183,11 @@ export function ConversionForm({
   ]);
   const quantity = Number(fromQuantity);
   const convertsMoreThanHeld =
-    !isHoldingsLoading && !!fromAssetId && quantity > 0 && quantity > heldQuantity;
+    holdingsComplete &&
+    !isHoldingsLoading &&
+    !!fromAssetId &&
+    quantity > 0 &&
+    quantity > heldQuantity;
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);

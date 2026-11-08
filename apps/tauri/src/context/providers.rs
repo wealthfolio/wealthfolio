@@ -575,12 +575,8 @@ async fn build_context(
             classification_service.clone(),
             timezone.clone(),
         )
-        .with_income_dependencies(
-            activity_repository.clone(),
-            fx_service.clone(),
-            projection_store,
-        )
-        .with_lot_repository(lots_repository.clone()),
+        .with_lot_repository(lots_repository.clone())
+        .with_projection_store(projection_store),
     );
 
     let allocation_service = Arc::new(

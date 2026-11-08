@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, Utc};
 use log::{debug, info, warn};
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -165,7 +166,7 @@ impl HealthService {
     ) -> Result<HealthStatus> {
         self.run_checks_with_stale_valuations(
             base_currency,
-            total_portfolio_value,
+            Some(total_portfolio_value),
             holdings,
             latest_quote_times,
             quote_sync_errors,
@@ -189,7 +190,7 @@ impl HealthService {
     async fn run_checks_with_stale_valuations(
         &self,
         base_currency: &str,
-        total_portfolio_value: f64,
+        total_portfolio_value: Option<f64>,
         holdings: &[AssetHoldingInfo],
         latest_quote_times: &std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
         quote_sync_errors: &[QuoteSyncErrorInfo],
@@ -353,66 +354,68 @@ impl HealthService {
         // Use a map to consolidate holdings by asset_id (same asset in multiple accounts)
         let mut holdings_map: HashMap<String, AssetHoldingInfo> = HashMap::new();
         let mut latest_quote_times: HashMap<String, chrono::DateTime<chrono::Utc>> = HashMap::new();
-        let mut total_portfolio_value = 0.0;
+        // One capture preserves per-account rows and isolates incomplete accounts.
+        let account_ids = accounts
+            .iter()
+            .map(|account| account.id.clone())
+            .collect::<Vec<_>>();
+        let scope = holdings_service
+            .get_holdings_by_account_scope(&account_ids, base_currency)
+            .await?;
+        let mut total_portfolio_value = scope.incomplete_accounts.is_empty().then_some(0.0);
         // Track FX pairs needed: (from_currency, to_currency) → affected market value
-        let mut fx_pair_mv: HashMap<(String, String), f64> = HashMap::new();
+        let mut fx_pair_mv: HashMap<(String, String), Option<f64>> = HashMap::new();
 
-        for account in &accounts {
-            let holdings = holdings_service
-                .get_holdings(&account.id, base_currency)
-                .await?;
+        // Existing history checks diagnose incomplete accounts below.
+        for holding in scope.holdings {
+            let base_value = holding.market_value.base.and_then(|value| value.to_f64());
+            if base_value.is_none() {
+                total_portfolio_value = None;
+            }
+            // Collect FX pair info before filtering to instrument-only
+            if holding.local_currency != holding.base_currency {
+                let mv = holding
+                    .market_value
+                    .base
+                    .and_then(|value| value.to_f64())
+                    .map(f64::abs);
+                let affected = fx_pair_mv
+                    .entry((
+                        holding.local_currency.clone(),
+                        holding.base_currency.clone(),
+                    ))
+                    .or_insert(Some(0.0));
+                *affected = affected.zip(mv).map(|(total, value)| total + value);
+            }
 
-            for holding in holdings {
-                // Collect FX pair info before filtering to instrument-only
-                if holding.local_currency != holding.base_currency {
-                    let mv = holding
-                        .market_value
-                        .base
-                        .to_string()
-                        .parse::<f64>()
-                        .unwrap_or(0.0)
-                        .abs();
-                    *fx_pair_mv
-                        .entry((
-                            holding.local_currency.clone(),
-                            holding.base_currency.clone(),
-                        ))
-                        .or_default() += mv;
-                }
+            if !is_price_staleness_candidate(&holding.holding_type, holding.asset_kind.as_ref()) {
+                continue;
+            }
 
-                if !is_price_staleness_candidate(&holding.holding_type, holding.asset_kind.as_ref())
-                {
-                    continue;
-                }
+            if let Some(ref instrument) = holding.instrument {
+                let market_value_f64 = base_value.unwrap_or_default();
+                total_portfolio_value = total_portfolio_value
+                    .zip(base_value)
+                    .map(|(total, value)| total + value);
 
-                if let Some(ref instrument) = holding.instrument {
-                    let market_value_f64 = holding
-                        .market_value
-                        .base
-                        .to_string()
-                        .parse::<f64>()
-                        .unwrap_or(0.0);
-                    total_portfolio_value += market_value_f64;
+                // Determine if uses market pricing
+                let uses_market_pricing = instrument.pricing_mode.to_uppercase() == "MARKET";
 
-                    // Determine if uses market pricing
-                    let uses_market_pricing = instrument.pricing_mode.to_uppercase() == "MARKET";
-
-                    // Consolidate by asset_id - if same asset appears in multiple accounts,
-                    // combine market values
-                    holdings_map
-                        .entry(instrument.id.clone())
-                        .and_modify(|existing| {
-                            existing.market_value += market_value_f64;
-                        })
-                        .or_insert(AssetHoldingInfo {
-                            asset_id: instrument.id.clone(),
-                            symbol: instrument.symbol.clone(),
-                            name: instrument.name.clone(),
-                            exchange_mic: instrument.exchange_mic.clone(),
-                            market_value: market_value_f64,
-                            uses_market_pricing,
-                        });
-                }
+                // Consolidate by asset_id - if same asset appears in multiple accounts,
+                // combine market values
+                holdings_map
+                    .entry(instrument.id.clone())
+                    .and_modify(|existing| {
+                        existing.market_value += market_value_f64;
+                    })
+                    .or_insert(AssetHoldingInfo {
+                        asset_id: instrument.id.clone(),
+                        symbol: instrument.symbol.clone(),
+                        name: instrument.name.clone(),
+                        exchange_mic: instrument.exchange_mic.clone(),
+                        market_value: market_value_f64,
+                        uses_market_pricing,
+                    });
             }
         }
 
@@ -580,6 +583,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        engine_issue: None,
                     }
                 })
                 .collect();
@@ -623,6 +627,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        engine_issue: None,
                     });
                 }
             }
@@ -733,6 +738,7 @@ impl HealthService {
                             snapshot_source: None,
                             snapshot_min_date: None,
                             snapshot_max_date: None,
+                            engine_issue: None,
                         }
                     })),
                     Err(error) => warn!("Failed to check projection freshness: {}", error),
@@ -926,6 +932,7 @@ fn gather_invalid_snapshot_date_issues(
                 snapshot_source: Some(snapshot.source),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(max_snapshot_read_date(today)),
+                engine_issue: None,
             });
         }
     }
@@ -973,6 +980,7 @@ fn gather_invalid_activity_date_issues(
                 snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(today),
+                engine_issue: None,
             })
         })
         .collect()
@@ -1020,6 +1028,7 @@ fn invalid_transfer_groups_from_activities(
             (!legs.is_empty()).then(|| InvalidTransferGroupInfo {
                 group_id: group.group_id.clone(),
                 legs,
+                in_transfer_review: true,
             })
         })
         .collect();
@@ -1029,6 +1038,7 @@ fn invalid_transfer_groups_from_activities(
             groups.push(InvalidTransferGroupInfo {
                 group_id: format!("ungrouped:{}", activity.id),
                 legs: vec![transfer_leg_detail(activity, account_names, tz)],
+                in_transfer_review: true,
             });
         }
     }
@@ -1039,6 +1049,7 @@ fn invalid_transfer_groups_from_activities(
                 groups.push(InvalidTransferGroupInfo {
                     group_id: format!("conflicting_external_marker:{}", activity.id),
                     legs: vec![transfer_leg_detail(activity, account_names, tz)],
+                    in_transfer_review: false,
                 });
             }
         }
@@ -1321,6 +1332,7 @@ fn missing_lot_disposal_sells_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1526,6 +1538,7 @@ fn incomplete_basis_trade_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1654,6 +1667,7 @@ fn missing_currency_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: None,
             })
         })
         .collect()
@@ -1711,6 +1725,7 @@ fn engine_activity_issues(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                engine_issue: Some(issue),
             })
         })
         .collect()
@@ -2011,6 +2026,7 @@ fn value_asset_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2275,6 +2291,7 @@ fn basis_source_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2309,6 +2326,7 @@ fn missing_valuation_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        engine_issue: None,
     }
 }
 
@@ -2936,6 +2954,7 @@ mod tests {
             activity_id: id.to_string(),
             kind,
             message: "reported".to_string(),
+            reason: None,
         };
         let infos = engine_activity_issues(
             vec![
@@ -2954,6 +2973,10 @@ mod tests {
         assert_eq!(infos[0].record_id, "sell-1");
         assert_eq!(infos[0].description, account.name);
         assert_eq!(infos[0].account_id.as_deref(), Some("acc-1"));
+        assert_eq!(
+            infos[0].engine_issue.as_ref().map(|i| i.message.as_str()),
+            Some("reported")
+        );
     }
 
     // Regression for #1388: activities persisted without a currency (pre-fix CSV
@@ -3554,6 +3577,14 @@ mod tests {
         assert_eq!(groups[0].group_id, "conflicting_external_marker:paired-out");
         assert_eq!(groups[0].legs.len(), 1);
         assert_eq!(groups[0].legs[0].account_name, "Cash");
+
+        // The Match transfers review lists no linked pair, so the issue opens
+        // the transfers instead of a review with nothing to fix.
+        assert!(!groups[0].in_transfer_review);
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let issues = TransferIntegrityCheck::new().analyze(&groups, &ctx);
+        let navigate = issues[0].navigate_action.as_ref().expect("navigate action");
+        assert_eq!(navigate.route, "/activities");
     }
 
     fn short_lot(remaining: Decimal) -> LotRecord {
@@ -4064,6 +4095,66 @@ mod tests {
         assert_eq!(status.overall_severity, crate::health::Severity::Info);
     }
 
+    #[test]
+    fn unknown_portfolio_totals_do_not_escalate_a_priced_subset() {
+        for total in [None, Some(100_000.0)] {
+            let ctx = HealthContext::new(HealthConfig::default(), "USD", total);
+            let mut issues = PriceStalenessCheck::new().analyze(
+                &[AssetHoldingInfo {
+                    asset_id: "priced".into(),
+                    symbol: "PRICED".into(),
+                    name: None,
+                    exchange_mic: None,
+                    market_value: 100_000.0,
+                    uses_market_pricing: true,
+                }],
+                &HashMap::new(),
+                &ctx,
+            );
+            issues.extend(QuoteSyncCheck::new().analyze(
+                &[QuoteSyncErrorInfo {
+                    asset_id: "priced".into(),
+                    symbol: "PRICED".into(),
+                    error_count: 6,
+                    last_error: None,
+                    market_value: 100_000.0,
+                    has_synced_before: true,
+                }],
+                &ctx,
+            ));
+            issues.extend(ClassificationCheck::new().analyze(
+                &[UnclassifiedAssetInfo {
+                    asset_id: "priced".into(),
+                    symbol: "PRICED".into(),
+                    name: None,
+                    market_value: 100_000.0,
+                    missing_taxonomy: "asset_class".into(),
+                }],
+                &ctx,
+            ));
+            issues.extend(FxIntegrityCheck::new().analyze(
+                &[FxPairInfo {
+                    pair_id: "CAD:USD".into(),
+                    from_currency: "CAD".into(),
+                    to_currency: "USD".into(),
+                    affected_mv: Some(100_000.0),
+                    latest_quote_time: None,
+                }],
+                &ctx,
+            ));
+            assert_eq!(issues.len(), 4);
+            for issue in issues {
+                assert_eq!(issue.affected_mv_pct, total.map(|_| 1.0));
+                assert_eq!(
+                    issue.severity == crate::health::Severity::Critical,
+                    total.is_some(),
+                    "{}",
+                    issue.title
+                );
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_dismiss_and_restore() {
         let store = Arc::new(MockDismissalStore::new());
@@ -4305,7 +4396,7 @@ mod tests {
         service
             .run_checks_with_stale_valuations(
                 "USD",
-                0.0,
+                Some(0.0),
                 &[],
                 &HashMap::new(),
                 &[],

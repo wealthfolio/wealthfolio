@@ -30,8 +30,9 @@ const buildTarget = process.env.BUILD_TARGET || "tauri";
 // Modules that are imported both statically and with import(), on purpose:
 // addons-core breaks its import cycle with addons-loader, i18n.ts loads every
 // catalog lazily while a few English catalogs are needed synchronously, and the
-// Tauri adapter imports these Tauri APIs statically. Vite warns that such an
-// import() can't split the module out; the warning stays on for other module paths.
+// Tauri adapter imports these Tauri APIs statically. Rolldown warns
+// (INEFFECTIVE_DYNAMIC_IMPORT) that such an import() can't split the module out;
+// the warning stays on for other module paths.
 const intendedMixedImports = [
   "/@tauri-apps/api/core.js",
   "/@tauri-apps/api/event.js",
@@ -43,8 +44,6 @@ const intendedMixedImports = [
   "/src/i18n/locales/en/spending.json",
   "/src/i18n/locales/en/taxonomies.json",
 ];
-const mixedImportWarning =
-  /\(!\) (.+?) is dynamically imported by .* dynamic import will not move module into another chunk/s;
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -59,19 +58,19 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@wealthfolio/addon-sdk": path.resolve(__dirname, "../../packages/addon-sdk/src"),
-      "@wealthfolio/ui": path.resolve(__dirname, "../../packages/ui/src"),
+      "@wealthfolio/addon-sdk": path.resolve(import.meta.dirname, "../../packages/addon-sdk/src"),
+      "@wealthfolio/ui": path.resolve(import.meta.dirname, "../../packages/ui/src"),
       // Conditional adapter alias based on build target
       "@/adapters": path.resolve(
-        __dirname,
+        import.meta.dirname,
         buildTarget === "tauri" ? "./src/adapters/tauri" : "./src/adapters/web",
       ),
       // Platform-specific core module for shared adapters
       "#platform": path.resolve(
-        __dirname,
+        import.meta.dirname,
         buildTarget === "tauri" ? "./src/adapters/tauri/core" : "./src/adapters/web/core",
       ),
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
     extensions: [".js", ".ts", ".jsx", ".tsx", ".json"],
   },
@@ -119,20 +118,19 @@ export default defineConfig({
     // stale hashed bundles then accumulate and Tauri embeds the ENTIRE dist
     // tree into release builds (tauri.conf.json frontendDist).
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
-        main: path.resolve(__dirname, "index.html"),
-        "addon-sandbox": path.resolve(__dirname, "addon-sandbox.html"),
+        main: path.resolve(import.meta.dirname, "index.html"),
+        "addon-sandbox": path.resolve(import.meta.dirname, "addon-sandbox.html"),
       },
       onwarn(warning, warn) {
-        if (warning.plugin !== "vite:reporter") return warn(warning);
-        const id = warning.message.match(mixedImportWarning)?.[1];
+        const id = warning.code === "INEFFECTIVE_DYNAMIC_IMPORT" ? warning.id : undefined;
         if (id && intendedMixedImports.some((suffix) => id.endsWith(suffix))) return;
         warn(warning);
       },
     },
     // don't minify for debug builds
-    minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
+    minify: !process.env.TAURI_DEBUG ? "oxc" : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
@@ -141,5 +139,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    // Vitest 5 clears mock calls before every test by default; keep Vitest 4's
+    // behaviour so tests that count calls made in beforeAll or at module load hold.
+    clearMocks: false,
   },
 } as unknown as import("vitest/config").UserConfigExport);

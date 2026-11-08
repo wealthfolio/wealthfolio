@@ -252,6 +252,12 @@
     "filteredNet": "Netto (Filter)"
   },
   "period": {
+    "month": "Monat",
+    "year": "Jahr",
+    "previousPeriod": "Vorheriger Zeitraum",
+    "nextPeriod": "Nächster Zeitraum",
+    "previousYears": "Frühere Jahre",
+    "nextYears": "Spätere Jahre",
     "thisMonth": "Dieser Monat",
     "mtdShort": "Monat",
     "lastMonth": "Letzter Monat",
@@ -933,6 +939,11 @@
     "deselectDay": "Alle Transaktionen vom {{date}} abwählen"
   },
   "tabContent": {
+    "comparePriorPeriod": "Mit vorherigem Zeitraum vergleichen",
+    "comparisonDays": "Tag im Zeitraum",
+    "comparisonWeeks": "Woche im Zeitraum",
+    "comparisonMonths": "Monat im Zeitraum",
+    "comparisonDifference": "Differenz",
     "stageWhereLabel": "Wo ich stehe",
     "stageWhereSub": "Tempo, Budget & Kategorieaufschlüsselung",
     "stageChangedLabel": "Was sich geändert hat",
@@ -980,6 +991,7 @@
     "fromPriorPeriod": "gegenüber dem vorherigen Zeitraum",
     "intervalMtd": "diesen Monat",
     "intervalLastMonth": "letzten Monat",
+    "interval1W": "letzte 7 Tage",
     "interval3M": "letzte 3 Monate",
     "interval6M": "letzte 6 Monate",
     "intervalYtd": "seit Jahresbeginn",

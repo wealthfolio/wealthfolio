@@ -296,13 +296,17 @@ export function computeMomentum(
   longHistory: ParsedHistoryPoint[],
   rangeStartISO: string,
   rangeEndISO: string,
+  calendarYear?: number | null,
 ): Momentum | null {
   if (longHistory.length < 2) return null;
 
   const rangeDays = daysBetween(rangeStartISO, rangeEndISO) || 1;
-  const priorStartISO = new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
-    .toISOString()
-    .slice(0, 10);
+  const priorStartISO =
+    calendarYear != null
+      ? `${calendarYear - 1}-01-01`
+      : new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
+          .toISOString()
+          .slice(0, 10);
 
   const nwEnd = netWorthAsOf(longHistory, rangeEndISO);
   const nwStart = netWorthAsOf(longHistory, rangeStartISO);
@@ -311,7 +315,9 @@ export function computeMomentum(
   const earliest = longHistory[0].date;
   const hasPrior = earliest <= priorStartISO;
   const nwPriorStart = netWorthAsOf(longHistory, priorStartISO);
-  const priorChange = hasPrior ? nwStart - nwPriorStart : null;
+  const nwPriorEnd =
+    calendarYear != null ? netWorthAsOf(longHistory, `${calendarYear - 1}-12-31`) : nwStart;
+  const priorChange = hasPrior ? nwPriorEnd - nwPriorStart : null;
   const beatBy = priorChange != null ? currentChange - priorChange : null;
 
   // Monthly net worth change bars across the prior + current windows.

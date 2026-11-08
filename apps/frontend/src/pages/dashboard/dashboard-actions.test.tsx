@@ -18,7 +18,7 @@ vi.mock("@/components/action-palette", () => ({
     <div>
       {groups.flatMap((group) =>
         group.items.map((item) => (
-          <button key={item.label} onClick={item.onClick}>
+          <button key={item.label} onClick={item.onClick} aria-pressed={item.checked}>
             {item.label}
           </button>
         )),
@@ -44,6 +44,20 @@ vi.mock("@/features/wealthfolio-connect/providers/wealthfolio-connect-provider",
 }));
 
 beforeEach(() => vi.clearAllMocks());
+
+it("exposes comparison as a checked Spending action without navigating", () => {
+  const toggle = vi.fn();
+  const { rerender } = render(<DashboardActions view="spending" onCompareToggle={toggle} />);
+  const action = screen.getByRole("button", { name: "Compare to prior period" });
+  expect(action).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(action);
+  expect(toggle).toHaveBeenCalledOnce();
+  expect(mocks.navigate).not.toHaveBeenCalled();
+  rerender(<DashboardActions view="spending" compareEnabled onCompareToggle={toggle} />);
+  expect(action).toHaveAttribute("aria-pressed", "true");
+  rerender(<DashboardActions view="investments" compareEnabled onCompareToggle={toggle} />);
+  expect(screen.queryByRole("button", { name: "Compare to prior period" })).not.toBeInTheDocument();
+});
 
 it("opens asset management from Net Worth and omits full-history refresh", () => {
   const addAsset = vi.fn();

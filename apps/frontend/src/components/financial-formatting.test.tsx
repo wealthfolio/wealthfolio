@@ -1,6 +1,6 @@
 import { StarRatingDisplay } from "@wealthfolio/ui";
 import { render, screen } from "@testing-library/react";
-import { FormattingProvider, GainAmount, GainPercent } from "@wealthfolio/ui";
+import { AmountDisplay, FormattingProvider, GainAmount, GainPercent } from "@wealthfolio/ui";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@number-flow/react", async () => {
@@ -18,6 +18,24 @@ vi.mock("@number-flow/react", async () => {
 });
 
 describe("localized financial components", () => {
+  it("renders unknown money as unavailable and preserves an actual zero", () => {
+    const { rerender } = render(
+      <FormattingProvider locale="US">
+        <AmountDisplay value={null} currency="CAD" />
+        <GainAmount value={null} currency="CAD" />
+      </FormattingProvider>,
+    );
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    expect(document.querySelector(".text-gain, .text-loss")).toBeNull();
+    rerender(
+      <FormattingProvider locale="US">
+        <AmountDisplay value={0} currency="USD" />
+        <GainAmount value={0} currency="USD" />
+      </FormattingProvider>,
+    );
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.getAllByText("$0.00")).toHaveLength(2);
+  });
   it("preserves Wealthfolio quote-unit symbols in gain amounts", () => {
     render(
       <FormattingProvider locale="US" uiLocale="en">
