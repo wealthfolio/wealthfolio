@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::{normalize_amount, normalize_currency_code};
-use crate::quotes::{QuoteServiceTrait, SymbolSearchResult};
+use crate::quotes::{search_result_matches_query, QuoteServiceTrait, SymbolSearchResult};
 use crate::taxonomies::TaxonomyServiceTrait;
 use crate::utils::isin::looks_like_isin;
 use futures::stream::{self, StreamExt};
@@ -858,13 +858,33 @@ impl AssetService {
         )
     }
 
+    /// A search result names the imported instrument only on an exact identity
+    /// match; the search also returns substring hits on symbols and names.
+    fn provider_result_is_exact_for_import(
+        result: &SymbolSearchResult,
+        search_symbol: &str,
+        constraints: &ImportProviderSelectionConstraints<'_>,
+    ) -> bool {
+        search_result_matches_query(result, search_symbol)
+            || Self::provider_result_canonical_matches(result, constraints.canonical_symbol)
+            || Self::provider_result_provider_symbol_matches_source(
+                result,
+                constraints.source_symbol,
+            )
+            || Self::provider_result_matches_deterministic_provider_symbol(result, constraints)
+    }
+
     fn select_provider_result_for_import(
         results: Vec<SymbolSearchResult>,
+        search_symbol: &str,
         constraints: &ImportProviderSelectionConstraints<'_>,
     ) -> Option<SymbolSearchResult> {
         results
             .into_iter()
-            .filter(|result| Self::provider_result_matches_import_constraints(result, constraints))
+            .filter(|result| {
+                Self::provider_result_matches_import_constraints(result, constraints)
+                    && Self::provider_result_is_exact_for_import(result, search_symbol, constraints)
+            })
             .max_by(|a, b| {
                 Self::provider_result_import_rank(a, constraints)
                     .cmp(&Self::provider_result_import_rank(b, constraints))
@@ -1774,6 +1794,7 @@ impl AssetServiceTrait for AssetService {
                     .and_then(|results| {
                         Self::select_provider_result_for_import(
                             results,
+                            &search_symbol,
                             &provider_selection_constraints,
                         )
                     });
@@ -5494,6 +5515,38 @@ mod tests {
         assert_eq!(output.canonical_symbol.as_deref(), Some("ACME"));
         assert_eq!(output.name.as_deref(), Some("Acme B"));
         assert_eq!(output.provider_symbol.as_deref(), Some("ACME-B"));
+    }
+
+    /// #2405: the symbol search also returns substring hits on symbols and
+    /// names, existing holdings first. A row for "A" must not take one of them.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_ignores_substring_search_hits() {
+        let mut holding = yahoo_search_result(
+            "RELIANCE.NS",
+            "RELIANCE",
+            "XNSE",
+            "Reliance Industries",
+            "INR",
+            "RELIANCE.NS",
+        );
+        holding.is_existing = true;
+        holding.existing_asset_id = Some("reliance".to_string());
+        let quote_service = TestQuoteService::default()
+            .with_result("A.NS", vec![holding.clone()])
+            .with_result("A", vec![holding]);
+        let service = test_asset_service(Vec::new(), quote_service);
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("A", "INR")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.canonical_symbol.as_deref(), Some("A"));
+        assert_eq!(output.existing_asset_id, None);
+        assert_eq!(output.provider_symbol, None);
+        assert_ne!(output.name.as_deref(), Some("Reliance Industries"));
     }
 
     /// HYDR is RusHydro on MOEX and a hydrogen ETF on Nasdaq. With both
