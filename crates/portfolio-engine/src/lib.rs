@@ -43,8 +43,8 @@ pub use normalize::{
 pub use project::lot_records;
 pub use project::{project, project_accounts};
 pub use resolve::{
-    group_splits, resolve_surfaces, split_quantity_factor, FxResolver, FxSurface, QuoteSurface,
-    ResolvedSurfaces, SplitEvent, SplitRow,
+    group_splits, quotes_appear_split_adjusted, resolve_surfaces, split_quantity_factor,
+    FxResolver, FxSurface, QuoteSurface, ResolvedSurfaces, SplitEvent, SplitRow,
 };
 pub use scope::{facts_needed, FactsRequest};
 pub use value::{

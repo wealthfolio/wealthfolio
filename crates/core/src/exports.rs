@@ -189,7 +189,7 @@ impl ExportDataType {
             Self::PortfolioHistory => "Daily valuation of each account and of all accounts together.",
             Self::Budgets => "Budget amounts per period, with rollover settings.",
             Self::BudgetActuals => {
-                "Budgeted, spent, rollover and remaining per category and month (the last 12 months unless the export has dates)."
+                "Budgeted, spent, rollover and remaining per category and group, every month from the first activity (or the export's dates)."
             }
             Self::BudgetGroups => "Budget groups and the categories in each.",
             Self::SpendingRules => "Rules that categorise transactions automatically.",

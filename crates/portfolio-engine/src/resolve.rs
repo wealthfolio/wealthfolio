@@ -632,7 +632,9 @@ fn relative_distance(value: Decimal, target: Decimal) -> Decimal {
     (value - target).abs() / denominator
 }
 
-fn quotes_appear_split_adjusted(
+/// Whether a quote series already prices pre-split days in post-split units:
+/// the closes around the split moved by about 1, not by its ratio.
+pub fn quotes_appear_split_adjusted(
     closes: &BTreeMap<NaiveDate, Decimal>,
     split_date: NaiveDate,
     ratio: Decimal,
