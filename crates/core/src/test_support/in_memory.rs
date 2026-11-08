@@ -961,6 +961,7 @@ impl ValuationRepositoryTrait for InMemoryValuationRepository {
 pub struct InMemoryLotRepository {
     lots: Mutex<BTreeMap<String, LotRecord>>,
     disposals: Mutex<Vec<LotDisposal>>,
+    failed_lot_read_accounts: HashSet<String>,
     activity_ids: HashSet<String>,
     asset_ids: HashSet<String>,
 }
@@ -970,9 +971,16 @@ impl InMemoryLotRepository {
         Self {
             lots: Mutex::new(BTreeMap::new()),
             disposals: Mutex::new(Vec::new()),
+            failed_lot_read_accounts: HashSet::new(),
             activity_ids,
             asset_ids,
         }
+    }
+
+    /// Makes historical lot reads fail for one account without failing its disposal reads.
+    pub fn with_failed_lot_reads(mut self, account_id: &str) -> Self {
+        self.failed_lot_read_accounts.insert(account_id.to_string());
+        self
     }
 
     fn lots(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, LotRecord>> {
@@ -1040,7 +1048,11 @@ impl LotRepositoryTrait for InMemoryLotRepository {
         ))
     }
 
+    /// Returns historical lots unless this fixture explicitly fails the account's lot reads.
     async fn get_all_lots_for_account(&self, account_id: &str) -> Result<Vec<LotRecord>> {
+        if self.failed_lot_read_accounts.contains(account_id) {
+            return Err(Error::Repository("injected lot read failure".to_string()));
+        }
         Ok(Self::sorted(
             self.lots()
                 .values()
