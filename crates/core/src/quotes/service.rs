@@ -465,6 +465,21 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Get all historical quotes for a symbol.
     fn get_historical_quotes(&self, symbol: &str) -> Result<Vec<Quote>>;
 
+    /// Every stored quote of one asset, one row per source and day, with the
+    /// currency each row was stored with, newest day first. Unlike the other
+    /// reads it keeps rows that lose the per-day source choice.
+    fn get_stored_quotes(
+        &self,
+        asset_id: &str,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+    ) -> Result<Vec<Quote>> {
+        let _ = (asset_id, start, end);
+        Err(Error::Repository(
+            "Reading every quote source is not supported".into(),
+        ))
+    }
+
     /// Get all historical quotes grouped by symbol.
     fn get_all_historical_quotes(&self) -> Result<HashMap<String, Vec<(NaiveDate, Quote)>>>;
 
@@ -1289,6 +1304,15 @@ where
             }
         }
         Ok(quotes)
+    }
+
+    fn get_stored_quotes(
+        &self,
+        asset_id: &str,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+    ) -> Result<Vec<Quote>> {
+        self.quote_store.all_sources_in_range(asset_id, start, end)
     }
 
     fn get_all_historical_quotes(&self) -> Result<HashMap<String, Vec<(NaiveDate, Quote)>>> {

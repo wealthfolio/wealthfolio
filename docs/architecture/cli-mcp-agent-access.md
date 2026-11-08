@@ -594,8 +594,8 @@ commit_quote_import                -- save them as manual quotes (batch)
 These save the closing prices a statement reports for existing assets, so the
 portfolio's value on the statement date can match it without changing
 activities, quantities or cost basis. Each row names an asset by `assetId`
-(tickers are never resolved; `get_asset_taxonomy_assignments`, under
-`classification:read`, finds an id), a `date` (`YYYY-MM-DD`, not in the future),
+(tickers are never resolved; `get_asset`, under `holdings:read`, finds an
+id), a `date` (`YYYY-MM-DD`, not in the future),
 a `price` in the asset's quote currency, that `currency`, and an optional
 `overwrite` flag. Investment assets are accepted, and so are manually priced
 alternative assets and liabilities, whose values are stored as manual quotes (a
@@ -635,6 +635,39 @@ A batch holds up to 100 rows, and the audit log keeps only the asset ids, dates
 and counts of the arguments, never prices. As for every tool, an argument that
 fails to parse is recorded in the error message, which may quote it. The in-app
 assistant has no confirmation card for quotes and does not get these tools.
+
+### MCP-only Asset and Market Data Reads
+
+```text
+get_asset                          -- one asset's market-data setup and price state
+get_quote_history                  -- an asset's stored quotes over a date range
+get_market_data_providers          -- built-in and custom providers
+```
+
+These let an agent find why an asset's prices are missing or wrong. They read
+stored data only and never call a provider. All three need `holdings:read`.
+
+`get_asset` takes an `assetId` or a `query` (the asset lookup that
+`get_asset_taxonomy_assignments` uses, now shared in `tools/asset_lookup.rs`, so
+finding an id no longer needs `classification:read`); several matches return
+`candidates`. It returns the identity (kind, instrument type, symbol, MIC,
+ISIN), quote mode and currency, preferred provider and per-provider symbols,
+the latest quote with its stale flag or the reason it is missing, the sync
+state, stored quotes grouped by source and currency with their date span, and
+the accounts holding the asset with quantities (the asset page's holdings
+read).
+
+`get_quote_history` returns date, close, currency and source per stored quote,
+newest first, for a range (default the last 365 days) and optional source,
+capped at 500 rows by default and 2000 at most, with `truncated`.
+
+`get_market_data_providers` lists built-in providers from
+`QuoteServiceTrait::get_providers_info` and custom providers from
+`AgentEnvironment::custom_providers` (id `CUSTOM:<code>`, the form the app's
+asset editor and symbol resolution use). Custom provider sources are left out: their
+URLs and headers can hold API keys. URLs in sync errors are replaced with
+`<url>` in both tools for the same reason. The in-app assistant does not get
+these tools.
 
 ### MCP-only Activity Update Tools
 
@@ -804,7 +837,9 @@ Read scopes:
 ```text
 accounts:read            get_accounts, get_cash_balances, get_portfolios
 holdings:read            get_holdings, get_asset_allocation,
-                         get_valuation_history, get_income, get_net_worth
+                         get_valuation_history, get_income, get_net_worth,
+                         get_asset, get_quote_history,
+                         get_market_data_providers
 performance:read         get_performance
 activities:read          search_activities, get_import_mapping,
                          find_transfer_matches

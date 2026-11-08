@@ -96,6 +96,16 @@ pub trait AgentEnvironment: Send + Sync {
         &self,
     ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>;
 
+    /// The user's custom price providers. Their sources hold URLs and
+    /// headers that can carry API keys, so tools must never output them.
+    /// The default lists none.
+    fn custom_providers(
+        &self,
+    ) -> wealthfolio_core::Result<Vec<wealthfolio_core::custom_provider::CustomProviderWithSources>>
+    {
+        Ok(Vec::new())
+    }
+
     /// Run the Health Center's full checks, as its "run checks" does, and
     /// cache the result. Hosts implement it with the services the checks
     /// read; the default reports that this environment cannot run them.

@@ -49,6 +49,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::quote_import_tools());
         tools.extend(crate::tools::activity_update_tools());
         tools.extend(crate::tools::transaction_category_tools());
+        tools.extend(crate::tools::asset_market_data_tools());
         Self::new(tools)
     }
 
@@ -667,8 +668,53 @@ mod tests {
         assert!(names.contains(&"commit_activity_updates"));
         assert!(names.contains(&"prepare_activity_deletions"));
         assert!(names.contains(&"commit_activity_deletions"));
+        // Asset and market-data reads are MCP-only and need holdings:read.
+        let assistant = AgentToolCatalog::assistant_catalog();
+        for name in [
+            "get_asset",
+            "get_quote_history",
+            "get_market_data_providers",
+        ] {
+            let tool = catalog.get(name).expect(name);
+            assert_eq!(
+                tool.required_scopes(),
+                &[crate::scope::AgentScope::HoldingsRead],
+                "{name}"
+            );
+            assert_eq!(
+                tool.access_level(),
+                crate::tool::AgentToolAccess::Read,
+                "{name}"
+            );
+            assert!(assistant.get(name).is_none(), "{name}");
+        }
         // The shared v1 read catalog stays unchanged; category management is MCP-only.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
+    }
+
+    #[tokio::test]
+    async fn asset_market_data_reads_are_denied_without_holdings_read() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs(["classification:read", "market-data:write"]);
+        for name in [
+            "get_asset",
+            "get_quote_history",
+            "get_market_data_providers",
+        ] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({ "assetId": "a" }),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(err, AgentToolError::ScopeDenied { .. }),
+                "{name}: {err}"
+            );
+        }
     }
 
     #[tokio::test]
