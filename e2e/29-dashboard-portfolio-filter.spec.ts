@@ -8,14 +8,17 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await completeOnboardingIfNeeded(page);
   const originalSettings = await page.request.get(`${BASE_URL}/api/v1/settings`);
   expect(originalSettings.ok()).toBe(true);
-  const { baseCurrency: originalCurrency } = (await originalSettings.json()) as {
+  const original = (await originalSettings.json()) as {
     baseCurrency: string;
+    formattingRegion: string;
+    currencyFormattingRegions?: Record<string, string>;
   };
+  const originalCurrency = original.baseCurrency;
   try {
-    // These exact portfolio amounts are in CAD; earlier specs can change the
-    // profile's reporting currency.
+    // These exact portfolio amounts are in CAD, written as the US region shows it
+    // (CA$); earlier specs can change the profile's reporting currency and region.
     const currency = await page.request.put(`${BASE_URL}/api/v1/settings`, {
-      data: { baseCurrency: "CAD" },
+      data: { baseCurrency: "CAD", formattingRegion: "US", currencyFormattingRegions: {} },
     });
     expect(currency.ok()).toBe(true);
     const accountIds: string[] = [];
@@ -330,12 +333,14 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
       await page.screenshot({ path: testInfo.outputPath(`long-name-${viewport.width}.png`) });
     }
   } finally {
-    if (originalCurrency !== "CAD") {
-      const restored = await page.request.put(`${BASE_URL}/api/v1/settings`, {
-        data: { baseCurrency: originalCurrency },
-      });
-      expect(restored.ok()).toBe(true);
-    }
+    const restored = await page.request.put(`${BASE_URL}/api/v1/settings`, {
+      data: {
+        ...(originalCurrency !== "CAD" && { baseCurrency: originalCurrency }),
+        formattingRegion: original.formattingRegion,
+        currencyFormattingRegions: original.currencyFormattingRegions ?? {},
+      },
+    });
+    expect(restored.ok()).toBe(true);
     const settings = await page.request.get(`${BASE_URL}/api/v1/settings`);
     expect(settings.ok()).toBe(true);
     expect(((await settings.json()) as { baseCurrency: string }).baseCurrency).toBe(
