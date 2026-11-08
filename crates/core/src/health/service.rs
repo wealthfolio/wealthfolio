@@ -583,6 +583,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        end_date: None,
                         engine_issue: None,
                     }
                 })
@@ -627,6 +628,7 @@ impl HealthService {
                         snapshot_source: None,
                         snapshot_min_date: None,
                         snapshot_max_date: None,
+                        end_date: None,
                         engine_issue: None,
                     });
                 }
@@ -738,6 +740,7 @@ impl HealthService {
                             snapshot_source: None,
                             snapshot_min_date: None,
                             snapshot_max_date: None,
+                            end_date: None,
                             engine_issue: None,
                         }
                     })),
@@ -932,6 +935,7 @@ fn gather_invalid_snapshot_date_issues(
                 snapshot_source: Some(snapshot.source),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(max_snapshot_read_date(today)),
+                end_date: None,
                 engine_issue: None,
             });
         }
@@ -980,6 +984,7 @@ fn gather_invalid_activity_date_issues(
                 snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
                 snapshot_min_date: Some(min_date),
                 snapshot_max_date: Some(today),
+                end_date: None,
                 engine_issue: None,
             })
         })
@@ -1338,6 +1343,7 @@ fn missing_lot_disposal_sells_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
                 engine_issue: None,
             })
         })
@@ -1545,6 +1551,7 @@ fn incomplete_basis_trade_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
                 engine_issue: None,
             })
         })
@@ -1679,6 +1686,7 @@ fn missing_currency_activities_from_data(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
                 engine_issue: None,
             })
         })
@@ -1737,6 +1745,7 @@ fn engine_activity_issues(
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
                 engine_issue: Some(issue),
             })
         })
@@ -2038,6 +2047,7 @@ fn value_asset_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        end_date: Some(issue.last_date),
         engine_issue: None,
     }
 }
@@ -2303,6 +2313,7 @@ fn basis_source_consistency_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        end_date: None,
         engine_issue: None,
     }
 }
@@ -2338,6 +2349,7 @@ fn missing_valuation_issue(
         snapshot_source: None,
         snapshot_min_date: None,
         snapshot_max_date: None,
+        end_date: None,
         engine_issue: None,
     }
 }
@@ -3157,6 +3169,14 @@ mod tests {
             .expect("incomplete value issue");
         let diagnostics = issue.diagnostics.as_ref().expect("diagnostics present");
         assert_eq!(diagnostics[0].code, "MISSING_MARKET_QUOTE");
+        assert_eq!(diagnostics[0].date.as_deref(), Some("2026-06-01"));
+        assert_eq!(
+            diagnostics[0].date_range,
+            Some(crate::health::HealthDateRange::new(
+                "2026-06-01",
+                "2026-06-02"
+            ))
+        );
         assert!(diagnostics[0].actions.iter().any(|a| a.primary));
         assert!(issue
             .affected_items
