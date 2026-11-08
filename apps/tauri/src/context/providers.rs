@@ -637,7 +637,8 @@ async fn build_context(
             quote_service.clone(),
         )
         .with_timezone(timezone.clone())
-        .with_event_sink(domain_event_sink.clone()),
+        .with_event_sink(domain_event_sink.clone())
+        .with_fx_registration(fx_service.clone(), base_currency.clone()),
     );
 
     let asset_logo_repository = Arc::new(AssetLogoRepository::new(pool.clone(), writer.clone()));
