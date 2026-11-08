@@ -846,6 +846,23 @@ impl ProfileRegistry {
         self.save(&mut data, next)
     }
 
+    /// Overwrite the registry backup with the current live state.
+    ///
+    /// `save` always writes the *previous* state to `profiles.json.bak` so that a
+    /// corrupted `profiles.json` can be recovered from the backup. This means the
+    /// backup temporarily reflects the unprotected state whenever a security-critical
+    /// change (e.g., enabling biometric lock) has just been committed.
+    ///
+    /// Call this method after both the registry update and the keychain storage have
+    /// succeeded so that the backup cannot be used to open the profile without Touch ID.
+    pub fn sync_backup(&self) -> ProfileResult<()> {
+        let data = self.data()?;
+        atomic_write(
+            &self.root.join(REGISTRY_BACKUP),
+            &serde_json::to_vec_pretty(&*data).map_err(storage_error)?,
+        )
+    }
+
     fn verify_record(
         &self,
         profile: &Profile,

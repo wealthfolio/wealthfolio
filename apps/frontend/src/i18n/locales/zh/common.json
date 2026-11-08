@@ -374,8 +374,8 @@
     "biometricUnlocking": "正在验证…",
     "unlockWithTouchId": "使用 Touch ID 解锁",
     "touchId": "Touch ID",
-    "touchIdEnabled": "此配置文件已启用 Touch ID。",
-    "touchIdDisabled": "使用指纹解锁此配置文件。",
+    "touchIdEnabled": "此个人资料已启用 Touch ID。",
+    "touchIdDisabled": "使用指纹解锁此个人资料。",
     "disableTouchId": "停用",
     "enableTouchId": "启用",
     "connectionFailed": "连接已中断",
@@ -511,7 +511,7 @@
       "biometricUnavailable": "Touch ID 不可用。请在系统设置 → Touch ID 与密码中添加指纹。",
       "biometricStoreFailed": "无法保存 Touch ID 令牌。请确保设备已设置密码。",
       "biometricNotEnrolled": "Touch ID 不再可用。请使用密码解锁。",
-      "biometricNotEnrolledNoPassword": "Touch ID 不再可用。请使用“返回”按鈕，并在个人资料设置中重新启用。"
+      “biometricNotEnrolledNoPassword”: “Touch ID 不再可用。请使用”返回”按钮，并在个人资料设置中重新启用。”
     }
   },
   "remove": "移除",

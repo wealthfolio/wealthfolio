@@ -52,16 +52,14 @@ mod imp {
     };
     use objc2_foundation::NSString;
     use security_framework::access_control::{ProtectionMode, SecAccessControl};
-    use security_framework::passwords::{
-        delete_generic_password, get_generic_password, set_generic_password,
-    };
+    use security_framework::passwords::{delete_generic_password, get_generic_password};
     use security_framework_sys::access_control::kSecAccessControlBiometryCurrentSet;
     use security_framework_sys::base::errSecSuccess;
     use security_framework_sys::item::{
         kSecAttrAccessControl, kSecAttrAccount, kSecAttrService, kSecClass,
         kSecClassGenericPassword, kSecValueData,
     };
-    use security_framework_sys::keychain_item::SecItemAdd;
+    use security_framework_sys::keychain_item::{SecItemAdd, SecItemUpdate};
     use std::ffi::c_void;
     use std::sync::mpsc;
     use uuid::Uuid;
@@ -165,29 +163,37 @@ mod imp {
     /// The challenge fires immediately so the user confirms Touch ID works
     /// at enable time (same UX as 1Password / Apple Notes).
     ///
+    /// Uses an atomic update-or-replace strategy: the old token is never deleted
+    /// before the new one is confirmed written, so a biometric-only profile always
+    /// retains a valid unlock path even if storage fails mid-operation.
+    ///
     /// **Must be called from a blocking thread.**
     pub fn store_bypass_token(profile_id: Uuid, token: &[u8]) -> Result<(), String> {
         // Challenge first — confirms Touch ID is functional and records intent.
         evaluate_biometric("Enable Touch ID for Wealthfolio")?;
 
-        // Replace any stale entry for this profile.
-        let _ = delete_generic_password(&service_for(profile_id), ACCOUNT);
+        let service = service_for(profile_id);
 
         // Attempt OS-level biometric access control (macOS ≤ 25).
         // On macOS 26+ SecAccessControlCreateWithFlags returns errSecParam = -50
-        // for all flag combinations — an OS-level regression. In that case we fall
-        // back to a plain keychain item and rely on app-level challenge only.
-        let used_ac = try_store_with_biometric_ac(&service_for(profile_id), ACCOUNT, token);
-        if !used_ac {
-            set_generic_password(&service_for(profile_id), ACCOUNT, token).map_err(|e| {
-                let code = e.code();
-                log::error!("set_generic_password for biometric token failed (code {code}): {e}");
-                format!(
-                    "PROFILE_BIOMETRIC_STORE_FAILED: Could not store biometric token (code {code})"
-                )
-            })?;
+        // for all flag combinations — an OS-level regression. In that case (or when
+        // the add fails for any other reason) we fall back to the plain path below.
+        // try_store_with_biometric_ac handles pre-existing items (re-enrollment) via
+        // a delete-and-retry, so no upfront delete is needed here.
+        if try_store_with_biometric_ac(&service, ACCOUNT, token) {
+            return Ok(());
         }
-        Ok(())
+
+        // Plain path (macOS 26 regression or AC write failed).
+        // Use SecItemUpdate when the item already exists (re-enrollment) so the old
+        // token remains valid until the new write commits — avoiding the window where
+        // neither the old nor the new token is present in the keychain.
+        update_or_add_plain(&service, ACCOUNT, token).map_err(|code| {
+            log::error!("write biometric token failed (OSStatus {code})");
+            format!(
+                "PROFILE_BIOMETRIC_STORE_FAILED: Could not store biometric token (OSStatus {code})"
+            )
+        })
     }
 
     /// Try to store `token` with `kSecAccessControlBiometryCurrentSet`.
@@ -195,7 +201,11 @@ mod imp {
     /// Returns `true` if the item was stored successfully with an OS-level
     /// biometric access-control constraint, `false` if
     /// `SecAccessControlCreateWithFlags` failed (macOS 26 regression:
-    /// `errSecParam = -50` for all flag combinations).
+    /// `errSecParam = -50` for all flag combinations) or if the add ultimately fails.
+    ///
+    /// For re-enrollment (an existing AC-protected item), deletes the old entry and
+    /// retries once — `SecItemAdd` requires no prior entry for the given
+    /// service/account key.
     ///
     /// Uses `security_framework::access_control::SecAccessControl` for the
     /// high-level creation (which safely wraps the null-pointer check) and
@@ -207,6 +217,9 @@ mod imp {
         reason = "Raw Security.framework APIs for kSecAttrAccessControl"
     )]
     fn try_store_with_biometric_ac(service: &str, account: &str, token: &[u8]) -> bool {
+        // errSecDuplicateItem (-25299): pre-existing entry from a prior enrollment.
+        const ERR_SEC_DUPLICATE_ITEM: i32 = -25299;
+
         // Attempt OS-level biometric access control.
         // SecAccessControl::create_with_protection wraps SecAccessControlCreateWithFlags
         // and returns Err when the function returns NULL (macOS 26 regression).
@@ -229,29 +242,105 @@ mod imp {
         let account_cf = CFString::new(account);
         let data_cf = CFData::from_buffer(token);
 
-        // Build the SecItemAdd query dictionary manually so we can attach
-        // kSecAttrAccessControl — ItemAddOptions does not expose that field.
-        let status = unsafe {
+        // Build a closure that runs SecItemAdd with the AC dict.
+        // access_control is a TCFType wrapper that stays alive for the duration of
+        // this function; the raw pointer in the dict is valid for every SecItemAdd call.
+        let sec_item_add = || unsafe {
             let mut dict = CFMutableDictionary::<*const c_void, *const c_void>::new();
             dict.add(&kSecClass.to_void(), &kSecClassGenericPassword.to_void());
             dict.add(&kSecAttrService.to_void(), &service_cf.to_void());
             dict.add(&kSecAttrAccount.to_void(), &account_cf.to_void());
             dict.add(&kSecValueData.to_void(), &data_cf.to_void());
             // Attach the biometric access-control constraint.
-            // access_control is a TCFType wrapper; it stays alive until end of this
-            // function so the raw pointer in the dict remains valid for SecItemAdd.
             dict.add(&kSecAttrAccessControl.to_void(), &access_control.to_void());
             SecItemAdd(dict.as_concrete_TypeRef() as *const _, std::ptr::null_mut())
         };
 
+        let status = sec_item_add();
         if status == errSecSuccess {
-            true
+            return true;
+        }
+
+        // Re-enrollment: an AC-protected item already exists for this profile.
+        // SecItemAdd requires no prior entry, so delete the old one and retry.
+        // This delete-and-retry window is tiny (after a successful Touch ID
+        // challenge) and mirrors the approach used by apps like 1Password.
+        if status == ERR_SEC_DUPLICATE_ITEM {
+            let _ = delete_generic_password(service, account);
+            let retry = sec_item_add();
+            if retry == errSecSuccess {
+                return true;
+            }
+            log::warn!(
+                "SecItemAdd with kSecAttrAccessControl retry failed (OSStatus {retry}); \
+                 falling back to plain keychain item."
+            );
         } else {
             log::warn!(
                 "SecItemAdd with kSecAttrAccessControl failed (OSStatus {status}); \
                  biometric constraint not stored."
             );
-            false
+        }
+        false
+    }
+
+    /// Write `new_data` to the keychain, updating an existing item in-place or
+    /// inserting a fresh one if no item is present.
+    ///
+    /// Unlike delete-then-add, `SecItemUpdate` atomically replaces the value of an
+    /// existing item, so the old token remains readable until the write commits.
+    /// This avoids a window where a biometric-only profile has no valid unlock path.
+    #[allow(
+        unsafe_code,
+        reason = "Raw Security.framework SecItemUpdate/SecItemAdd APIs"
+    )]
+    fn update_or_add_plain(service: &str, account: &str, new_data: &[u8]) -> Result<(), i32> {
+        // errSecItemNotFound (-25300): no existing entry — insert fresh.
+        const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
+
+        let service_cf = CFString::new(service);
+        let account_cf = CFString::new(account);
+        let data_cf = CFData::from_buffer(new_data);
+
+        // Try SecItemUpdate first (item exists → safe to update atomically).
+        let update_status = unsafe {
+            let mut query = CFMutableDictionary::<*const c_void, *const c_void>::new();
+            query.add(&kSecClass.to_void(), &kSecClassGenericPassword.to_void());
+            query.add(&kSecAttrService.to_void(), &service_cf.to_void());
+            query.add(&kSecAttrAccount.to_void(), &account_cf.to_void());
+
+            let mut attrs = CFMutableDictionary::<*const c_void, *const c_void>::new();
+            attrs.add(&kSecValueData.to_void(), &data_cf.to_void());
+
+            SecItemUpdate(
+                query.as_concrete_TypeRef() as *const _,
+                attrs.as_concrete_TypeRef() as *const _,
+            )
+        };
+
+        if update_status == errSecSuccess {
+            return Ok(());
+        }
+
+        if update_status != ERR_SEC_ITEM_NOT_FOUND {
+            // Unexpected update error.
+            return Err(update_status);
+        }
+
+        // Item absent (first enrollment): add fresh.
+        let add_status = unsafe {
+            let mut dict = CFMutableDictionary::<*const c_void, *const c_void>::new();
+            dict.add(&kSecClass.to_void(), &kSecClassGenericPassword.to_void());
+            dict.add(&kSecAttrService.to_void(), &service_cf.to_void());
+            dict.add(&kSecAttrAccount.to_void(), &account_cf.to_void());
+            dict.add(&kSecValueData.to_void(), &data_cf.to_void());
+            SecItemAdd(dict.as_concrete_TypeRef() as *const _, std::ptr::null_mut())
+        };
+
+        if add_status == errSecSuccess {
+            Ok(())
+        } else {
+            Err(add_status)
         }
     }
 

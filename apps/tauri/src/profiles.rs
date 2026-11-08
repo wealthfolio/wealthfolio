@@ -809,7 +809,19 @@ pub async fn enable_biometric_lock(
                 "Failed to restore biometric state for profile {profile_id}: {rollback_err}"
             );
         }
-    })
+    })?;
+
+    // Both the registry update and the keychain token have committed successfully.
+    // Advance the backup to the now-protected state so it cannot be used to open
+    // the profile without Touch ID (save() always writes the *previous* state to
+    // profiles.json.bak, leaving the backup temporarily unprotected).
+    if let Err(e) = state.registry.sync_backup() {
+        // Non-fatal: profiles.json already holds the protected state; only the
+        // backup is stale. Log a warning so it is visible in diagnostics.
+        log::warn!("Failed to sync registry backup after biometric enrollment for profile {profile_id}: {e}");
+    }
+
+    Ok(())
 }
 
 /// Disable Touch ID unlock for a profile.
@@ -860,6 +872,11 @@ pub async fn unlock_with_biometric(
     state: tauri::State<'_, NativeProfiles>,
     profile_id: Uuid,
 ) -> Result<ProfileSession, String> {
+    // Capture the epoch before any blocking work so that a lock() call that
+    // races with the Touch ID prompt (e.g. from the lock monitor) is detected.
+    // unlock() follows the same pattern: epoch first, then verify.
+    let epoch = state.lock_epoch.load(std::sync::atomic::Ordering::SeqCst);
+
     // Retrieve the token — this call blocks on the Touch ID prompt.
     let token = tauri::async_runtime::spawn_blocking(move || {
         crate::biometric::retrieve_bypass_token(profile_id)
@@ -868,7 +885,6 @@ pub async fn unlock_with_biometric(
     .map_err(|e| format!("Biometric retrieve task failed: {e}"))??;
 
     // Verify the token and open the profile session.
-    let epoch = state.lock_epoch.load(std::sync::atomic::Ordering::SeqCst);
     let mut profile_sync_states = state.lifecycle.lock().await;
     *state.auto_open_error()? = None;
 

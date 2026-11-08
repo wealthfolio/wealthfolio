@@ -40,6 +40,7 @@ const PROFILE_ACTIVITY_INTERVAL_MS = 30_000;
 const MIN_PASSWORD_LENGTH = 4;
 const MAX_PASSWORD_LENGTH = 128;
 const PASSWORD_LENGTH_ERROR = "PROFILE_PASSWORD_LENGTH";
+const BIOMETRIC_NOT_ENROLLED_ERROR = "PROFILE_BIOMETRIC_NOT_ENROLLED";
 // Idle expiry reaches an untouched screen only by the server ending the event
 // stream. Hold it open for every admitted route, not just AppLayout ones.
 const keepEventStreamOpen = () => undefined;
@@ -91,8 +92,14 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const { platform } = usePlatform();
-  const biometricAvailable = !isWeb && (platform?.capabilities?.biometric_lock ?? false);
+  const { platform, loading: platformLoading, error: platformLoadError } = usePlatform();
+  // Three-state: null = not yet known (loading or fetch failed); true/false = confirmed.
+  // Loading and fetch-error must not be coerced to the same false as "confirmed unavailable"
+  // so callers can decide whether to disable-and-explain vs. disable-and-wait.
+  const biometricAvailable: boolean | null =
+    platformLoading || platformLoadError
+      ? null
+      : !isWeb && (platform?.capabilities?.biometric_lock ?? false);
   const lock = useCallback(
     async (preserveAuth = false, nextIntent: "lock" | "switch" = "lock") => {
       if (working.current) return;
@@ -453,7 +460,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         return;
       }
       if (msg.includes("BIOMETRIC_NOT_ENROLLED")) {
-        setError("PROFILE_BIOMETRIC_NOT_ENROLLED");
+        setError(BIOMETRIC_NOT_ENROLLED_ERROR);
         return;
       }
       setError(msg.replace(/^Error:\s*/, ""));
@@ -732,7 +739,13 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const isRecoveryView = Boolean(recovery) || mode === "recover";
   const recoveryCodeInvalid = mode === "recover" && error.includes("PROFILE_PASSWORD_INVALID");
   const formError =
-    error && error !== PASSWORD_LENGTH_ERROR && !recoveryCodeInvalid && !deleteOpen ? (
+    error &&
+    error !== PASSWORD_LENGTH_ERROR &&
+    // BIOMETRIC_NOT_ENROLLED has its own specific alert below the Touch ID button;
+    // suppress the generic formError so the same failure isn't shown twice.
+    error !== BIOMETRIC_NOT_ENROLLED_ERROR &&
+    !recoveryCodeInvalid &&
+    !deleteOpen ? (
       <p
         id="profile-form-error"
         role="alert"
@@ -1050,12 +1063,12 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   ))}
               </AnimatePresence>
             </div>
-            {mode === "unlock" && selected?.biometricEnabled && biometricAvailable && (
+            {mode === "unlock" && selected?.biometricEnabled && (
               <div className="mx-auto max-w-xs space-y-3">
                 <Button
                   type="button"
                   className="w-full"
-                  disabled={busy || biometricBusy}
+                  disabled={busy || biometricBusy || biometricAvailable !== true}
                   onClick={() => {
                     if (!selected) return;
                     setBiometricBusy(true);
@@ -1073,7 +1086,18 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                         defaultValue: "Unlock with Touch ID",
                       })}
                 </Button>
-                {error === "PROFILE_BIOMETRIC_NOT_ENROLLED" && (
+                {/* biometricAvailable === false means confirmed unavailable (hardware absent
+                    or no fingerprint enrolled). null means still loading or fetch error —
+                    no message yet so the brief loading state doesn't flash an error. */}
+                {biometricAvailable === false && error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {t("profiles.errors.biometricUnavailable", {
+                      defaultValue:
+                        "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+                    })}
+                  </p>
+                )}
+                {error === BIOMETRIC_NOT_ENROLLED_ERROR && (
                   <p role="alert" className="text-destructive text-sm">
                     {selected?.lockEnabled
                       ? t("profiles.errors.biometricNotEnrolled", {
@@ -1105,7 +1129,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   aria-describedby={
                     passwordInvalid
                       ? "profile-password-error"
-                      : error
+                      : error && error !== BIOMETRIC_NOT_ENROLLED_ERROR
                         ? "profile-form-error"
                         : undefined
                   }
@@ -1265,7 +1289,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             {isProfileEditor && <ProfileAvatarPicker value={avatar} onChange={setAvatar} />}
             {formActions}
             {formError}
-            {mode === "manage" && biometricAvailable && (
+            {mode === "manage" && biometricAvailable === true && (
               <section className="space-y-3 border-t pt-6">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">

@@ -375,7 +375,7 @@
     "unlockWithTouchId": "Touch IDでロック解除",
     "touchId": "Touch ID",
     "touchIdEnabled": "このプロフィールでTouch IDが有効になっています。",
-    "touchIdDisabled": "指絋でこのプロフィールをロック解除します。",
+    "touchIdDisabled": "指紋でこのプロフィールをロック解除します。",
     "disableTouchId": "無効にする",
     "enableTouchId": "有効にする",
     "connectionFailed": "接続が中断されました",
@@ -508,7 +508,7 @@
       "accountMismatch": "このプロフィールに最初にリンクされたConnectアカウントでログインしてください。",
       "teamChanged": "世帯が変更されました。続行するにはWealthfolio Connectに再接続してください。",
       "rebind": "Wealthfolio Connectに再接続して、このプロフィールのアカウントと世帯を確認してください。",
-      "biometricUnavailable": "Touch IDは使用できません。システム設定 → Touch IDとパスコードで指絋を追加してください。",
+      "biometricUnavailable": "Touch IDは使用できません。システム設定 → Touch IDとパスコードで指紋を追加してください。",
       "biometricStoreFailed": "Touch IDトークンを保存できませんでした。デバイスにパスコードが設定されているか確認してください。",
       "biometricNotEnrolled": "Touch IDが使用できなくなりました。パスワードを使用してロック解除してください。",
       "biometricNotEnrolledNoPassword": "Touch IDが使用できなくなりました。戻るボタンを使用し、プロフィール設定で再度有効にしてください。"

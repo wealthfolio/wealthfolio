@@ -30,19 +30,29 @@ export interface UsePlatformResult {
   isWeb: boolean;
   isTauri: boolean;
   loading: boolean;
+  /**
+   * `true` when `getPlatform()` rejected and the platform info is a user-agent
+   * fallback (capabilities all default to false). Callers should not treat this
+   * the same as a confirmed "feature not supported" response.
+   */
+  error: boolean;
 }
 
 // Cache platform info to avoid multiple invocations
 let cachedPlatform: PlatformInfo | null = null;
+// true when the cached platform info is a user-agent fallback (getPlatform() rejected)
+let cachedPlatformError = false;
 
 export function usePlatform(): UsePlatformResult {
   const [platform, setPlatform] = useState<PlatformInfo | null>(cachedPlatform);
   const [loading, setLoading] = useState(!cachedPlatform);
+  const [platformError, setPlatformError] = useState(cachedPlatformError);
 
   useEffect(() => {
     // If we already have cached platform info, use it
     if (cachedPlatform) {
       setPlatform(cachedPlatform);
+      setPlatformError(cachedPlatformError);
       setLoading(false);
       return;
     }
@@ -52,22 +62,30 @@ export function usePlatform(): UsePlatformResult {
       getPlatformApi()
         .then((info) => {
           cachedPlatform = info;
+          cachedPlatformError = false;
           setPlatform(info);
+          setPlatformError(false);
           setLoading(false);
         })
         .catch((error) => {
           console.error("Failed to get platform info:", error);
-          // Fallback detection based on user agent
+          // Fallback detection based on user agent — capabilities default to false.
+          // Track the error so callers can distinguish "confirmed unavailable" from
+          // "unknown due to fetch failure".
           const fallbackInfo = detectPlatformFromUserAgent();
           cachedPlatform = fallbackInfo;
+          cachedPlatformError = true;
           setPlatform(fallbackInfo);
+          setPlatformError(true);
           setLoading(false);
         });
     } else {
       // We're in web environment, use user agent detection
       const webPlatform = detectPlatformFromUserAgent();
       cachedPlatform = webPlatform;
+      cachedPlatformError = false;
       setPlatform(webPlatform);
+      setPlatformError(false);
       setLoading(false);
     }
   }, []);
@@ -86,6 +104,7 @@ export function usePlatform(): UsePlatformResult {
     isWeb,
     isTauri,
     loading,
+    error: platformError,
   };
 }
 
