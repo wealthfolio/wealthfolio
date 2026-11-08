@@ -37,6 +37,8 @@ export function ExchangeRatesSettings() {
 
   // The table renders each `cell` as a component, so new cell functions on every
   // render would remount the rows and close a rate being edited when queries refetch.
+  // Rows are keyed by position: the stateful cells take the rate's id as their key, so
+  // an open edit or delete never carries over to a pair that a refetch moves into its row.
   const columns = useMemo<ColumnDef<ExchangeRate>[]>(
     () => [
       {
@@ -85,7 +87,9 @@ export function ExchangeRatesSettings() {
         accessorKey: "rate",
         header: t("settings:fx_col_rate"),
         enableHiding: false,
-        cell: ({ row }) => <RateCell rate={row.original} onUpdate={updateExchangeRate} />,
+        cell: ({ row }) => (
+          <RateCell key={row.original.id} rate={row.original} onUpdate={updateExchangeRate} />
+        ),
         size: 180,
       },
       {
@@ -122,6 +126,7 @@ export function ExchangeRatesSettings() {
 
           return (
             <ActionConfirm
+              key={rate.id}
               confirmTitle={t("settings:fx_delete_title")}
               confirmMessage={
                 <>
