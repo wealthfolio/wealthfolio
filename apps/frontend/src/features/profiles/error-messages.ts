@@ -3,20 +3,31 @@ import { isWeb } from "@/adapters";
 
 /** Normalize codes once for both native string errors and HTTP error messages. */
 export function profileErrorCode(error: unknown): string | undefined {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
   return /\b(?:PROFILE_[A-Z_]+|CONNECT_[A-Z_]+)\b/.exec(message)?.[0];
 }
 
 /** Keep diagnostic codes in state; render only curated, translated copy. */
-export function profileErrorMessage(error: unknown, t: TFunction<"common">): string {
+export function profileErrorMessage(
+  error: unknown,
+  t: TFunction<"common">,
+): string {
   if (error == null || error === "") return "";
-  if (!(error instanceof Error) && typeof error !== "string") return t("profiles.errors.generic");
+  if (!(error instanceof Error) && typeof error !== "string")
+    return t("profiles.errors.generic");
   const raw = error instanceof Error ? error.message : error;
   if (!raw) return "";
   const code = profileErrorCode(error);
   switch (code) {
     case "PROFILE_COOLDOWN": {
-      const seconds = /PROFILE_COOLDOWN:\s*Try again in (\d+) seconds?\b/.exec(raw)?.[1];
+      const seconds = /PROFILE_COOLDOWN:\s*Try again in (\d+) seconds?\b/.exec(
+        raw,
+      )?.[1];
       return seconds
         ? t("profiles.errors.cooldown", { count: Number(seconds) })
         : t("profiles.errors.cooldownUnknown");
@@ -44,17 +55,24 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
     case "PROFILE_PASSWORD_LENGTH":
       return t("profiles.errors.passwordLength", { min: 4, max: 128 });
     case "PROFILE_INVALID":
-      if (raw.includes("profile name of 1–60")) return t("profiles.errors.name");
+      if (raw.includes("profile name of 1–60"))
+        return t("profiles.errors.name");
       if (raw.includes("bundled avatar")) return t("profiles.errors.avatar");
-      if (raw.includes("confirm deletion")) return t("profiles.errors.confirmDeletion");
+      if (raw.includes("confirm deletion"))
+        return t("profiles.errors.confirmDeletion");
       if (raw.includes("characters for your password"))
         return t("profiles.errors.passwordLength", { min: 4, max: 128 });
       return t("profiles.errors.invalid");
     case "PROFILE_UNAVAILABLE":
-      if (raw.includes("Another Wealthfolio process")) return t("profiles.errors.inUse");
+      if (raw.includes("Another Wealthfolio process"))
+        return t("profiles.errors.inUse");
       // The web server keeps credentials in its own secrets file, not the device keychain.
       if (raw.includes("credential store"))
-        return t(isWeb ? "profiles.errors.serverCredentials" : "profiles.errors.credentials");
+        return t(
+          isWeb
+            ? "profiles.errors.serverCredentials"
+            : "profiles.errors.credentials",
+        );
       return t("profiles.errors.unavailable");
     case "CONNECT_PROFILE_EXISTS":
       return t("profiles.errors.duplicateAccount");
@@ -80,7 +98,10 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
 }
 
 /** Map profile failures while preserving unrelated feature messages. */
-export function profileAwareErrorMessage(message: string, t: TFunction<"common">): string {
+export function profileAwareErrorMessage(
+  message: string,
+  t: TFunction<"common">,
+): string {
   if (/\b(?:PROFILE_[A-Z_]+|CONNECT_[A-Z_]+)\b/.test(message)) {
     return profileErrorMessage(message, t);
   }
@@ -90,7 +111,8 @@ export function profileAwareErrorMessage(message: string, t: TFunction<"common">
   ) {
     return t("profiles.errors.busy");
   }
-  if (message.includes("No pending profile login")) return t("profiles.errors.stale");
+  if (message.includes("No pending profile login"))
+    return t("profiles.errors.stale");
   if (
     message.includes("Profile runtime is unavailable") ||
     message.includes("Profile database is unavailable")
