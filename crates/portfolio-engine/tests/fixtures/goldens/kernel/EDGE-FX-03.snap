@@ -60,7 +60,7 @@ baseline:
             - date: 2025-01-07
               value: "0"
             - date: 2025-01-08
-              value: "0.02857143"
+              value: "0"
             - date: 2025-01-09
               value: "0.02857143"
             - date: 2025-01-10
@@ -122,23 +122,23 @@ baseline:
           value_status: complete
         - basis_status: notApplicable
           book_basis: "1000"
-          book_basis_base: "720"
+          book_basis_base: "700"
           cash_balance: "1000"
-          cash_balance_base: "720"
+          cash_balance_base: "700"
           cost_basis: "0"
           cost_basis_base: "0"
           date: 2025-01-08
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "0.72"
+          fx_rate_to_base: "0.7"
           investment_market_value: "0"
           investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "700"
-          performance_eligible_value_base: "720"
+          performance_eligible_value_base: "700"
           total_value: "1000"
-          total_value_base: "720"
+          total_value_base: "700"
           value_status: complete
         - basis_status: notApplicable
           book_basis: "1000"
@@ -260,7 +260,7 @@ baseline:
         - date: 2025-01-07
           value: "0"
         - date: 2025-01-08
-          value: "0.02857143"
+          value: "0"
         - date: 2025-01-09
           value: "0.02857143"
         - date: 2025-01-10

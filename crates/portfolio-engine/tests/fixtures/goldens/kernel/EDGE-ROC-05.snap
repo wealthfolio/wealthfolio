@@ -203,12 +203,12 @@ baseline:
             twr: "0.26733333"
             value_return: "0.26733333"
           risk:
-            drawdown_duration_days: 3
+            drawdown_duration_days: 4
             max_drawdown: "-0.00433333"
             peak_date: 2025-01-02
-            recovery_date: 2025-01-05
+            recovery_date: 2025-01-06
             trough_date: 2025-01-03
-            volatility: "0.73804764"
+            volatility: "0.78743882"
           series:
             - date: 2025-01-02
               value: "0"
@@ -217,7 +217,7 @@ baseline:
             - date: 2025-01-04
               value: "-0.00433333"
             - date: 2025-01-05
-              value: "0.01233333"
+              value: "-0.00433333"
             - date: 2025-01-06
               value: "0.05733333"
             - date: 2025-01-07
@@ -311,13 +311,13 @@ baseline:
           external_inflow_base: "0"
           external_outflow_base: "0"
           fx_rate_to_base: "1"
-          investment_market_value: "1350"
-          investment_market_value_base: "1350"
+          investment_market_value: "1300"
+          investment_market_value_base: "1300"
           net_contribution: "3000"
           net_contribution_base: "3000"
-          performance_eligible_value_base: "3037"
-          total_value: "3037"
-          total_value_base: "3037"
+          performance_eligible_value_base: "2987"
+          total_value: "2987"
+          total_value_base: "2987"
           value_status: complete
         - basis_status: complete
           book_basis: "3000"
@@ -447,12 +447,12 @@ baseline:
         twr: "0.26733333"
         value_return: "0.26733333"
       risk:
-        drawdown_duration_days: 3
+        drawdown_duration_days: 4
         max_drawdown: "-0.00433333"
         peak_date: 2025-01-02
-        recovery_date: 2025-01-05
+        recovery_date: 2025-01-06
         trough_date: 2025-01-03
-        volatility: "0.73804764"
+        volatility: "0.78743882"
       series:
         - date: 2025-01-02
           value: "0"
@@ -461,7 +461,7 @@ baseline:
         - date: 2025-01-04
           value: "-0.00433333"
         - date: 2025-01-05
-          value: "0.01233333"
+          value: "-0.00433333"
         - date: 2025-01-06
           value: "0.05733333"
         - date: 2025-01-07

@@ -55,3 +55,4 @@ expected_notes: >
   01-02 and 01-06 to 01-08 are complete at 1000. TWR is unavailable (the
   unavailable days interrupt the chain); IRR and value return are 0, since
   both period endpoints are complete and the account ends where it began.
+  The unavailable interior values also omit the return curve.

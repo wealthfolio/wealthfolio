@@ -151,7 +151,7 @@ baseline:
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-06
-            volatility: "7.92359946"
+            volatility: "7.37992354"
           series:
             - date: 2025-01-02
               value: "0"
@@ -160,7 +160,7 @@ baseline:
             - date: 2025-01-04
               value: "-0.33333333"
             - date: 2025-01-05
-              value: "-0.27272727"
+              value: "-0.33333333"
             - date: 2025-01-06
               value: "-0.70909091"
             - date: 2025-01-07
@@ -244,23 +244,23 @@ baseline:
           value_status: partialUnpriced
         - basis_status: complete
           book_basis: "3000"
-          book_basis_base: "3500"
+          book_basis_base: "3300"
           cash_balance: "2000"
-          cash_balance_base: "2400"
+          cash_balance_base: "2200"
           cost_basis: "1000"
           cost_basis_base: "1100"
           date: 2025-01-05
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.2"
+          fx_rate_to_base: "1.1"
           investment_market_value: "0"
           investment_market_value_base: "0"
           net_contribution: "3000"
           net_contribution_base: "3300"
-          performance_eligible_value_base: "2400"
+          performance_eligible_value_base: "2200"
           total_value: "2000"
-          total_value_base: "2400"
+          total_value_base: "2200"
           value_status: partialUnpriced
         - basis_status: complete
           book_basis: "3000"
@@ -498,7 +498,7 @@ baseline:
             - date: 2025-01-04
               value: "0"
             - date: 2025-01-05
-              value: "0.09090909"
+              value: "0"
             - date: 2025-01-06
               value: "0.09090909"
             - date: 2025-01-07
@@ -582,23 +582,23 @@ baseline:
           value_status: complete
         - basis_status: notApplicable
           book_basis: "100"
-          book_basis_base: "120"
+          book_basis_base: "110"
           cash_balance: "100"
-          cash_balance_base: "120"
+          cash_balance_base: "110"
           cost_basis: "0"
           cost_basis_base: "0"
           date: 2025-01-05
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.2"
+          fx_rate_to_base: "1.1"
           investment_market_value: "0"
           investment_market_value_base: "0"
           net_contribution: "100"
           net_contribution_base: "110"
-          performance_eligible_value_base: "120"
+          performance_eligible_value_base: "110"
           total_value: "100"
-          total_value_base: "120"
+          total_value_base: "110"
           value_status: complete
         - basis_status: notApplicable
           book_basis: "100"
@@ -735,7 +735,7 @@ baseline:
         peak_date: 2025-01-02
         recovery_date: ~
         trough_date: 2025-01-08
-        volatility: "6.96228194"
+        volatility: "6.38589743"
       series:
         - date: 2025-01-02
           value: "0"
@@ -744,7 +744,7 @@ baseline:
         - date: 2025-01-04
           value: "-0.32258065"
         - date: 2025-01-05
-          value: "-0.26099707"
+          value: "-0.32258065"
         - date: 2025-01-06
           value: "-0.68328446"
         - date: 2025-01-07

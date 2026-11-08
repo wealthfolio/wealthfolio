@@ -74,56 +74,38 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "1.25"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: ok
+          quality: partial
           returns:
-            annualized_irr: "0.04669066"
+            annualized_irr: ~
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "0.001"
-            twr: "0.001"
-            value_return: "0.001"
+            irr: ~
+            twr: ~
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "0.00675356"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.001"
-            - date: 2025-01-09
-              value: "0.001"
-            - date: 2025-01-10
-              value: "0.001"
+            volatility: "0.00721986"
+          series: []
           summary:
-            amount: "1.25"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.001"
-            percent_status: complete
-            quality: ok
+            percent: ~
+            percent_status: unavailable
+            quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -288,24 +270,24 @@ baseline:
           value_status: complete
         - basis_status: complete
           book_basis: "1000"
-          book_basis_base: "1250"
+          book_basis_base: "0"
           cash_balance: "975"
-          cash_balance_base: "1218.75"
+          cash_balance_base: "0"
           cost_basis: "25"
-          cost_basis_base: "31.25"
+          cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.25"
+          fx_rate_to_base: "0"
           investment_market_value: "26"
-          investment_market_value_base: "32.5"
+          investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "1250"
-          performance_eligible_value_base: "1251.25"
+          performance_eligible_value_base: "0"
           total_value: "1001"
-          total_value_base: "1251.25"
-          value_status: complete
+          total_value_base: "0"
+          value_status: unavailable
     acc-ils:
       currency: ILS
       disposals: []
@@ -375,56 +357,38 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "2.8"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: ok
+          quality: partial
           returns:
-            annualized_irr: "0.57506226"
+            annualized_irr: ~
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "0.01"
-            twr: "0.01"
-            value_return: "0.01"
+            irr: ~
+            twr: ~
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "0.0672338"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.01"
-            - date: 2025-01-09
-              value: "0.01"
-            - date: 2025-01-10
-              value: "0.01"
+            volatility: "0.07187595"
+          series: []
           summary:
-            amount: "2.8"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.01"
-            percent_status: complete
-            quality: ok
+            percent: ~
+            percent_status: unavailable
+            quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -589,24 +553,24 @@ baseline:
           value_status: complete
         - basis_status: complete
           book_basis: "1000"
-          book_basis_base: "280"
+          book_basis_base: "0"
           cash_balance: "880"
-          cash_balance_base: "246.4"
+          cash_balance_base: "0"
           cost_basis: "120"
-          cost_basis_base: "33.6"
+          cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "0.28"
+          fx_rate_to_base: "0"
           investment_market_value: "130"
-          investment_market_value_base: "36.4"
+          investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "280"
-          performance_eligible_value_base: "282.8"
+          performance_eligible_value_base: "0"
           total_value: "1010"
-          total_value_base: "282.8"
-          value_status: complete
+          total_value_base: "0"
+          value_status: unavailable
     acc-kwd:
       currency: KWD
       disposals: []
@@ -676,56 +640,38 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "0.65"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: ok
+          quality: partial
           returns:
-            annualized_irr: "0.00917214"
+            annualized_irr: ~
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "0.0002"
-            twr: "0.0002"
-            value_return: "0.0002"
+            irr: ~
+            twr: ~
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "0.00135125"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.0002"
-            - date: 2025-01-09
-              value: "0.0002"
-            - date: 2025-01-10
-              value: "0.0002"
+            volatility: "0.00144455"
+          series: []
           summary:
-            amount: "0.65"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.0002"
-            percent_status: complete
-            quality: ok
+            percent: ~
+            percent_status: unavailable
+            quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -890,24 +836,24 @@ baseline:
           value_status: complete
         - basis_status: complete
           book_basis: "1000"
-          book_basis_base: "3250"
+          book_basis_base: "0"
           cash_balance: "995"
-          cash_balance_base: "3233.75"
+          cash_balance_base: "0"
           cost_basis: "5"
-          cost_basis_base: "16.25"
+          cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "3.25"
+          fx_rate_to_base: "0"
           investment_market_value: "5.2"
-          investment_market_value_base: "16.9"
+          investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "3250"
-          performance_eligible_value_base: "3250.65"
+          performance_eligible_value_base: "0"
           total_value: "1000.2"
-          total_value_base: "3250.65"
-          value_status: complete
+          total_value_base: "0"
+          value_status: unavailable
     acc-lower:
       currency: GBP
       disposals: []
@@ -1000,25 +946,7 @@ baseline:
             recovery_date: ~
             trough_date: ~
             volatility: ~
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0"
-            - date: 2025-01-09
-              value: "0"
-            - date: 2025-01-10
-              value: "0"
+          series: []
           summary:
             amount: ~
             amount_status: unavailable
@@ -1192,23 +1120,23 @@ baseline:
           value_status: unavailable
         - basis_status: partialUnknown
           book_basis: "1000"
-          book_basis_base: "1250"
+          book_basis_base: "0"
           cash_balance: "1000"
-          cash_balance_base: "1250"
+          cash_balance_base: "0"
           cost_basis: "0"
           cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "1.25"
+          fx_rate_to_base: "0"
           investment_market_value: "0"
           investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "1250"
-          performance_eligible_value_base: "1250"
+          performance_eligible_value_base: "0"
           total_value: "1000"
-          total_value_base: "1250"
+          total_value_base: "0"
           value_status: unavailable
     acc-usd:
       currency: USD
@@ -1580,56 +1508,38 @@ baseline:
             realized_pnl: "0"
             residual: "0"
             taxes: "0"
-            unrealized_pnl_change: "0.5"
+            unrealized_pnl_change: "0"
           basis_status: notApplicable
           is_holdings_mode: false
           is_mixed_tracking_mode: false
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: ok
+          quality: partial
           returns:
-            annualized_irr: "0.5750623"
+            annualized_irr: ~
             annualized_twr: ~
             annualized_value_return: ~
-            irr: "0.01"
-            twr: "0.01"
-            value_return: "0.01"
+            irr: ~
+            twr: ~
+            value_return: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
             peak_date: 2025-01-02
             recovery_date: ~
             trough_date: 2025-01-03
-            volatility: "0.0672338"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.01"
-            - date: 2025-01-09
-              value: "0.01"
-            - date: 2025-01-10
-              value: "0.01"
+            volatility: "0.07187595"
+          series: []
           summary:
-            amount: "0.5"
-            amount_status: complete
+            amount: ~
+            amount_status: unavailable
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
-            percent: "0.01"
-            percent_status: complete
-            quality: ok
+            percent: ~
+            percent_status: unavailable
+            quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -1794,38 +1704,43 @@ baseline:
           value_status: complete
         - basis_status: complete
           book_basis: "1000"
-          book_basis_base: "50"
+          book_basis_base: "0"
           cash_balance: "850"
-          cash_balance_base: "42.5"
+          cash_balance_base: "0"
           cost_basis: "150"
-          cost_basis_base: "7.5"
+          cost_basis_base: "0"
           date: 2025-01-10
           external_flow_source: NO_FLOW
           external_inflow_base: "0"
           external_outflow_base: "0"
-          fx_rate_to_base: "0.05"
+          fx_rate_to_base: "0"
           investment_market_value: "160"
-          investment_market_value_base: "8"
+          investment_market_value_base: "0"
           net_contribution: "1000"
           net_contribution_base: "50"
-          performance_eligible_value_base: "50.5"
+          performance_eligible_value_base: "0"
           total_value: "1010"
-          total_value_base: "50.5"
-          value_status: complete
+          total_value_base: "0"
+          value_status: unavailable
   diagnostics:
     - "project/acc-lower@2025-01-03: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03; cash -25 gbp excluded from the GBP total"
     - "project/acc-lower@2025-01-03: Warning FxUnavailable: no gbp->USD rate on 2025-01-03; cash -25 gbp excluded from the USD total"
     - "project/buy-lower: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03 for lot basis"
     - "project/buy-lower: Warning FxUnavailable: no gbp->USD rate on 2025-01-03 for lot basis"
     - "project/lower-asset: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03; book cost excluded"
-    - "value/acc-gbp:GBP->USD: Info CarriedFxRate: GBP->USD rate taken from an observation up to 8 days away (valued 2025-01-10)"
-    - "value/acc-ils:ILS->USD: Info CarriedFxRate: ILS->USD rate taken from an observation up to 8 days away (valued 2025-01-10)"
-    - "value/acc-kwd:KWD->USD: Info CarriedFxRate: KWD->USD rate taken from an observation up to 8 days away (valued 2025-01-10)"
-    - "value/acc-lower:GBP->USD: Info CarriedFxRate: GBP->USD rate taken from an observation up to 8 days away (valued 2025-01-10)"
+    - "value/acc-gbp:GBP->USD: Info CarriedFxRate: GBP->USD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-gbp:GBP->USD: Warning FxUnavailable: no GBP->USD rate on 2025-01-10; base values unavailable"
+    - "value/acc-ils:ILS->USD: Info CarriedFxRate: ILS->USD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-ils:ILS->USD: Warning FxUnavailable: no ILS->USD rate on 2025-01-10; base values unavailable"
+    - "value/acc-kwd:KWD->USD: Info CarriedFxRate: KWD->USD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-kwd:KWD->USD: Warning FxUnavailable: no KWD->USD rate on 2025-01-10; base values unavailable"
+    - "value/acc-lower:GBP->USD: Info CarriedFxRate: GBP->USD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-lower:GBP->USD: Warning FxUnavailable: no GBP->USD rate on 2025-01-10; base values unavailable"
     - "value/acc-lower:basis:lower-asset: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03; book cost of lower-asset unknown"
     - "value/acc-lower:cash:gbp->GBP: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03; cash bucket excluded"
     - "value/acc-lower:gbp->GBP: Warning FxUnavailable: no gbp->GBP rate on 2025-01-03; lower-asset unpriced"
-    - "value/acc-zar:ZAR->USD: Info CarriedFxRate: ZAR->USD rate taken from an observation up to 8 days away (valued 2025-01-10)"
+    - "value/acc-zar:ZAR->USD: Info CarriedFxRate: ZAR->USD rate taken from an observation up to 7 days away (valued 2025-01-09)"
+    - "value/acc-zar:ZAR->USD: Warning FxUnavailable: no ZAR->USD rate on 2025-01-10; base values unavailable"
   portfolio:
     all_time:
       attribution:
@@ -1859,25 +1774,7 @@ baseline:
         recovery_date: ~
         trough_date: ~
         volatility: ~
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0"
-        - date: 2025-01-04
-          value: "0"
-        - date: 2025-01-05
-          value: "0"
-        - date: 2025-01-06
-          value: "0"
-        - date: 2025-01-07
-          value: "0"
-        - date: 2025-01-08
-          value: "0"
-        - date: 2025-01-09
-          value: "0"
-        - date: 2025-01-10
-          value: "0"
+      series: []
       summary:
         amount: ~
         amount_status: unavailable
