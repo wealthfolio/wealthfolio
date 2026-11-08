@@ -186,6 +186,8 @@ struct BudgetActualRow {
     /// The month's transactions left out for want of an exchange rate.
     missing_fx_transactions: usize,
     missing_fx_currencies: String,
+    /// On group rows: the amount budgeted for the group beyond its categories.
+    group_buffer: Option<f64>,
 }
 
 #[async_trait]
@@ -373,6 +375,7 @@ impl SpendingExportSource for SpendingDataExportSource {
                     currency: computed.currency.clone(),
                     missing_fx_transactions: computed.calculation_quality.missing_fx_transactions,
                     missing_fx_currencies: join_currencies(&computed.calculation_quality),
+                    group_buffer: None,
                 }
             };
             let grouped = computed.group_rows.iter().flat_map(|group| {
@@ -385,6 +388,30 @@ impl SpendingExportSource for SpendingDataExportSource {
                 .ungrouped_rows
                 .iter()
                 .map(|category| (None, category));
+            // Each group's own totals: its buffer, planned amount and rollover.
+            for group in &computed.group_rows {
+                if group.planned_total != 0.0 || group.actual != 0.0 || group.rollover_in != 0.0 {
+                    rows.push(BudgetActualRow {
+                        month: computed.period_key.clone(),
+                        kind: "group",
+                        group: Some(group.group.name.clone()),
+                        category: String::new(),
+                        category_id: String::new(),
+                        budgeted: group.planned_total,
+                        spent: group.actual,
+                        rollover_in: group.rollover_in,
+                        rollover_out: group.rollover_out,
+                        remaining: group.remaining,
+                        overspent: group.overspent,
+                        currency: computed.currency.clone(),
+                        missing_fx_transactions: computed
+                            .calculation_quality
+                            .missing_fx_transactions,
+                        missing_fx_currencies: join_currencies(&computed.calculation_quality),
+                        group_buffer: Some(group.buffer),
+                    });
+                }
+            }
             for (group, category) in grouped.chain(ungrouped) {
                 if category.target != 0.0 || category.actual != 0.0 || category.rollover_in != 0.0 {
                     rows.push(row("spending", group, category));
