@@ -1222,7 +1222,8 @@ fn format_name(
     } else {
         name
     };
-    (!name.trim().is_empty() && name != symbol).then_some(name)
+    let trimmed = name.trim();
+    (!trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(symbol.trim())).then_some(name)
 }
 
 /// Convert snake_case sector to Title Case.
@@ -1341,6 +1342,10 @@ mod tests {
         );
         assert_eq!(
             format_name(None, "MUTUALFUND", Some("0P00036T6I.BO"), "0P00036T6I.BO"),
+            None
+        );
+        assert_eq!(
+            format_name(Some("0p00036t6i.bo "), "MUTUALFUND", None, "0P00036T6I.BO"),
             None
         );
     }
