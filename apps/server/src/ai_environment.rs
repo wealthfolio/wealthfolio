@@ -11,6 +11,7 @@ use wealthfolio_core::{
     activities::ActivityServiceTrait,
     allocation::AllocationServiceTrait,
     assets::AssetServiceTrait,
+    custom_provider::{CustomProviderService, CustomProviderWithSources},
     goals::GoalServiceTrait,
     health::{HealthServiceTrait, HealthStatus},
     holdings::HoldingsServiceTrait,
@@ -67,6 +68,7 @@ pub struct ServerAiEnvironment {
     // Read by the health checks only.
     snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
+    custom_provider_service: Arc<CustomProviderService>,
 }
 
 impl ServerAiEnvironment {
@@ -102,6 +104,7 @@ impl ServerAiEnvironment {
         spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
         snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
         lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
+        custom_provider_service: Arc<CustomProviderService>,
     ) -> Self {
         Self {
             base_currency,
@@ -133,6 +136,7 @@ impl ServerAiEnvironment {
             spending_insight_service,
             snapshot_service,
             lot_repository,
+            custom_provider_service,
         }
     }
 }
@@ -232,6 +236,10 @@ impl AgentEnvironment for ServerAiEnvironment {
 
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait> {
         self.categorization_rules_service.clone()
+    }
+
+    fn custom_providers(&self) -> wealthfolio_core::Result<Vec<CustomProviderWithSources>> {
+        self.custom_provider_service.get_all()
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

@@ -354,8 +354,8 @@ async fn mcp_pat_lifecycle() {
         .collect();
     assert_eq!(
         tools.len(),
-        41,
-        "read-only catalog must expose 41 tools (including Spending reads and proposals): {names:?}"
+        44,
+        "read-only catalog must expose 44 tools (including Spending reads and proposals): {names:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -547,8 +547,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        69,
-        "full-scope token must see all 69 tools: {names:?}"
+        72,
+        "full-scope token must see all 72 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -2053,6 +2053,180 @@ async fn mcp_quote_import_saves_reviewed_prices_and_revalues() {
         assert_eq!(effective["dataSource"], "MANUAL", "{effective}");
         assert_eq!(effective["close"], close, "{effective}");
     }
+}
+
+/// Track 2 reads: an agent finds an asset by symbol, sees its quote mode,
+/// currency, stored quote sources and holding accounts, reads its stored
+/// quotes, and lists providers without custom provider URLs or headers.
+#[tokio::test]
+async fn mcp_reads_asset_market_data_without_provider_secrets() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, asset_id, pat, session) = fund_holding_session(&server, &cookie).await;
+    store_provider_quote(&server, &cookie, &asset_id, "2026-09-30", 13.0).await;
+    // A provider row on the purchase day, stored in another currency: it loses
+    // the day to the manual quote but must still show.
+    let response = server
+        .client
+        .put(format!(
+            "{}/api/v1/market-data/quotes/{asset_id}",
+            server.base
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({
+            "id": format!("{asset_id}_2026-07-27_YAHOO"), "assetId": asset_id,
+            "timestamp": "2026-07-27T12:00:00Z", "open": 11.0, "high": 11.0, "low": 11.0,
+            "close": 11.0, "adjclose": 11.0, "volume": 0, "currency": "USD",
+            "dataSource": "YAHOO", "createdAt": "2026-10-01T00:00:00Z", "notes": null
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success(), "{}", response.status());
+    api_post(
+        &server,
+        &cookie,
+        "custom-providers",
+        serde_json::json!({
+            "code": "my-feed", "name": "My feed", "priority": 5,
+            "sources": [{
+                "kind": "latest", "format": "json",
+                "url": "https://prices.example/q?symbol={SYMBOL}&apikey=SECRET-KEY-123",
+                "pricePath": "$.price", "headers": "{\"Authorization\":\"Bearer SECRET-HEADER\"}"
+            }]
+        }),
+    )
+    .await;
+
+    let found = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_asset",
+        serde_json::json!({ "query": "zzfund" }),
+    )
+    .await;
+    assert_eq!(found["matchedBy"], "symbol", "{found}");
+    assert_eq!(found["asset"]["assetId"], asset_id.as_str(), "{found}");
+    assert_eq!(found["asset"]["quoteMode"], "MANUAL", "{found}");
+    assert_eq!(found["asset"]["quoteCurrency"], "EUR", "{found}");
+    assert_eq!(found["latestQuote"]["date"], "2026-09-30", "{found}");
+    assert_eq!(found["latestQuote"]["source"], "YAHOO", "{found}");
+    assert_eq!(
+        found["quoteSources"],
+        serde_json::json!([
+            { "source": "MANUAL", "currency": "EUR", "count": 1,
+              "firstDate": "2026-07-27", "lastDate": "2026-07-27" },
+            { "source": "YAHOO", "currency": "EUR", "count": 1,
+              "firstDate": "2026-09-30", "lastDate": "2026-09-30" },
+            { "source": "YAHOO", "currency": "USD", "count": 1,
+              "firstDate": "2026-07-27", "lastDate": "2026-07-27" }
+        ]),
+        "{found}"
+    );
+    assert_eq!(
+        found["holdings"],
+        serde_json::json!([
+            { "accountId": account["id"], "accountName": "Statement", "quantity": 2.0 }
+        ]),
+        "{found}"
+    );
+    let by_id = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_asset",
+        serde_json::json!({ "assetId": asset_id }),
+    )
+    .await;
+    assert_eq!(by_id["asset"], found["asset"], "{by_id}");
+
+    let history = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_quote_history",
+        serde_json::json!({ "assetId": asset_id, "startDate": "2026-07-01", "endDate": "2026-10-01" }),
+    )
+    .await;
+    assert_eq!(history["totalCount"], 3, "{history}");
+    assert_eq!(history["truncated"], false, "{history}");
+    assert_eq!(history["quotes"][0]["date"], "2026-09-30", "{history}");
+    assert_eq!(history["quotes"][0]["close"], 13.0, "{history}");
+    assert_eq!(history["quotes"][1]["source"], "MANUAL", "{history}");
+    let capped = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_quote_history",
+        serde_json::json!({
+            "assetId": asset_id, "startDate": "2026-07-01", "endDate": "2026-10-01",
+            "source": "manual", "limit": 1
+        }),
+    )
+    .await;
+    assert_eq!(capped["quotes"].as_array().unwrap().len(), 1, "{capped}");
+    assert_eq!(capped["quotes"][0]["date"], "2026-07-27", "{capped}");
+    let yahoo = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_quote_history",
+        serde_json::json!({
+            "assetId": asset_id, "startDate": "2026-07-01", "endDate": "2026-10-01",
+            "source": "YAHOO"
+        }),
+    )
+    .await;
+    assert_eq!(yahoo["totalCount"], 2, "{yahoo}");
+    assert_eq!(yahoo["quotes"][1]["currency"], "USD", "{yahoo}");
+    let truncated = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_quote_history",
+        serde_json::json!({
+            "assetId": asset_id, "startDate": "2026-07-01", "endDate": "2026-10-01",
+            "source": "YAHOO", "limit": 1
+        }),
+    )
+    .await;
+    assert_eq!(
+        truncated["quotes"].as_array().unwrap().len(),
+        1,
+        "{truncated}"
+    );
+    assert_eq!(truncated["quotes"][0]["date"], "2026-09-30", "{truncated}");
+    assert_eq!(truncated["totalCount"], 2, "{truncated}");
+    assert_eq!(truncated["truncated"], true, "{truncated}");
+
+    let providers = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_market_data_providers",
+        serde_json::json!({}),
+    )
+    .await;
+    let text = providers.to_string();
+    assert!(!text.contains("SECRET"), "{text}");
+    assert!(!text.contains("prices.example"), "{text}");
+    let list = providers["providers"].as_array().unwrap();
+    let custom = list
+        .iter()
+        .find(|p| p["id"] == "CUSTOM:my-feed")
+        .unwrap_or_else(|| panic!("{providers}"));
+    assert_eq!(custom["providerType"], "custom", "{custom}");
+    assert_eq!(
+        custom["sourceKinds"],
+        serde_json::json!(["latest"]),
+        "{custom}"
+    );
+    assert!(list.iter().any(|p| p["id"] == "YAHOO"), "{providers}");
+    assert!(
+        list.iter().all(|p| p["id"] != "CUSTOM_SCRAPER"),
+        "{providers}"
+    );
 }
 
 /// The quote CSV import handlers no longer queue their own recalculation:

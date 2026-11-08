@@ -11,6 +11,8 @@ pub mod activity_import;
 pub mod activity_updates;
 pub mod allocation;
 pub mod asset_classification;
+pub mod asset_lookup;
+pub mod asset_market_data;
 pub mod asset_taxonomies;
 pub mod cash_balances;
 pub mod categorization_context;
@@ -38,6 +40,8 @@ pub mod spending_import_metadata;
 pub mod spending_reads;
 pub mod spending_rule_management;
 pub mod spending_splits;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod transaction_categories;
 pub mod transfer_links;
 pub mod valuation;
@@ -49,11 +53,12 @@ pub use activities::{ActivityDto, SearchActivities, SearchActivitiesArgs, Search
 pub use allocation::{
     AllocationDto, GetAssetAllocation, GetAssetAllocationArgs, GetAssetAllocationOutput,
 };
+pub use asset_lookup::ResolvedAssetDto;
 pub use asset_taxonomies::{
     AssetTaxonomyAssignmentDto, AssetTaxonomyCategoryDto, AssetTaxonomyDto,
     GetAssetTaxonomyAssignments, GetAssetTaxonomyAssignmentsArgs,
     GetAssetTaxonomyAssignmentsOutput, ListAssetTaxonomies, ListAssetTaxonomiesArgs,
-    ListAssetTaxonomiesOutput, ResolvedAssetDto,
+    ListAssetTaxonomiesOutput,
 };
 pub use cash_balances::{
     AccountCashSummary, CashBalanceEntry, GetCashBalances, GetCashBalancesArgs,
@@ -315,6 +320,17 @@ pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(CommitTransactionCategory),
         Arc::new(transaction_categories::PrepareTransactionCategoryChange),
         Arc::new(transaction_categories::CommitTransactionCategoryChange),
+    ]
+}
+
+/// MCP-only asset and market-data reads: one asset's market-data setup and
+/// price state, its stored quotes, and the providers. Not exposed to the
+/// in-app assistant until it has a use for them.
+pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(asset_market_data::GetAsset),
+        Arc::new(asset_market_data::GetQuoteHistory),
+        Arc::new(asset_market_data::GetMarketDataProviders),
     ]
 }
 

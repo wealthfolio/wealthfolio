@@ -134,6 +134,30 @@ fn reset_context(conn: &mut SqliteConnection, id: &str) -> Result<ProviderHistor
 
 #[async_trait]
 impl QuoteStore for MarketDataRepository {
+    fn all_sources_in_range(
+        &self,
+        asset_id: &str,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+    ) -> Result<Vec<Quote>> {
+        let mut conn = get_connection(&self.pool)?;
+        let mut query = quotes_dsl::quotes
+            .filter(quotes_dsl::asset_id.eq(asset_id))
+            .into_boxed();
+        if let Some(start) = start {
+            query = query.filter(quotes_dsl::day.ge(start.format("%Y-%m-%d").to_string()));
+        }
+        if let Some(end) = end {
+            query = query.filter(quotes_dsl::day.le(end.format("%Y-%m-%d").to_string()));
+        }
+        let rows = query
+            .order((quotes_dsl::day.desc(), quotes_dsl::source.asc()))
+            .select(QuoteDB::as_select())
+            .load::<QuoteDB>(&mut conn)
+            .into_core()?;
+        Ok(rows.into_iter().map(Quote::from).collect())
+    }
+
     // =========================================================================
     // Mutations
     // =========================================================================
