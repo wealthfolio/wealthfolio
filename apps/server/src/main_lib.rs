@@ -954,7 +954,8 @@ async fn initialize_profile_state(
             quote_service.clone(),
         )
         .with_timezone(timezone.clone())
-        .with_event_sink(domain_event_sink.clone()),
+        .with_event_sink(domain_event_sink.clone())
+        .with_fx_registration(fx_service.clone(), base_currency.clone()),
     );
 
     // Custom asset logo overrides
