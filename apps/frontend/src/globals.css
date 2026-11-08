@@ -544,12 +544,13 @@
   }
 }
 
-/* The display step below md: 1.875rem, and never wider than 10.5vw (34px at 320px),
-   so a hero figure and the privacy toggle beside it stay on one line at every Text
-   size. */
+/* The display step below md: 1.875rem, and never wider than 8.25vw (26.4px at 320px),
+   so a hero figure such as CA$1,000,000.00 and the privacy toggle beside it stay on
+   one line at every Text size. Arabic at the extra-large size still wraps below
+   about 350px; covering it would take 7.75vw, a smaller figure for everyone. */
 @media (width < 48rem) {
   :root {
-    --text-display: min(1.875rem, 10.5vw);
+    --text-display: min(1.875rem, 8.25vw);
   }
 }
 
