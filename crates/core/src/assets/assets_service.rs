@@ -4103,6 +4103,7 @@ mod tests {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: 1.0,
         }
@@ -4129,6 +4130,7 @@ mod tests {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: 0.0,
         }
