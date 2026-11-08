@@ -710,6 +710,8 @@
     "unavailable": "Dieser Vorgang ist nicht verfügbar.",
     "providerKeyMissing": "Fügen Sie in den Einstellungen einen API-Schlüssel für diesen Anbieter hinzu.",
     "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
-    "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen."
+    "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen.",
+    "customProviderCodeReserved": "Dieser Anbietercode ist reserviert. Wählen Sie einen anderen Code.",
+    "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen."
   }
 }

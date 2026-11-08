@@ -710,6 +710,8 @@
     "unavailable": "This operation is unavailable.",
     "providerKeyMissing": "Add an API key for this provider in Settings.",
     "providerUnknown": "Select a supported provider.",
-    "providerUnavailable": "The provider could not complete the request. Check your provider settings."
+    "providerUnavailable": "The provider could not complete the request. Check your provider settings.",
+    "customProviderCodeReserved": "This provider code is reserved. Choose a different code.",
+    "customProviderInUse": "Change the provider for affected assets or remove their symbol mappings before deleting it."
   }
 }

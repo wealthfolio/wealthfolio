@@ -2,6 +2,8 @@ import i18n, { type TFunction } from "i18next";
 import { LOAN_ERROR_KEYS } from "./loan-error-codes";
 
 export const CONNECT_REBIND_REQUIRED = "CONNECT_REBIND_REQUIRED";
+export const BACKUP_REAUTHENTICATION_REQUIRED = "BACKUP_REAUTHENTICATION_REQUIRED";
+export const BACKUP_MANUAL_LIMIT = "BACKUP_MANUAL_LIMIT";
 
 // Backend identifiers are an API contract; translation keys belong to the UI.
 const ERROR_KEYS: Record<string, string> = {
@@ -17,6 +19,10 @@ const ERROR_KEYS: Record<string, string> = {
   provider_unavailable: "common:backendErrors.providerUnavailable",
   INVALID_SNAPSHOT_DATE: "account:snapshot.invalid_date_update_desc",
   [CONNECT_REBIND_REQUIRED]: "common:profiles.errors.rebind",
+  [BACKUP_REAUTHENTICATION_REQUIRED]: "settings:cloud_backup_reauth",
+  [BACKUP_MANUAL_LIMIT]: "settings:cloud_backup_manual_limit",
+  custom_provider_code_reserved: "common:backendErrors.customProviderCodeReserved",
+  custom_provider_in_use: "common:backendErrors.customProviderInUse",
 };
 
 /** Retains a code, never the server's arbitrary message, cause, or parameters. */
@@ -50,6 +56,14 @@ export class BackendError extends Error {
 /** Normalize both HTTP error envelopes and Tauri CommandError payloads. */
 export function backendError(cause: unknown): BackendError | undefined {
   if (cause instanceof BackendError) return cause;
+  if (typeof cause === "string") {
+    // Legacy desktop backup commands stringify DeviceSyncError::ApiError.
+    const backupCode =
+      /^(?:API error \(\d{3}\): )?(BACKUP_REAUTHENTICATION_REQUIRED|BACKUP_MANUAL_LIMIT)(?::|$)/.exec(
+        cause,
+      )?.[1];
+    if (backupCode) return new BackendError(backupCode);
+  }
   if (typeof cause === "string" && cause.split(":")[0] === CONNECT_REBIND_REQUIRED) {
     return new BackendError(CONNECT_REBIND_REQUIRED);
   }

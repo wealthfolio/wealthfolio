@@ -237,7 +237,8 @@ async fn waiting_web_login_rechecks_revoked_profile_before_changing_credentials(
     let body = axum::body::to_bytes(response.into_body(), 4096)
         .await
         .unwrap();
-    assert!(String::from_utf8_lossy(&body).contains("PROFILE_LOCKED"));
+    let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(error["errorCode"], "PROFILE_LOCKED");
     assert!(state
         .secret_store
         .get_secret(wealthfolio_core::secrets::CLOUD_REFRESH_TOKEN_KEY)

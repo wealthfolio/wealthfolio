@@ -727,6 +727,8 @@
     "unavailable": "Cette opération est indisponible.",
     "providerKeyMissing": "Ajoutez une clé API pour ce fournisseur dans les paramètres.",
     "providerUnknown": "Sélectionnez un fournisseur pris en charge.",
-    "providerUnavailable": "Le fournisseur n’a pas pu traiter la demande. Vérifiez ses paramètres."
+    "providerUnavailable": "Le fournisseur n’a pas pu traiter la demande. Vérifiez ses paramètres.",
+    "customProviderCodeReserved": "Ce code de fournisseur est réservé. Choisissez un autre code.",
+    "customProviderInUse": "Changez le fournisseur des actifs concernés ou supprimez leurs correspondances de symboles avant de le supprimer."
   }
 }

@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import zhActivity from "@/i18n/locales/zh/activity.json";
 import zhAsset from "@/i18n/locales/zh/asset.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
 import { AccountType, ActivityType } from "@/lib/constants";
 import type { LatestQuoteSnapshot } from "@/lib/types";
 import { getNoQuoteReasonText } from "../asset/asset-utils";
@@ -17,6 +18,7 @@ import {
 beforeEach(async () => {
   i18n.addResourceBundle("zh", "activity", zhActivity, true, true);
   i18n.addResourceBundle("zh", "asset", zhAsset, true, true);
+  i18n.addResourceBundle("zh", "common", zhCommon, true, true);
   await i18n.changeLanguage("zh");
 });
 afterEach(async () => {
@@ -64,7 +66,7 @@ describe("financial display translation paths", () => {
     expect(draft).toEqual({ activityType: ActivityType.BUY, quantity: "0", unitPrice: "-1" });
   });
 
-  it("translates known quote reason codes but preserves unknown and provider details", async () => {
+  it("translates quote reasons without exposing unknown or provider diagnostics", async () => {
     const snapshot: LatestQuoteSnapshot = {
       quote: null,
       isStale: true,
@@ -73,10 +75,16 @@ describe("financial display translation paths", () => {
       noQuoteReason: { code: "MANUAL_PRICING", message: "Quote mode is Manual" },
     };
     expect(getNoQuoteReasonText(snapshot)).toBe("报价模式为手动");
-    for (const code of ["LAST_ERROR", "UNKNOWN_PROVIDER_REASON"]) {
-      expect(
-        getNoQuoteReasonText({ ...snapshot, noQuoteReason: { code, message: "API HTTP 429" } }),
-      ).toBe("API HTTP 429");
+    for (const [code, expected] of [
+      ["LAST_ERROR", zhCommon.backendErrors.providerUnavailable],
+      ["UNKNOWN_PROVIDER_REASON", zhAsset.noQuote.no_data],
+    ]) {
+      const text = getNoQuoteReasonText({
+        ...snapshot,
+        noQuoteReason: { code, message: "FAKE-KEY-2531 /private/portfolio.db" },
+      });
+      expect(text).toBe(expected);
+      expect(text).not.toContain("FAKE-KEY");
     }
     await i18n.changeLanguage("en");
     expect(getNoQuoteReasonText(snapshot)).toBe("Quote mode is Manual");
