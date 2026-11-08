@@ -4,7 +4,9 @@ use super::fx_model::{ExchangeRate, NewExchangeRate};
 use super::fx_traits::{FxRepositoryTrait, FxServiceTrait};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
-use crate::fx::currency::{denormalization_multiplier, normalize_currency_code};
+use crate::fx::currency::{
+    denormalization_multiplier, is_crypto_currency, normalize_currency_code,
+};
 use crate::quotes::constants::{DATA_SOURCE_MANUAL, DATA_SOURCE_YAHOO};
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
@@ -396,9 +398,17 @@ impl FxServiceTrait for FxService {
             .ok();
 
         if existing_rate.is_none() {
+            // Providers only quote crypto against another currency (BTC/USD),
+            // never the reverse, so register that side; conversion inverts it.
+            let (base, quote) =
+                if is_crypto_currency(normalized_to) && !is_crypto_currency(normalized_from) {
+                    (normalized_to, normalized_from)
+                } else {
+                    (normalized_from, normalized_to)
+                };
             let asset_id = self
                 .repository
-                .create_fx_asset(normalized_from, normalized_to, DATA_SOURCE_YAHOO)
+                .create_fx_asset(base, quote, DATA_SOURCE_YAHOO)
                 .await?;
 
             self.event_sink
@@ -582,6 +592,34 @@ mod tests {
         assert_eq!(created.len(), 1);
         assert_eq!(created[0].0, "USD");
         assert_eq!(created[0].1, "CAD");
+    }
+
+    #[tokio::test]
+    async fn register_currency_pair_puts_crypto_first() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        // A USD activity in a BTC account: providers only quote BTC/USD.
+        service.register_currency_pair("USD", "BTC").await.unwrap();
+        service.register_currency_pair("BTC", "EUR").await.unwrap();
+        // Crypto on both sides keeps the order it came in.
+        service.register_currency_pair("ETH", "BTC").await.unwrap();
+
+        let created: Vec<(String, String)> = repo
+            .created_pairs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(from, to, _)| (from.clone(), to.clone()))
+            .collect();
+        assert_eq!(
+            created,
+            vec![
+                ("BTC".to_string(), "USD".to_string()),
+                ("BTC".to_string(), "EUR".to_string()),
+                ("ETH".to_string(), "BTC".to_string()),
+            ]
+        );
     }
 
     #[tokio::test]
