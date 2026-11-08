@@ -96,7 +96,8 @@ for (const scenario of [
       const response = await page.request.get(
         `${BASE_URL}/api/v1/holdings?accountId=${encodeURIComponent(accountId)}`,
       );
-      expect(response.ok(), await response.text()).toBeTruthy();
+      // Holdings answer 400 while the account is still being recalculated.
+      if (!response.ok()) return null;
       return (await response.json()) as Array<{
         instrument?: { id: string };
         quantity: number;
@@ -106,7 +107,9 @@ for (const scenario of [
     await expect
       .poll(
         async () => {
-          const position = (await holdings(brokerage.id)).find((h) => h.instrument?.id === assetId);
+          const position = (await holdings(brokerage.id))?.find(
+            (h) => h.instrument?.id === assetId,
+          );
           return position?.quantity;
         },
         { timeout: 60_000 },
@@ -176,17 +179,22 @@ for (const scenario of [
     await expect
       .poll(
         async () => {
-          const position = (await holdings(brokerage.id)).find((h) => h.instrument?.id === assetId);
-          return position?.quantity ?? 0;
+          const list = await holdings(brokerage.id);
+          return list && (list.find((h) => h.instrument?.id === assetId)?.quantity ?? 0);
         },
         { timeout: 60_000 },
       )
       .toBe(0);
-    expect((await holdings(spending.id)).some((h) => h.instrument?.id === assetId)).toBe(false);
+    await expect
+      .poll(async () => (await holdings(spending.id))?.some((h) => h.instrument?.id === assetId))
+      .toBe(false);
     if (otherOwner) {
-      expect(
-        (await holdings(otherOwner.id)).find((h) => h.instrument?.id === assetId)?.quantity,
-      ).toBe(0.5);
+      await expect
+        .poll(
+          async () =>
+            (await holdings(otherOwner.id))?.find((h) => h.instrument?.id === assetId)?.quantity,
+        )
+        .toBe(0.5);
     }
   });
 }

@@ -158,11 +158,15 @@ async function checkWorksheetPreview(page: Page, region: "US" | "ES") {
   await expect
     .poll(
       async () => {
-        const drift = await post<{ rows: { categoryId: string; currentBps: number }[] }>(
-          page,
-          `/allocation-targets/${saved.target.id}/drift`,
-          { filter: { type: "all" }, includeHoldings: true },
+        const response = await page.request.post(
+          `${BASE_URL}/api/v1/allocation-targets/${saved.target.id}/drift`,
+          { data: { filter: { type: "all" }, includeHoldings: true }, headers: requestHeaders },
         );
+        // Drift answers 400 while the recalculation above is still running.
+        if (!response.ok()) return 0;
+        const drift = (await response.json()) as {
+          rows: { categoryId: string; currentBps: number }[];
+        };
         return drift.rows.find((row) => row.categoryId === "EQUITY")?.currentBps ?? 0;
       },
       { timeout: 60000 },
