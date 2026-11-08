@@ -179,6 +179,46 @@ fn local_search_identity(query: &str) -> Option<(String, Option<&'static str>)> 
     Some((canonical_symbol.to_string(), suffix_mic))
 }
 
+/// Whether `result` is the instrument `query` names, not just one whose symbol
+/// or name contains it: the local search matches substrings and ranks existing
+/// assets first, so the top result for "A" can be any holding with an "A" in
+/// its name. Accepts the shown symbol, the canonical symbol (on the query's
+/// exchange when it carries a suffix such as `VOD.L`), the provider symbol, or
+/// any result of a query that is a valid ISIN.
+pub fn search_result_matches_query(result: &SymbolSearchResult, query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return false;
+    }
+    if crate::utils::isin::parse_isin(query).is_ok() {
+        return true;
+    }
+    if result.symbol.trim().eq_ignore_ascii_case(query)
+        || result
+            .provider_symbol
+            .as_deref()
+            .is_some_and(|symbol| symbol.trim().eq_ignore_ascii_case(query))
+    {
+        return true;
+    }
+
+    let Some((canonical_symbol, exchange_mic)) = local_search_identity(query) else {
+        return false;
+    };
+    let result_symbol = result.canonical_symbol.as_deref().unwrap_or(&result.symbol);
+    if !result_symbol.trim().eq_ignore_ascii_case(&canonical_symbol) {
+        return false;
+    }
+    match exchange_mic {
+        Some(expected) => result
+            .canonical_exchange_mic
+            .as_deref()
+            .or(result.exchange_mic.as_deref())
+            .is_some_and(|mic| mic.eq_ignore_ascii_case(expected)),
+        None => true,
+    }
+}
+
 fn asset_matches_local_search_identity(
     asset: &Asset,
     canonical_symbol: &str,
@@ -2835,6 +2875,65 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
+
+    fn listing(
+        symbol: &str,
+        canonical: &str,
+        mic: &str,
+        provider_symbol: &str,
+    ) -> SymbolSearchResult {
+        SymbolSearchResult {
+            symbol: symbol.to_string(),
+            canonical_symbol: Some(canonical.to_string()),
+            canonical_exchange_mic: Some(mic.to_string()),
+            provider_symbol: Some(provider_symbol.to_string()),
+            exchange_mic: Some(mic.to_string()),
+            long_name: "Example".to_string(),
+            ..Default::default()
+        }
+    }
+
+    /// #2405: the local search matches substrings of symbols and names, so "A"
+    /// returns holdings that only contain an "A". Those are not matches.
+    #[test]
+    fn search_result_matches_query_rejects_substring_hits() {
+        let holding = SymbolSearchResult {
+            symbol: "RELIANCE.NS".to_string(),
+            canonical_symbol: Some("RELIANCE".to_string()),
+            canonical_exchange_mic: Some("XNSE".to_string()),
+            long_name: "Reliance Industries".to_string(),
+            is_existing: true,
+            ..Default::default()
+        };
+        assert!(!search_result_matches_query(&holding, "A"));
+        assert!(!search_result_matches_query(&holding, "RELI"));
+        assert!(!search_result_matches_query(&holding, ""));
+        let vehicle = SymbolSearchResult {
+            symbol: "FAMILY-CAR".to_string(),
+            long_name: "Family car".to_string(),
+            is_existing: true,
+            ..Default::default()
+        };
+        assert!(!search_result_matches_query(&vehicle, "CAR"));
+    }
+
+    #[test]
+    fn search_result_matches_query_accepts_exact_identities() {
+        let tsx = listing("SHOP.TO", "SHOP", "XTSE", "SHOP.TO");
+        // Shown symbol, canonical symbol, case-insensitive.
+        assert!(search_result_matches_query(&tsx, "shop.to"));
+        assert!(search_result_matches_query(&tsx, "SHOP"));
+        // An exchange suffix must name the result's exchange.
+        assert!(!search_result_matches_query(&tsx, "SHOP.L"));
+        // Provider symbol that differs from the shown one.
+        let class_share = listing("BRK.B", "BRK.B", "XNYS", "BRK-B");
+        assert!(search_result_matches_query(&class_share, "BRK-B"));
+        // A valid ISIN is an identifier lookup, whatever symbol comes back.
+        let apple = listing("AAPL", "AAPL", "XNAS", "AAPL");
+        assert!(search_result_matches_query(&apple, "US0378331005"));
+        // A malformed ISIN-shaped string is not.
+        assert!(!search_result_matches_query(&apple, "US0378331006"));
+    }
 
     #[test]
     fn test_instrument_key_from_bf_search_result_uses_isin_and_mic() {
