@@ -305,7 +305,9 @@ export function AssetsTable({
           const asset = row.original;
           return (
             <div className="flex justify-end">
-              <DropdownMenu>
+              {/* Rows are keyed by position: keyed by the asset, an open menu never
+                  acts on another security that a refetch moves into its row. */}
+              <DropdownMenu key={asset.id}>
                 <DropdownMenuTrigger
                   render={
                     <button
