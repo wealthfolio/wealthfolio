@@ -1217,13 +1217,15 @@ fn format_name(
         }
     }
 
-    let name = if name.is_empty() {
-        short_name.unwrap_or("").to_string()
-    } else {
-        name
+    // A blank or symbol-only candidate is no name; try the short name next.
+    let is_name = |candidate: &str| {
+        let trimmed = candidate.trim();
+        !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(symbol.trim())
     };
-    let trimmed = name.trim();
-    (!trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(symbol.trim())).then_some(name)
+    if is_name(&name) {
+        return Some(name);
+    }
+    short_name.filter(|sn| is_name(sn)).map(str::to_string)
 }
 
 /// Convert snake_case sector to Title Case.
@@ -1347,6 +1349,16 @@ mod tests {
         assert_eq!(
             format_name(Some("0p00036t6i.bo "), "MUTUALFUND", None, "0P00036T6I.BO"),
             None
+        );
+
+        // An unusable long name falls back to a usable short name
+        assert_eq!(
+            format_name(Some("ACME"), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
+        );
+        assert_eq!(
+            format_name(Some("  "), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
         );
     }
 
