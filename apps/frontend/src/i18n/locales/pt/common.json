@@ -394,6 +394,13 @@
     "welcome": "Bem-vindo, {{name}}",
     "continue": "Continuar",
     "lockFailed": "Não foi possível concluir o bloqueio",
+    "biometricUnlocking": "A verificar…",
+    "unlockWithTouchId": "Desbloquear com Touch ID",
+    "touchId": "Touch ID",
+    "touchIdEnabled": "Touch ID está ativado para este perfil.",
+    "touchIdDisabled": "Desbloqueie este perfil com a sua impressão digital.",
+    "disableTouchId": "Desativar",
+    "enableTouchId": "Ativar",
     "connectionFailed": "Conexão interrompida",
     "signInAgain": "Entrar novamente",
     "startupFailed": "Não foi possível abrir o Wealthfolio",
@@ -524,7 +531,11 @@
       "accountMismatch": "Entre com a conta Connect originalmente vinculada a este perfil.",
       "teamChanged": "Seu grupo familiar mudou. Reconecte o Wealthfolio Connect para continuar.",
       "rebind": "Reconecte o Wealthfolio Connect para confirmar a conta e o grupo familiar deste perfil.",
-      "cooldown_many": "Muitas tentativas. Tente novamente em {{count}} segundos."
+      "cooldown_many": "Muitas tentativas. Tente novamente em {{count}} segundos.",
+      "biometricUnavailable": "Touch ID não está disponível. Adicione uma impressão digital nas Definições do Sistema → Touch ID e Palavra-passe.",
+      "biometricStoreFailed": "Não foi possível guardar o token Touch ID. Certifique-se de que o dispositivo tem um código de acesso.",
+      "biometricNotEnrolled": "Touch ID já não está disponível. Utilize a sua palavra-passe para desbloquear.",
+      "biometricNotEnrolledNoPassword": "Touch ID já não está disponível. Use o botão Voltar e reative-o nas definições do seu perfil."
     }
   },
   "remove": "Remover",

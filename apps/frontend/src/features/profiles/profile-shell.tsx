@@ -12,6 +12,7 @@ import { isNativeAuthPending } from "./auth-bridge";
 import { isWeb, listenPortfolioUpdateStart } from "@/adapters";
 import { Button, Icons, Input, Label } from "@wealthfolio/ui";
 import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
+import { usePlatform } from "@/hooks/use-platform";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
 import {
   profileCommand,
@@ -85,10 +86,15 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const [copiedRecovery, setCopiedRecovery] = useState<string>();
   const [covered, setCovered] = useState(false);
   const sessionScope = state?.session?.scopeId;
-  const profileProtected = state?.profiles.find(
+  const activeProfile = state?.profiles.find(
     (profile) => profile.id === state.session?.profileId,
-  )?.lockEnabled;
+  );
+  // A profile is "protected" if it has either a password lock or biometric lock active.
+  const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const { platform } = usePlatform();
+  const biometricAvailable = !isWeb && (platform?.capabilities?.biometric_lock ?? false);
   const lock = useCallback(
     async (preserveAuth = false, nextIntent: "lock" | "switch" = "lock") => {
       if (working.current) return;
@@ -348,11 +354,12 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       phase === "locked" &&
-      (mode === "choose" || (mode === "unlock" && !selected?.lockEnabled))
+      (mode === "choose" ||
+        (mode === "unlock" && !selected?.lockEnabled && !selected?.biometricEnabled))
     ) {
       heading.current?.focus();
     }
-  }, [phase, mode, selected?.lockEnabled]);
+  }, [phase, mode, selected?.lockEnabled, selected?.biometricEnabled]);
 
   useEffect(() => {
     if (passwordInvalid && !busy) {
@@ -389,7 +396,8 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     setProof("");
     setError("");
     setMode("unlock");
-    if (!profile.lockEnabled) {
+    // Auto-unlock only if neither password nor biometric protection is active.
+    if (!profile.lockEnabled && !profile.biometricEnabled) {
       void run(() => unlock(profile.id, ""));
     }
   }
@@ -429,6 +437,30 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     if (target) rememberOpeningProfile(target);
     setPhase("opening");
     // A fresh JS world is required even when reopening the same profile.
+    reloadApplication({ dashboard: intent.current === "switch" });
+  }
+  async function unlockWithBiometric(id: string) {
+    const target = selected?.id === id ? selected : state?.profiles.find((p) => p.id === id);
+    if (target) setSelected(target);
+    if (mode !== "create" && !reducedMotion)
+      await new Promise((resolve) => setTimeout(resolve, PROFILE_SELECTION_MS));
+    try {
+      await profileCommand<ProfileSession>("unlock_with_biometric", { profileId: id });
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes("BIOMETRIC_CANCELLED")) {
+        // User dismissed the Touch ID prompt — stay on the unlock screen silently.
+        return;
+      }
+      if (msg.includes("BIOMETRIC_NOT_ENROLLED")) {
+        setError("PROFILE_BIOMETRIC_NOT_ENROLLED");
+        return;
+      }
+      setError(msg.replace(/^Error:\s*/, ""));
+      return;
+    }
+    if (target) rememberOpeningProfile(target);
+    setPhase("opening");
     reloadApplication({ dashboard: intent.current === "switch" });
   }
   async function deleteProfile(
@@ -1009,6 +1041,40 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   ))}
               </AnimatePresence>
             </div>
+            {mode === "unlock" && selected?.biometricEnabled && biometricAvailable && (
+              <div className="mx-auto max-w-xs space-y-3">
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={busy || biometricBusy}
+                  onClick={() => {
+                    if (!selected) return;
+                    setBiometricBusy(true);
+                    void run(() => unlockWithBiometric(selected.id)).finally(() =>
+                      setBiometricBusy(false),
+                    );
+                  }}
+                >
+                  <Icons.Fingerprint className="mr-2 size-4" />
+                  {biometricBusy
+                    ? t("profiles.biometricUnlocking", { defaultValue: "Verifying…" })
+                    : t("profiles.unlockWithTouchId", { defaultValue: "Unlock with Touch ID" })}
+                </Button>
+                {error === "PROFILE_BIOMETRIC_NOT_ENROLLED" && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {selected?.lockEnabled
+                      ? t("profiles.errors.biometricNotEnrolled", {
+                          defaultValue:
+                            "Touch ID is no longer available. Use your password to unlock.",
+                        })
+                      : t("profiles.errors.biometricNotEnrolledNoPassword", {
+                          defaultValue:
+                            "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings.",
+                        })}
+                  </p>
+                )}
+              </div>
+            )}
             {mode === "unlock" && selected?.lockEnabled && (
               <form
                 key={selected.id}
@@ -1186,6 +1252,82 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             {isProfileEditor && <ProfileAvatarPicker value={avatar} onChange={setAvatar} />}
             {formActions}
             {formError}
+            {mode === "manage" && biometricAvailable && (
+              <section className="space-y-3 border-t pt-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <h2 className="font-medium">
+                      {t("profiles.touchId", { defaultValue: "Touch ID" })}
+                    </h2>
+                    <p className="text-muted-foreground text-sm">
+                      {selected?.biometricEnabled
+                        ? t("profiles.touchIdEnabled", {
+                            defaultValue: "Touch ID is enabled for this profile.",
+                          })
+                        : t("profiles.touchIdDisabled", {
+                            defaultValue: "Unlock this profile with your fingerprint.",
+                          })}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={selected?.biometricEnabled ? "outline" : "secondary"}
+                    disabled={busy || biometricBusy}
+                    onClick={async () => {
+                      if (!selected) return;
+                      setBiometricBusy(true);
+                      try {
+                        if (selected.biometricEnabled) {
+                          await profileCommand("disable_biometric_lock", {
+                            profileId: selected.id,
+                            proof: proof || null,
+                          });
+                          setSelected({ ...selected, biometricEnabled: false });
+                          setState((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  profiles: current.profiles.map((p) =>
+                                    p.id === selected.id ? { ...p, biometricEnabled: false } : p,
+                                  ),
+                                }
+                              : current,
+                          );
+                        } else {
+                          await profileCommand("enable_biometric_lock", {
+                            profileId: selected.id,
+                            proof: proof || null,
+                          });
+                          setSelected({ ...selected, biometricEnabled: true });
+                          setState((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  profiles: current.profiles.map((p) =>
+                                    p.id === selected.id ? { ...p, biometricEnabled: true } : p,
+                                  ),
+                                }
+                              : current,
+                          );
+                        }
+                      } catch (err) {
+                        setError(String(err).replace(/^Error:\s*/, ""));
+                      } finally {
+                        setBiometricBusy(false);
+                      }
+                    }}
+                  >
+                    {biometricBusy ? (
+                      t("profiles.saving", { defaultValue: "Saving…" })
+                    ) : selected?.biometricEnabled ? (
+                      t("profiles.disableTouchId", { defaultValue: "Disable" })
+                    ) : (
+                      t("profiles.enableTouchId", { defaultValue: "Enable" })
+                    )}
+                  </Button>
+                </div>
+              </section>
+            )}
             {mode === "manage" && (
               <section className="border-destructive/25 space-y-2 border-t pt-6">
                 <h2 className="font-medium">{t("profiles.delete")}</h2>

@@ -371,6 +371,13 @@
     "welcome": "환영합니다, {{name}}",
     "continue": "계속",
     "lockFailed": "잠금을 완료하지 못했습니다",
+    "biometricUnlocking": "확인 중…",
+    "unlockWithTouchId": "Touch ID로 잠금 해제",
+    "touchId": "Touch ID",
+    "touchIdEnabled": "이 프로필에 Touch ID가 활성화되어 있습니다.",
+    "touchIdDisabled": "지문으로 이 프로필의 잠금을 해제합니다.",
+    "disableTouchId": "비활성화",
+    "enableTouchId": "활성화",
     "connectionFailed": "연결이 끊어졌습니다",
     "signInAgain": "다시 로그인",
     "startupFailed": "Wealthfolio를 열 수 없습니다",
@@ -500,7 +507,11 @@
       "duplicateAccount": "이 Connect 계정은 이미 다른 프로필에 연결되어 있습니다. 해당 프로필로 전환하세요.",
       "accountMismatch": "이 프로필에 처음 연결한 Connect 계정으로 로그인하세요.",
       "teamChanged": "가구가 변경되었습니다. 계속하려면 Wealthfolio Connect를 다시 연결하세요.",
-      "rebind": "Wealthfolio Connect를 다시 연결하여 이 프로필의 계정과 가구를 확인하세요."
+      "rebind": "Wealthfolio Connect를 다시 연결하여 이 프로필의 계정과 가구를 확인하세요.",
+      "biometricUnavailable": "Touch ID를 사용할 수 없습니다. 시스템 설정 → Touch ID 및 암호에서 지문을 추가하세요.",
+      "biometricStoreFailed": "Touch ID 토큰을 저장하지 못했습니다. 기기에 암호가 설정되어 있는지 확인하세요.",
+      "biometricNotEnrolled": "Touch ID를 더 이상 사용할 수 없습니다. 비밀번호를 사용하여 잠금을 해제하세요.",
+      "biometricNotEnrolledNoPassword": "Touch ID를 더 이상 사용할 수 없습니다. 뒤로 버튼을 사용하고 프로필 설정에서 다시 활성화하세요."
     }
   },
   "remove": "제거",

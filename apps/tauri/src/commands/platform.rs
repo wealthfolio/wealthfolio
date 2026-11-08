@@ -5,6 +5,8 @@ pub struct PlatformCapabilities {
     pub connect_sync: bool,
     pub device_sync: bool,
     pub cloud_sync: bool,
+    /// Touch ID / Face ID unlock is available on this platform.
+    pub biometric_lock: bool,
 }
 
 #[derive(Serialize)]
@@ -32,6 +34,7 @@ pub fn get_platform() -> PlatformInfo {
             connect_sync,
             device_sync,
             cloud_sync: connect_sync || device_sync,
+            biometric_lock: crate::biometric::biometric_available(),
         },
     }
 }

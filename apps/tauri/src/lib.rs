@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod biometric;
 mod commands;
 mod context;
 mod data_dir;
@@ -289,6 +290,11 @@ pub fn run() {
             profiles::update_profile,
             profiles::set_profile_password,
             profiles::recover_profile_password,
+            // Biometric (Touch ID) commands
+            profiles::check_biometric_available,
+            profiles::enable_biometric_lock,
+            profiles::disable_biometric_lock,
+            profiles::unlock_with_biometric,
             // Account commands
             commands::account::get_accounts,
             commands::account::create_account,

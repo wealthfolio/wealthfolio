@@ -64,6 +64,16 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
       return t("profiles.errors.teamChanged");
     case "CONNECT_REBIND_REQUIRED":
       return t("profiles.errors.rebind");
+    case "PROFILE_BIOMETRIC_UNAVAILABLE":
+      return t("profiles.errors.biometricUnavailable", {
+        defaultValue:
+          "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+      });
+    case "PROFILE_BIOMETRIC_STORE_FAILED":
+      return t("profiles.errors.biometricStoreFailed", {
+        defaultValue:
+          "Could not save the Touch ID token. Make sure the device has a passcode set.",
+      });
     default:
       return t("profiles.errors.generic");
   }

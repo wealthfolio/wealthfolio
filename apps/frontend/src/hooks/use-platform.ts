@@ -14,6 +14,7 @@ function defaultCapabilities(): PlatformCapabilities {
     connect_sync: true,
     device_sync: true,
     cloud_sync: true,
+    biometric_lock: false,
   };
 }
 

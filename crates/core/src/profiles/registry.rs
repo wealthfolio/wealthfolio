@@ -40,6 +40,9 @@ struct LockRecord {
     recovery_hash: Option<String>,
     failures: u32,
     next_attempt: u64,
+    /// Argon2id hash of the platform biometric bypass token (macOS Touch ID).
+    #[serde(default)]
+    biometric_verifier: Option<String>,
 }
 
 pub struct ProfileRegistry {
@@ -295,6 +298,7 @@ impl ProfileRegistry {
                 name: "Personal".into(),
                 avatar_id: DEFAULT_PROFILE_AVATAR.into(),
                 lock_enabled: false,
+                biometric_enabled: false,
                 // Lost registry files must not bypass an inherited legacy lock.
                 never_protected: !legacy_database.exists() || !had_owner_file,
                 legacy_database: legacy_database.exists().then_some(legacy_database),
@@ -603,6 +607,7 @@ impl ProfileRegistry {
             name: name.trim().into(),
             avatar_id: avatar.into(),
             lock_enabled: password.is_some(),
+            biometric_enabled: false,
             never_protected: password.is_none(),
             legacy_database: None,
             legacy_addons_root: None,
@@ -772,6 +777,69 @@ impl ProfileRegistry {
         Ok(record.verifier.is_some())
     }
 
+    /// Returns `true` when the profile has a password set (i.e., the lock record
+    /// contains a password verifier). Used to decide whether a biometric
+    /// re-challenge is required when removing biometric protection.
+    pub fn profile_has_password(&self, id: Uuid) -> ProfileResult<bool> {
+        let data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .ok_or(ProfileError::NotFound)?;
+        let record = self.read_lock(profile)?;
+        Ok(record.verifier.is_some())
+    }
+
+    /// Returns the current biometric state for a profile: the raw `biometric_verifier`
+    /// string and the `biometric_enabled` flag.
+    ///
+    /// Used to save a snapshot **before** `enable_biometric_lock` overwrites it, so
+    /// a failed `store_bypass_token` can call `restore_biometric_state` and put the
+    /// profile back exactly where it was — rather than stripping all biometric
+    /// protection via `disable_biometric_lock`.
+    pub fn get_biometric_state(&self, id: Uuid) -> ProfileResult<(Option<String>, bool)> {
+        let data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .ok_or(ProfileError::NotFound)?;
+        let record = self.read_lock(profile)?;
+        Ok((record.biometric_verifier, profile.biometric_enabled))
+    }
+
+    /// Restore a previously-saved biometric state.
+    ///
+    /// Called during rollback when `store_bypass_token` fails after
+    /// `enable_biometric_lock` has already written a new `biometric_verifier`.
+    /// Restores the old verifier and `biometric_enabled` flag so the profile
+    /// remains in its pre-call state instead of losing all biometric protection.
+    pub fn restore_biometric_state(
+        &self,
+        id: Uuid,
+        old_verifier: Option<&str>,
+        was_biometric_enabled: bool,
+    ) -> ProfileResult<()> {
+        let mut data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .cloned()
+            .ok_or(ProfileError::NotFound)?;
+        let mut record = self.read_lock(&profile)?;
+        record.biometric_verifier = old_verifier.map(str::to_owned);
+        self.write_lock(&profile, &record)?;
+        let mut next = data.clone();
+        next.profiles
+            .iter_mut()
+            .find(|p| p.id == id)
+            .ok_or(ProfileError::NotFound)?
+            .biometric_enabled = was_biometric_enabled;
+        self.save(&mut data, next)
+    }
+
     fn verify_record(
         &self,
         profile: &Profile,
@@ -846,7 +914,10 @@ impl ProfileRegistry {
             .ok_or(ProfileError::NotFound)?;
         let mut current = self.read_lock(&profile)?;
         self.verify_record(&profile, &mut current, proof)?;
-        let (record, recovery) = new_lock_record(password)?;
+        let (mut record, recovery) = new_lock_record(password)?;
+        // Preserve the biometric verifier: the bypass token is independent of the
+        // password, so changing or removing the password must not revoke Touch ID.
+        record.biometric_verifier = current.biometric_verifier;
 
         // Seal the conservative state in memory and BOTH registry copies before
         // attempting a credential write. set_secret/readback can fail after the
@@ -869,6 +940,96 @@ impl ProfileRegistry {
             .lock_enabled = password.is_some();
         self.save(&mut data, next)?;
         Ok(recovery)
+    }
+
+    /// Enroll the profile for biometric (Touch ID) unlock by storing an argon2 hash
+    /// of the caller-generated `bypass_token`. Requires proof of the existing password
+    /// if the profile is password-protected.
+    pub fn enable_biometric_lock(
+        &self,
+        id: Uuid,
+        proof: Option<&str>,
+        bypass_token: &str,
+    ) -> ProfileResult<()> {
+        let mut data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .cloned()
+            .ok_or(ProfileError::NotFound)?;
+        let mut record = self.read_lock(&profile)?;
+        // Verify the existing password if one is set.
+        if record.verifier.is_some() {
+            self.verify_record(&profile, &mut record, proof)?;
+        }
+        let params = Params::new(19 * 1024, 2, 1, Some(32)).map_err(storage_error)?;
+        let verifier = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+            .hash_password(bypass_token.as_bytes())
+            .map_err(storage_error)?
+            .to_string();
+        record.biometric_verifier = Some(verifier);
+        self.write_lock(&profile, &record)?;
+        let mut next = data.clone();
+        next.profiles
+            .iter_mut()
+            .find(|p| p.id == id)
+            .ok_or(ProfileError::NotFound)?
+            .biometric_enabled = true;
+        self.save(&mut data, next)
+    }
+
+    /// Disable biometric unlock for the profile. Requires proof of the existing password
+    /// if the profile is password-protected.
+    pub fn disable_biometric_lock(&self, id: Uuid, proof: Option<&str>) -> ProfileResult<()> {
+        let mut data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .cloned()
+            .ok_or(ProfileError::NotFound)?;
+        let mut record = self.read_lock(&profile)?;
+        if record.verifier.is_some() {
+            self.verify_record(&profile, &mut record, proof)?;
+        }
+        record.biometric_verifier = None;
+        self.write_lock(&profile, &record)?;
+        let mut next = data.clone();
+        next.profiles
+            .iter_mut()
+            .find(|p| p.id == id)
+            .ok_or(ProfileError::NotFound)?
+            .biometric_enabled = false;
+        self.save(&mut data, next)
+    }
+
+    /// Verify a biometric bypass token against the stored argon2 hash. Returns `true`
+    /// if the token matches; errors on mismatch or if biometric is not enrolled.
+    pub fn verify_biometric_token(&self, id: Uuid, bypass_token: &str) -> ProfileResult<bool> {
+        let data = self.data()?;
+        let profile = data
+            .profiles
+            .iter()
+            .find(|p| p.id == id && !self.is_deleting(id))
+            .ok_or(ProfileError::NotFound)?;
+        let record = self.read_lock(profile)?;
+        let Some(verifier) = record.biometric_verifier.as_ref() else {
+            return Err(ProfileError::Invalid(
+                "Biometric unlock is not enabled for this profile.".into(),
+            ));
+        };
+        let parsed = PasswordHash::new(verifier).map_err(|_| {
+            ProfileError::Unavailable("The biometric verifier is invalid.".into())
+        })?;
+        if Argon2::default()
+            .verify_password(bypass_token.as_bytes(), &parsed)
+            .is_ok()
+        {
+            Ok(true)
+        } else {
+            Err(ProfileError::IncorrectPassword)
+        }
     }
 }
 

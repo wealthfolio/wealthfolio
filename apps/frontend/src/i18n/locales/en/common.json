@@ -377,6 +377,13 @@
     "opening": "Opening Wealthfolio…",
     "locking": "Locking Wealthfolio…",
     "lockFailed": "Couldn’t finish locking",
+    "biometricUnlocking": "Verifying…",
+    "unlockWithTouchId": "Unlock with Touch ID",
+    "touchId": "Touch ID",
+    "touchIdEnabled": "Touch ID is enabled for this profile.",
+    "touchIdDisabled": "Unlock this profile with your fingerprint.",
+    "disableTouchId": "Disable",
+    "enableTouchId": "Enable",
     "connectionFailed": "Connection interrupted",
     "signInAgain": "Sign in again",
     "switch": "Switch profile",
@@ -509,7 +516,11 @@
       "duplicateAccount": "This Connect account is already linked to another profile. Switch to that profile.",
       "accountMismatch": "Sign in with the Connect account originally linked to this profile.",
       "teamChanged": "Your household has changed. Reconnect Wealthfolio Connect to continue.",
-      "rebind": "Reconnect Wealthfolio Connect to confirm this profile’s account and household."
+      "rebind": "Reconnect Wealthfolio Connect to confirm this profile’s account and household.",
+      "biometricUnavailable": "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+      "biometricStoreFailed": "Could not save the Touch ID token. Make sure the device has a passcode set.",
+      "biometricNotEnrolled": "Touch ID is no longer available. Use your password to unlock.",
+      "biometricNotEnrolledNoPassword": "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings."
     }
   },
   "remove": "Remove",

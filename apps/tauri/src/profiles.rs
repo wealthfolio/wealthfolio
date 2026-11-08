@@ -213,7 +213,7 @@ impl NativeProfiles {
     pub async fn startup(&self, handle: &AppHandle) -> Result<Option<Arc<ServiceContext>>, String> {
         let result = async {
             let list = self.registry.list().map_err(|e| e.to_string())?;
-            if list.len() == 1 && !list[0].lock_enabled {
+            if list.len() == 1 && !list[0].lock_enabled && !list[0].biometric_enabled {
                 match self.unlock(handle, list[0].id, None).await {
                     Ok(_) => return Ok(self.try_context()),
                     Err(error) if error.starts_with("PROFILE_LOCKED") => return Ok(None),
@@ -730,6 +730,215 @@ pub async fn recover_profile_password(
     .map_err(|e| e.to_string())?;
     let _ = state.lock(&handle).await;
     result.ok_or_else(|| "Profile recovery failed.".into())
+}
+
+// ── Biometric (Touch ID) commands ────────────────────────────────────────────
+
+/// Returns `true` when platform biometric unlock is supported (macOS only).
+#[tauri::command]
+pub fn check_biometric_available() -> bool {
+    crate::biometric::biometric_available()
+}
+
+/// Enable Touch ID unlock for a profile.
+///
+/// 1. Verifies `proof` (password) if the profile is password-protected.
+/// 2. Generates a random 32-byte bypass token and stores it in the macOS
+///    Keychain protected by `kSecAccessControlBiometryCurrentSet`.
+/// 3. Stores an argon2 hash of the token in the profile's lock record so the
+///    token can be verified without being persisted in plain text anywhere.
+#[tauri::command]
+pub async fn enable_biometric_lock(
+    state: tauri::State<'_, NativeProfiles>,
+    profile_id: Uuid,
+    proof: Option<String>,
+) -> Result<(), String> {
+    let token_bytes = {
+        use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
+        let mut bytes = [0u8; 32];
+        UnwrapErr(SysRng).fill_bytes(&mut bytes);
+        bytes
+    };
+    let token_hex = hex::encode(token_bytes);
+
+    // Snapshot the current biometric state **before** we overwrite it.
+    // Used in the rollback below: if store_bypass_token fails we restore the
+    // old verifier instead of calling disable_biometric_lock, which would strip
+    // the only protection from a Touch-ID-only profile.
+    let (old_biometric_verifier, was_biometric_enabled) = state
+        .registry
+        .get_biometric_state(profile_id)
+        .map_err(|e| e.to_string())?;
+
+    let registry = state.registry.clone();
+    let token_hex_clone = token_hex.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let proof = proof.map(zeroize::Zeroizing::new);
+        registry.enable_biometric_lock(
+            profile_id,
+            proof.as_deref().map(String::as_str),
+            &token_hex_clone,
+        )
+    })
+    .await
+    .map_err(|e| format!("Enable biometric task failed: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    // Persist the raw token with a biometric challenge.
+    // store_bypass_token blocks waiting for the Touch ID sheet, so it must run
+    // on a blocking thread — never on the async executor.
+    let token_hex_bytes: Vec<u8> = token_hex.as_bytes().to_vec();
+    let store_result = tauri::async_runtime::spawn_blocking(move || {
+        crate::biometric::store_bypass_token(profile_id, &token_hex_bytes)
+    })
+    .await
+    .map_err(|e| format!("Biometric store task failed: {e}"))?;
+
+    store_result.map_err(|e| {
+        // Roll back by restoring the previous biometric state rather than calling
+        // disable_biometric_lock. disable_biometric_lock (registry layer) has no
+        // Touch ID guard — it would silently strip biometric_enabled on a
+        // Touch-ID-only profile, leaving it completely unprotected.
+        // Restoring the snapshot preserves the old verifier + biometric_enabled flag.
+        if let Err(rollback_err) = state.registry.restore_biometric_state(
+            profile_id,
+            old_biometric_verifier.as_deref(),
+            was_biometric_enabled,
+        ) {
+            log::error!(
+                "Failed to restore biometric state for profile {profile_id}: {rollback_err}"
+            );
+        }
+        e
+    })
+}
+
+/// Disable Touch ID unlock for a profile.
+#[tauri::command]
+pub async fn disable_biometric_lock(
+    state: tauri::State<'_, NativeProfiles>,
+    profile_id: Uuid,
+    proof: Option<String>,
+) -> Result<(), String> {
+    // For password-less (biometric-only) profiles, require a live Touch ID
+    // challenge before stripping the only remaining protection.  Without this
+    // guard any WebView code could silently disable biometric lock and leave the
+    // profile completely unprotected.
+    let has_password = state
+        .registry
+        .profile_has_password(profile_id)
+        .map_err(|e| e.to_string())?;
+    if !has_password {
+        tauri::async_runtime::spawn_blocking(|| {
+            crate::biometric::evaluate_biometric_challenge("Disable Touch ID for Wealthfolio")
+        })
+        .await
+        .map_err(|e| format!("Biometric challenge task failed: {e}"))??;
+    }
+
+    let registry = state.registry.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let proof = proof.map(zeroize::Zeroizing::new);
+        registry.disable_biometric_lock(profile_id, proof.as_deref().map(String::as_str))
+    })
+    .await
+    .map_err(|e| format!("Disable biometric task failed: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    // Best-effort cleanup; not fatal if the keychain entry is already gone.
+    let _ = crate::biometric::delete_bypass_token(profile_id);
+    Ok(())
+}
+
+/// Unlock a profile using Touch ID.
+///
+/// Retrieves the biometric bypass token from the macOS Keychain (which triggers
+/// the Touch ID prompt), then verifies it against the stored argon2 hash and
+/// opens a new profile session.
+#[tauri::command]
+pub async fn unlock_with_biometric(
+    handle: AppHandle,
+    state: tauri::State<'_, NativeProfiles>,
+    profile_id: Uuid,
+) -> Result<ProfileSession, String> {
+    // Retrieve the token — this call blocks on the Touch ID prompt.
+    let token = tauri::async_runtime::spawn_blocking(move || {
+        crate::biometric::retrieve_bypass_token(profile_id)
+    })
+    .await
+    .map_err(|e| format!("Biometric retrieve task failed: {e}"))??;
+
+    // Verify the token and open the profile session.
+    let epoch = state.lock_epoch.load(std::sync::atomic::Ordering::SeqCst);
+    let mut profile_sync_states = state.lifecycle.lock().await;
+    *state.auto_open_error()? = None;
+
+    let registry = state.registry.clone();
+    let token_str = String::from_utf8(token)
+        .map_err(|_| "Invalid biometric token encoding.".to_owned())?;
+    let protected = tauri::async_runtime::spawn_blocking(move || {
+        registry.verify_biometric_token(profile_id, &token_str)
+    })
+    .await
+    .map_err(|error| {
+        log::error!(
+            "Biometric verification task failed (panic={})",
+            matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+        );
+        "Biometric verification failed.".to_string()
+    })?
+    .map_err(|e| e.to_string())?;
+
+    state
+        .registry
+        .sessions
+        .revoke(NATIVE_OWNER)
+        .map_err(|e| e.to_string())?;
+    if let Some(old) = state.active()? {
+        old.shutdown(&handle).await?;
+    }
+    state
+        .registry
+        .auth_flows
+        .select(NATIVE_OWNER, profile_id)
+        .map_err(|e| e.to_string())?;
+
+    let runtime =
+        profile_runtime(&state.registry, profile_id, &mut profile_sync_states)?;
+    let runtime = std::sync::Arc::new(runtime);
+    *state
+        .active
+        .lock()
+        .map_err(|_| "Profile runtime is unavailable.")? = Some(runtime.clone());
+
+    if let Err(error) = runtime.initialize(&handle).await {
+        log::warn!("Profile database startup failed after biometric unlock: {error}");
+    }
+    if epoch != state.lock_epoch.load(std::sync::atomic::Ordering::SeqCst) {
+        runtime.shutdown(&handle).await?;
+        return Err(wealthfolio_core::profiles::ProfileError::Locked.to_string());
+    }
+
+    let session = state
+        .registry
+        .sessions
+        .issue(NATIVE_OWNER, profile_id, protected, runtime.generation())
+        .map_err(|e| e.to_string())?;
+
+    runtime.backup_scheduler.wake();
+    #[cfg(all(desktop, not(target_os = "macos")))]
+    state.apply_profile_menu(|visible| crate::menu::set_menu_visibility(&handle, visible));
+
+    if let Some(context) = runtime.try_context() {
+        if crate::profiles::portfolio_history_backfill_needed(&context) {
+            crate::events::emit_portfolio_trigger_recalculate(
+                &handle,
+                crate::events::PortfolioRequestPayload::builder().build(),
+                &context,
+            );
+        }
+    }
+    Ok(session)
 }
 
 // Backend time is authoritative; network polling never counts as user activity.

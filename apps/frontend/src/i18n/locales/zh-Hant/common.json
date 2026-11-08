@@ -380,6 +380,13 @@
     "welcome": "歡迎，{{name}}",
     "continue": "繼續",
     "lockFailed": "無法完成鎖定",
+    "biometricUnlocking": "正在驗證…",
+    "unlockWithTouchId": "使用 Touch ID 解鎖",
+    "touchId": "Touch ID",
+    "touchIdEnabled": "此個人檔案已啟用 Touch ID。",
+    "touchIdDisabled": "使用指紋解鎖此個人檔案。",
+    "disableTouchId": "停用",
+    "enableTouchId": "啟用",
     "connectionFailed": "連線已中斷",
     "signInAgain": "重新登入",
     "startupFailed": "無法開啟 Wealthfolio",
@@ -509,7 +516,11 @@
       "duplicateAccount": "此 Connect 帳戶已連結至另一個個人資料。請切換至該個人資料。",
       "accountMismatch": "請使用最初連結至此個人資料的 Connect 帳戶登入。",
       "teamChanged": "您的家庭已變更。請重新連線至 Wealthfolio Connect 以繼續。",
-      "rebind": "請重新連線至 Wealthfolio Connect，以確認此個人資料的帳戶和家庭。"
+      "rebind": "請重新連線至 Wealthfolio Connect，以確認此個人資料的帳戶和家庭。",
+      "biometricUnavailable": "Touch ID 無法使用。請在系統設定 → Touch ID 與密碼中新增指紋。",
+      "biometricStoreFailed": "無法儲存 Touch ID 令牌。請確認裝置已設定密碼。",
+      "biometricNotEnrolled": "Touch ID 不再可用。請使用密碼解鎖。",
+      "biometricNotEnrolledNoPassword": "Touch ID 不再可用。請使用「返回」按鈕，並在個人檔案設定中重新啟用。"
     }
   },
   "remove": "移除",
