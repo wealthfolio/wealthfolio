@@ -711,22 +711,29 @@ export default function SpendingInsightsPage({
         {(isMobile || !onToolbarActionsChange) && (
           <div className="flex justify-end">{periodToggle}</div>
         )}
-        <div
-          className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
-          data-testid="spending-period-header"
-        >
-          <p
-            data-testid={
-              customRange || customMonth || customYear !== null
-                ? "spending-selected-range"
-                : undefined
-            }
-          >
-            {periodDescription}
-          </p>
-          <PeriodNavigation navigation={periodNavigation} />
-        </div>
-        <StageNav stage={stage} onStageChange={setStageAndUrl} />
+        <StageNav
+          stage={stage}
+          onStageChange={setStageAndUrl}
+          actions={
+            <div
+              className="text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-xs"
+              data-testid="spending-period-header"
+            >
+              <p
+                className="min-w-0 truncate"
+                title={periodDescription}
+                data-testid={
+                  customRange || customMonth || customYear !== null
+                    ? "spending-selected-range"
+                    : undefined
+                }
+              >
+                {periodDescription}
+              </p>
+              <PeriodNavigation navigation={periodNavigation} />
+            </div>
+          }
+        />
 
         {insight?.foreignCurrencies && insight.foreignCurrencies.length > 0 && (
           <ForeignCurrencyBanner
