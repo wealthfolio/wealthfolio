@@ -1081,6 +1081,7 @@
   "fx_err_rate_negative": "Rate must be a non-negative number.",
   "fx_err_source_required": "Data source is required",
   "fx_err_rate_invalid": "Please enter a valid exchange rate.",
+  "fx_err_quote_unit": "{{code}} is a quote unit of {{major}}. Enter the {{major}} rate instead.",
   "fx_from_currency": "From currency",
   "fx_to_currency": "To currency",
   "fx_select_currency": "Select currency",

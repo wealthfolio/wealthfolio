@@ -104,7 +104,24 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         message: t("settings:fx_err_rate_invalid"),
         path: ["rate"],
       },
-    );
+    )
+    .superRefine((data, ctx) => {
+      // Conversions look quote units up through their major currency's pair, so a
+      // rate saved in pence or cents would never be used directly (#2460).
+      for (const path of ["fromCurrency", "toCurrency"] as const) {
+        const quoteUnit = getQuoteUnitCurrency(data[path]);
+        if (quoteUnit) {
+          ctx.addIssue({
+            code: "custom",
+            message: t("settings:fx_err_quote_unit", {
+              code: data[path],
+              major: quoteUnit.major,
+            }),
+            path: [path],
+          });
+        }
+      }
+    });
 
   const { data: providers } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();

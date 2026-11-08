@@ -772,6 +772,7 @@
   "fx_empty": "لم يتم تحديد أي أسعار صرف بعد",
   "fx_err_from_required": "العملة المصدر مطلوبة",
   "fx_err_rate_invalid": "يرجى إدخال سعر صرف صالح.",
+  "fx_err_quote_unit": "{{code}} وحدة فرعية من {{major}}. أدخل سعر {{major}} بدلًا من ذلك.",
   "fx_err_rate_negative": "يجب أن يكون السعر رقمًا غير سالب.",
   "fx_err_rate_type": "يجب أن يكون السعر رقمًا موجبًا صالحًا.",
   "fx_err_source_required": "مصدر البيانات مطلوب",

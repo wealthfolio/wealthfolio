@@ -1160,6 +1160,7 @@
   "fx_err_rate_negative": "Le taux doit être un nombre non négatif.",
   "fx_err_source_required": "La source de données est requise",
   "fx_err_rate_invalid": "Veuillez saisir un taux de change valide.",
+  "fx_err_quote_unit": "{{code}} est une subdivision de {{major}}. Saisissez plutôt le taux en {{major}}.",
   "fx_from_currency": "Devise source",
   "fx_to_currency": "Devise cible",
   "fx_select_currency": "Sélectionner une devise",

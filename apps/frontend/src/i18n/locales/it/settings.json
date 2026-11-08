@@ -1160,6 +1160,7 @@
   "fx_err_rate_negative": "Il tasso deve essere un numero non negativo.",
   "fx_err_source_required": "La fonte dei dati è obbligatoria",
   "fx_err_rate_invalid": "Inserisci un tasso di cambio valido.",
+  "fx_err_quote_unit": "{{code}} è una sottounità di {{major}}. Inserisci invece il tasso in {{major}}.",
   "fx_from_currency": "Valuta di origine",
   "fx_to_currency": "Valuta di destinazione",
   "fx_select_currency": "Seleziona valuta",

@@ -1105,6 +1105,7 @@
   "fx_err_rate_negative": "汇率必须为非负数。",
   "fx_err_source_required": "数据源为必填项",
   "fx_err_rate_invalid": "请输入有效的汇率。",
+  "fx_err_quote_unit": "{{code}} 是 {{major}} 的辅币单位。请改为输入 {{major}} 的汇率。",
   "fx_from_currency": "源货币",
   "fx_to_currency": "目标货币",
   "fx_select_currency": "选择货币",
