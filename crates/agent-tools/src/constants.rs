@@ -27,9 +27,6 @@ pub const MAX_DIVIDENDS: usize = 100;
 /// Maximum number of goals returned per tool call.
 pub const MAX_GOALS: usize = 50;
 
-/// Maximum number of accounts returned per tool call.
-pub const MAX_ACCOUNTS: usize = 50;
-
 /// Maximum number of portfolios returned per tool call.
 pub const MAX_PORTFOLIOS: usize = 50;
 
