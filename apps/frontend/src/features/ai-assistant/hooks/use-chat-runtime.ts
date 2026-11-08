@@ -26,7 +26,6 @@ import { generateId } from "@/lib/id";
 import { AI_THREADS_KEY } from "./use-threads";
 import { deleteAiThread, getAiThreadMessages, updateAiThread } from "@/adapters";
 import { useHapticFeedback } from "@/hooks";
-import { backendErrorText } from "@/lib/backend-error";
 
 function deriveInitialThreadTitle(firstUserMessage: string): string {
   const normalized = firstUserMessage.replace(/\s+/g, " ").trim();
@@ -162,11 +161,14 @@ export function formatErrorMessage(error: string, t: TFunction = i18n.t): string
     error.includes("CompletionError") ||
     error.includes("HttpError")
   ) {
-    return t("ai:runtimeErrors.provider", { settingsLink, error: backendErrorText(undefined, t) });
+    return t("ai:runtimeErrors.provider", {
+      settingsLink,
+      error: t("common:backendErrors.internal"),
+    });
   }
 
   // Fallback for unknown errors
-  return t("ai:runtimeErrors.unknown", { settingsLink, error: backendErrorText(undefined, t) });
+  return t("ai:runtimeErrors.unknown", { settingsLink, error: t("common:backendErrors.internal") });
 }
 
 /**
