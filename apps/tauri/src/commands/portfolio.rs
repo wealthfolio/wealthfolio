@@ -37,7 +37,8 @@ use wealthfolio_core::{
         check_holdings_import as validate_holdings_import, holdings_import_data_source,
         snapshot_date_requires_remediation, validate_holdings_import_snapshot, CashBalanceInput,
         HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-        ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
+        ManualHoldingEntry, ManualHoldingInput, ManualHoldingsEntry, ManualSnapshotRequest,
+        ManualSnapshotService, SnapshotSource,
     },
     portfolios::{AccountScope, ResolvedAccountScope},
     quotes::MarketSyncMode,
@@ -1039,35 +1040,6 @@ pub async fn get_performance_summaries(
     Ok(batch.results)
 }
 
-/// Input for a single holding when saving manual holdings
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HoldingInput {
-    /// For existing holdings, pass the known asset ID directly (preferred)
-    pub asset_id: Option<String>,
-    /// Symbol (e.g., "AAPL", "META.TO") - used when asset_id is not provided
-    pub symbol: String,
-    pub quantity: String,
-    pub currency: String,
-    pub average_cost: Option<String>,
-    /// Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Used when asset_id is not provided.
-    pub exchange_mic: Option<String>,
-    /// Quote currency resolved during search/review (e.g., GBp)
-    pub quote_ccy: Option<String>,
-    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
-    pub instrument_type: Option<String>,
-    /// Market data provider that resolved this holding, if selected.
-    pub provider_id: Option<String>,
-    /// Provider-native symbol/code selected by search/import.
-    pub provider_symbol: Option<String>,
-    /// Asset name for new custom assets
-    pub name: Option<String>,
-    /// Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual
-    pub data_source: Option<String>,
-    /// Asset kind (e.g., "INVESTMENT", "OTHER")
-    pub asset_kind: Option<String>,
-}
-
 /// Saves manual holdings for a HOLDINGS-mode account.
 /// Creates or updates a snapshot for the specified date with the given holdings and cash balances.
 /// Ensures assets and FX pairs are created before saving, following the same pattern as activities.
@@ -1076,7 +1048,7 @@ pub async fn save_manual_holdings(
     state: ProfileAccess,
     _handle: AppHandle,
     account_id: String,
-    holdings: Vec<HoldingInput>,
+    holdings: Vec<ManualHoldingEntry>,
     cash_balances: HashMap<String, String>,
     snapshot_date: Option<String>,
 ) -> Result<(), String> {
@@ -1094,83 +1066,30 @@ pub async fn save_manual_holdings(
         .get_account(&account_id)
         .map_err(|e| format!("Failed to get account: {}", e))?;
 
-    // Get base currency for FX pair registration
-    let base_currency = context.get_base_currency();
-
-    // Parse the snapshot date or use today in the configured user timezone.
-    let timezone = context.get_timezone();
-    let date = match snapshot_date {
-        Some(date_str) => chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .map_err(|e| format!("Invalid date format: {}", e))?,
-        None => user_today(parse_user_timezone_or_default(&timezone)),
-    };
-
-    let mut positions: Vec<ManualHoldingInput> = Vec::new();
-    for holding in holdings {
-        let quantity = holding
-            .quantity
-            .parse::<Decimal>()
-            .map_err(|e| format!("Invalid quantity for {}: {}", holding.symbol, e))?;
-
-        // Parse average cost if provided
-        let average_cost = match &holding.average_cost {
-            Some(cost_str) if !cost_str.is_empty() => cost_str
-                .parse::<Decimal>()
-                .map_err(|e| format!("Invalid average cost for {}: {}", holding.symbol, e))?,
-            _ => Decimal::ZERO,
-        };
-
-        positions.push(ManualHoldingInput {
-            asset_id: holding.asset_id,
-            symbol: holding.symbol,
-            exchange_mic: holding.exchange_mic,
-            quantity,
-            currency: holding.currency,
-            average_cost,
-            name: holding.name,
-            data_source: holding.data_source,
-            asset_kind: holding.asset_kind,
-            quote_ccy: holding.quote_ccy,
-            instrument_type: holding.instrument_type,
-            provider_id: holding.provider_id,
-            provider_symbol: holding.provider_symbol,
-        });
-    }
-
-    let mut cash_balances_input: Vec<CashBalanceInput> = Vec::new();
-    for (currency, amount_str) in cash_balances {
-        let amount = amount_str
-            .parse::<Decimal>()
-            .map_err(|e| format!("Invalid cash amount for {}: {}", currency, e))?;
-        cash_balances_input.push(CashBalanceInput { currency, amount });
-    }
-
-    let manual_snapshot_service = ManualSnapshotService::new(
+    let saved = ManualSnapshotService::new(
         context.asset_service(),
         context.fx_service(),
         context.snapshot_service(),
         context.quote_service(),
     )
-    .with_timezone(timezone);
-
-    let asset_ids = manual_snapshot_service
-        .save_manual_snapshot(ManualSnapshotRequest {
-            account_id: account_id.clone(),
-            account_currency: account.currency.clone(),
-            snapshot_date: date,
-            positions,
-            cash_balances: cash_balances_input,
-            base_currency: Some(base_currency.clone()),
-            source: SnapshotSource::ManualEntry,
-        })
-        .await
-        .map_err(|e| format!("Failed to save manual snapshot: {}", e))?;
+    .with_timezone(context.get_timezone())
+    .save_manual_holdings(
+        &account,
+        &context.get_base_currency(),
+        ManualHoldingsEntry {
+            holdings,
+            cash_balances,
+            snapshot_date,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     info!(
         "Saved manual holdings for account {} on date {} with {} assets",
         account_id,
-        date,
-        asset_ids.len()
+        saved.snapshot_date,
+        saved.asset_ids.len()
     );
 
     Ok(())

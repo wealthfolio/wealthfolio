@@ -16,7 +16,8 @@ use wealthfolio_core::{
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
             validate_holdings_import_snapshot, CashBalanceInput,
             HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-            ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
+            ManualHoldingInput, ManualHoldingsEntry, ManualSnapshotRequest, ManualSnapshotService,
+            SnapshotSource,
         },
         valuation::{
             CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
@@ -662,92 +663,44 @@ pub async fn save_manual_holdings_handler(
     // Get the account to verify it exists and get its currency
     let account = state.account_service.get_account(&req.account_id)?;
 
-    // Get base currency for FX pair registration
     let base_currency = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-
-    // Parse the snapshot date or use today in the configured user timezone.
     let timezone = state
         .timezone
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let date = match req.snapshot_date {
-        Some(date_str) => NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .map_err(|e| anyhow::anyhow!("Invalid date format: {}", e))?,
-        None => user_today(parse_user_timezone_or_default(&timezone)),
-    };
 
-    let mut positions: Vec<ManualHoldingInput> = Vec::new();
-    for holding in req.holdings {
-        let quantity = holding
-            .quantity
-            .parse::<Decimal>()
-            .map_err(|e| anyhow::anyhow!("Invalid quantity for {}: {}", holding.symbol, e))?;
-
-        // Parse average cost if provided
-        let average_cost = match &holding.average_cost {
-            Some(cost_str) if !cost_str.is_empty() => cost_str.parse::<Decimal>().map_err(|e| {
-                anyhow::anyhow!("Invalid average cost for {}: {}", holding.symbol, e)
-            })?,
-            _ => Decimal::ZERO,
-        };
-
-        positions.push(ManualHoldingInput {
-            asset_id: holding.asset_id,
-            symbol: holding.symbol,
-            exchange_mic: holding.exchange_mic,
-            quantity,
-            currency: holding.currency,
-            average_cost,
-            name: holding.name,
-            data_source: holding.data_source,
-            asset_kind: holding.asset_kind,
-            quote_ccy: holding.quote_ccy,
-            instrument_type: holding.instrument_type,
-            provider_id: holding.provider_id,
-            provider_symbol: holding.provider_symbol,
-        });
-    }
-
-    let mut cash_balances: Vec<CashBalanceInput> = Vec::new();
-    for (currency, amount_str) in req.cash_balances {
-        let amount = amount_str
-            .parse::<Decimal>()
-            .map_err(|e| anyhow::anyhow!("Invalid cash amount for {}: {}", currency, e))?;
-        cash_balances.push(CashBalanceInput { currency, amount });
-    }
-
-    let manual_snapshot_service = ManualSnapshotService::new(
+    let saved = ManualSnapshotService::new(
         state.asset_service.clone(),
         state.fx_service.clone(),
         state.snapshot_service.clone(),
         state.quote_service.clone(),
     )
-    .with_timezone(timezone);
-
-    manual_snapshot_service
-        .save_manual_snapshot(ManualSnapshotRequest {
-            account_id: req.account_id.clone(),
-            account_currency: account.currency.clone(),
-            snapshot_date: date,
-            positions,
-            cash_balances,
-            base_currency: Some(base_currency.clone()),
-            source: SnapshotSource::ManualEntry,
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to save manual snapshot: {}", e))?;
+    .with_timezone(timezone)
+    .save_manual_holdings(
+        &account,
+        &base_currency,
+        ManualHoldingsEntry {
+            holdings: req.holdings,
+            cash_balances: req.cash_balances,
+            snapshot_date: req.snapshot_date,
+        },
+    )
+    .await
+    // As text, as before the save moved into core: the response and its
+    // error code stay those of an untyped failure.
+    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
     // SnapshotService emits the dated HoldingsChanged event after persistence.
 
     tracing::info!(
         "Saved manual holdings for account {} on date {}",
         req.account_id,
-        date
+        saved.snapshot_date
     );
 
     Ok(axum::http::StatusCode::OK)
