@@ -732,6 +732,7 @@ fn seed_asset_classification_vt_fixture(env: &mut MockEnvironment) {
                 "Vanguard Total World Stock Index Fund ETF Shares",
             ),
         ],
+        ..Default::default()
     });
     env.taxonomy_service = Arc::new(MockTaxonomyService {
         taxonomies: vec![

@@ -643,6 +643,8 @@ get_asset                          -- one asset's market-data setup and price st
 get_quote_history                  -- an asset's stored quotes over a date range
 get_market_data_providers          -- built-in and custom providers
 refresh_market_data                -- refresh prices or replace provider history
+prepare_asset_update               -- preview a fix to an asset's listing, currency or provider
+commit_asset_update                -- save it, then replace the provider history
 ```
 
 These let an agent find why an asset's prices are missing or wrong. They read
@@ -695,6 +697,47 @@ quote service emits one `PriceHistoryChanged` per successful reset (and one per
 `reset_all_provider_history` that replaced anything); the hosts' reset commands
 no longer emit their own. Only enabled providers are used: the market data
 client is built from enabled providers, as before.
+
+`prepare_asset_update` / `commit_asset_update` (`market-data:write`, also
+`holdings:read`; #2467) change an investment asset's quote currency, quote mode,
+symbol, exchange MIC, preferred provider (any enabled provider, including an
+existing custom one as `CUSTOM:<code>`) or one built-in provider's symbol. The
+tools never create or configure providers. Both build the same plan:
+
+- The full `UpdateAssetProfile` for `AssetServiceTrait::update_asset_profile`.
+  Storage writes `provider_config`, `quote_mode`, `name`, `display_code` and
+  `notes` even when a payload leaves them out, so the tool reads the asset and
+  sends all of them back; `metadata` is left out, which storage preserves.
+  Provider config keys the request does not touch are kept.
+- `AssetServiceTrait::preview_asset_profile_update`, which runs the
+  normalization and identity-collision check `update_asset_profile` runs, now
+  shared in one function, and returns the profile that would be stored and any
+  asset that already has the listing. A collision blocks the commit.
+- A named provider must exist and be enabled; otherwise the plan is blocked
+  before any request. When the listing, currency or provider of a MARKET asset
+  changes, or the asset switches to MARKET, the new
+  `QuoteServiceTrait::resolve_asset_quote` asks for the latest quote with the
+  asset as it would be stored (its whole provider configuration, overrides
+  included, as a sync uses it). No quote, an answer from another provider than
+  the preferred one, or a quote in another currency or unit than the requested
+  one (GBp and GBX count as the same) blocks the commit. The probe is the asset
+  exactly as a sync would send it. Known limit: Alpha Vantage and Finnhub label
+  a quote with the exchange's currency, or with the asset's own quote currency
+  when the listing gives none, instead of reporting one, so for them the check
+  cannot contradict that currency; Yahoo reports it. The preview always makes
+  this request; the commit makes it again.
+- The commit re-reads the asset after the provider request and saves nothing
+  when any field the update writes changed meanwhile (storage does not bump
+  `updated_at` on profile edits), so an edit made in the app is not overwritten.
+  This is a check before the write, not a database compare-and-swap.
+- For such changes the commit replaces the provider history afterwards (the
+  `refresh_market_data` `replace` path), so rows in the old currency or from the
+  old provider go away; MANUAL and BROKER quotes stay. `keepHistory: true` skips
+  it. History cannot be replaced for custom providers; the preview warns.
+
+`update_asset_profile` still resets the asset's sync state and emits
+`AssetsUpdated`, which queues the sync and recalculation as for an edit in the
+app. Transactions, quantities and cost are never changed.
 
 ### MCP-only Activity Update Tools
 
@@ -942,7 +985,8 @@ spending:write           commit_categorization_rule, commit_transaction_categori
 budget:write             budget management (also requires spending:read;
                          independent of spending:write)
 market-data:write        prepare_quote_import, commit_quote_import,
-                         refresh_market_data
+                         refresh_market_data,
+                         prepare_asset_update, commit_asset_update
                          (each also requires holdings:read)
 accounts:write           prepare_account_change, commit_account_change
                          (each also requires accounts:read)

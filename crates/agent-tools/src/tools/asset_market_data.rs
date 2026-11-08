@@ -296,7 +296,7 @@ pub(crate) fn preferred_provider_id(asset: &Asset) -> Option<String> {
     Some(provider)
 }
 
-fn provider_symbols(asset: &Asset) -> BTreeMap<String, String> {
+pub(crate) fn provider_symbols(asset: &Asset) -> BTreeMap<String, String> {
     let Some(overrides) = asset.provider_overrides().and_then(|o| o.as_object()) else {
         return BTreeMap::new();
     };
@@ -318,7 +318,7 @@ fn provider_symbols(asset: &Asset) -> BTreeMap<String, String> {
         .collect()
 }
 
-fn asset_detail(asset: &Asset) -> AssetDetailDto {
+pub(crate) fn asset_detail(asset: &Asset) -> AssetDetailDto {
     AssetDetailDto {
         asset_id: asset.id.clone(),
         kind: asset.kind.clone(),

@@ -557,8 +557,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        75,
-        "full-scope token must see all 75 tools: {names:?}"
+        77,
+        "full-scope token must see all 77 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -2424,6 +2424,104 @@ async fn mcp_refresh_queues_jobs_and_keeps_quotes_when_a_replace_fails() {
     );
     let kept = effective_quote(&server, &cookie, &market_id, "2026-09-30").await;
     assert_eq!(kept["close"], 13.0, "{kept}");
+}
+
+async fn stored_asset(server: &TestServer, cookie: &str, asset_id: &str) -> serde_json::Value {
+    let assets: Vec<serde_json::Value> = server
+        .client
+        .get(format!("{}/api/v1/assets", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assets
+        .into_iter()
+        .find(|asset| asset["id"] == asset_id)
+        .unwrap_or_else(|| panic!("asset {asset_id} not stored"))
+}
+
+/// #2467 on real storage: an agent changes only a manually priced asset's
+/// quote currency. Name, display code, notes, quote mode and provider config
+/// survive, the manual quote stays, no provider is asked, and a listing that
+/// another asset already has is shown as a conflict and refused.
+#[tokio::test]
+async fn mcp_asset_update_keeps_omitted_fields_and_refuses_a_taken_listing() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_account, asset_id, pat, session) = fund_holding_session(&server, &cookie).await;
+    let provider_config = serde_json::json!({
+        "preferred_provider": "YAHOO",
+        "overrides": { "YAHOO": { "type": "equity_symbol", "symbol": "ZZFUND.L" } }
+    });
+    api_put(
+        &server,
+        &cookie,
+        &format!("assets/profile/{asset_id}"),
+        serde_json::json!({
+            "name": "Statement fund", "displayCode": "ZZFUND", "notes": "from the statement",
+            "quoteMode": "MANUAL", "quoteCcy": "EUR", "providerConfig": provider_config
+        }),
+    )
+    .await;
+
+    let args = serde_json::json!({ "assetId": asset_id, "quoteCurrency": "USD" });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_asset_update",
+        args.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], true, "{preview}");
+    assert_eq!(preview["replaceHistory"], false, "{preview}");
+    assert!(preview.get("providerCheck").is_none(), "{preview}");
+    assert_eq!(preview["holdings"][0]["quantity"], 2.0, "{preview}");
+    assert_eq!(preview["quoteSources"][0]["source"], "MANUAL", "{preview}");
+    let committed = mcp_call_tool(&server, &pat, &session, "commit_asset_update", args).await;
+    assert_eq!(committed["committed"], true, "{committed}");
+
+    let stored = stored_asset(&server, &cookie, &asset_id).await;
+    assert_eq!(stored["quoteCcy"], "USD", "{stored}");
+    assert_eq!(stored["name"], "Statement fund", "{stored}");
+    assert_eq!(stored["displayCode"], "ZZFUND", "{stored}");
+    assert_eq!(stored["notes"], "from the statement", "{stored}");
+    assert_eq!(stored["quoteMode"], "MANUAL", "{stored}");
+    assert_eq!(stored["providerConfig"], provider_config, "{stored}");
+    assert_eq!(
+        effective_quote(&server, &cookie, &asset_id, "2026-07-27").await["dataSource"],
+        "MANUAL"
+    );
+
+    let twin = api_post(
+        &server,
+        &cookie,
+        "assets",
+        serde_json::json!({
+            "kind": "INVESTMENT", "name": "Statement fund (London)", "instrumentSymbol": "ZZFUND",
+            "instrumentExchangeMic": "XLON", "instrumentType": "EQUITY", "quoteCcy": "GBp",
+            "quoteMode": "MANUAL"
+        }),
+    )
+    .await;
+    let taken =
+        serde_json::json!({ "assetId": asset_id, "exchangeMic": "XLON", "quoteCurrency": "GBp" });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_asset_update",
+        taken.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], false, "{preview}");
+    assert_eq!(preview["conflict"]["assetId"], twin["id"], "{preview}");
+    let refused = mcp_call_tool(&server, &pat, &session, "commit_asset_update", taken).await;
+    assert_eq!(refused["committed"], false, "{refused}");
+    assert!(stored_asset(&server, &cookie, &asset_id).await["instrumentExchangeMic"].is_null());
 }
 
 /// The quote CSV import handlers no longer queue their own recalculation:

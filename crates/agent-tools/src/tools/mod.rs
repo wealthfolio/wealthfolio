@@ -15,6 +15,7 @@ pub mod asset_classification;
 pub mod asset_lookup;
 pub mod asset_market_data;
 pub mod asset_taxonomies;
+pub mod asset_update;
 pub mod cash_balances;
 pub mod categorization_context;
 pub mod categorization_rules;
@@ -326,7 +327,8 @@ pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
 }
 
 /// MCP-only asset and market-data tools: one asset's market-data setup and
-/// price state, its stored quotes, the providers, and price refreshes. Not
+/// price state, its stored quotes, the providers, price refreshes, and fixes
+/// to an asset's listing, currency or provider. Not
 /// exposed to the in-app assistant, which has no confirmation step for them.
 pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
@@ -334,6 +336,8 @@ pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(asset_market_data::GetQuoteHistory),
         Arc::new(asset_market_data::GetMarketDataProviders),
         Arc::new(refresh_market_data::RefreshMarketData),
+        Arc::new(asset_update::PrepareAssetUpdate),
+        Arc::new(asset_update::CommitAssetUpdate),
     ]
 }
 
