@@ -377,13 +377,17 @@ export default function SpendingInsightsPage({
   // ─── Single reconciled source of truth for the "Where I am" stage ─────────
   // One server call returns budgets + actuals + uncategorized + prior, all
   // computed against the same window — the math is reconciled by construction.
-  const customPriorRange = useMemo(
-    () =>
-      customRange || customYear !== null
-        ? comparisonRange(range, "prior", appTimezone, customYear)
-        : null,
-    [customRange, customYear, range, appTimezone],
-  );
+  const customPriorRange = useMemo(() => {
+    if (customRange || customYear !== null) {
+      return comparisonRange(range, "prior", appTimezone, customYear);
+    }
+    // Named calendar months compare in full, including day 1 when their lengths
+    // differ. Keep arbitrary ranges on their existing equal-day comparison.
+    if (customMonth || period === "MTD" || period === "LAST_MONTH") {
+      return previousMonthMatchingRange(range, appTimezone);
+    }
+    return null;
+  }, [customRange, customYear, customMonth, period, range, appTimezone]);
   const insightRequest = useMemo(
     () => ({
       startDate: range.start.toISOString(),
