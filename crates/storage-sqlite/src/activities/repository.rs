@@ -1483,8 +1483,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
     fn export_activities(
         &self,
         include_archived: bool,
-        date_from: Option<NaiveDate>,
-        date_to: Option<NaiveDate>,
+        date_from_utc: Option<DateTime<Utc>>,
+        date_to_utc_exclusive: Option<DateTime<Utc>>,
     ) -> Result<ActivitySearchResponse> {
         self.search_activities_with_utc_bounds(
             0,
@@ -1497,10 +1497,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 desc: true,
             }),
             None,
-            date_from.map(Self::naive_date_start_utc),
-            date_to
-                .and_then(|date| date.succ_opt())
-                .map(Self::naive_date_start_utc),
+            date_from_utc,
+            date_to_utc_exclusive,
             None,
             None,
             include_archived,
@@ -4599,8 +4597,8 @@ mod tests {
         let ranged = repo
             .export_activities(
                 true,
-                NaiveDate::from_ymd_opt(2026, 1, 1),
-                NaiveDate::from_ymd_opt(2026, 1, 2),
+                Some("2026-01-01T00:00:00Z".parse().unwrap()),
+                Some("2026-01-03T00:00:00Z".parse().unwrap()),
             )
             .expect("export");
         assert_eq!(ids(ranged), vec!["open-deposit"]);

@@ -217,13 +217,14 @@ pub trait ActivityRepositoryTrait: Send + Sync {
             activity_id_filter,
         )
     }
-    /// Every activity for a data export, newest first. Unlike `search_activities`,
-    /// rows of archived accounts are included when `include_archived` is set.
+    /// Every activity for a data export, newest first, within an exact UTC
+    /// window. Unlike `search_activities`, rows of archived accounts are
+    /// included when `include_archived` is set.
     fn export_activities(
         &self,
         _include_archived: bool,
-        _date_from: Option<NaiveDate>,
-        _date_to: Option<NaiveDate>,
+        _date_from_utc: Option<DateTime<Utc>>,
+        _date_to_utc_exclusive: Option<DateTime<Utc>>,
     ) -> Result<ActivitySearchResponse> {
         Err(crate::Error::Unexpected(
             "This activity repository does not support data exports".to_string(),
@@ -472,13 +473,13 @@ pub trait ActivityServiceTrait: Send + Sync {
             activity_id_filter,
         )
     }
-    /// Every activity for a data export, newest first, optionally including
-    /// the rows of archived accounts.
+    /// Every activity for a data export, newest first, within an exact UTC
+    /// window, optionally including the rows of archived accounts.
     fn export_activities(
         &self,
         _include_archived: bool,
-        _date_from: Option<NaiveDate>,
-        _date_to: Option<NaiveDate>,
+        _date_from_utc: Option<DateTime<Utc>>,
+        _date_to_utc_exclusive: Option<DateTime<Utc>>,
     ) -> Result<ActivitySearchResponse> {
         Err(crate::Error::Unexpected(
             "This activity service does not support data exports".to_string(),

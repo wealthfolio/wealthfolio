@@ -15,11 +15,12 @@ use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_events::ActivityEventsRepositoryTrait;
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::analytics::{AnalyticsServiceTrait, EventSummariesRequest};
-use crate::budget::model::BudgetCategoryRow;
+use crate::budget::model::{BudgetCategoryRow, BudgetRolloverSetting, BudgetTarget};
 use crate::budget::model::{BudgetRolloverTargetType, BudgetTargetType};
 use crate::budget::{BudgetRepositoryTrait, BudgetServiceTrait};
 use crate::categorization_rules::CategorizationRulesServiceTrait;
 use crate::events::EventsServiceTrait;
+use crate::CalculationQuality;
 
 /// Ids per repository call, under SQLite's parameter cap.
 const ID_CHUNK: usize = 500;
@@ -124,13 +125,14 @@ struct SplitCell {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BudgetRow {
-    period_key: String,
+    /// Empty for a rollover setting that has no budget amount.
+    period_key: Option<String>,
     target_type: BudgetTargetType,
     category: Option<String>,
     category_id: Option<String>,
     group: Option<String>,
     group_id: Option<String>,
-    amount: String,
+    amount: Option<String>,
     rollover_enabled: Option<bool>,
     rollover_start_month: Option<String>,
     rollover_starting_balance: Option<String>,
@@ -161,6 +163,9 @@ struct EventRow {
     activity_count: usize,
     total_spent: Option<f64>,
     currency: String,
+    /// Transactions left out of the total because no exchange rate was found.
+    missing_fx_transactions: usize,
+    missing_fx_currencies: String,
 }
 
 #[derive(Serialize)]
@@ -178,6 +183,9 @@ struct BudgetActualRow {
     remaining: f64,
     overspent: bool,
     currency: String,
+    /// The month's transactions left out for want of an exchange rate.
+    missing_fx_transactions: usize,
+    missing_fx_currencies: String,
 }
 
 #[async_trait]
@@ -265,50 +273,8 @@ impl SpendingExportSource for SpendingDataExportSource {
             .list_rollover_settings()
             .await
             .map_err(core_error)?;
-        let mut targets = self.budgets.list_targets().await.map_err(core_error)?;
-        targets.sort_by(|a, b| {
-            (&a.period_key, &a.group_id, &a.category_id).cmp(&(
-                &b.period_key,
-                &b.group_id,
-                &b.category_id,
-            ))
-        });
-        let rows = targets
-            .into_iter()
-            .map(|target| {
-                let rollover = rollovers.iter().find(|setting| {
-                    let same_type = matches!(
-                        (&target.target_type, &setting.target_type),
-                        (
-                            BudgetTargetType::Category,
-                            BudgetRolloverTargetType::Category
-                        ) | (
-                            BudgetTargetType::GroupBuffer,
-                            BudgetRolloverTargetType::Group
-                        )
-                    );
-                    same_type
-                        && setting.category_id == target.category_id
-                        && setting.group_id == target.group_id
-                });
-                BudgetRow {
-                    category: target.category_id.as_deref().and_then(|id| paths.path(id)),
-                    group: target
-                        .group_id
-                        .as_ref()
-                        .and_then(|id| groups.get(id).cloned()),
-                    rollover_enabled: rollover.map(|setting| setting.enabled),
-                    rollover_start_month: rollover.map(|setting| setting.start_month.clone()),
-                    rollover_starting_balance: rollover
-                        .map(|setting| setting.starting_balance.clone()),
-                    period_key: target.period_key,
-                    target_type: target.target_type,
-                    category_id: target.category_id,
-                    group_id: target.group_id,
-                    amount: target.amount,
-                }
-            })
-            .collect::<Vec<_>>();
+        let targets = self.budgets.list_targets().await.map_err(core_error)?;
+        let rows = budget_rows_from(targets, &rollovers, &paths, &groups);
         ExportRecord::from_records(&rows)
     }
 
@@ -405,6 +371,8 @@ impl SpendingExportSource for SpendingDataExportSource {
                     remaining: category.remaining,
                     overspent: category.overspent,
                     currency: computed.currency.clone(),
+                    missing_fx_transactions: computed.calculation_quality.missing_fx_transactions,
+                    missing_fx_currencies: join_currencies(&computed.calculation_quality),
                 }
             };
             let grouped = computed.group_rows.iter().flat_map(|group| {
@@ -449,7 +417,12 @@ impl SpendingExportSource for SpendingDataExportSource {
             .await
             .map_err(core_error)?
             .into_iter()
-            .map(|summary| (summary.event_id, summary.total_spending))
+            .map(|summary| {
+                (
+                    summary.event_id,
+                    (summary.total_spending, summary.calculation_quality),
+                )
+            })
             .collect::<HashMap<_, _>>();
         let types = self
             .events
@@ -470,8 +443,15 @@ impl SpendingExportSource for SpendingDataExportSource {
             .map(|event| EventRow {
                 event_type: types.get(&event.event_type_id).cloned(),
                 activity_count: counts.get(&event.id).copied().unwrap_or(0),
-                total_spent: totals.get(&event.id).copied(),
+                total_spent: totals.get(&event.id).map(|(total, _)| *total),
                 currency: currency.to_string(),
+                missing_fx_transactions: totals
+                    .get(&event.id)
+                    .map_or(0, |(_, quality)| quality.missing_fx_transactions),
+                missing_fx_currencies: totals
+                    .get(&event.id)
+                    .map(|(_, quality)| join_currencies(quality))
+                    .unwrap_or_default(),
                 id: event.id,
                 name: event.name,
                 start_date: event.start_date,
@@ -481,6 +461,112 @@ impl SpendingExportSource for SpendingDataExportSource {
             .collect::<Vec<_>>();
         ExportRecord::from_records(&rows)
     }
+}
+
+fn join_currencies(quality: &CalculationQuality) -> String {
+    quality
+        .missing_fx_currencies
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn rollover_matches(
+    target_type: &BudgetTargetType,
+    category_id: &Option<String>,
+    group_id: &Option<String>,
+    setting: &BudgetRolloverSetting,
+) -> bool {
+    let same_type = matches!(
+        (target_type, &setting.target_type),
+        (
+            BudgetTargetType::Category,
+            BudgetRolloverTargetType::Category
+        ) | (
+            BudgetTargetType::GroupBuffer,
+            BudgetRolloverTargetType::Group
+        )
+    );
+    same_type && &setting.category_id == category_id && &setting.group_id == group_id
+}
+
+/// One row per budget amount with its rollover setting, then a row for each
+/// rollover setting that has no amount, so no setting is dropped.
+fn budget_rows_from(
+    mut targets: Vec<BudgetTarget>,
+    rollovers: &[BudgetRolloverSetting],
+    paths: &CategoryPaths,
+    groups: &HashMap<String, String>,
+) -> Vec<BudgetRow> {
+    targets.sort_by(|a, b| {
+        (&a.period_key, &a.group_id, &a.category_id).cmp(&(
+            &b.period_key,
+            &b.group_id,
+            &b.category_id,
+        ))
+    });
+    let mut rows = targets
+        .iter()
+        .map(|target| {
+            let rollover = rollovers.iter().find(|setting| {
+                rollover_matches(
+                    &target.target_type,
+                    &target.category_id,
+                    &target.group_id,
+                    setting,
+                )
+            });
+            BudgetRow {
+                category: target.category_id.as_deref().and_then(|id| paths.path(id)),
+                group: target
+                    .group_id
+                    .as_ref()
+                    .and_then(|id| groups.get(id).cloned()),
+                rollover_enabled: rollover.map(|setting| setting.enabled),
+                rollover_start_month: rollover.map(|setting| setting.start_month.clone()),
+                rollover_starting_balance: rollover.map(|setting| setting.starting_balance.clone()),
+                period_key: Some(target.period_key.clone()),
+                target_type: target.target_type.clone(),
+                category_id: target.category_id.clone(),
+                group_id: target.group_id.clone(),
+                amount: Some(target.amount.clone()),
+            }
+        })
+        .collect::<Vec<_>>();
+    for setting in rollovers {
+        let target_type = match setting.target_type {
+            BudgetRolloverTargetType::Category => BudgetTargetType::Category,
+            BudgetRolloverTargetType::Group => BudgetTargetType::GroupBuffer,
+        };
+        let has_target = targets.iter().any(|target| {
+            rollover_matches(
+                &target.target_type,
+                &target.category_id,
+                &target.group_id,
+                setting,
+            )
+        });
+        if has_target {
+            continue;
+        }
+        rows.push(BudgetRow {
+            category: setting.category_id.as_deref().and_then(|id| paths.path(id)),
+            group: setting
+                .group_id
+                .as_ref()
+                .and_then(|id| groups.get(id).cloned()),
+            rollover_enabled: Some(setting.enabled),
+            rollover_start_month: Some(setting.start_month.clone()),
+            rollover_starting_balance: Some(setting.starting_balance.clone()),
+            period_key: None,
+            target_type,
+            category_id: setting.category_id.clone(),
+            group_id: setting.group_id.clone(),
+            amount: None,
+        });
+    }
+    rows
 }
 
 #[cfg(test)]
@@ -499,6 +585,62 @@ mod tests {
         assert_eq!(paths.path("groceries").as_deref(), Some("Food / Groceries"));
         assert_eq!(paths.path("food").as_deref(), Some("Food"));
         assert_eq!(paths.path("missing"), None);
+    }
+
+    #[test]
+    fn budget_rows_keep_rollover_settings_without_a_budget_amount() {
+        let at = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let target = BudgetTarget {
+            id: "t1".into(),
+            period_key: "2026-01".into(),
+            target_type: BudgetTargetType::Category,
+            taxonomy_id: Some("spending_categories".into()),
+            category_id: Some("food".into()),
+            group_id: None,
+            amount: "300".into(),
+            created_at: at,
+            updated_at: at,
+        };
+        let setting =
+            |id: &str, kind, category: Option<&str>, group: Option<&str>| BudgetRolloverSetting {
+                id: id.into(),
+                target_type: kind,
+                taxonomy_id: category.map(|_| "spending_categories".into()),
+                category_id: category.map(String::from),
+                group_id: group.map(String::from),
+                enabled: true,
+                start_month: "2026-01".into(),
+                starting_balance: "0".into(),
+                created_at: at,
+                updated_at: at,
+            };
+        let rollovers = vec![
+            setting("r1", BudgetRolloverTargetType::Category, Some("food"), None),
+            setting(
+                "r2",
+                BudgetRolloverTargetType::Group,
+                None,
+                Some("essentials"),
+            ),
+        ];
+        let paths = CategoryPaths(HashMap::from([(
+            "food".to_string(),
+            ("Food".to_string(), None),
+        )]));
+        let groups = HashMap::from([("essentials".to_string(), "Essentials".to_string())]);
+
+        let rows = budget_rows_from(vec![target], &rollovers, &paths, &groups);
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].amount.as_deref(), Some("300"));
+        assert_eq!(rows[0].rollover_enabled, Some(true));
+        assert_eq!(rows[1].group.as_deref(), Some("Essentials"));
+        assert_eq!(rows[1].period_key, None);
+        assert_eq!(rows[1].amount, None);
+        assert_eq!(rows[1].rollover_enabled, Some(true));
     }
 
     #[test]
