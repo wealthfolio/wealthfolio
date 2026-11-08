@@ -681,7 +681,8 @@ pub trait QuoteServiceTrait: Send + Sync {
 
     /// Check reviewed quotes for existing assets without saving them: resolve
     /// each asset by id (never by ticker), validate the row, and compare it
-    /// with the stored quote of its day.
+    /// with the stored quote of its day. Takes investment assets and manually
+    /// priced alternative assets, liabilities included.
     fn preview_quote_import(&self, _rows: &[QuoteImportRow]) -> Result<Vec<QuoteImportPreview>> {
         Err(Error::Repository(
             "Quote import preview is not supported".into(),
@@ -2578,11 +2579,20 @@ where
             let asset = assets.get(&row.asset_id).cloned();
             match &asset {
                 None => errors.push(format!("Asset not found: '{}'", row.asset_id)),
-                Some(asset) if asset.kind != AssetKind::Investment => errors.push(format!(
-                    "Only investment assets take quotes here; '{}' is {}",
-                    row.asset_id,
-                    asset.kind.as_db_str()
-                )),
+                // Alternative assets and liabilities priced by hand keep their
+                // values as manual quotes, which is what this import writes.
+                Some(asset)
+                    if asset.kind != AssetKind::Investment
+                        && !(asset.is_alternative() && asset.quote_mode == QuoteMode::Manual) =>
+                {
+                    errors.push(format!(
+                        "Only investment assets and manually priced alternative assets take \
+                         quotes here; '{}' is {} priced {}",
+                        row.asset_id,
+                        asset.kind.as_db_str(),
+                        asset.quote_mode.as_db_str()
+                    ))
+                }
                 Some(asset) if row.currency != asset.quote_ccy => errors.push(format!(
                     "Currency '{}' does not match the asset's quote currency '{}'",
                     row.currency, asset.quote_ccy
