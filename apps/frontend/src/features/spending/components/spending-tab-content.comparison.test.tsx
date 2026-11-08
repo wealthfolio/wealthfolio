@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   priorError: false,
   refetchPrior: vi.fn(),
   refetchCurrent: vi.fn(),
+  reportQuery: vi.fn(),
   chartRows: [] as Record<string, unknown>[],
 }));
 
@@ -36,15 +37,17 @@ vi.mock("../hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ accountIds: ["cash"], excludedCategoryIds: [], isLoading: false }),
 }));
 vi.mock("../hooks/use-spending-report", () => ({
-  useSpendingReport: ({ startDate }: { startDate: string }) =>
-    startDate.startsWith("2024")
+  useSpendingReport: (request: { startDate: string; endDate: string }) => {
+    mocks.reportQuery(request);
+    return request.startDate.startsWith("2024")
       ? {
           data: mocks.priorLoading || mocks.priorError ? undefined : report(2024, 20),
           isLoading: mocks.priorLoading,
           isError: mocks.priorError,
           refetch: mocks.refetchPrior,
         }
-      : { data: report(2025, 80), isLoading: false, isError: false, refetch: mocks.refetchCurrent },
+      : { data: report(2025, 80), isLoading: false, isError: false, refetch: mocks.refetchCurrent };
+  },
 }));
 vi.mock("../hooks/use-budget", () => ({ useBudget: () => ({ data: undefined }) }));
 vi.mock("../hooks/use-cash-activities", () => ({
@@ -110,6 +113,7 @@ beforeEach(() => {
   mocks.priorError = false;
   mocks.refetchPrior.mockClear();
   mocks.refetchCurrent.mockClear();
+  mocks.reportQuery.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-08T12:00:00Z"));
 });
@@ -167,4 +171,28 @@ it("keeps the selected report visible when comparison is off and the prior repor
   expect(screen.getByRole("button", { name: "value" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "priorValue" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+});
+
+it("preserves the prior calendar block for an Insights window shared with Spending", () => {
+  localStorage.setItem(
+    "dashboard-period",
+    JSON.stringify({
+      kind: "range",
+      from: "2026-04-01",
+      to: "2026-06-30",
+      presetWindow: {
+        preset: { kind: "spending", code: "3M" },
+        anchor: "2026-09-15",
+        offset: -1,
+        alignment: "calendar",
+      },
+    }),
+  );
+  setup();
+  expect(mocks.reportQuery).toHaveBeenCalledWith(
+    expect.objectContaining({
+      startDate: "2026-01-01T00:00:00.000Z",
+      endDate: "2026-03-31T23:59:59.999Z",
+    }),
+  );
 });

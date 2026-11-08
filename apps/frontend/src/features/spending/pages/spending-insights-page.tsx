@@ -378,6 +378,11 @@ export default function SpendingInsightsPage({
   // One server call returns budgets + actuals + uncategorized + prior, all
   // computed against the same window — the math is reconciled by construction.
   const customPriorRange = useMemo(() => {
+    if (customRange && presetWindow?.alignment === "calendar") {
+      const prior = stepDashboardPeriod({ ...rangePick(customRange), presetWindow }, -1, todayISO);
+      const view = prior ? spendingViewForPick(prior, todayISO) : null;
+      if (view?.kind === "range") return spendingRangeToReportsRange(view.range, appTimezone);
+    }
     if (customRange || customYear !== null) {
       return comparisonRange(range, "prior", appTimezone, customYear);
     }
@@ -387,7 +392,7 @@ export default function SpendingInsightsPage({
       return previousMonthMatchingRange(range, appTimezone);
     }
     return null;
-  }, [customRange, customYear, customMonth, period, range, appTimezone]);
+  }, [customRange, presetWindow, todayISO, customYear, customMonth, period, range, appTimezone]);
   const insightRequest = useMemo(
     () => ({
       startDate: range.start.toISOString(),
@@ -581,15 +586,25 @@ export default function SpendingInsightsPage({
     [appTimezone],
   );
   const periodDescription = customRange
-    ? `${dateFormatting.formatCalendarDate(localDateParts(customRange.from), {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })} – ${dateFormatting.formatCalendarDate(localDateParts(customRange.to), {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })}`
+    ? presetWindow
+      ? dateFormatting.formatCalendarDateRange(
+          localDateParts(customRange.from),
+          localDateParts(customRange.to),
+          {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          },
+        )
+      : `${dateFormatting.formatCalendarDate(localDateParts(customRange.from), {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })} – ${dateFormatting.formatCalendarDate(localDateParts(customRange.to), {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}`
     : customYear !== null
       ? yearLabel(customYear, dateFormatting)
       : customMonth
