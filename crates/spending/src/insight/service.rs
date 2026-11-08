@@ -23,7 +23,7 @@ use crate::activity_allocations::{
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
-    within_spending_transfer_groups,
+    neutral_transfer_groups,
 };
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::budget::service::{
@@ -197,7 +197,12 @@ impl InsightService {
             .get_activities_by_account_ids(&all_spending_account_ids)
             .map_err(|e| anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         let in_window = |a: &Activity, lo: DateTime<Utc>, hi: DateTime<Utc>| {
             a.activity_date >= lo && a.activity_date <= hi
         };
@@ -1662,6 +1667,7 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activity_classification::within_spending_transfer_groups;
     use async_trait::async_trait;
     use chrono::TimeZone;
     use wealthfolio_core::fx::{ExchangeRate, NewExchangeRate};

@@ -34,7 +34,7 @@ use crate::activity_assignments::{
 };
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
-    net_amount, within_spending_transfer_groups, SpendingClassification,
+    net_amount, neutral_transfer_groups, SpendingClassification,
 };
 use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewActivitySplit};
 use crate::category_exclusions::{excluded_spending_native, ExclusionIndex};
@@ -80,7 +80,7 @@ struct TargetAccounts {
 }
 
 /// What a category's cash-flow bucket check reads: the Spending accounts'
-/// types, and the transfer groups with both legs on those accounts.
+/// types, and the groups neutral within or across the Spending boundary.
 struct BucketContext {
     account_types: HashMap<String, String>,
     transfer_groups: HashSet<String>,
@@ -198,7 +198,12 @@ impl CashActivityService {
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_link_resolution = self.transfer_link_resolution()?;
         let transfer_context_acts: Vec<&Activity> = activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         activities.retain(|a| target_accounts.contains(&a.account_id));
 
         let allowed_types: Vec<String> = filter
@@ -451,7 +456,12 @@ impl CashActivityService {
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_link_resolution = self.transfer_link_resolution()?;
         let transfer_context_acts: Vec<&Activity> = activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         activities.retain(|a| target_accounts.contains(&a.account_id));
         // A row's balance counts every earlier row of the account, so it is
         // taken here, before the filters below narrow the list.
@@ -786,7 +796,12 @@ impl CashActivityService {
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_link_resolution = self.transfer_link_resolution()?;
         let transfer_context_acts: Vec<&Activity> = context_activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         let requested_ids: HashSet<&str> = activity_ids.iter().map(String::as_str).collect();
         let mut activities = context_activities
             .into_iter()
@@ -1157,7 +1172,12 @@ impl CashActivityService {
             .get_activities_by_account_ids(&target_accounts)
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = context_activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         Ok(BucketContext {
             account_types,
             transfer_groups,
@@ -1186,7 +1206,12 @@ impl CashActivityService {
             .get_activities_by_account_ids(&target_accounts)
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = context_activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         let bucket = cash_flow_bucket_from_classification(classify_activity_for_aggregation(
             &activity,
             account_type,
@@ -1552,6 +1577,7 @@ mod tests {
 
     #[derive(Default)]
     struct MockSettingsRepo {
+        account_ids: Option<Vec<String>>,
         excluded_category_ids: Vec<String>,
     }
 
@@ -1560,7 +1586,11 @@ mod tests {
         async fn get_setting(&self, key: &str) -> Result<Option<String>> {
             match key {
                 SETTING_KEY_ENABLED => Ok(Some("true".to_string())),
-                SETTING_KEY_ACCOUNT_IDS => Ok(Some(r#"["account-1"]"#.to_string())),
+                SETTING_KEY_ACCOUNT_IDS => Ok(Some(serde_json::to_string(
+                    self.account_ids
+                        .as_deref()
+                        .unwrap_or(&["account-1".to_string()]),
+                )?)),
                 SETTING_KEY_EXCLUDED_CATEGORY_IDS => {
                     Ok(Some(serde_json::to_string(&self.excluded_category_ids)?))
                 }
@@ -1578,7 +1608,7 @@ mod tests {
     }
 
     struct MockAccountRepo {
-        account: Account,
+        accounts: Vec<Account>,
     }
 
     #[async_trait]
@@ -1596,13 +1626,15 @@ mod tests {
         }
 
         fn get_by_id(&self, account_id: &str) -> wealthfolio_core::Result<Account> {
-            if self.account.id == account_id {
-                Ok(self.account.clone())
-            } else {
-                Err(wealthfolio_core::errors::Error::Validation(
-                    wealthfolio_core::errors::ValidationError::InvalidInput("not found".into()),
-                ))
-            }
+            self.accounts
+                .iter()
+                .find(|account| account.id == account_id)
+                .cloned()
+                .ok_or_else(|| {
+                    wealthfolio_core::errors::Error::Validation(
+                        wealthfolio_core::errors::ValidationError::InvalidInput("not found".into()),
+                    )
+                })
         }
 
         fn list(
@@ -1611,20 +1643,16 @@ mod tests {
             is_archived_filter: Option<bool>,
             account_ids: Option<&[String]>,
         ) -> wealthfolio_core::Result<Vec<Account>> {
-            let include = account_ids
-                .map(|ids| ids.iter().any(|id| id == &self.account.id))
-                .unwrap_or(true)
-                && is_active_filter
-                    .map(|active| active == self.account.is_active)
-                    .unwrap_or(true)
-                && is_archived_filter
-                    .map(|archived| archived == self.account.is_archived)
-                    .unwrap_or(true);
-            Ok(if include {
-                vec![self.account.clone()]
-            } else {
-                Vec::new()
-            })
+            Ok(self
+                .accounts
+                .iter()
+                .filter(|account| {
+                    account_ids.is_none_or(|ids| ids.contains(&account.id))
+                        && is_active_filter.is_none_or(|active| active == account.is_active)
+                        && is_archived_filter.is_none_or(|archived| archived == account.is_archived)
+                })
+                .cloned()
+                .collect())
         }
     }
 
@@ -1653,6 +1681,12 @@ mod tests {
         }
 
         fn get_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
+            Ok(self.activities.clone())
+        }
+
+        fn get_activities_including_archived_accounts(
+            &self,
+        ) -> wealthfolio_core::Result<Vec<Activity>> {
             Ok(self.activities.clone())
         }
 
@@ -2575,10 +2609,11 @@ mod tests {
         Arc<MockSplitRepo>,
     ) {
         let account_repo = Arc::new(MockAccountRepo {
-            account: account(account_types::CASH),
+            accounts: vec![account(account_types::CASH)],
         });
         let settings = Arc::new(SpendingSettingsService::new(Arc::new(MockSettingsRepo {
             excluded_category_ids,
+            ..Default::default()
         })));
         let assignment_repo = Arc::new(MockAssignmentRepo::default());
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
@@ -3204,6 +3239,258 @@ mod tests {
             activity_date: DateTime::parse_from_rfc3339(date).unwrap().into(),
             ..cash_row(id, activity_type, amount, "USD")
         }
+    }
+
+    async fn assert_linked_transfer_behavior(
+        current_type: &str,
+        counterpart_type: &str,
+        activity_type: &str,
+        track_counterpart: bool,
+        archive_counterpart: bool,
+        expected_saved: f64,
+        expected_withdrawal: f64,
+    ) {
+        let date = "2024-03-15T12:00:00Z";
+        let rows = vec![
+            dated_leg(
+                "card",
+                activity_type,
+                1000,
+                Some("balance-transfer"),
+                "account-1",
+                date,
+            ),
+            // Use a different month to ensure counterpart resolution is not window-scoped.
+            dated_leg(
+                "other",
+                if activity_type == "TRANSFER_OUT" {
+                    "TRANSFER_IN"
+                } else {
+                    "TRANSFER_OUT"
+                },
+                1000,
+                Some("balance-transfer"),
+                "other-account",
+                "2024-02-28T12:00:00Z",
+            ),
+        ];
+        let (mut cash, assignments, _) = make_service_with(rows);
+        cash.account_repo = Arc::new(MockAccountRepo {
+            accounts: vec![
+                account(current_type),
+                Account {
+                    id: "other-account".to_string(),
+                    is_archived: archive_counterpart,
+                    ..account(counterpart_type)
+                },
+            ],
+        });
+        let mut enrolled = vec!["account-1".to_string()];
+        if track_counterpart {
+            enrolled.push("other-account".to_string());
+        }
+        cash.settings = Arc::new(SpendingSettingsService::new(Arc::new(MockSettingsRepo {
+            account_ids: Some(enrolled),
+            ..Default::default()
+        })));
+        let analytics = crate::analytics::AnalyticsService::new(
+            cash.activity_repo.clone(),
+            cash.account_repo.clone(),
+            assignments.clone(),
+            cash.splits.clone(),
+            cash.settings.clone(),
+            cash.taxonomy_service.clone(),
+            cash.events.clone(),
+            cash.fx.clone(),
+            cash.activity_events.clone(),
+        );
+        let report = analytics
+            .monthly_report(
+                crate::analytics::ReportRequest {
+                    start_date: "2024-03-01T00:00:00Z".to_string(),
+                    end_date: "2024-03-31T23:59:59Z".to_string(),
+                    account_ids: Some(vec!["account-1".to_string()]),
+                },
+                "UTC",
+                "USD",
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            report.current.saved, expected_saved,
+            "saved: {current_type} {activity_type} {counterpart_type}"
+        );
+        assert_eq!(report.current.from_savings, expected_withdrawal);
+        assert_eq!(report.current.income, 0.0);
+        assert_eq!(report.current.outflow, 0.0);
+        assert_eq!(report.current.net, expected_withdrawal - expected_saved);
+        assert_eq!(
+            report
+                .savings_breakdown
+                .iter()
+                .map(|row| row.amount)
+                .sum::<f64>(),
+            expected_saved
+        );
+        assert!(report.spending_breakdown.is_empty());
+        assert!(report.income_breakdown.is_empty());
+
+        let listed = cash
+            .list(CashActivityFilter {
+                account_ids: Some(vec!["account-1".to_string()]),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let searched = cash
+            .search(
+                CashActivitySearchRequest {
+                    account_ids: Some(vec!["account-1".to_string()]),
+                    limit: 50,
+                    ..Default::default()
+                },
+                None,
+                "UTC",
+            )
+            .await
+            .unwrap();
+        let fetched = cash
+            .get_by_activity_ids(&["card".to_string(), "other".to_string()])
+            .await
+            .unwrap();
+        let expected_bucket = if expected_saved > 0.0 {
+            CashFlowBucket::Saving
+        } else {
+            CashFlowBucket::Neutral
+        };
+        for rows in [&listed, &searched.items, &fetched] {
+            let row = rows.iter().find(|row| row.activity.id == "card").unwrap();
+            assert_eq!(row.cash_flow_bucket, expected_bucket);
+            assert_eq!(row.visible_spending_amount, 0.0);
+            assert_eq!(
+                row.net_amount,
+                if activity_type == "TRANSFER_OUT" {
+                    -1000.0
+                } else {
+                    1000.0
+                }
+            );
+        }
+        if !track_counterpart {
+            assert_eq!(fetched.len(), 1, "counterpart must stay outside Spending");
+        }
+        let category = cash
+            .assign_category("card", SAVINGS_TAXONOMY, "retirement")
+            .await;
+        if expected_bucket == CashFlowBucket::Neutral {
+            assert!(category
+                .unwrap_err()
+                .to_string()
+                .contains("Neutral activities cannot be categorized"));
+            assert!(cash
+                .validate_splits("card", &[])
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("Neutral activities cannot be split"));
+            assert!(assignments.assignments.lock().unwrap().is_empty());
+        } else {
+            assert!(category.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn liability_balance_transfer_across_spending_boundary_is_neutral() {
+        for activity_type in ["TRANSFER_OUT", "TRANSFER_IN"] {
+            for archived in [false, true] {
+                assert_linked_transfer_behavior(
+                    account_types::CREDIT_CARD,
+                    account_types::CREDIT_CARD,
+                    activity_type,
+                    false,
+                    archived,
+                    0.0,
+                    0.0,
+                )
+                .await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn liability_balance_transfer_within_spending_is_neutral() {
+        for activity_type in ["TRANSFER_OUT", "TRANSFER_IN"] {
+            assert_linked_transfer_behavior(
+                account_types::CREDIT_CARD,
+                account_types::CREDIT_CARD,
+                activity_type,
+                true,
+                false,
+                0.0,
+                0.0,
+            )
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn card_investment_transfer_preserves_saving_and_withdrawal() {
+        for investment in [account_types::SECURITIES, account_types::CRYPTOCURRENCY] {
+            assert_linked_transfer_behavior(
+                account_types::CREDIT_CARD,
+                investment,
+                "TRANSFER_OUT",
+                false,
+                false,
+                1000.0,
+                0.0,
+            )
+            .await;
+            assert_linked_transfer_behavior(
+                account_types::CREDIT_CARD,
+                investment,
+                "TRANSFER_IN",
+                false,
+                false,
+                0.0,
+                1000.0,
+            )
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn cash_liability_repayment_keeps_existing_spending_boundary_behavior() {
+        assert_linked_transfer_behavior(
+            account_types::CASH,
+            account_types::CREDIT_CARD,
+            "TRANSFER_OUT",
+            false,
+            false,
+            1000.0,
+            0.0,
+        )
+        .await;
+        assert_linked_transfer_behavior(
+            account_types::CASH,
+            account_types::CREDIT_CARD,
+            "TRANSFER_OUT",
+            true,
+            false,
+            0.0,
+            0.0,
+        )
+        .await;
+        assert_linked_transfer_behavior(
+            account_types::CREDIT_CARD,
+            account_types::CASH,
+            "TRANSFER_IN",
+            false,
+            false,
+            0.0,
+            1000.0,
+        )
+        .await;
     }
 
     /// Money moved to an account outside spending and brought back: the
