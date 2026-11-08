@@ -1373,7 +1373,7 @@
       },
       "holdings_write": {
         "label": "Posições: gravar",
-        "description": "Salvar instantâneos de posições (posições e caixa em uma data) em contas que acompanham posições. Requer o escopo de posições (leitura)."
+        "description": "Salvar instantâneos de posições (posições e caixa em uma data) em contas que acompanham posições, e adicionar ativos alternativos e passivos. Requer o escopo de posições (leitura)."
       }
     },
     "preset": {

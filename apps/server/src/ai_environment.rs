@@ -10,7 +10,7 @@ use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::ActivityServiceTrait,
     allocation::AllocationServiceTrait,
-    assets::AssetServiceTrait,
+    assets::{AlternativeAssetServiceTrait, AssetServiceTrait},
     custom_provider::{CustomProviderService, CustomProviderWithSources},
     fx::FxServiceTrait,
     goals::GoalServiceTrait,
@@ -80,6 +80,7 @@ pub struct ServerAiEnvironment {
     portfolio_coordinator: Arc<PortfolioCoordinator>,
     event_bus: EventBus,
     fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
+    alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
 }
 
 impl ServerAiEnvironment {
@@ -119,6 +120,7 @@ impl ServerAiEnvironment {
         portfolio_coordinator: Arc<PortfolioCoordinator>,
         event_bus: EventBus,
         fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
+        alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             base_currency,
@@ -154,6 +156,7 @@ impl ServerAiEnvironment {
             portfolio_coordinator,
             event_bus,
             fx_service,
+            alternative_asset_service,
         }
     }
 }
@@ -282,6 +285,10 @@ impl AgentEnvironment for ServerAiEnvironment {
 
     fn fx_service(&self) -> Option<Arc<dyn FxServiceTrait>> {
         Some(self.fx_service.clone())
+    }
+
+    fn alternative_asset_service(&self) -> Option<Arc<dyn AlternativeAssetServiceTrait>> {
+        Some(self.alternative_asset_service.clone())
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

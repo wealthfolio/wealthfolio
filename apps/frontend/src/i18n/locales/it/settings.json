@@ -1373,7 +1373,7 @@
       },
       "holdings_write": {
         "label": "Posizioni — scrittura",
-        "description": "Salva istantanee delle posizioni (posizioni e liquidità a una data) per i conti che monitorano le posizioni. Richiede l'ambito posizioni (lettura)."
+        "description": "Salva istantanee delle posizioni (posizioni e liquidità a una data) per i conti che monitorano le posizioni, e aggiungi asset alternativi e passività. Richiede l'ambito posizioni (lettura)."
       }
     },
     "preset": {

@@ -11,6 +11,7 @@ pub mod activity_deletions;
 pub mod activity_import;
 pub mod activity_updates;
 pub mod allocation;
+pub mod alternative_assets;
 pub mod asset_classification;
 pub mod asset_lookup;
 pub mod asset_market_data;
@@ -344,8 +345,8 @@ pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
 }
 
 /// The MCP-only portfolio setup tools: preview and save account creates and
-/// updates, read, preview and save holdings snapshots, and read exchange
-/// rates. Not exposed to the
+/// updates, read, preview and save holdings snapshots, read exchange rates,
+/// and preview and create alternative assets and liabilities. Not exposed to the
 /// in-app assistant, which has no confirmation card for them; users manage
 /// accounts in Settings and holdings in the holdings editor.
 pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
@@ -356,6 +357,8 @@ pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(holdings_snapshots::PrepareHoldingsSnapshot),
         Arc::new(holdings_snapshots::CommitHoldingsSnapshot),
         Arc::new(exchange_rates::GetExchangeRates),
+        Arc::new(alternative_assets::PrepareAlternativeAsset),
+        Arc::new(alternative_assets::CommitAlternativeAsset),
     ]
 }
 

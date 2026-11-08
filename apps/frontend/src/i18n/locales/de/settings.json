@@ -1334,7 +1334,7 @@
       },
       "holdings_write": {
         "label": "Bestände — schreiben",
-        "description": "Bestandsaufnahmen (Positionen und Bargeld zu einem Datum) für Konten speichern, die Bestände erfassen. Erfordert die Berechtigung Bestände & Wert (Lesen)."
+        "description": "Bestandsaufnahmen (Positionen und Bargeld zu einem Datum) für Konten speichern, die Bestände erfassen, und alternative Vermögenswerte sowie Verbindlichkeiten hinzufügen. Erfordert die Berechtigung Bestände & Wert (Lesen)."
       }
     },
     "preset": {

@@ -593,6 +593,8 @@ mod tests {
         assert!(!names.contains(&"prepare_holdings_snapshot"));
         assert!(!names.contains(&"commit_holdings_snapshot"));
         assert!(!names.contains(&"get_exchange_rates"));
+        assert!(!names.contains(&"prepare_alternative_asset"));
+        assert!(!names.contains(&"commit_alternative_asset"));
     }
 
     #[tokio::test]
@@ -809,6 +811,8 @@ mod tests {
             "prepare_holdings_snapshot",
             "commit_holdings_snapshot",
             "get_exchange_rates",
+            "prepare_alternative_asset",
+            "commit_alternative_asset",
         ] {
             let err = catalog
                 .execute(
@@ -1157,7 +1161,12 @@ mod tests {
             AgentScopeSet::read_activity_write_classification_suggest(),
             AgentScopeSet::from_strs(["holdings:write"]),
         ] {
-            for name in ["prepare_holdings_snapshot", "commit_holdings_snapshot"] {
+            for name in [
+                "prepare_holdings_snapshot",
+                "commit_holdings_snapshot",
+                "prepare_alternative_asset",
+                "commit_alternative_asset",
+            ] {
                 let err = catalog
                     .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
                     .await

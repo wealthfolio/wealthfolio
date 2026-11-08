@@ -1293,7 +1293,7 @@
       },
       "holdings_write": {
         "label": "Holdings — write",
-        "description": "Save holdings snapshots (positions and cash on a date) for accounts that track holdings. Requires the holdings read scope."
+        "description": "Save holdings snapshots (positions and cash on a date) for accounts that track holdings, and add alternative assets and liabilities. Requires the holdings read scope."
       }
     },
     "preset": {
