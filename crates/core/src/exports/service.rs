@@ -4,7 +4,7 @@
 //! past or present. Forecasts (goal projections, future loan instalments) are
 //! exported from the screen that shows them, never here.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
@@ -20,7 +20,7 @@ use super::{
 use crate::accounts::{
     account_supports_portfolio_scope, Account, AccountPurpose, AccountServiceTrait,
 };
-use crate::activities::ActivityServiceTrait;
+use crate::activities::{ActivityServiceTrait, ACTIVITY_TYPE_SPLIT};
 use crate::assets::loan::loan_calculation;
 use crate::assets::{AlternativeAssetServiceTrait, Asset, AssetServiceTrait};
 use crate::errors::{Error, Result, ValidationError};
@@ -29,6 +29,7 @@ use crate::fx::FxServiceTrait;
 use crate::goals::GoalServiceTrait;
 use crate::limits::{ContributionLimitServiceTrait, ContributionTreatment, DepositsCalculation};
 use crate::lots::LotRepositoryTrait;
+use crate::portfolio::coordinator::raw_activity;
 use crate::portfolio::holdings::{HoldingListItem, HoldingsServiceTrait};
 use crate::portfolio::income::IncomeServiceTrait;
 use crate::portfolio::net_worth::{
@@ -43,6 +44,9 @@ use crate::taxonomies::TaxonomyServiceTrait;
 use crate::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default, user_date_from_utc, user_today,
     UtcDateRangeBounds,
+};
+use wealthfolio_portfolio_engine::{
+    group_splits, quotes_appear_split_adjusted, SplitEvent, SplitRow,
 };
 
 const ARCHIVE_README: &str = "README.txt";
@@ -513,7 +517,12 @@ impl DataExportService {
             },
             ExportDataType::BudgetActuals => match &self.sources.spending {
                 Some(spending) => {
-                    let months = budget_months(options, today);
+                    let first_activity = self
+                        .sources
+                        .activities
+                        .get_first_activity_date(None)?
+                        .map(|instant| user_date_from_utc(instant, self.timezone()));
+                    let months = budget_months(options, today, first_activity);
                     let timezone = self
                         .sources
                         .timezone
@@ -916,6 +925,7 @@ impl DataExportService {
             .sources
             .quotes
             .get_latest_quotes_as_of(&asset_ids, as_of)?;
+        let split_factors = self.split_price_factors(&asset_ids, as_of)?;
 
         let rows = positions
             .into_iter()
@@ -924,6 +934,13 @@ impl DataExportService {
                 let quote = quotes.get(&position.asset_id);
                 let priced = quote.map(|quote| {
                     let (price, currency) = normalize_amount(quote.close, &quote.currency);
+                    // Closes the provider adjusted for later splits are put back
+                    // into the units held that day, as portfolio history does.
+                    let price = price
+                        * split_factors
+                            .get(&position.asset_id)
+                            .copied()
+                            .unwrap_or(Decimal::ONE);
                     let value = price * position.quantity * position.contract_multiplier;
                     (price, currency.to_string(), value)
                 });
@@ -973,6 +990,56 @@ impl DataExportService {
             ));
         }
         ExportRecord::from_records(&rows)
+    }
+
+    /// For each held asset, the product of the ratios of its splits after
+    /// `as_of` that its quote history already prices in post-split units.
+    /// The splits and the adjusted-quotes test are the portfolio engine's.
+    fn split_price_factors(
+        &self,
+        asset_ids: &[String],
+        as_of: NaiveDate,
+    ) -> Result<HashMap<String, Decimal>> {
+        let held = asset_ids.iter().map(String::as_str).collect::<HashSet<_>>();
+        let tz = self.timezone();
+        let rows = self
+            .sources
+            .activities
+            .get_activities_including_archived_accounts()?
+            .iter()
+            .filter(|activity| {
+                activity.activity_type == ACTIVITY_TYPE_SPLIT
+                    && activity
+                        .asset_id
+                        .as_deref()
+                        .is_some_and(|asset| held.contains(asset))
+            })
+            .filter_map(|activity| SplitRow::from_raw(&raw_activity(activity), &tz))
+            .collect::<Vec<_>>();
+        let events = group_splits(rows)
+            .into_iter()
+            .filter(|event| event.split_date > as_of)
+            .collect::<Vec<_>>();
+        let mut factors = HashMap::new();
+        for asset_id in events
+            .iter()
+            .map(|event| event.asset.as_str().to_string())
+            .collect::<HashSet<_>>()
+        {
+            let closes = self
+                .sources
+                .quotes
+                .get_historical_quotes(&asset_id)?
+                .into_iter()
+                .filter(|quote| quote.close > Decimal::ZERO)
+                .map(|quote| (quote.timestamp.date_naive(), quote.close))
+                .collect::<BTreeMap<_, _>>();
+            factors.insert(
+                asset_id.clone(),
+                adjusted_split_factor(&events, &asset_id, &closes),
+            );
+        }
+        Ok(factors)
     }
 
     /// Leading label columns for rows that only carry ids.
@@ -1214,10 +1281,7 @@ impl DataExportService {
             let first = self
                 .sources
                 .snapshots
-                .get_snapshot_metadata(&account.id, None, None)?
-                .into_iter()
-                .filter_map(|meta| NaiveDate::parse_from_str(&meta.snapshot_date, "%Y-%m-%d").ok())
-                .min();
+                .get_earliest_snapshot_date(&account.id)?;
             first_snapshot = earlier(first_snapshot, first);
         }
         let mut first_valuation: Option<NaiveDate> = None;
@@ -1663,6 +1727,20 @@ fn within_bounds(bounds: &UtcDateRangeBounds, instant: chrono::DateTime<chrono::
     bounds.0.is_none_or(|start| instant >= start) && bounds.1.is_none_or(|end| instant < end)
 }
 
+/// Product of the ratios of `events` for `asset_id` that `closes` already
+/// price in post-split units.
+fn adjusted_split_factor(
+    events: &[SplitEvent],
+    asset_id: &str,
+    closes: &BTreeMap<NaiveDate, Decimal>,
+) -> Decimal {
+    events
+        .iter()
+        .filter(|event| event.asset.as_str() == asset_id)
+        .filter(|event| quotes_appear_split_adjusted(closes, event.split_date, event.ratio))
+        .fold(Decimal::ONE, |factor, event| factor * event.ratio)
+}
+
 /// One holdings row per non-zero cash balance of an account on a past day.
 /// Cash is its own price: quantity and market value are the balance.
 fn historical_cash_rows(
@@ -1706,19 +1784,17 @@ fn historical_cash_rows(
         .collect()
 }
 
-/// Month keys (`YYYY-MM`) for budget actuals: the export's dates, or the
-/// twelve months up to the current one.
-fn budget_months(options: &ExportOptions, today: NaiveDate) -> Vec<String> {
+/// Month keys (`YYYY-MM`) for budget actuals: the export's dates, or every
+/// month from the first activity to the current one.
+fn budget_months(
+    options: &ExportOptions,
+    today: NaiveDate,
+    first_activity: Option<NaiveDate>,
+) -> Vec<String> {
     let end = options.end_date.unwrap_or(today).min(today);
-    let start = options.start_date.unwrap_or_else(|| {
-        let months_back = end.year() * 12 + end.month0() as i32 - 11;
-        NaiveDate::from_ymd_opt(
-            months_back.div_euclid(12),
-            months_back.rem_euclid(12) as u32 + 1,
-            1,
-        )
-        .unwrap_or(end)
-    });
+    let Some(start) = options.start_date.or(first_activity) else {
+        return Vec::new();
+    };
     let mut months = Vec::new();
     let (mut year, mut month) = (start.year(), start.month());
     while (year, month) <= (end.year(), end.month()) {
@@ -2017,11 +2093,16 @@ mod tests {
     }
 
     #[test]
-    fn budget_months_cover_the_last_year_or_the_export_dates() {
-        let months = budget_months(&ExportOptions::default(), date(2026, 11, 8));
-        assert_eq!(months.len(), 12);
-        assert_eq!(months.first().unwrap(), "2025-12");
+    fn budget_months_cover_every_month_or_the_export_dates() {
+        let months = budget_months(
+            &ExportOptions::default(),
+            date(2026, 11, 8),
+            Some(date(2023, 5, 10)),
+        );
+        assert_eq!(months.len(), 43, "May 2023 through November 2026");
+        assert_eq!(months.first().unwrap(), "2023-05");
         assert_eq!(months.last().unwrap(), "2026-11");
+        assert!(budget_months(&ExportOptions::default(), date(2026, 11, 8), None).is_empty());
 
         let ranged = ExportOptions {
             start_date: Some(date(2025, 11, 20)),
@@ -2029,7 +2110,7 @@ mod tests {
             ..ExportOptions::default()
         };
         assert_eq!(
-            budget_months(&ranged, date(2026, 11, 8)),
+            budget_months(&ranged, date(2026, 11, 8), Some(date(2023, 5, 10))),
             vec!["2025-11", "2025-12", "2026-01", "2026-02"]
         );
         assert!(month_in_range("2025-11", &ranged));
@@ -2098,6 +2179,38 @@ mod tests {
             earlier(Some(date(2025, 3, 1)), Some(date(2024, 1, 1))),
             Some(date(2024, 1, 1)),
             "a snapshot before the first activity starts the history"
+        );
+    }
+
+    #[test]
+    fn past_holdings_price_held_units_across_a_later_adjusted_split() {
+        use wealthfolio_portfolio_engine::model::AssetId as EngineAssetId;
+        // 10 shares on Jan 10; a 2:1 split on Feb 1; the provider's history
+        // is adjusted, so Jan closes read 52 where the shares traded at 104.
+        let events = vec![SplitEvent {
+            asset: EngineAssetId::new("EDGE"),
+            split_date: date(2026, 2, 1),
+            ratio: Decimal::from(2),
+        }];
+        let adjusted = BTreeMap::from([
+            (date(2026, 1, 30), Decimal::from(52)),
+            (date(2026, 2, 2), Decimal::from(53)),
+        ]);
+        let factor = adjusted_split_factor(&events, "EDGE", &adjusted);
+        assert_eq!(
+            Decimal::from(52) * factor * Decimal::from(10),
+            Decimal::from(1040)
+        );
+
+        // An unadjusted history halves at the split: prices stand as they are.
+        let raw = BTreeMap::from([
+            (date(2026, 1, 30), Decimal::from(104)),
+            (date(2026, 2, 2), Decimal::from(53)),
+        ]);
+        assert_eq!(adjusted_split_factor(&events, "EDGE", &raw), Decimal::ONE);
+        assert_eq!(
+            adjusted_split_factor(&events, "OTHER", &adjusted),
+            Decimal::ONE
         );
     }
 

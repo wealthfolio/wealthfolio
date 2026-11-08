@@ -48,6 +48,16 @@ pub trait SnapshotServiceTrait: Send + Sync {
             .max_by_key(|snapshot| snapshot.snapshot_date))
     }
 
+    /// The date of an account's first snapshot. The default reads its
+    /// metadata; the service asks the repository for the one date.
+    fn get_earliest_snapshot_date(&self, account_id: &str) -> Result<Option<NaiveDate>> {
+        Ok(self
+            .get_snapshot_metadata(account_id, None, None)?
+            .into_iter()
+            .filter_map(|meta| NaiveDate::parse_from_str(&meta.snapshot_date, "%Y-%m-%d").ok())
+            .min())
+    }
+
     /// Retrieves lightweight snapshot metadata, including malformed stored
     /// dates that cannot be represented by `AccountStateSnapshot`.
     fn get_snapshot_metadata(
@@ -829,6 +839,11 @@ impl SnapshotServiceTrait for SnapshotService {
     ) -> Result<Vec<SnapshotMetadata>> {
         self.snapshot_repository
             .get_snapshot_metadata_by_account(account_id, start_date, end_date)
+    }
+
+    fn get_earliest_snapshot_date(&self, account_id: &str) -> Result<Option<NaiveDate>> {
+        self.snapshot_repository
+            .get_earliest_snapshot_date(account_id)
     }
 
     async fn delete_snapshot_for_account_by_id(
