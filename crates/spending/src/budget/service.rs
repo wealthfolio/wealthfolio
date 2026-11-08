@@ -702,11 +702,12 @@ impl BudgetService {
         currency: &str,
         timezone: &str,
     ) -> Result<BudgetSnapshot> {
+        let taxonomy_id = self.group_category_taxonomy(&category_id)?;
         self.repo
             .upsert_group_assignment(NewBudgetGroupAssignment {
                 id: None,
                 group_id,
-                taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                taxonomy_id: taxonomy_id.to_string(),
                 category_id,
             })
             .await?;
@@ -1010,20 +1011,7 @@ impl BudgetService {
                 category_id,
                 group_id,
             } => {
-                // Accept categories from either spending or savings taxonomy.
-                let in_spending = self
-                    .taxonomy_categories(SPENDING_TAXONOMY)?
-                    .iter()
-                    .any(|c| c.id == *category_id && c.parent_id.is_none());
-                let in_savings = self
-                    .taxonomy_categories(SAVINGS_TAXONOMY)?
-                    .iter()
-                    .any(|c| c.id == *category_id && c.parent_id.is_none());
-                if !in_spending && !in_savings {
-                    return Err(invalid_budget_input(
-                        "Select a top-level spending or savings category",
-                    ));
-                }
+                self.group_category_taxonomy(category_id)?;
                 if !has_group(group_id) {
                     return Err(invalid_budget_input("Budget group not found"));
                 }
@@ -1107,6 +1095,22 @@ impl BudgetService {
             self.repo.upsert_system_groups(missing).await?;
         }
         Ok(())
+    }
+
+    /// Taxonomy of a top-level category that can sit in a budget group.
+    fn group_category_taxonomy(&self, category_id: &str) -> Result<&'static str> {
+        for taxonomy_id in [SPENDING_TAXONOMY, SAVINGS_TAXONOMY] {
+            if self
+                .taxonomy_categories(taxonomy_id)?
+                .iter()
+                .any(|c| c.id == category_id && c.parent_id.is_none())
+            {
+                return Ok(taxonomy_id);
+            }
+        }
+        Err(invalid_budget_input(
+            "Select a top-level spending or savings category",
+        ))
     }
 
     fn taxonomy_categories(&self, taxonomy_id: &str) -> Result<Vec<Category>> {
