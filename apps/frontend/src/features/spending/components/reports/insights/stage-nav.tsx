@@ -52,6 +52,7 @@ export function StageNav({ stage, onStageChange, actions }: StageNavProps) {
                 onClick={() => onStageChange(s.id)}
                 className={cn(
                   "group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-xs transition-colors",
+                  "focus-visible:outline-ring focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2",
                   active
                     ? "bg-foreground text-background"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
