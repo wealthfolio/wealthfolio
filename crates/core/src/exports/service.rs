@@ -27,7 +27,7 @@ use crate::errors::{Error, Result, ValidationError};
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
 use crate::goals::GoalServiceTrait;
-use crate::limits::{ContributionLimitServiceTrait, DepositsCalculation};
+use crate::limits::{ContributionLimitServiceTrait, ContributionTreatment, DepositsCalculation};
 use crate::lots::LotRepositoryTrait;
 use crate::portfolio::holdings::{HoldingListItem, HoldingsServiceTrait};
 use crate::portfolio::income::IncomeServiceTrait;
@@ -1354,11 +1354,25 @@ impl DataExportService {
             .get_accounts_by_ids(&resolved.account_ids)?;
         accounts.sort_by(|a, b| a.name.cmp(&b.name));
         for account in accounts {
-            for row in self.sources.valuations.get_historical_valuations(
-                &account.id,
-                options.start_date,
-                options.end_date,
-            )? {
+            // The async read loads the history off the async workers.
+            let scope = self.sources.portfolios.resolve_account_scope(
+                &AccountScope::Account {
+                    account_id: account.id.clone(),
+                },
+                &base_currency,
+            )?;
+            for row in self
+                .sources
+                .valuations
+                .get_historical_valuations_for_accounts(
+                    &scope.scope_id,
+                    &scope.account_ids,
+                    &scope.base_currency,
+                    options.start_date,
+                    options.end_date,
+                )
+                .await?
+            {
                 records.push(
                     ExportRecord::from_record(&row)?.with("accountName", account.name.clone()),
                 );
@@ -1432,14 +1446,23 @@ impl DataExportService {
                 let mut record =
                     ExportRecord::from_record(limit)?.with("accountNames", names.join("; "));
                 // Progress so far, as the contribution limits screen shows it.
-                let progress = self
+                let details = self
                     .sources
                     .limits
-                    .calculate_deposits_for_contribution_limit(&limit.id, &base_currency)?;
-                for (key, value) in limit_progress_columns(limit.limit_amount, &progress, &accounts)
+                    .get_contribution_limit_details(&limit.id, &base_currency)?;
+                for (key, value) in
+                    limit_progress_columns(limit.limit_amount, &details.calculation, &accounts)
                 {
                     record.set(key, value);
                 }
+                // Deposits the user chose not to count against this limit.
+                let excluded = details
+                    .activities
+                    .iter()
+                    .filter(|activity| activity.treatment == ContributionTreatment::ExcludedByUser)
+                    .map(|activity| activity.id.clone())
+                    .collect::<Vec<_>>();
+                record.set("excludedActivityIds", excluded.join("; "));
                 Ok(record)
             })
             .collect()
