@@ -66,7 +66,9 @@ async function createPortfolio(page: Page) {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
         expect(holdingsResponse.ok()).toBeTruthy();
-        const holdings = (await holdingsResponse.json()) as { instrument?: { id: string } }[];
+        const { holdings } = (await holdingsResponse.json()) as {
+          holdings: { instrument?: { id: string } }[];
+        };
         return holdings.some((holding) => holding.instrument?.id === assetId);
       },
       { timeout: 60_000 },

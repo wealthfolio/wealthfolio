@@ -62,7 +62,7 @@ test("switching an account's sections keeps the page where it was", async ({ pag
         const response = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
-        return ((await response.json()) as unknown[]).length;
+        return ((await response.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )

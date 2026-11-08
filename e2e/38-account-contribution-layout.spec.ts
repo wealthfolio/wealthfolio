@@ -41,7 +41,7 @@ test("account contribution details remain readable on phones, tablets and deskto
           data: { filter: { type: "account", accountId: id }, includeClosed: true },
         });
         expect(holdings.ok()).toBe(true);
-        return (await holdings.json()).length;
+        return ((await holdings.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )
