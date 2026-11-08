@@ -594,13 +594,13 @@ commit_quote_import                -- save them as manual quotes (batch)
 These save the closing prices a statement reports for existing assets, so the
 portfolio's value on the statement date can match it without changing
 activities, quantities or cost basis. Each row names an asset by `assetId`
-(tickers are never resolved; `get_asset`, under `holdings:read`, finds an
-id), a `date` (`YYYY-MM-DD`, not in the future),
-a `price` in the asset's quote currency, that `currency`, and an optional
-`overwrite` flag. Investment assets are accepted, and so are manually priced
-alternative assets and liabilities, whose values are stored as manual quotes (a
-gold coin's price, a house's value, a mortgage balance). FX rates and
-market-priced alternative assets keep their own paths.
+(tickers are never resolved; `get_asset`, under `holdings:read`, finds an id), a
+`date` (`YYYY-MM-DD`, not in the future), a `price` in the asset's quote
+currency, that `currency`, and an optional `overwrite` flag. Investment assets
+are accepted, and so are manually priced alternative assets and liabilities,
+whose values are stored as manual quotes (a gold coin's price, a house's value,
+a mortgage balance). FX rates and market-priced alternative assets keep their
+own paths.
 
 `prepare_quote_import` (`QuoteServiceTrait::preview_quote_import`) reports per
 row the asset, the quote valuations use for that day (a manual quote before a
@@ -651,11 +651,10 @@ stored data only and never call a provider. All three need `holdings:read`.
 `get_asset_taxonomy_assignments` uses, now shared in `tools/asset_lookup.rs`, so
 finding an id no longer needs `classification:read`); several matches return
 `candidates`. It returns the identity (kind, instrument type, symbol, MIC,
-ISIN), quote mode and currency, preferred provider and per-provider symbols,
-the latest quote with its stale flag or the reason it is missing, the sync
-state, stored quotes grouped by source and currency with their date span, and
-the accounts holding the asset with quantities (the asset page's holdings
-read).
+ISIN), quote mode and currency, preferred provider and per-provider symbols, the
+latest quote with its stale flag or the reason it is missing, the sync state,
+stored quotes grouped by source and currency with their date span, and the
+accounts holding the asset with quantities (the asset page's holdings read).
 
 `get_quote_history` returns date, close, currency and source per stored quote,
 newest first, for a range (default the last 365 days) and optional source,
@@ -664,14 +663,14 @@ capped at 500 rows by default and 2000 at most, with `truncated`.
 `get_market_data_providers` lists built-in providers from
 `QuoteServiceTrait::get_providers_info` and custom providers from
 `AgentEnvironment::custom_providers` (id `CUSTOM:<code>`, the form the app's
-asset editor and symbol resolution use). Custom provider sources are left out: their
-URLs and headers can hold API keys. Stored sync errors stay internal for the same
-reason, as in the quote service's other public reads: `get_asset` reports a
-failed last sync with the generic `PublicError::provider_unavailable` message,
-and `get_market_data_providers` passes on the counts and generic messages
-`get_providers_info` returns. Custom providers report no error details, since
-their failures are recorded under the dispatch row. The in-app assistant does
-not get these tools.
+asset editor and symbol resolution use). Custom provider sources are left out:
+their URLs and headers can hold API keys. Stored sync errors stay internal for
+the same reason, as in the quote service's other public reads: `get_asset`
+reports a failed last sync with the generic `PublicError::provider_unavailable`
+message, and `get_market_data_providers` passes on the counts and generic
+messages `get_providers_info` returns. Custom providers report no error details,
+since their failures are recorded under the dispatch row. The in-app assistant
+does not get these tools.
 
 ### MCP-only Activity Update Tools
 
