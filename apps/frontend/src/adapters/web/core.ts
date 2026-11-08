@@ -4,8 +4,10 @@ import { profileFetch } from "@/features/profiles/session";
 
 import { notifyUnauthorized } from "@/lib/auth-token";
 import { BackendError, backendError } from "@/lib/backend-error";
+import type { ExportOptions } from "@/lib/types";
 import type { Logger } from "../types";
 import { invokeTimeoutMs } from "../invoke-timeout";
+import { exportOptionsQuery } from "./export-options";
 
 /** True in every Tauri build (desktop and mobile); use getPlatform() for the OS */
 export const isTauri = false;
@@ -378,6 +380,7 @@ export const COMMANDS: CommandMap = {
   // Net Worth
   get_net_worth: { method: "GET", path: "/net-worth" },
   get_net_worth_history: { method: "GET", path: "/net-worth/history" },
+  get_data_export_summary: { method: "GET", path: "/utilities/export/summary" },
   // AI Providers
   get_ai_providers: { method: "GET", path: "/ai/providers" },
   update_ai_provider_settings: { method: "PUT", path: "/ai/providers/settings" },
@@ -1910,6 +1913,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         params.set("date", date);
         url += `?${params.toString()}`;
       }
+      break;
+    }
+    case "get_data_export_summary": {
+      const { options } = (payload ?? {}) as { options?: ExportOptions };
+      url += exportOptionsQuery(options);
       break;
     }
     case "get_net_worth_history": {

@@ -280,6 +280,7 @@ export function useLoanActions(
   return {
     actions,
     availability,
+    calculation,
     dialogs:
       isLiability && holding ? (
         <>

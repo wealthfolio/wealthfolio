@@ -11,38 +11,203 @@ use crate::errors::{Error, Result, ValidationError};
 use crate::portfolio::holdings::{HoldingListItem, HoldingType, MonetaryValue};
 use crate::utils::occ_symbol::parse_occ_symbol;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+mod archive;
+mod record;
+mod service;
+
+pub use archive::{build_csv_archive, build_json_bundle, ArchiveEntry};
+pub use record::ExportRecord;
+pub use service::{
+    ActivitySpendingColumns, DataExportService, DataExportSources, ExportDatasetSummary,
+    ExportFile, ExportOptions, ExportTarget, SpendingExportSource,
+};
+
+/// A dataset of the data export. Each one is a file of its own.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ExportDataType {
     Accounts,
     Activities,
     Holdings,
-    Goals,
+    Lots,
+    RealizedGains,
+    ManualPrices,
+    Income,
+    IncomeBySource,
+    AssetsAndLiabilities,
+    AssetValuations,
+    LoanPayments,
+    NetWorthHistory,
     PortfolioHistory,
+    Budgets,
+    BudgetActuals,
+    BudgetGroups,
+    SpendingRules,
+    SpendingEvents,
+    Goals,
+    ContributionLimits,
+    Portfolios,
+    Categories,
+    Classifications,
+}
+
+/// Where a dataset sits in the export screen, grouped like the app.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExportDatasetGroup {
+    Accounts,
+    Investments,
+    NetWorth,
+    Spending,
+    Planning,
+    Organization,
 }
 
 impl ExportDataType {
+    /// Every dataset, in the order the export screen and archive list them.
+    pub const ALL: [ExportDataType; 23] = [
+        Self::Accounts,
+        Self::Activities,
+        Self::Holdings,
+        Self::Lots,
+        Self::RealizedGains,
+        Self::ManualPrices,
+        Self::Income,
+        Self::IncomeBySource,
+        Self::AssetsAndLiabilities,
+        Self::AssetValuations,
+        Self::LoanPayments,
+        Self::NetWorthHistory,
+        Self::PortfolioHistory,
+        Self::Budgets,
+        Self::BudgetActuals,
+        Self::BudgetGroups,
+        Self::SpendingRules,
+        Self::SpendingEvents,
+        Self::Goals,
+        Self::ContributionLimits,
+        Self::Portfolios,
+        Self::Categories,
+        Self::Classifications,
+    ];
+
     pub fn parse(value: &str) -> Result<Self> {
-        match value {
-            "accounts" => Ok(Self::Accounts),
-            "activities" => Ok(Self::Activities),
-            "holdings" => Ok(Self::Holdings),
-            "goals" => Ok(Self::Goals),
-            "portfolio-history" => Ok(Self::PortfolioHistory),
-            _ => Err(Error::Validation(ValidationError::InvalidInput(format!(
-                "Unsupported export data type: {}",
-                value
-            )))),
-        }
+        Self::ALL
+            .into_iter()
+            .find(|data_type| data_type.key() == value)
+            .ok_or_else(|| {
+                Error::Validation(ValidationError::InvalidInput(format!(
+                    "Unsupported export data type: {}",
+                    value
+                )))
+            })
     }
 
-    fn file_stem(self) -> &'static str {
+    /// The identifier the frontend and the file names use.
+    pub fn key(self) -> &'static str {
         match self {
             Self::Accounts => "accounts",
             Self::Activities => "activities",
             Self::Holdings => "holdings",
-            Self::Goals => "goals",
+            Self::Lots => "lots",
+            Self::RealizedGains => "realized-gains",
+            Self::ManualPrices => "manual-prices",
+            Self::Income => "income",
+            Self::IncomeBySource => "income-by-source",
+            Self::AssetsAndLiabilities => "assets-and-liabilities",
+            Self::AssetValuations => "asset-valuations",
+            Self::LoanPayments => "loan-payments",
+            Self::NetWorthHistory => "net-worth-history",
             Self::PortfolioHistory => "portfolio-history",
+            Self::Budgets => "budgets",
+            Self::BudgetActuals => "budget-actuals",
+            Self::BudgetGroups => "budget-groups",
+            Self::SpendingRules => "spending-rules",
+            Self::SpendingEvents => "spending-events",
+            Self::Goals => "goals",
+            Self::ContributionLimits => "contribution-limits",
+            Self::Portfolios => "portfolios",
+            Self::Categories => "categories",
+            Self::Classifications => "classifications",
         }
+    }
+
+    pub fn group(self) -> ExportDatasetGroup {
+        match self {
+            Self::Accounts | Self::Activities => ExportDatasetGroup::Accounts,
+            Self::Holdings
+            | Self::Lots
+            | Self::RealizedGains
+            | Self::ManualPrices
+            | Self::Income
+            | Self::IncomeBySource => ExportDatasetGroup::Investments,
+            Self::AssetsAndLiabilities
+            | Self::AssetValuations
+            | Self::LoanPayments
+            | Self::NetWorthHistory
+            | Self::PortfolioHistory => ExportDatasetGroup::NetWorth,
+            Self::Budgets
+            | Self::BudgetActuals
+            | Self::BudgetGroups
+            | Self::SpendingRules
+            | Self::SpendingEvents => ExportDatasetGroup::Spending,
+            Self::Goals | Self::ContributionLimits => ExportDatasetGroup::Planning,
+            Self::Portfolios | Self::Categories | Self::Classifications => {
+                ExportDatasetGroup::Organization
+            }
+        }
+    }
+
+    /// One line for the archive's README.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Accounts => {
+                "Your accounts with their latest balance, archived ones marked in the isArchived column."
+            }
+            Self::Activities => {
+                "Every activity, with the account's running cash balance and, for spending, the category, event and splits."
+            }
+            Self::Holdings => {
+                "Holdings on the export's holdings date, valued in their own and your base currency."
+            }
+            Self::Lots => "Tax lots, open and closed, with their cost basis.",
+            Self::RealizedGains => "Each sale matched to the lots it closed, with the realised gain.",
+            Self::ManualPrices => "Prices you entered for assets you price yourself.",
+            Self::Income => {
+                "Dividends and interest per month for each account, in your base currency."
+            }
+            Self::IncomeBySource => {
+                "Income from each holding: all time, this year and the two years before."
+            }
+            Self::AssetsAndLiabilities => {
+                "Property, vehicles, collectibles, precious metals and liabilities, with loan terms and interest paid to date."
+            }
+            Self::AssetValuations => "Every valuation you recorded for those assets and liabilities.",
+            Self::LoanPayments => "Payments linked to each loan.",
+            Self::NetWorthHistory => {
+                "Daily net worth: investments, other assets and liabilities, in your base currency."
+            }
+            Self::PortfolioHistory => "Daily valuation of each account and of all accounts together.",
+            Self::Budgets => "Budget amounts per period, with rollover settings.",
+            Self::BudgetActuals => {
+                "Budgeted, spent, rollover and remaining per category and month (the last 12 months unless the export has dates)."
+            }
+            Self::BudgetGroups => "Budget groups and the categories in each.",
+            Self::SpendingRules => "Rules that categorise transactions automatically.",
+            Self::SpendingEvents => {
+                "Spending events such as trips, with what was spent and how many activities each has."
+            }
+            Self::Goals => {
+                "Goals with their plan settings, linked accounts and current progress. Projections are left out: export them from the goal."
+            }
+            Self::ContributionLimits => "Contribution limits and the accounts they cover.",
+            Self::Portfolios => "Portfolios (groups of accounts) and their accounts.",
+            Self::Categories => "Every category of every taxonomy, including spending categories.",
+            Self::Classifications => "Which category each asset belongs to, per taxonomy.",
+        }
+    }
+
+    fn file_stem(self) -> &'static str {
+        self.key()
     }
 }
 
@@ -325,15 +490,8 @@ fn records_to_csv<T: Serialize>(records: &[T]) -> Result<String> {
     let source_keys = source_keys(&rows);
     let headers = source_keys
         .iter()
-        .map(|key| {
-            if key == "assetId" {
-                "symbol"
-            } else {
-                key.as_str()
-            }
-        })
-        .map(json_string)
-        .collect::<Result<Vec<_>>>()?;
+        .map(|key| csv_field(key))
+        .collect::<Vec<_>>();
 
     let data_rows = rows
         .iter()
@@ -341,7 +499,7 @@ fn records_to_csv<T: Serialize>(records: &[T]) -> Result<String> {
             source_keys
                 .iter()
                 .map(|key| cell_value(row.get(key)))
-                .map(|cell| cell.and_then(|value| json_string(&value)))
+                .map(|cell| cell.map(|value| csv_field(&value)))
                 .collect::<Result<Vec<_>>>()
                 .map(|fields| fields.join(","))
         })
@@ -431,9 +589,10 @@ fn cell_value(value: Option<&Value>) -> Result<String> {
     }
 }
 
-fn json_string(value: &str) -> Result<String> {
-    serde_json::to_string(value)
-        .map_err(|e| Error::Unexpected(format!("Failed to serialize export CSV field: {}", e)))
+/// One quoted CSV field (RFC 4180): quotes are doubled and line breaks kept,
+/// so spreadsheets read nested JSON and multi-line notes as a single cell.
+fn csv_field(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 #[cfg(test)]
@@ -561,23 +720,23 @@ mod tests {
     }
 
     #[test]
-    fn csv_export_renames_asset_id_to_symbol() {
+    fn csv_headers_keep_each_column_name() {
         let rows = vec![AssetRow {
-            asset_id: "AAPL".to_string(),
-            name: "Apple Inc.".to_string(),
-            quantity: 10,
+            asset_id: "8a70fdb6".to_string(),
+            name: "Flat".to_string(),
+            quantity: 1,
         }];
 
         let csv = records_to_csv(&rows).unwrap();
 
         assert_eq!(
             csv,
-            "\"symbol\",\"name\",\"quantity\"\n\"AAPL\",\"Apple Inc.\",\"10\""
+            "\"assetId\",\"name\",\"quantity\"\n\"8a70fdb6\",\"Flat\",\"1\""
         );
     }
 
     #[test]
-    fn csv_export_uses_json_string_escaping() {
+    fn csv_export_quotes_fields_for_spreadsheets() {
         let rows = vec![NoteRow {
             id: 1,
             description: "Item with \"quotes\"".to_string(),
@@ -588,8 +747,50 @@ mod tests {
 
         assert_eq!(
             csv,
-            "\"id\",\"description\",\"notes\"\n\"1\",\"Item with \\\"quotes\\\"\",\"Comma, and new\\nline\""
+            "\"id\",\"description\",\"notes\"\n\"1\",\"Item with \"\"quotes\"\"\",\"Comma, and new\nline\""
         );
+    }
+
+    #[test]
+    fn csv_export_keeps_nested_json_in_one_cell() {
+        let rows = vec![ExportRecord::new().with("id", "a").with(
+            "details",
+            serde_json::json!({"rate": 4.5, "name": "Car \"loan\""}),
+        )];
+
+        let csv = records_to_csv(&rows).unwrap();
+        let mut reader = csv_reader(&csv);
+
+        assert_eq!(reader.len(), 2);
+        let row = reader.remove(1);
+        assert_eq!(row.len(), 2);
+        let details: Value = serde_json::from_str(&row[1]).unwrap();
+        assert_eq!(details["name"], "Car \"loan\"");
+    }
+
+    /// A minimal RFC 4180 reader, enough to check what a spreadsheet sees.
+    fn csv_reader(text: &str) -> Vec<Vec<String>> {
+        let mut rows = vec![Vec::new()];
+        let mut field = String::new();
+        let mut quoted = false;
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            match (c, quoted) {
+                ('"', true) if chars.peek() == Some(&'"') => {
+                    field.push('"');
+                    chars.next();
+                }
+                ('"', _) => quoted = !quoted,
+                (',', false) => rows.last_mut().unwrap().push(std::mem::take(&mut field)),
+                ('\n', false) => {
+                    rows.last_mut().unwrap().push(std::mem::take(&mut field));
+                    rows.push(Vec::new());
+                }
+                _ => field.push(c),
+            }
+        }
+        rows.last_mut().unwrap().push(field);
+        rows
     }
 
     #[test]

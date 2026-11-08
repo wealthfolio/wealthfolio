@@ -98,6 +98,7 @@ pub struct ServiceContext {
     pub budget_service: Arc<BudgetService>,
     pub spending_analytics_service: Arc<AnalyticsService>,
     pub spending_insight_service: Arc<InsightService>,
+    pub data_export_service: Arc<wealthfolio_core::exports::DataExportService>,
 }
 
 impl ServiceContext {
@@ -279,6 +280,10 @@ impl ServiceContext {
 
     pub fn pat_repository(&self) -> Arc<PatRepository> {
         Arc::clone(&self.pat_repository)
+    }
+
+    pub fn data_export_service(&self) -> Arc<wealthfolio_core::exports::DataExportService> {
+        Arc::clone(&self.data_export_service)
     }
 
     pub fn portfolio_service(&self) -> Arc<dyn portfolios::PortfolioServiceTrait> {

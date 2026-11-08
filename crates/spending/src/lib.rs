@@ -37,6 +37,7 @@ pub mod categorization_rules;
 mod category_exclusions;
 pub mod error;
 pub mod events;
+pub mod exports;
 mod fx;
 pub mod insight;
 pub mod settings;

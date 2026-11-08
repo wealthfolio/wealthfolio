@@ -443,6 +443,7 @@ pub fn run() {
             commands::utilities::write_pending_export_text_file,
             commands::utilities::write_pending_export_file,
             commands::utilities::export_data_file,
+            commands::utilities::get_data_export_summary,
             commands::utilities::open_external_url,
             commands::utilities::get_app_info,
             commands::utilities::profile_transfer_file,

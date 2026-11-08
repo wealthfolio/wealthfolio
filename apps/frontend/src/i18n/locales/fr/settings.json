@@ -186,17 +186,143 @@
   "export_title": "Exportation des données",
   "export_description": "Conservez une sauvegarde de votre portefeuille ou exportez vos données pour les utiliser ailleurs.",
   "export_tab_backup": "Sauvegardes",
-  "export_section_description": "Exporter des types de données spécifiques dans différents formats pour l'analyse ou l'utilisation externe.",
-  "export_format_title": "Choisissez votre format préféré",
-  "export_format_csv_description": "Format de tableur simple et largement compatible",
-  "export_format_json_description": "Données structurées pour un accès programmatique facile",
-  "export_customize_title": "Personnalisez votre exportation",
-  "export_type_accounts_description": "Vos comptes financiers",
-  "export_type_activities": "Activités",
-  "export_type_activities_description": "Historique détaillé des transactions et journaux",
-  "export_type_goals_description": "Objectifs financiers et suivi des progrès",
-  "export_type_portfolio_history": "Historique du portefeuille",
-  "export_type_portfolio_history_description": "La performance de votre portefeuille au fil du temps, y compris les valorisations, les gains et les activités de flux de trésorerie.",
+  "data_export": {
+    "intro": "Des fichiers lisibles par les tableurs et d’autres applications. Ils ne peuvent pas être restaurés dans Wealthfolio : pour passer à un autre appareil, utilisez une sauvegarde.",
+    "all_title": "Exporter toutes vos données",
+    "all_description_csv": "Un ZIP contenant un fichier CSV par jeu de données et un README qui les explique.",
+    "all_description_json": "Un fichier JSON avec chaque jeu de données dans sa propre section.",
+    "all_info": "Les projections des objectifs et les échéanciers de prêt ne sont pas inclus, car ils changent chaque jour. Exportez-les depuis l’objectif ou le prêt.",
+    "all_info_label": "À propos des exports de données",
+    "all_button": "Tout exporter",
+    "all_pending": "Export en cours…",
+    "format_label": "Format de fichier",
+    "include_archived": "Inclure les comptes archivés",
+    "include_archived_help": "Ajoute les comptes archivés avec leurs activités, leurs lots et leurs paiements de prêt.",
+    "dates_title": "Dates",
+    "start_date": "Du",
+    "end_date": "Au",
+    "dates_help": "Limite les activités, ventes, prix, évaluations et historiques. Laissez vide pour inclure toutes les dates.",
+    "as_of_date": "Positions au",
+    "as_of_help": "Laissez vide pour les positions du jour.",
+    "date_order_error": "La date de début est postérieure à la date de fin.",
+    "clear_dates": "Effacer les dates",
+    "datasets_title": "Choisissez quoi exporter",
+    "datasets_description": "Téléchargez un jeu de données à la fois.",
+    "groups": {
+      "accounts": "Comptes et activité",
+      "investments": "Investissements",
+      "net-worth": "Valeur nette",
+      "spending": "Dépenses et budgets",
+      "planning": "Planification",
+      "organization": "Organisation"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Comptes",
+        "description": "Vos comptes et leur dernier solde, avec les comptes archivés signalés"
+      },
+      "activities": {
+        "name": "Activités",
+        "description": "Chaque transaction, avec le solde de liquidités et la catégorie de dépense"
+      },
+      "holdings": {
+        "name": "Positions",
+        "description": "Valeur, coût et gains de chaque position"
+      },
+      "lots": {
+        "name": "Lots",
+        "description": "Lots ouverts et clôturés avec leur coût d’acquisition"
+      },
+      "realized-gains": {
+        "name": "Gains réalisés",
+        "description": "Chaque vente rapprochée des lots qu’elle a clôturés"
+      },
+      "manual-prices": {
+        "name": "Prix manuels",
+        "description": "Prix que vous avez saisis pour les actifs que vous évaluez vous-même"
+      },
+      "income": {
+        "name": "Revenus",
+        "description": "Dividendes et intérêts par mois, pour chaque compte"
+      },
+      "income-by-source": {
+        "name": "Revenus par source",
+        "description": "Revenus de chaque position, au total et par année"
+      },
+      "assets-and-liabilities": {
+        "name": "Actifs et passifs",
+        "description": "Biens immobiliers, véhicules, objets de valeur et prêts, avec leurs conditions"
+      },
+      "asset-valuations": {
+        "name": "Évaluations d’actifs",
+        "description": "Chaque valeur que vous avez enregistrée pour ces actifs et passifs"
+      },
+      "loan-payments": {
+        "name": "Paiements de prêt",
+        "description": "Paiements liés à chaque prêt"
+      },
+      "net-worth-history": {
+        "name": "Historique de la valeur nette",
+        "description": "Valeur nette quotidienne : investissements, autres actifs et passifs"
+      },
+      "portfolio-history": {
+        "name": "Historique du portefeuille",
+        "description": "Valeur quotidienne de chaque compte"
+      },
+      "budgets": {
+        "name": "Budgets",
+        "description": "Montants par période, avec les paramètres de report"
+      },
+      "budget-actuals": {
+        "name": "Budget vs réel",
+        "description": "Budgété, dépensé et restant par catégorie, mois par mois"
+      },
+      "budget-groups": {
+        "name": "Groupes de budget",
+        "description": "Groupes et leurs catégories"
+      },
+      "spending-rules": {
+        "name": "Règles de catégorisation",
+        "description": "Règles qui catégorisent automatiquement les transactions"
+      },
+      "spending-events": {
+        "name": "Événements",
+        "description": "Voyages et autres événements, avec ce qui a été dépensé pour chacun"
+      },
+      "goals": {
+        "name": "Objectifs",
+        "description": "Paramètres du plan, comptes liés et progression"
+      },
+      "contribution-limits": {
+        "name": "Limites de cotisation",
+        "description": "Limites et comptes concernés"
+      },
+      "portfolios": {
+        "name": "Portefeuilles",
+        "description": "Groupes de comptes"
+      },
+      "categories": {
+        "name": "Catégories",
+        "description": "Toutes les catégories de chaque classification, dépenses comprises"
+      },
+      "classifications": {
+        "name": "Classifications d’actifs",
+        "description": "Catégorie à laquelle appartient chaque actif"
+      }
+    },
+    "rows_one": "{{count}} ligne",
+    "rows_other": "{{count}} lignes",
+    "rows_many": "{{count}} lignes",
+    "daily": "Valeurs quotidiennes",
+    "holdings_today": "Positions actuelles",
+    "holdings_on": "Au {{date}}",
+    "none_yet": "Rien pour l’instant",
+    "download": "Télécharger {{name}}",
+    "downloading": "Téléchargement de {{name}}…",
+    "summary_error": "Impossible de compter vos données. Vous pouvez quand même les exporter.",
+    "empty": "Ce jeu de données ne contient encore rien à exporter.",
+    "empty_all": "Il n’y a encore rien à exporter."
+  },
   "backup_title": "Sauvegardes locales",
   "backup_export_dialog_title": "Exporter une sauvegarde",
   "backup_export_protected": "Avec un mot de passe (recommandé)",
@@ -377,9 +503,6 @@
   "about_db_path": "Chemin de la base de données",
   "about_copy_db_path": "Copier le chemin de la base de données",
   "about_copy_logs_dir": "Copier le répertoire des journaux",
-  "export_type_holdings_description": "Positions actuelles avec valorisation, performance, allocation et données d'instrument",
-  "export_exporting_item": "Exportation de {{name}}...",
-  "export_export_item": "Exporter {{name}}",
   "backup_unknown_date": "Date inconnue",
   "backup_creating_short": "Enregistrement de la sauvegarde…",
   "backup_empty_title": "Aucune sauvegarde pour le moment",
@@ -1629,15 +1752,6 @@
       "updatingFailed": "Problème lors de la mise à jour du taux de change : {{error}}",
       "addingFailed": "Problème lors de l’ajout du taux de change : {{error}}",
       "deletingFailed": "Problème lors de la suppression du taux de change : {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "Aucun compte à exporter pour le moment.",
-        "activities": "Aucune transaction à exporter pour le moment.",
-        "holdings": "Aucune position à exporter pour le moment.",
-        "goals": "Aucun objectif à exporter pour le moment.",
-        "portfolio-history": "Aucun historique de portefeuille à exporter pour le moment."
-      }
     },
     "providerUpdateFailed": "Impossible de mettre à jour les paramètres du fournisseur {{provider}}",
     "httpFailed": "La requête HTTP a échoué.",

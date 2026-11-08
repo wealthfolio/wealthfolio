@@ -182,17 +182,142 @@
   "export_title": "資料匯出",
   "export_description": "保留投資組合的備份，或匯出資料以便在其他地方使用。",
   "export_tab_backup": "備份",
-  "export_section_description": "以不同格式匯出指定資料，供分析或外部使用。",
-  "export_format_title": "選取你偏好的格式",
-  "export_format_csv_description": "簡單且廣泛相容的試算表格式",
-  "export_format_json_description": "方便程式存取的結構化資料",
-  "export_customize_title": "自訂你的匯出",
-  "export_type_accounts_description": "你的財務帳戶",
-  "export_type_activities": "交易紀錄",
-  "export_type_activities_description": "完整的交易歷史與記錄",
-  "export_type_goals_description": "財務目標及進度追蹤",
-  "export_type_portfolio_history": "投資組合歷史",
-  "export_type_portfolio_history_description": "投資組合歷來的績效，包括估值、損益與現金流。",
+  "data_export": {
+    "intro": "可在試算表和其他應用程式中讀取的檔案。這些檔案無法還原到 Wealthfolio：如需移轉到其他裝置，請使用備份。",
+    "all_title": "匯出所有資料",
+    "all_description_csv": "一個 ZIP 檔，內含每個資料集各一個 CSV 檔，以及說明這些檔案的 README。",
+    "all_description_json": "一個 JSON 檔，每個資料集為其中一個區段。",
+    "all_info": "目標預測與貸款還款排程每天都會變動，因此不包含在內。請從該目標或貸款匯出。",
+    "all_info_label": "關於資料匯出",
+    "all_button": "全部匯出",
+    "all_pending": "正在匯出…",
+    "format_label": "檔案格式",
+    "include_archived": "包含已封存帳戶",
+    "include_archived_help": "加入已封存帳戶及其交易紀錄、批次與貸款還款。",
+    "dates_title": "日期",
+    "start_date": "從",
+    "end_date": "至",
+    "dates_help": "限制交易紀錄、賣出、價格、估值與歷史紀錄的日期範圍。留空則包含所有日期。",
+    "as_of_date": "持有部位日期",
+    "as_of_help": "留空則使用今天的持有部位。",
+    "date_order_error": "開始日期晚於結束日期。",
+    "clear_dates": "清除日期",
+    "datasets_title": "選擇要匯出的內容",
+    "datasets_description": "一次下載一個資料集。",
+    "groups": {
+      "accounts": "帳戶與交易紀錄",
+      "investments": "投資",
+      "net-worth": "淨資產",
+      "spending": "支出與預算",
+      "planning": "規劃",
+      "organization": "整理"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "帳戶",
+        "description": "您的帳戶及其最新餘額，並標示已封存的帳戶"
+      },
+      "activities": {
+        "name": "交易紀錄",
+        "description": "每筆交易，包含現金餘額與支出類別"
+      },
+      "holdings": {
+        "name": "持有部位",
+        "description": "包含價值、成本與損益的部位"
+      },
+      "lots": {
+        "name": "批次",
+        "description": "未平倉與已平倉的批次及其成本基礎"
+      },
+      "realized-gains": {
+        "name": "已實現損益",
+        "description": "每筆賣出及其平倉的批次"
+      },
+      "manual-prices": {
+        "name": "手動價格",
+        "description": "您為自行定價的資產輸入的價格"
+      },
+      "income": {
+        "name": "收入",
+        "description": "每個帳戶每月的股利與利息"
+      },
+      "income-by-source": {
+        "name": "依來源分類收入",
+        "description": "每個持有部位的收入，包含全部時間與每年"
+      },
+      "assets-and-liabilities": {
+        "name": "資產與負債",
+        "description": "房產、車輛、貴重物品與貸款，以及貸款條件"
+      },
+      "asset-valuations": {
+        "name": "資產估值",
+        "description": "您為這些資產與負債記錄的每個價值"
+      },
+      "loan-payments": {
+        "name": "貸款還款",
+        "description": "與每筆貸款連結的還款"
+      },
+      "net-worth-history": {
+        "name": "淨資產歷史",
+        "description": "每日淨資產：投資、其他資產與負債"
+      },
+      "portfolio-history": {
+        "name": "投資組合歷史",
+        "description": "每個帳戶的每日價值"
+      },
+      "budgets": {
+        "name": "預算",
+        "description": "每個期間的金額與結轉設定"
+      },
+      "budget-actuals": {
+        "name": "預算與實際比較",
+        "description": "每個類別逐月的已預算、已花費與剩餘金額"
+      },
+      "budget-groups": {
+        "name": "預算分組",
+        "description": "分組及其中的類別"
+      },
+      "spending-rules": {
+        "name": "分類規則",
+        "description": "自動為交易分類的規則"
+      },
+      "spending-events": {
+        "name": "事件",
+        "description": "旅行和其他事件，以及每個事件的花費"
+      },
+      "goals": {
+        "name": "目標",
+        "description": "計畫設定、連結的帳戶與進度"
+      },
+      "contribution-limits": {
+        "name": "投入上限",
+        "description": "上限及其適用的帳戶"
+      },
+      "portfolios": {
+        "name": "投資組合",
+        "description": "帳戶分組"
+      },
+      "categories": {
+        "name": "類別",
+        "description": "所有分類中的每個類別，包括支出"
+      },
+      "classifications": {
+        "name": "資產分類",
+        "description": "每項資產所屬的類別"
+      }
+    },
+    "rows_one": "{{count}} 列",
+    "rows_other": "{{count}} 列",
+    "daily": "每日數值",
+    "holdings_today": "目前持有部位",
+    "holdings_on": "截至 {{date}}",
+    "none_yet": "尚無資料",
+    "download": "下載 {{name}}",
+    "downloading": "正在下載 {{name}}…",
+    "summary_error": "無法統計您的資料。您仍然可以匯出。",
+    "empty": "此資料集目前沒有可匯出的內容。",
+    "empty_all": "目前沒有可匯出的內容。"
+  },
   "backup_title": "本機備份",
   "backup_export_dialog_title": "匯出備份",
   "backup_export_protected": "設定密碼（建議）",
@@ -373,9 +498,6 @@
   "about_db_path": "資料庫路徑",
   "about_copy_db_path": "複製資料庫路徑",
   "about_copy_logs_dir": "複製記錄目錄",
-  "export_type_holdings_description": "目前持有部位，包含估值、績效、配置與金融工具資料",
-  "export_exporting_item": "正在匯出 {{name}}……",
-  "export_export_item": "匯出 {{name}}",
   "backup_unknown_date": "未知日期",
   "backup_creating_short": "正在儲存備份…",
   "backup_empty_title": "尚無備份",
@@ -1581,15 +1703,6 @@
       "updatingFailed": "更新匯率時發生錯誤：{{error}}",
       "addingFailed": "新增匯率時發生錯誤：{{error}}",
       "deletingFailed": "刪除匯率時發生錯誤：{{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "目前沒有可匯出的帳戶。",
-        "activities": "目前沒有可匯出的交易紀錄。",
-        "holdings": "目前沒有可匯出的持倉。",
-        "goals": "目前沒有可匯出的目標。",
-        "portfolio-history": "目前沒有可匯出的投資組合歷史紀錄。"
-      }
     },
     "providerUpdateFailed": "無法更新資料來源 {{provider}} 的設定",
     "httpFailed": "HTTP 請求失敗。",

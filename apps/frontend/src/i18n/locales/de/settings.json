@@ -166,17 +166,142 @@
   "export_title": "Datenexport",
   "export_description": "Bewahren Sie eine Sicherung Ihres Portfolios auf oder exportieren Sie Ihre Daten zur weiteren Verwendung.",
   "export_tab_backup": "Sicherungen",
-  "export_section_description": "Exportieren Sie bestimmte Datentypen in verschiedenen Formaten für Analyse oder externe Nutzung.",
-  "export_format_title": "Wählen Sie Ihr bevorzugtes Format",
-  "export_format_csv_description": "Einfaches, breit kompatibles Tabellenformat",
-  "export_format_json_description": "Strukturierte Daten für einfachen programmatischen Zugriff",
-  "export_customize_title": "Export anpassen",
-  "export_type_accounts_description": "Ihre Finanzkonten",
-  "export_type_activities": "Aktivitäten",
-  "export_type_activities_description": "Detaillierte Transaktionshistorie und Protokolle",
-  "export_type_goals_description": "Finanzielle Ziele und Fortschrittsverfolgung",
-  "export_type_portfolio_history": "Portfolioverlauf",
-  "export_type_portfolio_history_description": "Die Entwicklung Ihres Portfolios über die Zeit, einschließlich Bewertungen, Gewinnen und Cashflow-Aktivitäten.",
+  "data_export": {
+    "intro": "Lesbare Dateien für Tabellenkalkulationen und andere Apps. Sie lassen sich nicht in Wealthfolio wiederherstellen: Verwenden Sie für einen Gerätewechsel eine Sicherung.",
+    "all_title": "Alle Ihre Daten exportieren",
+    "all_description_csv": "Eine ZIP-Datei mit einer CSV-Datei pro Datensatz und einer README, die sie erklärt.",
+    "all_description_json": "Eine JSON-Datei mit jedem Datensatz als eigenem Abschnitt.",
+    "all_info": "Prognosen für Ziele und Tilgungspläne sind nicht enthalten, da sie sich täglich ändern. Exportieren Sie sie beim jeweiligen Ziel oder Kredit.",
+    "all_info_label": "Über Datenexporte",
+    "all_button": "Alles exportieren",
+    "all_pending": "Wird exportiert…",
+    "format_label": "Dateiformat",
+    "include_archived": "Archivierte Konten einbeziehen",
+    "include_archived_help": "Fügt archivierte Konten mit ihren Aktivitäten, Losen und Kreditzahlungen hinzu.",
+    "dates_title": "Zeitraum",
+    "start_date": "Von",
+    "end_date": "Bis",
+    "dates_help": "Begrenzt Aktivitäten, Verkäufe, Preise, Bewertungen und Verläufe. Leer lassen, um den gesamten Zeitraum zu exportieren.",
+    "as_of_date": "Bestände am",
+    "as_of_help": "Leer lassen für die heutigen Bestände.",
+    "date_order_error": "Das Startdatum liegt nach dem Enddatum.",
+    "clear_dates": "Zeitraum zurücksetzen",
+    "datasets_title": "Wählen Sie aus, was Sie exportieren möchten",
+    "datasets_description": "Laden Sie jeweils einen Datensatz herunter.",
+    "groups": {
+      "accounts": "Konten und Aktivitäten",
+      "investments": "Investitionen",
+      "net-worth": "Nettovermögen",
+      "spending": "Ausgaben und Budgets",
+      "planning": "Planung",
+      "organization": "Organisation"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Konten",
+        "description": "Ihre Konten mit aktuellem Saldo, archivierte sind gekennzeichnet"
+      },
+      "activities": {
+        "name": "Aktivitäten",
+        "description": "Jede Transaktion mit Barbestand und Ausgabenkategorie"
+      },
+      "holdings": {
+        "name": "Bestände",
+        "description": "Positionen mit Wert, Kosten und Gewinnen"
+      },
+      "lots": {
+        "name": "Lose",
+        "description": "Offene und geschlossene Lose mit ihren Anschaffungskosten"
+      },
+      "realized-gains": {
+        "name": "Realisierte Gewinne",
+        "description": "Jeder Verkauf mit den Losen, die er geschlossen hat"
+      },
+      "manual-prices": {
+        "name": "Manuelle Preise",
+        "description": "Preise, die Sie für selbst bewertete Vermögenswerte eingegeben haben"
+      },
+      "income": {
+        "name": "Einkommen",
+        "description": "Dividenden und Zinsen pro Monat für jedes Konto"
+      },
+      "income-by-source": {
+        "name": "Einkommen nach Quelle",
+        "description": "Einkommen aus jeder Position, insgesamt und pro Jahr"
+      },
+      "assets-and-liabilities": {
+        "name": "Vermögenswerte und Verbindlichkeiten",
+        "description": "Immobilien, Fahrzeuge, Wertgegenstände und Kredite mit ihren Kreditkonditionen"
+      },
+      "asset-valuations": {
+        "name": "Bewertungen",
+        "description": "Jeder Wert, den Sie für diese Vermögenswerte und Verbindlichkeiten erfasst haben"
+      },
+      "loan-payments": {
+        "name": "Kreditzahlungen",
+        "description": "Zahlungen, die mit dem jeweiligen Kredit verknüpft sind"
+      },
+      "net-worth-history": {
+        "name": "Verlauf des Nettovermögens",
+        "description": "Tägliches Nettovermögen: Investitionen, sonstige Vermögenswerte und Verbindlichkeiten"
+      },
+      "portfolio-history": {
+        "name": "Portfolioverlauf",
+        "description": "Täglicher Wert jedes Kontos"
+      },
+      "budgets": {
+        "name": "Budgets",
+        "description": "Beträge pro Zeitraum mit Übertragseinstellungen"
+      },
+      "budget-actuals": {
+        "name": "Budget vs. Ist",
+        "description": "Budgetiert, ausgegeben und verbleibend pro Kategorie, Monat für Monat"
+      },
+      "budget-groups": {
+        "name": "Budgetgruppen",
+        "description": "Gruppen und die Kategorien darin"
+      },
+      "spending-rules": {
+        "name": "Kategorisierungsregeln",
+        "description": "Regeln, die Transaktionen automatisch kategorisieren"
+      },
+      "spending-events": {
+        "name": "Ereignisse",
+        "description": "Reisen und andere Ereignisse mit den jeweiligen Ausgaben"
+      },
+      "goals": {
+        "name": "Ziele",
+        "description": "Planeinstellungen, verknüpfte Konten und Fortschritt"
+      },
+      "contribution-limits": {
+        "name": "Einzahlungsgrenzen",
+        "description": "Grenzen und die Konten, für die sie gelten"
+      },
+      "portfolios": {
+        "name": "Portfolios",
+        "description": "Gruppen von Konten"
+      },
+      "categories": {
+        "name": "Kategorien",
+        "description": "Alle Kategorien aller Klassifizierungen, einschließlich Ausgaben"
+      },
+      "classifications": {
+        "name": "Klassifizierungen der Vermögenswerte",
+        "description": "Zu welcher Kategorie jeder Vermögenswert gehört"
+      }
+    },
+    "rows_one": "{{count}} Zeile",
+    "rows_other": "{{count}} Zeilen",
+    "daily": "Tageswerte",
+    "holdings_today": "Aktuelle Bestände",
+    "holdings_on": "Am {{date}}",
+    "none_yet": "Noch keine",
+    "download": "{{name}} herunterladen",
+    "downloading": "{{name}} wird heruntergeladen…",
+    "summary_error": "Ihre Daten konnten nicht gezählt werden. Sie können sie trotzdem exportieren.",
+    "empty": "In diesem Datensatz gibt es noch nichts zu exportieren.",
+    "empty_all": "Es gibt noch nichts zu exportieren."
+  },
   "backup_title": "Lokale Backups",
   "backup_export_dialog_title": "Sicherung exportieren",
   "backup_export_protected": "Mit Passwort (empfohlen)",
@@ -339,9 +464,6 @@
   "about_copy_logs_dir": "Log-Verzeichnis kopieren",
   "about_github_button": "GitHub",
   "about_version": "Version {{version}}",
-  "export_type_holdings_description": "Aktuelle Bestände mit Bewertung, Wertentwicklung, Allokation und Instrumentendaten",
-  "export_exporting_item": "{{name}} wird exportiert...",
-  "export_export_item": "{{name}} exportieren",
   "backup_unknown_date": "Unbekanntes Datum",
   "backup_creating_short": "Sicherung wird gespeichert…",
   "backup_empty_title": "Noch keine Sicherungen",
@@ -1581,15 +1703,6 @@
       "updatingFailed": "Problem beim Aktualisieren des Wechselkurses: {{error}}",
       "addingFailed": "Problem beim Hinzufügen des Wechselkurses: {{error}}",
       "deletingFailed": "Problem beim Löschen des Wechselkurses: {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "Derzeit sind keine Konten zum Exportieren verfügbar.",
-        "activities": "Derzeit sind keine Transaktionen zum Exportieren verfügbar.",
-        "holdings": "Derzeit sind keine Bestände zum Exportieren verfügbar.",
-        "goals": "Derzeit sind keine Ziele zum Exportieren verfügbar.",
-        "portfolio-history": "Derzeit ist kein Portfolioverlauf zum Exportieren verfügbar."
-      }
     },
     "providerUpdateFailed": "Einstellungen für Anbieter {{provider}} konnten nicht aktualisiert werden",
     "httpFailed": "HTTP-Anfrage fehlgeschlagen.",
