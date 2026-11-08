@@ -597,8 +597,10 @@ activities, quantities or cost basis. Each row names an asset by `assetId`
 (tickers are never resolved; `get_asset_taxonomy_assignments`, under
 `classification:read`, finds an id), a `date` (`YYYY-MM-DD`, not in the future),
 a `price` in the asset's quote currency, that `currency`, and an optional
-`overwrite` flag. Only investment assets are accepted: FX rates, alternative
-assets and liabilities keep their own valuation paths.
+`overwrite` flag. Investment assets are accepted, and so are manually priced
+alternative assets and liabilities, whose values are stored as manual quotes
+(a gold coin's price, a house's value, a mortgage balance). FX rates and
+market-priced alternative assets keep their own paths.
 
 `prepare_quote_import` (`QuoteServiceTrait::preview_quote_import`) reports per
 row the asset, the quote valuations use for that day (a manual quote before a
@@ -607,7 +609,8 @@ a provider or broker quote with the same price and currency, which is saved as a
 manual quote so a later refetch cannot change the day), `skip` (a manual quote
 with the same price and currency is stored), `update` (a different price is
 stored and the row sets `overwrite`), `conflict` (a different price without
-`overwrite`) or `invalid` (unknown or non-investment asset, bad or future date,
+`overwrite`) or `invalid` (unknown asset, an FX or market-priced alternative
+asset, bad or future date,
 non-positive price, a currency other than the asset's quote currency, or a
 second row for the same asset and date).
 
