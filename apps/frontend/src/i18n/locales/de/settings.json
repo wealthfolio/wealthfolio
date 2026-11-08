@@ -1122,6 +1122,7 @@
   "fx_err_rate_negative": "Der Kurs muss eine nicht-negative Zahl sein.",
   "fx_err_source_required": "Datenquelle ist erforderlich",
   "fx_err_rate_invalid": "Bitte geben Sie einen gültigen Wechselkurs ein.",
+  "fx_err_quote_unit": "{{code}} ist eine Untereinheit von {{major}}. Geben Sie stattdessen den Kurs für {{major}} ein.",
   "fx_from_currency": "Ausgangswährung",
   "fx_to_currency": "Zielwährung",
   "fx_select_currency": "Währung auswählen",

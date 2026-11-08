@@ -1122,6 +1122,7 @@
   "fx_err_rate_negative": "匯率必須為非負數。",
   "fx_err_source_required": "資料來源為必填欄位",
   "fx_err_rate_invalid": "請輸入有效的匯率。",
+  "fx_err_quote_unit": "{{code}} 是 {{major}} 的輔幣單位。請改為輸入 {{major}} 的匯率。",
   "fx_from_currency": "來源幣別",
   "fx_to_currency": "目標幣別",
   "fx_select_currency": "選取幣別",

@@ -1105,6 +1105,7 @@
   "fx_err_rate_negative": "환율은 음수가 아니어야 합니다.",
   "fx_err_source_required": "데이터 소스는 필수입니다",
   "fx_err_rate_invalid": "유효한 환율을 입력하세요.",
+  "fx_err_quote_unit": "{{code}}는 {{major}}의 보조 단위입니다. 대신 {{major}} 환율을 입력하세요.",
   "fx_from_currency": "출발 통화",
   "fx_to_currency": "도착 통화",
   "fx_select_currency": "통화 선택",

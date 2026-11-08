@@ -1105,6 +1105,7 @@
   "fx_err_rate_negative": "レートは0以上の数で入力してください。",
   "fx_err_source_required": "データソースは必須です",
   "fx_err_rate_invalid": "有効な為替レートを入力してください。",
+  "fx_err_quote_unit": "{{code}} は {{major}} の補助単位です。代わりに {{major}} のレートを入力してください。",
   "fx_from_currency": "変換元の通貨",
   "fx_to_currency": "変換先の通貨",
   "fx_select_currency": "通貨を選択",

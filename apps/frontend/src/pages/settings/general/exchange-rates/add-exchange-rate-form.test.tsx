@@ -222,3 +222,35 @@ it.each([
     code,
   );
 });
+
+// Conversions look quote units up through their major currency's pair, so a
+// manual GBp or ZAC rate would be saved but never used directly (#2460).
+it.each([
+  ["fromCurrency", "GBp", "GBP"],
+  ["fromCurrency", "zac", "ZAR"],
+  ["toCurrency", "GBX", "GBP"],
+] as const)("rejects the quote unit in %s for search %j", async (field, query, major) => {
+  const { onSubmit, user } = await exchangeForm();
+  const other = field === "fromCurrency" ? "toCurrency" : "fromCurrency";
+  const name = (path: "fromCurrency" | "toCurrency") =>
+    path === "fromCurrency" ? zhSettings.fx_from_currency : zhSettings.fx_to_currency;
+  await user.click(screen.getByRole("combobox", { name: name(field) }));
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: query },
+  });
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("combobox", { name: name(other) }));
+  await user.click(await screen.findByRole("option", { name: "美元 (USD)" }));
+  await user.keyboard("{Escape}");
+  fireEvent.change(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), {
+    target: { value: "0.0125" },
+  });
+  await user.click(screen.getByRole("button", { name: zhSettings.fx_add_title }));
+  const code = screen.getByRole("combobox", { name: name(field) }).textContent;
+  expect(
+    await screen.findByText(
+      zhSettings.fx_err_quote_unit.replace("{{code}}", code ?? "").replaceAll("{{major}}", major),
+    ),
+  ).toBeInTheDocument();
+  expect(onSubmit).not.toHaveBeenCalled();
+});

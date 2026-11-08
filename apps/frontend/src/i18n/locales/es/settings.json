@@ -1160,6 +1160,7 @@
   "fx_err_rate_negative": "El tipo debe ser un número no negativo.",
   "fx_err_source_required": "La fuente de datos es obligatoria",
   "fx_err_rate_invalid": "Introduce un tipo de cambio válido.",
+  "fx_err_quote_unit": "{{code}} es una subunidad de {{major}}. Introduce el tipo de {{major}} en su lugar.",
   "fx_from_currency": "Divisa de origen",
   "fx_to_currency": "Divisa de destino",
   "fx_select_currency": "Seleccionar divisa",

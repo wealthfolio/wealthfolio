@@ -5,7 +5,7 @@ use super::fx_traits::{FxRepositoryTrait, FxServiceTrait};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    denormalization_multiplier, is_crypto_currency, normalize_currency_code,
+    denormalization_multiplier, get_normalization_rule, is_crypto_currency, normalize_currency_code,
 };
 use crate::quotes::constants::{DATA_SOURCE_MANUAL, DATA_SOURCE_YAHOO};
 use async_trait::async_trait;
@@ -187,6 +187,21 @@ impl FxServiceTrait for FxService {
     }
 
     async fn add_exchange_rate(&self, new_rate: NewExchangeRate) -> Result<ExchangeRate> {
+        // Conversions look up quote units (GBp, ZAc, ...) through their major
+        // currency's pair, so a pair saved in a quote unit is never used as a
+        // direct rate (#2460).
+        for code in [&new_rate.from_currency, &new_rate.to_currency] {
+            if let Some(rule) = get_normalization_rule(code) {
+                return Err(FxError::InvalidCurrencyCode(format!(
+                    "{} is a quote unit of {}; enter the {} rate instead",
+                    code.trim(),
+                    rule.major_code,
+                    rule.major_code
+                ))
+                .into());
+            }
+        }
+
         // Create/get the FX asset — returns the asset UUID
         let asset_id = self
             .repository
@@ -468,6 +483,7 @@ impl FxServiceTrait for FxService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::Error;
     use crate::fx::fx_model::ExchangeRateDateQuery;
     use crate::quotes::Quote;
     use chrono::NaiveDateTime;
@@ -640,6 +656,80 @@ mod tests {
         let saved = repo.saved_rates.lock().unwrap();
         assert_eq!(saved.len(), 1, "manual rate should be persisted as a quote");
         assert_eq!(saved[0].rate, Decimal::new(11, 1));
+    }
+
+    /// Conversions look quote units up through their major currency's pair,
+    /// so a GBX/USD pair saved here could never be used as a direct rate (#2460).
+    #[tokio::test]
+    async fn add_exchange_rate_rejects_quote_units_without_registering_a_pair() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        for (from, to, major) in [
+            ("GBX", "USD", "GBP"),
+            (" gbx ", "USD", "GBP"),
+            ("GBp", "USD", "GBP"),
+            ("zac", "USD", "ZAR"),
+            ("ZAC", "USD", "ZAR"),
+            ("ILA", "USD", "ILS"),
+            ("ila", "USD", "ILS"),
+            ("KWF", "USD", "KWD"),
+            ("kwf", "USD", "KWD"),
+            ("USX", "USD", "USD"),
+            ("uSx", "USD", "USD"),
+            ("EUR", "GBp", "GBP"),
+        ] {
+            let err = service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::new(125, 4),
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .expect_err("a quote-unit pair should be rejected");
+            assert!(
+                matches!(&err, Error::Fx(FxError::InvalidCurrencyCode(msg)) if msg.contains(major)),
+                "{from}/{to}: {err}"
+            );
+
+            let err = service
+                .update_exchange_rate(from, to, Decimal::new(125, 4))
+                .await
+                .expect_err("editing a quote-unit pair should be rejected");
+            assert!(matches!(err, Error::Fx(FxError::InvalidCurrencyCode(_))));
+        }
+
+        assert!(repo.created_pairs.lock().unwrap().is_empty());
+        assert!(repo.saved_rates.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn add_exchange_rate_preserves_major_currency_casing() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+        for (from, to) in [
+            ("GBP", "USD"),
+            ("gbp", "USD"),
+            ("USD", "GBP"),
+            ("USD", "gbp"),
+        ] {
+            service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::ONE,
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .unwrap();
+            service
+                .update_exchange_rate(from, to, Decimal::ONE)
+                .await
+                .unwrap();
+        }
+        assert_eq!(repo.created_pairs.lock().unwrap().len(), 8);
+        assert_eq!(repo.saved_rates.lock().unwrap().len(), 8);
     }
 
     /// The converter is consulted before the repository on every dated lookup,
