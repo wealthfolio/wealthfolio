@@ -23,6 +23,17 @@ afterEach(async () => {
 });
 
 describe("public backend errors", () => {
+  it.each([
+    "Profile operations are running. Wait for them to finish and try again.",
+    "Connect account change is in progress. Try again.",
+    `PROFILE_BUSY: ${privateMessage}`,
+    { errorCode: "PROFILE_BUSY", message: privateMessage },
+  ])("keeps reviewed profile busy guidance without diagnostic text (%s)", (cause) => {
+    const error = backendError(cause);
+    expect(error?.errorCode).toBe("PROFILE_BUSY");
+    expect(error?.message).toBe(en.profiles.errors.busy);
+    expect(String(error)).not.toContain("FAKE-KEY");
+  });
   it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(
     "preserves reviewed backup codes without private suffixes (%s)",
     (code) => {
