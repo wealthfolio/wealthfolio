@@ -224,9 +224,21 @@ export function NetWorthContent() {
   return (
     <div className="flex min-h-full flex-col">
       {/* Top section: Net Worth value */}
-      <div className="px-4 pt-2 pb-1 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex items-start gap-2">
-          <div>
+          <div className="min-w-0">
+            <div
+              className="flex max-w-full flex-wrap items-center gap-x-1"
+              data-testid="dashboard-period-header"
+            >
+              <div
+                className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase"
+                data-testid="dashboard-period-caption"
+              >
+                {t("dashboard:tabs.net_worth")} · {localizedPeriodLabel}
+              </div>
+              <PeriodNavigation navigation={period.navigation} />
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {period.isHistorical && (
                 <span className="text-muted-foreground w-full text-xs">
@@ -244,7 +256,7 @@ export function NetWorthContent() {
               <PrivacyToggle variant="ghost" />
               <HealthStatusIndicator />
             </div>
-            <div className="text-md flex flex-wrap items-center gap-x-3">
+            <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
               {isHistoryLoading ? (
                 <div className="flex items-center gap-3 pt-1">
                   <Skeleton className="h-4 w-24" />
@@ -283,13 +295,13 @@ export function NetWorthContent() {
                   )}
                 </>
               )}
-              <PeriodNavigation navigation={period.navigation}>
-                {period.isHistorical
-                  ? t("insights:networth.breakdown_table.change_over", {
-                      period: localizedPeriodLabel,
-                    })
-                  : localizedPeriodLabel}
-              </PeriodNavigation>
+              {period.isHistorical && (
+                <span className="text-muted-foreground text-sm font-light">
+                  {t("insights:networth.breakdown_table.change_over", {
+                    period: localizedPeriodLabel,
+                  })}
+                </span>
+              )}
             </div>
           </div>
         </div>

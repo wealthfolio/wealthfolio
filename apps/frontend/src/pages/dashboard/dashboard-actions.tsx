@@ -25,6 +25,8 @@ interface DashboardActionsProps {
   spendingEnabled?: boolean;
   onAddAsset?: () => void;
   onAddLiability?: () => void;
+  compareEnabled?: boolean;
+  onCompareToggle?: () => void;
 }
 
 export function DashboardActions({
@@ -32,6 +34,8 @@ export function DashboardActions({
   onAddLiability,
   view = onAddAsset && onAddLiability ? "net-worth" : "investments",
   spendingEnabled = false,
+  compareEnabled = false,
+  onCompareToggle,
 }: DashboardActionsProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -85,6 +89,16 @@ export function DashboardActions({
     return [
       {
         items: [
+          ...(view === "spending" && onCompareToggle
+            ? [
+                {
+                  icon: Icons.BarChart,
+                  label: t("spending:tabContent.comparePriorPeriod"),
+                  checked: compareEnabled,
+                  onClick: onCompareToggle,
+                },
+              ]
+            : []),
           ...primaryActions,
           ...(spendingEnabled
             ? [
@@ -175,6 +189,8 @@ export function DashboardActions({
     view,
     onAddAsset,
     onAddLiability,
+    compareEnabled,
+    onCompareToggle,
     showSyncAction,
     showDeviceSyncAction,
     syncBrokerData,

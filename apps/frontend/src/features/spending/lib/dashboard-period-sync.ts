@@ -57,8 +57,8 @@ export type SpendingPeriodView =
       presetWindow?: PresetWindow;
     };
 
-// Presets both selectors offer with the same rolling range.
-const SHARED_PRESETS: ReadonlySet<string> = new Set(["3M", "6M", "YTD", "1Y"]);
+// Presets both selectors offer.
+const SHARED_PRESETS: ReadonlySet<string> = new Set(["1W", "3M", "6M", "YTD", "1Y"]);
 // Presets a picked range can match; ALL has no fixed start a user would pick.
 const RANGE_PRESETS: TimePeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
 
@@ -68,6 +68,9 @@ export function portfolioPeriodRange(code: TimePeriod, todayISO: string): DateRa
 
 export function spendingPeriodRange(code: ReportsPeriod, todayISO: string): SpendingDateRange {
   const today = localDateParts(parseLocalDate(todayISO));
+  if (code === "1W") {
+    return { from: localDateFromParts(addCalendarDays(today, -6)), to: localDateFromParts(today) };
+  }
   if (code === "LAST_MONTH") {
     const month = addMonthsToMonthKey(todayISO.slice(0, 7), -1);
     const range = monthRange(month);
@@ -116,6 +119,12 @@ function presetWindowRange(window: PresetWindow): SpendingDateRange | null {
     return { from: localDateFromParts(start), to: localDateFromParts(end) };
   }
   if (window.alignment !== undefined) return null;
+  if (window.preset.kind === "spending" && code === "1W") {
+    const end = addCalendarDays(date, window.offset * 7);
+    const start = addCalendarDays(end, -6);
+    if (!Number.isFinite(start.year) || start.year < MIN_CALENDAR_YEAR) return null;
+    return { from: localDateFromParts(start), to: localDateFromParts(end) };
+  }
   const asOf =
     code === "1D" || code === "1W"
       ? addCalendarDays(date, window.offset * (code === "1W" ? 7 : 1))

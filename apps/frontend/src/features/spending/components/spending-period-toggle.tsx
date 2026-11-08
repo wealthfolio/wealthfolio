@@ -1,6 +1,6 @@
 /**
  * Canonical period toggle for spending surfaces that need named comparison
- * periods (This month / 3M / 6M / YTD / 1Y). Used by the Insights page
+ * periods (1W / This month / 3M / 6M / YTD / 1Y). Used by the Insights page
  * and any future page that compares period-over-period totals.
  *
  * Why this exists: prior to this primitive each surface inlined its own
@@ -29,6 +29,7 @@ function useSpendingPeriodLabels(): Record<ReportsPeriod, ReactNode> {
   const { t } = useTranslation();
   return useMemo(
     () => ({
+      "1W": "1W",
       MTD: (
         <>
           <span className="hidden sm:inline">{t("spending:period.thisMonth")}</span>

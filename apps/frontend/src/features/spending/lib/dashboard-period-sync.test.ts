@@ -30,6 +30,17 @@ function spending(pick: DashboardPeriodPick) {
 }
 
 describe("dashboard period sync", () => {
+  it("navigates spending weeks without overlapping days and restores the live preset", () => {
+    const original: DashboardPeriodPick = { kind: "spending", code: "1W" };
+    expect(isoRange(spendingPeriodRange("1W", "2026-03-10"))).toEqual(["2026-03-04", "2026-03-10"]);
+    const prior = stepDashboardPeriod(original, -1, "2026-03-10")!;
+    expect(prior).toMatchObject({ from: "2026-02-25", to: "2026-03-03" });
+    const older = stepDashboardPeriod(prior, -1, "2026-03-10")!;
+    expect(older).toMatchObject({ from: "2026-02-18", to: "2026-02-24" });
+    expect(stepDashboardPeriod(older, 1, "2026-03-10")).toEqual(prior);
+    expect(stepDashboardPeriod(prior, 1, "2026-03-11")).toEqual(original);
+    expect(stepDashboardPeriod(original, 1, "2026-03-10")).toBeNull();
+  });
   it.each([
     ["3M", "2026-04-01", "2026-06-30"],
     ["6M", "2025-10-01", "2026-03-31"],
@@ -225,8 +236,8 @@ describe("dashboard period sync", () => {
       range: ["2026-03-30", "2026-03-31"],
     });
     expect(spending({ kind: "portfolio", code: "1W" })).toEqual({
-      kind: "range",
-      range: ["2026-03-24", "2026-03-31"],
+      kind: "period",
+      code: "1W",
     });
     // Month-end clamps the same way the portfolio chart does.
     expect(spending({ kind: "portfolio", code: "1M" })).toEqual({

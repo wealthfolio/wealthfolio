@@ -593,6 +593,7 @@ export default function SpendingInsightsPage({
         : t(
             `spending:tabContent.${
               {
+                "1W": "interval1W",
                 MTD: "intervalMtd",
                 LAST_MONTH: "intervalLastMonth",
                 "3M": "interval3M",
@@ -613,24 +614,6 @@ export default function SpendingInsightsPage({
             : (rangePreset ?? rangePick(customRange))
           : { kind: "spending", code: period };
   const periodNavigation = {
-    step:
-      customYear !== null
-        ? ("year" as const)
-        : customMonth
-          ? ("month" as const)
-          : customRange
-            ? (rangePreset?.code ?? null)
-            : period,
-    onReset:
-      customMonth ||
-      customYear !== null ||
-      presetWindow ||
-      (navigationPick.kind === "spending" && navigationPick.code === "LAST_MONTH")
-        ? () => {
-            if (presetWindow) selectCustomRange(undefined);
-            else selectPeriod(customYear !== null ? "YTD" : "MTD");
-          }
-        : undefined,
     label: periodDescription,
     previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO, "calendar"),
     nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO, "calendar"),
@@ -712,17 +695,16 @@ export default function SpendingInsightsPage({
           className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
           data-testid="spending-period-header"
         >
-          <PeriodNavigation navigation={periodNavigation}>
-            <p
-              data-testid={
-                customRange || customMonth || customYear !== null
-                  ? "spending-selected-range"
-                  : undefined
-              }
-            >
-              {periodDescription}
-            </p>
-          </PeriodNavigation>
+          <p
+            data-testid={
+              customRange || customMonth || customYear !== null
+                ? "spending-selected-range"
+                : undefined
+            }
+          >
+            {periodDescription}
+          </p>
+          <PeriodNavigation navigation={periodNavigation} />
         </div>
         <StageNav stage={stage} onStageChange={setStageAndUrl} />
 
@@ -860,7 +842,7 @@ export default function SpendingInsightsPage({
 /** Shift the events window back by `offset` periods. Calendar-aligned for the
  *  month-based periods; YTD pages back by a full year so each click lands on
  *  the prior year's window. */
-const MONTHS_PER_PERIOD: Record<ReportsPeriod, number> = {
+const MONTHS_PER_PERIOD: Record<Exclude<ReportsPeriod, "1W">, number> = {
   MTD: 1,
   LAST_MONTH: 1,
   "3M": 3,
@@ -877,7 +859,7 @@ function shiftRangeBack(
   customRange = false,
 ): ReportsRange {
   if (offset === 0) return range;
-  if (customRange) {
+  if (customRange || period === "1W") {
     const start = addCalendarDays(getZonedDateParts(range.start, timezone), -range.days * offset);
     const end = addCalendarDays(getZonedDateParts(range.end, timezone), -range.days * offset);
     return {
