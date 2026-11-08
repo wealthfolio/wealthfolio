@@ -1007,6 +1007,8 @@ async fn initialize_profile_state(
     // AI chat repository for thread/message persistence
     let ai_chat_repository = Arc::new(AiChatRepository::new(pool.clone(), writer.clone()));
 
+    let event_bus = EventBus::new(256);
+
     // Create the AI environment and chat service using the new wealthfolio-ai crate
     let ai_environment = Arc::new(ServerAiEnvironment::new(
         base_currency.clone(),
@@ -1039,6 +1041,8 @@ async fn initialize_profile_state(
         snapshot_service.clone(),
         lots_repository.clone(),
         custom_provider_service.clone(),
+        portfolio_coordinator.clone(),
+        event_bus.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();
@@ -1059,7 +1063,6 @@ async fn initialize_profile_state(
         app_version,
     ));
 
-    let event_bus = EventBus::new(256);
     let device_sync_runtime = Arc::new(DeviceSyncRuntimeState::new());
     let broker_sync_running = Arc::new(AtomicBool::new(false));
     let token_lifecycle = Arc::new(TokenLifecycleState::new());

@@ -19,15 +19,21 @@ use wealthfolio_core::{
     limits::ContributionLimitServiceTrait,
     lots::LotRepositoryTrait,
     performance::PerformanceServiceTrait,
-    portfolio::{net_worth::NetWorthServiceTrait, snapshot::SnapshotServiceTrait},
+    portfolio::{
+        coordinator::PortfolioCoordinator, net_worth::NetWorthServiceTrait,
+        snapshot::SnapshotServiceTrait,
+    },
     portfolios::PortfolioServiceTrait,
-    quotes::QuoteServiceTrait,
+    quotes::{MarketSyncMode, QuoteServiceTrait},
     secrets::SecretStore,
     settings::SettingsServiceTrait,
     taxonomies::TaxonomyServiceTrait,
     valuation::ValuationServiceTrait,
 };
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
+
+use crate::api::shared::{spawn_portfolio_job, PortfolioJobConfig, ServerJobObserver};
+use crate::events::EventBus;
 use wealthfolio_spending::cash_activities::{CashActivityService, CashActivityServiceTrait};
 use wealthfolio_spending::categorization_rules::{
     CategorizationRulesService, CategorizationRulesServiceTrait,
@@ -69,6 +75,9 @@ pub struct ServerAiEnvironment {
     snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
     custom_provider_service: Arc<CustomProviderService>,
+    // Starts the portfolio jobs agents request.
+    portfolio_coordinator: Arc<PortfolioCoordinator>,
+    event_bus: EventBus,
 }
 
 impl ServerAiEnvironment {
@@ -105,6 +114,8 @@ impl ServerAiEnvironment {
         snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
         lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
         custom_provider_service: Arc<CustomProviderService>,
+        portfolio_coordinator: Arc<PortfolioCoordinator>,
+        event_bus: EventBus,
     ) -> Self {
         Self {
             base_currency,
@@ -137,6 +148,8 @@ impl ServerAiEnvironment {
             snapshot_service,
             lot_repository,
             custom_provider_service,
+            portfolio_coordinator,
+            event_bus,
         }
     }
 }
@@ -240,6 +253,23 @@ impl AgentEnvironment for ServerAiEnvironment {
 
     fn custom_providers(&self) -> wealthfolio_core::Result<Vec<CustomProviderWithSources>> {
         self.custom_provider_service.get_all()
+    }
+
+    async fn request_portfolio_job(&self, mode: MarketSyncMode) -> wealthfolio_core::Result<()> {
+        spawn_portfolio_job(
+            self.portfolio_coordinator.clone(),
+            ServerJobObserver::with_parts(
+                self.event_bus.clone(),
+                self.health_service.clone(),
+                self.goal_service.clone(),
+            ),
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: mode,
+                force_full: false,
+            },
+        );
+        Ok(())
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

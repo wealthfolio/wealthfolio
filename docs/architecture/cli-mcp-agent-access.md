@@ -642,6 +642,7 @@ assistant has no confirmation card for quotes and does not get these tools.
 get_asset                          -- one asset's market-data setup and price state
 get_quote_history                  -- an asset's stored quotes over a date range
 get_market_data_providers          -- built-in and custom providers
+refresh_market_data                -- refresh prices or replace provider history
 ```
 
 These let an agent find why an asset's prices are missing or wrong. They read
@@ -671,6 +672,29 @@ message, and `get_market_data_providers` passes on the counts and generic
 messages `get_providers_info` returns. Custom providers report no error details,
 since their failures are recorded under the dispatch row. The in-app assistant
 does not get these tools.
+
+`refresh_market_data` (`market-data:write`, also `holdings:read`) has four
+modes. `latest`, `recent` (N days, default 30) and `history` (the app's "Refetch
+prices") map to `MarketSyncMode` `Incremental`, `RefetchRecent` and
+`BackfillHistory` and go through `AgentEnvironment::request_portfolio_job`,
+which each host implements with the path its price buttons use: Tauri calls
+`handle_portfolio_request`, Axum spawns the same coordinator job as
+`enqueue_portfolio_job`. The job's one-at-a-time lock, retries and recalculation
+are unchanged; the tool returns `queued` and the agent checks the result with
+`get_asset` or `get_health_status`. The default implementation reports that the
+environment cannot start jobs. Tauri builds the environment before its profile
+context exists, so the context sets a `OnceLock` binding (app handle and a weak
+context reference) when it is installed.
+
+`replace` (asset ids required, at most 10, MARKET quote mode only) calls
+`QuoteServiceTrait::reset_provider_history` for each asset during the call, in a
+spawned task so a dropped request still commits. The reset fetches the history
+from the asset's current provider and, in one transaction, replaces the provider
+rows; MANUAL and BROKER quotes stay, and a failed fetch deletes nothing. The
+quote service emits one `PriceHistoryChanged` per successful reset (and one per
+`reset_all_provider_history` that replaced anything); the hosts' reset commands
+no longer emit their own. Only enabled providers are used: the market data
+client is built from enabled providers, as before.
 
 ### MCP-only Activity Update Tools
 
@@ -917,7 +941,8 @@ spending:write           commit_categorization_rule, commit_transaction_categori
                          rerun_categorization_rules (also requires spending:read)
 budget:write             budget management (also requires spending:read;
                          independent of spending:write)
-market-data:write        prepare_quote_import, commit_quote_import
+market-data:write        prepare_quote_import, commit_quote_import,
+                         refresh_market_data
                          (each also requires holdings:read)
 accounts:write           prepare_account_change, commit_account_change
                          (each also requires accounts:read)

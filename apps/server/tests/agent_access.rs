@@ -557,8 +557,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        74,
-        "full-scope token must see all 74 tools: {names:?}"
+        75,
+        "full-scope token must see all 75 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -2362,6 +2362,68 @@ async fn mcp_reads_asset_market_data_without_provider_secrets() {
         list.iter().all(|p| p["id"] != "CUSTOM_SCRAPER"),
         "{providers}"
     );
+}
+
+/// `refresh_market_data` queues the app's sync job, refuses to replace the
+/// history of a manually priced asset, and keeps stored quotes when the
+/// replacement fetch fails (every provider is disabled here, so no request
+/// leaves the test).
+#[tokio::test]
+async fn mcp_refresh_queues_jobs_and_keeps_quotes_when_a_replace_fails() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_account, manual_id, pat, session) = fund_holding_session(&server, &cookie).await;
+    let market = api_post(
+        &server,
+        &cookie,
+        "assets",
+        serde_json::json!({
+            "kind": "INVESTMENT", "name": "Listed fund", "instrumentSymbol": "ZZLIST",
+            "instrumentType": "EQUITY", "quoteCcy": "EUR", "quoteMode": "MARKET"
+        }),
+    )
+    .await;
+    let market_id = market["id"].as_str().unwrap().to_string();
+    store_provider_quote(&server, &cookie, &market_id, "2026-09-30", 13.0).await;
+
+    let queued = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "refresh_market_data",
+        serde_json::json!({ "mode": "recent", "assetIds": [market_id], "days": 5 }),
+    )
+    .await;
+    assert_eq!(queued["status"], "queued", "{queued}");
+    assert_eq!(queued["days"], 5, "{queued}");
+
+    let refused = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "refresh_market_data",
+        serde_json::json!({ "mode": "replace", "assetIds": [manual_id] }),
+    )
+    .await;
+    assert!(refused.contains("manual quotes"), "{refused}");
+
+    let failed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "refresh_market_data",
+        serde_json::json!({ "mode": "replace", "assetIds": [market_id] }),
+    )
+    .await;
+    assert_eq!(failed["status"], "done", "{failed}");
+    assert_eq!(failed["recalculation"], "none", "{failed}");
+    assert_eq!(
+        failed["errors"][0]["assetId"],
+        market_id.as_str(),
+        "{failed}"
+    );
+    let kept = effective_quote(&server, &cookie, &market_id, "2026-09-30").await;
+    assert_eq!(kept["close"], 13.0, "{kept}");
 }
 
 /// The quote CSV import handlers no longer queue their own recalculation:
