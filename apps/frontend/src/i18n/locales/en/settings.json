@@ -182,17 +182,142 @@
   "export_title": "Data export",
   "export_description": "Keep a backup of your portfolio or export your data to use elsewhere.",
   "export_tab_backup": "Backups",
-  "export_section_description": "Export specific data types in various formats for analysis or external use.",
-  "export_format_title": "Choose your preferred format",
-  "export_format_csv_description": "Simple, widely compatible spreadsheet format",
-  "export_format_json_description": "Structured data for easy programmatic access",
-  "export_customize_title": "Customize your export",
-  "export_type_accounts_description": "Your financial accounts",
-  "export_type_activities": "Activities",
-  "export_type_activities_description": "Detailed transaction history and logs",
-  "export_type_goals_description": "Financial objectives and progress tracking",
-  "export_type_portfolio_history": "Portfolio history",
-  "export_type_portfolio_history_description": "Your portfolio's performance over time, including valuations, gains, and cash flow activities.",
+  "data_export": {
+    "intro": "Readable files for spreadsheets and other apps. They can't be restored into Wealthfolio: to move to another device, use a backup.",
+    "all_title": "Export all your data",
+    "all_description_csv": "One ZIP with a CSV file for each dataset and a README that explains them.",
+    "all_description_json": "One JSON file with every dataset as a section.",
+    "all_info": "Projections for goals and loan schedules aren't included, since they change every day. Export them from the goal or the loan.",
+    "all_info_label": "About data exports",
+    "all_button": "Export all",
+    "all_pending": "Exporting…",
+    "format_label": "File format",
+    "include_archived": "Include archived accounts",
+    "include_archived_help": "Adds archived accounts with their activities, tax lots and loan payments.",
+    "dates_title": "Dates",
+    "start_date": "From",
+    "end_date": "To",
+    "dates_help": "Limits activities, sales, prices, valuations and histories. Leave empty for all dates.",
+    "as_of_date": "Holdings on",
+    "as_of_help": "Leave empty for today's holdings.",
+    "date_order_error": "The start date is after the end date.",
+    "clear_dates": "Clear dates",
+    "datasets_title": "Choose what to export",
+    "datasets_description": "Download one dataset at a time.",
+    "groups": {
+      "accounts": "Accounts and activity",
+      "investments": "Investments",
+      "net-worth": "Net worth",
+      "spending": "Spending and budgets",
+      "planning": "Planning",
+      "organization": "Organization"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Accounts",
+        "description": "Your accounts with their latest balance, archived ones marked"
+      },
+      "activities": {
+        "name": "Activities",
+        "description": "Every transaction, with cash balance and spending category"
+      },
+      "holdings": {
+        "name": "Holdings",
+        "description": "Positions with value, cost and gains"
+      },
+      "lots": {
+        "name": "Tax lots",
+        "description": "Open and closed lots with their cost basis"
+      },
+      "realized-gains": {
+        "name": "Realized gains",
+        "description": "Each sale matched to the lots it closed"
+      },
+      "manual-prices": {
+        "name": "Manual prices",
+        "description": "Prices you entered for assets you price yourself"
+      },
+      "income": {
+        "name": "Income",
+        "description": "Dividends and interest per month, for each account"
+      },
+      "income-by-source": {
+        "name": "Income by source",
+        "description": "Income from each holding, all time and per year"
+      },
+      "assets-and-liabilities": {
+        "name": "Assets and liabilities",
+        "description": "Property, vehicles, valuables and loans, with loan terms"
+      },
+      "asset-valuations": {
+        "name": "Asset valuations",
+        "description": "Every value you recorded for those assets and liabilities"
+      },
+      "loan-payments": {
+        "name": "Loan payments",
+        "description": "Payments linked to each loan"
+      },
+      "net-worth-history": {
+        "name": "Net worth history",
+        "description": "Daily net worth: investments, other assets and liabilities"
+      },
+      "portfolio-history": {
+        "name": "Portfolio history",
+        "description": "Daily value of each account"
+      },
+      "budgets": {
+        "name": "Budgets",
+        "description": "Amounts for each period, with rollover settings"
+      },
+      "budget-actuals": {
+        "name": "Budget vs actual",
+        "description": "Budgeted, spent and remaining per category, month by month"
+      },
+      "budget-groups": {
+        "name": "Budget groups",
+        "description": "Groups and the categories in each"
+      },
+      "spending-rules": {
+        "name": "Categorization rules",
+        "description": "Rules that categorize transactions automatically"
+      },
+      "spending-events": {
+        "name": "Events",
+        "description": "Trips and other events, with what was spent on each"
+      },
+      "goals": {
+        "name": "Goals",
+        "description": "Plan settings, linked accounts and progress"
+      },
+      "contribution-limits": {
+        "name": "Contribution limits",
+        "description": "Limits and the accounts they cover"
+      },
+      "portfolios": {
+        "name": "Portfolios",
+        "description": "Groups of accounts"
+      },
+      "categories": {
+        "name": "Categories",
+        "description": "Every category of every classification, including spending"
+      },
+      "classifications": {
+        "name": "Asset classifications",
+        "description": "Which category each asset belongs to"
+      }
+    },
+    "rows_one": "{{count}} row",
+    "rows_other": "{{count}} rows",
+    "daily": "Daily values",
+    "holdings_today": "Current holdings",
+    "holdings_on": "On {{date}}",
+    "none_yet": "None yet",
+    "download": "Download {{name}}",
+    "downloading": "Downloading {{name}}…",
+    "summary_error": "Couldn't count your data. You can still export it.",
+    "empty": "There's nothing to export in this dataset yet.",
+    "empty_all": "There's nothing to export yet."
+  },
   "backup_title": "Local backups",
   "backup_restore_title": "Restore backup",
   "about_description": "Application information",
@@ -332,9 +457,6 @@
   "about_db_path": "Database path",
   "about_copy_db_path": "Copy database path",
   "about_copy_logs_dir": "Copy logs directory",
-  "export_type_holdings_description": "Current holdings with valuation, performance, allocation, and instrument data",
-  "export_exporting_item": "Exporting {{name}}...",
-  "export_export_item": "Export {{name}}",
   "backup_unknown_date": "Unknown date",
   "backup_creating_short": "Saving backup…",
   "backup_empty_title": "No backups yet",
@@ -1580,15 +1702,6 @@
       "updatingFailed": "There was a problem updating the exchange rate: {{error}}",
       "addingFailed": "There was a problem adding the exchange rate: {{error}}",
       "deletingFailed": "There was a problem deleting the exchange rate: {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "No accounts available to export right now.",
-        "activities": "No activities available to export right now.",
-        "holdings": "No holdings available to export right now.",
-        "goals": "No goals available to export right now.",
-        "portfolio-history": "No portfolio history records available to export right now."
-      }
     },
     "providerUpdateFailed": "Failed to update settings for provider {{provider}}",
     "httpFailed": "HTTP request failed.",

@@ -182,17 +182,142 @@
   "export_title": "데이터 내보내기",
   "export_description": "포트폴리오를 백업하거나 데이터를 내보내 다른 곳에서 사용하세요.",
   "export_tab_backup": "백업",
-  "export_section_description": "분석이나 외부 사용을 위해 특정 데이터 유형을 다양한 형식으로 내보냅니다.",
-  "export_format_title": "원하는 형식을 선택하세요",
-  "export_format_csv_description": "단순하고 호환성이 뛰어난 스프레드시트 형식",
-  "export_format_json_description": "프로그래밍 방식으로 쉽게 접근할 수 있는 구조화된 데이터",
-  "export_customize_title": "내보내기 사용자 지정",
-  "export_type_accounts_description": "금융 계좌 정보",
-  "export_type_activities": "거래 내역",
-  "export_type_activities_description": "상세 거래 내역 및 로그",
-  "export_type_goals_description": "재무 목표 및 진행 상황 추적",
-  "export_type_portfolio_history": "포트폴리오 기록",
-  "export_type_portfolio_history_description": "평가액, 손익, 현금흐름 활동을 포함한 포트폴리오의 시간별 성과.",
+  "data_export": {
+    "intro": "스프레드시트와 다른 앱에서 읽을 수 있는 파일입니다. Wealthfolio로 복원할 수는 없으니, 다른 기기로 옮기려면 백업을 사용하세요.",
+    "all_title": "모든 데이터 내보내기",
+    "all_description_csv": "데이터 세트별 CSV 파일과 이를 설명하는 README가 담긴 ZIP 파일 하나입니다.",
+    "all_description_json": "각 데이터 세트가 섹션으로 들어 있는 JSON 파일 하나입니다.",
+    "all_info": "목표 예측과 대출 상환 일정은 매일 바뀌므로 포함되지 않습니다. 해당 목표나 대출에서 내보내세요.",
+    "all_info_label": "데이터 내보내기 정보",
+    "all_button": "모두 내보내기",
+    "all_pending": "내보내는 중…",
+    "format_label": "파일 형식",
+    "include_archived": "보관된 계좌 포함",
+    "include_archived_help": "보관된 계좌를 해당 활동, 로트, 대출 상환 내역과 함께 추가합니다.",
+    "dates_title": "기간",
+    "start_date": "시작일",
+    "end_date": "종료일",
+    "dates_help": "활동, 매도, 가격, 평가, 기록의 기간을 제한합니다. 모든 날짜를 포함하려면 비워 두세요.",
+    "as_of_date": "보유 종목 기준일",
+    "as_of_help": "오늘 기준 보유 종목을 사용하려면 비워 두세요.",
+    "date_order_error": "시작일이 종료일보다 늦습니다.",
+    "clear_dates": "날짜 지우기",
+    "datasets_title": "내보낼 항목 선택",
+    "datasets_description": "데이터 세트를 하나씩 다운로드합니다.",
+    "groups": {
+      "accounts": "계좌 및 활동",
+      "investments": "투자",
+      "net-worth": "순자산",
+      "spending": "지출 및 예산",
+      "planning": "계획",
+      "organization": "정리"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "계좌",
+        "description": "최신 잔액이 포함되고 보관된 계좌가 표시된 계좌 목록"
+      },
+      "activities": {
+        "name": "활동",
+        "description": "현금 잔액과 지출 카테고리가 포함된 모든 거래"
+      },
+      "holdings": {
+        "name": "보유 종목",
+        "description": "가치, 원가, 손익이 포함된 포지션"
+      },
+      "lots": {
+        "name": "로트",
+        "description": "취득원가가 포함된 미청산 및 청산 로트"
+      },
+      "realized-gains": {
+        "name": "실현 이익",
+        "description": "각 매도와 그 매도로 청산된 로트"
+      },
+      "manual-prices": {
+        "name": "수동 가격",
+        "description": "직접 가격을 매기는 자산에 입력한 가격"
+      },
+      "income": {
+        "name": "소득",
+        "description": "계좌별 월간 배당금 및 이자"
+      },
+      "income-by-source": {
+        "name": "출처별 소득",
+        "description": "보유 종목별 소득(전체 기간 및 연도별)"
+      },
+      "assets-and-liabilities": {
+        "name": "자산 및 부채",
+        "description": "부동산, 차량, 귀중품, 대출 및 대출 조건"
+      },
+      "asset-valuations": {
+        "name": "자산 평가",
+        "description": "해당 자산과 부채에 기록한 모든 가치"
+      },
+      "loan-payments": {
+        "name": "대출 상환",
+        "description": "각 대출에 연결된 상환 내역"
+      },
+      "net-worth-history": {
+        "name": "순자산 기록",
+        "description": "일별 순자산: 투자, 기타 자산, 부채"
+      },
+      "portfolio-history": {
+        "name": "포트폴리오 기록",
+        "description": "각 계좌의 일별 가치"
+      },
+      "budgets": {
+        "name": "예산",
+        "description": "기간별 금액과 이월 설정"
+      },
+      "budget-actuals": {
+        "name": "예산 대비 실적",
+        "description": "카테고리별 예산, 지출액, 남은 금액(월별)"
+      },
+      "budget-groups": {
+        "name": "예산 그룹",
+        "description": "그룹과 각 그룹의 카테고리"
+      },
+      "spending-rules": {
+        "name": "분류 규칙",
+        "description": "거래를 자동으로 분류하는 규칙"
+      },
+      "spending-events": {
+        "name": "이벤트",
+        "description": "여행 등의 이벤트와 각 이벤트의 지출액"
+      },
+      "goals": {
+        "name": "목표",
+        "description": "계획 설정, 연결된 계좌, 진행률"
+      },
+      "contribution-limits": {
+        "name": "납입 한도",
+        "description": "한도와 적용되는 계좌"
+      },
+      "portfolios": {
+        "name": "포트폴리오",
+        "description": "계좌 그룹"
+      },
+      "categories": {
+        "name": "카테고리",
+        "description": "지출을 포함한 모든 분류의 모든 카테고리"
+      },
+      "classifications": {
+        "name": "자산 분류",
+        "description": "각 자산이 속한 카테고리"
+      }
+    },
+    "rows_one": "{{count}}행",
+    "rows_other": "{{count}}행",
+    "daily": "일별 값",
+    "holdings_today": "현재 보유 종목",
+    "holdings_on": "{{date}} 기준",
+    "none_yet": "아직 없음",
+    "download": "{{name}} 다운로드",
+    "downloading": "{{name}} 다운로드 중…",
+    "summary_error": "데이터 개수를 확인하지 못했습니다. 그래도 내보낼 수는 있습니다.",
+    "empty": "이 데이터 세트에는 아직 내보낼 항목이 없습니다.",
+    "empty_all": "아직 내보낼 항목이 없습니다."
+  },
   "backup_title": "로컬 백업",
   "backup_export_dialog_title": "백업 내보내기",
   "backup_export_protected": "비밀번호 사용(권장)",
@@ -373,9 +498,6 @@
   "about_db_path": "데이터베이스 경로",
   "about_copy_db_path": "데이터베이스 경로 복사",
   "about_copy_logs_dir": "로그 디렉터리 복사",
-  "export_type_holdings_description": "평가액, 성과, 배분, 상품 데이터를 포함한 현재 보유 종목",
-  "export_exporting_item": "{{name}} 내보내는 중...",
-  "export_export_item": "{{name}} 내보내기",
   "backup_unknown_date": "알 수 없는 날짜",
   "backup_creating_short": "백업 저장 중…",
   "backup_empty_title": "아직 백업이 없습니다",
@@ -1556,15 +1678,6 @@
       "updatingFailed": "환율 업데이트 중 문제가 발생했습니다: {{error}}",
       "addingFailed": "환율 추가 중 문제가 발생했습니다: {{error}}",
       "deletingFailed": "환율 삭제 중 문제가 발생했습니다: {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "현재 내보낼 계좌가 없습니다.",
-        "activities": "현재 내보낼 거래가 없습니다.",
-        "holdings": "현재 내보낼 보유 자산이 없습니다.",
-        "goals": "현재 내보낼 목표가 없습니다.",
-        "portfolio-history": "현재 내보낼 포트폴리오 기록이 없습니다."
-      }
     },
     "providerUpdateFailed": "제공자 {{provider}}의 설정을 업데이트하지 못했습니다",
     "httpFailed": "HTTP 요청에 실패했습니다.",

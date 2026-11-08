@@ -184,17 +184,143 @@
   "export_title": "Esportazione dati",
   "export_description": "Conserva un backup del portafoglio o esporta i dati per usarli altrove.",
   "export_tab_backup": "Backup",
-  "export_section_description": "Esporta tipi di dati specifici in vari formati per l'analisi o l'uso esterno.",
-  "export_format_title": "Scegli il formato preferito",
-  "export_format_csv_description": "Formato foglio di calcolo semplice e ampiamente compatibile",
-  "export_format_json_description": "Dati strutturati per un facile accesso programmatico",
-  "export_customize_title": "Personalizza l'esportazione",
-  "export_type_accounts_description": "I tuoi conti finanziari",
-  "export_type_activities": "Movimenti",
-  "export_type_activities_description": "Cronologia dettagliata delle transazioni e registri",
-  "export_type_goals_description": "Obiettivi finanziari e monitoraggio dei progressi",
-  "export_type_portfolio_history": "Cronologia del portafoglio",
-  "export_type_portfolio_history_description": "La performance del tuo portafoglio nel tempo, incluse valutazioni, guadagni e movimenti di liquidità.",
+  "data_export": {
+    "intro": "File leggibili da fogli di calcolo e altre app. Non possono essere ripristinati in Wealthfolio: per passare a un altro dispositivo, usa un backup.",
+    "all_title": "Esporta tutti i tuoi dati",
+    "all_description_csv": "Un unico ZIP con un file CSV per ogni set di dati e un README che li descrive.",
+    "all_description_json": "Un unico file JSON con ogni set di dati in una sezione.",
+    "all_info": "Le proiezioni degli obiettivi e i piani di ammortamento dei prestiti non sono inclusi, perché cambiano ogni giorno. Esportali dall’obiettivo o dal prestito.",
+    "all_info_label": "Informazioni sulle esportazioni dei dati",
+    "all_button": "Esporta tutto",
+    "all_pending": "Esportazione…",
+    "format_label": "Formato del file",
+    "include_archived": "Includi conti archiviati",
+    "include_archived_help": "Aggiunge i conti archiviati con i relativi movimenti, lotti e pagamenti dei prestiti.",
+    "dates_title": "Date",
+    "start_date": "Da",
+    "end_date": "A",
+    "dates_help": "Limita movimenti, vendite, prezzi, valutazioni e cronologie. Lascia vuoto per includere tutte le date.",
+    "as_of_date": "Posizioni al",
+    "as_of_help": "Lascia vuoto per le posizioni di oggi.",
+    "date_order_error": "La data di inizio è successiva alla data di fine.",
+    "clear_dates": "Cancella date",
+    "datasets_title": "Scegli cosa esportare",
+    "datasets_description": "Scarica un set di dati alla volta.",
+    "groups": {
+      "accounts": "Conti e movimenti",
+      "investments": "Investimenti",
+      "net-worth": "Patrimonio netto",
+      "spending": "Spese e budget",
+      "planning": "Pianificazione",
+      "organization": "Organizzazione"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Conti",
+        "description": "I tuoi conti con l’ultimo saldo, con quelli archiviati contrassegnati"
+      },
+      "activities": {
+        "name": "Movimenti",
+        "description": "Ogni transazione, con saldo disponibile e categoria di spesa"
+      },
+      "holdings": {
+        "name": "Posizioni",
+        "description": "Valore, costo e guadagni di ogni posizione"
+      },
+      "lots": {
+        "name": "Lotti",
+        "description": "Lotti aperti e chiusi con il relativo costo di carico"
+      },
+      "realized-gains": {
+        "name": "Guadagni realizzati",
+        "description": "Ogni vendita abbinata ai lotti che ha chiuso"
+      },
+      "manual-prices": {
+        "name": "Prezzi manuali",
+        "description": "Prezzi che hai inserito per gli asset di cui stabilisci tu il prezzo"
+      },
+      "income": {
+        "name": "Reddito",
+        "description": "Dividendi e interessi per mese, per ogni conto"
+      },
+      "income-by-source": {
+        "name": "Reddito per fonte",
+        "description": "Reddito da ogni posizione, in totale e per anno"
+      },
+      "assets-and-liabilities": {
+        "name": "Asset e passività",
+        "description": "Immobili, veicoli, beni di valore e prestiti, con le condizioni dei prestiti"
+      },
+      "asset-valuations": {
+        "name": "Valutazioni degli asset",
+        "description": "Ogni valore che hai registrato per questi asset e passività"
+      },
+      "loan-payments": {
+        "name": "Pagamenti dei prestiti",
+        "description": "Pagamenti collegati a ogni prestito"
+      },
+      "net-worth-history": {
+        "name": "Cronologia del patrimonio netto",
+        "description": "Patrimonio netto giornaliero: investimenti, altri asset e passività"
+      },
+      "portfolio-history": {
+        "name": "Cronologia del portafoglio",
+        "description": "Valore giornaliero di ogni conto"
+      },
+      "budgets": {
+        "name": "Budget",
+        "description": "Importi per ogni periodo, con le impostazioni di riporto"
+      },
+      "budget-actuals": {
+        "name": "Budget vs effettivo",
+        "description": "A budget, speso e rimanente per categoria, mese per mese"
+      },
+      "budget-groups": {
+        "name": "Gruppi di budget",
+        "description": "Gruppi e le categorie di ciascuno"
+      },
+      "spending-rules": {
+        "name": "Regole di categorizzazione",
+        "description": "Regole che categorizzano automaticamente le transazioni"
+      },
+      "spending-events": {
+        "name": "Eventi",
+        "description": "Viaggi e altri eventi, con quanto è stato speso per ciascuno"
+      },
+      "goals": {
+        "name": "Obiettivi",
+        "description": "Impostazioni del piano, conti collegati e avanzamento"
+      },
+      "contribution-limits": {
+        "name": "Limiti di contributo",
+        "description": "Limiti e conti a cui si applicano"
+      },
+      "portfolios": {
+        "name": "Portafogli",
+        "description": "Gruppi di conti"
+      },
+      "categories": {
+        "name": "Categorie",
+        "description": "Tutte le categorie di ogni classificazione, comprese le spese"
+      },
+      "classifications": {
+        "name": "Classificazioni degli asset",
+        "description": "La categoria a cui appartiene ogni asset"
+      }
+    },
+    "rows_one": "{{count}} riga",
+    "rows_other": "{{count}} righe",
+    "rows_many": "{{count}} righe",
+    "daily": "Valori giornalieri",
+    "holdings_today": "Posizioni attuali",
+    "holdings_on": "Al {{date}}",
+    "none_yet": "Ancora nessun dato",
+    "download": "Scarica {{name}}",
+    "downloading": "Download di {{name}}…",
+    "summary_error": "Impossibile contare i tuoi dati. Puoi comunque esportarli.",
+    "empty": "In questo set di dati non c’è ancora nulla da esportare.",
+    "empty_all": "Non c’è ancora nulla da esportare."
+  },
   "backup_title": "Backup locali",
   "backup_export_dialog_title": "Esporta backup",
   "backup_export_protected": "Con password (consigliato)",
@@ -375,9 +501,6 @@
   "about_db_path": "Percorso del database",
   "about_copy_db_path": "Copia il percorso del database",
   "about_copy_logs_dir": "Copia la directory dei log",
-  "export_type_holdings_description": "Posizioni attuali con dati di valutazione, performance, allocazione e strumento",
-  "export_exporting_item": "Esportazione di {{name}}...",
-  "export_export_item": "Esporta {{name}}",
   "backup_unknown_date": "Data sconosciuta",
   "backup_creating_short": "Salvataggio del backup…",
   "backup_empty_title": "Ancora nessun backup",
@@ -1628,15 +1751,6 @@
       "updatingFailed": "Problema durante l’aggiornamento del tasso di cambio: {{error}}",
       "addingFailed": "Problema durante l’aggiunta del tasso di cambio: {{error}}",
       "deletingFailed": "Problema durante l’eliminazione del tasso di cambio: {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "Nessun conto disponibile per l’esportazione.",
-        "activities": "Nessuna transazione disponibile per l’esportazione.",
-        "holdings": "Nessuna posizione disponibile per l’esportazione.",
-        "goals": "Nessun obiettivo disponibile per l’esportazione.",
-        "portfolio-history": "Nessuno storico del portafoglio disponibile per l’esportazione."
-      }
     },
     "providerUpdateFailed": "Impossibile aggiornare le impostazioni del fornitore {{provider}}",
     "httpFailed": "Richiesta HTTP non riuscita.",

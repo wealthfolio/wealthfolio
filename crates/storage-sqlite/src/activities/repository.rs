@@ -824,6 +824,7 @@ impl ActivityRepository {
         date_to_utc_exclusive: Option<DateTime<Utc>>,
         instrument_type_filter: Option<Vec<String>>,
         activity_id_filter: Option<Vec<String>>,
+        include_archived: bool,
     ) -> Result<ActivitySearchResponse> {
         let mut conn = get_connection(&self.pool)?;
 
@@ -833,8 +834,11 @@ impl ActivityRepository {
             let mut query = activities::table
                 .inner_join(accounts::table.on(activities::account_id.eq(accounts::id)))
                 .left_join(assets::table.on(activities::asset_id.eq(assets::id.nullable())))
-                .filter(accounts::is_archived.eq(false))
                 .into_boxed();
+
+            if !include_archived {
+                query = query.filter(accounts::is_archived.eq(false));
+            }
 
             if let Some(ref activity_ids) = activity_id_filter {
                 query = query.filter(activities::id.eq_any(activity_ids));
@@ -1408,6 +1412,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             date_to_utc_exclusive,
             instrument_type_filter,
             activity_id_filter,
+            false,
         )
     }
 
@@ -1438,6 +1443,34 @@ impl ActivityRepositoryTrait for ActivityRepository {
             date_to_utc_exclusive,
             instrument_type_filter,
             activity_id_filter,
+            false,
+        )
+    }
+
+    fn export_activities(
+        &self,
+        include_archived: bool,
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Result<ActivitySearchResponse> {
+        self.search_activities_with_utc_bounds(
+            0,
+            i64::MAX,
+            None,
+            None,
+            None,
+            Some(Sort {
+                id: "date".to_string(),
+                desc: true,
+            }),
+            None,
+            date_from.map(Self::naive_date_start_utc),
+            date_to
+                .and_then(|date| date.succ_opt())
+                .map(Self::naive_date_start_utc),
+            None,
+            None,
+            include_archived,
         )
     }
 
@@ -4484,6 +4517,68 @@ mod tests {
             .collect();
         assert_eq!(multipliers.get("mini-buy"), Some(&Some("10")));
         assert_eq!(multipliers.get("standard-buy"), Some(&Some("100")));
+    }
+
+    /// The data export reads archived accounts' rows on request, which the
+    /// activity search never does.
+    #[tokio::test]
+    async fn export_activities_includes_archived_accounts_only_on_request() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "open-account");
+            insert_account_with_archived(&mut conn, "closed-account", true);
+            diesel::sql_query(
+                "INSERT INTO activities
+                 (id, account_id, asset_id, activity_type, status, activity_date, quantity,
+                  unit_price, amount, currency, is_user_modified, needs_review, created_at, updated_at)
+                 VALUES
+                 ('open-deposit', 'open-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2026-01-02T00:00:00Z', NULL, NULL, '100', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('closed-deposit', 'closed-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2026-01-05T00:00:00Z', NULL, NULL, '50', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('closed-old', 'closed-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2025-06-01T00:00:00Z', NULL, NULL, '10', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            )
+            .execute(&mut conn)
+            .expect("insert activities");
+        }
+
+        let ids = |response: ActivitySearchResponse| {
+            response
+                .data
+                .into_iter()
+                .map(|activity| activity.id)
+                .collect::<Vec<_>>()
+        };
+
+        let without = repo.export_activities(false, None, None).expect("export");
+        assert_eq!(ids(without), vec!["open-deposit"]);
+
+        let with = repo.export_activities(true, None, None).expect("export");
+        assert_eq!(
+            ids(with),
+            vec!["closed-deposit", "open-deposit", "closed-old"]
+        );
+
+        let ranged = repo
+            .export_activities(
+                true,
+                NaiveDate::from_ymd_opt(2026, 1, 1),
+                NaiveDate::from_ymd_opt(2026, 1, 2),
+            )
+            .expect("export");
+        assert_eq!(ids(ranged), vec!["open-deposit"]);
+
+        let search = repo
+            .search_activities(0, 10, None, None, None, None, None, None, None, None, None)
+            .expect("search");
+        assert_eq!(
+            search.meta.total_row_count, 1,
+            "search still skips archived rows"
+        );
     }
 
     #[tokio::test]

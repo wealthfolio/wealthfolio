@@ -182,17 +182,142 @@
   "export_title": "数据导出",
   "export_description": "保存投资组合的备份，或导出数据以便在其他地方使用。",
   "export_tab_backup": "备份",
-  "export_section_description": "以多种格式导出特定类型的数据，供分析或外部使用。",
-  "export_format_title": "选择您偏好的格式",
-  "export_format_csv_description": "简单、广泛兼容的电子表格格式",
-  "export_format_json_description": "结构化数据，便于程序化访问",
-  "export_customize_title": "自定义您的导出",
-  "export_type_accounts_description": "您的财务账户",
-  "export_type_activities": "活动",
-  "export_type_activities_description": "详细的交易历史和日志",
-  "export_type_goals_description": "财务目标及进度跟踪",
-  "export_type_portfolio_history": "投资组合历史",
-  "export_type_portfolio_history_description": "您投资组合随时间推移的表现，包括估值、盈亏和现金流活动。",
+  "data_export": {
+    "intro": "可供电子表格和其他应用读取的文件。这些文件无法恢复到 Wealthfolio：如需迁移到其他设备，请使用备份。",
+    "all_title": "导出全部数据",
+    "all_description_csv": "一个 ZIP 文件，每个数据集对应一个 CSV 文件，并附带说明这些文件的 README。",
+    "all_description_json": "一个 JSON 文件，每个数据集为其中一个部分。",
+    "all_info": "目标预测和贷款还款计划每天都会变化，因此不包含在内。请从相应的目标或贷款中导出。",
+    "all_info_label": "关于数据导出",
+    "all_button": "全部导出",
+    "all_pending": "正在导出…",
+    "format_label": "文件格式",
+    "include_archived": "包含已归档账户",
+    "include_archived_help": "添加已归档账户及其活动、批次和贷款还款。",
+    "dates_title": "日期",
+    "start_date": "从",
+    "end_date": "至",
+    "dates_help": "限制活动、卖出、价格、估值和历史记录的日期范围。留空则包含所有日期。",
+    "as_of_date": "持仓日期",
+    "as_of_help": "留空则使用今天的持仓。",
+    "date_order_error": "开始日期晚于结束日期。",
+    "clear_dates": "清除日期",
+    "datasets_title": "选择要导出的内容",
+    "datasets_description": "每次下载一个数据集。",
+    "groups": {
+      "accounts": "账户与活动",
+      "investments": "投资",
+      "net-worth": "净资产",
+      "spending": "支出与预算",
+      "planning": "规划",
+      "organization": "整理"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "账户",
+        "description": "您的账户及其最新余额，并标出已归档的账户"
+      },
+      "activities": {
+        "name": "活动",
+        "description": "每笔交易，包含现金余额和支出类别"
+      },
+      "holdings": {
+        "name": "持仓",
+        "description": "包含价值、成本和收益的持仓"
+      },
+      "lots": {
+        "name": "批次",
+        "description": "未平仓和已平仓的批次及其投资成本"
+      },
+      "realized-gains": {
+        "name": "已实现收益",
+        "description": "每笔卖出及其平仓的批次"
+      },
+      "manual-prices": {
+        "name": "手动价格",
+        "description": "您为自行定价的资产输入的价格"
+      },
+      "income": {
+        "name": "收入",
+        "description": "每个账户每月的股息和利息"
+      },
+      "income-by-source": {
+        "name": "按来源分类收入",
+        "description": "每个持仓的收入，包括全部时间和每年"
+      },
+      "assets-and-liabilities": {
+        "name": "资产与负债",
+        "description": "房产、车辆、贵重物品和贷款，以及贷款条款"
+      },
+      "asset-valuations": {
+        "name": "资产估值",
+        "description": "您为这些资产和负债记录的每个价值"
+      },
+      "loan-payments": {
+        "name": "贷款还款",
+        "description": "与每笔贷款关联的还款"
+      },
+      "net-worth-history": {
+        "name": "净资产历史",
+        "description": "每日净资产：投资、其他资产和负债"
+      },
+      "portfolio-history": {
+        "name": "投资组合历史",
+        "description": "每个账户的每日价值"
+      },
+      "budgets": {
+        "name": "预算",
+        "description": "每个周期的金额及结转设置"
+      },
+      "budget-actuals": {
+        "name": "预算对比实际",
+        "description": "每个类别逐月的已预算、已花费和剩余金额"
+      },
+      "budget-groups": {
+        "name": "预算分组",
+        "description": "分组及其中的类别"
+      },
+      "spending-rules": {
+        "name": "分类规则",
+        "description": "自动为交易分类的规则"
+      },
+      "spending-events": {
+        "name": "事件",
+        "description": "旅行和其他事件，以及每个事件的花费"
+      },
+      "goals": {
+        "name": "目标",
+        "description": "计划设置、关联账户和进度"
+      },
+      "contribution-limits": {
+        "name": "供款限额",
+        "description": "限额及其适用的账户"
+      },
+      "portfolios": {
+        "name": "投资组合",
+        "description": "账户分组"
+      },
+      "categories": {
+        "name": "类别",
+        "description": "所有分类中的每个类别，包括支出"
+      },
+      "classifications": {
+        "name": "资产分类",
+        "description": "每个资产所属的类别"
+      }
+    },
+    "rows_one": "{{count}} 行",
+    "rows_other": "{{count}} 行",
+    "daily": "每日数值",
+    "holdings_today": "当前持仓",
+    "holdings_on": "截至 {{date}}",
+    "none_yet": "暂无",
+    "download": "下载 {{name}}",
+    "downloading": "正在下载 {{name}}…",
+    "summary_error": "无法统计您的数据。您仍然可以导出。",
+    "empty": "此数据集中暂无可导出的内容。",
+    "empty_all": "暂无可导出的内容。"
+  },
   "backup_title": "本地备份",
   "backup_export_dialog_title": "导出备份",
   "backup_export_protected": "设置密码（推荐）",
@@ -373,9 +498,6 @@
   "about_db_path": "数据库路径",
   "about_copy_db_path": "复制数据库路径",
   "about_copy_logs_dir": "复制日志目录",
-  "export_type_holdings_description": "当前持仓，包含估值、表现、配置和金融工具数据",
-  "export_exporting_item": "正在导出 {{name}}...",
-  "export_export_item": "导出 {{name}}",
   "backup_unknown_date": "未知日期",
   "backup_creating_short": "正在保存备份…",
   "backup_empty_title": "尚无备份",
@@ -1556,15 +1678,6 @@
       "updatingFailed": "更新汇率时出错：{{error}}",
       "addingFailed": "添加汇率时出错：{{error}}",
       "deletingFailed": "删除汇率时出错：{{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "当前没有可导出的账户。",
-        "activities": "当前没有可导出的交易记录。",
-        "holdings": "当前没有可导出的持仓。",
-        "goals": "当前没有可导出的目标。",
-        "portfolio-history": "当前没有可导出的组合历史记录。"
-      }
     },
     "providerUpdateFailed": "无法更新数据源 {{provider}} 的设置",
     "httpFailed": "HTTP 请求失败。",

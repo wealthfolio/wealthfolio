@@ -413,6 +413,7 @@ export {
 
 // Data Export Commands
 export { exportDataFile } from "./exports";
+export { getDataExportSummary } from "../shared/exports";
 
 // ============================================================================
 // Platform-specific modules (different implementations for web vs desktop)

@@ -1394,6 +1394,15 @@ export const AssetProfilePage = () => {
                             label: t("asset:loanActions.edit_details"),
                             onClick: () => altAssetActions.openEditDetails(),
                           },
+                          ...(altAssetActions.exportLoanSchedule
+                            ? [
+                                {
+                                  icon: Icons.Download,
+                                  label: t("asset:loanExport.action"),
+                                  onClick: () => void altAssetActions.exportLoanSchedule?.(),
+                                },
+                              ]
+                            : []),
                         ],
                       },
                       {

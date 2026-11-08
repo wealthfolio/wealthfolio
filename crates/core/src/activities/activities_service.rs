@@ -6462,6 +6462,16 @@ impl ActivityServiceTrait for ActivityService {
         )
     }
 
+    fn export_activities(
+        &self,
+        include_archived: bool,
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Result<ActivitySearchResponse> {
+        self.activity_repository
+            .export_activities(include_archived, date_from, date_to)
+    }
+
     /// Balances come from each account's whole history, not the page: a row's
     /// balance depends on every earlier row of its account, loaded or not.
     async fn attach_cash_balances(&self, response: &mut ActivitySearchResponse) -> Result<()> {

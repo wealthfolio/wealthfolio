@@ -12,6 +12,7 @@ import {
   ActivityStatus,
   ActivityType,
   AssetKind,
+  type ExportDataType,
   HoldingType,
   QuoteMode,
   SUBTYPE_DISPLAY_NAMES,
@@ -55,6 +56,35 @@ export {
 export type { HoldingCategoryFilterId } from "./constants";
 
 export type { ActivitySubtype } from "./constants";
+
+export type { ExportTarget } from "./constants";
+
+/** Export screen choices; each dataset uses only the options that apply to it. */
+export interface ExportOptions {
+  includeArchived: boolean;
+  /** ISO date (YYYY-MM-DD) of the first dated row to include. */
+  startDate?: string;
+  /** ISO date of the last dated row to include. */
+  endDate?: string;
+  /** ISO date holdings are read on; omitted for current holdings. */
+  asOfDate?: string;
+}
+
+export type ExportDatasetGroup =
+  | "accounts"
+  | "investments"
+  | "net-worth"
+  | "spending"
+  | "planning"
+  | "organization";
+
+export interface ExportDatasetSummary {
+  dataset: ExportDataType;
+  group: ExportDatasetGroup;
+  /** Rows the file would hold; null for daily histories and holdings. */
+  count: number | null;
+  available: boolean;
+}
 
 export interface PortfolioWithAccounts {
   id: string;

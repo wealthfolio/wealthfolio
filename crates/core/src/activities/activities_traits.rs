@@ -216,6 +216,18 @@ pub trait ActivityRepositoryTrait: Send + Sync {
             activity_id_filter,
         )
     }
+    /// Every activity for a data export, newest first. Unlike `search_activities`,
+    /// rows of archived accounts are included when `include_archived` is set.
+    fn export_activities(
+        &self,
+        _include_archived: bool,
+        _date_from: Option<NaiveDate>,
+        _date_to: Option<NaiveDate>,
+    ) -> Result<ActivitySearchResponse> {
+        Err(crate::Error::Unexpected(
+            "This activity repository does not support data exports".to_string(),
+        ))
+    }
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
@@ -458,6 +470,18 @@ pub trait ActivityServiceTrait: Send + Sync {
             instrument_type_filter,
             activity_id_filter,
         )
+    }
+    /// Every activity for a data export, newest first, optionally including
+    /// the rows of archived accounts.
+    fn export_activities(
+        &self,
+        _include_archived: bool,
+        _date_from: Option<NaiveDate>,
+        _date_to: Option<NaiveDate>,
+    ) -> Result<ActivitySearchResponse> {
+        Err(crate::Error::Unexpected(
+            "This activity service does not support data exports".to_string(),
+        ))
     }
     /// Fills each row's cash balance: the cash after the row for cash or
     /// credit-card accounts that hold no securities, the cash at the end of

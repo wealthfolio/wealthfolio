@@ -709,23 +709,149 @@
   "database_encryption_server_managed": "على الخوادم المستضافة ذاتيًا، يُطبَّق التشفير باستخدام `wealthfolio-server db encrypt` أثناء إيقاف الخادم، ثم يُفرض بتعيين WF_DB_REQUIRE_ENCRYPTION=1.",
   "database_encryption_title": "تشفير قاعدة البيانات",
   "exchange_rates_rate": "السعر",
-  "export_customize_title": "خصّص عملية التصدير",
   "export_description": "احتفظ بنسخة احتياطية من محفظتك أو صدّر بياناتك لاستخدامها في مكان آخر.",
-  "export_export_item": "تصدير {{name}}",
-  "export_exporting_item": "جارٍ تصدير {{name}}...",
-  "export_format_csv_description": "تنسيق جداول بيانات بسيط ومتوافق على نطاق واسع",
-  "export_format_json_description": "بيانات منظمة لسهولة الوصول البرمجي",
-  "export_format_title": "اختر التنسيق المفضل لديك",
-  "export_section_description": "صدّر أنواعًا محددة من البيانات بتنسيقات متعددة للتحليل أو الاستخدام الخارجي.",
   "export_tab_backup": "النسخ الاحتياطية",
+  "data_export": {
+    "intro": "ملفات قابلة للقراءة في جداول البيانات والتطبيقات الأخرى. لا يمكن استعادتها إلى Wealthfolio: للانتقال إلى جهاز آخر، استخدم نسخة احتياطية.",
+    "all_title": "تصدير جميع بياناتك",
+    "all_description_csv": "ملف ZIP واحد يحتوي على ملف CSV لكل مجموعة بيانات وملف README يشرحها.",
+    "all_description_json": "ملف JSON واحد يضم كل مجموعة بيانات في قسم خاص بها.",
+    "all_info": "لا تُضمَّن توقعات الأهداف وجداول سداد القروض لأنها تتغير كل يوم. صدّرها من صفحة الهدف أو القرض.",
+    "all_info_label": "حول تصدير البيانات",
+    "all_button": "تصدير الكل",
+    "all_pending": "جارٍ التصدير…",
+    "format_label": "تنسيق الملف",
+    "include_archived": "تضمين الحسابات المؤرشفة",
+    "include_archived_help": "يضيف الحسابات المؤرشفة مع أنشطتها ودفعاتها ومدفوعات قروضها.",
+    "dates_title": "التواريخ",
+    "start_date": "من",
+    "end_date": "إلى",
+    "dates_help": "يحدّ من الأنشطة والمبيعات والأسعار والتقييمات والسجلات. اتركه فارغًا لتضمين جميع التواريخ.",
+    "as_of_date": "الحيازات في تاريخ",
+    "as_of_help": "اتركه فارغًا لاستخدام حيازات اليوم.",
+    "date_order_error": "تاريخ البداية بعد تاريخ النهاية.",
+    "clear_dates": "مسح التواريخ",
+    "datasets_title": "اختر ما تريد تصديره",
+    "datasets_description": "نزّل مجموعة بيانات واحدة في كل مرة.",
+    "groups": {
+      "accounts": "الحسابات والأنشطة",
+      "investments": "الاستثمارات",
+      "net-worth": "صافي الثروة",
+      "spending": "الإنفاق والميزانيات",
+      "planning": "التخطيط",
+      "organization": "التنظيم"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "الحسابات",
+        "description": "حساباتك مع أحدث رصيد لكل منها، مع تمييز المؤرشفة منها"
+      },
+      "activities": {
+        "name": "الأنشطة",
+        "description": "كل معاملة مع الرصيد النقدي وفئة الإنفاق"
+      },
+      "holdings": {
+        "name": "الحيازات",
+        "description": "المراكز مع القيمة والتكلفة والأرباح"
+      },
+      "lots": {
+        "name": "الدفعات",
+        "description": "دفعات الشراء المفتوحة والمغلقة مع أساس تكلفتها"
+      },
+      "realized-gains": {
+        "name": "الأرباح المحققة",
+        "description": "كل عملية بيع مطابَقة مع الدفعات التي أغلقتها"
+      },
+      "manual-prices": {
+        "name": "الأسعار اليدوية",
+        "description": "الأسعار التي أدخلتها للأصول التي تسعّرها بنفسك"
+      },
+      "income": {
+        "name": "الدخل",
+        "description": "توزيعات الأرباح والفائدة شهريًا، لكل حساب"
+      },
+      "income-by-source": {
+        "name": "الدخل حسب المصدر",
+        "description": "الدخل من كل حيازة، إجمالًا ولكل سنة"
+      },
+      "assets-and-liabilities": {
+        "name": "الأصول والالتزامات",
+        "description": "العقارات والمركبات والمقتنيات الثمينة والقروض، مع شروط القروض"
+      },
+      "asset-valuations": {
+        "name": "تقييمات الأصول",
+        "description": "كل قيمة سجّلتها لتلك الأصول والالتزامات"
+      },
+      "loan-payments": {
+        "name": "مدفوعات القروض",
+        "description": "المدفوعات المرتبطة بكل قرض"
+      },
+      "net-worth-history": {
+        "name": "سجل صافي الثروة",
+        "description": "صافي الثروة اليومي: الاستثمارات والأصول الأخرى والالتزامات"
+      },
+      "portfolio-history": {
+        "name": "سجل المحفظة",
+        "description": "القيمة اليومية لكل حساب"
+      },
+      "budgets": {
+        "name": "الميزانيات",
+        "description": "المبالغ لكل فترة، مع إعدادات الترحيل"
+      },
+      "budget-actuals": {
+        "name": "الميزانية مقابل الفعلي",
+        "description": "المخصص في الميزانية والمُنفق والمتبقي لكل فئة، شهرًا بشهر"
+      },
+      "budget-groups": {
+        "name": "مجموعات الميزانية",
+        "description": "المجموعات والفئات في كل منها"
+      },
+      "spending-rules": {
+        "name": "قواعد التصنيف",
+        "description": "قواعد تصنّف المعاملات تلقائيًا"
+      },
+      "spending-events": {
+        "name": "الأحداث",
+        "description": "الرحلات والأحداث الأخرى، مع ما أُنفق على كل منها"
+      },
+      "goals": {
+        "name": "الأهداف",
+        "description": "إعدادات الخطة والحسابات المرتبطة والتقدم"
+      },
+      "contribution-limits": {
+        "name": "حدود المساهمة",
+        "description": "الحدود والحسابات التي تشملها"
+      },
+      "portfolios": {
+        "name": "المحافظ",
+        "description": "مجموعات من الحسابات"
+      },
+      "categories": {
+        "name": "الفئات",
+        "description": "كل فئة في كل تصنيف، بما في ذلك الإنفاق"
+      },
+      "classifications": {
+        "name": "تصنيفات الأصول",
+        "description": "الفئة التي ينتمي إليها كل أصل"
+      }
+    },
+    "rows_few": "{{count}} صفوف",
+    "rows_many": "{{count}} صفًا",
+    "rows_one": "صف واحد",
+    "rows_other": "{{count}} صف",
+    "rows_two": "صفان",
+    "rows_zero": "لا توجد صفوف",
+    "daily": "القيم اليومية",
+    "holdings_today": "الحيازات الحالية",
+    "holdings_on": "في {{date}}",
+    "none_yet": "لا يوجد بعد",
+    "download": "تنزيل {{name}}",
+    "downloading": "جارٍ تنزيل {{name}}…",
+    "summary_error": "تعذّر عدّ بياناتك. لا يزال بإمكانك تصديرها.",
+    "empty": "لا يوجد ما يمكن تصديره في مجموعة البيانات هذه بعد.",
+    "empty_all": "لا يوجد ما يمكن تصديره بعد."
+  },
   "export_title": "تصدير البيانات",
-  "export_type_accounts_description": "حساباتك المالية",
-  "export_type_activities": "الأنشطة",
-  "export_type_activities_description": "سجل مفصل للمعاملات والسجلات",
-  "export_type_goals_description": "الأهداف المالية وتتبع التقدم",
-  "export_type_holdings_description": "الحيازات الحالية مع بيانات التقييم والأداء والتوزيع والأدوات المالية",
-  "export_type_portfolio_history": "سجل المحفظة",
-  "export_type_portfolio_history_description": "أداء محفظتك بمرور الوقت، بما في ذلك التقييمات والأرباح وأنشطة التدفق النقدي.",
   "formattingRegion": {
     "description": "يتحكم في عرض التواريخ والأوقات وفواصل الأرقام والنسب المئوية والعملات.",
     "options": {
@@ -1772,15 +1898,6 @@
       "updatingFailed": "حدثت مشكلة أثناء تحديث سعر الصرف: {{error}}",
       "addingFailed": "حدثت مشكلة أثناء إضافة سعر الصرف: {{error}}",
       "deletingFailed": "حدثت مشكلة أثناء حذف سعر الصرف: {{error}}"
-    },
-    "export": {
-      "empty": {
-        "accounts": "لا توجد حسابات متاحة للتصدير حاليًا.",
-        "activities": "لا توجد معاملات متاحة للتصدير حاليًا.",
-        "holdings": "لا توجد حيازات متاحة للتصدير حاليًا.",
-        "goals": "لا توجد أهداف متاحة للتصدير حاليًا.",
-        "portfolio-history": "لا توجد سجلات تاريخية للمحفظة متاحة للتصدير حاليًا."
-      }
     },
     "providerUpdateFailed": "تعذّر تحديث إعدادات المزوّد {{provider}}",
     "httpFailed": "فشل طلب HTTP.",
