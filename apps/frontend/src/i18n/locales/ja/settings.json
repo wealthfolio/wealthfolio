@@ -1246,6 +1246,7 @@
     "scope_locked_title": "「取引 — 確定/書き込み」に必要です",
     "scope_locked_market_data_title": "「市場データ — 書き込み」に必要です",
     "scope_locked_classification_title": "「資産分類 — 適用・書き込み」に必要です",
+    "scope_locked_accounts_title": "「口座 — 書き込み」に必要です",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "トークン",
     "scope": {
@@ -1308,6 +1309,10 @@
       "budget_write": {
         "label": "予算を管理",
         "description": "デフォルト予算と月別予算、グループ、予備費、繰越を変更します。「支出を表示」が必要です。"
+      },
+      "accounts_write": {
+        "label": "口座 — 書き込み",
+        "description": "口座を作成し、名前、種類、グループ、番号、追跡モード、非表示またはアーカイブの状態を変更します。口座(読み取り)のスコープが必要です。"
       }
     },
     "preset": {

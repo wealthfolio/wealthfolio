@@ -20,7 +20,8 @@ export type ScopeKey =
   | "activities:write"
   | "classification:suggest"
   | "classification:write"
-  | "market-data:write";
+  | "market-data:write"
+  | "accounts:write";
 
 export type ScopeGroup = "read" | "write";
 
@@ -48,6 +49,7 @@ export const SCOPES: ScopeMeta[] = [
   { key: "market-data:write", i18n: "market_data_write", group: "write" },
   { key: "spending:write", i18n: "spending_write", group: "write" },
   { key: "budget:write", i18n: "budget_write", group: "write" },
+  { key: "accounts:write", i18n: "accounts_write", group: "write" },
 ];
 
 /** The read scopes, in canonical order. */
@@ -131,6 +133,9 @@ export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   }
   if (set.has("market-data:write")) {
     set.add("holdings:read");
+  }
+  if (set.has("accounts:write")) {
+    set.add("accounts:read");
   }
   if (set.has("spending:write") || set.has("budget:write")) {
     set.add("spending:read");

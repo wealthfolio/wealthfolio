@@ -50,6 +50,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::activity_update_tools());
         tools.extend(crate::tools::transaction_category_tools());
         tools.extend(crate::tools::asset_market_data_tools());
+        tools.extend(crate::tools::portfolio_setup_tools());
         Self::new(tools)
     }
 
@@ -586,6 +587,8 @@ mod tests {
         assert!(!names.contains(&"commit_activity_updates"));
         assert!(!names.contains(&"prepare_activity_deletions"));
         assert!(!names.contains(&"commit_activity_deletions"));
+        assert!(!names.contains(&"prepare_account_change"));
+        assert!(!names.contains(&"commit_account_change"));
     }
 
     #[tokio::test]
@@ -738,6 +741,8 @@ mod tests {
             "commit_activity_updates",
             "prepare_activity_deletions",
             "commit_activity_deletions",
+            "prepare_account_change",
+            "commit_account_change",
         ] {
             let err = catalog
                 .execute(
@@ -1045,6 +1050,27 @@ mod tests {
             AgentScopeSet::from_strs(["market-data:write"]),
         ] {
             for name in ["prepare_quote_import", "commit_quote_import"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn account_changes_need_accounts_read_and_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "accountId": "a", "name": "Renamed" });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["accounts:write"]),
+        ] {
+            for name in ["prepare_account_change", "commit_account_change"] {
                 let err = catalog
                     .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
                     .await

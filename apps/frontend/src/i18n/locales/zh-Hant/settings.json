@@ -1263,6 +1263,7 @@
     "scope_locked_title": "「交易紀錄 — 提交／寫入」需要此權限",
     "scope_locked_market_data_title": "「市場資料 — 寫入」需要此權限",
     "scope_locked_classification_title": "「資產分類 — 套用/寫入」需要此權限",
+    "scope_locked_accounts_title": "「帳戶 — 寫入」需要此權限",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "權杖",
     "scope": {
@@ -1325,6 +1326,10 @@
       "budget_write": {
         "label": "管理預算",
         "description": "變更預設和每月預算、群組、緩衝金額及結轉。需要查看支出權限。"
+      },
+      "accounts_write": {
+        "label": "帳戶 — 寫入",
+        "description": "建立帳戶，並變更其名稱、類型、群組、帳號、追蹤模式，以及隱藏或封存狀態。需要帳戶（讀取）範圍。"
       }
     },
     "preset": {

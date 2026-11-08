@@ -333,6 +333,15 @@ async fn mcp_pat_lifecycle() {
     .await;
     assert_eq!(status, 400);
 
+    // accounts:write without accounts:read is rejected (dependency).
+    let (status, _) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "account write only", "scopes": ["accounts:write"] }),
+    )
+    .await;
+    assert_eq!(status, 400);
+
     let session = mcp_initialize(&server, &pat).await;
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
@@ -521,6 +530,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
             "spending:write",
             "budget:write",
             "market-data:write",
+            "accounts:write",
         ])
         .collect();
     let (status, created) = create_pat(
@@ -530,7 +540,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     )
     .await;
     assert_eq!(status, 201);
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 15);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 16);
     let pat = created["token"].as_str().unwrap().to_string();
 
     let session = mcp_initialize(&server, &pat).await;
@@ -547,8 +557,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        72,
-        "full-scope token must see all 72 tools: {names:?}"
+        74,
+        "full-scope token must see all 74 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -562,6 +572,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "commit_activity_updates",
         "prepare_activity_deletions",
         "commit_activity_deletions",
+        "prepare_account_change",
+        "commit_account_change",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -790,6 +802,129 @@ async fn mcp_call_tool(
     assert!(result.get("error").is_none(), "{result}");
     assert_ne!(result["result"]["isError"], true, "{name}: {result}");
     result["result"]["structuredContent"].clone()
+}
+
+/// #2534: an agent creates an account and updates it after a preview. A name
+/// clash and a credit card in HOLDINGS mode are refused, the currency is fixed
+/// after creation, and fields left out of an update keep their stored values.
+#[tokio::test]
+async fn mcp_creates_and_updates_accounts_after_a_preview() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let existing = create_eur_account(&server, &cookie, "Brokerage").await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({
+            "name": "account writer", "scopes": ["accounts:read", "accounts:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let clash = serde_json::json!({
+        "name": "brokerage", "accountType": "SECURITIES", "currency": "USD",
+        "trackingMode": "HOLDINGS", "group": "Retirement"
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_account_change",
+        clash.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], false, "{preview}");
+    assert_eq!(preview["nameClash"][0]["id"], existing["id"], "{preview}");
+    let blocked = mcp_call_tool(&server, &pat, &session, "commit_account_change", clash).await;
+    assert_eq!(blocked["committed"], false, "{blocked}");
+
+    let card = serde_json::json!({
+        "name": "Card", "accountType": "CREDIT_CARD", "currency": "EUR",
+        "trackingMode": "HOLDINGS"
+    });
+    let refused = mcp_call_tool(&server, &pat, &session, "commit_account_change", card).await;
+    assert_eq!(refused["committed"], false, "{refused}");
+
+    let create = serde_json::json!({
+        "name": "Retirement", "accountType": "SECURITIES", "currency": "USD",
+        "trackingMode": "HOLDINGS", "group": "Retirement", "accountNumber": "NL91ABNA0417164300"
+    });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_account_change",
+        create.clone(),
+    )
+    .await;
+    assert_eq!(preview["ready"], true, "{preview}");
+    assert_eq!(
+        preview["proposed"]["accountNumber"], "••••4300",
+        "{preview}"
+    );
+    let created = mcp_call_tool(&server, &pat, &session, "commit_account_change", create).await;
+    assert_eq!(created["committed"], true, "{created}");
+    let id = created["account"]["id"].as_str().unwrap().to_string();
+    assert_eq!(created["account"]["currency"], "USD", "{created}");
+    assert_eq!(created["account"]["trackingMode"], "HOLDINGS", "{created}");
+
+    let currency = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_account_change",
+        serde_json::json!({ "accountId": id, "currency": "EUR" }),
+    )
+    .await;
+    assert_eq!(currency["committed"], false, "{currency}");
+
+    let update = serde_json::json!({ "accountId": id, "name": "Pension", "hidden": true });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_account_change",
+        update.clone(),
+    )
+    .await;
+    assert_eq!(preview["changes"].as_array().unwrap().len(), 2, "{preview}");
+    let updated = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_account_change",
+        update.clone(),
+    )
+    .await;
+    assert_eq!(updated["committed"], true, "{updated}");
+    let again = mcp_call_tool(&server, &pat, &session, "commit_account_change", update).await;
+    assert_eq!(again["message"], "Nothing to change.", "{again}");
+
+    let accounts: serde_json::Value = server
+        .client
+        .get(format!("{}/api/v1/accounts", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let stored = accounts
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|account| account["id"] == id.as_str())
+        .unwrap();
+    assert_eq!(stored["name"], "Pension");
+    assert_eq!(stored["isActive"], false);
+    assert_eq!(stored["currency"], "USD");
+    assert_eq!(stored["group"], "Retirement");
+    assert_eq!(stored["accountNumber"], "NL91ABNA0417164300");
+    assert_eq!(stored["trackingMode"], "HOLDINGS");
 }
 
 /// Mints a read/draft/write activity token and opens an MCP session.

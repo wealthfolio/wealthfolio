@@ -1302,6 +1302,7 @@
     "scope_locked_title": "Richiesto da Movimenti — conferma/scrittura",
     "scope_locked_market_data_title": "Richiesto da Dati di mercato — scrittura",
     "scope_locked_classification_title": "Richiesto da Classificazione degli asset — applica/scrittura",
+    "scope_locked_accounts_title": "Richiesto da Conti — scrittura",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1364,6 +1365,10 @@
       "budget_write": {
         "label": "Gestisci budget",
         "description": "Modifica budget predefiniti e mensili, gruppi, riserve e riporti. Richiede Visualizza spese."
+      },
+      "accounts_write": {
+        "label": "Conti — scrittura",
+        "description": "Crea conti e modificane nome, tipo, gruppo, numero, modalità di monitoraggio e stato nascosto o archiviato. Richiede l'ambito conti (lettura)."
       }
     },
     "preset": {

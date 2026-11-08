@@ -805,14 +805,53 @@ Rules:
 - Draft and import-preview tools never mutate data; activity commits require
   `activities:write` (which itself requires `activities:draft`), classification
   commits require `classification:write` (which itself requires
-  `classification:suggest`), and quote imports require `market-data:write`
-  (which itself requires `holdings:read`).
+  `classification:suggest`), quote imports require `market-data:write` (which
+  itself requires `holdings:read`), and account changes require `accounts:write`
+  (which itself requires `accounts:read`).
 - CSV / activity-row content must not be persisted in raw audit logs: the
   write/import tools redact their `activities`/row arguments to a count
   (`"[N rows]"`) via per-tool audit sanitization.
 - Activity writes go through existing activity services and validation.
 - Suggestions return proposed assignments and rationale; agents never directly
   alter allocation semantics.
+
+### MCP-only Portfolio Setup Tools
+
+```text
+prepare_account_change             -- preview creating or updating one account
+commit_account_change              -- save it
+```
+
+These let an agent create the accounts it imports into, and fix an account's
+details, without the app. Without `accountId` the change creates an account
+(`name`, `accountType`, `currency` and `trackingMode` are required); with it,
+the change updates that account and fields left out keep their stored values.
+Settable fields: `name` (2 to 50 characters, as in the app's form),
+`accountType`, `currency` (create only: every path keeps an account's currency
+fixed), `group` and `accountNumber` (null clears), `trackingMode`
+(`TRANSACTIONS` or `HOLDINGS`), `hidden` and `archived`. There is no delete.
+
+`prepare_account_change` reads every account and reports the stored account, the
+proposed one, the changed fields, other accounts with the same name
+(case-insensitive) and warnings: the currency is fixed after creation, a
+tracking mode switch leaves the other mode's activities or snapshots stored but
+unused, and values in a non-base currency convert through exchange rates. Errors
+block the change: a name clash unless `allowDuplicateName` is set (so a repeated
+create cannot add a second account), a credit card in `HOLDINGS` mode, a
+currency change, or an unknown account. A broker-connected account keeps its
+provider link and account number, and its tracking mode cannot change here: in
+the app that change starts a broker sync, which an agent should not start
+unseen. Account numbers are masked to their last four characters in previews and
+redacted in the audit log.
+
+`commit_account_change` runs the same checks and saves through
+`AccountServiceTrait::create_account` or `update_account`, the calls behind the
+app's account form, so FX pair registration and the `AccountsChanged` and
+`TrackingModeChanged` events (and the recalculation they plan) are unchanged. An
+update sends back the stored `is_default` and provider fields and leaves the
+account's meta (cost basis settings) as stored; an update that changes nothing
+writes nothing. Both tools need `accounts:read` and `accounts:write`; the in-app
+assistant does not get them.
 
 ### Deferred Indefinitely
 
@@ -880,6 +919,8 @@ budget:write             budget management (also requires spending:read;
                          independent of spending:write)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)
+accounts:write           prepare_account_change, commit_account_change
+                         (each also requires accounts:read)
 ```
 
 Spending tools no longer accept `classification:*` or `activities:read` as a
@@ -899,8 +940,9 @@ Dependency rules: `activities:write` requires `activities:draft`, and
 `classification:write` requires `classification:suggest` (you cannot commit
 without the matching draft/suggest capability). `market-data:write` requires
 `holdings:read`: both quote tools return stored quotes, so the scope reaches no
-tool without it. Token creation validates this, and no preset grants
-`market-data:write`.
+tool without it. `accounts:write` requires `accounts:read` for the same reason:
+the account change preview shows the stored accounts. Token creation validates
+these, and no preset grants `market-data:write` or `accounts:write`.
 
 Presets (`AgentScopeSet` constructors):
 

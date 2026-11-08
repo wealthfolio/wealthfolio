@@ -4,6 +4,7 @@
 //! existing name, schema, and output shape (guarded by the parity
 //! snapshots in `crates/ai/tests/`).
 
+pub mod account_changes;
 pub mod accounts;
 pub mod activities;
 pub mod activity_deletions;
@@ -331,6 +332,16 @@ pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(asset_market_data::GetAsset),
         Arc::new(asset_market_data::GetQuoteHistory),
         Arc::new(asset_market_data::GetMarketDataProviders),
+    ]
+}
+
+/// The MCP-only portfolio setup tools: preview and save account creates and
+/// updates. Not exposed to the in-app assistant, which has no confirmation
+/// card for them; users manage accounts in Settings.
+pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(account_changes::PrepareAccountChange),
+        Arc::new(account_changes::CommitAccountChange),
     ]
 }
 
