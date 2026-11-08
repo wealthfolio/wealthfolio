@@ -511,7 +511,7 @@
       "biometricUnavailable": "Touch ID 不可用。请在系统设置 → Touch ID 与密码中添加指纹。",
       "biometricStoreFailed": "无法保存 Touch ID 令牌。请确保设备已设置密码。",
       "biometricNotEnrolled": "Touch ID 不再可用。请使用密码解锁。",
-      “biometricNotEnrolledNoPassword”: “Touch ID 不再可用。请使用”返回”按钮，并在个人资料设置中重新启用。”
+      "biometricNotEnrolledNoPassword": "Touch ID 不再可用。请使用“返回”按钮，并在个人资料设置中重新启用。"
     }
   },
   "remove": "移除",
