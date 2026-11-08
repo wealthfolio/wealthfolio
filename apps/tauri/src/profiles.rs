@@ -874,8 +874,8 @@ pub async fn unlock_with_biometric(
     *state.auto_open_error()? = None;
 
     let registry = state.registry.clone();
-    let token_str = String::from_utf8(token)
-        .map_err(|_| "Invalid biometric token encoding.".to_owned())?;
+    let token_str =
+        String::from_utf8(token).map_err(|_| "Invalid biometric token encoding.".to_owned())?;
     let protected = tauri::async_runtime::spawn_blocking(move || {
         registry.verify_biometric_token(profile_id, &token_str)
     })
@@ -903,8 +903,7 @@ pub async fn unlock_with_biometric(
         .select(NATIVE_OWNER, profile_id)
         .map_err(|e| e.to_string())?;
 
-    let runtime =
-        profile_runtime(&state.registry, profile_id, &mut profile_sync_states)?;
+    let runtime = profile_runtime(&state.registry, profile_id, &mut profile_sync_states)?;
     let runtime = std::sync::Arc::new(runtime);
     *state
         .active

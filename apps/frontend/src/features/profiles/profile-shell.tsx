@@ -13,14 +13,7 @@ import { isWeb, listenPortfolioUpdateStart } from "@/adapters";
 import { Button, Icons, Input, Label } from "@wealthfolio/ui";
 import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { usePlatform } from "@/hooks/use-platform";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
 import {
   profileCommand,
   profileFailureKind,
@@ -55,13 +48,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const queries = useQueryClient();
   const reducedMotion = useReducedMotion();
   const { t } = useTranslation("common", { useSuspense: false });
-  type Phase =
-    | "loading"
-    | "closing"
-    | "opening"
-    | "locked"
-    | "active"
-    | "deleting";
+  type Phase = "loading" | "closing" | "opening" | "locked" | "active" | "deleting";
   const [phase, updatePhase] = useState<Phase>("loading");
   const phaseRef = useRef<Phase>("loading");
   const setPhase = useCallback((next: Phase) => {
@@ -89,31 +76,23 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const [removePassword, setRemovePassword] = useState(false);
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState(DEFAULT_PROFILE_AVATAR);
-  const [mode, setMode] = useState<
-    "choose" | "create" | "unlock" | "manage" | "recover"
-  >("choose");
+  const [mode, setMode] = useState<"choose" | "create" | "unlock" | "manage" | "recover">("choose");
   const [error, setError] = useState("");
   const errorCode = profileErrorCode(error);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const deletion = useRef<
-    { profileId: string; confirmation: string } | undefined
-  >(undefined);
+  const deletion = useRef<{ profileId: string; confirmation: string } | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState<string>();
   const [copiedRecovery, setCopiedRecovery] = useState<string>();
   const [covered, setCovered] = useState(false);
   const sessionScope = state?.session?.scopeId;
-  const activeProfile = state?.profiles.find(
-    (profile) => profile.id === state.session?.profileId,
-  );
+  const activeProfile = state?.profiles.find((profile) => profile.id === state.session?.profileId);
   // A profile is "protected" if it has either a password lock or biometric lock active.
-  const profileProtected =
-    activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
+  const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
   const [biometricBusy, setBiometricBusy] = useState(false);
   const { platform } = usePlatform();
-  const biometricAvailable =
-    !isWeb && (platform?.capabilities?.biometric_lock ?? false);
+  const biometricAvailable = !isWeb && (platform?.capabilities?.biometric_lock ?? false);
   const lock = useCallback(
     async (preserveAuth = false, nextIntent: "lock" | "switch" = "lock") => {
       if (working.current) return;
@@ -174,29 +153,19 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       const requestEpoch = epoch.current;
       try {
         const next = await profileCommand<ProfileState>("get_profile_state");
-        if (cancelled || requestEpoch !== epoch.current || working.current)
-          return;
+        if (cancelled || requestEpoch !== epoch.current || working.current) return;
         setError("");
         const previous = currentProfile.current;
-        if (
-          previous &&
-          !next.profiles.some((profile) => profile.id === previous.id)
-        ) {
+        if (previous && !next.profiles.some((profile) => profile.id === previous.id)) {
           intent.current = "switch";
-          if (
-            !next.pendingDeletions?.some(
-              (profile) => profile.id === previous.id,
-            )
-          )
+          if (!next.pendingDeletions?.some((profile) => profile.id === previous.id))
             clearProfilePreferences(previous.id);
         }
         if (next.startupError) {
           setState(next);
           setPhase("loading");
         } else if (next.session) {
-          const profile = next.profiles.find(
-            (p) => p.id === next.session?.profileId,
-          );
+          const profile = next.profiles.find((p) => p.id === next.session?.profileId);
           if (profile) rememberOpeningProfile(profile);
           if (!installProfileSession(next.session, profile?.isLegacy)) {
             if (isWeb) {
@@ -209,10 +178,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             return;
           }
           setError("");
-          if (isWeb)
-            void listenPortfolioUpdateStart(keepEventStreamOpen).catch(
-              () => undefined,
-            );
+          if (isWeb) void listenPortfolioUpdateStart(keepEventStreamOpen).catch(() => undefined);
           currentProfile.current = profile;
           setState(next);
           setCovered(false);
@@ -275,11 +241,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           setPhase("loading");
           setSelected(currentProfile.current);
           const message = String(e);
-          setError(
-            isWeb && failure === "connection"
-              ? "PROFILE_CONNECTION_FAILED"
-              : message,
-          );
+          setError(isWeb && failure === "connection" ? "PROFILE_CONNECTION_FAILED" : message);
         }
       } finally {
         inFlight = false;
@@ -309,8 +271,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       [window, "wealthfolio:event-stream-reconnected", wake],
     ] as const;
     if (isWeb)
-      for (const [target, name, handler] of webEvents)
-        target.addEventListener(name, handler);
+      for (const [target, name, handler] of webEvents) target.addEventListener(name, handler);
     const locked = () => {
       epoch.current += 1;
       void queries.cancelQueries();
@@ -360,8 +321,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       cancelled = true;
       profileChangesChannel?.removeEventListener("message", profileChanged);
       if (isWeb)
-        for (const [target, name, handler] of webEvents)
-          target.removeEventListener(name, handler);
+        for (const [target, name, handler] of webEvents) target.removeEventListener(name, handler);
       unlisteners.forEach((unlisten) => unlisten());
       window.removeEventListener("wealthfolio:profile-locked", locked);
     };
@@ -371,19 +331,15 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     if (!sessionScope || covered || !profileProtected) return;
     let last = 0;
     const activity = (event: Event) => {
-      if (!event.isTrusted || Date.now() - last < PROFILE_ACTIVITY_INTERVAL_MS)
-        return;
+      if (!event.isTrusted || Date.now() - last < PROFILE_ACTIVITY_INTERVAL_MS) return;
       last = Date.now();
       const requestEpoch = epoch.current;
-      void profileCommand(
-        "profile_activity",
-        { scopeId: profileScope() },
-        true,
-      ).catch((error: unknown) => {
-        if (requestEpoch !== epoch.current || phaseRef.current !== "active")
-          return;
-        if (profileFailureKind(error) === "session") revokeProfileSession();
-      });
+      void profileCommand("profile_activity", { scopeId: profileScope() }, true).catch(
+        (error: unknown) => {
+          if (requestEpoch !== epoch.current || phaseRef.current !== "active") return;
+          if (profileFailureKind(error) === "session") revokeProfileSession();
+        },
+      );
     };
     for (const event of ["pointerdown", "keydown", "touchstart", "wheel"])
       window.addEventListener(event, activity, { passive: true });
@@ -397,9 +353,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     if (
       phase === "locked" &&
       (mode === "choose" ||
-        (mode === "unlock" &&
-          !selected?.lockEnabled &&
-          !selected?.biometricEnabled))
+        (mode === "unlock" && !selected?.lockEnabled && !selected?.biometricEnabled))
     ) {
       heading.current?.focus();
     }
@@ -445,16 +399,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       void run(() => unlock(profile.id, ""));
     }
   }
-  async function unlock(
-    id: string,
-    unlockProof = password,
-    createdProfile?: ProfileSummary,
-  ) {
+  async function unlock(id: string, unlockProof = password, createdProfile?: ProfileSummary) {
     const target =
-      createdProfile ??
-      (selected?.id === id
-        ? selected
-        : state?.profiles.find((p) => p.id === id));
+      createdProfile ?? (selected?.id === id ? selected : state?.profiles.find((p) => p.id === id));
     if (target) setSelected(target);
     // Finish moving the avatar before loading replaces this screen.
     if (mode !== "create" && !reducedMotion)
@@ -466,22 +413,15 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       // The stored lock is authoritative; a migrated registry may have an old hint.
-      const invalidPassword = String(error).includes(
-        "PROFILE_PASSWORD_INVALID",
-      );
-      if (
-        target &&
-        (String(error).includes("PROFILE_LOCKED") || invalidPassword)
-      ) {
+      const invalidPassword = String(error).includes("PROFILE_PASSWORD_INVALID");
+      if (target && (String(error).includes("PROFILE_LOCKED") || invalidPassword)) {
         setSelected({ ...target, lockEnabled: true });
         setState((current) =>
           current
             ? {
                 ...current,
                 profiles: current.profiles.map((profile) =>
-                  profile.id === id
-                    ? { ...profile, lockEnabled: true }
-                    : profile,
+                  profile.id === id ? { ...profile, lockEnabled: true } : profile,
                 ),
               }
             : current,
@@ -498,8 +438,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     reloadApplication({ dashboard: intent.current === "switch" });
   }
   async function unlockWithBiometric(id: string) {
-    const target =
-      selected?.id === id ? selected : state?.profiles.find((p) => p.id === id);
+    const target = selected?.id === id ? selected : state?.profiles.find((p) => p.id === id);
     if (target) setSelected(target);
     if (mode !== "create" && !reducedMotion)
       await new Promise((resolve) => setTimeout(resolve, PROFILE_SELECTION_MS));
@@ -540,11 +479,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     setPhase("deleting");
     deletion.current = { profileId: target.id, confirmation };
     try {
-      await profileCommand(
-        "delete_profile",
-        { ...deletion.current, proof },
-        !retry,
-      );
+      await profileCommand("delete_profile", { ...deletion.current, proof }, !retry);
       clearProfilePreferences(target.id);
       setDeleteOpen(false);
       revokeProfileSession();
@@ -564,9 +499,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
       // Validation errors leave the profile intact and allow correction.
-      const next = await profileCommand<ProfileState>(
-        "get_profile_state",
-      ).catch(() => undefined);
+      const next = await profileCommand<ProfileState>("get_profile_state").catch(() => undefined);
       if (next) setState(next);
       if (next?.profiles.some((profile) => profile.id === target.id)) {
         setDeleteOpen(true);
@@ -625,9 +558,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       (mode === "manage" &&
         passwordManagement &&
         !removePassword &&
-        (Boolean(password) ||
-          Boolean(confirmPassword) ||
-          !selected?.lockEnabled));
+        (Boolean(password) || Boolean(confirmPassword) || !selected?.lockEnabled));
     if (settingPassword) {
       const length = Array.from(password).length;
       if (length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
@@ -654,9 +585,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         });
         intent.current = "switch";
         setSelected(created);
-        setState((old) =>
-          old ? { ...old, profiles: [...old.profiles, created] } : old,
-        );
+        setState((old) => (old ? { ...old, profiles: [...old.profiles, created] } : old));
         rememberOpeningProfile(created);
         if (recoveryCode) setRecovery(recoveryCode);
         else await unlock(created.id, "", created);
@@ -671,11 +600,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         );
       }
       if (mode === "manage") {
-        await profileCommand(
-          "update_profile",
-          { name, avatarId: avatar },
-          true,
-        );
+        await profileCommand("update_profile", { name, avatarId: avatar }, true);
         if (passwordManagement && (password || removePassword)) {
           const code = await profileCommand<string | null>(
             "set_profile_password",
@@ -724,10 +649,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         }}
       />
     );
-  if (
-    !recovery &&
-    (phase === "loading" || phase === "closing" || phase === "opening")
-  ) {
+  if (!recovery && (phase === "loading" || phase === "closing" || phase === "opening")) {
     return (
       <StartupScreen
         profile={selected}
@@ -739,8 +661,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
               })
             : phase === "closing"
               ? t("profiles.locking", { defaultValue: "Locking Wealthfolio…" })
-              : errorCode === "PROFILE_CONNECTION_FAILED" ||
-                  errorCode === "PROFILE_AUTH_REQUIRED"
+              : errorCode === "PROFILE_CONNECTION_FAILED" || errorCode === "PROFILE_AUTH_REQUIRED"
                 ? t("profiles.connectionFailed")
                 : undefined
         }
@@ -759,18 +680,14 @@ export function ProfileShell({ children }: { children: ReactNode }) {
               else refreshRef.current?.();
             }}
           >
-            {errorCode === "PROFILE_AUTH_REQUIRED"
-              ? t("profiles.signInAgain")
-              : t("retry")}
+            {errorCode === "PROFILE_AUTH_REQUIRED" ? t("profiles.signInAgain") : t("retry")}
           </Button>
         )}
       </StartupScreen>
     );
   }
   if (state?.session && !covered && mode !== "manage") {
-    const current = state.profiles.find(
-      (p) => p.id === state.session?.profileId,
-    );
+    const current = state.profiles.find((p) => p.id === state.session?.profileId);
     return (
       <ProfileContext.Provider
         value={{
@@ -797,9 +714,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           lockProfile: () => void lock(),
           switchProfile: () => void lock(false, "switch"),
           selectProfile: (profileId) => {
-            const target = state.profiles.find(
-              (profile) => profile.id === profileId,
-            );
+            const target = state.profiles.find((profile) => profile.id === profileId);
             if (!target || target.id === current?.id) return;
             void lock(false, "switch").then((closed) => {
               if (closed && target) select(target);
@@ -815,13 +730,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const isProfilePicker = !recovery && (mode === "choose" || mode === "unlock");
   const hasNoProfiles = state?.profiles.length === 0;
   const isRecoveryView = Boolean(recovery) || mode === "recover";
-  const recoveryCodeInvalid =
-    mode === "recover" && error.includes("PROFILE_PASSWORD_INVALID");
+  const recoveryCodeInvalid = mode === "recover" && error.includes("PROFILE_PASSWORD_INVALID");
   const formError =
-    error &&
-    error !== PASSWORD_LENGTH_ERROR &&
-    !recoveryCodeInvalid &&
-    !deleteOpen ? (
+    error && error !== PASSWORD_LENGTH_ERROR && !recoveryCodeInvalid && !deleteOpen ? (
       <p
         id="profile-form-error"
         role="alert"
@@ -879,21 +790,15 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         (mode === "manage" && passwordManagement && selected?.lockEnabled)) && (
         <div className="space-y-2">
           <Label htmlFor="profile-proof">
-            {mode === "recover"
-              ? t("profiles.recoveryCode")
-              : t("profiles.currentProof")}
+            {mode === "recover" ? t("profiles.recoveryCode") : t("profiles.currentProof")}
           </Label>
           <PasswordInput
             id="profile-proof"
             showLabel={
-              mode === "recover"
-                ? t("profiles.showRecovery")
-                : t("profiles.showCurrentProof")
+              mode === "recover" ? t("profiles.showRecovery") : t("profiles.showCurrentProof")
             }
             hideLabel={
-              mode === "recover"
-                ? t("profiles.hideRecovery")
-                : t("profiles.hideCurrentProof")
+              mode === "recover" ? t("profiles.hideRecovery") : t("profiles.hideCurrentProof")
             }
             className="h-11 rounded-full bg-white/30 ps-4 backdrop-blur-md dark:bg-white/5"
             value={proof}
@@ -914,20 +819,14 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             autoComplete={mode === "recover" ? "off" : "current-password"}
           />
           {recoveryCodeInvalid && (
-            <p
-              id="profile-recovery-error"
-              role="alert"
-              className="text-destructive text-sm"
-            >
+            <p id="profile-recovery-error" role="alert" className="text-destructive text-sm">
               {t("profiles.errors.incorrectRecovery")}
             </p>
           )}
         </div>
       )}
       {(mode === "recover" ||
-        ((mode === "create" || mode === "manage") &&
-          passwordManagement &&
-          !removePassword)) && (
+        ((mode === "create" || mode === "manage") && passwordManagement && !removePassword)) && (
         <div className="space-y-2">
           <Label htmlFor="profile-password">{t("profiles.newPassword")}</Label>
           <PasswordInput
@@ -947,30 +846,18 @@ export function ProfileShell({ children }: { children: ReactNode }) {
               max: MAX_PASSWORD_LENGTH,
             })}
             autoComplete="new-password"
-            required={
-              mode !== "manage" ||
-              !selected?.lockEnabled ||
-              Boolean(confirmPassword)
-            }
+            required={mode !== "manage" || !selected?.lockEnabled || Boolean(confirmPassword)}
             aria-invalid={error === PASSWORD_LENGTH_ERROR}
             aria-describedby={
-              error === PASSWORD_LENGTH_ERROR
-                ? "profile-password-error"
-                : undefined
+              error === PASSWORD_LENGTH_ERROR ? "profile-password-error" : undefined
             }
           />
           {error === PASSWORD_LENGTH_ERROR && (
-            <p
-              id="profile-password-error"
-              role="alert"
-              className="text-destructive text-sm"
-            >
+            <p id="profile-password-error" role="alert" className="text-destructive text-sm">
               {profileErrorMessage(error, t)}
             </p>
           )}
-          <Label htmlFor="profile-confirm-password">
-            {t("profiles.confirmPassword")}
-          </Label>
+          <Label htmlFor="profile-confirm-password">{t("profiles.confirmPassword")}</Label>
           <PasswordInput
             ref={confirmationInput}
             id="profile-confirm-password"
@@ -983,13 +870,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
               setConfirmationInvalid(false);
             }}
             autoComplete="new-password"
-            required={
-              mode !== "manage" || !selected?.lockEnabled || Boolean(password)
-            }
+            required={mode !== "manage" || !selected?.lockEnabled || Boolean(password)}
             aria-invalid={confirmationInvalid}
-            aria-describedby={
-              confirmationInvalid ? "profile-confirm-password-error" : undefined
-            }
+            aria-describedby={confirmationInvalid ? "profile-confirm-password-error" : undefined}
           />
           {confirmationInvalid && (
             <p
@@ -1030,23 +913,16 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         {isRecoveryView && selected && (
           <div className="flex items-center gap-3 !overflow-visible">
             <span className="profile-lock-avatar [--avatar-rim:3px]">
-              <ProfileAvatar
-                id={selected.avatarId}
-                className="size-12 rounded-full"
-              />
+              <ProfileAvatar id={selected.avatarId} className="size-12 rounded-full" />
             </span>
-            <span className="text-muted-foreground min-w-0 truncate text-sm">
-              {selected.name}
-            </span>
+            <span className="text-muted-foreground min-w-0 truncate text-sm">{selected.name}</span>
           </div>
         )}
         <h1
           ref={heading}
           tabIndex={-1}
           className={
-            isProfilePicker && !hasNoProfiles
-              ? "sr-only"
-              : "text-2xl font-semibold outline-none"
+            isProfilePicker && !hasNoProfiles ? "sr-only" : "text-2xl font-semibold outline-none"
           }
         >
           {recovery
@@ -1062,10 +938,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   : t("profiles.resetTitle")}
         </h1>
         {mode === "recover" && !recovery && (
-          <p
-            id="profile-recovery-help"
-            className="text-muted-foreground text-sm leading-relaxed"
-          >
+          <p id="profile-recovery-help" className="text-muted-foreground text-sm leading-relaxed">
             {t("profiles.recoveryHelp")}
           </p>
         )}
@@ -1089,9 +962,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   size="icon"
                   className="shrink-0 rounded-full"
                   aria-label={
-                    copiedRecovery === recovery
-                      ? t("profiles.codeCopied")
-                      : t("profiles.copyCode")
+                    copiedRecovery === recovery ? t("profiles.codeCopied") : t("profiles.copyCode")
                   }
                   onClick={async () => {
                     try {
@@ -1110,10 +981,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   )}
                 </Button>
               </div>
-              <p
-                role="status"
-                className="text-muted-foreground min-h-4 text-xs"
-              >
+              <p role="status" className="text-muted-foreground min-h-4 text-xs">
                 {copiedRecovery === recovery ? t("profiles.copied") : ""}
               </p>
             </div>
@@ -1152,10 +1020,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             >
               <AnimatePresence initial={false} mode="popLayout">
                 {state.profiles
-                  .filter(
-                    (profile) =>
-                      mode !== "unlock" || profile.id === selected?.id,
-                  )
+                  .filter((profile) => mode !== "unlock" || profile.id === selected?.id)
                   .map((profile) => (
                     <motion.button
                       layout={reducedMotion ? false : "position"}
@@ -1163,9 +1028,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{
-                        duration: reducedMotion
-                          ? 0
-                          : PROFILE_SELECTION_MS / 1000,
+                        duration: reducedMotion ? 0 : PROFILE_SELECTION_MS / 1000,
                         ease: "easeOut",
                       }}
                       key={profile.id}
@@ -1187,46 +1050,44 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   ))}
               </AnimatePresence>
             </div>
-            {mode === "unlock" &&
-              selected?.biometricEnabled &&
-              biometricAvailable && (
-                <div className="mx-auto max-w-xs space-y-3">
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={busy || biometricBusy}
-                    onClick={() => {
-                      if (!selected) return;
-                      setBiometricBusy(true);
-                      void run(() => unlockWithBiometric(selected.id)).finally(
-                        () => setBiometricBusy(false),
-                      );
-                    }}
-                  >
-                    <Icons.Fingerprint className="mr-2 size-4" />
-                    {biometricBusy
-                      ? t("profiles.biometricUnlocking", {
-                          defaultValue: "Verifying…",
+            {mode === "unlock" && selected?.biometricEnabled && biometricAvailable && (
+              <div className="mx-auto max-w-xs space-y-3">
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={busy || biometricBusy}
+                  onClick={() => {
+                    if (!selected) return;
+                    setBiometricBusy(true);
+                    void run(() => unlockWithBiometric(selected.id)).finally(() =>
+                      setBiometricBusy(false),
+                    );
+                  }}
+                >
+                  <Icons.Fingerprint className="me-2 size-4" />
+                  {biometricBusy
+                    ? t("profiles.biometricUnlocking", {
+                        defaultValue: "Verifying…",
+                      })
+                    : t("profiles.unlockWithTouchId", {
+                        defaultValue: "Unlock with Touch ID",
+                      })}
+                </Button>
+                {error === "PROFILE_BIOMETRIC_NOT_ENROLLED" && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {selected?.lockEnabled
+                      ? t("profiles.errors.biometricNotEnrolled", {
+                          defaultValue:
+                            "Touch ID is no longer available. Use your password to unlock.",
                         })
-                      : t("profiles.unlockWithTouchId", {
-                          defaultValue: "Unlock with Touch ID",
+                      : t("profiles.errors.biometricNotEnrolledNoPassword", {
+                          defaultValue:
+                            "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings.",
                         })}
-                  </Button>
-                  {error === "PROFILE_BIOMETRIC_NOT_ENROLLED" && (
-                    <p role="alert" className="text-destructive text-sm">
-                      {selected?.lockEnabled
-                        ? t("profiles.errors.biometricNotEnrolled", {
-                            defaultValue:
-                              "Touch ID is no longer available. Use your password to unlock.",
-                          })
-                        : t("profiles.errors.biometricNotEnrolledNoPassword", {
-                            defaultValue:
-                              "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings.",
-                          })}
-                    </p>
-                  )}
-                </div>
-              )}
+                  </p>
+                )}
+              </div>
+            )}
             {mode === "unlock" && selected?.lockEnabled && (
               <form
                 key={selected.id}
@@ -1311,30 +1172,20 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             <Button
               variant={hasNoProfiles ? "default" : "ghost"}
               size={hasNoProfiles ? "lg" : "sm"}
-              className={
-                hasNoProfiles
-                  ? "px-8"
-                  : "profile-lock-add text-muted-foreground text-xs"
-              }
+              className={hasNoProfiles ? "px-8" : "profile-lock-add text-muted-foreground text-xs"}
               disabled={busy}
               onClick={beginCreateProfile}
             >
-              {state?.profiles.length === 0
-                ? t("profiles.create")
-                : t("profiles.add")}
+              {state?.profiles.length === 0 ? t("profiles.create") : t("profiles.add")}
             </Button>
             {!(mode === "unlock" && selected?.lockEnabled) && formError}
             {state?.pendingDeletions?.map((profile) => (
               <div key={profile.id} className="space-y-2 text-sm">
-                <p>
-                  {t("profiles.incompleteDeletion", { name: profile.name })}
-                </p>
+                <p>{t("profiles.incompleteDeletion", { name: profile.name })}</p>
                 <Button
                   variant="outline"
                   disabled={busy}
-                  onClick={() =>
-                    void deleteProfile(profile.name, "", true, profile)
-                  }
+                  onClick={() => void deleteProfile(profile.name, "", true, profile)}
                 >
                   {t("profiles.retryNamedDeletion", { name: profile.name })}
                 </Button>
@@ -1411,9 +1262,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
               </>
             )}
             {mode === "recover" && passwordFields}
-            {isProfileEditor && (
-              <ProfileAvatarPicker value={avatar} onChange={setAvatar} />
-            )}
+            {isProfileEditor && <ProfileAvatarPicker value={avatar} onChange={setAvatar} />}
             {formActions}
             {formError}
             {mode === "manage" && biometricAvailable && (
@@ -1426,20 +1275,16 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                     <p className="text-muted-foreground text-sm">
                       {selected?.biometricEnabled
                         ? t("profiles.touchIdEnabled", {
-                            defaultValue:
-                              "Touch ID is enabled for this profile.",
+                            defaultValue: "Touch ID is enabled for this profile.",
                           })
                         : t("profiles.touchIdDisabled", {
-                            defaultValue:
-                              "Unlock this profile with your fingerprint.",
+                            defaultValue: "Unlock this profile with your fingerprint.",
                           })}
                     </p>
                   </div>
                   <Button
                     type="button"
-                    variant={
-                      selected?.biometricEnabled ? "outline" : "secondary"
-                    }
+                    variant={selected?.biometricEnabled ? "outline" : "secondary"}
                     disabled={busy || biometricBusy}
                     onClick={async () => {
                       if (!selected) return;
@@ -1456,9 +1301,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                               ? {
                                   ...current,
                                   profiles: current.profiles.map((p) =>
-                                    p.id === selected.id
-                                      ? { ...p, biometricEnabled: false }
-                                      : p,
+                                    p.id === selected.id ? { ...p, biometricEnabled: false } : p,
                                   ),
                                 }
                               : current,
@@ -1474,9 +1317,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                               ? {
                                   ...current,
                                   profiles: current.profiles.map((p) =>
-                                    p.id === selected.id
-                                      ? { ...p, biometricEnabled: true }
-                                      : p,
+                                    p.id === selected.id ? { ...p, biometricEnabled: true } : p,
                                   ),
                                 }
                               : current,
@@ -1505,9 +1346,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             {mode === "manage" && (
               <section className="border-destructive/25 space-y-2 border-t pt-6">
                 <h2 className="font-medium">{t("profiles.delete")}</h2>
-                <p className="text-muted-foreground text-sm">
-                  {t("profiles.deleteHelp")}
-                </p>
+                <p className="text-muted-foreground text-sm">{t("profiles.deleteHelp")}</p>
                 <Button
                   type="button"
                   variant="destructive"
@@ -1525,9 +1364,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             error={error}
             profile={selected}
             onClose={() => setDeleteOpen(false)}
-            onDelete={(confirmation, proof) =>
-              void deleteProfile(confirmation, proof)
-            }
+            onDelete={(confirmation, proof) => void deleteProfile(confirmation, proof)}
           />
         )}
       </div>

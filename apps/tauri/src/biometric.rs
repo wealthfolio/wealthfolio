@@ -202,7 +202,10 @@ mod imp {
     /// raw `security_framework_sys` APIs to attach `kSecAttrAccessControl` to
     /// the `SecItemAdd` query dictionary — `security_framework::item::ItemAddOptions`
     /// does not expose that field.
-    #[allow(unsafe_code, reason = "Raw Security.framework APIs for kSecAttrAccessControl")]
+    #[allow(
+        unsafe_code,
+        reason = "Raw Security.framework APIs for kSecAttrAccessControl"
+    )]
     fn try_store_with_biometric_ac(service: &str, account: &str, token: &[u8]) -> bool {
         // Attempt OS-level biometric access control.
         // SecAccessControl::create_with_protection wraps SecAccessControlCreateWithFlags
@@ -237,14 +240,8 @@ mod imp {
             // Attach the biometric access-control constraint.
             // access_control is a TCFType wrapper; it stays alive until end of this
             // function so the raw pointer in the dict remains valid for SecItemAdd.
-            dict.add(
-                &kSecAttrAccessControl.to_void(),
-                &access_control.to_void(),
-            );
-            SecItemAdd(
-                dict.as_concrete_TypeRef() as *const _,
-                std::ptr::null_mut(),
-            )
+            dict.add(&kSecAttrAccessControl.to_void(), &access_control.to_void());
+            SecItemAdd(dict.as_concrete_TypeRef() as *const _, std::ptr::null_mut())
         };
 
         if status == errSecSuccess {
@@ -284,9 +281,7 @@ mod imp {
             Err(e) if e.code() == -25300 => Ok(()), // already gone — not an error
             Err(e) => {
                 let code = e.code();
-                log::warn!(
-                    "delete_generic_password for biometric token failed (code {code}): {e}"
-                );
+                log::warn!("delete_generic_password for biometric token failed (code {code}): {e}");
                 Err(format!(
                     "Could not delete biometric token (code {code}): {e}"
                 ))
@@ -320,9 +315,7 @@ pub fn evaluate_biometric_challenge(reason: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return imp::evaluate_biometric(reason);
     #[cfg(not(target_os = "macos"))]
-    Err(
-        "PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned(),
-    )
+    Err("PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned())
 }
 
 /// Store a biometric bypass token in the platform's secure store.
@@ -333,9 +326,7 @@ pub fn store_bypass_token(profile_id: uuid::Uuid, token: &[u8]) -> Result<(), St
     #[cfg(target_os = "macos")]
     return imp::store_bypass_token(profile_id, token);
     #[cfg(not(target_os = "macos"))]
-    Err(
-        "PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned(),
-    )
+    Err("PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned())
 }
 
 /// Retrieve the biometric bypass token, triggering the Touch ID prompt.
@@ -346,9 +337,7 @@ pub fn retrieve_bypass_token(profile_id: uuid::Uuid) -> Result<Vec<u8>, String> 
     #[cfg(target_os = "macos")]
     return imp::retrieve_bypass_token(profile_id);
     #[cfg(not(target_os = "macos"))]
-    Err(
-        "PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned(),
-    )
+    Err("PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned())
 }
 
 /// Remove the biometric bypass token without authentication.
@@ -357,7 +346,5 @@ pub fn delete_bypass_token(profile_id: uuid::Uuid) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return imp::delete_bypass_token(profile_id);
     #[cfg(not(target_os = "macos"))]
-    Err(
-        "PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned(),
-    )
+    Err("PROFILE_BIOMETRIC_UNAVAILABLE: Biometric unlock is only available on macOS.".to_owned())
 }

@@ -773,6 +773,12 @@ impl ProfileRegistry {
             .find(|p| p.id == id && !self.is_deleting(id))
             .ok_or(ProfileError::NotFound)?;
         let mut record = self.read_lock(profile)?;
+        // A profile protected only by Touch ID has no password verifier.
+        // Password-based unlock must not issue a session for such profiles;
+        // callers must use `unlock_with_biometric` instead.
+        if profile.biometric_enabled && record.verifier.is_none() {
+            return Err(ProfileError::Locked);
+        }
         self.verify_record(profile, &mut record, proof)?;
         Ok(record.verifier.is_some())
     }
@@ -971,11 +977,17 @@ impl ProfileRegistry {
         record.biometric_verifier = Some(verifier);
         self.write_lock(&profile, &record)?;
         let mut next = data.clone();
-        next.profiles
+        let entry = next
+            .profiles
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or(ProfileError::NotFound)?
-            .biometric_enabled = true;
+            .ok_or(ProfileError::NotFound)?;
+        entry.biometric_enabled = true;
+        // Clear never_protected so read_lock consults the keychain for this
+        // profile. Without this, read_lock short-circuits for formerly-unprotected
+        // profiles and returns an empty record, making verify_biometric_token
+        // unable to find the stored biometric_verifier.
+        entry.never_protected = false;
         self.save(&mut data, next)
     }
 
@@ -1019,9 +1031,8 @@ impl ProfileRegistry {
                 "Biometric unlock is not enabled for this profile.".into(),
             ));
         };
-        let parsed = PasswordHash::new(verifier).map_err(|_| {
-            ProfileError::Unavailable("The biometric verifier is invalid.".into())
-        })?;
+        let parsed = PasswordHash::new(verifier)
+            .map_err(|_| ProfileError::Unavailable("The biometric verifier is invalid.".into()))?;
         if Argon2::default()
             .verify_password(bypass_token.as_bytes(), &parsed)
             .is_ok()

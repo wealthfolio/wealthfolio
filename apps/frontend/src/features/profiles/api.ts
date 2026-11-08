@@ -46,8 +46,8 @@ export interface ProfileSummary {
   name: string;
   avatarId: string;
   lockEnabled: boolean;
-  /** Whether Touch ID (macOS) or equivalent biometric unlock is enabled. */
-  biometricEnabled: boolean;
+  /** Whether Touch ID (macOS) or equivalent biometric unlock is enabled. Absent on older profiles (defaults to false). */
+  biometricEnabled?: boolean;
   isLegacy?: boolean;
   /** Prior Connect association, independent of the current sign-in session. */
   hasConnectBinding?: boolean;
