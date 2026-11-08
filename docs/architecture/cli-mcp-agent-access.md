@@ -598,8 +598,8 @@ activities, quantities or cost basis. Each row names an asset by `assetId`
 `classification:read`, finds an id), a `date` (`YYYY-MM-DD`, not in the future),
 a `price` in the asset's quote currency, that `currency`, and an optional
 `overwrite` flag. Investment assets are accepted, and so are manually priced
-alternative assets and liabilities, whose values are stored as manual quotes
-(a gold coin's price, a house's value, a mortgage balance). FX rates and
+alternative assets and liabilities, whose values are stored as manual quotes (a
+gold coin's price, a house's value, a mortgage balance). FX rates and
 market-priced alternative assets keep their own paths.
 
 `prepare_quote_import` (`QuoteServiceTrait::preview_quote_import`) reports per
@@ -610,9 +610,8 @@ manual quote so a later refetch cannot change the day), `skip` (a manual quote
 with the same price and currency is stored), `update` (a different price is
 stored and the row sets `overwrite`), `conflict` (a different price without
 `overwrite`) or `invalid` (unknown asset, an FX or market-priced alternative
-asset, bad or future date,
-non-positive price, a currency other than the asset's quote currency, or a
-second row for the same asset and date).
+asset, bad or future date, non-positive price, a currency other than the asset's
+quote currency, or a second row for the same asset and date).
 
 `commit_quote_import` runs the preview again and saves nothing if any row is
 invalid or a conflict. Otherwise it passes the create and update rows to
