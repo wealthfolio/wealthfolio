@@ -178,6 +178,11 @@ fn is_duplicate(row: &ActivityImport) -> bool {
     row.duplicate_of_id.is_some() || row.duplicate_of_line_number.is_some()
 }
 
+/// A row the import wrote as a draft (no final cash it could establish).
+fn is_saved_draft(row: &ActivityImport) -> bool {
+    row.is_draft && !is_rejected(row) && !(is_duplicate(row) && !row.force_import)
+}
+
 fn to_result(row: &ActivityImport) -> ImportRowResult {
     ImportRowResult {
         line_number: row.line_number,
@@ -458,6 +463,11 @@ pub struct CommitActivityImportOutput {
     pub financial_rows: Vec<ImportFinancialRowStatus>,
     pub import_run_id: String,
     pub summary: ImportActivitiesSummary,
+    /// Rows saved as drafts: they wait for review and count toward nothing.
+    pub draft: usize,
+    /// Each draft row with the warning that says why.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub drafts: Vec<ImportRowResult>,
     /// Rows that failed validation/import (with their errors).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<ImportRowResult>,
@@ -483,7 +493,7 @@ impl AgentTool for CommitActivityImport {
     }
 
     fn description(&self) -> &'static str {
-        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, financialRows with saved/existing IDs and per-row financial status, a summary, and failed rows. For Spending category/event columns, use prepare_spending_import_metadata against those saved IDs, review, then commit only metadata. A metadata failure must never trigger reimporting successful financial rows."
+        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, financialRows with saved/existing IDs and per-row financial status (imported, draft, duplicate_skipped or failed), a summary, a draft count with each draft row and its warning, and failed rows. Draft rows are saved but wait for review and count toward no holding or balance: tell the user, and fix them with prepare_activity_updates / commit_activity_updates. For Spending category/event columns, use prepare_spending_import_metadata against those saved IDs, review, then commit only metadata. A metadata failure must never trigger reimporting successful financial rows."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -553,6 +563,8 @@ impl AgentTool for CommitActivityImport {
                     success: false,
                     error_message: Some("Validation errors found in activities.".to_string()),
                 },
+                draft: 0,
+                drafts: Vec::new(),
                 failed,
             };
             return Ok(AgentToolResult {
@@ -598,10 +610,12 @@ impl AgentTool for CommitActivityImport {
                     "failed"
                 } else if duplicate {
                     "duplicate_skipped"
+                } else if row.is_draft {
+                    "draft"
                 } else {
                     "imported"
                 };
-                let id = if status == "imported" {
+                let id = if matches!(status, "imported" | "draft") {
                     result
                         .persisted_rows
                         .iter()
@@ -620,10 +634,18 @@ impl AgentTool for CommitActivityImport {
                 }
             })
             .collect();
+        let drafts: Vec<ImportRowResult> = result
+            .activities
+            .iter()
+            .filter(|row| is_saved_draft(row))
+            .map(to_result)
+            .collect();
         let output = CommitActivityImportOutput {
             financial_rows,
             import_run_id: result.import_run_id,
             summary,
+            draft: drafts.len(),
+            drafts,
             failed,
         };
         Ok(AgentToolResult {

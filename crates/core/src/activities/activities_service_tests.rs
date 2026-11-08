@@ -4390,6 +4390,75 @@ pub(crate) mod tests {
         assert_eq!(created.amount, Some(dec!(0.004)));
     }
 
+    /// A bonus or demerger allotment: three units at no cost.
+    fn free_buy(id: &str) -> NewActivity {
+        let mut buy = statement_buy(id, None, dec!(0));
+        buy.quantity = Some(dec!(3));
+        buy.unit_price = Some(dec!(0));
+        buy
+    }
+
+    /// #2406: a zero-price BUY with no charges was saved as a draft without a
+    /// total, so its units never counted. Units received for free cost zero.
+    #[tokio::test]
+    async fn free_buy_import_posts_with_zero_total() {
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let account = create_test_account("acc-final", "USD");
+
+        let result = activity_service
+            .prepare_activities_for_import(vec![free_buy("free-import")], &account)
+            .await
+            .expect("import preparation should succeed");
+
+        assert!(result.errors.is_empty());
+        let prepared = &result.prepared[0].activity;
+        assert_eq!(prepared.amount, Some(dec!(0)));
+        assert_ne!(prepared.status, Some(ActivityStatus::Draft));
+        assert_ne!(prepared.needs_review, Some(true));
+    }
+
+    #[tokio::test]
+    async fn free_buy_save_posts_with_zero_total() {
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+
+        let created = activity_service
+            .create_activity(free_buy("free-save"))
+            .await
+            .expect("a free allotment should save");
+
+        assert_eq!(created.amount, Some(dec!(0)));
+        assert_eq!(created.status, ActivityStatus::Posted);
+    }
+
+    /// A zero price with a charge, or from a broker sync that sends zero for a
+    /// price it does not report (#1546), is still a missing price for review.
+    #[tokio::test]
+    async fn zero_price_buy_with_charges_or_from_sync_stays_for_review() {
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let account = create_test_account("acc-final", "USD");
+        let mut with_fee = free_buy("free-with-fee");
+        with_fee.fee = Some(dec!(1));
+
+        let imported = activity_service
+            .prepare_activities_for_import(vec![with_fee], &account)
+            .await
+            .expect("import preparation should succeed");
+        let synced = activity_service
+            .prepare_activities_for_sync(vec![free_buy("free-sync")], &account)
+            .await
+            .expect("sync preparation should succeed");
+
+        for result in [imported, synced] {
+            let prepared = &result.prepared[0].activity;
+            assert_eq!(prepared.amount, None);
+            assert_eq!(prepared.status, Some(ActivityStatus::Draft));
+            assert_eq!(prepared.needs_review, Some(true));
+        }
+    }
+
     #[tokio::test]
     async fn reinvested_dividend_rounds_its_calculated_value() {
         let activity_service =
