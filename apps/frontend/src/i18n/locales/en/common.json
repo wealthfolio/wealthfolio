@@ -699,5 +699,17 @@
     "accountNumberMax": "Account number must not be longer than 64 characters.",
     "accountCurrency": "Please select a currency.",
     "creditCardTracking": "Credit card accounts cannot use holdings tracking mode."
+  },
+  "backendErrors": {
+    "internal": "The operation could not be completed.",
+    "invalidInput": "Check your input and try again.",
+    "conflict": "The change conflicts with existing data.",
+    "notFound": "The requested item was not found.",
+    "unauthorized": "Sign in to continue.",
+    "forbidden": "This operation is not allowed.",
+    "unavailable": "This operation is unavailable.",
+    "providerKeyMissing": "Add an API key for this provider in Settings.",
+    "providerUnknown": "Select a supported provider.",
+    "providerUnavailable": "The provider could not complete the request. Check your provider settings."
   }
 }

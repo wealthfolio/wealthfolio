@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::error::Error as StdError;
 use thiserror::Error;
 use wealthfolio_ai::ProviderApiError;
-use wealthfolio_core::errors::{DatabaseError, Error as CoreError};
+use wealthfolio_core::errors::{DatabaseError, Error as CoreError, PublicError};
 use wealthfolio_core::profiles::ProfileError;
 
 #[allow(dead_code)]
@@ -27,7 +27,8 @@ pub enum ApiError {
     Forbidden(String),
     #[error("{0}")]
     Internal(String),
-    // Surface the underlying error message to help debugging during development
+    #[error("{0}")]
+    Provider(#[from] ProviderApiError),
     #[error("{0}")]
     Anyhow(#[from] anyhow::Error),
 }
@@ -35,7 +36,8 @@ pub enum ApiError {
 #[derive(Serialize)]
 struct ErrorBody {
     code: u16,
-    message: String,
+    #[serde(flatten)]
+    error: PublicError,
 }
 
 // Error messages can contain account data, SQL values, paths or credentials.
@@ -84,26 +86,63 @@ pub(crate) fn safe_error_diagnostic(
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, msg) = match &self {
+        let error = match &self {
+            Self::Core(error) => error.public_error(),
+            Self::Provider(error) => error.public_error(),
+            Self::NotFound => PublicError::new("not_found", "The requested item was not found."),
+            Self::NotImplemented(_) => {
+                PublicError::new("not_implemented", "This operation is unavailable.")
+            }
+            Self::BadRequest(_) => PublicError::invalid_input(),
+            Self::Unauthorized(_) => PublicError::new("unauthorized", "Sign in to continue."),
+            // Connect's existing login boundary carries this reviewed control
+            // outcome as a string. Preserve its code, never its error suffix.
+            Self::Forbidden(reason)
+                if reason.split(':').next() == Some("CONNECT_REBIND_REQUIRED") =>
+            {
+                PublicError::new(
+                    "CONNECT_REBIND_REQUIRED",
+                    "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
+                )
+            }
+            Self::Forbidden(_) => PublicError::new("forbidden", "This operation is not allowed."),
+            Self::Internal(_) => PublicError::internal(),
+            Self::Anyhow(error) => {
+                if let Some(error) =
+                    error.downcast_ref::<wealthfolio_spending::error::SpendingError>()
+                {
+                    use wealthfolio_spending::error::SpendingError;
+                    match error {
+                        SpendingError::EventTypeInUse { .. } => {
+                            PublicError::new("conflict", "The change conflicts with existing data.")
+                        }
+                        SpendingError::NotFound { .. } | SpendingError::ActivityNotFound => {
+                            PublicError::new("not_found", "The requested item was not found.")
+                        }
+                        _ => PublicError::invalid_input(),
+                    }
+                } else {
+                    PublicError::from_error(error.as_ref())
+                }
+            }
+        };
+        let status = match &self {
             ApiError::Core(e) => match e {
                 CoreError::ConstraintViolation(_)
                 | CoreError::Database(
                     DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
-                ) => (StatusCode::CONFLICT, e.to_string()),
-                CoreError::Database(DatabaseError::NotFound(_)) => {
-                    (StatusCode::NOT_FOUND, e.to_string())
-                }
+                ) => StatusCode::CONFLICT,
+                CoreError::Database(DatabaseError::NotFound(_)) => StatusCode::NOT_FOUND,
                 // Any other database error is a failure on the server, not in the request.
-                CoreError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-                CoreError::Validation(_) => (StatusCode::BAD_REQUEST, e.to_string()),
-                _ => (StatusCode::BAD_REQUEST, e.to_string()),
+                CoreError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                _ => StatusCode::BAD_REQUEST,
             },
-            ApiError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
-            ApiError::NotImplemented(reason) => (StatusCode::NOT_IMPLEMENTED, reason.clone()),
-            ApiError::BadRequest(reason) => (StatusCode::BAD_REQUEST, reason.clone()),
-            ApiError::Unauthorized(reason) => (StatusCode::UNAUTHORIZED, reason.clone()),
-            ApiError::Forbidden(reason) => (StatusCode::FORBIDDEN, reason.clone()),
-            ApiError::Internal(reason) => (StatusCode::INTERNAL_SERVER_ERROR, reason.clone()),
+            ApiError::NotFound => StatusCode::NOT_FOUND,
+            ApiError::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
+            ApiError::BadRequest(_) | ApiError::Provider(_) => StatusCode::BAD_REQUEST,
+            ApiError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            ApiError::Forbidden(_) => StatusCode::FORBIDDEN,
+            ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Anyhow(e) => {
                 // Downcast to known typed errors so user-facing validation
                 // failures return 4xx instead of 500. SpendingError variants
@@ -114,7 +153,7 @@ impl IntoResponse for ApiError {
                     e.downcast_ref::<wealthfolio_spending::error::SpendingError>()
                 {
                     use wealthfolio_spending::error::SpendingError;
-                    let status = match spending_err {
+                    match spending_err {
                         SpendingError::EventTypeInUse { .. } => StatusCode::CONFLICT,
                         SpendingError::InvalidEventRange => StatusCode::BAD_REQUEST,
                         SpendingError::GlobalRuleHasAccount => StatusCode::BAD_REQUEST,
@@ -122,10 +161,9 @@ impl IntoResponse for ApiError {
                         SpendingError::NotFound { .. } | SpendingError::ActivityNotFound => {
                             StatusCode::NOT_FOUND
                         }
-                    };
-                    (status, spending_err.to_string())
+                    }
                 } else {
-                    (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+                    StatusCode::INTERNAL_SERVER_ERROR
                 }
             }
         };
@@ -145,7 +183,7 @@ impl IntoResponse for ApiError {
         }
         let body = Json(ErrorBody {
             code: status.as_u16(),
-            message: msg,
+            error,
         });
         (status, body).into_response()
     }
@@ -184,15 +222,103 @@ impl ApiError {
     }
 }
 
-impl From<ProviderApiError> for ApiError {
-    fn from(err: ProviderApiError) -> Self {
-        ApiError::BadRequest(err.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    const PRIVATE: &str = "FAKE-KEY-2531 /private/portfolio.db SELECT account_balance";
+
+    #[tokio::test]
+    async fn response_bodies_do_not_expose_internal_error_text() {
+        let cases = [
+            (
+                ApiError::Core(CoreError::Database(DatabaseError::QueryFailed(
+                    PRIVATE.into(),
+                ))),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+            ),
+            (
+                ApiError::Core(CoreError::Secret(PRIVATE.into())),
+                StatusCode::BAD_REQUEST,
+                "internal_error",
+            ),
+            (
+                ApiError::Core(CoreError::Validation(
+                    wealthfolio_core::errors::ValidationError::InvalidInput(PRIVATE.into()),
+                )),
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+            ),
+            (
+                ApiError::Internal(PRIVATE.into()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+            ),
+            (
+                ApiError::Anyhow(anyhow::anyhow!(PRIVATE)),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+            ),
+            (
+                ApiError::backup(anyhow::anyhow!(PRIVATE)),
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+            ),
+            (
+                ApiError::from(ProviderApiError::ProviderError {
+                    message: PRIVATE.into(),
+                }),
+                StatusCode::BAD_REQUEST,
+                "provider_unavailable",
+            ),
+            (
+                ApiError::BadRequest(PRIVATE.into()),
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+            ),
+        ];
+        for (error, status, code) in cases {
+            let response = error.into_response();
+            assert_eq!(response.status(), status);
+            let body = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(json["errorCode"], code);
+            assert_eq!(json["code"], status.as_u16());
+            assert!(json["message"].is_string());
+            for private in PRIVATE.split_whitespace() {
+                assert!(!String::from_utf8_lossy(&body).contains(private));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_rebind_keeps_only_the_reviewed_control_code() {
+        for (reason, expected) in [
+            (
+                format!("CONNECT_REBIND_REQUIRED: {PRIVATE}"),
+                "CONNECT_REBIND_REQUIRED",
+            ),
+            (
+                format!("CONNECT_REBIND_REQUIRED_OTHER: {PRIVATE}"),
+                "forbidden",
+            ),
+            (format!("{PRIVATE}: CONNECT_REBIND_REQUIRED"), "forbidden"),
+        ] {
+            let response = ApiError::Forbidden(reason).into_response();
+            assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            let body = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(json["code"], 403);
+            assert_eq!(json["errorCode"], expected);
+            for private in PRIVATE.split_whitespace() {
+                assert!(!String::from_utf8_lossy(&body).contains(private));
+            }
+        }
+    }
 
     #[test]
     fn diagnostic_keeps_io_kind_without_logging_error_text() {

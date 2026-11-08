@@ -46,7 +46,7 @@ use crate::types::{
 use super::history::build_user_prompt;
 use super::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
-    create_openai_client, create_openrouter_client, redact_secret, remap_provider_error,
+    create_openai_client, create_openrouter_client, remap_provider_error,
     validate_ollama_model_if_possible,
 };
 use super::request_params::{
@@ -110,7 +110,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     // Get provider settings and model capabilities
     let provider_service = ProviderService::new(env.clone());
     let api_key = provider_service.get_api_key(&provider_id)?;
-    let provider_secret = api_key.clone();
     let provider_url = provider_service.get_provider_url(&provider_id);
     let mut capabilities = provider_service.get_model_capabilities(&provider_id, &model_id);
 
@@ -407,7 +406,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                 run_id,
                 message_id,
                 title_ctx,
-                provider_secret,
                 hook,
                 session_csv_attachments,
             )
@@ -451,7 +449,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                 run_id,
                 message_id,
                 title_ctx,
-                provider_secret,
                 hook,
                 Vec::new(),
             )
@@ -783,7 +780,6 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
     run_id: String,
     message_id: String,
     title_ctx: TitleContext<E>,
-    provider_secret: Option<String>,
     hook: WealthfolioStreamHook,
     csv_attachments: Vec<MessageAttachment>,
 ) -> Result<(), AiError> {
@@ -898,9 +894,8 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                 if !streamed && !retried {
                     if let Some(wait) = retry_wait(error) {
                         retried = true;
-                        let message = redact_secret(error.to_string(), provider_secret.as_deref());
                         warn!(
-                            "Transient provider error before any output, retrying once in {wait:?}: {message}"
+                            "Transient provider error before any output, retrying once in {wait:?}"
                         );
                         tokio::time::sleep(wait).await;
                         stream = start();
@@ -1152,8 +1147,9 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                     break;
                 }
                 Err(error) => {
-                    let message = redact_secret(error.to_string(), provider_secret.as_deref());
-                    error!("Stream error: {}", message);
+                    let message =
+                        wealthfolio_core::errors::PublicError::provider_unavailable().message;
+                    error!("Chat stream failed ({})", stream_error_code(&error));
                     stream_error = Some((stream_error_code(&error), message));
                     break;
                 }
@@ -1530,7 +1526,6 @@ mod tests {
                 "run".into(),
                 "message".into(),
                 title_ctx,
-                None,
                 WealthfolioStreamHook::for_provider("openai"),
                 Vec::new(),
             )

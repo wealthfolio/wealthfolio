@@ -267,12 +267,12 @@ function ProviderSettings({
                     <div className="max-h-60 overflow-auto p-2">
                       {provider.uniqueErrors.length > 0 ? (
                         <ul className="space-y-2">
-                          {provider.uniqueErrors.map((error, index) => (
+                          {provider.uniqueErrors.map((_error, index) => (
                             <li
                               key={index}
                               className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words"
                             >
-                              {error}
+                              {t("common:backendErrors.providerUnavailable")}
                             </li>
                           ))}
                         </ul>
@@ -514,7 +514,7 @@ function ProviderSettings({
                         </div>
                         {provider.lastSyncError && (
                           <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words">
-                            {provider.lastSyncError}
+                            {t("common:backendErrors.providerUnavailable")}
                           </p>
                         )}
                         {provider.lastSyncedAt && (
@@ -1151,27 +1151,9 @@ export default function MarketDataSettingsPage() {
                 })}
               </AlertTitle>
               <AlertDescription className="min-w-0">
-                {customScraperErrors.uniqueErrors?.map((err, i) => {
-                  // Strip boilerplate prefix, keep just the actionable message
-                  // Error format: "...CUSTOM_SCRAPER: [provider-id] actual message"
-                  const lastIdx = err.lastIndexOf("CUSTOM_SCRAPER: ");
-                  let msg = lastIdx >= 0 ? err.slice(lastIdx + "CUSTOM_SCRAPER: ".length) : err;
-                  // Extract [provider-id] prefix and resolve to provider name
-                  let providerLabel = "";
-                  const bracketMatch = /^\[([^\]]+)\]\s*/.exec(msg);
-                  if (bracketMatch) {
-                    const code = bracketMatch[1];
-                    const cp = customProviders.find((p) => p.id === code);
-                    providerLabel = cp?.name ?? code;
-                    msg = msg.slice(bracketMatch[0].length);
-                  }
-                  return (
-                    <p key={i} className="mt-1 text-xs break-all">
-                      {providerLabel && <span className="font-medium">{providerLabel}: </span>}
-                      {msg}
-                    </p>
-                  );
-                })}
+                <p className="mt-1 text-xs break-all">
+                  {t("common:backendErrors.providerUnavailable")}
+                </p>
               </AlertDescription>
             </Alert>
           )}

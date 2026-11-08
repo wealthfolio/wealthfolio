@@ -9,7 +9,7 @@ use rig::{operation::Completion, AgentBuilder, DynModel};
 
 use crate::chat::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
-    create_openai_client, create_openrouter_client, redact_secret,
+    create_openai_client, create_openrouter_client,
 };
 use crate::env::AiEnvironment;
 use crate::error::AiError;
@@ -106,7 +106,6 @@ Title:",
             truncate_to_title(user_message, 200)
         );
 
-        let secret = api_key.clone();
         let model: DynModel<Completion> = match provider_id {
             "anthropic" => create_anthropic_client(api_key, provider_id, provider_url)?
                 .completion(model_id)
@@ -137,7 +136,11 @@ Title:",
             .build()
             .prompt(prompt.as_str())
             .await
-            .map_err(|e| AiError::Provider(redact_secret(e.to_string(), secret.as_deref())))?
+            .map_err(|_| {
+                AiError::Provider(
+                    wealthfolio_core::errors::PublicError::provider_unavailable().message,
+                )
+            })?
             .output();
 
         // Clean up the response (providers sometimes wrap titles in markdown/quotes).

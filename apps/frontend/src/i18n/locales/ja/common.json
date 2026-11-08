@@ -688,5 +688,17 @@
     "accountNumberMax": "口座番号は64文字以内で入力してください。",
     "accountCurrency": "通貨を選択してください。",
     "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。"
+  },
+  "backendErrors": {
+    "internal": "操作を完了できませんでした。",
+    "invalidInput": "入力内容を確認して、もう一度お試しください。",
+    "conflict": "変更内容が既存のデータと競合しています。",
+    "notFound": "要求された項目が見つかりませんでした。",
+    "unauthorized": "続行するにはログインしてください。",
+    "forbidden": "この操作は許可されていません。",
+    "unavailable": "この操作は利用できません。",
+    "providerKeyMissing": "設定でこのプロバイダーの API キーを追加してください。",
+    "providerUnknown": "対応しているプロバイダーを選択してください。",
+    "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。"
   }
 }

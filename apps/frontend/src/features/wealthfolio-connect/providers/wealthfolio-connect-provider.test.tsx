@@ -3,6 +3,9 @@ import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
+import { BackendError } from "@/lib/backend-error";
+import { invoke as webInvoke } from "../../../adapters/web/core";
+import { installProfileSession } from "@/features/profiles/session";
 import { usePostLoginConnectSync } from "../hooks/use-post-login-connect-sync";
 import { WealthfolioConnectProvider, useWealthfolioConnect } from "./wealthfolio-connect-provider";
 
@@ -142,6 +145,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -177,24 +181,50 @@ describe("Cloud session lifecycle", () => {
     },
   );
 
-  it("requires explicit confirmation before replacing a Connect account", async () => {
-    mocks.store.mockRejectedValueOnce(new Error("CONNECT_REBIND_REQUIRED"));
-    const { result } = await setup();
-    let login!: Promise<void>;
-    await act(async () => {
-      login = result.current.signInWithEmail("B", "password");
-    });
-    await screen.findByRole("dialog");
-    expect(mocks.store).toHaveBeenCalledTimes(1);
-    expect(result.current.isConnected).toBe(false);
-    expect(result.current.postLoginSyncRequest).toBeNull();
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "connect:rebind.confirm" }));
-      await login;
-    });
-    expect(mocks.store).toHaveBeenLastCalledWith("B", true);
-    expect(result.current.user?.id).toBe("B");
-  });
+  it.each(["legacy desktop", "web envelope"])(
+    "requires explicit confirmation before replacing a Connect account (%s)",
+    async (runtime) => {
+      if (runtime === "web envelope") {
+        installProfileSession({ profileId: "test", scopeId: "scope-test" });
+        vi.stubGlobal(
+          "fetch",
+          vi.fn().mockResolvedValue(
+            new Response(
+              JSON.stringify({
+                code: 403,
+                errorCode: "CONNECT_REBIND_REQUIRED",
+                message: "FAKE-KEY-2531 /private/portfolio.db",
+              }),
+              { status: 403, headers: { "Content-Type": "application/json" } },
+            ),
+          ),
+        );
+        mocks.store.mockImplementationOnce((refreshToken: string) =>
+          webInvoke("store_sync_session", { refreshToken }),
+        );
+      } else {
+        mocks.store.mockRejectedValueOnce(
+          "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
+        );
+      }
+      const { result } = await setup();
+      let login!: Promise<void>;
+      await act(async () => {
+        login = result.current.signInWithEmail("B", "password");
+      });
+      await screen.findByRole("dialog");
+      expect(document.body.textContent).not.toContain("FAKE-KEY");
+      expect(mocks.store).toHaveBeenCalledTimes(1);
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.postLoginSyncRequest).toBeNull();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "connect:rebind.confirm" }));
+        await login;
+      });
+      expect(mocks.store).toHaveBeenLastCalledWith("B", true);
+      expect(result.current.user?.id).toBe("B");
+    },
+  );
 
   it("canceling an account change preserves the current connection", async () => {
     const { result } = await setup();
@@ -724,15 +754,18 @@ it("keeps configured credentials unavailable while offline and restores them on 
   expect(result.current.isConnected).toBe(true);
   expect(result.current.isSessionUnavailable).toBe(false);
 });
-it("offers explicit reconnection when saved credentials need binding confirmation", async () => {
-  mocks.configured = true;
-  mocks.restore.mockRejectedValue(new Error("CONNECT_REBIND_REQUIRED"));
-  const { result } = await setup();
-  expect(result.current.isSessionUnavailable).toBe(false);
-  expect(result.current.isConnected).toBe(false);
-  expect(mocks.clear).not.toHaveBeenCalled();
-  expect(mocks.store).not.toHaveBeenCalled();
-});
+it.each([new Error("CONNECT_REBIND_REQUIRED"), new BackendError("CONNECT_REBIND_REQUIRED")])(
+  "offers explicit reconnection when saved credentials need binding confirmation (%s)",
+  async (error) => {
+    mocks.configured = true;
+    mocks.restore.mockRejectedValue(error);
+    const { result } = await setup();
+    expect(result.current.isSessionUnavailable).toBe(false);
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.store).not.toHaveBeenCalled();
+  },
+);
 it("does not show signed-out status when the credential status check also fails", async () => {
   mocks.getStatus.mockRejectedValue(new Error("backend unavailable"));
   const { result } = await setup();

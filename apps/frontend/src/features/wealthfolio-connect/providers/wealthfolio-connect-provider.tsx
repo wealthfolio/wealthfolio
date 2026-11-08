@@ -14,6 +14,7 @@ import { useAuth } from "@/context/auth-context";
 import { getPlatform } from "@/hooks/use-platform";
 import { CONNECT_ENABLED, CONNECT_OAUTH_CALLBACK_URL } from "@/lib/connect-config";
 import { QueryKeys } from "@/lib/query-keys";
+import { backendError, CONNECT_REBIND_REQUIRED } from "@/lib/backend-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient, Session, SupabaseClient, User } from "@supabase/supabase-js";
 import {
@@ -308,8 +309,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         try {
           await storeSyncSession(next.refresh_token);
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause);
-          if (!message.includes("CONNECT_REBIND_REQUIRED")) throw cause;
+          if (backendError(cause)?.errorCode !== CONNECT_REBIND_REQUIRED) throw cause;
           const accepted = await new Promise<boolean>((resolve) => {
             rebindDecisionRef.current = resolve;
             setConfirmingRebind(true);
@@ -430,8 +430,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
             setUser(data.session.user);
           } catch (cause) {
             if (!current()) return;
-            const message = cause instanceof Error ? cause.message : String(cause);
-            if (message.includes("CONNECT_REBIND_REQUIRED")) {
+            if (backendError(cause)?.errorCode === CONNECT_REBIND_REQUIRED) {
               // Explicit login presents the account-change confirmation; retain saved credentials.
               setIsSessionUnavailable(false);
               return;

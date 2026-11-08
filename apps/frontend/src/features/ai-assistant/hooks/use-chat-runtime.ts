@@ -26,6 +26,7 @@ import { generateId } from "@/lib/id";
 import { AI_THREADS_KEY } from "./use-threads";
 import { deleteAiThread, getAiThreadMessages, updateAiThread } from "@/adapters";
 import { useHapticFeedback } from "@/hooks";
+import { backendErrorText } from "@/lib/backend-error";
 
 function deriveInitialThreadTitle(firstUserMessage: string): string {
   const normalized = firstUserMessage.replace(/\s+/g, " ").trim();
@@ -113,15 +114,13 @@ export function formatErrorMessage(error: string, t: TFunction = i18n.t): string
 
   // Model doesn't support thinking (Ollama)
   if (extractedError.includes("does not support thinking")) {
-    const modelMatch = /"([^"]+)"/.exec(extractedError);
-    const modelName = modelMatch?.[1] || t("ai:runtimeErrors.thisModel");
+    const modelName = t("ai:runtimeErrors.thisModel");
     return t("ai:runtimeErrors.thinkingUnsupported", { settingsLink, modelName });
   }
 
   // Model not found errors
   if (extractedError.includes("not found") && extractedError.includes("model")) {
-    const modelMatch = /model ['"]([^'"]+)['"]/i.exec(extractedError);
-    const modelName = modelMatch?.[1] || t("ai:runtimeErrors.selectedModel");
+    const modelName = t("ai:runtimeErrors.selectedModel");
     return t("ai:runtimeErrors.modelUnavailable", { settingsLink, modelName });
   }
 
@@ -155,11 +154,11 @@ export function formatErrorMessage(error: string, t: TFunction = i18n.t): string
     error.includes("CompletionError") ||
     error.includes("HttpError")
   ) {
-    return t("ai:runtimeErrors.provider", { settingsLink, error: extractedError });
+    return t("ai:runtimeErrors.provider", { settingsLink, error: backendErrorText(undefined, t) });
   }
 
   // Fallback for unknown errors
-  return t("ai:runtimeErrors.unknown", { settingsLink, error: extractedError });
+  return t("ai:runtimeErrors.unknown", { settingsLink, error: backendErrorText(undefined, t) });
 }
 
 /**
@@ -816,7 +815,7 @@ export function useChatRuntime(config?: ChatModelConfig) {
               break;
 
             case "error":
-              console.error("Stream error:", event.message);
+              console.error("AI stream failed");
               // Show formatted error to user in the assistant message
               streamParts.push({
                 type: "text",
@@ -828,7 +827,7 @@ export function useChatRuntime(config?: ChatModelConfig) {
         }
       } catch (error) {
         if (!signal.aborted) {
-          console.error("Streaming error:", error);
+          console.error("AI streaming failed");
           // Show formatted error to user in the assistant message
           const errorMessage = error instanceof Error ? error.message : String(error);
           streamParts.push({

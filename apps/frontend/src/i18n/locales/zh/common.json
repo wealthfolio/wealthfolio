@@ -688,5 +688,17 @@
     "accountNumberMax": "账户号码不得超过 64 个字符。",
     "accountCurrency": "请选择货币。",
     "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。"
+  },
+  "backendErrors": {
+    "internal": "无法完成此操作。",
+    "invalidInput": "请检查输入内容后重试。",
+    "conflict": "此更改与现有数据冲突。",
+    "notFound": "未找到所请求的项目。",
+    "unauthorized": "请登录后继续。",
+    "forbidden": "不允许执行此操作。",
+    "unavailable": "此操作不可用。",
+    "providerKeyMissing": "请在设置中为此提供方添加 API 密钥。",
+    "providerUnknown": "请选择受支持的提供方。",
+    "providerUnavailable": "提供方无法完成请求。请检查提供方设置。"
   }
 }

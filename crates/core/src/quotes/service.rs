@@ -1003,15 +1003,14 @@ where
                 };
             }
 
-            if let Some(last_error) = state
+            if state
                 .last_error
                 .as_deref()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
+                .is_some_and(|message| !message.trim().is_empty())
             {
                 return NoQuoteReason {
                     code: "LAST_ERROR".to_string(),
-                    message: format!("Last sync error: {}", last_error),
+                    message: crate::errors::PublicError::provider_unavailable().message,
                 };
             }
 
@@ -2148,7 +2147,16 @@ where
     }
 
     fn get_sync_states_with_errors(&self) -> Result<Vec<QuoteSyncState>> {
-        self.sync_state_store.get_with_errors()
+        let mut states = self.sync_state_store.get_with_errors()?;
+        for state in &mut states {
+            // Historical errors may contain credentials. Keep the stored value
+            // internal, including when Health consumes these returned states.
+            state.last_error = state
+                .last_error
+                .as_ref()
+                .map(|_| crate::errors::PublicError::provider_unavailable().message);
+        }
+        Ok(states)
     }
 
     async fn reset_sync_errors(&self, asset_ids: &[String]) -> Result<()> {
@@ -2186,7 +2194,9 @@ where
             .into_iter()
             .map(|s| (s.provider_id.clone(), s))
             .collect();
-        let sync_states_with_errors = self.get_sync_states_with_errors()?;
+        // Provider attribution needs the original text; only the public result
+        // below may leave this service. No stored records are rewritten.
+        let sync_states_with_errors = self.sync_state_store.get_with_errors()?;
 
         #[derive(Default)]
         struct ProviderErrorStats {
@@ -2254,11 +2264,13 @@ where
             let last_synced_at = stats
                 .and_then(|s| s.last_synced_at)
                 .map(|dt| dt.to_rfc3339());
-            let last_sync_error = error_stats.and_then(|s| s.last_sync_error.clone());
-            let mut unique_errors: Vec<String> = error_stats
-                .map(|s| s.unique_errors.iter().cloned().collect())
+            let last_sync_error = error_stats
+                .and_then(|s| s.last_sync_error.as_ref())
+                .map(|_| crate::errors::PublicError::provider_unavailable().message);
+            let unique_errors = error_stats
+                .filter(|s| !s.unique_errors.is_empty())
+                .map(|_| vec![crate::errors::PublicError::provider_unavailable().message])
                 .unwrap_or_default();
-            unique_errors.sort();
 
             infos.push(ProviderInfo {
                 id: setting.id.clone(),
@@ -4017,7 +4029,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_providers_info_attributes_error_to_provider_from_error_message() {
         let now = Utc::now();
-        let finnhub_error = "Market data operation failed: Provider error: FINNHUB: Access forbidden - check API key: {\"error\":\"You don't have access to this resource.\"}".to_string();
+        let finnhub_error = "Market data operation failed: Provider error: FINNHUB: FAKE-KEY-2531 /private/portfolio.db".to_string();
 
         let provider_settings = Arc::new(MockProviderSettingsStore {
             providers: vec![
@@ -4103,9 +4115,26 @@ mod tests {
         assert_eq!(finnhub.error_count, 1);
         assert_eq!(
             finnhub.last_sync_error.as_deref(),
+            Some(
+                crate::errors::PublicError::provider_unavailable()
+                    .message
+                    .as_str()
+            )
+        );
+        assert_eq!(
+            finnhub.unique_errors,
+            vec![crate::errors::PublicError::provider_unavailable().message]
+        );
+        let public_states = service.get_sync_states_with_errors().unwrap();
+        let public = serde_json::to_string(&(providers, public_states)).unwrap();
+        assert!(!public.contains("FAKE-KEY-2531"));
+        assert!(!public.contains("/private/portfolio.db"));
+        assert_eq!(
+            service.sync_state_store.get_with_errors().unwrap()[0]
+                .last_error
+                .as_deref(),
             Some(finnhub_error.as_str())
         );
-        assert_eq!(finnhub.unique_errors, vec![finnhub_error]);
     }
 
     #[tokio::test]
@@ -4802,7 +4831,7 @@ mod tests {
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 1,
-            last_error: Some("symbol not found".to_string()),
+            last_error: Some("FAKE-KEY-2531 /private/portfolio.db".to_string()),
             profile_enriched_at: Some(now),
             created_at: now,
             updated_at: now,
@@ -4811,7 +4840,10 @@ mod tests {
         let reason = TestQuoteService::no_quote_reason(Some(&asset), Some(&state));
 
         assert_eq!(reason.code, "LAST_ERROR");
-        assert_eq!(reason.message, "Last sync error: symbol not found");
+        assert_eq!(
+            reason.message,
+            crate::errors::PublicError::provider_unavailable().message
+        );
     }
 
     #[test]

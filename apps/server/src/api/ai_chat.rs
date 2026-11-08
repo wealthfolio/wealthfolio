@@ -199,7 +199,7 @@ async fn update_thread(
         .ai_chat_service
         .get_thread(&thread_id)
         .map_err(AiChatError::Ai)?
-        .ok_or_else(|| AiChatError::NotFound(format!("Thread {} not found", thread_id)))?;
+        .ok_or(AiChatError::NotFound)?;
     Ok(Json(thread))
 }
 
@@ -295,7 +295,7 @@ async fn update_tool_result(
 #[derive(Debug)]
 pub enum AiChatError {
     Ai(AiError),
-    NotFound(String),
+    NotFound,
 }
 
 impl IntoResponse for AiChatError {
@@ -314,14 +314,22 @@ impl IntoResponse for AiChatError {
                     AiError::Core(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     AiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 };
-                (status, e.code().to_string(), e.to_string())
+                (status, e.code().to_string(), e.public_error())
             }
-            AiChatError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found".to_string(), msg),
+            AiChatError::NotFound => (
+                StatusCode::NOT_FOUND,
+                "not_found".to_string(),
+                wealthfolio_core::errors::PublicError::new(
+                    "not_found",
+                    "The requested item was not found.",
+                ),
+            ),
         };
 
         let body = serde_json::json!({
             "code": code,
-            "error": message
+            "error": message.message,
+            "errorCode": message.error_code
         });
 
         (status, Json(body)).into_response()
@@ -351,4 +359,32 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         // Tag management
         .route("/ai/threads/{id}/tags", get(get_tags).post(add_tag))
         .route("/ai/threads/{id}/tags/{tag}", delete(remove_tag))
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn chat_http_errors_do_not_expose_private_details() {
+        let private = "FAKE-KEY-2531 /private/portfolio.db account_balance";
+        for error in [
+            AiError::Provider(private.into()),
+            AiError::Internal(private.into()),
+            AiError::InvalidInput(private.into()),
+            AiError::Core(wealthfolio_core::Error::Secret(private.into())),
+        ] {
+            let response = AiChatError::Ai(error).into_response();
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert!(body["code"].is_string());
+            assert!(body["errorCode"].is_string());
+            assert!(body["error"].is_string());
+            for value in private.split_whitespace() {
+                assert!(!String::from_utf8_lossy(&bytes).contains(value));
+            }
+        }
+    }
 }
