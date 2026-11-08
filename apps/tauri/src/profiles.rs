@@ -794,7 +794,7 @@ pub async fn enable_biometric_lock(
     .await
     .map_err(|e| format!("Biometric store task failed: {e}"))?;
 
-    store_result.map_err(|e| {
+    store_result.inspect_err(|_| {
         // Roll back by restoring the previous biometric state rather than calling
         // disable_biometric_lock. disable_biometric_lock (registry layer) has no
         // Touch ID guard — it would silently strip biometric_enabled on a
@@ -809,7 +809,6 @@ pub async fn enable_biometric_lock(
                 "Failed to restore biometric state for profile {profile_id}: {rollback_err}"
             );
         }
-        e
     })
 }
 
