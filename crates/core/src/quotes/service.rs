@@ -182,15 +182,16 @@ fn local_search_identity(query: &str) -> Option<(String, Option<&'static str>)> 
 /// Whether `result` is the instrument `query` names, not just one whose symbol
 /// or name contains it: the local search matches substrings and ranks existing
 /// assets first, so the top result for "A" can be any holding with an "A" in
-/// its name. Accepts the shown symbol, the canonical symbol (on the query's
-/// exchange when it carries a suffix such as `VOD.L`), the provider symbol, or
-/// any result of a query that is a valid ISIN.
+/// its name. Accepts what the search marked exact, the shown symbol, the
+/// canonical symbol (on the query's exchange when it carries a suffix such as
+/// `VOD.L`), the provider symbol, or a provider result for a query that is a
+/// valid ISIN (an identifier lookup).
 pub fn search_result_matches_query(result: &SymbolSearchResult, query: &str) -> bool {
     let query = query.trim();
     if query.is_empty() {
         return false;
     }
-    if crate::utils::isin::parse_isin(query).is_ok() {
+    if result.exact_match {
         return true;
     }
     if result.symbol.trim().eq_ignore_ascii_case(query)
@@ -200,6 +201,11 @@ pub fn search_result_matches_query(result: &SymbolSearchResult, query: &str) -> 
             .is_some_and(|symbol| symbol.trim().eq_ignore_ascii_case(query))
     {
         return true;
+    }
+
+    if crate::utils::isin::parse_isin(query).is_ok() {
+        // A local asset that only mentions the ISIN in its name is not it.
+        return !result.is_existing;
     }
 
     let Some((canonical_symbol, exchange_mic)) = local_search_identity(query) else {
@@ -989,6 +995,7 @@ where
             quote_mode: Some(asset.quote_mode.as_db_str().to_string()),
             is_existing: true,
             existing_asset_id: Some(asset.id.clone()),
+            exact_match: false,
             index: String::new(),
             score: 100.0, // High score for existing assets
         }
@@ -1511,8 +1518,11 @@ where
         query: &str,
         account_currency: Option<&str>,
     ) -> Result<Vec<SymbolSearchResult>> {
-        // 1. Search existing assets in user's database
+        // 1. Search existing assets in user's database. The symbol/name search
+        // matches substrings; the identity and alias lookups below are exact,
+        // and `exact_asset_ids` keeps which assets they found.
         let mut existing_assets = self.asset_repo.search_by_symbol(query).unwrap_or_default();
+        let mut exact_asset_ids: HashSet<String> = HashSet::new();
         if let Some((canonical_symbol, exchange_mic)) = local_search_identity(query) {
             let query_trimmed = query.trim();
             if !canonical_symbol.eq_ignore_ascii_case(query_trimmed) || exchange_mic.is_some() {
@@ -1525,17 +1535,14 @@ where
                     .search_by_symbol(&canonical_symbol)
                     .unwrap_or_default()
                 {
-                    if seen_asset_ids.contains(&asset.id)
-                        || !asset_matches_local_search_identity(
-                            &asset,
-                            &canonical_symbol,
-                            exchange_mic,
-                        )
+                    if !asset_matches_local_search_identity(&asset, &canonical_symbol, exchange_mic)
                     {
                         continue;
                     }
-                    seen_asset_ids.insert(asset.id.clone());
-                    existing_assets.push(asset);
+                    exact_asset_ids.insert(asset.id.clone());
+                    if seen_asset_ids.insert(asset.id.clone()) {
+                        existing_assets.push(asset);
+                    }
                 }
             }
         }
@@ -1546,15 +1553,16 @@ where
                 .map(|asset| asset.id.clone())
                 .collect();
             for asset in self.asset_repo.list().unwrap_or_default() {
-                if seen_asset_ids.contains(&asset.id)
-                    || !asset_provider_alias_symbols(&asset)
-                        .iter()
-                        .any(|alias| alias.eq_ignore_ascii_case(query_trimmed))
+                if !asset_provider_alias_symbols(&asset)
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(query_trimmed))
                 {
                     continue;
                 }
-                seen_asset_ids.insert(asset.id.clone());
-                existing_assets.push(asset);
+                exact_asset_ids.insert(asset.id.clone());
+                if seen_asset_ids.insert(asset.id.clone()) {
+                    existing_assets.push(asset);
+                }
             }
         }
 
@@ -1584,6 +1592,9 @@ where
                 .and_then(|key| self.asset_repo.find_by_instrument_key(&key).ok().flatten());
 
             if let Some(asset) = existing_asset.filter(|a| a.kind != AssetKind::Fx) {
+                if search_result_matches_query(&result, query) {
+                    exact_asset_ids.insert(asset.id.clone());
+                }
                 if existing_asset_ids.insert(asset.id.clone()) {
                     existing_summaries.push(Self::asset_to_quote_summary(&asset));
                 }
@@ -1599,14 +1610,30 @@ where
             .map(|s| (s.symbol.clone(), s.exchange_mic.clone()))
             .collect();
 
-        // 5. Filter provider results to exclude duplicates
+        // 5. Filter provider results to exclude duplicates. An exact provider
+        // result that duplicates an existing asset marks that asset exact.
+        let mut exact_keys: HashSet<(String, Option<String>)> = HashSet::new();
         let new_provider_results: Vec<SymbolSearchResult> = unmatched_provider_results
             .into_iter()
             .filter(|r| {
                 // Check if this symbol+exchange combo already exists
-                !existing_keys.contains(&(r.symbol.clone(), r.exchange_mic.clone()))
+                let key = (r.symbol.clone(), r.exchange_mic.clone());
+                if !existing_keys.contains(&key) {
+                    return true;
+                }
+                if search_result_matches_query(r, query) {
+                    exact_keys.insert(key);
+                }
+                false
             })
             .collect();
+        for summary in &mut existing_summaries {
+            summary.exact_match = summary
+                .existing_asset_id
+                .as_ref()
+                .is_some_and(|id| exact_asset_ids.contains(id))
+                || exact_keys.contains(&(summary.symbol.clone(), summary.exchange_mic.clone()));
+        }
 
         // 6. Merge existing assets first, then provider results
         let mut merged = Vec::with_capacity(existing_summaries.len() + new_provider_results.len());
@@ -2927,6 +2954,14 @@ mod tests {
             ..Default::default()
         };
         assert!(!search_result_matches_query(&vehicle, "CAR"));
+        // A held asset found by its name does not answer an ISIN query, but
+        // one the search marked exact does.
+        assert!(!search_result_matches_query(&holding, "US0378331005"));
+        let found_by_alias = SymbolSearchResult {
+            exact_match: true,
+            ..holding
+        };
+        assert!(search_result_matches_query(&found_by_alias, "RELI-OLD"));
     }
 
     #[test]
