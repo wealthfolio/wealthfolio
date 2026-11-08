@@ -24,10 +24,12 @@ quotes:
   - { asset: aapl, day: 2026-10-01, close: 20 }
 "#;
 
+/// Loads the synthetic WAC short-opening and cover scenario.
 fn facts() -> ScenarioFacts {
     serde_yaml::from_str::<Scenario>(SHORTS).unwrap().facts()
 }
 
+/// Projects the fixture through the real coordinator and rejects unexpected engine issues.
 async fn projected(facts: ScenarioFacts) -> Harness {
     let h = harness(facts).await;
     let result = h
@@ -50,10 +52,12 @@ async fn projected(facts: ScenarioFacts) -> Harness {
     h
 }
 
+/// Uses the fixture repositories for asset metadata without introducing provider requests.
 fn assets(h: &Harness) -> AssetService {
     AssetService::new(h.sources.assets.clone(), h.quote_service.clone()).unwrap()
 }
 
+/// Runs the production missing-disposal gatherer over persisted fixture evidence.
 async fn sales(h: &Harness, activities: &[Activity]) -> Vec<ConsistencyIssueInfo> {
     gather_missing_lot_disposal_sells(
         h.lot_repo.as_ref(),
@@ -65,6 +69,7 @@ async fn sales(h: &Harness, activities: &[Activity]) -> Vec<ConsistencyIssueInfo
     .await
 }
 
+/// Recognizes short openings after WAC pooling removes their individual source links.
 #[tokio::test]
 async fn health_accepts_wac_short_openings_after_partial_and_full_covers() {
     for cover_quantity in [dec!(4), dec!(10)] {
@@ -96,6 +101,7 @@ async fn health_accepts_wac_short_openings_after_partial_and_full_covers() {
     }
 }
 
+/// Recognizes pooled short origins after option expiry or a security transfer relieves them.
 #[tokio::test]
 async fn health_accepts_wac_short_openings_relieved_by_expiry_or_transfer() {
     for expiry in [false, true] {
@@ -127,6 +133,7 @@ async fn health_accepts_wac_short_openings_relieved_by_expiry_or_transfer() {
     }
 }
 
+/// Keeps unmatched sales outside a pool interval, long closes, and invalid quantities visible.
 #[tokio::test]
 async fn health_does_not_use_a_wac_pool_for_unrelated_or_later_sales() {
     let h = projected(facts()).await;
@@ -195,6 +202,7 @@ async fn health_does_not_use_a_wac_pool_for_unrelated_or_later_sales() {
     );
 }
 
+/// Requires persisted pool and disposal evidence before exempting WAC short openings.
 #[tokio::test]
 async fn health_still_reports_wac_short_openings_when_pool_or_disposals_are_missing() {
     for remove_pool in [false, true] {
@@ -219,6 +227,7 @@ async fn health_still_reports_wac_short_openings_when_pool_or_disposals_are_miss
     }
 }
 
+/// Checks implicit covers under FIFO/WAC, including fees and over-covers that open long lots.
 #[tokio::test]
 async fn health_accepts_implicit_option_covers_but_keeps_unknown_long_costs() {
     for method in ["FIFO", "WAC"] {
@@ -264,6 +273,7 @@ async fn health_accepts_implicit_option_covers_but_keeps_unknown_long_costs() {
     }
 }
 
+/// Keeps incomplete-basis warnings when implicit option cover evidence is missing.
 #[tokio::test]
 async fn health_requires_implicit_option_covers_to_have_lots_and_disposals() {
     for remove_lots in [false, true] {
@@ -302,4 +312,44 @@ async fn health_requires_implicit_option_covers_to_have_lots_and_disposals() {
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].activity_id.as_deref(), Some("cover"));
     }
+}
+
+/// A pooled short cannot justify a SELL explicitly intended to close a long option position.
+#[tokio::test]
+async fn health_keeps_explicit_option_closes_with_missing_disposals_visible() {
+    let mut input = facts();
+    input.assets[0].instrument_type = Some(crate::assets::InstrumentType::Option);
+    let mut invalid_close = input
+        .activities
+        .iter()
+        .find(|a| a.id == "short-1")
+        .unwrap()
+        .clone();
+    invalid_close.id = "long-close".to_string();
+    invalid_close.subtype = Some(ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+    invalid_close.activity_date = "2026-10-01T10:30:00Z".parse().unwrap();
+    input.activities.push(invalid_close);
+    let h = harness(input).await;
+    let result = h
+        .coordinator
+        .run_job(
+            PortfolioJobRequest {
+                force_full: true,
+                ..request()
+            },
+            &SilentObserver,
+        )
+        .await
+        .unwrap();
+    assert!(result.failures.is_empty());
+    let engine_issues = h.store.activity_issues(&["business".to_string()]).unwrap();
+    assert!(engine_issues.iter().any(
+        |issue| issue.activity_id == "long-close" && issue.kind == ActivityIssueKind::Rejected
+    ));
+    let issues = sales(&h, &h.activity_repo.all()).await;
+    let ids: Vec<_> = issues
+        .iter()
+        .map(|issue| issue.record_id.as_str())
+        .collect();
+    assert_eq!(ids, ["long-close"]);
 }

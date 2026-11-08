@@ -1058,6 +1058,7 @@ fn invalid_transfer_groups_from_activities(
     groups
 }
 
+/// Loads existing lot/disposal evidence for eligible accounts and reports unmatched sales.
 pub(crate) async fn gather_missing_lot_disposal_sells(
     lot_repository: &dyn LotRepositoryTrait,
     asset_service: &dyn AssetServiceTrait,
@@ -1157,6 +1158,7 @@ pub(crate) async fn gather_missing_lot_disposal_sells(
     )
 }
 
+/// Reports sales lacking disposal evidence, except witnessed direct or pooled short openings.
 fn missing_lot_disposal_sells_from_data(
     accounts: &[Account],
     activities: &[Activity],
@@ -1283,7 +1285,8 @@ fn missing_lot_disposal_sells_from_data(
             ));
             let can_open_short = activity.quantity.is_some_and(|qty| !qty.is_zero())
                 && (activity_subtype_is(activity, ACTIVITY_SUBTYPE_POSITION_OPEN)
-                    || assets_by_id.get(asset_id).is_some_and(Asset::is_option));
+                    || (assets_by_id.get(asset_id).is_some_and(Asset::is_option)
+                        && !activity_subtype_is(activity, ACTIVITY_SUBTYPE_POSITION_CLOSE)));
             let pooled = can_open_short
                 && pooled_shorts.iter().any(|(account, asset, opened, cover)| {
                     *account == activity.account_id
@@ -1451,6 +1454,7 @@ pub(crate) async fn gather_incomplete_basis_trade_activities(
     )
 }
 
+/// Reports unpriced acquisitions while retaining warnings for unmatched or over-sized covers.
 fn incomplete_basis_trade_activities_from_data(
     accounts: &[Account],
     activities: &[Activity],
@@ -1544,6 +1548,7 @@ fn incomplete_basis_trade_activities_from_data(
         .collect()
 }
 
+/// Matches an activity to a same-account, same-asset short lot, including closed lots.
 fn is_activity_short_lot(activity: &Activity, lot: &LotRecord) -> bool {
     lot.account_id == activity.account_id
         && activity.asset_id.as_deref() == Some(lot.asset_id.as_str())
@@ -1553,6 +1558,7 @@ fn is_activity_short_lot(activity: &Activity, lot: &LotRecord) -> bool {
             .is_ok_and(|qty| qty < Decimal::ZERO)
 }
 
+/// Compares trade intent after applying the existing activity subtype canonicalization.
 fn activity_subtype_is(activity: &Activity, subtype: &str) -> bool {
     crate::activities::NewActivity::canonicalize_subtype_for_activity(
         activity.effective_type(),
@@ -1562,6 +1568,7 @@ fn activity_subtype_is(activity: &Activity, subtype: &str) -> bool {
         == Some(subtype)
 }
 
+/// Selects explicit covers and option BUYs that the engine may implicitly apply to shorts.
 fn is_short_cover_candidate(activity: &Activity, asset: Option<&Asset>) -> bool {
     activity
         .effective_type()
@@ -1570,6 +1577,7 @@ fn is_short_cover_candidate(activity: &Activity, asset: Option<&Asset>) -> bool 
             || asset.is_some_and(Asset::is_option))
 }
 
+/// Requires full signed short-disposal matching and no new lot before exempting a BUY.
 fn is_matched_short_closure(
     activity: &Activity,
     asset: Option<&Asset>,
@@ -1610,6 +1618,7 @@ fn is_matched_short_closure(
     covered == Some(quantity)
 }
 
+/// Selects BUYs and incoming security transfers whose acquisition price establishes basis.
 fn is_lot_creating_basis_source(activity: &Activity) -> bool {
     let activity_type = activity.effective_type();
     if activity_type.eq_ignore_ascii_case(ACTIVITY_TYPE_BUY) {
@@ -3152,6 +3161,7 @@ mod tests {
             .is_some_and(|items| items.iter().any(|i| i.id == "asset_xyz")));
     }
 
+    /// Keeps missing acquisition prices actionable through their originating activity.
     #[test]
     fn incomplete_basis_buy_without_price_is_flagged_and_deep_links_to_activity() {
         // Transaction-tracked acquisitions with no unit price yield zero-cost lots.
@@ -3360,6 +3370,7 @@ mod tests {
         assert_eq!(per_asset[0].valuation_days, 1_000);
     }
 
+    /// Excludes non-acquisitions and accounts outside transaction-based basis checks.
     #[test]
     fn incomplete_basis_trade_scan_ignores_non_eligible_activities() {
         // Holdings-tracked accounts are covered by the snapshot check, not the
@@ -3587,6 +3598,7 @@ mod tests {
         assert_eq!(navigate.route, "/activities");
     }
 
+    /// Builds a synthetic short-lot record with a configurable remaining quantity.
     fn short_lot(remaining: Decimal) -> LotRecord {
         LotRecord {
             id: "short-lot".to_string(),
@@ -3620,6 +3632,7 @@ mod tests {
         }
     }
 
+    /// Builds a synthetic matched disposal with known same-currency base amounts.
     fn short_disposal(quantity: Decimal, price: Decimal, fee: Decimal) -> LotDisposal {
         let proceeds = quantity * price - fee;
         let cost = quantity * dec!(20);
@@ -3637,6 +3650,8 @@ mod tests {
             proceeds_base: proceeds.to_string(),
             cost_basis_base: cost.to_string(),
             realized_pnl_base: (proceeds - cost).to_string(),
+            proceeds_base_known: Some(true),
+            cost_basis_base_known: Some(true),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate_to_base: "1".to_string(),
@@ -3645,6 +3660,7 @@ mod tests {
         }
     }
 
+    /// Keeps valid short openings healthy before, during, and after a cover.
     #[tokio::test]
     async fn short_opening_sell_is_not_reported_before_or_after_cover() {
         use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
@@ -3700,6 +3716,7 @@ mod tests {
         }
     }
 
+    /// Rejects missing, malformed, or unrelated lot evidence for short-opening sales.
     #[test]
     fn short_opening_sell_with_missing_or_unrelated_lot_is_still_reported() {
         use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
@@ -3749,6 +3766,7 @@ mod tests {
         }
     }
 
+    /// Keeps ordinary and explicit long-closing sales visible when their disposals are missing.
     #[test]
     fn short_lot_evidence_does_not_hide_unmatched_long_sales() {
         use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
@@ -3781,6 +3799,7 @@ mod tests {
         assert_eq!(ids, ["ordinary", "long-close"]);
     }
 
+    /// Preserves unknown-cost warnings for long acquisitions despite unrelated short evidence.
     #[test]
     fn matched_short_disposals_do_not_exempt_unknown_long_acquisition_costs() {
         use crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN;
@@ -3811,6 +3830,7 @@ mod tests {
         }
     }
 
+    /// Accepts a cover whose full quantity is matched across multiple short-lot slices.
     #[test]
     fn short_cover_can_match_multiple_lot_disposals() {
         let accounts = vec![health_account(
@@ -3843,6 +3863,7 @@ mod tests {
         assert!(issues.is_empty());
     }
 
+    /// Accepts matched partial/full zero-price covers with or without closing fees.
     #[tokio::test]
     async fn matched_zero_price_short_closures_are_not_incomplete_acquisitions() {
         use crate::assets::AssetService;
@@ -3901,6 +3922,7 @@ mod tests {
         }
     }
 
+    /// Retains basis warnings for missing, mismatched, partial, or long-opening cover evidence.
     #[test]
     fn zero_price_short_closures_require_matching_lots_and_full_disposals() {
         let accounts = vec![health_account(
@@ -3957,6 +3979,7 @@ mod tests {
         }
     }
 
+    /// Accepts an ordinary sale whose activity has a disposal record.
     #[test]
     fn sell_with_matching_lot_disposal_is_not_reported() {
         let accounts = vec![health_account(
@@ -3982,6 +4005,7 @@ mod tests {
         assert!(issues.is_empty());
     }
 
+    /// Preserves an unmatched sale warning and its user-local activity date.
     #[test]
     fn sell_without_lot_disposal_is_reported_with_local_date() {
         let accounts = vec![health_account(
