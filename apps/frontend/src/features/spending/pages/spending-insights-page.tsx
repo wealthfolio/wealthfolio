@@ -391,7 +391,8 @@ export default function SpendingInsightsPage({
     if (customMonth || period === "MTD" || period === "LAST_MONTH") {
       return previousMonthMatchingRange(range, appTimezone);
     }
-    return null;
+    // A DST transition can make seven calendar days differ in elapsed seconds.
+    return period === "1W" ? comparisonRange(range, "prior", appTimezone) : null;
   }, [customRange, presetWindow, todayISO, customYear, customMonth, period, range, appTimezone]);
   const insightRequest = useMemo(
     () => ({

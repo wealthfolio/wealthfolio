@@ -145,6 +145,28 @@ it("keeps desktop toolbar controls in sync and clears them when leaving the tab"
 });
 
 describe("This month comparisons", () => {
+  it("compares 1W using seven calendar days across DST in Insights", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-10T12:00:00Z"));
+    try {
+      render(
+        <MemoryRouter initialEntries={["/insights?tab=spending&period=1W"]}>
+          <SpendingInsightsPage />
+        </MemoryRouter>,
+      );
+      expect(insightQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startDate: "2026-03-04T05:00:00.000Z",
+          endDate: "2026-03-11T03:59:59.999Z",
+          compareStartDate: "2026-02-25T05:00:00.000Z",
+          compareEndDate: "2026-03-04T04:59:59.999Z",
+        }),
+        undefined,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each([
     [
       "2026-12-15T12:00:00Z",
