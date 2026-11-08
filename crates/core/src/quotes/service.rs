@@ -3083,6 +3083,54 @@ mod tests {
         assert!(aliases.iter().any(|alias| alias == "ACME-OLD"));
     }
 
+    /// The Yahoo symbol a new exchange-rate pair resolves to, through the
+    /// saved config and the resolver chain the quote sync uses.
+    fn yahoo_symbols_for_new_fx_pair(base: &str, quote: &str) -> Vec<String> {
+        let new_asset = crate::assets::NewAsset::new_fx_asset(base, quote, "YAHOO");
+        let asset = Asset {
+            kind: AssetKind::Fx,
+            instrument_symbol: new_asset.instrument_symbol,
+            instrument_type: new_asset.instrument_type,
+            quote_ccy: new_asset.quote_ccy,
+            provider_config: new_asset.provider_config,
+            ..Default::default()
+        };
+        asset_provider_alias_symbols(&asset)
+    }
+
+    #[test]
+    fn test_new_crypto_fx_pair_resolves_to_the_yahoo_crypto_symbol() {
+        // Yahoo has no BTCUSD=X (#2472); it lists the pair as BTC-USD.
+        assert_eq!(yahoo_symbols_for_new_fx_pair("BTC", "USD"), vec!["BTC-USD"]);
+        assert_eq!(yahoo_symbols_for_new_fx_pair("ETH", "BTC"), vec!["ETH-BTC"]);
+        // Currency pairs keep Yahoo's currency symbol.
+        assert_eq!(
+            yahoo_symbols_for_new_fx_pair("EUR", "USD"),
+            vec!["EURUSD=X"]
+        );
+    }
+
+    #[test]
+    fn test_crypto_fx_pair_on_a_custom_scraper_keeps_the_pair_symbol() {
+        // Its URL templates were written for {SYMBOL} = BTCUSD.
+        let asset = Asset {
+            kind: AssetKind::Fx,
+            instrument_symbol: Some("BTC".to_string()),
+            instrument_type: Some(InstrumentType::Fx),
+            quote_ccy: "USD".to_string(),
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "CUSTOM_SCRAPER",
+                "custom_provider_code": "my-btc-source"
+            })),
+            ..Default::default()
+        };
+
+        let aliases = asset_provider_alias_symbols(&asset);
+
+        assert!(aliases.iter().any(|alias| alias == "BTCUSD"), "{aliases:?}");
+        assert!(!aliases.iter().any(|alias| alias == "BTC"), "{aliases:?}");
+    }
+
     #[derive(Default)]
     struct NoopQuoteStore;
 

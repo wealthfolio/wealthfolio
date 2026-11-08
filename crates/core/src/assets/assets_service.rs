@@ -183,9 +183,13 @@ impl AssetResolutionLocalIndex {
             {
                 by_symbol.entry(symbol).or_default().push(idx);
             }
-            for alias in asset_provider_alias_symbols(asset) {
-                if let Some(alias) = normalized_lookup_key(&alias) {
-                    by_provider_alias.entry(alias).or_default().push(idx);
+            // FX pairs are app-managed rates, never what an import row holds;
+            // a crypto pair's provider symbol (BTC-USD) is also the coin's.
+            if asset.kind != AssetKind::Fx {
+                for alias in asset_provider_alias_symbols(asset) {
+                    if let Some(alias) = normalized_lookup_key(&alias) {
+                        by_provider_alias.entry(alias).or_default().push(idx);
+                    }
                 }
             }
         }
@@ -515,12 +519,7 @@ impl AssetService {
             return (AssetKind::Investment, Some(InstrumentType::Equity));
         }
 
-        let common_crypto = [
-            "BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL",
-            "AVAX", "MATIC", "ATOM", "ALGO", "VET", "FIL", "TRX", "ETC", "XMR", "AAVE", "MKR",
-            "COMP", "SNX", "YFI", "SUSHI", "CRV",
-        ];
-        if common_crypto.contains(&upper_symbol.as_str()) {
+        if crate::fx::is_crypto_currency(&upper_symbol) {
             return (AssetKind::Investment, Some(InstrumentType::Crypto));
         }
 
@@ -5666,6 +5665,39 @@ mod tests {
         assert_eq!(output.exchange_mic.as_deref(), Some("XNYS"));
         assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
         assert!(output.draft.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_never_matches_an_fx_pair_by_provider_symbol() {
+        // A BTC/USD exchange rate fetched from Yahoo as BTC-USD (the symbol a
+        // user maps by hand) shares that symbol with the coin itself.
+        let btc_usd_rate = Asset {
+            id: "fx-btc-usd".to_string(),
+            name: Some("BTC/USD Exchange Rate".to_string()),
+            display_code: Some("BTC/USD".to_string()),
+            instrument_symbol: Some("BTC".to_string()),
+            instrument_type: Some(InstrumentType::Fx),
+            instrument_key: Some("FX:BTC/USD".to_string()),
+            quote_ccy: "USD".to_string(),
+            kind: AssetKind::Fx,
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "YAHOO",
+                "overrides": {
+                    "YAHOO": { "type": "fx_symbol", "symbol": "BTC-USD" }
+                }
+            })),
+            ..Default::default()
+        };
+        let service = test_asset_service(vec![btc_usd_rate], TestQuoteService::default());
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("BTC-USD", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_ne!(output.existing_asset_id.as_deref(), Some("fx-btc-usd"));
     }
 
     #[tokio::test]

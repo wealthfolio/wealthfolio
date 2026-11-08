@@ -4105,12 +4105,7 @@ impl ActivityService {
         }
 
         // 5. Common crypto symbols heuristic (no MIC, bare symbol like BTC, ETH)
-        let common_crypto = [
-            "BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL",
-            "AVAX", "MATIC", "ATOM", "ALGO", "VET", "FIL", "TRX", "ETC", "XMR", "AAVE", "MKR",
-            "COMP", "SNX", "YFI", "SUSHI", "CRV",
-        ];
-        if common_crypto.contains(&upper_symbol.as_str()) {
+        if crate::fx::is_crypto_currency(&upper_symbol) {
             return (AssetKind::Investment, Some(InstrumentType::Crypto));
         }
 
