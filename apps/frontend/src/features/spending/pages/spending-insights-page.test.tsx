@@ -147,6 +147,57 @@ it("keeps desktop toolbar controls in sync and clears them when leaving the tab"
 describe("This month comparisons", () => {
   it.each([
     [
+      "2026-12-15T12:00:00Z",
+      "spendingMonth=2026-11",
+      "2026-09-30T22:00:00.000Z",
+      "2026-10-31T22:59:59.999Z",
+    ],
+    [
+      "2026-04-15T12:00:00Z",
+      "spendingMonth=2026-03",
+      "2026-01-31T23:00:00.000Z",
+      "2026-02-28T22:59:59.999Z",
+    ],
+    [
+      "2024-04-15T12:00:00Z",
+      "spendingMonth=2024-03",
+      "2024-01-31T23:00:00.000Z",
+      "2024-02-29T22:59:59.999Z",
+    ],
+    ["2026-11-08T12:00:00Z", "period=MTD", "2026-09-30T22:00:00.000Z", "2026-10-31T22:59:59.999Z"],
+    [
+      "2026-12-15T12:00:00Z",
+      "period=LAST_MONTH",
+      "2026-09-30T22:00:00.000Z",
+      "2026-10-31T22:59:59.999Z",
+    ],
+  ])(
+    "compares %s / %s with the entire prior calendar month in every stage (#2553)",
+    (now, query, start, end) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+      testSettings.timezone = "Europe/Madrid";
+      try {
+        for (const stage of ["where", "changed", "when"]) {
+          const view = render(
+            <MemoryRouter initialEntries={[`/spending/insights?stage=${stage}&${query}`]}>
+              <SpendingInsightsPage />
+            </MemoryRouter>,
+          );
+          expect(insightQuery).toHaveBeenCalledWith(
+            expect.objectContaining({ compareStartDate: start, compareEndDate: end }),
+            undefined,
+          );
+          view.unmount();
+          insightQuery.mockClear();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it.each([
+    [
       "2026-09-29T12:00:00Z",
       "America/Toronto",
       "2026-08-01T04:00:00.000Z",

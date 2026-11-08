@@ -94,7 +94,9 @@ for (const mobile of [false, true]) {
         });
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=2025`);
         const visible = (name: string | RegExp) =>
-          page.getByRole("button", { name }).filter({ visible: true });
+          page
+            .getByRole("button", { name, exact: typeof name === "string" })
+            .filter({ visible: true });
         // Formatting isolates calendar labels in RTL text.
         const periodButton = (label: string) =>
           visible(new RegExp(`${label}\\u2069?, Select dates`));
@@ -128,7 +130,8 @@ for (const mobile of [false, true]) {
             .filter({ visible: true }),
         ).toBeVisible();
         expect(new URL(page.url()).searchParams.has("spendingYear")).toBe(false);
-        await visible("More options").click();
+        const dashboardMenu = visible("More options").and(page.locator('[aria-haspopup="dialog"]'));
+        await dashboardMenu.click();
         const compareAction = page.getByRole("button", { name: "Compare to prior period" });
         await expect(compareAction).toHaveAttribute("aria-pressed", "false");
         await compareAction.click();
@@ -144,7 +147,7 @@ for (const mobile of [false, true]) {
           path: testInfo.outputPath("comparison-chart.png"),
           animations: "disabled",
         });
-        await visible("More options").click();
+        await dashboardMenu.click();
         await expect(compareAction).toHaveAttribute("aria-pressed", "true");
         await compareAction.click();
         await expect(spendingPane.locator(".recharts-bar")).toHaveCount(1);
@@ -248,6 +251,18 @@ for (const mobile of [false, true]) {
         await nextInsight.click();
         await expect(nextInsight).toBeDisabled();
         await visible(mobile ? "MTD" : "This month").click();
+        await expect
+          .poll(() => insightRequests)
+          .toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                startDate: "2026-09-01T00:00:00.000Z",
+                endDate: "2026-09-30T23:59:59.999Z",
+                compareStartDate: "2026-08-01T00:00:00.000Z",
+                compareEndDate: "2026-08-31T23:59:59.999Z",
+              }),
+            ]),
+          );
         await previousInsight.click();
         await expect(page.getByTestId("spending-selected-range")).toContainText("August 2026");
         await nextInsight.click();
