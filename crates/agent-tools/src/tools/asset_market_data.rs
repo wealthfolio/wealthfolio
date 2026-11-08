@@ -11,6 +11,7 @@ use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use wealthfolio_core::accounts::{account_supports_portfolio_scope, AccountPurpose};
 use wealthfolio_core::assets::{Asset, AssetKind, InstrumentType, QuoteMode};
+use wealthfolio_core::errors::PublicError;
 use wealthfolio_core::quotes::{Quote, QuoteSyncState};
 
 use crate::env::AgentEnvironment;
@@ -347,7 +348,13 @@ fn sync_state_dto(state: QuoteSyncState) -> SyncStateDto {
         provider: state.data_source,
         last_synced_at: state.last_synced_at.map(|at| at.to_rfc3339()),
         error_count: state.error_count,
-        last_error: state.last_error.as_deref().map(redact_urls),
+        // Stored sync errors can hold credentials and stay internal, as in
+        // the quote service's other public reads; only their presence shows.
+        last_error: state
+            .last_error
+            .as_deref()
+            .filter(|error| !error.trim().is_empty())
+            .map(|_| PublicError::provider_unavailable().message),
         position_closed_date: state.position_closed_date.map(|d| d.to_string()),
     }
 }
@@ -444,8 +451,8 @@ impl AgentTool for GetAsset {
          `asset` (kind, instrument type, symbol, exchange MIC, ISIN, quote mode MARKET or MANUAL, \
          `quoteCurrency`, `preferredProvider` and per-provider `providerSymbols`), \
          `latestQuote` (date, close, currency, source, `isStale`, and `missingReason` when there \
-         is none), `syncState` (provider of the last sync, last sync time, error count, last \
-         error), `quoteSources` (stored quotes grouped by source and currency with count and \
+         is none), `syncState` (provider of the last sync, last sync time, error count, and a \
+         generic `lastError` when the last sync failed; the details stay in the app), `quoteSources` (stored quotes grouped by source and currency with count and \
          first and last date: rows in a currency other than `quoteCurrency` point to a wrong \
          listing or currency), and `holdings` (accounts holding it, with quantity). Reads stored \
          data only; it never calls a market data provider."
@@ -756,7 +763,8 @@ pub struct MarketDataProviderDto {
     pub error_count: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_synced_at: Option<String>,
-    /// Distinct recent sync errors, URLs removed.
+    /// Recent sync errors, as the quote service's public message (stored
+    /// errors stay internal).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_errors: Vec<String>,
     /// Custom providers: whether they serve latest and/or historical prices.
@@ -786,7 +794,8 @@ impl AgentTool for GetMarketDataProviders {
         "List the market data providers: built-in ones and the user's custom providers, with \
          `id` (what an asset's preferred provider is set to; custom providers are \
          `CUSTOM:<code>`), `enabled`, `priority` (lower runs first), coverage, whether \
-         an API key is needed and set, asset and error counts, last sync and recent errors. \
+         an API key is needed and set, and for built-in providers asset and error counts and \
+         the last sync (error details stay in the app; custom providers report none here). \
          Only enabled providers are used for syncs and lookups. Provider settings, API keys \
          and custom provider sources (URLs, headers) are not shown and cannot be changed \
          here; the user edits them in Settings > Market Data."
@@ -814,13 +823,6 @@ impl AgentTool for GetMarketDataProviders {
             .get_providers_info()
             .await
             .map_err(exec_err)?;
-        // Custom provider failures are recorded under the dispatch row, each
-        // tagged `[<code>]`.
-        let dispatch_errors = builtin
-            .iter()
-            .find(|info| info.id == CUSTOM_DISPATCH_PROVIDER_ID)
-            .map(|info| info.unique_errors.clone())
-            .unwrap_or_default();
         let mut providers = builtin
             .into_iter()
             .filter(|info| info.id != CUSTOM_DISPATCH_PROVIDER_ID)
@@ -860,11 +862,6 @@ impl AgentTool for GetMarketDataProviders {
                 .collect::<Vec<_>>();
             source_kinds.sort();
             source_kinds.dedup();
-            let marker = format!("[{}]", custom.id);
-            let errors = dispatch_errors
-                .iter()
-                .filter(|error| error.contains(&marker))
-                .collect::<Vec<_>>();
             providers.push(MarketDataProviderDto {
                 id: format!("{CUSTOM_PROVIDER_PREFIX}{}", custom.id),
                 name: custom.name,
@@ -877,13 +874,9 @@ impl AgentTool for GetMarketDataProviders {
                 requires_api_key: None,
                 has_api_key: None,
                 asset_count: None,
-                error_count: Some(errors.len() as i64),
+                error_count: None,
                 last_synced_at: None,
-                recent_errors: errors
-                    .iter()
-                    .take(MAX_PROVIDER_ERRORS)
-                    .map(|error| redact_urls(error))
-                    .collect(),
+                recent_errors: Vec::new(),
                 source_kinds,
                 use_as_fallback: Some(custom.use_as_fallback),
             });
@@ -993,6 +986,22 @@ mod tests {
             "GET <url> retrying"
         );
         assert_eq!(redact_urls("prix élevé: 3€"), "prix élevé: 3€");
+    }
+
+    #[test]
+    fn stored_sync_errors_are_not_output() {
+        let mut state = QuoteSyncState::new("a".to_string(), "YAHOO".to_string());
+        state.error_count = 3;
+        state.last_error =
+            Some("error sending request for url (https://x.example/q?apikey=SECRET)".to_string());
+        let dto = sync_state_dto(state.clone());
+        assert_eq!(dto.error_count, 3);
+        assert_eq!(
+            dto.last_error,
+            Some(PublicError::provider_unavailable().message)
+        );
+        state.last_error = None;
+        assert_eq!(sync_state_dto(state).last_error, None);
     }
 
     #[test]

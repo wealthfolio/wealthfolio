@@ -665,9 +665,13 @@ capped at 500 rows by default and 2000 at most, with `truncated`.
 `QuoteServiceTrait::get_providers_info` and custom providers from
 `AgentEnvironment::custom_providers` (id `CUSTOM:<code>`, the form the app's
 asset editor and symbol resolution use). Custom provider sources are left out: their
-URLs and headers can hold API keys. URLs in sync errors are replaced with
-`<url>` in both tools for the same reason. The in-app assistant does not get
-these tools.
+URLs and headers can hold API keys. Stored sync errors stay internal for the same
+reason, as in the quote service's other public reads: `get_asset` reports a
+failed last sync with the generic `PublicError::provider_unavailable` message,
+and `get_market_data_providers` passes on the counts and generic messages
+`get_providers_info` returns. Custom providers report no error details, since
+their failures are recorded under the dispatch row. The in-app assistant does
+not get these tools.
 
 ### MCP-only Activity Update Tools
 
