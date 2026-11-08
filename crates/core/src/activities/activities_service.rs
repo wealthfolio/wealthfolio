@@ -457,6 +457,23 @@ impl ActivityService {
         Some(if flips_direction { exact } else { cash }.abs())
     }
 
+    /// Units received for free, such as a bonus or demerger allotment: a BUY
+    /// of some units at a zero price with no charges. Its total is zero, not
+    /// missing.
+    fn is_free_buy(
+        activity_type: &str,
+        quantity: Option<Decimal>,
+        unit_price: Option<Decimal>,
+        fee: Option<Decimal>,
+        tax: Option<Decimal>,
+    ) -> bool {
+        activity_type == ACTIVITY_TYPE_BUY
+            && quantity.is_some_and(|quantity| !quantity.is_zero())
+            && unit_price.is_some_and(|price| price.is_zero())
+            && fee.unwrap_or_default().is_zero()
+            && tax.unwrap_or_default().is_zero()
+    }
+
     /// Final cash for a row that carries none. A trade rounds its value
     /// (quantity × price) to `cash_scale` before adding charges as entered,
     /// the way a statement builds it; a recognized income composite rounds
@@ -485,6 +502,9 @@ impl ActivityService {
             unit_multiplier,
         );
         if Self::is_trade_type(activity_type) {
+            if Self::is_free_buy(activity_type, quantity, unit_price, fee, tax) {
+                return Some(Decimal::ZERO);
+            }
             let gross = ActivityEconomicsResolver::derived_positive_gross(inputs)?;
             Self::trade_final_cash(
                 activity_type,
@@ -9471,6 +9491,18 @@ impl ActivityService {
                 prepared_asset
                     .is_some_and(|asset| asset.instrument_type == Some(InstrumentType::Crypto)),
             );
+            // A broker that reports no price sends zero (#1546), so a synced
+            // zero-price BUY without a total is a missing price, not a free
+            // allotment: leave it without a total so it waits for review.
+            let synced_price_missing = mode.is_sync()
+                && activity.amount.is_none()
+                && Self::is_free_buy(
+                    &activity.activity_type,
+                    activity.quantity,
+                    activity.unit_price,
+                    activity.fee,
+                    activity.tax,
+                );
             Self::ensure_new_activity_final_amount(
                 &mut activity,
                 resolved_asset_id.as_deref(),
@@ -9478,6 +9510,9 @@ impl ActivityService {
                 cash_scale,
                 matches!(mode, PreparationMode::Save),
             );
+            if synced_price_missing {
+                activity.amount = None;
+            }
             if let Err(error) =
                 Self::validate_new_activity_final_amount(&activity, resolved_asset_id.as_deref())
             {

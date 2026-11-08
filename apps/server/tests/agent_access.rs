@@ -1027,6 +1027,70 @@ async fn mcp_import_commits_nothing_when_a_row_fails_validation() {
         .is_empty());
 }
 
+/// #2406: a zero-price BUY (a bonus allotment) was saved as a draft without a
+/// total while the import listed it as imported, so its units never counted.
+/// It now posts with a zero total, and a row that is still saved as a draft
+/// is reported as one, with its warning.
+#[tokio::test]
+async fn mcp_import_posts_free_buys_and_reports_draft_rows() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Allotments").await;
+    let row = |symbol: &str, fee: f64| {
+        serde_json::json!({
+            "accountId": account["id"], "activityType": "BUY", "date": "2026-07-27",
+            "symbol": symbol, "exchangeMic": "XPAR", "instrumentType": "EQUITY",
+            "quoteCcy": "EUR", "quoteMode": "MANUAL", "currency": "EUR",
+            "quantity": 3, "unitPrice": 0.0, "fee": fee
+        })
+    };
+    // A zero price with a fee is still a missing price, so it stays a draft.
+    let rows = serde_json::json!([row("ZZFREE", 0.0), row("ZZFEE", 1.0)]);
+
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_import",
+        serde_json::json!({ "activities": rows }),
+    )
+    .await;
+
+    assert_eq!(committed["summary"]["imported"], 2, "{committed}");
+    assert_eq!(committed["draft"], 1, "{committed}");
+    assert_eq!(
+        committed["financialRows"][0]["financialStatus"], "imported",
+        "{committed}"
+    );
+    assert_eq!(
+        committed["financialRows"][1]["financialStatus"], "draft",
+        "{committed}"
+    );
+    assert!(committed["financialRows"][1]["activityId"].is_string());
+    let drafts = committed["drafts"].as_array().unwrap();
+    assert_eq!(drafts.len(), 1, "{committed}");
+    assert_eq!(drafts[0]["symbol"], "ZZFEE");
+    assert!(
+        drafts[0]["warnings"][0]
+            .as_str()
+            .is_some_and(|warning| warning.contains("draft")),
+        "{committed}"
+    );
+
+    let stored = stored_activities(&server, &cookie, &account).await;
+    let status = |symbol: &str| {
+        stored
+            .iter()
+            .find(|activity| activity["assetSymbol"] == symbol)
+            .map(|activity| activity["status"].clone())
+            .unwrap_or_else(|| panic!("{symbol} not stored: {stored:?}"))
+    };
+    assert_eq!(status("ZZFREE"), "POSTED", "{stored:?}");
+    assert_eq!(status("ZZFEE"), "DRAFT", "{stored:?}");
+}
+
 /// A row the check passes can still fail while being written: a split with a
 /// zero ratio fails its account's batch. The importer skips those rows and
 /// still reported success; the other accounts' rows are imported.
