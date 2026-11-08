@@ -56,6 +56,11 @@ impl PublicError {
             message
         };
         match message.split(':').next()? {
+            "PROFILE_BUSY"
+            | "Profile operations are running. Wait for them to finish and try again."
+            | "Connect account change is in progress. Try again." => Some(Self::new(
+                "PROFILE_BUSY", "PROFILE_BUSY: Profile operations are running. Wait for them to finish and try again.",
+            )),
             "CONNECT_REBIND_REQUIRED" => Some(Self::new(
                 "CONNECT_REBIND_REQUIRED",
                 "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
@@ -394,6 +399,7 @@ mod public_error_tests {
             "BACKUP_MANUAL_LIMIT",
             "PROFILE_LOCKED",
             "PROFILE_STALE",
+            "PROFILE_BUSY",
             "CONNECT_REBIND_REQUIRED",
         ] {
             for message in [

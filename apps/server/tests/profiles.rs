@@ -250,10 +250,7 @@ async fn browsers_databases_credentials_and_stale_scopes_are_isolated() {
         )
         .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
-        assert!(
-            body.to_string().contains("Profile operations are running"),
-            "{body}"
-        );
+        assert_eq!(body["errorCode"], "PROFILE_BUSY");
     }
     send(
         &router,

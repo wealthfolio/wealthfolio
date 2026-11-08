@@ -21,6 +21,7 @@ const ERROR_KEYS: Record<string, string> = {
   [CONNECT_REBIND_REQUIRED]: "common:profiles.errors.rebind",
   [BACKUP_REAUTHENTICATION_REQUIRED]: "settings:cloud_backup_reauth",
   [BACKUP_MANUAL_LIMIT]: "settings:cloud_backup_manual_limit",
+  PROFILE_BUSY: "common:profiles.errors.busy",
   custom_provider_code_reserved: "common:backendErrors.customProviderCodeReserved",
   custom_provider_in_use: "common:backendErrors.customProviderInUse",
 };
@@ -57,6 +58,13 @@ export class BackendError extends Error {
 export function backendError(cause: unknown): BackendError | undefined {
   if (cause instanceof BackendError) return cause;
   if (typeof cause === "string") {
+    if (
+      cause.split(":")[0] === "PROFILE_BUSY" ||
+      cause === "Profile operations are running. Wait for them to finish and try again." ||
+      cause === "Connect account change is in progress. Try again."
+    ) {
+      return new BackendError("PROFILE_BUSY");
+    }
     // Legacy desktop backup commands stringify DeviceSyncError::ApiError.
     const backupCode =
       /^(?:API error \(\d{3}\): )?(BACKUP_REAUTHENTICATION_REQUIRED|BACKUP_MANUAL_LIMIT)(?::|$)/.exec(
