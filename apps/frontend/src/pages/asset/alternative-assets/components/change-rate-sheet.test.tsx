@@ -188,6 +188,9 @@ describe("change interest rate in the settings timezone", () => {
     const { save, rate } = open(undefined, metadata, "2026-11-01");
     fireEvent.change(rate, { target: { value: "5.1" } });
     expect(save).toBeEnabled();
+    // The sheet focuses its first control, the date's month, a frame after it
+    // opens; a click on the day before then loses its focus to the month.
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: /month/i })).toHaveFocus());
     await user.click(screen.getByRole("spinbutton", { name: /day/i }));
     await user.keyboard("02");
     await user.tab();
