@@ -6344,6 +6344,37 @@ mod tests {
         assert_eq!(repo.get_by_id("lloy").unwrap().quote_ccy, "GBp");
     }
 
+    /// #2265: a profile without a name (Yahoo has none for some funds, AMFI never
+    /// sends one) keeps the name the user gave the asset.
+    #[tokio::test]
+    async fn enrichment_without_a_provider_name_keeps_the_stored_name() {
+        let repo = Arc::new(TestAssetRepository::with_assets(vec![Asset {
+            name: Some("WhiteOak Capital Fund Dir Gr".to_string()),
+            instrument_symbol: Some("0P00036T6I".to_string()),
+            instrument_exchange_mic: Some("XBOM".to_string()),
+            instrument_type: None,
+            quote_ccy: "INR".to_string(),
+            ..test_market_asset()
+        }]));
+        let quotes = TestQuoteService::default();
+        quotes.profiles.lock().unwrap().insert(
+            "0P00036T6I".to_string(),
+            ProviderProfile {
+                symbol: "0P00036T6I".to_string(),
+                asset_type: Some("MUTUALFUND".to_string()),
+                data_source: "YAHOO".to_string(),
+                ..Default::default()
+            },
+        );
+        let service = AssetService::new(repo.clone(), Arc::new(quotes)).unwrap();
+
+        service.enrich_asset_profile("asset-1").await.unwrap();
+
+        let asset = repo.get_by_id("asset-1").unwrap();
+        assert_eq!(asset.name.as_deref(), Some("WhiteOak Capital Fund Dir Gr"));
+        assert!(asset.metadata.is_some(), "the profile was applied");
+    }
+
     fn test_market_asset() -> Asset {
         Asset {
             id: "asset-1".to_string(),
