@@ -1699,6 +1699,8 @@
       "performance_calculateHistory": "Calcular el historial de rendimiento",
       "performance_calculateSummary": "Calcular el resumen de rendimiento",
       "performance_calculateAccountsSimple": "Calcular el rendimiento básico de las cuentas",
+      "allocation-targets_getAll": "Ver sus objetivos de asignación",
+      "allocation-targets_getDrift": "Comparar sus posiciones con un objetivo de asignación",
       "currency_getAll": "Ver los tipos de cambio",
       "currency_update": "Actualizar los tipos de cambio",
       "currency_add": "Añadir nuevos tipos de cambio",
@@ -1754,6 +1756,10 @@
       "accounts": {
         "name": "Gestión de cuentas",
         "description": "Acceso a la información y configuración de las cuentas"
+      },
+      "allocation-targets": {
+        "name": "Objetivos de asignación",
+        "description": "Acceso de solo lectura a sus objetivos de asignación y a la comparación de sus posiciones con ellos"
       },
       "alternative-assets": {
         "name": "Activos alternativos",

@@ -1621,6 +1621,8 @@
       "performance_calculateHistory": "计算历史绩效",
       "performance_calculateSummary": "计算绩效摘要",
       "performance_calculateAccountsSimple": "计算基本账户绩效",
+      "allocation-targets_getAll": "查看您的资产配置目标",
+      "allocation-targets_getDrift": "将持仓与配置目标进行比较",
       "currency_getAll": "查看汇率",
       "currency_update": "更新汇率",
       "currency_add": "添加新汇率",
@@ -1676,6 +1678,10 @@
       "accounts": {
         "name": "账户管理",
         "description": "访问账户信息和设置"
+      },
+      "allocation-targets": {
+        "name": "资产配置目标",
+        "description": "只读访问您的资产配置目标及持仓与目标的对比"
       },
       "alternative-assets": {
         "name": "另类资产",

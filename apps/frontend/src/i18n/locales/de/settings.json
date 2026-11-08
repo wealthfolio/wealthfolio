@@ -1648,6 +1648,8 @@
       "performance_calculateHistory": "Historische Wertentwicklung berechnen",
       "performance_calculateSummary": "Zusammenfassung der Wertentwicklung berechnen",
       "performance_calculateAccountsSimple": "Einfache Wertentwicklung der Konten berechnen",
+      "allocation-targets_getAll": "Ihre Allokationsziele anzeigen",
+      "allocation-targets_getDrift": "Ihre Positionen mit einem Allokationsziel vergleichen",
       "currency_getAll": "Wechselkurse anzeigen",
       "currency_update": "Wechselkurse aktualisieren",
       "currency_add": "Neue Wechselkurse hinzufügen",
@@ -1703,6 +1705,10 @@
       "accounts": {
         "name": "Kontoverwaltung",
         "description": "Zugriff auf Kontoinformationen und -einstellungen"
+      },
+      "allocation-targets": {
+        "name": "Allokationsziele",
+        "description": "Schreibgeschützter Zugriff auf Ihre Allokationsziele und den Vergleich Ihrer Positionen mit diesen Zielen"
       },
       "alternative-assets": {
         "name": "Alternative Anlagen",

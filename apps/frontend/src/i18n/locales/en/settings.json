@@ -1648,6 +1648,8 @@
       "performance_calculateHistory": "Calculate performance history",
       "performance_calculateSummary": "Calculate performance summary",
       "performance_calculateAccountsSimple": "Calculate basic account performance",
+      "allocation-targets_getAll": "View your allocation targets",
+      "allocation-targets_getDrift": "Compare your holdings with a target",
       "currency_getAll": "View exchange rates",
       "currency_update": "Update currency rates",
       "currency_add": "Add new exchange rates",
@@ -1703,6 +1705,10 @@
       "accounts": {
         "name": "Account Management",
         "description": "Access to account information and settings"
+      },
+      "allocation-targets": {
+        "name": "Allocation Targets",
+        "description": "Read-only access to your allocation targets and how your holdings compare to them"
       },
       "alternative-assets": {
         "name": "Alternative Assets",

@@ -1699,6 +1699,8 @@
       "performance_calculateHistory": "Calcolare lo storico della performance",
       "performance_calculateSummary": "Calcolare il riepilogo della performance",
       "performance_calculateAccountsSimple": "Calcolare la performance di base dei conti",
+      "allocation-targets_getAll": "Visualizzare gli obiettivi di allocazione",
+      "allocation-targets_getDrift": "Confrontare le posizioni con un obiettivo di allocazione",
       "currency_getAll": "Visualizzare i tassi di cambio",
       "currency_update": "Aggiornare i tassi di cambio",
       "currency_add": "Aggiungere nuovi tassi di cambio",
@@ -1754,6 +1756,10 @@
       "accounts": {
         "name": "Gestione dei conti",
         "description": "Accesso alle informazioni e alle impostazioni dei conti"
+      },
+      "allocation-targets": {
+        "name": "Obiettivi di allocazione",
+        "description": "Accesso in sola lettura agli obiettivi di allocazione e al confronto delle posizioni con tali obiettivi"
       },
       "alternative-assets": {
         "name": "Attività alternative",

@@ -1699,6 +1699,8 @@
       "performance_calculateHistory": "Calcular o histórico de desempenho",
       "performance_calculateSummary": "Calcular o resumo de desempenho",
       "performance_calculateAccountsSimple": "Calcular o desempenho básico das contas",
+      "allocation-targets_getAll": "Ver suas metas de alocação",
+      "allocation-targets_getDrift": "Comparar suas posições com uma meta de alocação",
       "currency_getAll": "Ver as taxas de câmbio",
       "currency_update": "Atualizar as taxas de câmbio",
       "currency_add": "Adicionar novas taxas de câmbio",
@@ -1754,6 +1756,10 @@
       "accounts": {
         "name": "Gerenciamento de contas",
         "description": "Acesso às informações e configurações das contas"
+      },
+      "allocation-targets": {
+        "name": "Metas de alocação",
+        "description": "Acesso somente de leitura às suas metas de alocação e à comparação das suas posições com essas metas"
       },
       "alternative-assets": {
         "name": "Ativos alternativos",

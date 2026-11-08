@@ -1852,6 +1852,8 @@
       "performance_calculateHistory": "حساب سجل الأداء",
       "performance_calculateSummary": "حساب ملخص الأداء",
       "performance_calculateAccountsSimple": "حساب الأداء الأساسي للحسابات",
+      "allocation-targets_getAll": "عرض أهداف توزيع أصولك",
+      "allocation-targets_getDrift": "مقارنة حيازاتك بهدف توزيع الأصول",
       "currency_getAll": "عرض أسعار الصرف",
       "currency_update": "تحديث أسعار صرف العملات",
       "currency_add": "إضافة أسعار صرف جديدة",
@@ -1907,6 +1909,10 @@
       "accounts": {
         "name": "إدارة الحسابات",
         "description": "الوصول إلى معلومات الحسابات وإعداداتها"
+      },
+      "allocation-targets": {
+        "name": "أهداف توزيع الأصول",
+        "description": "الوصول للقراءة فقط إلى أهداف توزيع أصولك ومدى توافق حيازاتك معها"
       },
       "alternative-assets": {
         "name": "الأصول البديلة",
