@@ -69,8 +69,6 @@ import { EXTENDED_PALETTE } from "./color-picker";
 import { IconPicker } from "./icon-picker";
 import { badgeVariants } from "@wealthfolio/ui";
 
-const SPENDING_TAXONOMY = "spending_categories";
-
 export type BudgetEditorMode = "setup" | "monthly";
 
 interface BudgetEditorProps {
@@ -194,12 +192,12 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
           onToggleCategoryRollover={(category, enabled) =>
             mutations.upsertRollover.mutate({
               targetType: "category",
-              taxonomyId: SPENDING_TAXONOMY,
+              taxonomyId: category.taxonomyId,
               categoryId: category.categoryId,
               enabled,
               startMonth: monthMode ? periodForWrite : currentMonthKey(),
               startingBalance:
-                findCategoryRollover(rolloverSettings, category.categoryId)?.startingBalance ?? "0",
+                findCategoryRollover(rolloverSettings, category)?.startingBalance ?? "0",
             })
           }
         />
@@ -720,9 +718,7 @@ function GroupBudgetSection({
               groupTotal={row.plannedTotal}
               monthMode={monthMode}
               mode={mode}
-              rolloverEnabled={
-                findCategoryRollover(rolloverSettings, category.categoryId)?.enabled ?? false
-              }
+              rolloverEnabled={findCategoryRollover(rolloverSettings, category)?.enabled ?? false}
               groupRolloverEnabled={groupRollover?.enabled ?? false}
               onSaveTarget={onSaveCategoryTarget}
               onDeleteOverride={onDeleteOverride}
@@ -1891,12 +1887,12 @@ function findGroupRollover(settings: BudgetRolloverSetting[], groupId: string) {
   return settings.find((setting) => setting.targetType === "group" && setting.groupId === groupId);
 }
 
-function findCategoryRollover(settings: BudgetRolloverSetting[], categoryId: string) {
+function findCategoryRollover(settings: BudgetRolloverSetting[], row: BudgetCategoryRow) {
   return settings.find(
     (setting) =>
       setting.targetType === "category" &&
-      setting.taxonomyId === SPENDING_TAXONOMY &&
-      setting.categoryId === categoryId,
+      setting.taxonomyId === row.taxonomyId &&
+      setting.categoryId === row.categoryId,
   );
 }
 

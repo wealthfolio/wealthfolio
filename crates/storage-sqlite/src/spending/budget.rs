@@ -373,12 +373,31 @@ impl BudgetRepositoryTrait for BudgetRepository {
                         category_id,
                         group_id,
                     } => {
+                        // Review validated a top-level spending or savings
+                        // category; spending wins if both taxonomies hold the id.
+                        let taxonomy_id = crate::schema::taxonomy_categories::table
+                            .filter(crate::schema::taxonomy_categories::id.eq(&category_id))
+                            .filter(crate::schema::taxonomy_categories::parent_id.is_null())
+                            .filter(
+                                crate::schema::taxonomy_categories::taxonomy_id
+                                    .eq_any(["spending_categories", "savings_categories"]),
+                            )
+                            .select(crate::schema::taxonomy_categories::taxonomy_id)
+                            .load::<String>(tx.conn())
+                            .map_err(StorageError::from)?
+                            .into_iter()
+                            .max_by_key(|taxonomy| taxonomy == "spending_categories")
+                            .ok_or_else(|| {
+                                wealthfolio_core::errors::ValidationError::InvalidInput(
+                                    "Select a top-level spending or savings category".into(),
+                                )
+                            })?;
                         upsert_group_assignments_with_system_flag_tx(
                             tx,
                             vec![NewBudgetGroupAssignment {
                                 id: None,
                                 group_id,
-                                taxonomy_id: "spending_categories".into(),
+                                taxonomy_id,
                                 category_id,
                             }],
                             0,
@@ -396,31 +415,33 @@ impl BudgetRepositoryTrait for BudgetRepository {
                             .find(|g| g.key == "other")
                             .map(|g| g.id)
                             .unwrap_or_default();
-                            let roots = crate::schema::taxonomy_categories::table
-                                .filter(
-                                    crate::schema::taxonomy_categories::taxonomy_id
-                                        .eq("spending_categories"),
-                                )
-                                .filter(crate::schema::taxonomy_categories::parent_id.is_null())
-                                .select(crate::schema::taxonomy_categories::id)
-                                .load::<String>(tx.conn())
-                                .map_err(StorageError::from)?;
-                            let categories = roots
-                                .into_iter()
-                                .filter(|category| {
-                                    current
-                                        .group_assignments
-                                        .iter()
-                                        .find(|a| {
-                                            a.taxonomy_id == "spending_categories"
-                                                && a.category_id == *category
-                                        })
-                                        .map(|a| a.group_id.as_str())
-                                        .unwrap_or(&other)
-                                        == group
-                                })
-                                .collect::<Vec<_>>();
-                            disable_category_rollovers_tx(tx, "spending_categories", &categories)?;
+                            for taxonomy in ["spending_categories", "savings_categories"] {
+                                let roots = crate::schema::taxonomy_categories::table
+                                    .filter(
+                                        crate::schema::taxonomy_categories::taxonomy_id
+                                            .eq(taxonomy),
+                                    )
+                                    .filter(crate::schema::taxonomy_categories::parent_id.is_null())
+                                    .select(crate::schema::taxonomy_categories::id)
+                                    .load::<String>(tx.conn())
+                                    .map_err(StorageError::from)?;
+                                let categories = roots
+                                    .into_iter()
+                                    .filter(|category| {
+                                        current
+                                            .group_assignments
+                                            .iter()
+                                            .find(|a| {
+                                                a.taxonomy_id == taxonomy
+                                                    && a.category_id == *category
+                                            })
+                                            .map(|a| a.group_id.as_str())
+                                            .unwrap_or(&other)
+                                            == group
+                                    })
+                                    .collect::<Vec<_>>();
+                                disable_category_rollovers_tx(tx, taxonomy, &categories)?;
+                            }
                         }
                         upsert_rollover_setting_tx(tx, setting)?;
                     }
