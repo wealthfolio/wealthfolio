@@ -930,14 +930,11 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
 
   const comparisonBucketLabel = (from?: string, to?: string) => {
     if (!from || !to) return "—";
-    const first = dateFormatting.formatCalendarDate(from, {
+    return dateFormatting.formatCalendarDateRange(from, to, {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
-    return from === to
-      ? first
-      : `${first} – ${dateFormatting.formatCalendarDate(to, { month: "short", day: "numeric", year: "numeric" })}`;
   };
 
   const categoriesMeta = useMemo(() => {
