@@ -63,7 +63,10 @@ for (const direction of ["ltr", "rtl"] as const) {
     await gotoAppPath(page, `/settings/securities?dir=${direction}`);
     await expect(page.getByRole("heading", { name: "Securities", exact: true })).toBeVisible();
     const reset = page.getByRole("button", { name: "Reset", exact: true });
-    if (await reset.isVisible()) await reset.click();
+    // The table renders a skeleton without its toolbar while loading; wait for the
+    // default held-only filter's Reset before clearing it so AFLT is listed.
+    await expect(reset).toBeVisible();
+    await reset.click();
     const row = page.getByRole("row").filter({ hasText: "AFLT" }).first();
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "Open actions" }).click();
