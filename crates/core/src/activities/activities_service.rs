@@ -940,8 +940,11 @@ impl ActivityService {
             let amount_patch_changed =
                 Self::decimal_patch_changes(activity.amount, existing.amount);
             let explicit_clear = matches!(activity.amount, Some(None));
+            // A stored row without a total (a draft an import could not
+            // price) gets the calculated one when the patch leaves it out.
+            let missing_total = activity.amount.is_none() && existing_amount.is_none();
             let should_recalculate =
-                explicit_amount.is_none() && (economics_changed || explicit_clear);
+                explicit_amount.is_none() && (economics_changed || explicit_clear || missing_total);
             if should_recalculate {
                 if let Some(calculated) = Self::calculated_missing_final_amount(
                     &activity.activity_type,
