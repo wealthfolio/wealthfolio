@@ -1207,6 +1207,19 @@ impl DataExportService {
             .activities
             .get_first_activity_date(None)?
             .map(|instant| user_date_from_utc(instant, tz));
+        // Accounts tracked by holdings start at their first snapshot, which
+        // can come before any activity or with none at all.
+        let mut first_snapshot: Option<NaiveDate> = None;
+        for account in self.sources.accounts.get_all_accounts()? {
+            let first = self
+                .sources
+                .snapshots
+                .get_snapshot_metadata(&account.id, None, None)?
+                .into_iter()
+                .filter_map(|meta| NaiveDate::parse_from_str(&meta.snapshot_date, "%Y-%m-%d").ok())
+                .min();
+            first_snapshot = earlier(first_snapshot, first);
+        }
         let mut first_valuation: Option<NaiveDate> = None;
         for holding in self.sources.alternative_assets.get_alternative_holdings()? {
             let first = self
@@ -1216,15 +1229,12 @@ impl DataExportService {
                 .into_iter()
                 .map(|quote| quote.timestamp.date_naive())
                 .min();
-            first_valuation = match (first_valuation, first) {
-                (Some(a), Some(b)) => Some(a.min(b)),
-                (a, b) => a.or(b),
-            };
+            first_valuation = earlier(first_valuation, first);
         }
-        Ok(match (first_activity, first_valuation) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        })
+        Ok(earlier(
+            earlier(first_activity, first_snapshot),
+            first_valuation,
+        ))
     }
 
     async fn net_worth_records(
@@ -1322,7 +1332,7 @@ impl DataExportService {
             .sources
             .portfolios
             .resolve_account_scope(&AccountScope::All, &base_currency)?;
-        let records = self
+        let totals = self
             .sources
             .valuations
             .get_historical_valuations_for_accounts(
@@ -1333,7 +1343,28 @@ impl DataExportService {
                 options.end_date,
             )
             .await?;
-        ExportRecord::from_records(&records)
+        // All accounts together first, as before, then each account's own rows.
+        let mut records = totals
+            .iter()
+            .map(|row| Ok(ExportRecord::from_record(row)?.with("accountName", "All accounts")))
+            .collect::<Result<Vec<_>>>()?;
+        let mut accounts = self
+            .sources
+            .accounts
+            .get_accounts_by_ids(&resolved.account_ids)?;
+        accounts.sort_by(|a, b| a.name.cmp(&b.name));
+        for account in accounts {
+            for row in self.sources.valuations.get_historical_valuations(
+                &account.id,
+                options.start_date,
+                options.end_date,
+            )? {
+                records.push(
+                    ExportRecord::from_record(&row)?.with("accountName", account.name.clone()),
+                );
+            }
+        }
+        Ok(records)
     }
 
     fn goal_records(&self) -> Result<Vec<ExportRecord>> {
@@ -1594,6 +1625,14 @@ fn limit_progress_columns(
             ),
         ),
     ]
+}
+
+/// The earlier of two optional dates; a missing one doesn't count.
+fn earlier(a: Option<NaiveDate>, b: Option<NaiveDate>) -> Option<NaiveDate> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
 }
 
 /// Whether an instant falls in a `[start, end)` UTC window; open ends match all.
@@ -2019,6 +2058,24 @@ mod tests {
         let next_morning: chrono::DateTime<chrono::Utc> = "2026-01-03T06:00:00Z".parse().unwrap();
         assert!(within_bounds(&bounds, late_evening));
         assert!(!within_bounds(&bounds, next_morning));
+    }
+
+    #[test]
+    fn earliest_date_ignores_missing_sources() {
+        assert_eq!(earlier(None, None), None);
+        assert_eq!(
+            earlier(Some(date(2025, 3, 1)), None),
+            Some(date(2025, 3, 1))
+        );
+        assert_eq!(
+            earlier(None, Some(date(2024, 1, 1))),
+            Some(date(2024, 1, 1))
+        );
+        assert_eq!(
+            earlier(Some(date(2025, 3, 1)), Some(date(2024, 1, 1))),
+            Some(date(2024, 1, 1)),
+            "a snapshot before the first activity starts the history"
+        );
     }
 
     #[test]
