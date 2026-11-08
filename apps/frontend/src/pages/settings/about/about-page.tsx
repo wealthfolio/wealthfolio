@@ -145,7 +145,7 @@ export default function AboutSettingsPage() {
                   <div className="flex min-w-0 items-center gap-2">
                     <p
                       className="bg-muted text-muted-foreground min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs"
-                      dir="ltr"
+                      dir={dbPath ? "ltr" : undefined}
                       title={dbPath || undefined}
                     >
                       {dbPath || t("settings:about_unavailable")}
@@ -168,7 +168,7 @@ export default function AboutSettingsPage() {
                   <div className="flex min-w-0 items-center gap-2">
                     <p
                       className="bg-muted text-muted-foreground min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs"
-                      dir="ltr"
+                      dir={logsDir ? "ltr" : undefined}
                       title={logsDir || undefined}
                     >
                       {logsDir || t("settings:about_unavailable")}
