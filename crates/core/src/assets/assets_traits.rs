@@ -63,6 +63,26 @@ pub trait AssetServiceTrait: Send + Sync {
         metadata: Option<AssetMetadata>,
         quote_mode: Option<String>,
     ) -> Result<Asset>;
+    /// The stored asset `get_or_create_minimal_asset` would match a listing
+    /// (`metadata` without an asset id) to, without creating, reactivating
+    /// or changing anything. `None` when it would create a new asset.
+    fn find_asset_by_listing(
+        &self,
+        _metadata: &AssetMetadata,
+        _context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        None
+    }
+    /// The instrument key `get_or_create_minimal_asset` matches a listing
+    /// by: two listings with the same key save as one asset. `None` when the
+    /// listing has no key.
+    fn listing_instrument_key(
+        &self,
+        _metadata: &AssetMetadata,
+        _context_currency: Option<&str>,
+    ) -> Option<String> {
+        None
+    }
     async fn update_quote_mode(&self, asset_id: &str, quote_mode: &str) -> Result<Asset>;
     /// Updates quote mode without emitting domain events.
     ///

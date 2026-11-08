@@ -12,13 +12,15 @@ use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::ActivityServiceTrait,
     assets::AssetServiceTrait,
+    fx::FxServiceTrait,
     goals::GoalServiceTrait,
     health::{HealthServiceTrait, HealthStatus},
     limits::ContributionLimitServiceTrait,
     portfolio::{
         allocation::AllocationServiceTrait, holdings::HoldingsServiceTrait,
         income::IncomeServiceTrait, net_worth::NetWorthServiceTrait,
-        performance::PerformanceServiceTrait, valuation::ValuationServiceTrait,
+        performance::PerformanceServiceTrait, snapshot::SnapshotServiceTrait,
+        valuation::ValuationServiceTrait,
     },
     portfolios::PortfolioServiceTrait,
     quotes::QuoteServiceTrait,
@@ -118,6 +120,20 @@ pub trait AgentEnvironment: Send + Sync {
         Err(wealthfolio_core::Error::Unexpected(
             "Refreshing market data is not available in this environment".to_string(),
         ))
+    }
+
+    /// The snapshot service, for reading and saving holdings snapshots. The
+    /// default has none, so the tools that need it report that this
+    /// environment cannot run them.
+    fn snapshot_service(&self) -> Option<Arc<dyn SnapshotServiceTrait>> {
+        None
+    }
+
+    /// The FX service: exchange rates, and the currency pairs a holdings
+    /// snapshot registers. The default has none, as for
+    /// [`Self::snapshot_service`].
+    fn fx_service(&self) -> Option<Arc<dyn FxServiceTrait>> {
+        None
     }
 
     /// Run the Health Center's full checks, as its "run checks" does, and

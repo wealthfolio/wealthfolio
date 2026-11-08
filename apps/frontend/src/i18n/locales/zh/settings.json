@@ -1247,6 +1247,7 @@
     "scope_locked_market_data_title": "由“市场数据——写入”所需",
     "scope_locked_classification_title": "由“资产分类——应用/写入”所需",
     "scope_locked_accounts_title": "由“账户——写入”所需",
+    "scope_locked_holdings_title": "由“持仓——写入”所需",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "令牌",
     "scope": {
@@ -1313,6 +1314,10 @@
       "accounts_write": {
         "label": "账户——写入",
         "description": "创建账户，并更改其名称、类型、分组、账号、跟踪模式以及隐藏或归档状态。需要账户（读取）作用域。"
+      },
+      "holdings_write": {
+        "label": "持仓——写入",
+        "description": "为按持仓跟踪的账户保存持仓快照（某一日期的持仓和现金）。需要持仓与价值（读取）作用域。"
       }
     },
     "preset": {

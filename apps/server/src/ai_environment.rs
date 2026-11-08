@@ -12,6 +12,7 @@ use wealthfolio_core::{
     allocation::AllocationServiceTrait,
     assets::AssetServiceTrait,
     custom_provider::{CustomProviderService, CustomProviderWithSources},
+    fx::FxServiceTrait,
     goals::GoalServiceTrait,
     health::{HealthServiceTrait, HealthStatus},
     holdings::HoldingsServiceTrait,
@@ -71,13 +72,14 @@ pub struct ServerAiEnvironment {
     spending_events_service: Arc<dyn wealthfolio_spending::events::EventsServiceTrait>,
     spending_analytics_service: Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>,
     spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
-    // Read by the health checks only.
+    // Read by the health checks and the holdings snapshot tools.
     snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
     custom_provider_service: Arc<CustomProviderService>,
     // Starts the portfolio jobs agents request.
     portfolio_coordinator: Arc<PortfolioCoordinator>,
     event_bus: EventBus,
+    fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
 }
 
 impl ServerAiEnvironment {
@@ -116,6 +118,7 @@ impl ServerAiEnvironment {
         custom_provider_service: Arc<CustomProviderService>,
         portfolio_coordinator: Arc<PortfolioCoordinator>,
         event_bus: EventBus,
+        fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             base_currency,
@@ -150,6 +153,7 @@ impl ServerAiEnvironment {
             custom_provider_service,
             portfolio_coordinator,
             event_bus,
+            fx_service,
         }
     }
 }
@@ -270,6 +274,14 @@ impl AgentEnvironment for ServerAiEnvironment {
             },
         );
         Ok(())
+    }
+
+    fn snapshot_service(&self) -> Option<Arc<dyn SnapshotServiceTrait>> {
+        Some(self.snapshot_service.clone())
+    }
+
+    fn fx_service(&self) -> Option<Arc<dyn FxServiceTrait>> {
+        Some(self.fx_service.clone())
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

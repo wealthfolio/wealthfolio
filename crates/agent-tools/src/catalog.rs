@@ -589,6 +589,9 @@ mod tests {
         assert!(!names.contains(&"commit_activity_deletions"));
         assert!(!names.contains(&"prepare_account_change"));
         assert!(!names.contains(&"commit_account_change"));
+        assert!(!names.contains(&"get_holdings_snapshots"));
+        assert!(!names.contains(&"prepare_holdings_snapshot"));
+        assert!(!names.contains(&"commit_holdings_snapshot"));
     }
 
     #[tokio::test]
@@ -801,6 +804,9 @@ mod tests {
             "commit_activity_deletions",
             "prepare_account_change",
             "commit_account_change",
+            "get_holdings_snapshots",
+            "prepare_holdings_snapshot",
+            "commit_holdings_snapshot",
         ] {
             let err = catalog
                 .execute(
@@ -1129,6 +1135,27 @@ mod tests {
             AgentScopeSet::from_strs(["accounts:write"]),
         ] {
             for name in ["prepare_account_change", "commit_account_change"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn holdings_snapshot_writes_need_holdings_read_and_write() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "accountId": "a", "date": "2026-01-31", "positions": [] });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["holdings:write"]),
+        ] {
+            for name in ["prepare_holdings_snapshot", "commit_holdings_snapshot"] {
                 let err = catalog
                     .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
                     .await

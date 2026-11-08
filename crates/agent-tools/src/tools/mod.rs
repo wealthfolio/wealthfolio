@@ -28,6 +28,7 @@ pub mod create_categorization_rule;
 pub mod goals;
 pub mod health;
 pub mod holdings;
+pub mod holdings_snapshots;
 pub mod income;
 pub mod net_worth;
 pub mod performance;
@@ -342,13 +343,35 @@ pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
 }
 
 /// The MCP-only portfolio setup tools: preview and save account creates and
-/// updates. Not exposed to the in-app assistant, which has no confirmation
-/// card for them; users manage accounts in Settings.
+/// updates, and read, preview and save holdings snapshots. Not exposed to the
+/// in-app assistant, which has no confirmation card for them; users manage
+/// accounts in Settings and holdings in the holdings editor.
 pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(account_changes::PrepareAccountChange),
         Arc::new(account_changes::CommitAccountChange),
+        Arc::new(holdings_snapshots::GetHoldingsSnapshots),
+        Arc::new(holdings_snapshots::PrepareHoldingsSnapshot),
+        Arc::new(holdings_snapshots::CommitHoldingsSnapshot),
     ]
+}
+
+/// A currency code as core reads it: letters only, any length (USDT is one
+/// too). A minor unit such as GBp or ZAc keeps its spelling, since GBp
+/// (pence) and GBP (pounds) differ a hundredfold; any other code is
+/// uppercased. `None` when the code is empty or not letters.
+pub(crate) fn currency_code(code: &str) -> Option<String> {
+    let code = code.trim();
+    if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(
+        if wealthfolio_core::fx::currency::get_normalization_rule(code).is_some() {
+            code.to_string()
+        } else {
+            code.to_ascii_uppercase()
+        },
+    )
 }
 
 /// Nullable destructive choices must be explicit: missing is not an instruction

@@ -30,8 +30,12 @@ export function ScopeSelector({
     const checked = selectedScopes.includes(scope.key);
     const label = scopeLabel(t, scope.key);
     const description = scopeDescription(t, scope.key);
+    const lockedByHoldings =
+      scope.key === "holdings:read" && selectedScopes.includes("holdings:write");
     const lockedByMarketData =
-      scope.key === "holdings:read" && selectedScopes.includes("market-data:write");
+      scope.key === "holdings:read" &&
+      !lockedByHoldings &&
+      selectedScopes.includes("market-data:write");
     const lockedBySpending =
       scope.key === "spending:read" &&
       (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
@@ -42,6 +46,7 @@ export function ScopeSelector({
     const locked =
       lockedBySpending ||
       lockedByMarketData ||
+      lockedByHoldings ||
       lockedByAccounts ||
       lockedByClassification ||
       (scope.key === "activities:draft" && selectedScopes.includes("activities:write"));
@@ -49,11 +54,13 @@ export function ScopeSelector({
       ? t("settings:agentAccess.scope_locked_spending_title")
       : lockedByMarketData
         ? t("settings:agentAccess.scope_locked_market_data_title")
-        : lockedByAccounts
-          ? t("settings:agentAccess.scope_locked_accounts_title")
-          : lockedByClassification
-            ? t("settings:agentAccess.scope_locked_classification_title")
-            : t("settings:agentAccess.scope_locked_title");
+        : lockedByHoldings
+          ? t("settings:agentAccess.scope_locked_holdings_title")
+          : lockedByAccounts
+            ? t("settings:agentAccess.scope_locked_accounts_title")
+            : lockedByClassification
+              ? t("settings:agentAccess.scope_locked_classification_title")
+              : t("settings:agentAccess.scope_locked_title");
     return (
       <button
         key={scope.key}

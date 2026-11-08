@@ -40,3 +40,11 @@ it("names the scope that locks each prerequisite", () => {
     expect(button).toHaveAttribute("title", title);
   }
 });
+
+it("locks holdings read for holdings writes", () => {
+  renderSelector(["holdings:read", "holdings:write", "market-data:write"]);
+
+  const button = scopeButton("Holdings & value \\(read\\)");
+  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute("title", "Required by Holdings — write");
+});

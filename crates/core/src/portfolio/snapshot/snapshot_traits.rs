@@ -27,6 +27,20 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
             .max_by_key(|s| s.snapshot_date))
     }
 
+    /// The latest saved (not projection-calculated) snapshot on or before
+    /// `date`: what a HOLDINGS-mode account's reads use.
+    fn get_latest_saved_snapshot_on_or_before(
+        &self,
+        account_id: &str,
+        date: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        Ok(self
+            .get_snapshots_by_account(account_id, None, Some(date))?
+            .into_iter()
+            .filter(|s| s.source != super::SnapshotSource::Calculated)
+            .max_by_key(|s| s.snapshot_date))
+    }
+
     /// Get snapshots for a specific account within optional date range.
     fn get_snapshots_by_account(
         &self,

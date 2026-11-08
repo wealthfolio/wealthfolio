@@ -43,6 +43,37 @@ pub struct ManualHoldingInput {
     pub provider_symbol: Option<String>,
 }
 
+impl ManualHoldingInput {
+    /// The asset metadata saving this holding resolves or creates its asset
+    /// with.
+    pub fn asset_metadata(&self) -> AssetMetadata {
+        // A custom "Other" holding sits in the account: an investment, not
+        // the alternative kind net worth adds on its own.
+        let kind = match self.asset_kind.as_deref() {
+            Some("OTHER") | Some("INVESTMENT") => Some(AssetKind::Investment),
+            _ => None,
+        };
+
+        AssetMetadata {
+            instrument_symbol: Some(self.symbol.clone()),
+            instrument_exchange_mic: self.exchange_mic.clone(),
+            display_code: Some(self.symbol.clone()),
+            name: self.name.clone(),
+            kind,
+            instrument_type: self
+                .instrument_type
+                .as_deref()
+                .and_then(InstrumentType::from_external_str),
+            instrument_type_label: self.instrument_type.clone(),
+            requested_quote_ccy: self.quote_ccy.clone(),
+            provider_config: None,
+            provider_id: self.provider_id.clone(),
+            provider_symbol: self.provider_symbol.clone(),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CashBalanceInput {
     pub currency: String,
@@ -256,30 +287,7 @@ impl ManualSnapshotService {
                 _ => Uuid::new_v4().to_string(),
             };
 
-            // A custom "Other" holding sits in the account: an investment, not
-            // the alternative kind net worth adds on its own.
-            let kind = match holding.asset_kind.as_deref() {
-                Some("OTHER") | Some("INVESTMENT") => Some(AssetKind::Investment),
-                _ => None,
-            };
-
-            let metadata = AssetMetadata {
-                instrument_symbol: Some(holding.symbol.clone()),
-                instrument_exchange_mic: holding.exchange_mic.clone(),
-                display_code: Some(holding.symbol.clone()),
-                name: holding.name.clone(),
-                kind,
-                instrument_type: holding
-                    .instrument_type
-                    .as_deref()
-                    .and_then(InstrumentType::from_external_str),
-                instrument_type_label: holding.instrument_type.clone(),
-                requested_quote_ccy: holding.quote_ccy.clone(),
-                provider_config: None,
-                provider_id: holding.provider_id.clone(),
-                provider_symbol: holding.provider_symbol.clone(),
-                ..Default::default()
-            };
+            let metadata = holding.asset_metadata();
 
             let quote_mode = match holding.data_source.as_deref() {
                 Some(DATA_SOURCE_MANUAL) => Some(DATA_SOURCE_MANUAL.to_string()),
@@ -885,5 +893,55 @@ mod tests {
             .to_string()
             .starts_with("Failed to save manual snapshot: "));
         assert!(stored(&snapshots).is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_latest_keyframe_is_read_from_the_accounts_own_mode() {
+        let day = |d| day(&format!("2026-01-{d:02}"));
+        let account = |id: &str, mode| Account {
+            id: id.to_string(),
+            currency: "USD".to_string(),
+            is_active: true,
+            tracking_mode: mode,
+            ..Default::default()
+        };
+        let snapshot = |account_id: &str, date, source| AccountStateSnapshot {
+            id: format!("{account_id}_{date}"),
+            account_id: account_id.to_string(),
+            snapshot_date: date,
+            currency: "USD".to_string(),
+            source,
+            ..Default::default()
+        };
+        let snapshots = Arc::new(InMemorySnapshotRepository::new(HashSet::new()));
+        let mut rows = Vec::new();
+        for id in ["holdings", "transactions"] {
+            rows.push(snapshot(id, day(5), SnapshotSource::ManualEntry));
+            rows.push(snapshot(id, day(20), SnapshotSource::Calculated));
+        }
+        snapshots
+            .save_snapshots(&rows)
+            .await
+            .expect("snapshots save");
+        let service = SnapshotService::new(
+            Arc::new(std::sync::RwLock::new("UTC".to_string())),
+            Arc::new(InMemoryAccountRepository::new(vec![
+                account("holdings", crate::accounts::TrackingMode::Holdings),
+                account("transactions", crate::accounts::TrackingMode::Transactions),
+            ])),
+            snapshots,
+            Arc::new(InMemoryActivityRepository::new(Vec::new(), HashSet::new())),
+        );
+
+        let latest = |id| {
+            service
+                .get_latest_holdings_keyframe(id, day(25))
+                .expect("keyframe reads")
+                .map(|snapshot| snapshot.snapshot_date)
+        };
+        // A holdings account's calculated rows (kept from the other mode) are
+        // not its holdings; a transactions account reads only calculated ones.
+        assert_eq!(latest("holdings"), Some(day(5)));
+        assert_eq!(latest("transactions"), Some(day(20)));
     }
 }

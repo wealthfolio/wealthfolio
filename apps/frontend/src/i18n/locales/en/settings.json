@@ -1223,6 +1223,7 @@
     "scope_locked_market_data_title": "Required by Market data — write",
     "scope_locked_classification_title": "Required by Asset classification — apply/write",
     "scope_locked_accounts_title": "Required by Accounts — write",
+    "scope_locked_holdings_title": "Required by Holdings — write",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1289,6 +1290,10 @@
       "accounts_write": {
         "label": "Accounts — write",
         "description": "Create accounts and change their name, type, group, number, tracking mode, and hidden or archived state. Requires the accounts read scope."
+      },
+      "holdings_write": {
+        "label": "Holdings — write",
+        "description": "Save holdings snapshots (positions and cash on a date) for accounts that track holdings. Requires the holdings read scope."
       }
     },
     "preset": {
