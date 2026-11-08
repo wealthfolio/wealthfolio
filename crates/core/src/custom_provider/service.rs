@@ -177,13 +177,14 @@ impl CustomProviderService {
 
         let response = match request.request_builder(&client).send().await {
             Ok(resp) => resp,
-            Err(e) => {
+            Err(_) => {
                 return Ok(TestSourceResult {
                     success: false,
                     price: None,
                     currency: None,
                     date: None,
-                    error: Some(format!("HTTP request failed: {}", e)),
+                    error: Some(crate::errors::PublicError::provider_unavailable().message),
+                    error_code: Some(crate::errors::PublicError::provider_unavailable().error_code),
                     raw_response: None,
                     detected_elements: None,
                     detected_tables: None,
@@ -214,14 +215,15 @@ impl CustomProviderService {
         }
         let body_bytes = match response.bytes().await {
             Ok(b) => b,
-            Err(e) => {
+            Err(_) => {
                 return Ok(TestSourceResult {
                     success: false,
                     status_code: Some(status.as_u16()),
                     price: None,
                     currency: None,
                     date: None,
-                    error: Some(format!("Failed to read response body: {}", e)),
+                    error: Some(crate::errors::PublicError::provider_unavailable().message),
+                    error_code: Some(crate::errors::PublicError::provider_unavailable().error_code),
                     raw_response: None,
                     detected_elements: None,
                     detected_tables: None,
@@ -332,6 +334,7 @@ impl CustomProviderService {
                             currency,
                             date,
                             error: None,
+                            error_code: None,
                             raw_response: Some(body),
                             detected_elements: None,
                             detected_tables: None,
@@ -458,6 +461,7 @@ impl CustomProviderService {
                             currency: None,
                             date,
                             error: None,
+                            error_code: None,
                             raw_response: None,
                             detected_elements: None,
                             detected_tables: Some(tables),
@@ -523,6 +527,7 @@ impl CustomProviderService {
                         currency: None,
                         date,
                         error: None,
+                        error_code: None,
                         raw_response: Some(body),
                         detected_elements: None,
                         detected_tables: None,

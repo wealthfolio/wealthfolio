@@ -1037,7 +1037,7 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
         failed += &event(block.clone());
     }
     failed += &event(json!({"type":"error","error":{"type":"overloaded_error",
-        "message":"Overloaded for fixture-key"}}));
+        "message":"Overloaded for fixture-key: /private/portfolio.db account_balance"}}));
     let (url, server) = serve(vec![
         (200, anthropic_reply("tool_use", first, usage.clone(), 1)),
         (200, failed),
@@ -1056,6 +1056,8 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
     .await;
     let shown = stream_error(&events).expect("the turn fails");
     assert!(!shown.contains("fixture-key"), "{shown}");
+    assert!(!shown.contains("/private"), "{shown}");
+    assert!(!shown.contains("account_balance"), "{shown}");
 
     let thread = thread_id(&events);
     let saved = env

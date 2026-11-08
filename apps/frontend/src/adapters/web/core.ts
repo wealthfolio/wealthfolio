@@ -3,6 +3,7 @@ import { profileFetch } from "@/features/profiles/session";
 // This module exports invoke, logger, and platform constants for shared modules
 
 import { notifyUnauthorized } from "@/lib/auth-token";
+import { BackendError, backendError } from "@/lib/backend-error";
 import type { Logger } from "../types";
 import { invokeTimeoutMs } from "../invoke-timeout";
 
@@ -2255,25 +2256,27 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     notifyUnauthorized();
   }
   if (!res.ok) {
-    let msg = res.statusText;
+    let publicError = new BackendError("internal_error");
     try {
       const err = (await res.json()) as unknown;
+      publicError = backendError(err) ?? publicError;
       if (
         typeof err === "object" &&
         err !== null &&
         "message" in err &&
         typeof err.message === "string"
       ) {
-        msg = err.message;
+        // Compatibility for legacy code-only errors, never arbitrary messages.
+        publicError = backendError(err) ?? backendError(err.message) ?? publicError;
       }
     } catch (_e) {
       // ignore JSON parse error from non-JSON error bodies
       void 0;
     }
-    console.error(`[Invoke] Command "${command}" failed: ${msg}`);
+    console.error(`[Invoke] Command "${command}" failed (HTTP ${res.status})`);
     // The server's 408 timeout leaves owned reset tasks running; 5xx responses
     // can also follow a committed reset whose completion failed.
-    throw Object.assign(new Error(msg), {
+    throw Object.assign(publicError, {
       outcomeUnknown: res.status === 408 || res.status >= 500,
     });
   }

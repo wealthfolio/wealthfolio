@@ -699,5 +699,17 @@
     "accountNumberMax": "Die Kontonummer darf höchstens 64 Zeichen enthalten.",
     "accountCurrency": "Bitte wählen Sie eine Währung.",
     "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden."
+  },
+  "backendErrors": {
+    "internal": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "invalidInput": "Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
+    "conflict": "Die Änderung steht im Konflikt mit vorhandenen Daten.",
+    "notFound": "Das angeforderte Element wurde nicht gefunden.",
+    "unauthorized": "Melden Sie sich an, um fortzufahren.",
+    "forbidden": "Dieser Vorgang ist nicht erlaubt.",
+    "unavailable": "Dieser Vorgang ist nicht verfügbar.",
+    "providerKeyMissing": "Fügen Sie in den Einstellungen einen API-Schlüssel für diesen Anbieter hinzu.",
+    "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
+    "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen."
   }
 }

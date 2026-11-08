@@ -716,5 +716,17 @@
     "accountNumberMax": "El número de cuenta no debe superar los 64 caracteres.",
     "accountCurrency": "Seleccione una moneda.",
     "creditCardTracking": "Las cuentas de tarjeta de crédito no pueden usar el seguimiento de posiciones."
+  },
+  "backendErrors": {
+    "internal": "No se pudo completar la operación.",
+    "invalidInput": "Comprueba los datos introducidos e inténtalo de nuevo.",
+    "conflict": "El cambio entra en conflicto con los datos existentes.",
+    "notFound": "No se encontró el elemento solicitado.",
+    "unauthorized": "Inicia sesión para continuar.",
+    "forbidden": "Esta operación no está permitida.",
+    "unavailable": "Esta operación no está disponible.",
+    "providerKeyMissing": "Añade una clave API para este proveedor en Ajustes.",
+    "providerUnknown": "Selecciona un proveedor compatible.",
+    "providerUnavailable": "El proveedor no pudo completar la solicitud. Comprueba su configuración."
   }
 }

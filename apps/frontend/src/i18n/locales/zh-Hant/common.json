@@ -699,5 +699,17 @@
     "accountNumberMax": "帳號不得超過 64 個字元。",
     "accountCurrency": "請選擇貨幣。",
     "creditCardTracking": "信用卡帳戶不能使用持倉追蹤模式。"
+  },
+  "backendErrors": {
+    "internal": "無法完成此操作。",
+    "invalidInput": "請檢查輸入內容後重試。",
+    "conflict": "此變更與現有資料衝突。",
+    "notFound": "找不到所要求的項目。",
+    "unauthorized": "請登入後繼續。",
+    "forbidden": "不允許執行此操作。",
+    "unavailable": "此操作無法使用。",
+    "providerKeyMissing": "請在設定中為此提供者新增 API 金鑰。",
+    "providerUnknown": "請選擇支援的提供者。",
+    "providerUnavailable": "提供者無法完成請求。請檢查提供者設定。"
   }
 }
