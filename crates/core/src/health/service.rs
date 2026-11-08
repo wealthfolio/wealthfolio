@@ -1107,10 +1107,13 @@ pub(crate) async fn gather_missing_lot_disposal_sells(
             Ok(lots) => {
                 lots_by_account.insert(account_id.clone(), lots);
             }
-            Err(e) => warn!(
-                "Failed to load lots during missing lot disposal health check: {}",
-                e
-            ),
+            Err(e) => {
+                warn!(
+                    "Failed to load lots for account {} during missing lot disposal health check: {}",
+                    account_id, e
+                );
+                continue;
+            }
         }
         match lot_repository
             .get_lot_disposals_for_account(&account_id)
@@ -3714,6 +3717,65 @@ mod tests {
             .await;
             assert!(issues.is_empty(), "short remaining {remaining}");
         }
+    }
+
+    /// Skips unreadable lot evidence while retaining genuine warnings from other accounts.
+    #[tokio::test]
+    async fn lot_read_failure_does_not_create_short_sale_warnings_or_skip_other_accounts() {
+        use crate::assets::AssetService;
+        use crate::test_support::in_memory::{
+            InMemoryAssetRepository, InMemoryLotRepository, InMemoryQuoteService,
+        };
+        let accounts = vec![
+            health_account(
+                "business",
+                account_types::SECURITIES,
+                TrackingMode::Transactions,
+            ),
+            health_account(
+                "other",
+                account_types::SECURITIES,
+                TrackingMode::Transactions,
+            ),
+        ];
+        let mut opening = sell_activity("short-open", "business", "aapl");
+        opening.subtype = Some(ACTIVITY_SUBTYPE_POSITION_OPEN.to_string());
+        opening.quantity = Some(dec!(10));
+        opening.unit_price = Some(dec!(20));
+        opening.amount = Some(dec!(200));
+        let activities = vec![opening, sell_activity("unmatched-sale", "other", "aapl")];
+        let repository = InMemoryLotRepository::new(
+            HashSet::from(["short-open".to_string(), "unmatched-sale".to_string()]),
+            HashSet::from(["aapl".to_string()]),
+        )
+        .with_failed_lot_reads("business");
+        repository
+            .replace_lots_for_account("business", &[short_lot(dec!(-10))])
+            .await
+            .unwrap();
+        assert!(repository
+            .get_lot_disposals_for_account("business")
+            .await
+            .is_ok());
+        let assets = vec![health_asset("aapl")];
+        let asset_service = AssetService::new(
+            Arc::new(InMemoryAssetRepository::new(assets.clone())),
+            Arc::new(InMemoryQuoteService::new(vec![], assets)),
+        )
+        .unwrap();
+        let issues = gather_missing_lot_disposal_sells(
+            &repository,
+            &asset_service,
+            &accounts,
+            &activities,
+            None,
+        )
+        .await;
+        let ids: Vec<_> = issues
+            .iter()
+            .map(|issue| issue.record_id.as_str())
+            .collect();
+        assert_eq!(ids, ["unmatched-sale"]);
     }
 
     /// Rejects missing, malformed, or unrelated lot evidence for short-opening sales.
