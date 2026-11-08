@@ -25,6 +25,7 @@ pub mod commit_categorization_rule;
 pub mod commit_transaction_categories;
 pub mod contribution_limits;
 pub mod create_categorization_rule;
+pub mod exchange_rates;
 pub mod goals;
 pub mod health;
 pub mod holdings;
@@ -343,7 +344,8 @@ pub fn asset_market_data_tools() -> Vec<Arc<dyn AgentTool>> {
 }
 
 /// The MCP-only portfolio setup tools: preview and save account creates and
-/// updates, and read, preview and save holdings snapshots. Not exposed to the
+/// updates, read, preview and save holdings snapshots, and read exchange
+/// rates. Not exposed to the
 /// in-app assistant, which has no confirmation card for them; users manage
 /// accounts in Settings and holdings in the holdings editor.
 pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
@@ -353,6 +355,7 @@ pub fn portfolio_setup_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(holdings_snapshots::GetHoldingsSnapshots),
         Arc::new(holdings_snapshots::PrepareHoldingsSnapshot),
         Arc::new(holdings_snapshots::CommitHoldingsSnapshot),
+        Arc::new(exchange_rates::GetExchangeRates),
     ]
 }
 
