@@ -99,3 +99,18 @@ it("searches for what was typed just before its phone screen was hidden", () => 
   expect(screen.getByLabelText("Search activities")).toHaveValue("AAPL");
   expect(mocks.searches.at(-1)).toBe("AAPL");
 });
+
+it("offers Match transfers in the phone header", () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <ActivityPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  const link = screen.getByTestId("match-transfers-mobile-action");
+  expect(link).toHaveAttribute("href", "/activities/transfers");
+  // The desktop palette is hidden below sm; this row is the phone's header.
+  expect(link.closest(".sm\\:hidden")).not.toBeNull();
+});
