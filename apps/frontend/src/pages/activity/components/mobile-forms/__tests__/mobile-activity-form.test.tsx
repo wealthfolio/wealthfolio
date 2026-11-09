@@ -62,6 +62,8 @@ vi.mock("../mobile-details-step", async () => {
           data-testid="details-step"
           data-editing={String(!!isEditing)}
           data-quote-ccy={form.getValues("symbolQuoteCcy")}
+          data-fee={String(form.getValues("fee"))}
+          data-tax={String(form.getValues("tax"))}
         >
           {activityType ?? "no-type"}
           <input aria-label="Record notes" {...form.register("comment")} />
@@ -403,6 +405,33 @@ describe("a trade total typed on a phone screen left for another tab", () => {
         expect.objectContaining({ activityType: ActivityType.BUY, amount: 60 }),
       ),
     );
+  });
+});
+
+describe("saved charges on a phone edit", () => {
+  it("opens a saved 0 fee and tax empty and still saves them as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "0", tax: "0" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "undefined");
+    expect(details).toHaveAttribute("data-tax", "undefined");
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
+      ),
+    );
+  });
+
+  it("opens a saved charge with its value", () => {
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "1.5", tax: "2" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "1.5");
+    expect(details).toHaveAttribute("data-tax", "2");
   });
 });
 

@@ -231,7 +231,7 @@ export function DividendForm({
       symbol: "",
       activityDate: new Date(),
       amount: undefined,
-      tax: 0,
+      tax: undefined,
       comment: null,
       fxRate: undefined,
       subtype: null,

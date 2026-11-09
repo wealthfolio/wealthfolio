@@ -38,6 +38,8 @@ vi.mock("@/hooks/use-holdings", () => ({
 vi.mock("../fields", async () => {
   const { useFormContext } =
     await vi.importActual<typeof import("react-hook-form")>("react-hook-form");
+  // Like MoneyInput, an empty amount is undefined rather than NaN.
+  const emptyAsUndefined = (value: string) => (value === "" ? undefined : Number(value));
 
   return {
     AccountSelect: ({ name, accounts }: { name: string; accounts: AccountSelectOption[] }) => {
@@ -81,7 +83,7 @@ vi.mock("../fields", async () => {
             data-max-decimal-places={maxDecimalPlaces}
             type="number"
             id={name}
-            {...register(name, { valueAsNumber: true })}
+            {...register(name, { setValueAs: emptyAsUndefined })}
           />
         </div>
       );

@@ -435,8 +435,9 @@ export function MobileActivityForm({
           : activity?.unitPrice
             ? Number(activity.unitPrice)
             : undefined,
-      fee: activity?.fee ? Number(activity.fee) : 0,
-      tax: activity?.tax ? Number(activity.tax) : 0,
+      // Saved charges arrive as strings: "0" opens empty too, so typing replaces it.
+      fee: Number(activity?.fee) || undefined,
+      tax: Number(activity?.tax) || undefined,
       comment: activity?.comment ?? null,
       subtype: activity?.subtype ?? null,
       fxRate,
