@@ -5034,6 +5034,13 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
             .connect_rusqlite()
             .unwrap();
         db.execute("INSERT INTO budget_groups (id,name,key,is_system) VALUES ('custom','My custom group','custom',0)", []).unwrap();
+        let other_id = db
+            .query_row(
+                "SELECT id FROM budget_groups WHERE key = 'other'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap();
         db.execute(&format!("DELETE FROM budget_groups WHERE {missing}"), [])
             .unwrap();
         let count = || {
@@ -5047,6 +5054,16 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
         };
         let before = count();
         let outbox_before = budget_outbox();
+        let mut expected_ids = db
+            .prepare("SELECT id FROM budget_groups")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<std::result::Result<std::collections::BTreeSet<_>, _>>()
+            .unwrap();
+        // Reads synthesize only the required fallback, preserving the absence
+        // of optional defaults and the identities of persisted groups.
+        expected_ids.insert(other_id.clone());
         let read = mcp_call_tool(
             &server,
             pat,
@@ -5056,14 +5073,21 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
         )
         .await;
         let groups = read["budget"]["state"]["groups"].as_array().unwrap();
-        assert_eq!(groups.len(), 7);
+        assert_eq!(groups.len(), expected_ids.len());
+        assert!(groups.iter().any(|group| {
+            group["id"].as_str() == Some(other_id.as_str()) && group["key"] == "other"
+        }));
         assert!(groups
             .iter()
             .any(|group| group["id"] == "custom" && group["name"] == "My custom group"));
-        let expected_ids = groups
+        let actual_ids = groups
             .iter()
             .map(|group| group["id"].as_str().unwrap().to_string())
             .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            actual_ids, expected_ids,
+            "deleted optional defaults stay absent"
+        );
         assert_eq!(count(), before, "agent read must not seed groups");
         assert_eq!(
             budget_outbox(),
@@ -5111,7 +5135,7 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
         );
         assert_eq!(count(), before, "addon snapshot read stays pure");
         assert_eq!(budget_outbox(), outbox_before);
-        // The native screen deliberately retains its existing initialization lifecycle.
+        // Ordinary reads materialize Other without recreating optional defaults.
         let native = category_api_get(&server, &cookie, "spending/budget?periodKey=default").await;
         let native_ids = native["state"]["groups"]
             .as_array()
@@ -5124,7 +5148,7 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
             native["computed"]["totals"],
             read["budget"]["computed"]["totals"]
         );
-        assert_eq!(count(), 7, "native budget read still seeds missing groups");
+        assert_eq!(count(), before + 1, "native budget read repairs only Other");
     }
 }
 
