@@ -170,8 +170,8 @@
     "individualSecurities": "Einzelne Wertpapiere",
     "individualSecuritiesNote": "Eine Gewichtung pro Wertpapier. Bargeld und alternative Anlagen sind nicht enthalten.",
     "security": "Wertpapier",
-    "targetTypeFixed": "Der Allokationstyp lässt sich nach dem Erstellen des Ziels nicht ändern. Erstelle ein neues Ziel, um einen anderen Typ zu verwenden.",
-    "noSecuritiesFound": "In diesem Bereich wurden keine Wertpapiere gefunden. Füge Positionen hinzu, bevor du ein Ziel für einzelne Wertpapiere erstellst."
+    "targetTypeFixed": "Der Allokationstyp lässt sich nach dem Erstellen des Ziels nicht ändern. Erstellen Sie ein neues Ziel, um einen anderen Typ zu verwenden.",
+    "noSecuritiesFound": "In diesem Bereich wurden keine Wertpapiere gefunden. Fügen Sie Positionen hinzu, bevor Sie ein Ziel für einzelne Wertpapiere erstellen."
   },
   "scope": {
     "allAccounts": "Alle Konten",

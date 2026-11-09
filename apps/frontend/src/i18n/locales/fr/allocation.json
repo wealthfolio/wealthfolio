@@ -175,8 +175,8 @@
     "individualSecurities": "Titres individuels",
     "individualSecuritiesNote": "Une pondération par titre. Les liquidités et les actifs alternatifs ne sont pas inclus.",
     "security": "Titre",
-    "targetTypeFixed": "Le type d'allocation ne peut pas être modifié après la création de l'objectif. Créez un nouvel objectif pour utiliser un autre type.",
-    "noSecuritiesFound": "Aucun titre trouvé dans ce périmètre. Ajoutez des positions avant de créer un objectif par titres individuels."
+    "targetTypeFixed": "Le type d'allocation ne peut pas être modifié après la création de la cible. Créez une nouvelle cible pour utiliser un autre type.",
+    "noSecuritiesFound": "Aucun titre trouvé dans ce périmètre. Ajoutez des positions avant de créer une cible par titres individuels."
   },
   "scope": {
     "allAccounts": "Tous les comptes",

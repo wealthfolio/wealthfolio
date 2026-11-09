@@ -269,6 +269,11 @@ impl DriftService {
             if targeted_ids.contains(category_id.as_str()) {
                 continue;
             }
+            // A security whose long and short positions cancel out is held at
+            // zero: not a gap to report.
+            if is_asset_target && current.value == Decimal::ZERO {
+                continue;
+            }
 
             let current_bps = Self::current_bps(current.value, total_value);
             let is_cash =
@@ -1780,6 +1785,9 @@ mod tests {
                 holding_contribution("asset-A", dec!(500)),
                 holding_contribution("asset-B", dec!(300)),
                 holding_contribution("asset-C", dec!(200)),
+                // A long and a short that cancel out.
+                holding_contribution("asset-D", dec!(100)),
+                holding_contribution("asset-D", dec!(-100)),
             ],
         };
         let service = DriftService::new(
@@ -1812,6 +1820,7 @@ mod tests {
         assert_eq!(rows["asset-A"], (6000, 5000, DriftStatus::Underweight));
         assert_eq!(rows["asset-B"], (4000, 3000, DriftStatus::Underweight));
         assert_eq!(rows["asset-C"], (0, 2000, DriftStatus::NotTargeted));
+        assert!(!rows.contains_key("asset-D"));
         assert_eq!(report.total_value, dec!(1000));
     }
 }

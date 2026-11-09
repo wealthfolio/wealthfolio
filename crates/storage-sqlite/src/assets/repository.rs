@@ -554,7 +554,9 @@ impl AssetRepositoryTrait for AssetRepository {
                                 .execute(tx.conn())
                                 .map_err(StorageError::from)?;
                             tx.delete::<AllocationTargetAssetWeightDB>(weight.id.clone());
-                            merged.target_bps = (merged.target_bps + weight.target_bps).min(10000);
+                            // No clamp: a valid target sums to 10000, so the sum stays in range;
+                            // invalid data fails the column CHECK instead of being hidden.
+                            merged.target_bps += weight.target_bps;
                             merged.is_locked = merged.is_locked.max(weight.is_locked);
                             merged.is_required = merged.is_required.max(weight.is_required);
                             merged
