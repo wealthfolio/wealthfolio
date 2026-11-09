@@ -642,7 +642,7 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetSpec,
@@ -843,12 +843,15 @@ mod tests {
         }
     }
 
-    struct MockAssetService {
+    pub(in crate::portfolio::allocation_targets) struct MockAssetService {
         assets: Vec<Asset>,
     }
 
     impl MockAssetService {
-        fn with_asset(id: &str, kind: AssetKind) -> Arc<Self> {
+        pub(in crate::portfolio::allocation_targets) fn with_asset(
+            id: &str,
+            kind: AssetKind,
+        ) -> Arc<Self> {
             Arc::new(Self {
                 assets: vec![Asset {
                     id: id.to_string(),

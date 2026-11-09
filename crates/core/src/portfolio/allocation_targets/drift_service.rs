@@ -121,16 +121,16 @@ impl DriftService {
     fn asset_meta_for_weights(
         &self,
         weights: &[AllocationTargetAssetWeight],
-    ) -> HashMap<String, (String, String)> {
+    ) -> CoreResult<HashMap<String, (String, String)>> {
         let Some(service) = self.asset_service.as_ref() else {
-            return HashMap::new();
+            return Ok(HashMap::new());
         };
         weights
             .iter()
-            .filter_map(|weight| {
-                let asset = service.get_asset_by_id(&weight.asset_id).ok()?;
+            .map(|weight| {
+                let asset = service.get_asset_by_id(&weight.asset_id)?;
                 let name = asset_display_name(&asset);
-                Some((weight.asset_id.clone(), (name, "#94a3b8".to_string())))
+                Ok((weight.asset_id.clone(), (name, "#94a3b8".to_string())))
             })
             .collect()
     }
@@ -457,7 +457,7 @@ impl DriftService {
         };
 
         let category_meta = if is_asset_target {
-            self.asset_meta_for_weights(&asset_weights)
+            self.asset_meta_for_weights(&asset_weights)?
         } else {
             self.category_meta_for_taxonomy(&target.taxonomy_id)
         };
@@ -1822,5 +1822,42 @@ mod tests {
         assert_eq!(rows["asset-C"], (0, 2000, DriftStatus::NotTargeted));
         assert!(!rows.contains_key("asset-D"));
         assert_eq!(report.total_value, dec!(1000));
+    }
+
+    #[tokio::test]
+    async fn asset_target_drift_fails_when_a_weighted_asset_cannot_be_loaded() {
+        let mut target = base_target(500);
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id =
+            crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let service = DriftService::new(
+            Arc::new(MockTargetService {
+                target,
+                weights: vec![],
+                asset_weights: vec![asset_weight("asset-A", 6000), asset_weight("asset-B", 4000)],
+            }),
+            Arc::new(MockAllocationService {
+                allocations: PortfolioAllocations::default(),
+                contributions: TaxonomyHoldingContributions {
+                    taxonomy_id: "asset".to_string(),
+                    taxonomy_name: "Asset".to_string(),
+                    total_value: dec!(1000),
+                    currency: "USD".to_string(),
+                    contributions: vec![holding_contribution("asset-A", dec!(1000))],
+                },
+            }),
+        )
+        // The asset service knows asset-A but not asset-B.
+        .with_asset_service(
+            crate::portfolio::allocation_targets::target_service::tests::MockAssetService::with_asset(
+                "asset-A",
+                crate::assets::AssetKind::Investment,
+            ),
+        );
+
+        assert!(service
+            .get_drift_report_for_target("p1", &["acc".to_string()], "USD", "acc")
+            .await
+            .is_err());
     }
 }
