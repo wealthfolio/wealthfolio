@@ -1892,6 +1892,7 @@
     "group_not_counted_hint": "내부 이체는 계산되지 않습니다. 계좌 외부에서 들어온 돈이라면 활동을 편집하여 외부로 표시하세요.",
     "edit_activity": "활동 편집",
     "edit_activity_aria": "{{activity}} 편집",
+    "edit_activity_error": "이 활동을 열 수 없습니다. 다시 시도하세요.",
     "count_activity": "{{activity}}을(를) 이 한도에 계산",
     "activity_unchanged": "이 한도의 사용액만 변경됩니다. 계좌 거래는 변경되지 않습니다.",
     "save_success": "납입 처리를 저장했습니다.",

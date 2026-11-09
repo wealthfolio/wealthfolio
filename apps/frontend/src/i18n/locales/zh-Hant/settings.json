@@ -1919,6 +1919,7 @@
     "group_not_counted_hint": "內部轉帳不會計入。如果資金來自您的帳戶之外，請編輯該活動並將其標示為外部。",
     "edit_activity": "編輯活動",
     "edit_activity_aria": "編輯{{activity}}",
+    "edit_activity_error": "無法開啟此活動。請再試一次。",
     "count_activity": "將{{activity}}計入此限額",
     "activity_unchanged": "僅變更此限額的使用量，不會變更帳戶交易。",
     "save_success": "已儲存提撥處理方式。",

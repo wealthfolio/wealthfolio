@@ -1971,6 +1971,7 @@
     "group_not_counted_hint": "I trasferimenti interni non vengono mai conteggiati. Se il denaro proviene dall’esterno dei tuoi conti, modifica l’attività e contrassegnala come esterna.",
     "edit_activity": "Modifica attività",
     "edit_activity_aria": "Modifica {{activity}}",
+    "edit_activity_error": "Impossibile aprire questa attività. Riprova.",
     "count_activity": "Conteggia {{activity}} in questo limite",
     "activity_unchanged": "Cambia solo l’utilizzo di questo limite. I movimenti del conto restano invariati.",
     "save_success": "Trattamento del contributo salvato.",

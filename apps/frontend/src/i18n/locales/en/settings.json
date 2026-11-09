@@ -1919,6 +1919,7 @@
     "group_not_counted_hint": "Internal transfers never count. If money came from outside your accounts, edit the activity and mark it as external.",
     "edit_activity": "Edit activity",
     "edit_activity_aria": "Edit {{activity}}",
+    "edit_activity_error": "Couldn't open this activity. Try again.",
     "count_activity": "Count {{activity}} in this limit",
     "activity_unchanged": "Only this limit's usage changes. Account activity stays unchanged.",
     "save_success": "Contribution treatment saved.",

@@ -1971,6 +1971,7 @@
     "group_not_counted_hint": "Las transferencias internas nunca cuentan. Si el dinero vino de fuera de tus cuentas, edita la actividad y márcala como externa.",
     "edit_activity": "Editar actividad",
     "edit_activity_aria": "Editar {{activity}}",
+    "edit_activity_error": "No se pudo abrir esta actividad. Inténtalo de nuevo.",
     "count_activity": "Contabilizar {{activity}} en este límite",
     "activity_unchanged": "Solo cambia el uso de este límite. Los movimientos de la cuenta no cambian.",
     "save_success": "Tratamiento de la aportación guardado.",

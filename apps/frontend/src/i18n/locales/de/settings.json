@@ -1919,6 +1919,7 @@
     "group_not_counted_hint": "Interne Überträge werden nie angerechnet. Kam das Geld von außerhalb deiner Konten, bearbeite die Aktivität und markiere sie als extern.",
     "edit_activity": "Aktivität bearbeiten",
     "edit_activity_aria": "{{activity}} bearbeiten",
+    "edit_activity_error": "Diese Aktivität konnte nicht geöffnet werden. Versuche es erneut.",
     "count_activity": "{{activity}} auf dieses Limit anrechnen",
     "activity_unchanged": "Nur die Auslastung dieser Grenze ändert sich. Die Kontoaktivitäten bleiben unverändert.",
     "save_success": "Beitragsanrechnung gespeichert.",

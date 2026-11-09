@@ -1892,6 +1892,7 @@
     "group_not_counted_hint": "口座間の振替は計上されません。口座の外から入金された場合は、取引を編集して外部としてマークしてください。",
     "edit_activity": "取引を編集",
     "edit_activity_aria": "{{activity}}を編集",
+    "edit_activity_error": "この取引を開けませんでした。もう一度お試しください。",
     "count_activity": "{{activity}}をこの上限に計上",
     "activity_unchanged": "この限度額の使用額のみが変わります。口座の取引は変更されません。",
     "save_success": "拠出の扱いを保存しました。",

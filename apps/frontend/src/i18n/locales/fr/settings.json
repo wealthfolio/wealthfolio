@@ -1971,6 +1971,7 @@
     "group_not_counted_hint": "Les virements internes ne sont jamais comptabilisés. Si l’argent vient de l’extérieur de vos comptes, modifiez l’opération et marquez-la comme externe.",
     "edit_activity": "Modifier l’opération",
     "edit_activity_aria": "Modifier {{activity}}",
+    "edit_activity_error": "Impossible d’ouvrir cette opération. Réessayez.",
     "count_activity": "Comptabiliser {{activity}} dans ce plafond",
     "activity_unchanged": "Seule l’utilisation de ce plafond change. Les opérations du compte restent inchangées.",
     "save_success": "Traitement de la cotisation enregistré.",

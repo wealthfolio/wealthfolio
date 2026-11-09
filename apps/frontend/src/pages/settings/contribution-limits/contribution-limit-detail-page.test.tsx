@@ -314,4 +314,38 @@ describe("contribution limit detail", () => {
       "",
     );
   });
+
+  it.each([
+    ["fails", () => mocks.searchActivities.mockRejectedValue(new Error("offline"))],
+    ["finds nothing", () => mocks.searchActivities.mockResolvedValue({ data: [] })],
+  ])("reports it when loading the activity to edit %s", async (_case, arrange) => {
+    const data = details();
+    data.activities.push({
+      id: "unmarked-transfer",
+      accountId: "retirement",
+      activityType: "TRANSFER_IN",
+      activityInstant: "2025-03-15T12:00:00Z",
+      amount: 800,
+      currency: "USD",
+      countedAmount: 0,
+      treatment: "notExternal",
+      canExclude: false,
+    });
+    mocks.getContributionLimitDetails.mockResolvedValue(data);
+    arrange();
+    const { user } = setup();
+    await screen.findByRole("heading", { name: "Retirement" });
+
+    const edit = screen.getByRole("button", { name: "Edit Transfer In · Mar 15, 2025" });
+    await user.click(edit);
+
+    await waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith({
+        description: "Couldn't open this activity. Try again.",
+        variant: "destructive",
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(edit).toBeEnabled();
+  });
 });

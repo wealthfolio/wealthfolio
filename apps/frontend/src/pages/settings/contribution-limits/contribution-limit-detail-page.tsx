@@ -34,6 +34,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { SettingsHeader } from "../settings-header";
 import { ContributionLimitEditModal } from "./components/contribution-limit-edit-modal";
 import { parseAccountIds } from "./contribution-limit-accounts";
@@ -70,7 +71,13 @@ export function ContributionLimitDetailPage() {
     try {
       const found = await searchActivities(0, 1, { activityIds: [activityId] }, "");
       const details = found.data[0];
-      if (details) await activityDialogs.openForm(details);
+      if (!details) throw new Error("Activity not found");
+      await activityDialogs.openForm(details);
+    } catch {
+      toast({
+        description: t("settings:limits_detail.edit_activity_error"),
+        variant: "destructive",
+      });
     } finally {
       setOpeningActivityId(null);
     }
@@ -333,13 +340,16 @@ export function ContributionLimitDetailPage() {
                         amount={
                           <ActivityAmount activity={activity} className="text-muted-foreground" />
                         }
-                        action={
+                        // An empty switch column keeps amounts aligned with the group above.
+                        action={null}
+                        footer={
                           // The edit form has the External toggle for transfers only.
                           activity.treatment === "notExternal" &&
                           activity.activityType === "TRANSFER_IN" ? (
                             <Button
                               variant="outline"
                               size="sm"
+                              className="mt-1"
                               disabled={openingActivityId !== null}
                               onClick={() => void editActivity(activity.id)}
                               aria-label={t("settings:limits_detail.edit_activity_aria", {
@@ -424,13 +434,17 @@ function ActivityRow({
   badge,
   amount,
   action,
+  footer,
 }: {
   name: string;
   meta: ReactNode;
   muted?: boolean;
   badge?: string;
   amount: ReactNode;
-  action: ReactNode;
+  /** A control in its own column at the row's end, such as a switch. */
+  action?: ReactNode;
+  /** Shown under the row's details, where a longer label has room. */
+  footer?: ReactNode;
 }) {
   return (
     <li className="flex items-center gap-4 py-3">
@@ -442,9 +456,10 @@ function ActivityRow({
             {badge}
           </Badge>
         )}
+        {footer && <div>{footer}</div>}
       </div>
       <div className="shrink-0 text-end text-sm tabular-nums">{amount}</div>
-      <div className="flex w-28 shrink-0 justify-end">{action}</div>
+      {action !== undefined && <div className="flex w-12 shrink-0 justify-end">{action}</div>}
     </li>
   );
 }
