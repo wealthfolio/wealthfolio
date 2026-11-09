@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { FileZipIcon } from "@phosphor-icons/react/dist/csr/FileZip";
-import { AnimatedToggleGroup, useDateFormatting } from "@wealthfolio/ui";
+import { AnimatedToggleGroup } from "@wealthfolio/ui";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
@@ -110,7 +110,6 @@ const DAILY_DATASETS: ExportDataType[] = [
 interface DateOptions {
   startDate?: Date;
   endDate?: Date;
-  asOfDate?: Date;
 }
 
 function toExportOptions(includeArchived: boolean, dates: DateOptions): ExportOptions {
@@ -118,13 +117,11 @@ function toExportOptions(includeArchived: boolean, dates: DateOptions): ExportOp
     includeArchived,
     startDate: dates.startDate ? formatDateISO(dates.startDate) : undefined,
     endDate: dates.endDate ? formatDateISO(dates.endDate) : undefined,
-    asOfDate: dates.asOfDate ? formatDateISO(dates.asOfDate) : undefined,
   };
 }
 
 export const ExportForm = () => {
   const { t } = useTranslation();
-  const formatting = useDateFormatting();
   const [format, setFormat] = useState<ExportedFileFormat>(ExportedFileFormat.CSV);
   const [includeArchived, setIncludeArchived] = useState(true);
   const [dates, setDates] = useState<DateOptions>({});
@@ -141,7 +138,7 @@ export const ExportForm = () => {
     summary.data?.map((item) => [item.dataset, item]),
   );
   const nothingAtAll = summary.isSuccess && summary.data.every((item) => !item.available);
-  const hasDates = !!(dates.startDate || dates.endDate || dates.asOfDate);
+  const hasDates = !!(dates.startDate || dates.endDate);
 
   const run = (data: ExportDataType | "all") => {
     if (datesOutOfOrder) return;
@@ -154,11 +151,7 @@ export const ExportForm = () => {
     if (!item.available) return t("settings:data_export.none_yet");
     if (item.count !== null) return t("settings:data_export.rows", { count: item.count });
     if (dataset === ExportDataType.HOLDINGS) {
-      return dates.asOfDate
-        ? t("settings:data_export.holdings_on", {
-            date: formatting.formatDate(dates.asOfDate, { dateStyle: "medium" }),
-          })
-        : t("settings:data_export.holdings_today");
+      return t("settings:data_export.holdings_today");
     }
     return DAILY_DATASETS.includes(dataset) ? t("settings:data_export.daily") : null;
   };
@@ -261,7 +254,7 @@ export const ExportForm = () => {
               <Icons.ChevronDown className="size-4" aria-hidden />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 pt-3">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>{t("settings:data_export.start_date")}</Label>
                   <DatePickerInput
@@ -282,26 +275,15 @@ export const ExportForm = () => {
                     }
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>{t("settings:data_export.as_of_date")}</Label>
-                  <DatePickerInput
-                    aria-label={t("settings:data_export.as_of_date")}
-                    value={dates.asOfDate}
-                    onChange={(date: Date | undefined) =>
-                      setDates((current) => ({ ...current, asOfDate: date }))
-                    }
-                  />
-                </div>
               </div>
               {datesOutOfOrder && (
                 <p role="alert" className="text-destructive text-sm">
                   {t("settings:data_export.date_order_error")}
                 </p>
               )}
-              <div className="text-muted-foreground space-y-1 text-xs">
-                <p>{t("settings:data_export.dates_help")}</p>
-                <p>{t("settings:data_export.as_of_help")}</p>
-              </div>
+              <p className="text-muted-foreground text-xs">
+                {t("settings:data_export.dates_help")}
+              </p>
               {hasDates && (
                 <Button
                   variant="outline"

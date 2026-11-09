@@ -4,7 +4,7 @@
 //! past or present. Forecasts (goal projections, future loan instalments) are
 //! exported from the screen that shows them, never here.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
@@ -20,16 +20,13 @@ use super::{
 use crate::accounts::{
     account_supports_portfolio_scope, Account, AccountPurpose, AccountServiceTrait,
 };
-use crate::activities::{ActivityServiceTrait, ACTIVITY_TYPE_SPLIT};
+use crate::activities::ActivityServiceTrait;
 use crate::assets::loan::loan_calculation;
 use crate::assets::{AlternativeAssetServiceTrait, Asset, AssetServiceTrait};
 use crate::errors::{Error, Result, ValidationError};
-use crate::fx::currency::normalize_amount;
-use crate::fx::FxServiceTrait;
 use crate::goals::GoalServiceTrait;
 use crate::limits::{ContributionLimitServiceTrait, ContributionTreatment, DepositsCalculation};
 use crate::lots::LotRepositoryTrait;
-use crate::portfolio::coordinator::raw_activity;
 use crate::portfolio::holdings::{HoldingListItem, HoldingsServiceTrait};
 use crate::portfolio::income::IncomeServiceTrait;
 use crate::portfolio::net_worth::{
@@ -45,9 +42,6 @@ use crate::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default, user_date_from_utc, user_today,
     UtcDateRangeBounds,
 };
-use wealthfolio_portfolio_engine::{
-    group_splits, quotes_appear_split_adjusted, SplitEvent, SplitRow,
-};
 
 const ARCHIVE_README: &str = "README.txt";
 
@@ -62,8 +56,6 @@ pub struct ExportOptions {
     pub start_date: Option<NaiveDate>,
     /// Last day of dated rows.
     pub end_date: Option<NaiveDate>,
-    /// The day holdings are read on. None or today exports current holdings.
-    pub as_of_date: Option<NaiveDate>,
 }
 
 impl Default for ExportOptions {
@@ -72,7 +64,6 @@ impl Default for ExportOptions {
             include_archived: true,
             start_date: None,
             end_date: None,
-            as_of_date: None,
         }
     }
 }
@@ -175,7 +166,6 @@ pub struct DataExportSources {
     pub assets: Arc<dyn AssetServiceTrait>,
     pub alternative_assets: Arc<dyn AlternativeAssetServiceTrait>,
     pub quotes: Arc<dyn QuoteServiceTrait>,
-    pub fx: Arc<dyn FxServiceTrait>,
     pub net_worth: Arc<dyn NetWorthServiceTrait>,
     pub portfolios: Arc<dyn PortfolioServiceTrait>,
     pub goals: Arc<dyn GoalServiceTrait>,
@@ -190,28 +180,6 @@ pub struct DataExportSources {
 
 pub struct DataExportService {
     sources: DataExportSources,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct HistoricalHoldingRow {
-    as_of_date: NaiveDate,
-    account_id: String,
-    account_name: Option<String>,
-    asset_id: String,
-    symbol: Option<String>,
-    name: Option<String>,
-    quantity: Decimal,
-    contract_multiplier: Decimal,
-    average_cost: Decimal,
-    cost_basis: Decimal,
-    cost_basis_currency: String,
-    price_date: Option<NaiveDate>,
-    price: Option<Decimal>,
-    price_currency: Option<String>,
-    market_value: Option<Decimal>,
-    base_currency: String,
-    market_value_base: Option<Decimal>,
 }
 
 #[derive(Serialize)]
@@ -500,7 +468,7 @@ impl DataExportService {
         match dataset {
             ExportDataType::Accounts => self.account_records(options),
             ExportDataType::Activities => self.activity_records(format, options).await,
-            ExportDataType::Holdings => self.holding_records(format, options, today).await,
+            ExportDataType::Holdings => self.holding_records(format).await,
             ExportDataType::Lots => self.lot_records(options).await,
             ExportDataType::RealizedGains => self.realized_gain_records(options, today).await,
             ExportDataType::ManualPrices => self.manual_price_records(options),
@@ -833,15 +801,7 @@ impl DataExportService {
             .collect()
     }
 
-    async fn holding_records(
-        &self,
-        format: ExportFileFormat,
-        options: &ExportOptions,
-        today: NaiveDate,
-    ) -> Result<Vec<ExportRecord>> {
-        if let Some(as_of) = options.as_of_date.filter(|date| *date < today) {
-            return self.historical_holding_records(as_of).await;
-        }
+    async fn holding_records(&self, format: ExportFileFormat) -> Result<Vec<ExportRecord>> {
         let base_currency = self.base_currency();
         let resolved = self
             .sources
@@ -879,167 +839,6 @@ impl DataExportService {
             ),
             ExportFileFormat::Json => ExportRecord::from_records(&records),
         }
-    }
-
-    /// Positions on a past day, valued at that day's prices. Each account's
-    /// latest snapshot on or before the day gives the quantities and cost.
-    async fn historical_holding_records(&self, as_of: NaiveDate) -> Result<Vec<ExportRecord>> {
-        let base_currency = self.base_currency();
-        let accounts = self.sources.accounts.get_all_accounts()?;
-        let account_ids = self.holdings_account_ids(&accounts, false);
-        if account_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let names = accounts
-            .iter()
-            .map(|account| (account.id.clone(), account.name.clone()))
-            .collect::<HashMap<_, _>>();
-        let snapshots = self
-            .sources
-            .snapshots
-            .get_latest_snapshots_as_of(&account_ids, as_of)?;
-        let mut positions = snapshots
-            .values()
-            .flat_map(|snapshot| snapshot.positions.values())
-            .filter(|position| !position.quantity.is_zero() && !position.is_alternative)
-            .collect::<Vec<_>>();
-        positions.sort_by(|a, b| {
-            (a.account_id.as_str(), a.asset_id.as_str())
-                .cmp(&(b.account_id.as_str(), b.asset_id.as_str()))
-        });
-        let asset_ids = positions
-            .iter()
-            .map(|position| position.asset_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let assets = self
-            .sources
-            .assets
-            .get_assets_by_asset_ids(&asset_ids)
-            .await?
-            .into_iter()
-            .map(|asset| (asset.id.clone(), asset))
-            .collect::<HashMap<_, _>>();
-        let quotes = self
-            .sources
-            .quotes
-            .get_latest_quotes_as_of(&asset_ids, as_of)?;
-        let split_factors = self.split_price_factors(&asset_ids, as_of)?;
-
-        let rows = positions
-            .into_iter()
-            .map(|position| {
-                let asset = assets.get(&position.asset_id);
-                let quote = quotes.get(&position.asset_id);
-                let priced = quote.map(|quote| {
-                    let (price, currency) = normalize_amount(quote.close, &quote.currency);
-                    // Closes the provider adjusted for later splits are put back
-                    // into the units held that day, as portfolio history does.
-                    let price = price
-                        * split_factors
-                            .get(&position.asset_id)
-                            .copied()
-                            .unwrap_or(Decimal::ONE);
-                    let value = price * position.quantity * position.contract_multiplier;
-                    (price, currency.to_string(), value)
-                });
-                let market_value_base = priced.as_ref().and_then(|(_, currency, value)| {
-                    self.sources
-                        .fx
-                        .convert_currency_for_date(*value, currency, &base_currency, as_of)
-                        .ok()
-                });
-                HistoricalHoldingRow {
-                    as_of_date: as_of,
-                    account_id: position.account_id.clone(),
-                    account_name: names.get(&position.account_id).cloned(),
-                    asset_id: position.asset_id.clone(),
-                    symbol: asset.and_then(asset_symbol),
-                    name: asset.and_then(|asset| asset.name.clone()),
-                    quantity: position.quantity,
-                    contract_multiplier: position.contract_multiplier,
-                    average_cost: position.average_cost,
-                    cost_basis: position.total_cost_basis,
-                    cost_basis_currency: position.currency.clone(),
-                    price_date: quote.map(|quote| quote.timestamp.date_naive()),
-                    price: priced.as_ref().map(|(price, _, _)| *price),
-                    price_currency: priced.as_ref().map(|(_, currency, _)| currency.clone()),
-                    market_value: priced.as_ref().map(|(_, _, value)| *value),
-                    base_currency: base_currency.clone(),
-                    market_value_base,
-                }
-            })
-            .collect::<Vec<_>>();
-        let mut rows = rows;
-        let mut accounts_with_cash = snapshots.values().collect::<Vec<_>>();
-        accounts_with_cash.sort_by(|a, b| a.account_id.cmp(&b.account_id));
-        for snapshot in accounts_with_cash {
-            rows.extend(historical_cash_rows(
-                &snapshot.account_id,
-                names.get(&snapshot.account_id).cloned(),
-                &snapshot.cash_balances,
-                as_of,
-                &base_currency,
-                |amount, currency| {
-                    self.sources
-                        .fx
-                        .convert_currency_for_date(amount, currency, &base_currency, as_of)
-                        .ok()
-                },
-            ));
-        }
-        ExportRecord::from_records(&rows)
-    }
-
-    /// For each held asset, the product of the ratios of its splits after
-    /// `as_of` that its quote history already prices in post-split units.
-    /// The splits and the adjusted-quotes test are the portfolio engine's.
-    fn split_price_factors(
-        &self,
-        asset_ids: &[String],
-        as_of: NaiveDate,
-    ) -> Result<HashMap<String, Decimal>> {
-        let held = asset_ids.iter().map(String::as_str).collect::<HashSet<_>>();
-        let tz = self.timezone();
-        let rows = self
-            .sources
-            .activities
-            .get_activities_including_archived_accounts()?
-            .iter()
-            .filter(|activity| {
-                activity.activity_type == ACTIVITY_TYPE_SPLIT
-                    && activity
-                        .asset_id
-                        .as_deref()
-                        .is_some_and(|asset| held.contains(asset))
-            })
-            .filter_map(|activity| SplitRow::from_raw(&raw_activity(activity), &tz))
-            .collect::<Vec<_>>();
-        let events = group_splits(rows)
-            .into_iter()
-            .filter(|event| event.split_date > as_of)
-            .collect::<Vec<_>>();
-        let mut factors = HashMap::new();
-        for asset_id in events
-            .iter()
-            .map(|event| event.asset.as_str().to_string())
-            .collect::<HashSet<_>>()
-        {
-            let closes = self
-                .sources
-                .quotes
-                .get_historical_quotes(&asset_id)?
-                .into_iter()
-                .filter(|quote| quote.close > Decimal::ZERO)
-                .map(|quote| (quote.timestamp.date_naive(), quote.close))
-                .collect::<BTreeMap<_, _>>();
-            factors.insert(
-                asset_id.clone(),
-                adjusted_split_factor(&events, &asset_id, &closes),
-            );
-        }
-        Ok(factors)
     }
 
     /// Leading label columns for rows that only carry ids.
@@ -1727,63 +1526,6 @@ fn within_bounds(bounds: &UtcDateRangeBounds, instant: chrono::DateTime<chrono::
     bounds.0.is_none_or(|start| instant >= start) && bounds.1.is_none_or(|end| instant < end)
 }
 
-/// Product of the ratios of `events` for `asset_id` that `closes` already
-/// price in post-split units.
-fn adjusted_split_factor(
-    events: &[SplitEvent],
-    asset_id: &str,
-    closes: &BTreeMap<NaiveDate, Decimal>,
-) -> Decimal {
-    events
-        .iter()
-        .filter(|event| event.asset.as_str() == asset_id)
-        .filter(|event| quotes_appear_split_adjusted(closes, event.split_date, event.ratio))
-        .fold(Decimal::ONE, |factor, event| factor * event.ratio)
-}
-
-/// One holdings row per non-zero cash balance of an account on a past day.
-/// Cash is its own price: quantity and market value are the balance.
-fn historical_cash_rows(
-    account_id: &str,
-    account_name: Option<String>,
-    cash_balances: &HashMap<String, Decimal>,
-    as_of: NaiveDate,
-    base_currency: &str,
-    convert: impl Fn(Decimal, &str) -> Option<Decimal>,
-) -> Vec<HistoricalHoldingRow> {
-    let mut currencies = cash_balances
-        .iter()
-        .filter(|(_, amount)| !amount.is_zero())
-        .collect::<Vec<_>>();
-    currencies.sort();
-    currencies
-        .into_iter()
-        .map(|(currency, amount)| HistoricalHoldingRow {
-            as_of_date: as_of,
-            account_id: account_id.to_string(),
-            account_name: account_name.clone(),
-            asset_id: format!("CASH-{currency}"),
-            symbol: Some(currency.clone()),
-            name: Some(format!("Cash ({currency})")),
-            quantity: *amount,
-            contract_multiplier: Decimal::ONE,
-            average_cost: Decimal::ONE,
-            cost_basis: *amount,
-            cost_basis_currency: currency.clone(),
-            price_date: Some(as_of),
-            price: Some(Decimal::ONE),
-            price_currency: Some(currency.clone()),
-            market_value: Some(*amount),
-            base_currency: base_currency.to_string(),
-            market_value_base: if currency == base_currency {
-                Some(*amount)
-            } else {
-                convert(*amount, currency)
-            },
-        })
-        .collect()
-}
-
 /// Month keys (`YYYY-MM`) for budget actuals: the export's dates, or every
 /// month from the first activity to the current one.
 fn budget_months(
@@ -1840,16 +1582,11 @@ fn readme(
         (None, Some(end)) => format!("up to {}", format_date(end)),
         (Some(start), Some(end)) => format!("{} to {}", format_date(start), format_date(end)),
     };
-    let holdings_date = options
-        .as_of_date
-        .filter(|date| *date < today)
-        .map(format_date)
-        .unwrap_or_else(|| "today".to_string());
     let mut text = format!(
         "Wealthfolio data export\n\
          \n\
          Exported on {} from Wealthfolio {}. Base currency: {}.\n\
-         Archived accounts: {}. Date range: {}. Holdings date: {}.\n\
+         Archived accounts: {}. Date range: {}.\n\
          \n\
          These files are for spreadsheets and other apps. They can't be restored\n\
          into Wealthfolio: use a backup for that. Projections for goals and loan\n\
@@ -1869,7 +1606,6 @@ fn readme(
             "left out"
         },
         range,
-        holdings_date,
     );
     for (dataset, records) in sections {
         if records.is_empty() {
@@ -1938,14 +1674,11 @@ mod tests {
         assert_eq!(options, ExportOptions::default());
         assert!(options.include_archived);
 
-        let options: ExportOptions = serde_json::from_str(
-            r#"{"includeArchived":false,"startDate":"2025-01-01","asOfDate":"2025-12-31"}"#,
-        )
-        .unwrap();
+        let options: ExportOptions =
+            serde_json::from_str(r#"{"includeArchived":false,"startDate":"2025-01-01"}"#).unwrap();
         assert!(!options.include_archived);
         assert_eq!(options.start_date, Some(date(2025, 1, 1)));
         assert_eq!(options.end_date, None);
-        assert_eq!(options.as_of_date, Some(date(2025, 12, 31)));
     }
 
     #[test]
@@ -1992,7 +1725,6 @@ mod tests {
             text.contains("Exported on 2026-11-08 from Wealthfolio 3.12.0. Base currency: EUR.")
         );
         assert!(text.contains("Archived accounts: left out. Date range: from 2026-01-01."));
-        assert!(text.contains("Holdings date: today."));
         assert!(text.contains("- assets-and-liabilities.csv (2 rows):"));
         assert!(!text.contains("- accounts.csv"));
         assert!(text.contains("No data, so no file: accounts."));
@@ -2120,31 +1852,6 @@ mod tests {
     }
 
     #[test]
-    fn past_holdings_include_each_cash_balance() {
-        let balances = HashMap::from([
-            ("USD".to_string(), Decimal::from(250)),
-            ("EUR".to_string(), Decimal::from(100)),
-            ("CAD".to_string(), Decimal::ZERO),
-        ]);
-        let rows = historical_cash_rows(
-            "acct",
-            Some("Brokerage".into()),
-            &balances,
-            date(2025, 12, 31),
-            "USD",
-            |amount, currency| (currency == "EUR").then(|| amount * Decimal::from(2)),
-        );
-
-        assert_eq!(rows.len(), 2, "zero balances are left out");
-        assert_eq!(rows[0].asset_id, "CASH-EUR");
-        assert_eq!(rows[0].market_value, Some(Decimal::from(100)));
-        assert_eq!(rows[0].market_value_base, Some(Decimal::from(200)));
-        assert_eq!(rows[1].asset_id, "CASH-USD");
-        assert_eq!(rows[1].market_value_base, Some(Decimal::from(250)));
-        assert_eq!(rows[1].account_name.as_deref(), Some("Brokerage"));
-    }
-
-    #[test]
     fn activity_dates_follow_the_users_timezone() {
         // 02:00 UTC on Jan 3 is still Jan 2 in Toronto.
         let options = ExportOptions {
@@ -2180,47 +1887,5 @@ mod tests {
             Some(date(2024, 1, 1)),
             "a snapshot before the first activity starts the history"
         );
-    }
-
-    #[test]
-    fn past_holdings_price_held_units_across_a_later_adjusted_split() {
-        use wealthfolio_portfolio_engine::model::AssetId as EngineAssetId;
-        // 10 shares on Jan 10; a 2:1 split on Feb 1; the provider's history
-        // is adjusted, so Jan closes read 52 where the shares traded at 104.
-        let events = vec![SplitEvent {
-            asset: EngineAssetId::new("EDGE"),
-            split_date: date(2026, 2, 1),
-            ratio: Decimal::from(2),
-        }];
-        let adjusted = BTreeMap::from([
-            (date(2026, 1, 30), Decimal::from(52)),
-            (date(2026, 2, 2), Decimal::from(53)),
-        ]);
-        let factor = adjusted_split_factor(&events, "EDGE", &adjusted);
-        assert_eq!(
-            Decimal::from(52) * factor * Decimal::from(10),
-            Decimal::from(1040)
-        );
-
-        // An unadjusted history halves at the split: prices stand as they are.
-        let raw = BTreeMap::from([
-            (date(2026, 1, 30), Decimal::from(104)),
-            (date(2026, 2, 2), Decimal::from(53)),
-        ]);
-        assert_eq!(adjusted_split_factor(&events, "EDGE", &raw), Decimal::ONE);
-        assert_eq!(
-            adjusted_split_factor(&events, "OTHER", &adjusted),
-            Decimal::ONE
-        );
-    }
-
-    #[test]
-    fn readme_names_a_past_holdings_date() {
-        let options = ExportOptions {
-            as_of_date: Some(date(2025, 12, 31)),
-            ..ExportOptions::default()
-        };
-        let text = readme(&[], &options, date(2026, 11, 8), "1", "USD");
-        assert!(text.contains("Holdings date: 2025-12-31."));
     }
 }

@@ -66,8 +66,6 @@ export interface ExportOptions {
   startDate?: string;
   /** ISO date of the last dated row to include. */
   endDate?: string;
-  /** ISO date holdings are read on; omitted for current holdings. */
-  asOfDate?: string;
 }
 
 export type ExportDatasetGroup =

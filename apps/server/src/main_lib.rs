@@ -1144,7 +1144,6 @@ async fn initialize_profile_state(
             assets: asset_service.clone(),
             alternative_assets: alternative_asset_service.clone(),
             quotes: quote_service.clone(),
-            fx: fx_service.clone(),
             net_worth: net_worth_service.clone(),
             portfolios: portfolio_service.clone(),
             goals: goal_service.clone(),
