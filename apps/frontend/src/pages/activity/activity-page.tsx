@@ -660,6 +660,15 @@ const ActivityPage = ({ initialAction }: ActivityPageProps) => {
         >
           <Icons.Import className="size-4" />
         </Link>
+        <Link
+          to="/activities/transfers"
+          title={t("activity:transfer_review.title")}
+          aria-label={t("activity:transfer_review.title")}
+          data-testid="match-transfers-mobile-action"
+          className={buttonVariants({ variant: "outline", size: "icon" })}
+        >
+          <Icons.ArrowLeftRight className="size-4" />
+        </Link>
         <Button size="icon" title={t("common:add")} onClick={() => handleEdit(undefined)}>
           <Icons.Plus className="size-4" />
         </Button>
