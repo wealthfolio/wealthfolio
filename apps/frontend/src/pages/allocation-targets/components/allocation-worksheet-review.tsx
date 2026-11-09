@@ -264,13 +264,32 @@ export function ReviewPanel({
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <p
-                        className="text-2xs text-warning-subtle-foreground truncate text-end"
-                        title={warnings.join("\n")}
-                      >
-                        {warnings.length > 0 &&
-                          t("allocation:worksheet.lineWarningCount", { count: warnings.length })}
-                      </p>
+                      {warnings.length > 0 && (
+                        <TooltipProvider delay={150}>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  className="text-warning-subtle-foreground border-warning-subtle-foreground/40 text-2xs max-w-full cursor-help justify-self-end truncate border-b border-dotted text-end"
+                                />
+                              }
+                            >
+                              {t("allocation:worksheet.lineWarningCount", {
+                                count: warnings.length,
+                              })}
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="inline-start"
+                              className="max-w-80 space-y-1 text-xs"
+                            >
+                              {warnings.map((warning, index) => (
+                                <p key={index}>{warning}</p>
+                              ))}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </li>
                   );
                 })}
