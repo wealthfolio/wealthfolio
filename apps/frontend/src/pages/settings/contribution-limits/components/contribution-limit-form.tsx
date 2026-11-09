@@ -225,8 +225,8 @@ export function ContributionLimitForm({
             render={({ field }) => (
               <FormItem className="sm:col-span-2">
                 <FormLabel>{t("settings:limits_form_limit_amount_label")}</FormLabel>
-                {/* Styled as the other fields: same fill, height, border and corners. */}
-                <InputGroup className="bg-input-bg h-input-height rounded-(--control-radius) border-(color:--field-border) shadow-(--field-shadow)">
+                {/* Styled as the other fields: same fill, height, border, corners and focus ring. */}
+                <InputGroup className="bg-input-bg h-input-height has-[input:focus-visible]:outline-ring rounded-(--control-radius) border-(color:--field-border) shadow-(--field-shadow) has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-solid">
                   <InputGroupAddon align="inline-start">
                     <InputGroupText>
                       {amountFormatting.formatCurrencySymbol(currency)}
@@ -238,7 +238,6 @@ export function ContributionLimitForm({
                       className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent ps-1 text-start shadow-none ring-0 focus-visible:outline-none"
                       placeholder={t("settings:limits_form_limit_amount_placeholder")}
                       thousandSeparator
-                      maxDecimalPlaces={2}
                       {...field}
                     />
                   </FormControl>

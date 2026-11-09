@@ -1892,6 +1892,7 @@
     "group_not_counted_hint": "内部转账不会计入。如果资金来自您的账户之外，请编辑该活动并将其标记为外部。",
     "edit_activity": "编辑活动",
     "edit_activity_aria": "编辑{{activity}}",
+    "edit_activity_error": "无法打开此活动。请重试。",
     "count_activity": "将{{activity}}计入此限额",
     "activity_unchanged": "仅更改此限额的使用量，不会更改账户交易。",
     "save_success": "已保存供款处理方式。",

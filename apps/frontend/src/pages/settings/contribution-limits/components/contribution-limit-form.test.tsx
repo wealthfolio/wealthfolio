@@ -432,6 +432,30 @@ describe("ContributionLimitForm dates", () => {
   });
 });
 
+describe("ContributionLimitForm amount", () => {
+  it("keeps a limit amount with more than two decimals", async () => {
+    mocks.updateLimit.mockClear();
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{
+            id: "limit-1",
+            groupName: "BTC stack",
+            contributionYear: 2026,
+            limitAmount: 0.0015,
+          }}
+        />
+      </Dialog>,
+    );
+    expect(screen.getByRole("textbox", { name: "Limit amount" })).toHaveValue("0.0015");
+
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => expect(mocks.updateLimit).toHaveBeenCalledTimes(1));
+    expect(mocks.updateLimit.mock.calls[0][0].updatedLimit.limitAmount).toBe(0.0015);
+  });
+});
+
 describe("ContributionLimitForm accounts", () => {
   const accounts = [
     { id: "ira", name: "Roth IRA", accountType: "SECURITIES", isActive: true },
