@@ -6,6 +6,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@wealthfolio/ui/components/ui/chart";
+import { useDirection } from "@wealthfolio/ui/components/ui/direction";
 import {
   Empty,
   EmptyHeader,
@@ -89,6 +90,7 @@ export default function IncomePage() {
   const { isBalanceHidden } = useBalancePrivacy();
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
+  const direction = useDirection();
 
   const accountFilter = useAccountScopeStore((state) => state.scope);
   const setAccountScope = useAccountScopeStore((state) => state.setScope);
@@ -253,8 +255,12 @@ export default function IncomePage() {
               <Icons.DollarSign className="text-muted-foreground h-4 w-4" />
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
+              {/* The currency pie's tooltip is wider than the pie. Up to 1024 px,
+                  globals.css hides the overflow of every `.flex`; `!` beats that rule.
+                  There, globals.css also lets a long total break, so let it shrink
+                  beside the pie rather than spill out of the card. */}
+              <div className="flex items-center justify-between overflow-visible!">
+                <div className="[@media(width<=1024px)]:min-w-0">
                   <div className="text-2xl font-bold">
                     <AmountDisplay
                       value={totalIncome}
@@ -295,11 +301,14 @@ export default function IncomePage() {
                       },
                       {},
                     )}
-                    className="mx-auto aspect-square max-h-15.5"
+                    className="mx-auto aspect-square max-h-15.5 overflow-visible!"
                   >
                     <PieChart>
                       <ChartTooltip
                         cursor={false}
+                        // The pie ends the card's row: open the tooltip toward the card.
+                        allowEscapeViewBox={{ x: true }}
+                        reverseDirection={{ x: direction !== "rtl" }}
                         content={
                           <ChartTooltipContent
                             hideLabel

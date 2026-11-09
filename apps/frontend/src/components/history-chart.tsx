@@ -1,6 +1,6 @@
 import { useHapticFeedback } from "@/hooks";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useClipsFlexOverflow, useIsMobileViewport } from "@/hooks/use-platform";
 import { formatDate } from "@/lib/utils";
 import { AmountDisplay, useDateFormatting } from "@wealthfolio/ui";
 import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
@@ -156,6 +156,8 @@ export function HistoryChart({
   const [isChartHovered, setIsChartHovered] = useState(false);
   const [hoveredMarker, setHoveredMarker] = useState(false);
   const isMobile = useIsMobileViewport();
+  // Above the chart, the tooltip would be cut off where `.flex` boxes clip overflow.
+  const keepTooltipInside = useClipsFlexOverflow();
   const isTouchScrubbingRef = useRef(false);
   const lastHapticLabelRef = useRef<string | number | undefined>(undefined);
   const lastHapticAtRef = useRef(0);
@@ -356,7 +358,7 @@ export function HistoryChart({
           </linearGradient>
         </defs>
         <Tooltip
-          position={isMobile ? { y: 60 } : { y: -20 }}
+          position={keepTooltipInside ? { y: 60 } : { y: -20 }}
           cursor={{ stroke: "var(--border)", strokeWidth: 1, pointerEvents: "none" }}
           wrapperStyle={{ pointerEvents: "none" }}
           content={(props) => (
