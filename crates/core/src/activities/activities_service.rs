@@ -99,7 +99,7 @@ type QuoteCcyCache = HashMap<(String, Option<String>, Option<String>), Option<St
 /// Cache key: (symbol, activity currency, ISIN) → symbol resolution result
 type SymbolResolutionKey = (String, String, Option<String>);
 use uuid::Uuid;
-use wealthfolio_market_data::mic_to_currency;
+use wealthfolio_market_data::{canonicalize_exchange_mic, mic_to_currency};
 
 /// A complete trade is identified by quantity and unit price. Its final cash
 /// amount is derived accounting data and may legitimately change when charges
@@ -2953,11 +2953,20 @@ impl ActivityService {
                 .clone()
                 .unwrap_or_else(|| format!("new-activity-{index}")),
             account_id: create.account_id.clone(),
-            // An import may name an asset it has not resolved yet.
-            asset_id: create
-                .asset
-                .as_ref()
-                .and_then(|asset| asset.id.clone().or_else(|| asset.symbol.clone())),
+            // An import may name an asset it has not resolved yet: its symbol
+            // and exchange stand for it, as one ticker on two exchanges is two
+            // assets.
+            asset_id: create.asset.as_ref().and_then(|asset| {
+                asset.id.clone().or_else(|| {
+                    let symbol = asset.symbol.as_deref()?;
+                    Some(match asset.exchange_mic.as_deref().map(str::trim) {
+                        Some(mic) if !mic.is_empty() => {
+                            format!("{symbol}@{}", canonicalize_exchange_mic(mic))
+                        }
+                        _ => symbol.to_string(),
+                    })
+                })
+            }),
             activity_type: create.activity_type.clone(),
             activity_type_override: None,
             source_type: None,

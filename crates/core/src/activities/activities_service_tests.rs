@@ -288,8 +288,13 @@ pub(crate) mod tests {
                     .clone()
                     .or_else(|| spec.instrument_symbol.clone())
                     .unwrap_or_else(|| "CREATED".to_string());
+                // Preserve existing test IDs; distinct assets still need unique IDs.
+                let mut id = format!("created-{}", symbol);
+                if assets.iter().any(|asset| asset.id == id) {
+                    id = uuid::Uuid::new_v4().to_string();
+                }
                 let created = Asset {
-                    id: format!("created-{}", symbol),
+                    id,
                     display_code: Some(symbol.clone()),
                     instrument_symbol: spec.instrument_symbol.clone(),
                     instrument_exchange_mic: spec.instrument_exchange_mic.clone(),
@@ -20391,6 +20396,128 @@ pub(crate) mod tests {
             assert_eq!(result.summary.imported, 2);
             assert_eq!(repository.get_activities().unwrap().len(), 4);
         }
+    }
+
+    /// Unresolved listings keep their exchange identity without creating assets
+    /// during the check, including when the other asset is already resolved.
+    #[tokio::test]
+    async fn the_import_check_tells_new_assets_apart_by_exchange() {
+        for (leaving_mic, arriving_mic, resolved_leaving) in [
+            (Some("XNYS"), Some("XNAS"), false),
+            (Some(" xnys "), Some("xnas"), false),
+            (None, Some("XNAS"), false),
+            (Some("XNYS"), None, false),
+            (Some("XNYS"), Some("XNAS"), true),
+        ] {
+            let accounts = Arc::new(MockAccountService::new());
+            accounts.add_account(create_test_account("acc-1", "USD"));
+            let assets = Arc::new(MockAssetService::new());
+            if resolved_leaving {
+                assets.add_asset(create_test_asset_with_instrument(
+                    "existing-acme",
+                    "ACME",
+                    leaving_mic,
+                    Some(InstrumentType::Equity),
+                    "USD",
+                ));
+            }
+            let repository = Arc::new(MockActivityRepository::new());
+            let fx = Arc::new(MockFxService::new());
+            let service = ActivityService::new(
+                repository.clone(),
+                accounts,
+                assets.clone(),
+                fx.clone(),
+                Arc::new(MockQuoteService),
+            );
+            let mut rows: Vec<ActivityImport> = [
+                ("CONVERSION_OUT", leaving_mic),
+                ("CONVERSION_IN", arriving_mic),
+            ]
+            .into_iter()
+            .map(|(subtype, mic)| {
+                let mut row = conversion_import(subtype, "ACME", "acc-1", "g-venues");
+                row.asset_id = None;
+                row.exchange_mic = mic.map(str::to_string);
+                row.instrument_type = Some("EQUITY".into());
+                row.quote_mode = Some("MANUAL".into());
+                row
+            })
+            .collect();
+            if resolved_leaving {
+                rows[0].asset_id = Some("existing-acme".into());
+            }
+
+            let checked = service.check_activities_import(rows).await.unwrap();
+            assert!(
+                checked
+                    .iter()
+                    .all(|row| row.is_valid && !flagged_conversion(row)),
+                "{checked:?}"
+            );
+            assert_eq!(
+                assets.get_assets().unwrap().len(),
+                usize::from(resolved_leaving)
+            );
+            assert!(repository.get_activities().unwrap().is_empty());
+            assert!(fx.get_registered_pairs().is_empty());
+
+            let result = service.import_activities(checked).await.unwrap();
+            assert!(result.summary.success, "{:?}", result.activities);
+            assert_eq!(result.summary.imported, 2);
+            assert_eq!(
+                result.summary.assets_created,
+                if resolved_leaving { 1 } else { 2 }
+            );
+            let stored = repository.get_activities().unwrap();
+            assert_ne!(stored[0].asset_id, stored[1].asset_id);
+        }
+    }
+
+    /// Equivalent MIC spellings and an absent or blank MIC still name one listing.
+    #[tokio::test]
+    async fn the_import_check_keeps_equivalent_exchange_names_together() {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("acc-1", "USD"));
+        let assets = Arc::new(MockAssetService::new());
+        let repository = Arc::new(MockActivityRepository::new());
+        let fx = Arc::new(MockFxService::new());
+        let service = ActivityService::new(
+            repository.clone(),
+            accounts,
+            assets.clone(),
+            fx.clone(),
+            Arc::new(MockQuoteService),
+        );
+        for (leaving_mic, arriving_mic) in [
+            (Some("XNYS"), Some("XNYS")),
+            (Some("XNYS"), Some(" xnys ")),
+            (Some("CXE"), Some("BCXE")),
+            (None, None),
+            (None, Some("")),
+            (None, Some(" \t ")),
+            (Some(""), Some(" \t ")),
+        ] {
+            let rows = [
+                ("CONVERSION_OUT", leaving_mic),
+                ("CONVERSION_IN", arriving_mic),
+            ]
+            .into_iter()
+            .map(|(subtype, mic)| {
+                let mut row = conversion_import(subtype, "ACME", "acc-1", "g-one-venue");
+                row.asset_id = None;
+                row.exchange_mic = mic.map(str::to_string);
+                row.instrument_type = Some("EQUITY".into());
+                row.quote_mode = Some("MANUAL".into());
+                row
+            })
+            .collect();
+            let checked = service.check_activities_import(rows).await.unwrap();
+            assert!(checked.iter().all(refused_as_pair), "{checked:?}");
+        }
+        assert!(assets.get_assets().unwrap().is_empty());
+        assert!(repository.get_activities().unwrap().is_empty());
+        assert!(fx.get_registered_pairs().is_empty());
     }
 
     /// A stored draft is a row of its group too.
