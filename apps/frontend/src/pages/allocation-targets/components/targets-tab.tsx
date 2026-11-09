@@ -924,7 +924,8 @@ function TargetEditor({
       const saved = await saveTarget.mutateAsync({
         id: target?.id ?? null,
         input,
-        // A target carries one kind of weight. A security left at zero is simply not targeted.
+        // A target carries one kind of weight. A security left at zero is simply not targeted,
+        // unless the user locked it there.
         weights: isAssetTarget
           ? []
           : weights.map((weight) => ({
@@ -935,7 +936,7 @@ function TargetEditor({
             })),
         assetWeights: isAssetTarget
           ? weights
-              .filter((weight) => weight.targetBps > 0)
+              .filter((weight) => weight.targetBps > 0 || weight.isLocked)
               .map((weight) => ({
                 assetId: weight.categoryId,
                 targetBps: weight.targetBps,

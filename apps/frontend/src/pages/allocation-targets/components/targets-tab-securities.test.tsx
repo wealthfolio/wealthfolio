@@ -276,6 +276,27 @@ describe("individual securities target: editing", () => {
       { assetId: "gone", targetBps: 3000, isLocked: true, isRequired: true },
     ]);
   });
+
+  it("keeps a security locked at zero", async () => {
+    mocks.useAllocationTargetAssetWeights.mockReturnValue({
+      data: [
+        { assetId: "vti", targetBps: 10000, isLocked: false },
+        { assetId: "aapl", targetBps: 0, isLocked: true },
+      ],
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+    renderTab({ target: assetTarget });
+    await screen.findByText("VTI");
+    await user.type(screen.getByPlaceholderText("Target name"), "!");
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0][0].assetWeights).toEqual([
+      { assetId: "vti", targetBps: 10000, isLocked: false, isRequired: true },
+      { assetId: "aapl", targetBps: 0, isLocked: true, isRequired: true },
+    ]);
+  });
 });
 
 describe("category target: unchanged", () => {

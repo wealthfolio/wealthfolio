@@ -22,9 +22,8 @@ use crate::addons::addon_storage_id;
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::{
-    activities, addon_storage, allocation_target_asset_weights, spending_preset_rule_deletions,
-    sync_applied_events, sync_cursor, sync_device_config, sync_engine_state, sync_entity_metadata,
-    sync_outbox, sync_table_state,
+    activities, addon_storage, spending_preset_rule_deletions, sync_applied_events, sync_cursor,
+    sync_device_config, sync_engine_state, sync_entity_metadata, sync_outbox, sync_table_state,
 };
 use crate::spending::deterministic_ids::preset_rule_deletion_id;
 use crate::sync::broker_activity_patch::{
@@ -2521,12 +2520,12 @@ fn apply_remote_event_lww_tx(
                         // The asset FK is RESTRICT so a local delete still requires
                         // removing the target edit first. A remote asset delete is
                         // already authoritative; drop its target weights rather than
-                        // dead-lettering the whole event.
-                        diesel::delete(allocation_target_asset_weights::table.filter(
-                            allocation_target_asset_weights::asset_id.eq(&entity_id_value),
-                        ))
-                        .execute(conn)
-                        .map_err(StorageError::from)?;
+                        // dead-lettering the whole event, spreading them over the
+                        // target's other securities so it still sums to 100%.
+                        crate::portfolio::allocation_targets::remove_asset_from_targets(
+                            conn,
+                            &entity_id_value,
+                        )?;
                     }
                     if entity == SyncEntity::SpendingCategorizationRule {
                         tombstone_remote_preset_rule_delete(

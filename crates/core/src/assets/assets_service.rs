@@ -2843,6 +2843,9 @@ impl AssetServiceTrait for AssetService {
         let activities_migrated = activity_repository
             .reassign_asset(unknown_asset_id, resolved_asset_id)
             .await?;
+        self.asset_repository
+            .reassign_allocation_target_weights(unknown_asset_id, resolved_asset_id)
+            .await?;
 
         // 3. Deactivate the UNKNOWN asset
         if let Err(e) = self.asset_repository.deactivate(unknown_asset_id).await {
@@ -3839,6 +3842,14 @@ mod tests {
 
         async fn copy_user_metadata(&self, _source_id: &str, _target_id: &str) -> Result<()> {
             unimplemented!()
+        }
+
+        async fn reassign_allocation_target_weights(
+            &self,
+            _source_id: &str,
+            _target_id: &str,
+        ) -> Result<()> {
+            Ok(())
         }
 
         async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {

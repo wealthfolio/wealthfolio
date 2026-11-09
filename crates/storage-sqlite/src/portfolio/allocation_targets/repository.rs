@@ -503,9 +503,136 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
     }
 }
 
+/// Removes an asset from every asset target and spreads its weight over each
+/// target's remaining securities in proportion, so the target keeps its total.
+/// Unlocked securities take it; locked ones only when none is unlocked.
+/// Deterministic, so every device applying the same remote delete agrees.
+pub(crate) fn remove_asset_from_targets(conn: &mut SqliteConnection, asset_id: &str) -> Result<()> {
+    let removed: Vec<AllocationTargetAssetWeightDB> = allocation_target_asset_weights::table
+        .filter(allocation_target_asset_weights::asset_id.eq(asset_id))
+        .load(conn)
+        .map_err(StorageError::from)?;
+    diesel::delete(
+        allocation_target_asset_weights::table
+            .filter(allocation_target_asset_weights::asset_id.eq(asset_id)),
+    )
+    .execute(conn)
+    .map_err(StorageError::from)?;
+
+    for weight in removed {
+        let rest: Vec<AllocationTargetAssetWeightDB> = allocation_target_asset_weights::table
+            .filter(allocation_target_asset_weights::target_id.eq(&weight.target_id))
+            .order(allocation_target_asset_weights::id.asc())
+            .load(conn)
+            .map_err(StorageError::from)?;
+        let unlocked: Vec<&AllocationTargetAssetWeightDB> =
+            rest.iter().filter(|w| w.is_locked == 0).collect();
+        let takers = if unlocked.is_empty() {
+            rest.iter().collect()
+        } else {
+            unlocked
+        };
+        let shares = spread_bps(
+            weight.target_bps,
+            &takers.iter().map(|w| w.target_bps).collect::<Vec<_>>(),
+        );
+        for (taker, share) in takers.iter().zip(shares) {
+            if share == 0 {
+                continue;
+            }
+            diesel::update(allocation_target_asset_weights::table.find(&taker.id))
+                .set(allocation_target_asset_weights::target_bps.eq(taker.target_bps + share))
+                .execute(conn)
+                .map_err(StorageError::from)?;
+        }
+    }
+    Ok(())
+}
+
+/// Splits `amount` in proportion to `weights` (equally when all are zero),
+/// handing the rounding remainder to the largest fractional parts, first wins ties.
+fn spread_bps(amount: i32, weights: &[i32]) -> Vec<i32> {
+    if weights.is_empty() {
+        return Vec::new();
+    }
+    let total: i64 = weights.iter().map(|&w| i64::from(w)).sum();
+    let parts: Vec<i64> = if total == 0 {
+        vec![1; weights.len()]
+    } else {
+        weights.iter().map(|&w| i64::from(w)).collect()
+    };
+    let total = parts.iter().sum::<i64>();
+    let amount = i64::from(amount);
+    let mut shares: Vec<i64> = parts.iter().map(|p| amount * p / total).collect();
+    let mut order: Vec<usize> = (0..parts.len()).collect();
+    order.sort_by_key(|&i| std::cmp::Reverse(amount * parts[i] % total));
+    let left = amount - shares.iter().sum::<i64>();
+    for &i in order.iter().take(left as usize) {
+        shares[i] += 1;
+    }
+    shares
+        .into_iter()
+        .map(|s| i32::try_from(s).expect("a share never exceeds the removed bps"))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spread_bps_is_proportional_and_exact() {
+        assert_eq!(spread_bps(3000, &[6000, 1000]), vec![2571, 429]);
+        assert_eq!(spread_bps(1000, &[0, 0, 0]), vec![334, 333, 333]);
+        assert_eq!(spread_bps(500, &[]), Vec::<i32>::new());
+    }
+
+    #[tokio::test]
+    async fn remove_asset_from_targets_keeps_each_target_total() {
+        let (repo, _dir) = setup_repo();
+        let mut conn = get_connection(&repo.pool).expect("conn");
+        diesel::sql_query(
+            "INSERT INTO assets (id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+                                 created_at, updated_at)
+             SELECT id, 'INVESTMENT', id, id, 1, 'MARKET', 'USD', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+             FROM (SELECT 'x' AS id UNION SELECT 'a' UNION SELECT 'b' UNION SELECT 'c')",
+        )
+        .execute(&mut conn)
+        .expect("insert assets");
+        diesel::sql_query(
+            "INSERT INTO allocation_targets (id, name, scope_type, target_type)
+             VALUES ('t1', 'T1', 'all', 'asset')",
+        )
+        .execute(&mut conn)
+        .expect("insert target");
+        diesel::sql_query(
+            "INSERT INTO allocation_target_asset_weights (id, target_id, asset_id, target_bps, is_locked)
+             VALUES ('w-x', 't1', 'x', 3000, 0), ('w-a', 't1', 'a', 4000, 0),
+                    ('w-b', 't1', 'b', 2000, 0), ('w-c', 't1', 'c', 1000, 1)",
+        )
+        .execute(&mut conn)
+        .expect("insert weights");
+
+        remove_asset_from_targets(&mut conn, "x").expect("remove");
+
+        let rows: Vec<(String, i32)> = allocation_target_asset_weights::table
+            .order(allocation_target_asset_weights::id.asc())
+            .select((
+                allocation_target_asset_weights::id,
+                allocation_target_asset_weights::target_bps,
+            ))
+            .load(&mut conn)
+            .expect("load");
+        // x's 30% goes to the unlocked a and b in proportion; locked c is untouched.
+        assert_eq!(
+            rows,
+            vec![
+                ("w-a".to_string(), 6000),
+                ("w-b".to_string(), 3000),
+                ("w-c".to_string(), 1000),
+            ]
+        );
+    }
     use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer, TestDir};
     use crate::schema::sync_outbox;
     use crate::taxonomies::TaxonomyRepository;

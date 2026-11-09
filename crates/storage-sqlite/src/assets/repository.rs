@@ -11,6 +11,7 @@ use wealthfolio_core::{Error, Result};
 use super::model::{AssetDB, InsertableAssetDB};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
+use crate::portfolio::allocation_targets::AllocationTargetAssetWeightDB;
 use crate::schema::{activities, allocation_target_asset_weights, assets, quotes};
 use crate::utils::chunk_for_sqlite;
 
@@ -520,6 +521,64 @@ impl AssetRepositoryTrait for AssetRepository {
             .await
     }
 
+    async fn reassign_allocation_target_weights(
+        &self,
+        source_id: &str,
+        target_id: &str,
+    ) -> Result<()> {
+        let source_id_owned = source_id.to_string();
+        let target_id_owned = target_id.to_string();
+        self.writer
+            .exec_tx(move |tx| -> Result<()> {
+                let moving: Vec<AllocationTargetAssetWeightDB> =
+                    allocation_target_asset_weights::table
+                        .filter(allocation_target_asset_weights::asset_id.eq(&source_id_owned))
+                        .load(tx.conn())
+                        .map_err(StorageError::from)?;
+                let now = chrono::Utc::now().to_rfc3339();
+
+                for weight in moving {
+                    let existing: Option<AllocationTargetAssetWeightDB> =
+                        allocation_target_asset_weights::table
+                            .filter(
+                                allocation_target_asset_weights::target_id.eq(&weight.target_id),
+                            )
+                            .filter(allocation_target_asset_weights::asset_id.eq(&target_id_owned))
+                            .first(tx.conn())
+                            .optional()
+                            .map_err(StorageError::from)?;
+
+                    let updated = match existing {
+                        Some(mut merged) => {
+                            diesel::delete(allocation_target_asset_weights::table.find(&weight.id))
+                                .execute(tx.conn())
+                                .map_err(StorageError::from)?;
+                            tx.delete::<AllocationTargetAssetWeightDB>(weight.id.clone());
+                            merged.target_bps = (merged.target_bps + weight.target_bps).min(10000);
+                            merged.is_locked = merged.is_locked.max(weight.is_locked);
+                            merged.is_required = merged.is_required.max(weight.is_required);
+                            merged
+                        }
+                        None => AllocationTargetAssetWeightDB {
+                            asset_id: target_id_owned.clone(),
+                            ..weight
+                        },
+                    };
+                    let updated = AllocationTargetAssetWeightDB {
+                        updated_at: now.clone(),
+                        ..updated
+                    };
+                    diesel::update(allocation_target_asset_weights::table.find(&updated.id))
+                        .set(&updated)
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    tx.update(&updated)?;
+                }
+                Ok(())
+            })
+            .await
+    }
+
     async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {
         self.writer
             .exec_tx(move |tx| -> Result<Vec<String>> {
@@ -725,6 +784,57 @@ mod tests {
         assert!(matches!(err, Error::ConstraintViolation(_)));
         assert!(err.to_string().contains("allocation target"));
         assert!(repo.get_by_id("targeted-asset").is_ok());
+    }
+
+    #[tokio::test]
+    async fn reassign_allocation_target_weights_moves_and_merges_weights() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = AssetRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        for asset_id in ["unknown", "resolved", "other"] {
+            insert_asset(&mut conn, asset_id);
+        }
+        // t1 holds only the unknown asset; t2 already holds the resolved one.
+        sql_query(
+            "INSERT INTO allocation_targets (id, name, scope_type, target_type) VALUES
+             ('t1', 'T1', 'all', 'asset'), ('t2', 'T2', 'all', 'asset')",
+        )
+        .execute(&mut conn)
+        .expect("insert targets");
+        sql_query(
+            "INSERT INTO allocation_target_asset_weights
+             (id, target_id, asset_id, target_bps, is_locked) VALUES
+             ('t1-unknown', 't1', 'unknown', 4000, 0),
+             ('t1-other', 't1', 'other', 6000, 0),
+             ('t2-unknown', 't2', 'unknown', 3000, 1),
+             ('t2-resolved', 't2', 'resolved', 2000, 0),
+             ('t2-other', 't2', 'other', 5000, 0)",
+        )
+        .execute(&mut conn)
+        .expect("insert weights");
+
+        repo.reassign_allocation_target_weights("unknown", "resolved")
+            .await
+            .expect("reassign");
+
+        let mut rows: Vec<(String, String, i32, i32)> = allocation_target_asset_weights::table
+            .filter(allocation_target_asset_weights::asset_id.eq_any(["unknown", "resolved"]))
+            .select((
+                allocation_target_asset_weights::id,
+                allocation_target_asset_weights::asset_id,
+                allocation_target_asset_weights::target_bps,
+                allocation_target_asset_weights::is_locked,
+            ))
+            .load(&mut conn)
+            .expect("load weights");
+        rows.sort();
+        assert_eq!(
+            rows,
+            vec![
+                ("t1-unknown".into(), "resolved".into(), 4000, 0),
+                ("t2-resolved".into(), "resolved".into(), 5000, 1),
+            ]
+        );
     }
 
     #[tokio::test]
