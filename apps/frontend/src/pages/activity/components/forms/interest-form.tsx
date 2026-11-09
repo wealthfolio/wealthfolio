@@ -232,7 +232,7 @@ export function InterestForm({
       activityDate: new Date(),
       symbol: null,
       amount: undefined,
-      tax: 0,
+      tax: undefined,
       quantity: undefined,
       unitPrice: undefined,
       comment: null,
