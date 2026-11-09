@@ -65,7 +65,6 @@ it("shows what each dataset holds and only offers downloads for those with data"
     includeArchived: true,
     startDate: undefined,
     endDate: undefined,
-    asOfDate: undefined,
   });
 });
 

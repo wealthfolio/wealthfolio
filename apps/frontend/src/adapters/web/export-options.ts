@@ -7,6 +7,5 @@ export const exportOptionsQuery = (options?: ExportOptions): string => {
   params.set("includeArchived", String(options.includeArchived));
   if (options.startDate) params.set("startDate", options.startDate);
   if (options.endDate) params.set("endDate", options.endDate);
-  if (options.asOfDate) params.set("asOfDate", options.asOfDate);
   return `?${params.toString()}`;
 };

@@ -167,7 +167,7 @@ impl ExportDataType {
                 "Every activity, with the account's running cash balance and, for spending, the category, event and splits."
             }
             Self::Holdings => {
-                "Holdings on the export's holdings date, valued in their own and your base currency."
+                "Current holdings, valued in their own and your base currency."
             }
             Self::Lots => "Tax lots, open and closed, with their cost basis.",
             Self::RealizedGains => "Each sale matched to the lots it closed, with the realised gain.",
