@@ -5054,6 +5054,314 @@ pub(crate) mod tests {
         assert!(!updated.needs_review);
     }
 
+    /// Saves a grid edit of a stored BUY of 1 at 10: the grid sends the row's
+    /// stored asset id next to the symbol in the cell.
+    async fn save_grid_symbol_edit(
+        stored_asset: Asset,
+        stored_amount: Decimal,
+        asset: AssetResolutionInput,
+    ) -> Activity {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-usd", "USD"));
+        let mut existing =
+            create_stored_activity("grid-row", "acc-usd", Some(stored_asset.id.as_str()));
+        asset_service.add_asset(stored_asset);
+        existing.quantity = Some(dec!(1));
+        existing.unit_price = Some(dec!(10));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(stored_amount);
+        activity_repository.add_activity(existing);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let result = activity_service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![ActivityUpdate {
+                    unlink_transfer_pair_id: None,
+                    split_review: None,
+                    id: "grid-row".to_string(),
+                    account_id: "acc-usd".to_string(),
+                    asset: Some(asset),
+                    activity_type: "BUY".to_string(),
+                    subtype: None,
+                    activity_date: "2024-01-15".to_string(),
+                    quantity: Some(Some(dec!(1))),
+                    unit_price: Some(Some(dec!(10))),
+                    currency: "USD".to_string(),
+                    fee: Some(Some(dec!(0))),
+                    tax: None,
+                    amount: None,
+                    status: None,
+                    needs_review: None,
+                    notes: None,
+                    fx_rate: None,
+                    metadata: None,
+                }],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk mutation reports row errors");
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        result.updated.into_iter().next().expect("updated row")
+    }
+
+    #[tokio::test]
+    async fn grid_edit_to_unheld_option_with_stored_id_uses_option_multiplier() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-aapl",
+                "AAPL",
+                Some("XNAS"),
+                Some(InstrumentType::Equity),
+                "USD",
+            ),
+            dec!(10),
+            AssetResolutionInput {
+                id: Some("asset-aapl".to_string()),
+                symbol: Some("AAPL260619C00150000".to_string()),
+                instrument_type: Some("OPTION".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-aapl"));
+        assert_eq!(updated.amount, Some(dec!(1000)));
+    }
+
+    #[tokio::test]
+    async fn grid_edit_from_option_to_unheld_equity_with_stored_id_drops_multiplier() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-opt",
+                "AAPL260619C00150000",
+                None,
+                Some(InstrumentType::Option),
+                "USD",
+            ),
+            dec!(1000),
+            AssetResolutionInput {
+                id: Some("asset-opt".to_string()),
+                symbol: Some("AAPL".to_string()),
+                exchange_mic: Some("XNAS".to_string()),
+                name: Some("Apple Inc.".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-opt"));
+        assert_eq!(updated.amount, Some(dec!(10)));
+    }
+
+    #[tokio::test]
+    async fn grid_edit_naming_stored_asset_by_pair_keeps_custom_total() {
+        // `BTC-USD` is how the stored `BTC` asset is looked up, so the row keeps
+        // its asset and its custom total.
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-btc",
+                "BTC",
+                None,
+                Some(InstrumentType::Crypto),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-btc".to_string()),
+                symbol: Some("BTC-USD".to_string()),
+                instrument_type: Some("CRYPTO".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.asset_id.as_deref(), Some("asset-btc"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_bare_crypto_pair_change_recalculates_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-btc",
+                "BTC",
+                None,
+                Some(InstrumentType::Crypto),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                symbol: Some("BTC-EUR".to_string()),
+                instrument_type: Some("CRYPTO".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-btc"));
+        assert_eq!(updated.amount, Some(dec!(10)));
+        assert!(updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_between_options_uses_inferred_or_normalized_type() {
+        for instrument_type in [None, Some(" OPTION ")] {
+            let updated = save_grid_symbol_edit(
+                create_test_asset_with_instrument(
+                    "asset-opt",
+                    "AAPL260619C00150000",
+                    None,
+                    Some(InstrumentType::Option),
+                    "USD",
+                ),
+                dec!(1000),
+                AssetResolutionInput {
+                    id: Some("asset-opt".to_string()),
+                    symbol: Some("AAPL260619C00160000".to_string()),
+                    instrument_type: instrument_type.map(str::to_string),
+                    quote_ccy: Some("USD".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await;
+
+            assert_ne!(updated.asset_id.as_deref(), Some("asset-opt"));
+            assert_eq!(updated.amount, Some(dec!(1000)));
+            assert!(!updated.needs_review);
+        }
+    }
+
+    #[tokio::test]
+    async fn grid_edit_bond_alias_keeps_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-bond",
+                "US037833EZ91",
+                None,
+                Some(InstrumentType::Bond),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-bond".to_string()),
+                symbol: Some("037833EZ9".to_string()),
+                instrument_type: Some("BOND".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.asset_id.as_deref(), Some("asset-bond"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_legacy_option_alias_keeps_custom_total() {
+        let mut stored_asset = create_test_asset_with_instrument(
+            "legacy-option",
+            "AAPL260619C00150000",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        stored_asset.instrument_key = Some("EQUITY:AAPL260619C00150000".to_string());
+        let updated = save_grid_symbol_edit(
+            stored_asset,
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("legacy-option".to_string()),
+                symbol: Some("AAPL  260619C00150000".to_string()),
+                instrument_type: Some("OPTION".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.asset_id.as_deref(), Some("legacy-option"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_option_replacement_uses_existing_multiplier_before_creation_seed() {
+        for (include_id, replacement_multiplier, expected_amount) in [
+            (true, None, dec!(100)),
+            (true, Some(dec!(20)), dec!(200)),
+            (false, None, dec!(100)),
+            (false, Some(dec!(100)), dec!(1000)),
+        ] {
+            let mut stored_asset = create_test_asset_with_instrument(
+                "stored-option",
+                "AAPL260619C00150000",
+                None,
+                Some(InstrumentType::Option),
+                "USD",
+            );
+            stored_asset.metadata =
+                crate::assets::build_option_metadata("AAPL260619C00150000", dec!(10));
+            let mut assets = vec![stored_asset];
+            if let Some(multiplier) = replacement_multiplier {
+                let mut replacement = create_test_asset_with_instrument(
+                    "replacement-option",
+                    "AAPL260619C00160000",
+                    None,
+                    Some(InstrumentType::Option),
+                    "USD",
+                );
+                replacement.metadata =
+                    crate::assets::build_option_metadata("AAPL260619C00160000", multiplier);
+                assets.push(replacement);
+            }
+            let mut existing =
+                create_stored_activity("mini-option-row", "acc-final", Some("stored-option"));
+            existing.quantity = Some(dec!(1));
+            existing.unit_price = Some(dec!(10));
+            existing.fee = Some(dec!(0));
+            existing.amount = Some(dec!(100));
+            let service = final_total_service("USD", assets, Some(existing));
+            let mut update = create_test_activity_update(
+                "mini-option-row",
+                "acc-final",
+                Some(AssetResolutionInput {
+                    id: include_id.then(|| "stored-option".to_string()),
+                    symbol: Some("AAPL260619C00160000".to_string()),
+                    instrument_type: Some("OPTION".to_string()),
+                    quote_ccy: Some("USD".to_string()),
+                    ..Default::default()
+                }),
+                "USD",
+            );
+            update.unit_price = Some(Some(dec!(10)));
+            update.amount = None;
+            update.metadata = Some(r#"{"contract_multiplier": 10}"#.to_string());
+
+            let updated = service.update_activity(update).await.expect("option edit");
+            assert_ne!(updated.asset_id.as_deref(), Some("stored-option"));
+            assert_eq!(updated.amount, Some(expected_amount));
+            if replacement_multiplier.is_some() {
+                assert_eq!(updated.asset_id.as_deref(), Some("replacement-option"));
+            }
+            assert!(!updated.needs_review);
+        }
+    }
+
     #[tokio::test]
     async fn test_create_split_rejects_missing_amount_ratio() {
         let account_service = Arc::new(MockAccountService::new());

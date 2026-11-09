@@ -662,12 +662,9 @@ impl ActivityService {
         );
     }
 
-    /// Asset facts an update patch needs, fetched at most twice (existing
-    /// asset plus a replacement, when one is named). A replacement asset that
-    /// carries a symbol but no resolved id does not exist yet, so the
-    /// multiplier must come from the patch's instrument facts - falling back
-    /// to the existing asset would price an option or bond edit at the old
-    /// asset's scale.
+    /// Asset facts an update patch needs before preparation. An unresolved
+    /// replacement uses the patch's instrument facts rather than the old
+    /// asset's multiplier.
     fn update_trade_facts(
         &self,
         activity: &ActivityUpdate,
@@ -689,7 +686,63 @@ impl ActivityService {
         };
         let existing_is_crypto = is_crypto_asset(existing_asset.as_ref());
 
-        if let Some(asset_id) = activity.get_symbol_id() {
+        let submitted_instrument_type = Self::parse_instrument_type(activity.get_instrument_type())
+            .or_else(|| {
+                activity.get_symbol_code().and_then(|symbol| {
+                    self.infer_asset_kind(symbol, activity.get_exchange_mic(), activity.get_kind())
+                        .1
+                })
+            });
+        let (normalized_symbol, exchange_mic) = Self::submitted_lookup_identity(
+            activity.get_symbol_code(),
+            activity.get_exchange_mic().map(str::to_string),
+            submitted_instrument_type.as_ref(),
+        );
+        let quote_ccy = Self::normalize_quote_ccy(activity.get_quote_ccy());
+        // Options and bonds are looked up the way prepare resolves them, so an
+        // alias of the stored asset keeps it and an existing replacement is
+        // priced with its own multiplier.
+        let looks_up_existing = matches!(
+            submitted_instrument_type.as_ref(),
+            Some(InstrumentType::Bond | InstrumentType::Option)
+        );
+        let resolved_asset_id = match activity.get_symbol_id() {
+            Some(asset_id)
+                if Some(asset_id) != existing.asset_id.as_deref() || existing_asset.is_none() =>
+            {
+                Some(asset_id.to_string())
+            }
+            None if !looks_up_existing => None,
+            // The stored id (the grid sends it next to a newly picked symbol),
+            // or an option or bond symbol without an id: prepare keeps the
+            // stored asset only while the submitted identity still names it.
+            _ => existing_asset
+                .as_ref()
+                .filter(|asset| {
+                    Self::asset_matches_submitted_identity(
+                        asset,
+                        normalized_symbol.as_deref(),
+                        exchange_mic.as_deref(),
+                        submitted_instrument_type.as_ref(),
+                        quote_ccy.as_deref(),
+                    )
+                })
+                .map(|asset| asset.id.clone())
+                .or_else(|| {
+                    normalized_symbol
+                        .as_deref()
+                        .filter(|_| looks_up_existing)
+                        .and_then(|symbol| {
+                            self.find_existing_asset_id(
+                                symbol,
+                                exchange_mic.as_deref(),
+                                submitted_instrument_type.as_ref(),
+                                quote_ccy.as_deref(),
+                            )
+                        })
+                }),
+        };
+        if let Some(asset_id) = resolved_asset_id.as_deref() {
             if Some(asset_id) == existing.asset_id.as_deref() {
                 return UpdateTradeFacts {
                     unit_multiplier: existing_unit_multiplier,
@@ -732,22 +785,17 @@ impl ActivityService {
                         .is_some_and(|code| code.eq_ignore_ascii_case(symbol))
             });
             if !names_current_asset {
-                let instrument_type = activity.get_instrument_type().unwrap_or_default();
-                let unit_multiplier = crate::assets::instrument_default_multiplier(
-                    instrument_type.eq_ignore_ascii_case("OPTION"),
-                    false,
-                );
-                // Same inference `prepare_update_activity` applies when it
-                // resolves the bare symbol later (e.g. BTC-USD is crypto).
-                let replacement_type =
-                    Self::parse_instrument_type(Some(instrument_type)).or_else(|| {
-                        self.infer_asset_kind(
-                            symbol,
-                            activity.get_exchange_mic(),
-                            activity.get_kind(),
+                let option_metadata = Self::custom_option_multiplier(activity.metadata.as_deref())
+                    .and_then(|multiplier| {
+                        crate::assets::build_option_metadata(
+                            normalized_symbol.as_deref().unwrap_or(symbol),
+                            multiplier,
                         )
-                        .1
                     });
+                let unit_multiplier = crate::assets::contract_multiplier_from_asset_metadata(
+                    submitted_instrument_type.as_ref(),
+                    option_metadata.as_ref(),
+                );
                 // A blank currency is filled from the replacement asset when
                 // the update is prepared; find an existing asset's quote
                 // currency with the same local lookup the save uses.
@@ -761,13 +809,13 @@ impl ActivityService {
                     self.asset_service.existing_quote_ccy_by_symbol(
                         base_symbol,
                         exchange_mic,
-                        replacement_type.as_ref(),
+                        submitted_instrument_type.as_ref(),
                     )
                 });
                 return UpdateTradeFacts {
                     unit_multiplier,
                     existing_unit_multiplier,
-                    is_crypto: replacement_type == Some(InstrumentType::Crypto),
+                    is_crypto: submitted_instrument_type == Some(InstrumentType::Crypto),
                     existing_is_crypto,
                     quote_ccy,
                     replaces_asset: true,
@@ -4070,8 +4118,8 @@ impl ActivityService {
     const METADATA_CONTRACT_MULTIPLIER: &'static str = "contract_multiplier";
 
     /// The creation-time multiplier seed an activity may carry. Read ONLY when
-    /// this row creates its asset; the asset owns the multiplier from then on,
-    /// so nothing downstream consults this.
+    /// this row creates its asset or prices an unresolved replacement; an
+    /// existing asset's own multiplier takes precedence.
     fn custom_option_multiplier(activity_metadata: Option<&str>) -> Option<Decimal> {
         activity_metadata
             .and_then(|m| serde_json::from_str::<serde_json::Value>(m).ok())
@@ -4315,6 +4363,48 @@ impl ActivityService {
                 true
             }
         }
+    }
+
+    /// The symbol and MIC a submitted asset is looked up by, from the payload
+    /// and a venue suffix only (no live lookup for user save paths): a crypto
+    /// pair keeps its base, an OCC symbol is normalized, and crypto and FX
+    /// take no MIC.
+    fn submitted_lookup_identity(
+        symbol: Option<&str>,
+        exchange_mic: Option<String>,
+        instrument_type: Option<&InstrumentType>,
+    ) -> (Option<String>, Option<String>) {
+        // A supplied MIC decides whether a trailing `.X` is a venue or part of the
+        // ticker: `ZAAA.F` on Cboe Canada is a hedged unit class, not a Frankfurt
+        // listing. See `parse_symbol_with_known_exchange`.
+        let (base_symbol, suffix_mic) = symbol
+            .map(|sym| parse_symbol_with_known_exchange(sym, exchange_mic.as_deref()))
+            .unwrap_or(("", None));
+        let exchange_mic = if matches!(
+            instrument_type,
+            Some(InstrumentType::Crypto | InstrumentType::Fx)
+        ) {
+            None
+        } else {
+            exchange_mic.or_else(|| suffix_mic.map(|mic| mic.to_string()))
+        };
+        let normalized_symbol = if base_symbol.is_empty() {
+            None
+        } else if instrument_type == Some(&InstrumentType::Crypto) {
+            Some(
+                parse_crypto_pair_symbol(base_symbol)
+                    .map(|(base, _)| base)
+                    .unwrap_or_else(|| base_symbol.to_string()),
+            )
+        } else if instrument_type == Some(&InstrumentType::Option) {
+            Some(
+                crate::utils::occ_symbol::normalize_option_symbol(base_symbol)
+                    .unwrap_or_else(|| base_symbol.to_string()),
+            )
+        } else {
+            Some(base_symbol.to_string())
+        };
+        (normalized_symbol, exchange_mic)
     }
 
     fn resolved_submitted_asset_id(
@@ -5146,41 +5236,16 @@ impl ActivityService {
             .map(Self::kind_from_instrument_type)
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
 
-        // Normalize symbol + MIC using payload/suffix only (no live lookup for user save paths).
         let is_crypto = effective_instrument_type.as_ref() == Some(&InstrumentType::Crypto);
         let is_non_security_instrument = matches!(
             effective_instrument_type.as_ref(),
             Some(InstrumentType::Crypto | InstrumentType::Fx)
         );
-        // A supplied MIC decides whether a trailing `.X` is a venue or part of the
-        // ticker: `ZAAA.F` on Cboe Canada is a hedged unit class, not a Frankfurt
-        // listing. See `parse_symbol_with_known_exchange`.
-        let (base_symbol, suffix_mic) = symbol
-            .as_deref()
-            .map(|sym| parse_symbol_with_known_exchange(sym, exchange_mic.as_deref()))
-            .unwrap_or(("", None));
-        let exchange_mic = if is_non_security_instrument {
-            None
-        } else {
-            exchange_mic.or_else(|| suffix_mic.map(|mic| mic.to_string()))
-        };
-        let is_option = effective_instrument_type.as_ref() == Some(&InstrumentType::Option);
-        let normalized_symbol_for_lookup = if base_symbol.is_empty() {
-            None
-        } else if is_crypto {
-            Some(
-                parse_crypto_pair_symbol(base_symbol)
-                    .map(|(base, _)| base)
-                    .unwrap_or_else(|| base_symbol.to_string()),
-            )
-        } else if is_option {
-            Some(
-                crate::utils::occ_symbol::normalize_option_symbol(base_symbol)
-                    .unwrap_or_else(|| base_symbol.to_string()),
-            )
-        } else {
-            Some(base_symbol.to_string())
-        };
+        let (normalized_symbol_for_lookup, exchange_mic) = Self::submitted_lookup_identity(
+            symbol.as_deref(),
+            exchange_mic,
+            effective_instrument_type.as_ref(),
+        );
         let submitted_asset_id = self.resolved_submitted_asset_id(
             activity.get_symbol_id(),
             normalized_symbol_for_lookup.as_deref(),
