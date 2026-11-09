@@ -123,7 +123,7 @@ export interface BudgetGroupRow {
 
 /**
  * `spending*` is consumption (expense categories and group buffers), a limit.
- * `savings*` is the savings goal and the net amount saved. The plan's total
+ * `savings*` is the savings goal and the money moved to savings. The plan's total
  * allocation, to compare with income, is `spendingPlanned + savingsPlanned`.
  */
 export interface BudgetTotals {

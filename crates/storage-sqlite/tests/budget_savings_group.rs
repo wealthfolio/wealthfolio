@@ -557,34 +557,44 @@ async fn saving_past_the_goal_is_not_overspending() {
     assert_eq!(june.computed.totals.overspent_count, 0);
 }
 
-/// Money brought back from savings and categorized there lowers net saved.
+/// Money brought back from savings is one uncategorized "from savings" figure:
+/// the app does not let it take a category, so it never lowers a savings goal,
+/// even when an older row still carries a savings category. Goals then match
+/// Insight's savings breakdown, which counts money moved to savings.
 #[tokio::test]
-async fn savings_withdrawal_lowers_the_saved_amount() {
+async fn money_brought_back_from_savings_leaves_goals_as_saved() {
     let f = june_fixture().await;
-    f.transfer(
-        "back-out",
-        "brokerage",
-        "TRANSFER_OUT",
-        "2026-06-25T12:00:00Z",
-        "100",
-        "pair-back",
-        None,
-    );
-    f.transfer(
-        "back-in",
-        "checking",
-        "TRANSFER_IN",
-        "2026-06-25T12:00:00Z",
-        "100",
-        "pair-back",
-        Some("cat_savings"),
-    );
+    for (id, category) in [("back", None), ("stale", Some("cat_savings"))] {
+        f.transfer(
+            &format!("{id}-out"),
+            "brokerage",
+            "TRANSFER_OUT",
+            "2026-06-25T12:00:00Z",
+            "100",
+            &format!("pair-{id}"),
+            None,
+        );
+        f.transfer(
+            &format!("{id}-in"),
+            "checking",
+            "TRANSFER_IN",
+            "2026-06-25T12:00:00Z",
+            "100",
+            &format!("pair-{id}"),
+            category,
+        );
+    }
     let june = f.budget(MONTH).await;
-    let row = savings_row(group(&june, SAVINGS_ID)).unwrap().clone();
-
-    assert_eq!(row.actual, 250.0);
-    assert_eq!(row.remaining, 150.0);
+    let row = savings_row(group(&june, SAVINGS_ID)).unwrap();
+    assert_eq!(row.actual, 350.0);
+    assert_eq!(row.remaining, 50.0);
+    assert_eq!(june.computed.totals.savings_actual, 350.0);
     assert_eq!(june.computed.totals.spending_actual, 0.0);
+
+    let insight = f.insight().await;
+    assert_eq!(insight.headline.from_savings, 200.0);
+    let breakdown: f64 = insight.savings_breakdown.iter().map(|r| r.amount).sum();
+    assert_eq!(breakdown, june.computed.totals.savings_actual);
 }
 
 /// An expense category moved into the Savings group stays consumption in
