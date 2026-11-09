@@ -56,24 +56,24 @@ for (const dir of ["ltr", "rtl"]) {
     const card = page
       .locator('[data-slot="card"]')
       .filter({ has: page.getByText(`Rollover detail ${dir}`, { exact: true }) });
-    await card.getByRole("link", { name: "View details" }).click();
+    await card
+      .getByRole("link", { name: `Rollover detail ${dir}`, exact: true })
+      .filter({ visible: true })
+      .click();
     await expect(page).toHaveURL(new RegExp(`/settings/contribution-limits/${limitId}`));
     if (dir === "rtl") await gotoAppPath(page, `/settings/contribution-limits/${limitId}?dir=rtl`);
     const summary = page
       .locator('[data-slot="card"]')
       .filter({ has: page.getByText("Counted contributions", { exact: true }) });
     await expect(summary).toContainText("$55,000.00");
-    await page.getByRole("row").filter({ hasText: "$50,000.00" }).getByRole("button").click();
-    await page.getByRole("combobox", { name: "Treatment in this limit" }).click();
-    await page.getByRole("option", { name: "Exclude from this limit", exact: true }).click();
-    await expect(summary).toContainText("$55,000.00");
-    await page.getByRole("button", { name: "Save treatment", exact: true }).click();
+    const rolloverSwitch = page
+      .getByRole("listitem")
+      .filter({ hasText: "$50,000.00" })
+      .getByRole("switch");
+    await expect(rolloverSwitch).toBeChecked();
+    await rolloverSwitch.click();
     await expect(summary).toContainText("$5,000.00");
-    if (dir === "rtl")
-      await page
-        .getByRole("dialog", { name: "Transaction details", exact: true })
-        .getByRole("button", { name: "Close", exact: true })
-        .click();
+    await expect(rolloverSwitch).not.toBeChecked();
     await expect(page.getByText("Excluded by you", { exact: true })).toBeVisible();
     const other = await page.request.get(`${api}/limits/${otherId}/details`);
     expect(other.ok()).toBe(true);
@@ -83,19 +83,10 @@ for (const dir of ["ltr", "rtl"]) {
 
     await page.reload();
     await expect(summary).toContainText("$5,000.00");
-    await page.getByRole("row").filter({ hasText: "$50,000.00" }).getByRole("button").click();
-    await expect(page.getByRole("combobox", { name: "Treatment in this limit" })).toContainText(
-      "Exclude from this limit",
-    );
-    await page.getByRole("combobox", { name: "Treatment in this limit" }).click();
-    await page.getByRole("option", { name: "Count automatically", exact: true }).click();
-    await page.getByRole("button", { name: "Save treatment", exact: true }).click();
+    await expect(rolloverSwitch).not.toBeChecked();
+    await rolloverSwitch.click();
     await expect(summary).toContainText("$55,000.00");
-    if (dir === "rtl")
-      await page
-        .getByRole("dialog", { name: "Transaction details", exact: true })
-        .getByRole("button", { name: "Close", exact: true })
-        .click();
+    await expect(rolloverSwitch).toBeChecked();
     const search = await page.request.post(`${api}/activities/search`, {
       data: { accountIdFilter: [accountId], page: 0, pageSize: 100 },
     });

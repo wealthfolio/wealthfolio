@@ -50,30 +50,33 @@ for (const dir of ["ltr", "rtl"]) {
       has: page.getByText(groupName, { exact: true }),
     });
     await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
-    await card
-      .getByRole("button", { name: groupName, exact: true })
-      .filter({ visible: true })
-      .click();
-    const source = card.getByRole("button", { name: new RegExp(`${sourceName}\\s*Hidden`) });
+    // Accounts are picked in the edit dialog, opened from the card's actions menu.
+    const editAccounts = async () => {
+      await card
+        .getByRole("button", { name: "Open", exact: true })
+        .filter({ visible: true })
+        .click();
+      await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+      return page.getByRole("group", { name: "Accounts that count" });
+    };
+    const picker = await editAccounts();
+    const source = picker.getByRole("checkbox", { name: new RegExp(`${sourceName}\\s*Hidden`) });
     await expect(source).toBeVisible();
-    await expect(source).toHaveAttribute("aria-pressed", "false");
+    await expect(source).not.toBeChecked();
     await source.click();
     const recalculation = page.waitForResponse(
       (response) => response.url().endsWith(`/limits/${limitId}/deposits`) && response.ok(),
     );
-    await card.getByRole("button", { name: "Save selected accounts" }).click();
+    await page.getByRole("button", { name: "Update", exact: true }).click();
     expect(Number((await (await recalculation).json()).total)).toBe(0);
     await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
 
     // Reload proves the hidden selection persists and remains editable.
     await page.reload();
-    await card
-      .getByRole("button", { name: groupName, exact: true })
-      .filter({ visible: true })
-      .click();
-    await expect(source).toHaveAttribute("aria-pressed", "true");
+    await editAccounts();
+    await expect(source).toBeChecked();
     await source.click();
-    await card.getByRole("button", { name: "Save selected accounts" }).click();
+    await page.getByRole("button", { name: "Update", exact: true }).click();
     await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
     const saved = await page.request.get(`${api}/limits`);
     expect(saved.ok()).toBe(true);
