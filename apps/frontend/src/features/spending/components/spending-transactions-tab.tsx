@@ -197,6 +197,7 @@ export interface SpendingTransactionsTabHandle {
   openAddForm: () => void;
 }
 
+/** Lists spending activity with URL filters, including account-specific statement periods. */
 export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>(
   function SpendingTransactionsTab(_, ref) {
     const { t } = useTranslation();

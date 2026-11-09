@@ -171,6 +171,7 @@ async function getCashAuditActivities(
   return activities;
 }
 
+/** Shows the selected account's holdings, activity, and optional credit card statements. */
 const AccountPage = () => {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();

@@ -158,6 +158,7 @@ interface AccountFormlProps {
   onSuccess?: () => void;
 }
 
+/** Edits account details and type-specific metadata through the shared account schema. */
 export function AccountForm({
   defaultValues,
   isSynced = false,

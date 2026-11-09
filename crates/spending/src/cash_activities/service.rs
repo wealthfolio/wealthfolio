@@ -212,6 +212,7 @@ impl CashActivityService {
         activities.retain(|a| allowed_types.iter().any(|t| t == a.effective_type()));
         retain_classified_cash_activities(&mut activities, &account_types);
 
+        // Legacy list filters retain UTC; user-facing search uses the configured timezone.
         retain_by_date_range(
             &mut activities,
             filter.start_date.as_deref(),
@@ -1487,6 +1488,8 @@ fn retain_by_date_range(
     end_date: Option<&str>,
     timezone: Tz,
 ) -> Result<()> {
+    // Accept Chrono's calendar date forms; the UI emits canonical YYYY-MM-DD.
+    // Non-calendar bounds must parse as RFC3339 below, so invalid inputs still fail.
     let calendar_day = |value: &str| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok();
     let start_day = start_date.and_then(calendar_day);
     let end_day = end_date.and_then(calendar_day);

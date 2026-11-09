@@ -179,6 +179,7 @@ fn get_app_data_dir(handle: &AppHandle) -> Result<String, Box<dyn std::error::Er
 // Application entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Initializes the native runtime and registers the shared services and frontend commands.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenv().ok();
