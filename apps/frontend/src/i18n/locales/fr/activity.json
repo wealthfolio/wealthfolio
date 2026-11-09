@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "Changer en {{type}}",
+    "description": "Le type de la transaction enregistrée change, son sous-type est effacé et les métadonnées de transfert sont mises à jour. Le mouvement de trésorerie, le compte, le montant, la date, la devise, les notes et la catégorie sont conservés ; les rapports de flux et de performance peuvent changer. Les modifications non enregistrées sont exclues.",
+    "external": "Le transfert sera marqué comme externe. Utilisez Lier le transfert pour le relier à un autre compte.",
+    "linked": "Cette transaction appartient à un groupe de transferts. Dissociez le transfert, puis rouvrez Modifier pour changer son type. Les deux transactions sont conservées."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} activité doit être révisée",
     "title_other": "{{count}} activités doivent être révisées",

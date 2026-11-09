@@ -32,9 +32,10 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         activities.retain(|activity| requested.contains(activity.id.as_str()));
         Ok(activities)
     }
+    /// Reads an opaque persisted group ID verbatim; whitespace is not canonicalized.
     fn get_activities_by_source_group_id(&self, source_group_id: &str) -> Result<Vec<Activity>> {
-        let group_id = source_group_id.trim();
-        if group_id.is_empty() {
+        let group_id = source_group_id;
+        if group_id.trim().is_empty() {
             return Ok(Vec::new());
         }
 

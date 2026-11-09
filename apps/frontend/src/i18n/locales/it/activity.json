@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "Cambia in {{type}}",
+    "description": "Il tipo della transazione salvata viene modificato, il sottotipo cancellato e i metadati di trasferimento aggiornati. Movimento di cassa, conto, importo, data, valuta, note e categoria restano invariati; i report sui flussi e sui rendimenti possono cambiare. Le modifiche non salvate sono escluse.",
+    "external": "Il trasferimento sarà contrassegnato come esterno. Usa Collega trasferimento per associarlo a un altro conto.",
+    "linked": "Questa transazione appartiene a un gruppo di trasferimenti. Scollega prima il trasferimento, poi riapri Modifica. Entrambe le transazioni vengono conservate."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} movimento da rivedere",
     "title_many": "{{count}} movimenti da rivedere",

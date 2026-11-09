@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "Alterar para {{type}}",
+    "description": "O tipo da transação guardada é alterado, o subtipo é removido e os metadados de transferência são atualizados. O movimento de caixa, a conta, o montante, a data, a moeda, as notas e a categoria são preservados; os relatórios de fluxos e desempenho podem mudar. Alterações não guardadas não são incluídas.",
+    "external": "A transferência será marcada como externa. Use Vincular transferência para a associar a outra conta.",
+    "linked": "Esta transação pertence a um grupo de transferências. Desvincule primeiro a transferência e reabra Editar. Ambas as transações são preservadas."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} atividade precisa de revisão",
     "title_other": "{{count}} atividades precisam de revisão",
