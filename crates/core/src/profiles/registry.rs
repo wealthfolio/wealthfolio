@@ -991,6 +991,9 @@ impl ProfileRegistry {
             .hash_password(bypass_token.as_bytes())
             .map_err(storage_error)?
             .to_string();
+        // Preserve the previous verifier so we can roll back the lock record if the
+        // registry save fails after write_lock already committed the new verifier.
+        let old_verifier = record.biometric_verifier.clone();
         record.biometric_verifier = Some(verifier);
         self.write_lock(&profile, &record)?;
         let mut next = data.clone();
@@ -1005,7 +1008,27 @@ impl ProfileRegistry {
         // profiles and returns an empty record, making verify_biometric_token
         // unable to find the stored biometric_verifier.
         entry.never_protected = false;
-        self.save(&mut data, next)
+        // Write the protected state to BOTH registry copies so that
+        // backup-based recovery cannot restore the profile to its
+        // pre-enrolment (unprotected) state. Mirrors set_password.
+        validate_data(&next)?;
+        let encoded = serde_json::to_vec_pretty(&next).map_err(storage_error)?;
+        // If either write fails, restore the previous verifier so the lock record
+        // stays consistent with the unchanged registry state.
+        let write_result = atomic_write(&self.root.join(REGISTRY_FILE), &encoded)
+            .and_then(|()| atomic_write(&self.root.join(REGISTRY_BACKUP), &encoded));
+        if let Err(e) = write_result {
+            record.biometric_verifier = old_verifier;
+            if let Err(restore_err) = self.write_lock(&profile, &record) {
+                log::error!(
+                    "Failed to restore biometric verifier for profile {id} after registry \
+                     save failure ({e}): {restore_err}"
+                );
+            }
+            return Err(e);
+        }
+        *data = next;
+        Ok(())
     }
 
     /// Disable biometric unlock for the profile. Requires proof of the existing password

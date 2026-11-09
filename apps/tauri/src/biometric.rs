@@ -77,6 +77,7 @@ mod imp {
     /// `LAPolicy.deviceOwnerAuthenticationWithBiometrics` = 1
     const LA_POLICY_BIOMETRICS: isize = 1;
 
+    /// Returns the keychain service name for a profile's biometric bypass token.
     fn service_for(profile_id: Uuid) -> String {
         format!("{BIOMETRIC_SERVICE}.{profile_id}")
     }
@@ -106,8 +107,14 @@ mod imp {
 
     /// Show the Touch ID sheet and block until it resolves.
     ///
-    /// Returns `Ok(())` on success, `Err("BIOMETRIC_CANCELLED")` if the user
-    /// dismisses the prompt or authentication fails.
+    /// Returns:
+    /// - `Ok(())` — authentication succeeded.
+    /// - `Err("BIOMETRIC_NOT_ENROLLED")` — biometrics are not enrolled on this
+    ///   device (`LAErrorBiometryNotAvailable` = 6 or `LAErrorBiometryNotEnrolled` = 7).
+    ///   Callers should treat this as a hardware-availability failure, distinct from a
+    ///   user dismissal.
+    /// - `Err("BIOMETRIC_CANCELLED")` — the user dismissed the prompt or authentication
+    ///   failed for any other reason.
     ///
     /// **Must be called from a blocking thread.**
     ///
@@ -115,7 +122,9 @@ mod imp {
     /// without duplicating the LAContext logic.
     #[allow(unsafe_code, reason = "LAContext ObjC messaging via objc2")]
     pub fn evaluate_biometric(reason: &str) -> Result<(), String> {
-        let (tx, rx) = mpsc::channel::<bool>();
+        // Tri-state channel: Ok(()) = success, Err(true) = not enrolled/unavailable,
+        // Err(false) = user cancelled or other failure.
+        let (tx, rx) = mpsc::channel::<Result<(), bool>>();
 
         unsafe {
             let context: Retained<AnyObject> = msg_send![class!(LAContext), new];
@@ -127,9 +136,28 @@ mod imp {
             // callback fires and ObjC releases its reference.
             let block = RcBlock::new({
                 let tx = tx.clone();
-                move |success: Bool, _error: *mut c_void| {
-                    // Ignore errors; the bool is sufficient for our use-case.
-                    let _ = tx.send(success.as_bool());
+                move |success: Bool, error: *mut c_void| {
+                    let result: Result<(), bool> = if success.as_bool() {
+                        Ok(())
+                    } else {
+                        // Distinguish hardware-unavailable / not-enrolled from
+                        // other failures (user cancel, lockout, etc.).
+                        // LAErrorBiometryNotAvailable = 6
+                        // LAErrorBiometryNotEnrolled  = 7
+                        const LA_ERROR_BIOMETRY_NOT_AVAILABLE: isize = 6;
+                        const LA_ERROR_BIOMETRY_NOT_ENROLLED: isize = 7;
+                        // SAFETY: `error` is a non-null NSError pointer supplied by
+                        // LAContext's reply block. The LAContext framework guarantees it
+                        // is a valid NSError object whenever success is NO.
+                        let code: isize = if error.is_null() {
+                            0
+                        } else {
+                            msg_send![&*(error as *const AnyObject), code]
+                        };
+                        Err(code == LA_ERROR_BIOMETRY_NOT_AVAILABLE
+                            || code == LA_ERROR_BIOMETRY_NOT_ENROLLED)
+                    };
+                    let _ = tx.send(result);
                 }
             });
 
@@ -143,7 +171,8 @@ mod imp {
 
         // Block the calling thread until the sheet resolves.
         match rx.recv() {
-            Ok(true) => Ok(()),
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(true)) => Err("BIOMETRIC_NOT_ENROLLED".to_owned()),
             _ => Err("BIOMETRIC_CANCELLED".to_owned()),
         }
     }
@@ -203,9 +232,11 @@ mod imp {
     /// `SecAccessControlCreateWithFlags` failed (macOS 26 regression:
     /// `errSecParam = -50` for all flag combinations) or if the add ultimately fails.
     ///
-    /// For re-enrollment (an existing AC-protected item), deletes the old entry and
-    /// retries once — `SecItemAdd` requires no prior entry for the given
-    /// service/account key.
+    /// For re-enrollment (an existing AC-protected item), first attempts
+    /// `SecItemUpdate` to replace `kSecValueData` atomically — the old token
+    /// remains valid until the write commits. If `SecItemUpdate` fails (some macOS
+    /// versions disallow in-place value updates on AC-constrained items), falls back
+    /// to deleting the old entry and retrying `SecItemAdd` once.
     ///
     /// Uses `security_framework::access_control::SecAccessControl` for the
     /// high-level creation (which safely wraps the null-pointer check) and
@@ -261,11 +292,38 @@ mod imp {
             return true;
         }
 
-        // Re-enrollment: an AC-protected item already exists for this profile.
-        // SecItemAdd requires no prior entry, so delete the old one and retry.
-        // This delete-and-retry window is tiny (after a successful Touch ID
-        // challenge) and mirrors the approach used by apps like 1Password.
         if status == ERR_SEC_DUPLICATE_ITEM {
+            // Re-enrollment: an AC-protected item already exists for this profile.
+            // Try SecItemUpdate first — it atomically replaces kSecValueData on the
+            // existing biometric-AC item, so the old token remains valid until the
+            // write commits and no window exists where neither token is present.
+            // kSecAttrAccessControl is immutable after creation, so we update only
+            // the data attribute.
+            let update_status = unsafe {
+                let mut query = CFMutableDictionary::<*const c_void, *const c_void>::new();
+                query.add(&kSecClass.to_void(), &kSecClassGenericPassword.to_void());
+                query.add(&kSecAttrService.to_void(), &service_cf.to_void());
+                query.add(&kSecAttrAccount.to_void(), &account_cf.to_void());
+
+                let mut attrs = CFMutableDictionary::<*const c_void, *const c_void>::new();
+                attrs.add(&kSecValueData.to_void(), &data_cf.to_void());
+
+                SecItemUpdate(
+                    query.as_concrete_TypeRef() as *const _,
+                    attrs.as_concrete_TypeRef() as *const _,
+                )
+            };
+            if update_status == errSecSuccess {
+                return true;
+            }
+
+            // SecItemUpdate failed (some AC constraints prevent in-place value
+            // updates). Fall back to delete-and-retry; Touch ID was already
+            // confirmed above, so the window without a valid token is minimal.
+            log::debug!(
+                "SecItemUpdate on biometric-AC item failed (OSStatus {update_status}); \
+                 falling back to delete-and-retry."
+            );
             let _ = delete_generic_password(service, account);
             let retry = sec_item_add();
             if retry == errSecSuccess {

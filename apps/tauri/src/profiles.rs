@@ -500,6 +500,12 @@ impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for ProfileAccess {
     }
 }
 
+/// Delete a profile permanently.
+///
+/// Requires an active session (`scope_id`) and the profile name as `confirmation`.
+/// `proof` is the password if the profile is password-protected. The deletion is
+/// performed in two phases (`begin_delete` / `finish_delete`) so that cleanup
+/// continues even if the renderer reloads mid-operation.
 #[tauri::command]
 pub async fn delete_profile(
     handle: AppHandle,
@@ -563,6 +569,10 @@ pub async fn delete_profile(
 
 // Profile checks hold the registry while they read the keyring, which can wait
 // on an unlock prompt. Sync commands run on the UI thread, so wait elsewhere.
+/// Return the current profile list, active session, and startup status.
+///
+/// Runs on a blocking thread because the registry may read the keychain, which
+/// can block waiting for a system unlock prompt.
 #[tauri::command]
 pub async fn get_profile_state<R: tauri::Runtime>(
     handle: AppHandle<R>,
@@ -589,6 +599,10 @@ fn profile_state<R: tauri::Runtime>(handle: &AppHandle<R>) -> Result<ProfileStat
     })
 }
 
+/// Create a new profile with an optional password.
+///
+/// Returns the new profile summary merged with a `recoveryCode` field (Base32).
+/// The recovery code is shown once at creation time and cannot be retrieved later.
 #[tauri::command]
 pub async fn create_profile(
     state: tauri::State<'_, NativeProfiles>,
@@ -610,6 +624,11 @@ pub async fn create_profile(
     .map_err(|e| e.to_string())?
 }
 
+/// Unlock a profile with an optional password proof and return a `ProfileSession`.
+///
+/// For unprotected profiles `proof` is `None`. For password-protected profiles
+/// `proof` must be the correct password, otherwise `PROFILE_PASSWORD_INVALID` is
+/// returned.
 #[tauri::command]
 pub async fn unlock_profile(
     handle: AppHandle,
@@ -620,6 +639,11 @@ pub async fn unlock_profile(
     state.unlock(&handle, profile_id, proof).await
 }
 
+/// Lock the active profile, revoking the current session.
+///
+/// Pass `preserve_auth: Some(true)` to skip cancelling in-flight auth flows
+/// (used by the Connect sign-in transition). Otherwise all pending auth flows
+/// are cancelled before the lock executes.
 #[tauri::command]
 pub async fn lock_profile(
     handle: AppHandle,
@@ -640,6 +664,10 @@ pub async fn lock_profile(
     result
 }
 
+/// Record UI activity for a session, resetting its idle expiry timer.
+///
+/// Should be called periodically while the user is interacting with the app to
+/// prevent automatic session expiry.
 #[tauri::command]
 pub fn profile_activity(
     state: tauri::State<'_, NativeProfiles>,
@@ -652,6 +680,7 @@ pub fn profile_activity(
         .map_err(|e| e.to_string())
 }
 
+/// Update a profile's display name and avatar. Requires an active session.
 #[tauri::command]
 pub async fn update_profile(
     handle: AppHandle,
@@ -667,6 +696,12 @@ pub async fn update_profile(
         .map_err(|e| e.to_string())
 }
 
+/// Set, change, or remove the password for the active profile.
+///
+/// `proof` is the current password (required when changing or removing an existing
+/// password). `password` is the new password, or `None` to remove protection.
+/// Returns the new recovery code when a password is set, or `None` when removing.
+/// The session is locked after the change so the user re-authenticates.
 #[tauri::command]
 pub async fn set_profile_password(
     handle: AppHandle,
@@ -699,6 +734,11 @@ pub async fn set_profile_password(
     Ok(result)
 }
 
+/// Reset a profile's password using its recovery code.
+///
+/// Does not require an active session. `recovery_code` must match the code shown
+/// at profile creation. Sets `password` as the new password and returns a fresh
+/// recovery code.
 #[tauri::command]
 pub async fn recover_profile_password(
     handle: AppHandle,
@@ -1017,6 +1057,11 @@ fn release_within<R: tauri::Runtime>(handle: &AppHandle<R>, limit: std::time::Du
     }
 }
 
+/// Read or write scoped authentication flow state for the active profile.
+///
+/// `operation` is one of `"set"`, `"get"`, `"validate"`, `"callback"`, or
+/// `"remove"`. Used by the Connect sign-in flow to pass OAuth state through the
+/// IPC boundary without exposing it to the renderer's JS scope.
 #[tauri::command]
 pub fn profile_auth_storage(
     handle: AppHandle,
@@ -1062,6 +1107,10 @@ pub fn profile_auth_storage(
     };
     Ok(result)
 }
+/// Record the OAuth callback URL for a pending Connect sign-in flow.
+///
+/// Called by the deep-link handler when the OAuth provider redirects back to the
+/// app. The captured callback is consumed by `profile_auth_storage("callback", …)`.
 #[tauri::command]
 pub fn capture_profile_auth_callback(
     state: tauri::State<'_, NativeProfiles>,

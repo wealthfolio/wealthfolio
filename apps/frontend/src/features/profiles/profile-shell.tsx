@@ -41,6 +41,9 @@ const MIN_PASSWORD_LENGTH = 4;
 const MAX_PASSWORD_LENGTH = 128;
 const PASSWORD_LENGTH_ERROR = "PROFILE_PASSWORD_LENGTH";
 const BIOMETRIC_NOT_ENROLLED_ERROR = "PROFILE_BIOMETRIC_NOT_ENROLLED";
+// Returned by evaluate_biometric when LAErrorBiometryNotAvailable/NotEnrolled (codes 6 or 7):
+// biometrics are not set up on this Mac. Distinct from the keychain-token-missing case above.
+const BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR = "BIOMETRIC_NOT_ENROLLED";
 // Idle expiry reaches an untouched screen only by the server ending the event
 // stream. Hold it open for every admitted route, not just AppLayout ones.
 const keepEventStreamOpen = () => undefined;
@@ -459,7 +462,15 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         // User dismissed the Touch ID prompt — stay on the unlock screen silently.
         return;
       }
-      if (msg.includes("BIOMETRIC_NOT_ENROLLED")) {
+      if (msg === BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR) {
+        // Hardware biometrics are unavailable (LAErrorBiometryNotAvailable/NotEnrolled).
+        // Treat the same as biometricAvailable === false: show the unavailable message.
+        setError(BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR);
+        return;
+      }
+      if (msg.includes("PROFILE_BIOMETRIC_NOT_ENROLLED")) {
+        // The keychain token for this profile is missing despite a successful
+        // Touch ID challenge — enrolment for this profile was lost.
         setError(BIOMETRIC_NOT_ENROLLED_ERROR);
         return;
       }
@@ -469,6 +480,34 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     if (target) rememberOpeningProfile(target);
     setPhase("opening");
     reloadApplication({ dashboard: intent.current === "switch" });
+  }
+  /**
+   * Recovery flow for biometric-only profiles whose keychain token has been lost.
+   *
+   * Presents a Touch ID challenge to authenticate the user, then disables biometric
+   * lock on the profile (since the token cannot be recovered). Once the profile is
+   * unprotected it is opened immediately without requiring a password or recovery code.
+   */
+  async function restoreWithTouchId() {
+    if (!selected || biometricBusy) return;
+    setBiometricBusy(true);
+    setError("");
+    try {
+      await profileCommand("disable_biometric_lock", {
+        profileId: selected.id,
+        proof: null,
+      });
+    } catch (err) {
+      setBiometricBusy(false);
+      const msg = String(err);
+      if (!msg.includes("BIOMETRIC_CANCELLED")) {
+        setError(msg.replace(/^Error:\s*/, ""));
+      }
+      return;
+    }
+    // Profile is now unprotected — open it. `run` manages the busy state from here.
+    setBiometricBusy(false);
+    void run(() => unlock(selected.id, ""));
   }
   async function deleteProfile(
     confirmation: string,
@@ -1086,9 +1125,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                         defaultValue: "Unlock with Touch ID",
                       })}
                 </Button>
-                {/* biometricAvailable === false means confirmed unavailable (hardware absent
-                    or no fingerprint enrolled). null means still loading or fetch error —
-                    no message yet so the brief loading state doesn't flash an error. */}
+                {/* platformLoadError: getPlatform() failed — biometric availability is unknown. */}
                 {platformLoadError && (
                   <p role="alert" className="text-destructive text-sm">
                     {t("profiles.errors.biometricCheckFailed", {
@@ -1097,26 +1134,56 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                     })}
                   </p>
                 )}
-                {biometricAvailable === false && error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
+                {/* biometricAvailable === false: confirmed unavailable at startup (hardware absent
+                    or no fingerprint enrolled). null: still loading/fetch error — no message yet.
+                    BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR: detected at runtime during an unlock
+                    attempt (fingerprints removed after the page loaded). Both cases show the same
+                    unavailable message. Suppress it when the token-missing error is showing. */}
+                {(biometricAvailable === false ||
+                  error === BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR) &&
+                  error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
+                    <p role="alert" className="text-destructive text-sm">
+                      {t("profiles.errors.biometricUnavailable", {
+                        defaultValue:
+                          "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+                      })}
+                    </p>
+                  )}
+                {/* Token-missing error for a profile that also has a password: tell the user
+                    to use their password instead. */}
+                {error === BIOMETRIC_NOT_ENROLLED_ERROR && selected?.lockEnabled && (
                   <p role="alert" className="text-destructive text-sm">
-                    {t("profiles.errors.biometricUnavailable", {
-                      defaultValue:
-                        "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+                    {t("profiles.errors.biometricNotEnrolled", {
+                      defaultValue: "Touch ID is no longer available. Use your password to unlock.",
                     })}
                   </p>
                 )}
-                {error === BIOMETRIC_NOT_ENROLLED_ERROR && (
-                  <p role="alert" className="text-destructive text-sm">
-                    {selected?.lockEnabled
-                      ? t("profiles.errors.biometricNotEnrolled", {
-                          defaultValue:
-                            "Touch ID is no longer available. Use your password to unlock.",
-                        })
-                      : t("profiles.errors.biometricNotEnrolledNoPassword", {
-                          defaultValue:
-                            "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings.",
-                        })}
-                  </p>
+                {/* Token-missing error for a biometric-only profile: offer a Touch ID–authenticated
+                    recovery that disables biometric lock so the profile can be opened. */}
+                {error === BIOMETRIC_NOT_ENROLLED_ERROR && !selected?.lockEnabled && (
+                  <div className="space-y-2">
+                    <p role="alert" className="text-destructive text-sm">
+                      {t("profiles.errors.biometricNotEnrolledNoPassword", {
+                        defaultValue:
+                          "Touch ID data was lost. Authenticate with Touch ID to restore access to this profile.",
+                      })}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={busy || biometricBusy}
+                      onClick={() => void restoreWithTouchId()}
+                    >
+                      <Icons.Fingerprint className="me-2 size-4" />
+                      {biometricBusy
+                        ? t("profiles.biometricUnlocking", { defaultValue: "Verifying…" })
+                        : t("profiles.restoreWithTouchId", {
+                            defaultValue: "Restore Access with Touch ID",
+                          })}
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

@@ -384,6 +384,7 @@
     "touchIdDisabled": "Unlock this profile with your fingerprint.",
     "disableTouchId": "Disable",
     "enableTouchId": "Enable",
+    "restoreWithTouchId": "Restore Access with Touch ID",
     "connectionFailed": "Connection interrupted",
     "signInAgain": "Sign in again",
     "switch": "Switch profile",
@@ -520,7 +521,7 @@
       "biometricUnavailable": "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
       "biometricStoreFailed": "Could not save the Touch ID token. Make sure the device has a passcode set.",
       "biometricNotEnrolled": "Touch ID is no longer available. Use your password to unlock.",
-      "biometricNotEnrolledNoPassword": "Touch ID is no longer available. Use the Back button and re-enable it in your profile settings."
+      "biometricNotEnrolledNoPassword": "Touch ID data was lost. Authenticate with Touch ID to restore access to this profile."
     }
   },
   "remove": "Remove",
