@@ -378,6 +378,7 @@
     "touchIdDisabled": "지문으로 이 프로필의 잠금을 해제합니다.",
     "disableTouchId": "비활성화",
     "enableTouchId": "활성화",
+    "restoreWithTouchId": "Touch ID로 접근 복원",
     "connectionFailed": "연결이 끊어졌습니다",
     "signInAgain": "다시 로그인",
     "startupFailed": "Wealthfolio를 열 수 없습니다",

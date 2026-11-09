@@ -378,6 +378,7 @@
     "touchIdDisabled": "指紋でこのプロフィールをロック解除します。",
     "disableTouchId": "無効にする",
     "enableTouchId": "有効にする",
+    "restoreWithTouchId": "Touch IDでアクセスを復元",
     "connectionFailed": "接続が中断されました",
     "signInAgain": "再ログイン",
     "startupFailed": "Wealthfolio を開けませんでした",

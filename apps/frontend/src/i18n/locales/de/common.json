@@ -387,6 +387,7 @@
     "touchIdDisabled": "Entsperre dieses Profil mit deinem Fingerabdruck.",
     "disableTouchId": "Deaktivieren",
     "enableTouchId": "Aktivieren",
+    "restoreWithTouchId": "Zugang mit Touch ID wiederherstellen",
     "connectionFailed": "Verbindung unterbrochen",
     "signInAgain": "Erneut anmelden",
     "startupFailed": "Wealthfolio konnte nicht geöffnet werden",

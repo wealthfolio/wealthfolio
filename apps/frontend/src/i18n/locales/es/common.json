@@ -401,6 +401,7 @@
     "touchIdDisabled": "Desbloquea este perfil con tu huella dactilar.",
     "disableTouchId": "Desactivar",
     "enableTouchId": "Activar",
+    "restoreWithTouchId": "Restaurar acceso con Touch ID",
     "connectionFailed": "Conexión interrumpida",
     "signInAgain": "Volver a iniciar sesión",
     "startupFailed": "No se pudo abrir Wealthfolio",

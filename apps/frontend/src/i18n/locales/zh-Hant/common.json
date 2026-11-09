@@ -387,6 +387,7 @@
     "touchIdDisabled": "使用指紋解鎖此個人檔案。",
     "disableTouchId": "停用",
     "enableTouchId": "啟用",
+    "restoreWithTouchId": "使用 Touch ID 恢復存取",
     "connectionFailed": "連線已中斷",
     "signInAgain": "重新登入",
     "startupFailed": "無法開啟 Wealthfolio",

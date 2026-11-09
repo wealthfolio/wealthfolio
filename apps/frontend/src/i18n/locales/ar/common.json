@@ -499,6 +499,7 @@
     "touchIdDisabled": "افتح قفل هذا الملف الشخصي ببصمتك.",
     "disableTouchId": "تعطيل",
     "enableTouchId": "تفعيل",
+    "restoreWithTouchId": "استعادة الوصول باستخدام Touch ID",
     "locking": "جارٍ قفل Wealthfolio…",
     "menuLabel": "قائمة الملف الشخصي لـ {{name}}",
     "name": "الاسم",
