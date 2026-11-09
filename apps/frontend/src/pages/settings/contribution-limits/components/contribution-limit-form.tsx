@@ -387,7 +387,7 @@ export function ContributionLimitForm({
                           }}
                           placeholder={t("settings:limits_form_accounts_search")}
                           aria-label={t("settings:limits_form_accounts_search")}
-                          className="placeholder:text-muted-foreground h-10 w-full bg-transparent ps-9 pe-3 text-sm outline-none"
+                          className="placeholder:text-muted-foreground focus-visible:outline-ring h-10 w-full bg-transparent ps-9 pe-3 text-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
                         />
                       </div>
                     )}
