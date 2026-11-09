@@ -391,10 +391,10 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
 
     let all = summary(&summaries, "ALL");
     assert_eq!(all.total_income, dec!(2610));
-    // 29 months from January 2024 to June 2026.
+    // 30 months from January 2024 through June 2026.
     assert_eq!(
         all.monthly_average,
-        (dec!(2610) / dec!(29)).round_dp(DISPLAY_DECIMAL_PRECISION)
+        (dec!(2610) / dec!(30)).round_dp(DISPLAY_DECIMAL_PRECISION)
     );
     assert_eq!(all.by_type.get("INTEREST"), Some(&dec!(2500)));
     assert_eq!(all.by_type.get("DIVIDEND"), Some(&dec!(110)));
@@ -554,12 +554,84 @@ fn income_counts_toward_its_month_in_the_users_timezone() {
         assert_eq!(months(&summary.by_month), expected);
         assert_eq!(months(&summary.by_account["acc-usd"].by_month), expected);
     }
-    // Five months from January to June 2026, not six from December 2025.
-    assert_eq!(summary(&summaries, "ALL").monthly_average, dec!(40));
+    // Six months from January through June 2026, not seven from December 2025.
+    assert_eq!(
+        summary(&summaries, "ALL").monthly_average,
+        (dec!(200) / dec!(6)).round_dp(DISPLAY_DECIMAL_PRECISION)
+    );
 
     let last_year = summary(&summaries, "LAST_YEAR");
     assert_eq!(last_year.total_income, dec!(0));
     assert!(last_year.by_month.is_empty());
+}
+
+#[test]
+fn every_period_averages_over_its_months_since_the_first_activity() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 10, 17, 12, 0, 0).unwrap());
+    let fx_service = Arc::new(FxService::new(Arc::new(InMemoryFxRepository::new(
+        Vec::new(),
+    ))));
+    fx_service.initialize().unwrap();
+    let averages = |first_activity: &str, income_dates: &[&str]| {
+        let first_activity = NaiveDate::parse_from_str(first_activity, "%Y-%m-%d")
+            .expect("a YYYY-MM-DD date")
+            .and_time(NaiveTime::MIN)
+            .and_utc();
+        let service = IncomeService::new(
+            fx_service.clone(),
+            Arc::new(MockActivityRepository {
+                income: Mutex::new(
+                    income_dates
+                        .iter()
+                        .map(|date| income(date, "INTEREST", "CASH:USD", "USD", dec!(120), "acc"))
+                        .collect(),
+                ),
+                first_activity_date: first_activity,
+            }),
+            Arc::new(RwLock::new("USD".to_string())),
+        );
+        let summaries = service.get_income_summary(None).unwrap();
+        ["ALL", "YTD", "LAST_YEAR", "TWO_YEARS_AGO"]
+            .map(|period| summary(&summaries, period).monthly_average)
+    };
+    let average =
+        |total: Decimal, months: Decimal| (total / months).round_dp(DISPLAY_DECIMAL_PRECISION);
+
+    // First activity on 1 March 2026: All Time and Year to Date both count
+    // the eight months from March through October.
+    assert_eq!(
+        averages("2026-03-01", &["2026-06-15"]),
+        [dec!(15), dec!(15), dec!(0), dec!(0)]
+    );
+    // First activity this month: one month, not none.
+    assert_eq!(
+        averages("2026-10-01", &["2026-10-15"]),
+        [dec!(120), dec!(120), dec!(0), dec!(0)]
+    );
+    // A later day in the current month still counts that month.
+    assert_eq!(
+        averages("2026-10-25", &["2026-10-25"]),
+        [dec!(120), dec!(120), dec!(0), dec!(0)]
+    );
+    // Future months count no elapsed months, even with nonzero income.
+    for first_activity in ["2026-11-01", "2027-01-01"] {
+        assert_eq!(
+            averages(first_activity, &[first_activity]),
+            [dec!(0), dec!(0), dec!(0), dec!(0)]
+        );
+    }
+    // First activity in May 2025: last year counts May through December and
+    // this year the ten months so far.
+    assert_eq!(
+        averages("2025-05-02", &["2025-06-15", "2026-06-15"]),
+        [average(dec!(240), dec!(18)), dec!(12), dec!(15), dec!(0)]
+    );
+    // First activity in March 2024: the year before last counts March through
+    // December, last year all twelve months.
+    assert_eq!(
+        averages("2024-03-01", &["2024-06-15", "2025-06-15", "2026-06-15"]),
+        [average(dec!(360), dec!(32)), dec!(12), dec!(10), dec!(12)]
+    );
 }
 
 #[test]
