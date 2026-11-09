@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import type { Account } from "@/lib/types";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { resetLocalTimeZone } from "@internationalized/date";
 import { Dialog } from "@wealthfolio/ui";
@@ -496,7 +497,7 @@ describe("ContributionLimitForm accounts", () => {
     expect(mocks.updateLimit.mock.calls[0][0].updatedLimit.accountIds).toBe("gone,old");
   });
 
-  it("lists ticked accounts first, counts them, and filters a long list by name", () => {
+  it("lists ticked accounts first, counts them, and filters a long list by name", async () => {
     const many = Array.from({ length: 10 }, (_, index) => ({
       id: `acc-${index}`,
       name: `Account ${String.fromCharCode(65 + index)}`,
@@ -532,5 +533,12 @@ describe("ContributionLimitForm accounts", () => {
       target: { value: "zzz" },
     });
     expect(within(group).getByText("No accounts match your search.")).toBeInTheDocument();
+
+    // Enter in the search field filters; it doesn't save the limit.
+    mocks.updateLimit.mockClear();
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search accounts" }), "{Enter}");
+    await Promise.resolve();
+    expect(mocks.updateLimit).not.toHaveBeenCalled();
+    expect(screen.getByRole("searchbox", { name: "Search accounts" })).toBeInTheDocument();
   });
 });

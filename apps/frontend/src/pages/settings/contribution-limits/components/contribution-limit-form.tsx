@@ -381,6 +381,10 @@ export function ContributionLimitForm({
                           type="search"
                           value={accountSearch}
                           onChange={(event) => setAccountSearch(event.target.value)}
+                          // Enter filters, as typing does; it doesn't save the limit.
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") event.preventDefault();
+                          }}
                           placeholder={t("settings:limits_form_accounts_search")}
                           aria-label={t("settings:limits_form_accounts_search")}
                           className="placeholder:text-muted-foreground h-10 w-full bg-transparent ps-9 pe-3 text-sm outline-none"
