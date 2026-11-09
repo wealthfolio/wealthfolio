@@ -20301,6 +20301,7 @@ pub(crate) mod tests {
                 row("CONVERSION_IN", "fund-b", Some("g-lone")),
                 row("CONVERSION_OUT", "fund-a", Some("g-ab")),
                 row("CONVERSION_IN", "fund-b", Some("g-ab")),
+                row("CONVERSION_OUT", "fund-a", None),
             ])
             .await
             .unwrap();
@@ -20309,13 +20310,318 @@ pub(crate) mod tests {
                 errors
                     .values()
                     .flatten()
-                    .any(|message| message.contains("two rows"))
+                    .any(|message| message.contains("written as a pair"))
             })
         };
         assert!(flagged(&checked[0]) && !checked[0].is_valid);
         assert!(flagged(&checked[1]));
         assert!(!flagged(&checked[2]), "{:?}", checked[2].errors);
         assert!(!flagged(&checked[3]), "{:?}", checked[3].errors);
+        assert!(flagged(&checked[4]) && !checked[4].is_valid);
+    }
+
+    /// A conversion row of an import, for the import check (issue #2452).
+    fn conversion_import(subtype: &str, asset: &str, account: &str, group: &str) -> ActivityImport {
+        serde_json::from_value(json!({
+            "date": "2026-02-03", "symbol": asset, "assetId": asset, "quoteCcy": "USD",
+            "activityType": "ADJUSTMENT", "subtype": subtype, "quantity": "5",
+            "currency": "USD", "accountId": account, "sourceGroupId": group,
+            "isDraft": false, "isValid": true
+        }))
+        .unwrap()
+    }
+
+    fn refused_as_pair(row: &ActivityImport) -> bool {
+        row.errors.as_ref().is_some_and(|errors| {
+            errors
+                .values()
+                .flatten()
+                .any(|message| message.contains("written as a pair"))
+        })
+    }
+
+    fn flagged_conversion(row: &ActivityImport) -> bool {
+        row.errors.as_ref().is_some_and(|errors| {
+            errors
+                .values()
+                .flatten()
+                .any(|message| message.contains("conversion"))
+        })
+    }
+
+    /// The import check refuses what the import refuses: a conversion whose
+    /// group already has rows, in another account too, is flagged on its rows,
+    /// and the rest of the file then imports.
+    #[tokio::test]
+    async fn the_import_check_flags_a_conversion_joining_a_stored_group() {
+        for repeated in [false, true] {
+            let (service, repository) = conversion_fixture();
+            // Stores "out" and "in" in acc-1, group "conv-1".
+            create_conversion(&service).await;
+            let mut rows = vec![
+                conversion_import("CONVERSION_OUT", "fund-a", "acc-2", "conv-1"),
+                conversion_import("CONVERSION_IN", "fund-b", "acc-2", "conv-1"),
+            ];
+            if repeated {
+                rows.extend_from_within(..);
+            }
+            let refused_count = rows.len();
+            rows.extend([
+                conversion_import("CONVERSION_OUT", "fund-a", "acc-2", "g-new"),
+                conversion_import("CONVERSION_IN", "fund-c", "acc-2", "g-new"),
+            ]);
+            let checked = service.check_activities_import(rows).await.unwrap();
+            assert!(
+                checked[..refused_count]
+                    .iter()
+                    .all(|row| refused_as_pair(row) && !row.is_valid),
+                "{checked:?}"
+            );
+            assert!(
+                checked[refused_count..]
+                    .iter()
+                    .all(|row| row.is_valid && !flagged_conversion(row)),
+                "{checked:?}"
+            );
+
+            let kept: Vec<ActivityImport> =
+                checked.into_iter().filter(|row| row.is_valid).collect();
+            let result = service.import_activities(kept).await.unwrap();
+            assert!(result.summary.success, "{:?}", result.activities);
+            assert_eq!(result.summary.imported, 2);
+            assert_eq!(repository.get_activities().unwrap().len(), 4);
+        }
+    }
+
+    /// A stored draft is a row of its group too.
+    #[tokio::test]
+    async fn the_import_check_counts_a_stored_draft_in_a_conversion_group() {
+        let (service, _) = conversion_fixture();
+        let draft = |id: &str, subtype: &str, asset: &str| {
+            let mut row = conversion_row(id, subtype, asset, dec!(5));
+            row.source_group_id = Some("g-draft".into());
+            row.status = Some(ActivityStatus::Draft);
+            row
+        };
+        let created = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    draft("out", "CONVERSION_OUT", "fund-a"),
+                    draft("in", "CONVERSION_IN", "fund-b"),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(created.errors.is_empty(), "{:?}", created.errors);
+
+        let checked = service
+            .check_activities_import(vec![
+                conversion_import("CONVERSION_OUT", "fund-a", "acc-2", "g-draft"),
+                conversion_import("CONVERSION_IN", "fund-b", "acc-2", "g-draft"),
+            ])
+            .await
+            .unwrap();
+        assert!(checked.iter().all(refused_as_pair), "{checked:?}");
+    }
+
+    /// Re-imported rows are duplicates the import skips, so their stored
+    /// group is no refusal; forced, they would join it and are refused.
+    #[tokio::test]
+    async fn the_import_check_follows_the_import_on_a_reimported_conversion() {
+        let (service, repository) = conversion_fixture();
+        let rows = vec![
+            conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-1"),
+            conversion_import("CONVERSION_IN", "fund-b", "acc-1", "g-1"),
+        ];
+        let first = service.import_activities(rows.clone()).await.unwrap();
+        assert_eq!(first.summary.imported, 2, "{:?}", first.activities);
+
+        let checked = service.check_activities_import(rows.clone()).await.unwrap();
+        assert!(
+            checked
+                .iter()
+                .all(|row| row.is_valid && row.duplicate_of_id.is_some()),
+            "{checked:?}"
+        );
+
+        let forced: Vec<ActivityImport> = rows
+            .into_iter()
+            .map(|mut row| {
+                row.force_import = true;
+                row
+            })
+            .collect();
+        let checked = service
+            .check_activities_import(forced.clone())
+            .await
+            .unwrap();
+        assert!(checked.iter().all(refused_as_pair), "{checked:?}");
+        let result = service.import_activities(forced).await.unwrap();
+        assert!(!result.summary.success);
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    /// A conversion repeated in one file imports once: the check leaves the
+    /// repeat to the import's duplicate rule rather than flagging the group.
+    #[tokio::test]
+    async fn the_import_check_leaves_a_conversion_repeated_in_the_file() {
+        let (service, repository) = conversion_fixture();
+        let pair = [
+            conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-1"),
+            conversion_import("CONVERSION_IN", "fund-b", "acc-1", "g-1"),
+        ];
+        let rows: Vec<ActivityImport> = pair.iter().chain(pair.iter()).cloned().collect();
+        let checked = service.check_activities_import(rows).await.unwrap();
+        assert!(
+            !checked.iter().any(flagged_conversion),
+            "{:?}",
+            checked.iter().map(|row| &row.errors).collect::<Vec<_>>()
+        );
+        assert!(checked[2].duplicate_of_line_number.is_some());
+
+        let result = service.import_activities(checked).await.unwrap();
+        assert!(result.summary.success, "{:?}", result.activities);
+        assert_eq!(result.summary.imported, 2);
+        assert_eq!(result.summary.duplicates, 2);
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    /// A file can repair a stored lone row with just its missing counterpart,
+    /// or with both rows: the stored one is skipped as a duplicate.
+    #[tokio::test]
+    async fn the_import_check_allows_a_new_row_to_repair_a_stored_conversion() {
+        for include_duplicate in [true, false] {
+            let (service, repository) = conversion_fixture();
+            let mut stored = create_stored_activity("legacy-out", "acc-1", Some("fund-a"));
+            stored.activity_type = "ADJUSTMENT".into();
+            stored.subtype = Some("CONVERSION_OUT".into());
+            stored.source_group_id = Some("g-repair".into());
+            stored.activity_date = parse_test_activity_datetime("2026-02-03");
+            stored.quantity = Some(dec!(5));
+            stored.unit_price = None;
+            stored.amount = None;
+            stored.idempotency_key =
+                Some(crate::activities::compute_activity_idempotency_key(&stored));
+            repository.add_activity(stored);
+
+            let mut rows = vec![conversion_import(
+                "CONVERSION_IN",
+                "fund-b",
+                "acc-1",
+                "g-repair",
+            )];
+            if include_duplicate {
+                rows.insert(
+                    0,
+                    conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-repair"),
+                );
+            }
+            let checked = service.check_activities_import(rows).await.unwrap();
+            if include_duplicate {
+                assert_eq!(checked[0].duplicate_of_id.as_deref(), Some("legacy-out"));
+            }
+            assert!(
+                checked
+                    .iter()
+                    .all(|row| row.is_valid && !flagged_conversion(row)),
+                "{checked:?}"
+            );
+            let result = service.import_activities(checked).await.unwrap();
+            assert!(result.summary.success, "{:?}", result.activities);
+            assert_eq!(result.summary.imported, 1);
+            assert_eq!(result.summary.duplicates, u32::from(include_duplicate));
+            assert_eq!(repository.get_activities().unwrap().len(), 2);
+        }
+    }
+
+    /// A duplicate marker left by an earlier check is recomputed, not trusted.
+    #[tokio::test]
+    async fn the_import_check_recomputes_stale_conversion_duplicate_markers() {
+        for stored_marker in [false, true] {
+            let (service, repository) = conversion_fixture();
+            let mut row = conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-lone");
+            if stored_marker {
+                row.duplicate_of_id = Some("no-longer-a-duplicate".into());
+            } else {
+                row.duplicate_of_line_number = Some(1);
+            }
+            let checked = service
+                .check_activities_import(vec![row.clone()])
+                .await
+                .unwrap();
+            assert!(refused_as_pair(&checked[0]), "{checked:?}");
+            assert!(checked[0].duplicate_of_id.is_none());
+            assert!(checked[0].duplicate_of_line_number.is_none());
+
+            let result = service.import_activities(vec![row]).await.unwrap();
+            assert!(!result.summary.success);
+            assert!(refused_as_pair(&result.activities[0]));
+            assert!(repository.get_activities().unwrap().is_empty());
+        }
+    }
+
+    /// Rows the caller leaves out for other errors are not rows of a
+    /// conversion: their other row is flagged, and a pair they would have
+    /// joined is not.
+    #[tokio::test]
+    async fn the_import_check_pairs_only_conversion_rows_without_other_errors() {
+        for invalid_case in ["missing-account", "unknown-account", "row-error"] {
+            let (service, _) = conversion_fixture();
+            let invalidate = |mut row: ActivityImport| {
+                match invalid_case {
+                    "missing-account" => row.account_id = None,
+                    "unknown-account" => row.account_id = Some("not-an-account".into()),
+                    _ => {
+                        row.is_valid = false;
+                        row.errors = Some(HashMap::from([(
+                            "quantity".into(),
+                            vec!["Unresolved quantity from the review step".into()],
+                        )]));
+                    }
+                }
+                row
+            };
+            let checked = service
+                .check_activities_import(vec![
+                    conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-broken"),
+                    invalidate(conversion_import(
+                        "CONVERSION_IN",
+                        "fund-b",
+                        "acc-1",
+                        "g-broken",
+                    )),
+                    conversion_import("CONVERSION_OUT", "fund-a", "acc-1", "g-whole"),
+                    conversion_import("CONVERSION_IN", "fund-b", "acc-1", "g-whole"),
+                    invalidate(conversion_import(
+                        "CONVERSION_OUT",
+                        "fund-c",
+                        "acc-1",
+                        "g-whole",
+                    )),
+                ])
+                .await
+                .unwrap();
+            assert!(refused_as_pair(&checked[0]), "{invalid_case}: {checked:?}");
+            for index in [1, 4] {
+                assert!(checked[index]
+                    .errors
+                    .as_ref()
+                    .is_some_and(|errors| !errors.is_empty()));
+                assert!(
+                    !flagged_conversion(&checked[index]),
+                    "{invalid_case}: {checked:?}"
+                );
+            }
+            for index in [2, 3] {
+                assert!(checked[index].is_valid, "{invalid_case}: {checked:?}");
+                assert!(
+                    !flagged_conversion(&checked[index]),
+                    "{invalid_case}: {checked:?}"
+                );
+            }
+        }
     }
 
     /// An imported conversion the write check refuses fails the import as a

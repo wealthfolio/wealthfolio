@@ -3673,54 +3673,70 @@ impl ActivityService {
         }
     }
 
-    /// A conversion is imported as its two rows (rules R7.5). A conversion
-    /// row whose other row is not in the batch is flagged on its row here,
-    /// before the import, which would otherwise refuse the whole batch.
-    fn flag_unpaired_conversion_imports(rows: &mut [ActivityImport]) {
-        let direction = |row: &ActivityImport| {
-            if !row
-                .activity_type
-                .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
-            {
-                return None;
-            }
-            NewActivity::canonicalize_subtype(row.subtype.as_deref()).filter(|subtype| {
-                subtype == ACTIVITY_SUBTYPE_CONVERSION_OUT
-                    || subtype == ACTIVITY_SUBTYPE_CONVERSION_IN
+    /// The import's conversion check (rules R7.5), run by the import check on
+    /// the rows the import would insert: valid rows that are not duplicates,
+    /// unless forced. Their conversions are checked with the stored rows of
+    /// their groups, so a conversion the import would refuse, including a
+    /// conversion row whose other row is neither inserted nor stored, is
+    /// flagged on its rows here instead of failing the whole import.
+    fn flag_refused_conversion_imports(&self, rows: &mut [ActivityImport]) -> Result<()> {
+        let inserted: Vec<usize> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| {
+                row.is_valid
+                    && row.errors.as_ref().is_none_or(HashMap::is_empty)
+                    && !Self::import_skips_as_duplicate(row)
             })
-        };
-        let group = |row: &ActivityImport| {
-            row.source_group_id
-                .as_deref()
-                .map(str::trim)
-                .filter(|group| !group.is_empty())
-                .map(str::to_string)
-        };
-        let mut directions: HashMap<String, Vec<String>> = HashMap::new();
-        for row in rows.iter() {
-            if let (Some(direction), Some(group)) = (direction(row), group(row)) {
-                directions.entry(group).or_default().push(direction);
-            }
-        }
-        for row in rows.iter_mut() {
-            if direction(row).is_none() {
-                continue;
-            }
-            let paired = group(row)
-                .and_then(|group| directions.get(&group))
-                .is_some_and(|found| {
-                    found.len() == 2
-                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_OUT)
-                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_IN)
-                });
-            if !paired {
-                Self::add_activity_error(
-                    row,
-                    "general",
-                    "A conversion is imported as its two rows, CONVERSION_OUT and CONVERSION_IN, sharing one sourceGroupId.",
+            .map(|(index, _)| index)
+            .collect();
+        let creates: Vec<NewActivity> = inserted
+            .iter()
+            .map(|&index| {
+                let mut create = NewActivity::from(rows[index].clone());
+                create.subtype = NewActivity::canonicalize_subtype_for_activity(
+                    &create.activity_type,
+                    create.subtype.as_deref(),
                 );
+                Self::normalize_new_activity_economic_signs(&mut create);
+                create
+            })
+            .collect();
+        let mut refused_keys = HashMap::new();
+        for (offset, message) in self.refused_conversion_imports(&creates)? {
+            let row = &mut rows[inserted[offset]];
+            if let Some(key) = Self::build_import_idempotency_key(
+                row,
+                row.account_id.as_deref().unwrap_or_default(),
+            ) {
+                refused_keys.insert(key, message.clone());
+            }
+            Self::add_activity_error(row, "general", &message);
+        }
+        // Removing a refused row makes its batch copies insertable on import.
+        for row in rows.iter_mut().filter(|row| {
+            row.is_valid
+                && row.errors.as_ref().is_none_or(HashMap::is_empty)
+                && row.duplicate_of_line_number.is_some()
+                && row.duplicate_of_id.is_none()
+        }) {
+            if let Some(message) = Self::build_import_idempotency_key(
+                row,
+                row.account_id.as_deref().unwrap_or_default(),
+            )
+            .and_then(|key| refused_keys.get(&key))
+            {
+                Self::add_activity_error(row, "general", message);
             }
         }
+        Ok(())
+    }
+
+    /// Whether the import skips a checked row as a duplicate: one stored or
+    /// earlier in the batch, and not forced.
+    fn import_skips_as_duplicate(row: &ActivityImport) -> bool {
+        !row.force_import
+            && (row.duplicate_of_id.is_some() || row.duplicate_of_line_number.is_some())
     }
 
     fn add_activity_error(activity: &mut ActivityImport, key: &str, message: &str) {
@@ -5833,6 +5849,9 @@ impl ActivityService {
         let mut activities_with_status: Vec<ActivityImport> = Vec::new();
 
         for mut activity in activities {
+            // Recomputed below: a marker from an earlier check may be stale.
+            activity.duplicate_of_id = None;
+            activity.duplicate_of_line_number = None;
             activity.id = Some(Uuid::new_v4().to_string());
             if activity.account_name.is_none() {
                 activity.account_name = Some(account.name.clone());
@@ -7893,7 +7912,7 @@ impl ActivityServiceTrait for ActivityService {
         }
 
         let mut checked: Vec<ActivityImport> = ordered.into_iter().flatten().collect();
-        Self::flag_unpaired_conversion_imports(&mut checked);
+        self.flag_refused_conversion_imports(&mut checked)?;
         Ok(checked)
     }
 
