@@ -250,6 +250,12 @@
     "filteredNet": "絞り込みの収支"
   },
   "period": {
+    "month": "月",
+    "year": "年",
+    "previousPeriod": "前の期間",
+    "nextPeriod": "次の期間",
+    "previousYears": "過去の年",
+    "nextYears": "以降の年",
     "thisMonth": "今月",
     "mtdShort": "月初来",
     "lastMonth": "先月",
@@ -925,6 +931,11 @@
     "deselectDay": "{{date}}の取引の選択をすべて解除"
   },
   "tabContent": {
+    "comparePriorPeriod": "前の期間と比較",
+    "comparisonDays": "期間内の日",
+    "comparisonWeeks": "期間内の週",
+    "comparisonMonths": "期間内の月",
+    "comparisonDifference": "差額",
     "stageWhereLabel": "現状",
     "stageWhereSub": "ペース・予算・カテゴリ内訳",
     "stageChangedLabel": "変化した点",
@@ -972,6 +983,7 @@
     "fromPriorPeriod": "前期間から",
     "intervalMtd": "今月",
     "intervalLastMonth": "先月",
+    "interval1W": "過去7日間",
     "interval3M": "直近3ヶ月",
     "interval6M": "直近6ヶ月",
     "intervalYtd": "年初来",

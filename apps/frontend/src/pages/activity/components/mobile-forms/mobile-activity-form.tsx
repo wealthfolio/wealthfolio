@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { isConversionActivity } from "../../utils/conversion-counterpart";
 import { ActivityForm } from "../activity-form";
+import { CashActivityReclassification } from "../cash-activity-reclassification";
 import { showValidationToast, type AccountSelectOption } from "../forms/fields";
 import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
 import type { IncomeAmountTypedLast } from "../forms/use-income-amounts";
@@ -1078,6 +1079,11 @@ export function MobileActivityForm({
           {/* The header floats over this scroll area, which starts below it. */}
           <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) overflow-y-auto pt-(--sheet-header-height)">
             <div className="p-4">
+              <CashActivityReclassification
+                activity={activity}
+                onSuccess={onClose}
+                disabled={isLoading}
+              />
               <Form {...form}>
                 <form onSubmit={handleValidatedSubmit} className="flex flex-col">
                   <MobileActivitySteps

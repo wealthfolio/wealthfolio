@@ -182,17 +182,139 @@
   "export_title": "データエクスポート",
   "export_description": "ポートフォリオのバックアップを保存したり、データをエクスポートして別の場所で使ったりできます。",
   "export_tab_backup": "バックアップ",
-  "export_section_description": "分析や外部利用のために、必要なデータをさまざまな形式でエクスポートします。",
-  "export_format_title": "形式を選択",
-  "export_format_csv_description": "シンプルで互換性の高い表計算向け形式",
-  "export_format_json_description": "プログラムから扱いやすい構造化データ",
-  "export_customize_title": "エクスポート内容の設定",
-  "export_type_accounts_description": "登録している口座",
-  "export_type_activities": "取引",
-  "export_type_activities_description": "詳細な取引履歴とログ",
-  "export_type_goals_description": "資産形成の目標と進捗",
-  "export_type_portfolio_history": "ポートフォリオ履歴",
-  "export_type_portfolio_history_description": "評価額、損益、キャッシュフローを含むポートフォリオのパフォーマンス推移。",
+  "data_export": {
+    "intro": "表計算ソフトやほかのアプリで読めるファイルです。Wealthfolioには復元できません。別のデバイスに移行するには、バックアップを使用してください。",
+    "all_title": "すべてのデータをエクスポート",
+    "all_description_csv": "データセットごとのCSVファイルと、その内容を説明するREADMEをまとめた1つのZIPファイルです。",
+    "all_description_json": "各データセットをセクションとして含む1つのJSONファイルです。",
+    "all_info": "目標の予測とローンの返済予定表は毎日変わるため、含まれません。目標またはローンの画面からエクスポートしてください。",
+    "all_info_label": "データエクスポートについて",
+    "all_button": "すべてエクスポート",
+    "all_pending": "エクスポート中…",
+    "format_label": "ファイル形式",
+    "include_archived": "アーカイブ済みの口座を含める",
+    "include_archived_help": "アーカイブ済みの口座を、その取引、ロット、ローン返済とあわせて追加します。",
+    "dates_title": "期間",
+    "start_date": "開始",
+    "end_date": "終了",
+    "dates_help": "取引、売却、価格、評価額、履歴の期間を絞り込みます。空欄にするとすべての日付が対象になります。",
+    "date_order_error": "開始日が終了日より後になっています。",
+    "clear_dates": "日付をクリア",
+    "datasets_title": "エクスポートする内容を選択",
+    "datasets_description": "データセットを1つずつダウンロードします。",
+    "groups": {
+      "accounts": "口座と取引",
+      "investments": "投資",
+      "net-worth": "純資産",
+      "spending": "支出と予算",
+      "planning": "計画",
+      "organization": "整理"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "口座",
+        "description": "口座の一覧と最新の残高（アーカイブ済みの口座は区別して表示）"
+      },
+      "activities": {
+        "name": "取引",
+        "description": "現金残高と支出カテゴリを含むすべての取引"
+      },
+      "holdings": {
+        "name": "保有資産",
+        "description": "評価額、取得原価、損益を含むポジション"
+      },
+      "lots": {
+        "name": "ロット",
+        "description": "取得原価を含む未決済・決済済みのロット"
+      },
+      "realized-gains": {
+        "name": "実現損益",
+        "description": "各売却と、その売却で決済されたロットの対応"
+      },
+      "manual-prices": {
+        "name": "手動価格",
+        "description": "自分で価格を設定する資産について入力した価格"
+      },
+      "income": {
+        "name": "収入",
+        "description": "口座ごとの月別の配当と利息"
+      },
+      "income-by-source": {
+        "name": "収入源別の収入",
+        "description": "保有資産ごとの収入（全期間と年別）"
+      },
+      "assets-and-liabilities": {
+        "name": "資産と負債",
+        "description": "不動産、車両、貴重品、ローン（ローン条件を含む）"
+      },
+      "asset-valuations": {
+        "name": "資産の評価額",
+        "description": "それらの資産と負債について記録したすべての評価額"
+      },
+      "loan-payments": {
+        "name": "ローン返済",
+        "description": "各ローンに紐づく返済"
+      },
+      "net-worth-history": {
+        "name": "純資産の履歴",
+        "description": "日次の純資産：投資、その他の資産、負債"
+      },
+      "portfolio-history": {
+        "name": "ポートフォリオ履歴",
+        "description": "各口座の日次評価額"
+      },
+      "budgets": {
+        "name": "予算",
+        "description": "期間ごとの金額と繰越設定"
+      },
+      "budget-actuals": {
+        "name": "予算と実績の比較",
+        "description": "カテゴリごとの予算、支出、残りを月別に表示"
+      },
+      "budget-groups": {
+        "name": "予算グループ",
+        "description": "グループと各グループのカテゴリ"
+      },
+      "spending-rules": {
+        "name": "分類ルール",
+        "description": "取引を自動的に分類するルール"
+      },
+      "spending-events": {
+        "name": "イベント",
+        "description": "旅行などのイベントと、それぞれの支出額"
+      },
+      "goals": {
+        "name": "目標",
+        "description": "プランの設定、連携口座、進捗"
+      },
+      "contribution-limits": {
+        "name": "拠出上限",
+        "description": "上限と対象の口座"
+      },
+      "portfolios": {
+        "name": "ポートフォリオ",
+        "description": "口座のグループ"
+      },
+      "categories": {
+        "name": "カテゴリ",
+        "description": "支出を含む、すべての分類のすべてのカテゴリ"
+      },
+      "classifications": {
+        "name": "資産の分類",
+        "description": "各資産が属するカテゴリ"
+      }
+    },
+    "rows_one": "{{count}}行",
+    "rows_other": "{{count}}行",
+    "daily": "日次の値",
+    "holdings_today": "現在の保有資産",
+    "none_yet": "まだありません",
+    "download": "{{name}}をダウンロード",
+    "downloading": "{{name}}をダウンロード中…",
+    "summary_error": "データの件数を取得できませんでした。エクスポートは引き続き可能です。",
+    "empty": "このデータセットには、まだエクスポートできるデータがありません。",
+    "empty_all": "まだエクスポートできるデータがありません。"
+  },
   "backup_title": "ローカルバックアップ",
   "backup_export_dialog_title": "バックアップをエクスポート",
   "backup_export_protected": "パスワードあり（推奨）",
@@ -373,9 +495,6 @@
   "about_db_path": "データベースのパス",
   "about_copy_db_path": "データベースのパスをコピー",
   "about_copy_logs_dir": "ログのディレクトリをコピー",
-  "export_type_holdings_description": "評価額、パフォーマンス、資産配分、銘柄情報を含む現在の保有銘柄",
-  "export_exporting_item": "{{name}}をエクスポート中...",
-  "export_export_item": "{{name}}をエクスポート",
   "backup_unknown_date": "日付不明",
   "backup_creating_short": "バックアップを保存中…",
   "backup_empty_title": "バックアップがありません",
@@ -1105,6 +1224,7 @@
   "fx_err_rate_negative": "レートは0以上の数で入力してください。",
   "fx_err_source_required": "データソースは必須です",
   "fx_err_rate_invalid": "有効な為替レートを入力してください。",
+  "fx_err_quote_unit": "{{code}} は {{major}} の補助単位です。代わりに {{major}} のレートを入力してください。",
   "fx_from_currency": "変換元の通貨",
   "fx_to_currency": "変換先の通貨",
   "fx_select_currency": "通貨を選択",
@@ -1246,6 +1366,8 @@
     "scope_locked_title": "「取引 — 確定/書き込み」に必要です",
     "scope_locked_market_data_title": "「市場データ — 書き込み」に必要です",
     "scope_locked_classification_title": "「資産分類 — 適用・書き込み」に必要です",
+    "scope_locked_accounts_title": "「口座 — 書き込み」に必要です",
+    "scope_locked_holdings_title": "「保有銘柄 — 書き込み」に必要です",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "トークン",
     "scope": {
@@ -1308,6 +1430,14 @@
       "budget_write": {
         "label": "予算を管理",
         "description": "デフォルト予算と月別予算、グループ、予備費、繰越を変更します。「支出を表示」が必要です。"
+      },
+      "accounts_write": {
+        "label": "口座 — 書き込み",
+        "description": "口座を作成し、名前、種類、グループ、番号、追跡モード、非表示またはアーカイブの状態を変更します。口座(読み取り)のスコープが必要です。"
+      },
+      "holdings_write": {
+        "label": "保有銘柄 — 書き込み",
+        "description": "保有銘柄を追跡する口座について保有スナップショット(ある日付のポジションと現金)を保存し、代替資産と負債を追加します。保有銘柄と評価額(読み取り)のスコープが必要です。"
       }
     },
     "preset": {
@@ -1547,15 +1677,6 @@
       "addingFailed": "為替レートの追加中に問題が発生しました：{{error}}",
       "deletingFailed": "為替レートの削除中に問題が発生しました：{{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "現在エクスポートできる口座はありません。",
-        "activities": "現在エクスポートできる取引はありません。",
-        "holdings": "現在エクスポートできる保有資産はありません。",
-        "goals": "現在エクスポートできる目標はありません。",
-        "portfolio-history": "現在エクスポートできるポートフォリオ履歴はありません。"
-      }
-    },
     "providerUpdateFailed": "プロバイダー {{provider}} の設定を更新できませんでした",
     "httpFailed": "HTTP リクエストに失敗しました。",
     "addonDownloadFailed": "アドオンをダウンロードできませんでした。",
@@ -1621,6 +1742,8 @@
       "performance_calculateHistory": "パフォーマンス履歴を計算",
       "performance_calculateSummary": "パフォーマンス概要を計算",
       "performance_calculateAccountsSimple": "口座の基本パフォーマンスを計算",
+      "allocation-targets_getAll": "資産配分目標を表示",
+      "allocation-targets_getDrift": "保有資産を配分目標と比較",
       "currency_getAll": "為替レートを表示",
       "currency_update": "為替レートを更新",
       "currency_add": "新しい為替レートを追加",
@@ -1676,6 +1799,10 @@
       "accounts": {
         "name": "口座管理",
         "description": "口座情報と設定へのアクセス"
+      },
+      "allocation-targets": {
+        "name": "資産配分目標",
+        "description": "資産配分目標と、目標に対する保有資産の比較への読み取り専用アクセス"
       },
       "alternative-assets": {
         "name": "代替資産",

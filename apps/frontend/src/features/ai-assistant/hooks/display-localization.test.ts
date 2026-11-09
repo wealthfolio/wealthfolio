@@ -41,8 +41,41 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-describe("localized built-in guidance without changing diagnostics or actions", () => {
-  it("translates every AI error branch with the settings URL and provider details intact", async () => {
+describe("localized built-in guidance and safe backend failures", () => {
+  it.each([
+    ["PROVIDER_RATE_LIMITED", "rateLimit"],
+    ["PROVIDER_AUTH", "authentication"],
+    ["PROVIDER_TIMEOUT", "timeout"],
+  ] as const)(
+    "translates the production provider code without consulting diagnostics (%s)",
+    async (code, key) => {
+      const translator = createInstance();
+      await translator.init({
+        lng: "en",
+        resources: { en: { ai: enAi }, zh: { ai: zhAi }, ar: { ai: arAi } },
+        interpolation: { escapeValue: false },
+      });
+      for (const language of ["en", "zh", "ar"]) {
+        await translator.changeLanguage(language);
+        const settingsLink = `[${translator.t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
+        const text = formatChatError(code, "FAKE-KEY-2531 /private/portfolio.db", translator.t);
+        expect(text).toBe(translator.t(`ai:runtimeErrors.${key}`, { settingsLink }));
+        expect(text).not.toContain("FAKE-KEY");
+        expect(text).not.toContain("/private");
+      }
+    },
+  );
+  it.each([
+    'Provider error with message: {"error":"FAKE-KEY-2531 /private/portfolio.db"}',
+    '"FAKE-KEY-2531" does not support thinking',
+    "model 'FAKE-KEY-2531' not found",
+    "FAKE-KEY-2531 /private/portfolio.db",
+  ])("does not interpolate sensitive provider diagnostics: %s", (message) => {
+    const text = formatErrorMessage(message);
+    expect(text).not.toContain("FAKE-KEY-2531");
+    expect(text).not.toContain("/private");
+  });
+  it("translates AI guidance without displaying raw provider details", async () => {
     const translator = createInstance();
     await translator.init({
       lng: "zh",
@@ -62,11 +95,11 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     for (const [error, title] of cases) {
       expect(formatErrorMessage(error, translator.t)).toContain(`**${title}**`);
     }
-    expect(formatErrorMessage(cases[0][0], translator.t)).toContain("Model-X");
+    expect(formatErrorMessage(cases[0][0], translator.t)).not.toContain("Model-X");
     expect(formatErrorMessage(cases[0][0], translator.t)).toContain(
       "[AI 提供方设置](/settings/ai-providers)",
     );
-    expect(formatErrorMessage(cases[6][0], translator.t)).toContain("Diagnostic XYZ");
+    expect(formatErrorMessage(cases[6][0], translator.t)).not.toContain("Diagnostic XYZ");
     await translator.changeLanguage("ar");
     expect(formatErrorMessage("401", translator.t)).toContain("فشلت المصادقة");
     await translator.changeLanguage("en");

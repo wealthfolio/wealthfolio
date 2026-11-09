@@ -31,6 +31,21 @@ use crate::resolver::ResolverChain;
 const BASE_URL: &str = "https://www.alphavantage.co/query";
 const PROVIDER_ID: &str = "ALPHA_VANTAGE";
 
+// This provider authenticates in the URL. Do not let reqwest's Display or
+// Debug output escape into registry logs, sync state, or API responses.
+fn transport_error(error: reqwest::Error) -> MarketDataError {
+    if error.is_timeout() {
+        MarketDataError::Timeout {
+            provider: PROVIDER_ID.into(),
+        }
+    } else {
+        MarketDataError::ProviderError {
+            provider: PROVIDER_ID.into(),
+            message: "Could not connect to the provider.".into(),
+        }
+    }
+}
+
 /// Alpha Vantage market data provider.
 ///
 /// Supports equities, FX rates, and cryptocurrencies.
@@ -545,23 +560,9 @@ impl AlphaVantageProvider {
             }
         })?;
 
-        debug!(
-            "Alpha Vantage request: {}",
-            url.as_str().replace(&self.api_key, "***")
-        );
+        debug!("Sending Alpha Vantage request");
 
-        let response = self.client.get(url).send().await.map_err(|e| {
-            if e.is_timeout() {
-                MarketDataError::Timeout {
-                    provider: PROVIDER_ID.to_string(),
-                }
-            } else {
-                MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: e.to_string(),
-                }
-            }
-        })?;
+        let response = self.client.get(url).send().await.map_err(transport_error)?;
 
         let status = response.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -580,9 +581,9 @@ impl AlphaVantageProvider {
         response
             .text()
             .await
-            .map_err(|e| MarketDataError::ProviderError {
+            .map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: e.to_string(),
+                message: "Could not read the provider response.".into(),
             })
     }
 
@@ -605,11 +606,13 @@ impl AlphaVantageProvider {
         if let Some(ref msg) = error_message {
             // Check if it's a "not found" type error
             if msg.contains("Invalid API call") || msg.contains("not found") {
-                return Err(MarketDataError::SymbolNotFound(msg.clone()));
+                return Err(MarketDataError::SymbolNotFound(
+                    "Requested symbol was not found.".into(),
+                ));
             }
             return Err(MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: msg.clone(),
+                message: "The provider rejected the request.".into(),
             });
         }
 
@@ -620,7 +623,7 @@ impl AlphaVantageProvider {
                     provider: PROVIDER_ID.to_string(),
                 });
             }
-            warn!("Alpha Vantage note: {}", msg);
+            warn!("Alpha Vantage returned a provider notice");
         }
 
         // "Information" can indicate various issues
@@ -630,7 +633,7 @@ impl AlphaVantageProvider {
                     provider: PROVIDER_ID.to_string(),
                 });
             }
-            warn!("Alpha Vantage info: {}", msg);
+            warn!("Alpha Vantage returned provider information");
         }
 
         Ok(())
@@ -663,9 +666,9 @@ impl AlphaVantageProvider {
 
         let text = self.fetch(&params).await?;
         let response: TimeSeriesResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse response: {}", e),
+                message: "Failed to parse response.".into(),
             })?;
 
         Self::check_api_error(
@@ -738,9 +741,9 @@ impl AlphaVantageProvider {
 
         let text = self.fetch(&params).await?;
         let response: OptionsResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse options response: {}", e),
+                message: "Failed to parse options response.".into(),
             })?;
 
         Self::check_api_error(
@@ -804,9 +807,9 @@ impl AlphaVantageProvider {
 
         let text = self.fetch(&params).await?;
         let response: FxDailyResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse response: {}", e),
+                message: "Failed to parse response.".into(),
             })?;
 
         Self::check_api_error(
@@ -868,9 +871,9 @@ impl AlphaVantageProvider {
 
         let text = self.fetch(&params).await?;
         let response: CryptoDailyResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse response: {}", e),
+                message: "Failed to parse response.".into(),
             })?;
 
         Self::check_api_error(
@@ -938,9 +941,9 @@ impl AlphaVantageProvider {
 
         let text = self.fetch(&params).await?;
         let response: DividendsResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse dividends response: {}", e),
+                message: "Failed to parse dividends response.".into(),
             })?;
 
         Self::check_api_error(
@@ -978,9 +981,9 @@ impl AlphaVantageProvider {
 
         // First try to parse as a valid response
         let response: CompanyOverviewResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse company overview response: {}", e),
+                message: "Failed to parse company overview response.".into(),
             })?;
 
         // Check for API-level errors
@@ -1012,9 +1015,9 @@ impl AlphaVantageProvider {
 
         // Try to parse as ETF profile response
         let response: EtfProfileResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse ETF profile response: {}", e),
+                message: "Failed to parse ETF profile response.".into(),
             })?;
 
         // Check for API-level errors
@@ -1048,9 +1051,9 @@ impl AlphaVantageProvider {
         let text = self.fetch(&params).await?;
 
         let response: SymbolSearchResponse =
-            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+            serde_json::from_str(&text).map_err(|_| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to parse search response: {}", e),
+                message: "Failed to parse search response.".into(),
             })?;
 
         // Check for API-level errors
@@ -1341,6 +1344,40 @@ impl MarketDataProvider for AlphaVantageProvider {
 mod tests {
     use super::*;
     use std::borrow::Cow;
+
+    #[test]
+    fn provider_error_bodies_do_not_escape_into_sync_failures() {
+        let body = Some("Invalid API call: FAKE-KEY-2531 /private/portfolio.db".into());
+        let error = AlphaVantageProvider::check_api_error(&body, &None, &None).unwrap_err();
+        assert!(matches!(error, MarketDataError::SymbolNotFound(_)));
+        assert!(!error.to_string().contains("FAKE-KEY"));
+        assert!(!format!("{error:?}").contains("/private"));
+        let body = Some("FAKE-KEY-2531 /private/portfolio.db".into());
+        let error = AlphaVantageProvider::check_api_error(&body, &None, &None).unwrap_err();
+        assert!(matches!(error, MarketDataError::ProviderError { .. }));
+        assert!(!error.to_string().contains("FAKE-KEY"));
+        assert!(!format!("{error:?}").contains("/private"));
+    }
+
+    #[test]
+    fn transport_errors_do_not_disclose_keys_to_sync_state_or_logs() {
+        let error = wealthfolio_http::client()
+            .get("http://[")
+            .build()
+            .unwrap_err()
+            .with_url(
+                reqwest::Url::parse("https://example.test/query?apikey=FAKE-KEY-2531").unwrap(),
+            );
+        assert!(error.to_string().contains("FAKE-KEY-2531"));
+        let public = transport_error(error);
+        assert_eq!(
+            public.retry_class(),
+            crate::errors::RetryClass::NextProvider
+        );
+        assert!(!public.to_string().contains("FAKE-KEY-2531"));
+        assert!(!format!("{public:?}").contains("FAKE-KEY-2531"));
+        assert!(!public.to_string().contains("example.test"));
+    }
 
     fn create_test_fx_context(
         currency_hint: Option<&'static str>,

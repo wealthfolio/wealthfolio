@@ -868,7 +868,7 @@ async fn a_transient_error_before_any_output_is_retried_once() {
 
 /// A 429 whose `retry-after` header asks for `seconds`.
 fn anthropic_rate_limited(seconds: u64) -> (u16, String) {
-    let body = json!({"type":"error","error":{"type":"rate_limit_error","message":"Rate limited"}});
+    let body = json!({"type":"error","error":{"type":"rate_limit_error","message":"Rate limited: fixture-key /private/portfolio.db"}});
     (429, format!("retry-after: {seconds}\r\n\r\n{body}"))
 }
 
@@ -900,10 +900,26 @@ async fn a_rate_limit_with_a_long_wait_is_not_retried() {
     let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
 
     assert!(stream_error(&events).is_some(), "the turn fails");
+    assert!(events.iter().any(|event| matches!(event, AiStreamEvent::Error { code, message, .. } if code == "PROVIDER_RATE_LIMITED" && !message.contains("fixture-key") && !message.contains("/private"))));
     assert_eq!(
         server.await.unwrap().len(),
         1,
         "no retry before the wait ends"
+    );
+}
+
+#[tokio::test]
+async fn provider_authentication_failure_keeps_its_code_without_private_text() {
+    let body = json!({"type":"error","error":{"type":"authentication_error","message":"fixture-key /private/portfolio.db"}});
+    let (url, server) = serve(vec![(401, body.to_string())]);
+    let env = environment("anthropic", &url);
+    let service = ChatService::new(env, ChatConfig::default());
+    let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
+    assert!(events.iter().any(|event| matches!(event, AiStreamEvent::Error { code, message, .. } if code == "PROVIDER_AUTH" && !message.contains("fixture-key") && !message.contains("/private"))));
+    assert_eq!(
+        server.await.unwrap().len(),
+        1,
+        "authentication failures are not retried"
     );
 }
 
@@ -1037,7 +1053,7 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
         failed += &event(block.clone());
     }
     failed += &event(json!({"type":"error","error":{"type":"overloaded_error",
-        "message":"Overloaded for fixture-key"}}));
+        "message":"Overloaded for fixture-key: /private/portfolio.db account_balance"}}));
     let (url, server) = serve(vec![
         (200, anthropic_reply("tool_use", first, usage.clone(), 1)),
         (200, failed),
@@ -1056,6 +1072,8 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
     .await;
     let shown = stream_error(&events).expect("the turn fails");
     assert!(!shown.contains("fixture-key"), "{shown}");
+    assert!(!shown.contains("/private"), "{shown}");
+    assert!(!shown.contains("account_balance"), "{shown}");
 
     let thread = thread_id(&events);
     let saved = env

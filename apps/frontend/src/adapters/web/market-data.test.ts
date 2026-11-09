@@ -54,20 +54,23 @@ it("posts the global reset exactly once without a selected asset", async () => {
 });
 
 it.each([400, 408, 500, 504])("classifies HTTP %s reset responses", async (status) => {
-  const message =
-    status === 400
-      ? "Asset or provider settings changed during fetching; history was not replaced"
-      : "Reset completion could not be confirmed. Reload quotes before retrying.";
+  const message = "FAKE-KEY-2531 /private/portfolio.db account_balance";
+  const errorCode = status === 400 ? "invalid_input" : "internal_error";
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue(
-        new Response(status === 408 ? null : JSON.stringify({ code: status, message }), { status }),
-      ),
+    vi.fn().mockResolvedValue(
+      new Response(status === 408 ? null : JSON.stringify({ code: status, errorCode, message }), {
+        status,
+      }),
+    ),
   );
-  await expect(invoke("reset_provider_history", { assetId: "asset-1" })).rejects.toMatchObject({
-    ...(status === 408 ? {} : { message }),
+  const error = await invoke("reset_provider_history", { assetId: "asset-1" }).catch(
+    (cause: unknown) => cause,
+  );
+  expect(error).toMatchObject({
+    errorCode,
     outcomeUnknown: status === 408 || status >= 500,
   });
+  expect(String(error)).not.toContain("FAKE-KEY");
+  expect(JSON.stringify(error)).not.toContain("account_balance");
 });

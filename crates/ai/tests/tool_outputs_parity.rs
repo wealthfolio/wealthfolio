@@ -483,6 +483,7 @@ fn classification_env() -> Arc<MockEnvironment> {
                 false,
             ),
         ],
+        ..Default::default()
     });
     env.taxonomy_service = Arc::new(MockTaxonomyService {
         taxonomies: vec![

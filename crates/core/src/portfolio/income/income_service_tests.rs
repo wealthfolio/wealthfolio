@@ -561,3 +561,42 @@ fn income_counts_toward_its_month_in_the_users_timezone() {
     assert_eq!(last_year.total_income, dec!(0));
     assert!(last_year.by_month.is_empty());
 }
+
+#[test]
+fn asset_income_keeps_a_dividend_subtotal() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 6, 15, 12, 0, 0).unwrap());
+
+    let fx_service = FxService::new(Arc::new(InMemoryFxRepository::new(Vec::new())));
+    fx_service.initialize().unwrap();
+
+    let service = IncomeService::new(
+        Arc::new(fx_service),
+        Arc::new(MockActivityRepository {
+            income: Mutex::new(vec![
+                income("2026-02-15", "DIVIDEND", "SAP", "USD", dec!(100), "acc"),
+                income("2026-03-15", "OTHER_INCOME", "SAP", "USD", dec!(5), "acc"),
+                income("2026-04-15", "DIVIDEND", "SAP", "USD", dec!(20), "acc"),
+                income(
+                    "2026-03-15",
+                    "INTEREST",
+                    "CASH:USD",
+                    "USD",
+                    dec!(2500),
+                    "acc",
+                ),
+            ]),
+            first_activity_date: Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap(),
+        }),
+        Arc::new(RwLock::new("USD".to_string())),
+    );
+
+    let summaries = service.get_income_summary(None).unwrap();
+    let all = summary(&summaries, "ALL");
+
+    let sap = all.by_asset.get("SAP").expect("SAP paid income");
+    assert_eq!(sap.income, dec!(125));
+    assert_eq!(sap.dividend_income, dec!(120));
+    let cash = all.by_asset.get("CASH:USD").expect("cash paid interest");
+    assert_eq!(cash.income, dec!(2500));
+    assert_eq!(cash.dividend_income, Decimal::ZERO);
+}

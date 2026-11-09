@@ -79,6 +79,7 @@ import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSettings } from "@/hooks/use-settings";
 import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields/advanced-options-section";
 import { canConvertToTransfer } from "@/pages/activity/components/transfer-link-utils";
+import { CashActivityReclassification } from "@/pages/activity/components/cash-activity-reclassification";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -341,13 +342,16 @@ export function CashActivityForm({
   const transferActionLabel = isCreditCardAccount
     ? t("spending:cashForm.recordPayment")
     : t("spending:cashForm.transferBetween");
-  const activityTypeOptions = useMemo(() => {
+  const activityTypeOptions = useMemo<FormValues["activityType"][]>(() => {
     const options = getActivityTypesForAccount(selectedAccount?.accountType);
     const currentType = activity?.activityType as FormValues["activityType"] | undefined;
     const all = currentType && !options.includes(currentType) ? [...options, currentType] : options;
-    // In creation mode, hide TRANSFER_IN/OUT — user opens the full transfer form via button
-    if (!isEditing) return all.filter((t) => t !== "TRANSFER_IN" && t !== "TRANSFER_OUT");
-    return all;
+    // Transfer reclassification uses the separate action so the ordinary save
+    // cannot bypass confirmation or resubmit rounded amounts and timestamps.
+    if (isEditing && (currentType === "TRANSFER_IN" || currentType === "TRANSFER_OUT")) {
+      return [currentType];
+    }
+    return all.filter((t) => t !== "TRANSFER_IN" && t !== "TRANSFER_OUT");
   }, [activity?.activityType, isEditing, selectedAccount?.accountType]);
   const mobileTypeOptions = useMemo(
     () =>
@@ -728,6 +732,14 @@ export function CashActivityForm({
       </FormItem>
     ) : null;
 
+  const reclassificationField = (
+    <CashActivityReclassification
+      activity={activity}
+      onSuccess={() => onOpenChange(false)}
+      disabled={saveMutation.isPending}
+    />
+  );
+
   const transferCard = onTransferClick ? (
     <button
       type="button"
@@ -799,6 +811,10 @@ export function CashActivityForm({
         const currentParentLabel = currentParent
           ? getCategoryLabel(t, currentParent.taxonomyId, currentParent.id, currentParent.name)
           : "";
+        const neutralLabel =
+          watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
+            ? t("spending:cashForm.neutralTransfer")
+            : t("spending:transactions.neutral");
         return (
           <FormItem className={cn(isMobile && "gap-0")}>
             {" "}
@@ -822,9 +838,8 @@ export function CashActivityForm({
                 )}
               >
                 {isMobile && <FormRowLabel>{t("spending:filters.category")}</FormRowLabel>}
-                {watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
-                  ? t("spending:cashForm.neutralTransfer")
-                  : t("spending:transactions.neutral")}
+                {/* On a phone the value sits at the row's end, like the other rows'. */}
+                {isMobile ? <FormRowValue>{neutralLabel}</FormRowValue> : neutralLabel}
               </div>
             ) : (
               <QuickCategorizePopover
@@ -1041,6 +1056,7 @@ export function CashActivityForm({
 
   const desktopFields = (
     <div className="space-y-4">
+      {reclassificationField}
       {isQuickEntry && amountField}
       {showChoiceFields && (
         <>
@@ -1093,6 +1109,7 @@ export function CashActivityForm({
   // sheet; currency and FX sit behind one row instead of a collapsible box.
   const mobileFields = (
     <div className="space-y-4 p-4">
+      {reclassificationField}
       {(isQuickEntry || showDetailsFields) && amountHero}
       {showChoiceFields && isMobileCreate && !isQuickEntry ? (
         <>

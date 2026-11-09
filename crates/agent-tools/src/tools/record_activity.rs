@@ -14,6 +14,7 @@ use wealthfolio_core::activities::{
     ACTIVITY_TYPE_TAX, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
     ACTIVITY_TYPE_UNKNOWN, ACTIVITY_TYPE_WITHDRAWAL,
 };
+use wealthfolio_core::quotes::search_result_matches_query;
 
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -34,6 +35,10 @@ pub struct RecordActivityArgs {
 
     /// Symbol (e.g., "AAPL", "BTC"). Required for trading activities.
     pub symbol: Option<String>,
+
+    /// Exchange MIC that pins which listing of `symbol` is meant, e.g. the
+    /// `exchangeMic` of a symbol candidate.
+    pub exchange_mic: Option<String>,
 
     /// ISO 8601 date (e.g., "2026-01-17"). LLM converts "yesterday" to ISO.
     pub activity_date: String,
@@ -87,6 +92,10 @@ pub struct RecordActivityOutput {
 
     /// Resolved asset info (if symbol provided and resolved).
     pub resolved_asset: Option<ResolvedAsset>,
+
+    /// Search results for a symbol that matched none of them exactly.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbol_candidates: Vec<ResolvedAsset>,
 
     /// Available subtypes for this activity type (for dropdown).
     pub available_subtypes: Vec<SubtypeOption>,
@@ -230,6 +239,46 @@ const ACTIVITY_TYPES: &[&str] = &[
     ACTIVITY_TYPE_UNKNOWN,
 ];
 
+/// Most search results listed for a symbol with no exact match.
+const MAX_SYMBOL_CANDIDATES: usize = 5;
+
+/// Take the first search result that is exactly the instrument `symbol` names,
+/// on `exchange_mic` when given. With none, return up to
+/// [`MAX_SYMBOL_CANDIDATES`] results to choose from: the search also returns
+/// substring hits on symbols and names, so its top result is not an answer on
+/// its own.
+fn resolve_symbol_from_search(
+    results: &[wealthfolio_core::quotes::SymbolSearchResult],
+    symbol: &str,
+    exchange_mic: Option<&str>,
+    fallback_currency: &str,
+) -> (Option<ResolvedAsset>, Vec<ResolvedAsset>) {
+    let on_exchange = |result: &wealthfolio_core::quotes::SymbolSearchResult| {
+        exchange_mic.is_none_or(|expected| {
+            result
+                .canonical_exchange_mic
+                .as_deref()
+                .or(result.exchange_mic.as_deref())
+                .is_some_and(|mic| mic.eq_ignore_ascii_case(expected))
+        })
+    };
+    if let Some(exact) = results
+        .iter()
+        .find(|result| on_exchange(result) && search_result_matches_query(result, symbol))
+    {
+        return (
+            Some(resolved_asset_from_search_result(exact, fallback_currency)),
+            Vec::new(),
+        );
+    }
+    let candidates = results
+        .iter()
+        .take(MAX_SYMBOL_CANDIDATES)
+        .map(|result| resolved_asset_from_search_result(result, fallback_currency))
+        .collect();
+    (None, candidates)
+}
+
 fn resolved_asset_from_search_result(
     result: &wealthfolio_core::quotes::SymbolSearchResult,
     fallback_currency: &str,
@@ -323,6 +372,10 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
                 "type": "string",
                 "description": "Symbol or ticker (e.g., 'AAPL', 'BTC', 'VTI'). Required for BUY/SELL/DIVIDEND/SPLIT and asset-backed income subtypes like DRIP, DIVIDEND_IN_KIND, and STAKING_REWARD"
             },
+            "exchangeMic": {
+                "type": "string",
+                "description": "Exchange MIC that picks one listing of the symbol (e.g. 'XTSE'). Pass the exchangeMic of the symbolCandidates entry the user chose, with its symbol"
+            },
             "activityDate": {
                 "type": "string",
                 "description": "Concrete ISO 8601 date only, e.g. '2026-01-17'. Do not pass relative phrases like 'yesterday', 'today', 'last Friday', or 'next Monday'. Resolve them relative to the current local date before calling this tool."
@@ -388,10 +441,15 @@ const RECORD_ACTIVITY_DESCRIPTION: &str = "Record investment transactions from n
     \n- If MULTIPLE accounts exist and the user didn't specify, ASK first — do NOT \
     call this tool with an empty account just to show the picker. \
     \n\nSYMBOL HANDLING: pass whatever the user wrote (ticker, company name, or \
-    freeform like \"my rental property\") VERBATIM. The backend resolves names to \
-    tickers and marks unresolvable symbols as custom assets. Do NOT hand-convert \
-    names to tickers — models routinely hallucinate or use stale tickers (e.g. \
-    \"Facebook\" is now META, not FB). \
+    freeform like \"my rental property\") VERBATIM. The backend takes a listing only \
+    when it matches exactly: the ticker, a ticker with its exchange suffix (e.g. \
+    VOD.L), or an ISIN. Otherwise it marks the symbol as a custom asset and, when \
+    the search found anything, lists `symbolCandidates` with a validation error: \
+    call again with the symbol and exchangeMic of the candidate the user meant, \
+    or ask the user. \
+    Do NOT hand-convert names to tickers — models routinely hallucinate or use \
+    stale tickers (e.g. \"Facebook\" is now META, not FB); take them from \
+    `symbolCandidates`. \
     \n\nSUBTYPES: \"reinvested dividend\" → DRIP, \"dividend in kind\"/\"spinoff\" → \
     DIVIDEND_IN_KIND, \"staking reward\" → STAKING_REWARD, \"bonus\"/\"promo credit\" \
     → BONUS. \
@@ -477,6 +535,7 @@ impl RecordActivity {
             .unwrap_or_else(|| env.base_currency());
 
         // 4. Handle symbol/asset resolution using quote_service
+        let mut symbol_candidates = Vec::new();
         let (resolved_asset, asset_id, asset_name, is_custom_asset) =
             if let Some(symbol) = &args.symbol {
                 // Search for the symbol using quote_service
@@ -486,9 +545,17 @@ impl RecordActivity {
                     .await
                     .unwrap_or_default();
 
-                if let Some(top_result) = search_results.first() {
-                    // Found a match - use the top result
-                    let asset = resolved_asset_from_search_result(top_result, &currency);
+                let (exact, candidates) = resolve_symbol_from_search(
+                    &search_results,
+                    symbol,
+                    args.exchange_mic
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|mic| !mic.is_empty()),
+                    &currency,
+                );
+                symbol_candidates = candidates;
+                if let Some(asset) = exact {
                     (
                         Some(asset.clone()),
                         Some(asset.asset_id.clone()),
@@ -496,7 +563,7 @@ impl RecordActivity {
                         false,
                     )
                 } else {
-                    // No match found - treat as custom asset
+                    // No exact match - treat as custom asset
                     (
                         None,
                         None,
@@ -590,6 +657,17 @@ impl RecordActivity {
                 message,
             });
         }
+        if !symbol_candidates.is_empty() {
+            validation.errors.push(ValidationError {
+                field: "symbol".to_string(),
+                message: format!(
+                    "No listing matches '{}' exactly. Use the symbol and exchangeMic of one \
+                     of symbolCandidates, a ticker with its exchange suffix (e.g. VOD.L), or \
+                     an ISIN",
+                    args.symbol.as_deref().unwrap_or_default().trim()
+                ),
+            });
+        }
         // A rate only converts between two currencies.
         if draft.fx_rate.is_some() && account_currency.as_deref() == Some(draft.currency.as_str()) {
             validation.errors.push(ValidationError {
@@ -611,6 +689,7 @@ impl RecordActivity {
             validation,
             available_accounts,
             resolved_asset,
+            symbol_candidates,
             available_subtypes,
         })
     }
@@ -872,6 +951,87 @@ mod tests {
         assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(asset.provider_symbol.as_deref(), Some("ABC.ZZ"));
+    }
+
+    fn search_result(
+        symbol: &str,
+        canonical: &str,
+        mic: &str,
+        existing_id: Option<&str>,
+    ) -> wealthfolio_core::quotes::SymbolSearchResult {
+        wealthfolio_core::quotes::SymbolSearchResult {
+            symbol: symbol.to_string(),
+            canonical_symbol: Some(canonical.to_string()),
+            canonical_exchange_mic: Some(mic.to_string()),
+            exchange_mic: Some(mic.to_string()),
+            long_name: format!("{canonical} Inc."),
+            is_existing: existing_id.is_some(),
+            existing_asset_id: existing_id.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    /// #2405: "A" found an existing holding by substring and drafted the trade
+    /// against it. Only an exact match resolves; the rest become candidates.
+    #[test]
+    fn symbol_without_exact_match_lists_candidates() {
+        let results = vec![
+            search_result("RELIANCE.NS", "RELIANCE", "XNSE", Some("reliance")),
+            search_result("TATA.NS", "TATA", "XNSE", Some("tata")),
+        ];
+
+        let (resolved, candidates) = resolve_symbol_from_search(&results, "A", None, "INR");
+
+        assert!(resolved.is_none());
+        let ids: Vec<_> = candidates.iter().map(|c| c.asset_id.as_str()).collect();
+        assert_eq!(ids, ["reliance", "tata"]);
+    }
+
+    #[test]
+    fn exact_match_resolves_even_when_not_first() {
+        let results = vec![
+            search_result("RELIANCE.NS", "RELIANCE", "XNSE", Some("reliance")),
+            search_result("A", "A", "XNYS", None),
+        ];
+
+        let (resolved, candidates) = resolve_symbol_from_search(&results, "a", None, "USD");
+
+        let resolved = resolved.expect("exact symbol resolves");
+        assert_eq!(resolved.symbol, "A");
+        assert_eq!(resolved.exchange_mic.as_deref(), Some("XNYS"));
+        assert!(candidates.is_empty());
+    }
+
+    /// A candidate is picked again by its symbol and exchange: the same ticker
+    /// already held on another exchange ranks first and must not take it.
+    #[test]
+    fn exchange_mic_picks_the_candidate_listing() {
+        let results = vec![
+            search_result("SHOP", "SHOP", "XNYS", Some("shop-nyse")),
+            search_result("SHOP.TO", "SHOP", "XTSE", None),
+        ];
+
+        let (held, _) = resolve_symbol_from_search(&results, "SHOP", None, "CAD");
+        let (picked, _) = resolve_symbol_from_search(&results, "SHOP", Some("xtse"), "CAD");
+        let (missing, candidates) =
+            resolve_symbol_from_search(&results, "SHOP", Some("XLON"), "CAD");
+
+        assert_eq!(held.unwrap().asset_id, "shop-nyse");
+        assert_eq!(picked.unwrap().exchange_mic.as_deref(), Some("XTSE"));
+        assert!(missing.is_none());
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn candidates_are_capped() {
+        let results: Vec<_> = (0..8)
+            .map(|i| search_result(&format!("X{i}"), &format!("X{i}"), "XNYS", None))
+            .collect();
+
+        let (resolved, candidates) = resolve_symbol_from_search(&results, "Y", None, "USD");
+
+        assert!(resolved.is_none());
+        assert_eq!(candidates.len(), MAX_SYMBOL_CANDIDATES);
     }
 
     #[test]

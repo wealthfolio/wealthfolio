@@ -11,8 +11,9 @@ use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
     ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
-    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-    ParseConfig, ParsedCsvResult, TransferMatchCandidate, TransferMatchCandidateRequest,
+    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse,
+    LinkTransferPairsResult, NewActivity, ParseConfig, ParsedCsvResult, TransferMatchCandidate,
+    TransferMatchCandidateRequest, TransferMatchReview, TransferPairLinkRequest,
 };
 use wealthfolio_core::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default,
@@ -211,6 +212,14 @@ async fn find_transfer_match_candidates(
     Ok(Json(candidates))
 }
 
+async fn review_transfer_matches(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<TransferMatchReview>> {
+    Ok(Json(
+        state.activity_service.review_transfer_matches().await?,
+    ))
+}
+
 async fn save_internal_transfer_pair(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(request): Json<InternalTransferPairRequest>,
@@ -265,6 +274,26 @@ async fn link_transfer_activities(
     state.health_service.clear_cache().await;
     // Domain events handle portfolio recalculation
     Ok(Json(pair))
+}
+
+#[derive(serde::Deserialize)]
+struct LinkTransferPairsBody {
+    pairs: Vec<TransferPairLinkRequest>,
+}
+
+async fn link_transfer_pairs(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<LinkTransferPairsBody>,
+) -> ApiResult<Json<LinkTransferPairsResult>> {
+    let result = state
+        .activity_service
+        .link_transfer_pairs(body.pairs)
+        .await?;
+    if !result.linked.is_empty() {
+        state.health_service.clear_cache().await;
+    }
+    // Domain events handle portfolio recalculation
+    Ok(Json(result))
 }
 
 async fn unlink_transfer_activities(
@@ -536,7 +565,9 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             "/activities/transfer-match-candidates",
             post(find_transfer_match_candidates),
         )
+        .route("/activities/transfer-review", get(review_transfer_matches))
         .route("/activities/link", post(link_transfer_activities))
+        .route("/activities/link-pairs", post(link_transfer_pairs))
         .route("/activities/unlink", post(unlink_transfer_activities))
         .route(
             "/activities/import/check",

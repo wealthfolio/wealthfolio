@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}} 수익률",
+  "currentValue": "현재 가치",
   "app_name": "Wealthfolio",
   "welcome": "환영합니다",
   "loading": "로딩 중...",
@@ -687,5 +689,19 @@
     "accountCurrency": "통화를 선택해 주세요.",
     "creditCardTracking": "신용카드 계좌는 보유 자산 추적 모드를 사용할 수 없습니다.",
     "creditCardBillingDays": "마감일과 결제일은 1부터 31까지의 정수여야 합니다."
+  },
+  "backendErrors": {
+    "internal": "작업을 완료할 수 없습니다.",
+    "invalidInput": "입력 내용을 확인하고 다시 시도하세요.",
+    "conflict": "변경 내용이 기존 데이터와 충돌합니다.",
+    "notFound": "요청한 항목을 찾을 수 없습니다.",
+    "unauthorized": "계속하려면 로그인하세요.",
+    "forbidden": "허용되지 않는 작업입니다.",
+    "unavailable": "이 작업을 사용할 수 없습니다.",
+    "providerKeyMissing": "설정에서 이 제공업체의 API 키를 추가하세요.",
+    "providerUnknown": "지원되는 제공업체를 선택하세요.",
+    "providerUnavailable": "제공업체가 요청을 완료하지 못했습니다. 제공업체 설정을 확인하세요.",
+    "customProviderCodeReserved": "이 공급자 코드는 예약되어 있습니다. 다른 코드를 선택하세요.",
+    "customProviderInUse": "삭제하기 전에 해당 자산의 공급자를 변경하거나 심볼 매핑을 제거하세요."
   }
 }

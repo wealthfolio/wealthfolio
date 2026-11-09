@@ -65,6 +65,26 @@ impl From<wealthfolio_agent_tools::AgentToolError> for AiError {
 }
 
 impl AiError {
+    pub fn public_error(&self) -> wealthfolio_core::errors::PublicError {
+        use wealthfolio_core::errors::PublicError;
+        match self {
+            Self::Core(error) => error.public_error(),
+            Self::InvalidInput(_) | Self::InvalidCursor(_) => PublicError::invalid_input(),
+            Self::MissingApiKey(_) => PublicError::new(
+                "provider_key_missing",
+                "Add an API key for this provider in Settings.",
+            ),
+            Self::Provider(_) => PublicError::provider_unavailable(),
+            Self::ThreadNotFound(_) => {
+                PublicError::new("not_found", "The requested item was not found.")
+            }
+            Self::ToolNotAllowed(_) => {
+                PublicError::new("forbidden", "This operation is not allowed.")
+            }
+            _ => PublicError::internal(),
+        }
+    }
+
     /// Create a new invalid input error.
     pub fn invalid_input(msg: impl Into<String>) -> Self {
         Self::InvalidInput(msg.into())

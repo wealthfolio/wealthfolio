@@ -47,18 +47,14 @@ pub async fn reset_provider_history(
     let context = state
         .context()
         .map_err(ResetProviderHistoryError::rejected)?;
-    // The owned task finishes commit and event delivery even if its caller disconnects.
+    // The owned task finishes commit and event delivery (the quote service
+    // emits after the reset) even if its caller disconnects.
     tauri::async_runtime::spawn(async move {
-        let result = context
+        context
             .quote_service()
             .reset_provider_history(&asset_id)
-            .await;
-        if result.is_ok() {
-            context
-                .domain_event_sink
-                .emit(DomainEvent::PriceHistoryChanged);
-        }
-        result.map_err(ResetProviderHistoryError::rejected)
+            .await
+            .map_err(ResetProviderHistoryError::rejected)
     })
     .await
     .map_err(|_| ResetProviderHistoryError::completion_unknown())?
@@ -72,16 +68,11 @@ pub async fn reset_all_provider_history(
         .context()
         .map_err(ResetProviderHistoryError::rejected)?;
     tauri::async_runtime::spawn(async move {
-        let result = context.quote_service().reset_all_provider_history().await;
-        if result
-            .as_ref()
-            .is_ok_and(|result| !result.results.is_empty())
-        {
-            context
-                .domain_event_sink
-                .emit(DomainEvent::PriceHistoryChanged);
-        }
-        result.map_err(ResetProviderHistoryError::rejected)
+        context
+            .quote_service()
+            .reset_all_provider_history()
+            .await
+            .map_err(ResetProviderHistoryError::rejected)
     })
     .await
     .map_err(|_| ResetProviderHistoryError::completion_unknown())?

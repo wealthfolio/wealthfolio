@@ -14,7 +14,7 @@ import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { Dialog, DialogContent, DialogTrigger } from "@wealthfolio/ui/components/ui/dialog";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { AddExchangeRateForm } from "./add-exchange-rate-form";
@@ -35,121 +35,131 @@ export function ExchangeRatesSettings() {
   } = useExchangeRates();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const columns: ColumnDef<ExchangeRate>[] = [
-    {
-      accessorKey: "fromCurrency",
-      header: t("settings:fx_col_from"),
-      enableHiding: false,
-      cell: ({ row }) => (
-        <div>
-          <div>{row.original.fromCurrency}</div>
-          <div className="text-muted-foreground text-xs">{row.original.fromCurrencyName}</div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "toCurrency",
-      header: t("settings:fx_col_to"),
-      enableHiding: false,
-      cell: ({ row }) => (
-        <div>
-          <div>{row.original.toCurrency}</div>
-          <div className="text-muted-foreground text-xs">{row.original.toCurrencyName}</div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "source",
-      header: t("settings:fx_col_source"),
-      enableHiding: false,
-      cell: ({ row }) => {
-        const source = row.original.source;
-        if (source.startsWith("CUSTOM_SCRAPER:")) {
-          const code = source.slice("CUSTOM_SCRAPER:".length);
-          return <span className="capitalize">{code}</span>;
-        }
-        const names: Record<string, string> = {
-          YAHOO: "Yahoo Finance",
-          ALPHA_VANTAGE: "Alpha Vantage",
-          MANUAL: t("settings:fx_source_manual"),
-          CUSTOM_SCRAPER: t("settings:fx_source_custom"),
-          CUSTOMSCRAPER: t("settings:fx_source_custom"),
-        };
-        return <span>{names[source] ?? source}</span>;
+  // The table renders each `cell` as a component, so new cell functions on every
+  // render would remount the rows and close a rate being edited when queries refetch.
+  // Rows are keyed by position: the stateful cells take the rate's id as their key, so
+  // an open edit or delete never carries over to a pair that a refetch moves into its row.
+  const columns = useMemo<ColumnDef<ExchangeRate>[]>(
+    () => [
+      {
+        accessorKey: "fromCurrency",
+        header: t("settings:fx_col_from"),
+        enableHiding: false,
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.fromCurrency}</div>
+            <div className="text-muted-foreground text-xs">{row.original.fromCurrencyName}</div>
+          </div>
+        ),
       },
-    },
-    {
-      accessorKey: "rate",
-      header: t("settings:fx_col_rate"),
-      enableHiding: false,
-      cell: ({ row }) => <RateCell rate={row.original} onUpdate={updateExchangeRate} />,
-      size: 180,
-    },
-    {
-      accessorKey: "updatedAt",
-      header: t("settings:fx_col_updated"),
-      enableHiding: false,
-      cell: ({ row }) => (
-        <div className="text-muted-foreground text-sm">
-          {formatDate(row.original.timestamp, dateFormatting)}
-        </div>
-      ),
-    },
-    {
-      id: "history",
-      enableHiding: false,
-      cell: ({ row }) => (
-        <Link
-          to={`/holdings/${encodeURIComponent(row.original.id)}`}
-          className="flex items-center justify-center"
-        >
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Icons.Clock className="h-4 w-4" />
-            <span className="sr-only">{t("settings:fx_view_history")}</span>
-          </Button>
-        </Link>
-      ),
-    },
-    {
-      id: "actions",
-      enableHiding: false,
-      cell: ({ row }) => {
-        const rate = row.original;
-        const currencyPair = `${rate.fromCurrency}/${rate.toCurrency}`;
+      {
+        accessorKey: "toCurrency",
+        header: t("settings:fx_col_to"),
+        enableHiding: false,
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.toCurrency}</div>
+            <div className="text-muted-foreground text-xs">{row.original.toCurrencyName}</div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "source",
+        header: t("settings:fx_col_source"),
+        enableHiding: false,
+        cell: ({ row }) => {
+          const source = row.original.source;
+          if (source.startsWith("CUSTOM_SCRAPER:")) {
+            const code = source.slice("CUSTOM_SCRAPER:".length);
+            return <span className="capitalize">{code}</span>;
+          }
+          const names: Record<string, string> = {
+            YAHOO: "Yahoo Finance",
+            ALPHA_VANTAGE: "Alpha Vantage",
+            MANUAL: t("settings:fx_source_manual"),
+            CUSTOM_SCRAPER: t("settings:fx_source_custom"),
+            CUSTOMSCRAPER: t("settings:fx_source_custom"),
+          };
+          return <span>{names[source] ?? source}</span>;
+        },
+      },
+      {
+        accessorKey: "rate",
+        header: t("settings:fx_col_rate"),
+        enableHiding: false,
+        cell: ({ row }) => (
+          <RateCell key={row.original.id} rate={row.original} onUpdate={updateExchangeRate} />
+        ),
+        size: 180,
+      },
+      {
+        accessorKey: "updatedAt",
+        header: t("settings:fx_col_updated"),
+        enableHiding: false,
+        cell: ({ row }) => (
+          <div className="text-muted-foreground text-sm">
+            {formatDate(row.original.timestamp, dateFormatting)}
+          </div>
+        ),
+      },
+      {
+        id: "history",
+        enableHiding: false,
+        cell: ({ row }) => (
+          <Link
+            to={`/holdings/${encodeURIComponent(row.original.id)}`}
+            className="flex items-center justify-center"
+          >
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Icons.Clock className="h-4 w-4" />
+              <span className="sr-only">{t("settings:fx_view_history")}</span>
+            </Button>
+          </Link>
+        ),
+      },
+      {
+        id: "actions",
+        enableHiding: false,
+        cell: ({ row }) => {
+          const rate = row.original;
+          const currencyPair = `${rate.fromCurrency}/${rate.toCurrency}`;
 
-        return (
-          <ActionConfirm
-            confirmTitle={t("settings:fx_delete_title")}
-            confirmMessage={
-              <>
-                <p className="mb-2">
-                  <Trans
-                    i18nKey="settings:fx_delete_confirm"
-                    values={{ pair: currencyPair }}
-                    components={{ b: <strong /> }}
-                  />
-                </p>
-                <p className="text-warning text-xs">
-                  <Icons.AlertTriangle className="me-1 inline h-3 w-3" />
-                  {t("settings:fx_delete_warning", { currency: rate.fromCurrency })}
-                </p>
-              </>
-            }
-            handleConfirm={() => deleteExchangeRate(rate.id)}
-            isPending={isDeletingRate}
-            confirmButtonText={t("common:delete")}
-            confirmButtonVariant="destructive"
-            button={
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Icons.Trash className="h-4 w-4" />
-                <span className="sr-only">{t("common:delete")}</span>
-              </Button>
-            }
-          />
-        );
+          return (
+            <ActionConfirm
+              key={rate.id}
+              confirmTitle={t("settings:fx_delete_title")}
+              confirmMessage={
+                <>
+                  <p className="mb-2">
+                    <Trans
+                      i18nKey="settings:fx_delete_confirm"
+                      values={{ pair: currencyPair }}
+                      components={{ b: <strong /> }}
+                    />
+                  </p>
+                  <p className="text-warning text-xs">
+                    <Icons.AlertTriangle className="me-1 inline h-3 w-3" />
+                    {t("settings:fx_delete_warning", { currency: rate.fromCurrency })}
+                  </p>
+                </>
+              }
+              handleConfirm={() => deleteExchangeRate(rate.id)}
+              isPending={isDeletingRate}
+              confirmButtonText={t("common:delete")}
+              confirmButtonVariant="destructive"
+              button={
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Icons.Trash className="h-4 w-4" />
+                  <span className="sr-only">{t("common:delete")}</span>
+                </Button>
+              }
+            />
+          );
+        },
       },
-    },
-  ];
+    ],
+    [t, dateFormatting, updateExchangeRate, deleteExchangeRate, isDeletingRate],
+  );
 
   return (
     <Card>

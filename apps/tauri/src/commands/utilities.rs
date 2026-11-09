@@ -1,6 +1,5 @@
 use crate::profiles::ProfileAccess;
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
-use chrono;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,25 +11,16 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_shell::ShellExt;
 use uuid::Uuid;
-use wealthfolio_core::{
-    activities::Sort,
-    exports::{
-        export_file_name, format_holding_list_records, format_records, ExportDataType,
-        ExportFileFormat,
-    },
-    portfolio::holdings::HoldingListItem,
-    portfolios::AccountScope,
+use wealthfolio_core::exports::{
+    ExportDatasetSummary, ExportFileFormat, ExportOptions, ExportTarget,
 };
 use wealthfolio_storage_sqlite::db;
 
-use crate::commands::portfolio::holdings_account_ids;
-use crate::context::ServiceContext;
 #[cfg(desktop)]
 use crate::updater::{check_for_update, install_update};
 
 const PENDING_EXPORTS_DIR: &str = "pending-exports";
 const PENDING_EXPORT_TTL: Duration = Duration::from_secs(60 * 60);
-const EXPORT_ACTIVITY_PAGE_SIZE: i64 = 9_007_199_254_740_991;
 
 /// Normalize file path by removing file:// URI prefix if present (iOS/Android compatibility)
 fn normalize_file_path(path: &str) -> String {
@@ -249,105 +239,6 @@ fn write_pending_export_content(
     })
 }
 
-async fn build_data_export_content(
-    state: &ServiceContext,
-    data_type: ExportDataType,
-    format: ExportFileFormat,
-) -> Result<Option<Vec<u8>>, String> {
-    match data_type {
-        ExportDataType::Accounts => {
-            let records = state
-                .account_service()
-                .get_non_archived_accounts()
-                .map_err(|e| format!("Failed to load accounts for export: {}", e))?;
-            format_records(&records, format).map_err(|e| e.to_string())
-        }
-        ExportDataType::Activities => {
-            let activity_service = state.activity_service();
-            let mut response = activity_service
-                .search_activities(
-                    0,
-                    EXPORT_ACTIVITY_PAGE_SIZE,
-                    None,
-                    None,
-                    None,
-                    Some(Sort {
-                        id: "date".to_string(),
-                        desc: true,
-                    }),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to load activities for export: {}", e))?;
-            // Rows of cash and credit-card accounts carry their running balance.
-            activity_service
-                .attach_cash_balances(&mut response)
-                .await
-                .map_err(|e| format!("Failed to load activity balances for export: {}", e))?;
-            format_records(&response.data, format).map_err(|e| e.to_string())
-        }
-        ExportDataType::Holdings => {
-            let base_currency = state.get_base_currency();
-            let resolved = state
-                .portfolio_service()
-                .resolve_account_scope(&AccountScope::All, &base_currency)
-                .map_err(|e| format!("Failed to resolve portfolio scope: {}", e))?;
-            let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
-            if account_ids.is_empty() {
-                return Ok(None);
-            }
-
-            let holdings = if account_ids.len() == 1 {
-                state
-                    .holdings_service()
-                    .get_holdings(&account_ids[0], &base_currency)
-                    .await
-                    .map_err(|e| format!("Failed to load holdings for export: {}", e))?
-            } else {
-                state
-                    .holdings_service()
-                    .get_holdings_for_accounts(&account_ids, &base_currency, &resolved.scope_id)
-                    .await
-                    .map_err(|e| format!("Failed to load holdings for export: {}", e))?
-            };
-            let records = holdings
-                .into_iter()
-                .map(HoldingListItem::from)
-                .collect::<Vec<_>>();
-            format_holding_list_records(&records, format).map_err(|e| e.to_string())
-        }
-        ExportDataType::Goals => {
-            let records = state
-                .goal_service()
-                .get_goals()
-                .map_err(|e| format!("Failed to load goals for export: {}", e))?;
-            format_records(&records, format).map_err(|e| e.to_string())
-        }
-        ExportDataType::PortfolioHistory => {
-            let base_currency = state.get_base_currency();
-            let resolved = state
-                .portfolio_service()
-                .resolve_account_scope(&AccountScope::All, &base_currency)
-                .map_err(|e| format!("Failed to resolve portfolio scope: {}", e))?;
-            let records = state
-                .valuation_service()
-                .get_historical_valuations_for_accounts(
-                    &resolved.scope_id,
-                    &resolved.account_ids,
-                    &resolved.base_currency,
-                    None,
-                    None,
-                )
-                .await
-                .map_err(|e| format!("Failed to load portfolio history for export: {}", e))?;
-            format_records(&records, format).map_err(|e| e.to_string())
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn save_text_file_with_dialog(
     _state: ProfileAccess,
@@ -422,32 +313,54 @@ pub async fn export_data_file(
     profile: ProfileAccess,
     data_type: String,
     format: String,
+    options: Option<ExportOptions>,
 ) -> Result<DataExportResult, String> {
     let context = profile.context()?;
-    let data_type = ExportDataType::parse(&data_type).map_err(|e| e.to_string())?;
+    let target = ExportTarget::parse(&data_type).map_err(|e| e.to_string())?;
     let format = ExportFileFormat::parse(&format).map_err(|e| e.to_string())?;
-    let Some(content) = build_data_export_content(context.as_ref(), data_type, format).await?
+    let options = options.unwrap_or_default();
+    let Some(file) = context
+        .data_export_service()
+        .export(target, format, &options)
+        .await
+        .map_err(|e| e.to_string())?
     else {
         return Ok(DataExportResult::empty());
     };
 
-    let filename = export_file_name(data_type, format, chrono::Local::now().date_naive());
-
     #[cfg(any(target_os = "ios", target_os = "android"))]
     {
-        let pending_export =
-            write_pending_export_content(Path::new(profile.app_data_dir()), &filename, &content)?;
+        let _ = &app_handle;
+        let pending_export = write_pending_export_content(
+            Path::new(profile.app_data_dir()),
+            &file.file_name,
+            &file.content,
+        )?;
         Ok(DataExportResult::pending(pending_export))
     }
 
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
-        if save_content_with_dialog(&app_handle, &filename, &content)? {
-            Ok(DataExportResult::saved(filename))
+        if save_content_with_dialog(&app_handle, &file.file_name, &file.content)? {
+            Ok(DataExportResult::saved(file.file_name))
         } else {
             Ok(DataExportResult::canceled())
         }
     }
+}
+
+/// How much each export dataset holds, for the export screen.
+#[tauri::command]
+pub async fn get_data_export_summary(
+    profile: ProfileAccess,
+    options: Option<ExportOptions>,
+) -> Result<Vec<ExportDatasetSummary>, String> {
+    let context = profile.context()?;
+    context
+        .data_export_service()
+        .summary(&options.unwrap_or_default())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

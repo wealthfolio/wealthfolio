@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CalendarDate } from "@internationalized/date";
 import { useMemo } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -27,7 +28,10 @@ import {
   Switch,
 } from "@wealthfolio/ui";
 
+import { getZonedDateParts } from "@/features/spending/lib/timezone";
 import { createContributionLimitSchema, newContributionLimitSchema } from "@/lib/schemas";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { hasFormerDefaultDates } from "../contribution-limit-dates";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { MoneyInput } from "@wealthfolio/ui";
 
@@ -47,6 +51,26 @@ function yearStartAndEnd(year: number) {
   return { startDate: new Date(year, 0, 1), endDate: new Date(year, 11, 31) };
 }
 
+/**
+ * A saved date's day in `timezone`, as the date picker gives that day. A Date
+ * (the add dialog's defaults) is already a picked day.
+ */
+function savedDateToPickerDay(saved: string | Date, timezone: string) {
+  if (saved instanceof Date) return saved;
+  const date = new Date(saved);
+  // An unreadable date stays as it is for the form to reject.
+  if (Number.isNaN(date.getTime())) return date;
+  const { year, month, day } = getZonedDateParts(date, timezone);
+  return new Date(year, month - 1, day);
+}
+
+/** Start of the picked day in `timezone`, moving forward if DST skips midnight. */
+function pickerDayToSavedDate(picked: Date, timezone: string) {
+  return new CalendarDate(picked.getFullYear(), picked.getMonth() + 1, picked.getDate())
+    .toDate(timezone)
+    .toISOString();
+}
+
 export function ContributionLimitForm({
   defaultValues,
   onSuccess = () => {},
@@ -56,21 +80,39 @@ export function ContributionLimitForm({
     useContributionLimitMutations();
 
   const schema = useMemo(() => createContributionLimitSchema(t), [t]);
+  // Saved dates are days in the app's timezone, as deposits are counted; an
+  // unset timezone uses UTC, matching the deposit service.
+  const { settings } = useSettingsContext();
+  const timezone = settings?.timezone?.trim() || "UTC";
 
-  // A saved limit keeps each date it has; one without dates starts with its year's.
+  // A saved limit keeps each date it has; one without dates, or with the
+  // former noon-UTC defaults that stand for its year, starts with its year's.
   const savedStart = defaultValues?.startDate;
   const savedEnd = defaultValues?.endDate;
+  const savedYear = defaultValues?.contributionYear;
+  const hasSavedDates =
+    (savedStart || savedEnd) &&
+    !(
+      savedYear &&
+      typeof savedStart === "string" &&
+      typeof savedEnd === "string" &&
+      hasFormerDefaultDates({
+        contributionYear: savedYear,
+        startDate: savedStart,
+        endDate: savedEnd,
+      })
+    );
   const form = useForm<NewContributionLimit>({
     resolver: zodResolver(schema) as Resolver<NewContributionLimit>,
     defaultValues: {
       ...defaultValues,
-      ...(savedStart || savedEnd
+      ...(hasSavedDates
         ? {
-            startDate: savedStart ? new Date(savedStart) : undefined,
-            endDate: savedEnd ? new Date(savedEnd) : undefined,
+            startDate: savedStart ? savedDateToPickerDay(savedStart, timezone) : undefined,
+            endDate: savedEnd ? savedDateToPickerDay(savedEnd, timezone) : undefined,
           }
-        : defaultValues?.contributionYear
-          ? yearStartAndEnd(defaultValues.contributionYear)
+        : savedYear
+          ? yearStartAndEnd(savedYear)
           : {}),
     },
   });
@@ -86,11 +128,15 @@ export function ContributionLimitForm({
   async function onSubmit(data: NewContributionLimit) {
     const { id, ...rest } = data;
 
-    // Convert date objects to ISO strings (RFC 3339 compatible format)
+    // Save each picked day at its start in the app's timezone (RFC 3339).
     const formattedData = {
       ...rest,
-      startDate: rest.startDate instanceof Date ? rest.startDate.toISOString() : rest.startDate,
-      endDate: rest.endDate instanceof Date ? rest.endDate.toISOString() : rest.endDate,
+      startDate:
+        rest.startDate instanceof Date
+          ? pickerDayToSavedDate(rest.startDate, timezone)
+          : rest.startDate,
+      endDate:
+        rest.endDate instanceof Date ? pickerDayToSavedDate(rest.endDate, timezone) : rest.endDate,
     };
 
     // Finishes once the save itself ends rather than from a callback passed to

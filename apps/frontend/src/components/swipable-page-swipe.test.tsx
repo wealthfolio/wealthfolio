@@ -20,74 +20,81 @@ interface FakeCarousel {
 const carousels: FakeCarousel[] = [];
 // The number of slides the next carousel starts with.
 const carouselSlides = { initial: 3 };
-vi.mock("../../../../packages/ui/node_modules/embla-carousel-react", async () => {
-  const { useEffect, useRef, useState } = await import("react");
-  function makeCarousel(startIndex: number): FakeCarousel {
-    let slides = carouselSlides.initial;
-    // Like Embla, a jump past the last slide it has stops on that slide.
-    const clamp = (index: number) => Math.min(index, slides - 1);
-    const snaps = () => Array.from({ length: slides }, (_, index) => index / (slides - 1));
-    let selected = clamp(startIndex);
-    let position = selected;
-    const listeners = new Map<string, Set<(api: FakeCarousel) => void>>();
-    const emit = (event: string) => listeners.get(event)?.forEach((listener) => listener(carousel));
-    const carousel: FakeCarousel = {
-      selectedScrollSnap: () => selected,
-      scrollSnapList: snaps,
-      scrollProgress: () => snaps()[position] ?? 0,
-      select: (index) => {
-        selected = index;
-        emit("select");
-      },
-      arrive: () => {
-        position = selected;
-        emit("scroll");
-        emit("settle");
-      },
-      scrollTo: (index, jump) => {
-        if (jump) {
-          position = clamp(index);
-          emit("settle");
-          selected = clamp(index);
+// Embla is a dependency of @wealthfolio/ui only, so the ES module that copy's import
+// resolves to is mocked. Vite 8 resolves the package folder to its UMD `main`, which
+// that import never loads.
+vi.mock(
+  "../../../../packages/ui/node_modules/embla-carousel-react/esm/embla-carousel-react.esm.js",
+  async () => {
+    const { useEffect, useRef, useState } = await import("react");
+    function makeCarousel(startIndex: number): FakeCarousel {
+      let slides = carouselSlides.initial;
+      // Like Embla, a jump past the last slide it has stops on that slide.
+      const clamp = (index: number) => Math.min(index, slides - 1);
+      const snaps = () => Array.from({ length: slides }, (_, index) => index / (slides - 1));
+      let selected = clamp(startIndex);
+      let position = selected;
+      const listeners = new Map<string, Set<(api: FakeCarousel) => void>>();
+      const emit = (event: string) =>
+        listeners.get(event)?.forEach((listener) => listener(carousel));
+      const carousel: FakeCarousel = {
+        selectedScrollSnap: () => selected,
+        scrollSnapList: snaps,
+        scrollProgress: () => snaps()[position] ?? 0,
+        select: (index) => {
+          selected = index;
           emit("select");
-          return;
-        }
-        carousel.select(clamp(index));
-        carousel.arrive();
-      },
-      reInit: (count) => {
-        // Embla restarts on the snap it had selected, clamped to the slides it now has.
-        slides = count;
-        selected = clamp(selected);
-        position = selected;
-        emit("reInit");
-      },
-      on: (event, listener) => {
-        const set = listeners.get(event) ?? new Set();
-        set.add(listener);
-        listeners.set(event, set);
-        return carousel;
-      },
-      off: (event, listener) => {
-        listeners.get(event)?.delete(listener);
-        return carousel;
+        },
+        arrive: () => {
+          position = selected;
+          emit("scroll");
+          emit("settle");
+        },
+        scrollTo: (index, jump) => {
+          if (jump) {
+            position = clamp(index);
+            emit("settle");
+            selected = clamp(index);
+            emit("select");
+            return;
+          }
+          carousel.select(clamp(index));
+          carousel.arrive();
+        },
+        reInit: (count) => {
+          // Embla restarts on the snap it had selected, clamped to the slides it now has.
+          slides = count;
+          selected = clamp(selected);
+          position = selected;
+          emit("reInit");
+        },
+        on: (event, listener) => {
+          const set = listeners.get(event) ?? new Set();
+          set.add(listener);
+          listeners.set(event, set);
+          return carousel;
+        },
+        off: (event, listener) => {
+          listeners.get(event)?.delete(listener);
+          return carousel;
+        },
+      };
+      return carousel;
+    }
+    return {
+      default: function useFakeCarousel(options: { startIndex?: number }) {
+        const startIndex = useRef(options.startIndex ?? 0);
+        const [api, setApi] = useState<FakeCarousel>();
+        useEffect(() => {
+          const carousel = makeCarousel(startIndex.current);
+          carousels.push(carousel);
+          setApi(carousel);
+        }, []);
+        return [() => undefined, api];
       },
     };
-    return carousel;
-  }
-  return {
-    default: function useFakeCarousel(options: { startIndex?: number }) {
-      const startIndex = useRef(options.startIndex ?? 0);
-      const [api, setApi] = useState<FakeCarousel>();
-      useEffect(() => {
-        const carousel = makeCarousel(startIndex.current);
-        carousels.push(carousel);
-        setApi(carousel);
-      }, []);
-      return [() => undefined, api];
-    },
-  };
-});
+  },
+);
 vi.mock("@/hooks", () => ({
   useIsMobileViewport: () => true,
   useHapticFeedback: () => ({ triggerHaptic: () => undefined }),

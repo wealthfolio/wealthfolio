@@ -158,7 +158,6 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string;
-  balance: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;
@@ -475,6 +474,22 @@ export interface ActivityImport {
    */
   sourceGroupId?: string;
   comment?: string;
+  /**
+   * Labelled lines that make up `fee` and `tax`, such as commission and stamp
+   * duty. Lines must add up to both totals or the row is rejected; they are
+   * stored in the activity's `metadata.charges` and change no calculation.
+   */
+  charges?: ActivityCharge[];
+}
+
+/**
+ * One labelled part of an activity's fee or tax, in the activity's currency
+ * (a GBp line is converted to GBP like the totals).
+ */
+export interface ActivityCharge {
+  category: 'fee' | 'tax';
+  label: string;
+  amount: number | string;
 }
 
 export interface ImportActivitiesSummary {
@@ -818,8 +833,8 @@ export interface SpendingReport {
 }
 
 export interface MonetaryValue {
-  local: number;
-  base: number;
+  local: number | null;
+  base: number | null;
 }
 
 export interface Lot {
@@ -880,7 +895,7 @@ export interface Holding {
   dayChange?: MonetaryValue | null;
   dayChangePct?: number | null;
   prevCloseValue?: MonetaryValue | null;
-  weight: number;
+  weight: number | null;
   asOfDate: string;
 }
 
@@ -1065,7 +1080,10 @@ export interface IncomeByAsset {
   kind: AssetKind;
   symbol: string;
   name: string;
+  /** Income of every type. */
   income: number;
+  /** The part of `income` that is dividends; absent on older hosts. */
+  dividendIncome?: number;
 }
 
 export interface IncomeSummary {
@@ -1705,4 +1723,74 @@ export interface SpendingContext {
   enabled: boolean;
   accountIds: string[];
   excludedCategoryIds: string[];
+}
+
+// Allocation targets shared by the public host API. Read-only; targets are
+// created and edited only in the Wealthfolio UI. Weights and drift are in
+// basis points (10000 = 100%).
+export type AllocationTargetScopeType = 'all' | 'portfolio' | 'account';
+export type AllocationBandType = 'absolute' | 'hybrid';
+export type AllocationDriftStatus =
+  | 'in_band'
+  | 'underweight'
+  | 'overweight'
+  | 'not_targeted';
+
+export interface AllocationTargetWeight {
+  /** Category id within the target's taxonomy. */
+  categoryId: string;
+  /** The category's stable key, e.g. `REAL_ESTATE`; ids differ between installs. */
+  categoryKey: string;
+  categoryName: string;
+  targetBps: number;
+}
+
+export interface AllocationTarget {
+  id: string;
+  name: string;
+  scopeType: AllocationTargetScopeType;
+  /** Account id or portfolio id; null when `scopeType` is `'all'`. */
+  scopeId: string | null;
+  /** Taxonomy the weights' categories belong to, e.g. `asset_classes`. */
+  taxonomyId: string;
+  /** Absolute range in bps; for `'hybrid'` bands, the floor of the range. */
+  driftBandBps: number;
+  bandType: AllocationBandType;
+  /** Relative part of a hybrid range, in bps of the category's target. */
+  relativeFactorBps: number;
+  allowSells: boolean;
+  wholeSharesOnly: boolean;
+  /** Decimal string in the base currency. */
+  minTradeAmount: string;
+  maxTurnoverBps: number | null;
+  weights: AllocationTargetWeight[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AllocationDriftRow {
+  categoryId: string;
+  categoryName: string;
+  currentBps: number;
+  targetBps: number;
+  driftBps: number;
+  currentValue: number;
+  targetValue: number;
+  valueDelta: number;
+  /** Range applied to this category after resolving a hybrid band. */
+  effectiveBandBps: number;
+  status: AllocationDriftStatus;
+  isCash: boolean;
+}
+
+export interface AllocationDrift {
+  targetId: string;
+  scopeType: AllocationTargetScopeType;
+  scopeId: string | null;
+  baseCurrency: string;
+  totalValue: number;
+  maxDriftBps: number;
+  outOfBandCount: number;
+  deployableCash: number;
+  rows: AllocationDriftRow[];
 }

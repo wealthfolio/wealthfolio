@@ -1,4 +1,6 @@
 {
+  "scope_updating": "일부 계좌의 계산이 완료되지 않았습니다. 계산이 끝나면 합계가 표시됩니다.",
+  "scope_unavailable": "일부 계좌의 보유 자산을 사용할 수 없습니다. 합계가 불완전합니다.",
   "holdings": "보유 종목",
   "insights": "인사이트",
   "my_holdings": "내 보유 종목",

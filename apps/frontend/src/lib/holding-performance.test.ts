@@ -55,7 +55,7 @@ describe("getBaseHoldingPerformancePercentForMode", () => {
     expect(getBaseHoldingPerformancePercentForMode(holding, "return")).toBe(0.12);
   });
 
-  it("falls back to base total gain when total return is unavailable", () => {
+  it("preserves unavailable total return even when gains are known", () => {
     const holding = {
       costBasis: { local: 100, base: 100 },
       dayChangePct: null,
@@ -67,10 +67,10 @@ describe("getBaseHoldingPerformancePercentForMode", () => {
     };
 
     expect(getBaseHoldingPerformancePercentForMode(holding, "daily")).toBeNull();
-    expect(getBaseHoldingPerformancePercentForMode(holding, "return")).toBe(0.1);
+    expect(getBaseHoldingPerformancePercentForMode(holding, "return")).toBeNull();
   });
 
-  it("falls back to base unrealized gain when total PnL is unavailable", () => {
+  it("preserves unavailable total PnL even when unrealized gains are known", () => {
     const holding = {
       costBasis: { local: 100, base: 100 },
       dayChangePct: null,
@@ -81,6 +81,6 @@ describe("getBaseHoldingPerformancePercentForMode", () => {
       returnBasis: { local: 100, base: 100 },
     };
 
-    expect(getBaseHoldingPerformancePercentForMode(holding, "pnl")).toBe(0.1);
+    expect(getBaseHoldingPerformancePercentForMode(holding, "pnl")).toBeNull();
   });
 });

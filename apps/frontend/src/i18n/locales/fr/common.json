@@ -1,4 +1,6 @@
 {
+  "periodReturn": "Rendement {{period}}",
+  "currentValue": "Valeur actuelle",
   "app_name": "Wealthfolio",
   "welcome": "Bienvenue",
   "loading": "Chargement...",
@@ -715,5 +717,19 @@
     "accountCurrency": "Veuillez sélectionner une devise.",
     "creditCardTracking": "Les comptes de carte de crédit ne peuvent pas utiliser le suivi des positions.",
     "creditCardBillingDays": "Les jours de clôture et d’échéance doivent être des entiers de 1 à 31."
+  },
+  "backendErrors": {
+    "internal": "L’opération n’a pas pu être effectuée.",
+    "invalidInput": "Vérifiez votre saisie et réessayez.",
+    "conflict": "La modification entre en conflit avec des données existantes.",
+    "notFound": "L’élément demandé est introuvable.",
+    "unauthorized": "Connectez-vous pour continuer.",
+    "forbidden": "Cette opération n’est pas autorisée.",
+    "unavailable": "Cette opération est indisponible.",
+    "providerKeyMissing": "Ajoutez une clé API pour ce fournisseur dans les paramètres.",
+    "providerUnknown": "Sélectionnez un fournisseur pris en charge.",
+    "providerUnavailable": "Le fournisseur n’a pas pu traiter la demande. Vérifiez ses paramètres.",
+    "customProviderCodeReserved": "Ce code de fournisseur est réservé. Choisissez un autre code.",
+    "customProviderInUse": "Changez le fournisseur des actifs concernés ou supprimez leurs correspondances de symboles avant de le supprimer."
   }
 }

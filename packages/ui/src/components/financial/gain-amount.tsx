@@ -13,7 +13,7 @@ function normalizeDisplayAmount(value: number, fractionDigits: number) {
 }
 
 interface GainAmountProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: number;
+  value: number | null | undefined;
   displayCurrency?: boolean;
   currency: string;
   displayDecimal?: boolean;
@@ -40,7 +40,8 @@ export function GainAmount({
   const useCurrencyStyle = displayCurrency && validCurrency;
   // Match formatAmount: quote units keep two decimals, currencies use their minor units.
   const fractionDigits = !displayDecimal ? 0 : quoteUnit ? 2 : amountFormatting.currencyFractionDigits(currency);
-  const displayValue = normalizeDisplayAmount(value, fractionDigits);
+  const available = value != null && Number.isFinite(value);
+  const displayValue = available ? normalizeDisplayAmount(value, fractionDigits) : 0;
 
   // Dynamic import for NumberFlow to avoid SSR issues
   const [NumberFlow, setNumberFlow] = React.useState<typeof import("@number-flow/react").default | null>(null);
@@ -50,6 +51,14 @@ export function GainAmount({
       setNumberFlow(module.default);
     });
   }, []);
+
+  if (!available) {
+    return (
+      <div className={cn("text-muted-foreground text-end", className)} {...props}>
+        {isBalanceHidden ? "••••" : "—"}
+      </div>
+    );
+  }
 
   const formatOptions: Format = {
     ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" as const } : {}),

@@ -43,6 +43,22 @@ for (const scenario of [
 
     const spending = await createAccount("Spending", "CASH");
     const brokerage = await createAccount("Brokerage", "SECURITIES");
+    // A security no other spec holds: with a second owner (the conversion spec keeps
+    // AAPL), Sell from the holding page rightly asks which account sells.
+    const symbol = `SELLALL${Date.now().toString(36).toUpperCase()}`;
+    const assetResponse = await page.request.post(`${BASE_URL}/api/v1/assets`, {
+      data: {
+        kind: "INVESTMENT",
+        name: `Sell all ${symbol}`,
+        displayCode: symbol,
+        instrumentSymbol: symbol,
+        instrumentType: "EQUITY",
+        quoteMode: "MANUAL",
+        quoteCcy: "USD",
+      },
+    });
+    expect(assetResponse.ok(), await assetResponse.text()).toBeTruthy();
+    const assetId = ((await assetResponse.json()) as { id: string }).id;
     const buyResponse = await page.request.post(`${BASE_URL}/api/v1/activities`, {
       data: {
         accountId: brokerage.id,
@@ -53,11 +69,10 @@ for (const scenario of [
         unitPrice: "100",
         fee: "0",
         needsReview: false,
-        asset: { symbol: "AAPL", exchangeMic: "XNAS", kind: "INVESTMENT", quoteCcy: "USD" },
+        asset: { id: assetId },
       },
     });
     expect(buyResponse.ok(), await buyResponse.text()).toBeTruthy();
-    const { assetId } = (await buyResponse.json()) as { assetId: string };
     const otherOwner =
       "fromAccount" in scenario ? await createAccount("Other brokerage", "SECURITIES") : null;
     if (otherOwner) {
@@ -81,7 +96,8 @@ for (const scenario of [
       const response = await page.request.get(
         `${BASE_URL}/api/v1/holdings?accountId=${encodeURIComponent(accountId)}`,
       );
-      expect(response.ok(), await response.text()).toBeTruthy();
+      // Holdings answer 400 while the account is still being recalculated.
+      if (!response.ok()) return null;
       return (await response.json()) as Array<{
         instrument?: { id: string };
         quantity: number;
@@ -91,7 +107,9 @@ for (const scenario of [
     await expect
       .poll(
         async () => {
-          const position = (await holdings(brokerage.id)).find((h) => h.instrument?.id === assetId);
+          const position = (await holdings(brokerage.id))?.find(
+            (h) => h.instrument?.id === assetId,
+          );
           return position?.quantity;
         },
         { timeout: 60_000 },
@@ -100,7 +118,7 @@ for (const scenario of [
 
     if (otherOwner) {
       await page.goto(`${BASE_URL}/accounts/${brokerage.id}?dir=${scenario.dir}`);
-      await page.getByText("AAPL", { exact: true }).first().click();
+      await page.getByText(symbol, { exact: true }).first().click();
       await expect(page).toHaveURL(new RegExp(`/holdings/${encodeURIComponent(assetId)}`));
     } else {
       await page.goto(`${BASE_URL}/holdings/${encodeURIComponent(assetId)}?dir=${scenario.dir}`);
@@ -161,17 +179,22 @@ for (const scenario of [
     await expect
       .poll(
         async () => {
-          const position = (await holdings(brokerage.id)).find((h) => h.instrument?.id === assetId);
-          return position?.quantity ?? 0;
+          const list = await holdings(brokerage.id);
+          return list && (list.find((h) => h.instrument?.id === assetId)?.quantity ?? 0);
         },
         { timeout: 60_000 },
       )
       .toBe(0);
-    expect((await holdings(spending.id)).some((h) => h.instrument?.id === assetId)).toBe(false);
+    await expect
+      .poll(async () => (await holdings(spending.id))?.some((h) => h.instrument?.id === assetId))
+      .toBe(false);
     if (otherOwner) {
-      expect(
-        (await holdings(otherOwner.id)).find((h) => h.instrument?.id === assetId)?.quantity,
-      ).toBe(0.5);
+      await expect
+        .poll(
+          async () =>
+            (await holdings(otherOwner.id))?.find((h) => h.instrument?.id === assetId)?.quantity,
+        )
+        .toBe(0.5);
     }
   });
 }

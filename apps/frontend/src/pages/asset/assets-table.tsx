@@ -40,7 +40,7 @@ import { getNoQuoteReasonText, isStaleQuote, ParsedAsset } from "./asset-utils";
 interface AssetsTableProps {
   assets: ParsedAsset[];
   latestQuotes?: Record<string, LatestQuoteSnapshot>;
-  heldAssetIds: Set<string>;
+  heldAssetIds: Set<string> | null;
   isLoading?: boolean;
   onEdit: (asset: ParsedAsset) => void;
   onDelete: (asset: ParsedAsset) => void;
@@ -220,6 +220,7 @@ export function AssetsTable({
         cell: () => null,
         enableHiding: false,
         filterFn: (row, id, value) => {
+          if (row.getValue(id) == null) return true;
           const filterValue = value as string[];
           const cellValue = row.getValue(id);
           return filterValue.includes(cellValue as string);
@@ -304,7 +305,9 @@ export function AssetsTable({
           const asset = row.original;
           return (
             <div className="flex justify-end">
-              <DropdownMenu>
+              {/* Rows are keyed by position: keyed by the asset, an open menu never
+                  acts on another security that a refetch moves into its row. */}
+              <DropdownMenu key={asset.id}>
                 <DropdownMenuTrigger
                   render={
                     <button
@@ -413,7 +416,7 @@ export function AssetsTable({
       assets.map((asset) => ({
         ...asset,
         isStale: isStaleQuote(latestQuotes[asset.id], asset) ? "true" : "false",
-        holdingStatus: heldAssetIds.has(asset.id) ? "true" : "false",
+        holdingStatus: heldAssetIds == null ? null : heldAssetIds.has(asset.id) ? "true" : "false",
       })),
     [assets, latestQuotes, heldAssetIds],
   );

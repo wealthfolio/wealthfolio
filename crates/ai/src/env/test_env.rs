@@ -17,12 +17,14 @@ use wealthfolio_core::{
         ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ConvertToTransferRequest,
         ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
         ImportTemplateScope, InternalTransferPairRequest, InternalTransferPairResponse,
-        NewActivity, SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
-        TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
+        LinkTransferPairsResult, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
+        TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReview,
+        TransferPairLinkRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
-        Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
-        AssetSpec, EnsureAssetsResult, NewAsset, ProviderProfile, UpdateAssetProfile,
+        Asset, AssetMetadata, AssetProfileUpdatePreview, AssetResolutionInput,
+        AssetResolutionOutput, AssetServiceTrait, AssetSpec, EnsureAssetsResult, NewAsset,
+        ProviderProfile, UpdateAssetProfile,
     },
     errors::DatabaseError,
     goals::{
@@ -53,8 +55,8 @@ use wealthfolio_core::{
     },
     quotes::{
         LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
-        QuoteSyncState, SparseAssetMarketFacts, SymbolSearchResult, SymbolSyncPlan, SyncMode,
-        SyncResult,
+        QuoteSyncState, ResolvedQuote, SparseAssetMarketFacts, SymbolSearchResult, SymbolSyncPlan,
+        SyncMode, SyncResult,
     },
     secrets::SecretStore,
     settings::{Settings, SettingsServiceTrait, SettingsUpdate},
@@ -180,6 +182,24 @@ impl AccountServiceTrait for MockAccountService {
 #[derive(Default)]
 pub struct MockAssetService {
     pub assets: Vec<Asset>,
+    /// Reported by profile previews as the asset that already has the listing.
+    pub conflicting_asset: Option<Asset>,
+    /// Every profile update, in order.
+    pub profile_updates: std::sync::Mutex<Vec<(String, UpdateAssetProfile)>>,
+    /// From the second `get_asset_by_id` on, report the asset with other
+    /// notes, as if the user edited it meanwhile.
+    pub edited_after_first_read: bool,
+    pub reads: std::sync::atomic::AtomicUsize,
+}
+
+impl MockAssetService {
+    fn find(&self, asset_id: &str) -> CoreResult<Asset> {
+        self.assets
+            .iter()
+            .find(|asset| asset.id == asset_id)
+            .cloned()
+            .ok_or_else(|| CoreError::Database(DatabaseError::NotFound(asset_id.to_string())))
+    }
 }
 
 #[async_trait]
@@ -189,11 +209,13 @@ impl AssetServiceTrait for MockAssetService {
     }
 
     fn get_asset_by_id(&self, asset_id: &str) -> CoreResult<Asset> {
-        self.assets
-            .iter()
-            .find(|asset| asset.id == asset_id)
-            .cloned()
-            .ok_or_else(|| CoreError::Database(DatabaseError::NotFound(asset_id.to_string())))
+        let mut asset = self.find(asset_id)?;
+        let reads = self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self.edited_after_first_read && reads > 0 {
+            // A profile edit; storage leaves `updated_at` as it was.
+            asset.notes = Some("edited in the app".to_string());
+        }
+        Ok(asset)
     }
 
     async fn delete_asset(&self, _asset_id: &str) -> CoreResult<()> {
@@ -202,10 +224,37 @@ impl AssetServiceTrait for MockAssetService {
 
     async fn update_asset_profile(
         &self,
-        _asset_id: &str,
-        _payload: UpdateAssetProfile,
+        asset_id: &str,
+        payload: UpdateAssetProfile,
     ) -> CoreResult<Asset> {
-        unimplemented!("MockAssetService::update_asset_profile")
+        let asset = self.find(asset_id)?;
+        self.profile_updates
+            .lock()
+            .unwrap()
+            .push((asset_id.to_string(), payload.clone()));
+        Ok(Asset {
+            name: payload.name,
+            display_code: payload.display_code,
+            notes: Some(payload.notes),
+            quote_mode: payload.quote_mode.unwrap_or(asset.quote_mode),
+            quote_ccy: payload.quote_ccy.unwrap_or(asset.quote_ccy.clone()),
+            instrument_symbol: payload.instrument_symbol,
+            instrument_exchange_mic: payload.instrument_exchange_mic,
+            provider_config: payload.provider_config,
+            ..asset
+        })
+    }
+
+    fn preview_asset_profile_update(
+        &self,
+        asset_id: &str,
+        payload: UpdateAssetProfile,
+    ) -> CoreResult<AssetProfileUpdatePreview> {
+        self.find(asset_id)?;
+        Ok(AssetProfileUpdatePreview {
+            profile: payload,
+            conflicting_asset: self.conflicting_asset.clone(),
+        })
     }
 
     async fn create_asset(&self, _new_asset: NewAsset) -> CoreResult<Asset> {
@@ -510,6 +559,10 @@ impl ActivityServiceTrait for MockActivityService {
         Ok(UnlinkedTransfers::default())
     }
 
+    async fn review_transfer_matches(&self) -> CoreResult<TransferMatchReview> {
+        Ok(TransferMatchReview::default())
+    }
+
     fn get_first_activity_date(
         &self,
         _account_ids: Option<&[String]>,
@@ -575,6 +628,13 @@ impl ActivityServiceTrait for MockActivityService {
         _activity_b_id: String,
     ) -> CoreResult<(Activity, Activity)> {
         unimplemented!("MockActivityService::link_transfer_activities")
+    }
+
+    async fn link_transfer_pairs(
+        &self,
+        _pairs: Vec<TransferPairLinkRequest>,
+    ) -> CoreResult<LinkTransferPairsResult> {
+        unimplemented!("MockActivityService::link_transfer_pairs")
     }
 
     async fn unlink_transfer_activities(
@@ -731,10 +791,40 @@ impl ActivityServiceTrait for MockActivityService {
 #[derive(Default)]
 pub struct MockHoldingsService {
     pub holdings: Vec<Holding>,
+    /// Accounts the asset holdings read reports as incomplete.
+    pub incomplete_account_ids: Vec<String>,
 }
 
 #[async_trait]
 impl HoldingsServiceTrait for MockHoldingsService {
+    async fn get_asset_holdings_scope(
+        &self,
+        account_ids: &[String],
+        asset_id: &str,
+        _base_currency: &str,
+    ) -> CoreResult<wealthfolio_core::holdings::HoldingsScope> {
+        Ok(wealthfolio_core::holdings::HoldingsScope {
+            holdings: self
+                .holdings
+                .iter()
+                .filter(|h| account_ids.contains(&h.account_id))
+                .filter(|h| h.instrument.as_ref().is_some_and(|i| i.id == asset_id))
+                .cloned()
+                .collect(),
+            incomplete_accounts: self
+                .incomplete_account_ids
+                .iter()
+                .map(
+                    |account_id| wealthfolio_core::holdings::IncompleteHoldingsAccount {
+                        account_id: account_id.clone(),
+                        status: "unavailable",
+                        reason_code: "PROJECTION_UNAVAILABLE",
+                    },
+                )
+                .collect(),
+        })
+    }
+
     async fn get_asset_lot_view(
         &self,
         _asset_id: &str,
@@ -1145,6 +1235,12 @@ impl crate::types::ChatRepositoryTrait for MockChatRepository {
 #[derive(Default)]
 pub struct MockQuoteService {
     pub search_results: RwLock<Vec<SymbolSearchResult>>,
+    pub providers: Vec<ProviderInfo>,
+    /// What `resolve_symbol_quote` answers; every call is counted.
+    pub resolved_quote: ResolvedQuote,
+    pub resolve_calls: std::sync::atomic::AtomicUsize,
+    /// Assets passed to `resolve_asset_quote`.
+    pub resolved_assets: std::sync::Mutex<Vec<Asset>>,
 }
 
 #[async_trait]
@@ -1363,6 +1459,36 @@ impl QuoteServiceTrait for MockQuoteService {
     }
 
     async fn get_providers_info(&self) -> CoreResult<Vec<ProviderInfo>> {
+        Ok(self.providers.clone())
+    }
+
+    async fn resolve_symbol_quote(
+        &self,
+        _symbol: &str,
+        _exchange_mic: Option<&str>,
+        _instrument_type: Option<&wealthfolio_core::assets::InstrumentType>,
+        _quote_ccy: Option<&str>,
+        _preferred_provider: Option<&str>,
+        _provider_symbol: Option<&str>,
+    ) -> CoreResult<ResolvedQuote> {
+        self.resolve_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(self.resolved_quote.clone())
+    }
+
+    async fn resolve_asset_quote(&self, asset: &Asset) -> CoreResult<ResolvedQuote> {
+        self.resolved_assets.lock().unwrap().push(asset.clone());
+        self.resolve_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(self.resolved_quote.clone())
+    }
+
+    fn get_stored_quotes(
+        &self,
+        _asset_id: &str,
+        _start: Option<NaiveDate>,
+        _end: Option<NaiveDate>,
+    ) -> CoreResult<Vec<Quote>> {
         Ok(Vec::new())
     }
 

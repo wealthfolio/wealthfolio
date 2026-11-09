@@ -279,6 +279,20 @@ fn project_activity_update(
     existing: &ActivityDB,
     update: &ActivityUpdate,
 ) -> Result<ActivityDB> {
+    let existing_type = effective_activity_type(existing);
+    let was_transfer = matches!(
+        existing_type,
+        ACTIVITY_TYPE_TRANSFER_IN | ACTIVITY_TYPE_TRANSFER_OUT
+    );
+    if was_transfer
+        && update.activity_type != existing_type
+        && source_group_blocks_transfer_link(conn, existing.source_group_id.as_deref())?
+    {
+        return Err(ActivityError::InvalidData(
+            "Unlink the transfer pair before changing its activity type".into(),
+        )
+        .into());
+    }
     let asset_patch_supplied = update.asset.is_some();
     let subtype_patch = update.subtype.clone();
     let existing_activity_type = existing.activity_type.clone();
@@ -368,6 +382,14 @@ fn project_activity_update(
     );
     activity_to_update.activity_type_override =
         stored_type_override(activity_to_update.activity_type_override.as_deref());
+    if was_transfer
+        && matches!(
+            effective_activity_type(&activity_to_update),
+            "DEPOSIT" | "WITHDRAWAL"
+        )
+    {
+        activity_to_update.source_group_id = None;
+    }
     Ok(activity_to_update)
 }
 
@@ -513,6 +535,20 @@ fn preserve_source_classification(
     )
     .is_none()
     {
+        // Cash reclassification replaces a legacy override. Other edits keep
+        // their existing override semantics.
+        if matches!(
+            (
+                type_override(existing_activity_type_override).unwrap_or(existing_activity_type),
+                activity.activity_type.as_str(),
+            ),
+            ("WITHDRAWAL", ACTIVITY_TYPE_TRANSFER_OUT)
+                | (ACTIVITY_TYPE_TRANSFER_OUT, "WITHDRAWAL")
+                | ("DEPOSIT", ACTIVITY_TYPE_TRANSFER_IN)
+                | (ACTIVITY_TYPE_TRANSFER_IN, "DEPOSIT")
+        ) {
+            activity.activity_type_override = None;
+        }
         return;
     }
 
@@ -602,10 +638,7 @@ fn source_group_blocks_transfer_link(
     conn: &mut SqliteConnection,
     source_group_id: Option<&str>,
 ) -> Result<bool> {
-    let Some(group_id) = source_group_id
-        .map(str::trim)
-        .filter(|group_id| !group_id.is_empty())
-    else {
+    let Some(group_id) = source_group_id.filter(|group_id| !group_id.trim().is_empty()) else {
         return Ok(false);
     };
 
@@ -824,6 +857,7 @@ impl ActivityRepository {
         date_to_utc_exclusive: Option<DateTime<Utc>>,
         instrument_type_filter: Option<Vec<String>>,
         activity_id_filter: Option<Vec<String>>,
+        include_archived: bool,
     ) -> Result<ActivitySearchResponse> {
         let mut conn = get_connection(&self.pool)?;
 
@@ -833,8 +867,11 @@ impl ActivityRepository {
             let mut query = activities::table
                 .inner_join(accounts::table.on(activities::account_id.eq(accounts::id)))
                 .left_join(assets::table.on(activities::asset_id.eq(assets::id.nullable())))
-                .filter(accounts::is_archived.eq(false))
                 .into_boxed();
+
+            if !include_archived {
+                query = query.filter(accounts::is_archived.eq(false));
+            }
 
             if let Some(ref activity_ids) = activity_id_filter {
                 query = query.filter(activities::id.eq_any(activity_ids));
@@ -1119,12 +1156,12 @@ fn link_transfer_activities_tx(
         source_group_blocks_transfer_link(tx.conn(), transfer_in.source_group_id.as_deref())?;
     // Linking a pair already linked to each other repairs it: it keeps
     // the group and clears an external marker left on either leg. Both
-    // legs store the same trimmed group id, and that group is a valid
+    // legs store the same persisted group id, and that group is a valid
     // pair, so it holds exactly these two.
-    let shared_group = transfer_in.source_group_id.clone().filter(|group_id| {
-        group_id.trim() == group_id.as_str()
-            && transfer_out.source_group_id.as_deref() == Some(group_id.as_str())
-    });
+    let shared_group = transfer_in
+        .source_group_id
+        .clone()
+        .filter(|group_id| transfer_out.source_group_id.as_deref() == Some(group_id.as_str()));
     let linked_to_each_other = in_group_blocks && shared_group.is_some();
     if !linked_to_each_other
         && (in_group_blocks
@@ -1318,7 +1355,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .select(ActivityDB::as_select())
             .find(activity_id)
             .first::<ActivityDB>(&mut conn)
-            .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
+            .map_err(ActivityError::from)?;
         Ok(Activity::from(activity_db))
     }
 
@@ -1408,6 +1445,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
             date_to_utc_exclusive,
             instrument_type_filter,
             activity_id_filter,
+            false,
         )
     }
 
@@ -1438,6 +1476,32 @@ impl ActivityRepositoryTrait for ActivityRepository {
             date_to_utc_exclusive,
             instrument_type_filter,
             activity_id_filter,
+            false,
+        )
+    }
+
+    fn export_activities(
+        &self,
+        include_archived: bool,
+        date_from_utc: Option<DateTime<Utc>>,
+        date_to_utc_exclusive: Option<DateTime<Utc>>,
+    ) -> Result<ActivitySearchResponse> {
+        self.search_activities_with_utc_bounds(
+            0,
+            i64::MAX,
+            None,
+            None,
+            None,
+            Some(Sort {
+                id: "date".to_string(),
+                desc: true,
+            }),
+            None,
+            date_from_utc,
+            date_to_utc_exclusive,
+            None,
+            None,
+            include_archived,
         )
     }
 
@@ -1744,8 +1808,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
     }
 
     fn get_activities_by_source_group_id(&self, source_group_id: &str) -> Result<Vec<Activity>> {
-        let group_id = source_group_id.trim();
-        if group_id.is_empty() {
+        let group_id = source_group_id;
+        if group_id.trim().is_empty() {
             return Ok(Vec::new());
         }
 
@@ -3468,6 +3532,30 @@ mod tests {
         insert_account_with_archived(conn, account_id, false);
     }
 
+    /// Callers tell a missing activity from a failed read by the error kind, so
+    /// only a missing row may be `NotFound`.
+    #[tokio::test]
+    async fn get_activity_reports_a_missing_row_as_not_found_and_other_errors_as_database() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+
+        let error = repo.get_activity("missing").unwrap_err();
+        assert!(
+            matches!(&error, Error::Activity(ActivityError::NotFound(_))),
+            "expected NotFound, got {error:?}"
+        );
+
+        let mut conn = get_connection(&pool).expect("conn");
+        diesel::sql_query("ALTER TABLE activities RENAME TO activities_unreadable")
+            .execute(&mut conn)
+            .expect("break the table");
+        let error = repo.get_activity("missing").unwrap_err();
+        assert!(
+            matches!(&error, Error::Activity(ActivityError::DatabaseError(_))),
+            "expected DatabaseError, got {error:?}"
+        );
+    }
+
     fn insert_account_with_archived(conn: &mut SqliteConnection, account_id: &str, archived: bool) {
         diesel::sql_query(format!(
             "INSERT INTO accounts (id, name, account_type, `group`, currency, is_default, is_active, \
@@ -4460,6 +4548,68 @@ mod tests {
             .collect();
         assert_eq!(multipliers.get("mini-buy"), Some(&Some("10")));
         assert_eq!(multipliers.get("standard-buy"), Some(&Some("100")));
+    }
+
+    /// The data export reads archived accounts' rows on request, which the
+    /// activity search never does.
+    #[tokio::test]
+    async fn export_activities_includes_archived_accounts_only_on_request() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "open-account");
+            insert_account_with_archived(&mut conn, "closed-account", true);
+            diesel::sql_query(
+                "INSERT INTO activities
+                 (id, account_id, asset_id, activity_type, status, activity_date, quantity,
+                  unit_price, amount, currency, is_user_modified, needs_review, created_at, updated_at)
+                 VALUES
+                 ('open-deposit', 'open-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2026-01-02T00:00:00Z', NULL, NULL, '100', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('closed-deposit', 'closed-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2026-01-05T00:00:00Z', NULL, NULL, '50', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('closed-old', 'closed-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2025-06-01T00:00:00Z', NULL, NULL, '10', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            )
+            .execute(&mut conn)
+            .expect("insert activities");
+        }
+
+        let ids = |response: ActivitySearchResponse| {
+            response
+                .data
+                .into_iter()
+                .map(|activity| activity.id)
+                .collect::<Vec<_>>()
+        };
+
+        let without = repo.export_activities(false, None, None).expect("export");
+        assert_eq!(ids(without), vec!["open-deposit"]);
+
+        let with = repo.export_activities(true, None, None).expect("export");
+        assert_eq!(
+            ids(with),
+            vec!["closed-deposit", "open-deposit", "closed-old"]
+        );
+
+        let ranged = repo
+            .export_activities(
+                true,
+                Some("2026-01-01T00:00:00Z".parse().unwrap()),
+                Some("2026-01-03T00:00:00Z".parse().unwrap()),
+            )
+            .expect("export");
+        assert_eq!(ids(ranged), vec!["open-deposit"]);
+
+        let search = repo
+            .search_activities(0, 10, None, None, None, None, None, None, None, None, None)
+            .expect("search");
+        assert_eq!(
+            search.meta.total_row_count, 1,
+            "search still skips archived rows"
+        );
     }
 
     #[tokio::test]

@@ -111,6 +111,7 @@ pub(crate) fn create_ollama_client(provider_url: Option<String>) -> Result<Ollam
 /// Remove the provider's API key from error text before it is logged or
 /// shown. Transport errors quote the request URL, and rig sends the Gemini key
 /// as a URL query parameter.
+#[cfg(feature = "eval")]
 pub(crate) fn redact_secret(message: String, secret: Option<&str>) -> String {
     match secret.filter(|secret| !secret.is_empty()) {
         Some(secret) if message.contains(secret) => message.replace(secret, "[redacted]"),
@@ -1610,9 +1611,8 @@ pub(crate) mod transport_tests {
         for message in &errors {
             assert!(!message.contains("AIzaFixtureSecret"), "{message}");
         }
-        assert!(errors
-            .iter()
-            .any(|message| message.contains("key=[redacted]")));
+        assert!(errors.iter().all(|message| !message.contains("key=")));
+        assert!(errors.iter().all(|message| !message.contains("127.0.0.1")));
         server.abort();
     }
 

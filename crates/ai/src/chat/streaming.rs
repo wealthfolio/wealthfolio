@@ -14,7 +14,7 @@ use log::{debug, error, warn};
 use rig::{
     agent::MultiTurnStreamItem,
     completion::{Message, PromptError, Usage},
-    error::ErrorReport,
+    error::{ErrorKind, ErrorReport},
     message::{
         AssistantContent, AssistantMessage, DocumentSourceKind, Text, ToolCall as RigToolCall,
         ToolChoice, ToolResultContent, UserContent,
@@ -46,7 +46,7 @@ use crate::types::{
 use super::history::build_user_prompt;
 use super::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
-    create_openai_client, create_openrouter_client, redact_secret, remap_provider_error,
+    create_openai_client, create_openrouter_client, remap_provider_error,
     validate_ollama_model_if_possible,
 };
 use super::request_params::{
@@ -110,7 +110,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     // Get provider settings and model capabilities
     let provider_service = ProviderService::new(env.clone());
     let api_key = provider_service.get_api_key(&provider_id)?;
-    let provider_secret = api_key.clone();
     let provider_url = provider_service.get_provider_url(&provider_id);
     let mut capabilities = provider_service.get_model_capabilities(&provider_id, &model_id);
 
@@ -407,7 +406,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                 run_id,
                 message_id,
                 title_ctx,
-                provider_secret,
                 hook,
                 session_csv_attachments,
             )
@@ -451,7 +449,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                 run_id,
                 message_id,
                 title_ctx,
-                provider_secret,
                 hook,
                 Vec::new(),
             )
@@ -783,7 +780,6 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
     run_id: String,
     message_id: String,
     title_ctx: TitleContext<E>,
-    provider_secret: Option<String>,
     hook: WealthfolioStreamHook,
     csv_attachments: Vec<MessageAttachment>,
 ) -> Result<(), AiError> {
@@ -898,9 +894,8 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                 if !streamed && !retried {
                     if let Some(wait) = retry_wait(error) {
                         retried = true;
-                        let message = redact_secret(error.to_string(), provider_secret.as_deref());
                         warn!(
-                            "Transient provider error before any output, retrying once in {wait:?}: {message}"
+                            "Transient provider error before any output, retrying once in {wait:?}"
                         );
                         tokio::time::sleep(wait).await;
                         stream = start();
@@ -1152,8 +1147,9 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                     break;
                 }
                 Err(error) => {
-                    let message = redact_secret(error.to_string(), provider_secret.as_deref());
-                    error!("Stream error: {}", message);
+                    let message =
+                        wealthfolio_core::errors::PublicError::provider_unavailable().message;
+                    error!("Chat stream failed ({})", stream_error_code(&error));
                     stream_error = Some((stream_error_code(&error), message));
                     break;
                 }
@@ -1354,11 +1350,21 @@ fn retry_wait(error: &PromptError) -> Option<Duration> {
 
 /// The code a failed turn's error is sent and saved with.
 fn stream_error_code(error: &PromptError) -> &'static str {
-    if provider_report(error).is_some_and(|report| report.is_context_overflow()) {
-        CONTEXT_OVERFLOW
-    } else {
-        "STREAM_ERROR"
+    if let Some(report) = provider_report(error) {
+        if report.is_context_overflow() {
+            return CONTEXT_OVERFLOW;
+        }
+        return match report.http_status {
+            Some(429) => "PROVIDER_RATE_LIMITED",
+            Some(401 | 403) => "PROVIDER_AUTH",
+            Some(408 | 504) => "PROVIDER_TIMEOUT",
+            _ => match report.kind {
+                ErrorKind::Timeout => "PROVIDER_TIMEOUT",
+                _ => "STREAM_ERROR",
+            },
+        };
     }
+    "STREAM_ERROR"
 }
 
 /// Saved when a turn reached a limit and the model wrote no answer.
@@ -1449,6 +1455,30 @@ fn update_native_reasoning(
 mod tests {
     use super::*;
 
+    #[test]
+    fn provider_failures_keep_actionable_codes_without_message_matching() {
+        for (kind, status, expected) in [
+            (
+                ErrorKind::ProviderResponse,
+                Some(429),
+                "PROVIDER_RATE_LIMITED",
+            ),
+            (ErrorKind::ProviderResponse, Some(401), "PROVIDER_AUTH"),
+            (ErrorKind::ProviderResponse, Some(403), "PROVIDER_AUTH"),
+            (ErrorKind::ProviderResponse, Some(408), "PROVIDER_TIMEOUT"),
+            (ErrorKind::ProviderResponse, Some(504), "PROVIDER_TIMEOUT"),
+            (ErrorKind::Timeout, None, "PROVIDER_TIMEOUT"),
+            // Http also covers timeouts and unreadable responses, so do not
+            // claim that every transport failure is a refused connection.
+            (ErrorKind::Http, None, "STREAM_ERROR"),
+            (ErrorKind::ProviderResponse, Some(500), "STREAM_ERROR"),
+        ] {
+            let mut report = ErrorReport::new(kind, "FAKE-KEY-2531 /private/portfolio.db");
+            report.http_status = status;
+            assert_eq!(stream_error_code(&PromptError::Report(report)), expected);
+        }
+    }
+
     #[tokio::test]
     async fn completed_chat_closes_while_title_provider_is_stalled() {
         use crate::env::test_env::MockEnvironment;
@@ -1530,7 +1560,6 @@ mod tests {
                 "run".into(),
                 "message".into(),
                 title_ctx,
-                None,
                 WealthfolioStreamHook::for_provider("openai"),
                 Vec::new(),
             )

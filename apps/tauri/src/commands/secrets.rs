@@ -14,7 +14,7 @@ pub async fn set_secret(
     profile
         .secret_store
         .set_secret(&secret_key, &secret)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -26,7 +26,7 @@ pub async fn get_secret(
     profile
         .secret_store
         .get_secret(&secret_key)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -35,7 +35,7 @@ pub async fn delete_secret(secret_key: String, profile: ProfileAccess) -> Result
     profile
         .secret_store
         .delete_secret(&secret_key)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -51,11 +51,11 @@ pub async fn set_addon_secret(
     profile
         .secret_store
         .set_secret(&service_id, &secret)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.public_error().error_code)?;
     profile
         .secret_store
         .delete_secret(&legacy_service_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -69,7 +69,7 @@ pub async fn get_addon_secret(
     if let Some(secret) = profile
         .secret_store
         .get_secret(&service_id)
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.public_error().error_code)?
     {
         return Ok(Some(secret));
     }
@@ -78,16 +78,16 @@ pub async fn get_addon_secret(
     let legacy_secret = profile
         .secret_store
         .get_secret(&legacy_service_id)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.public_error().error_code)?;
     if let Some(secret) = legacy_secret.as_deref() {
         profile
             .secret_store
             .set_secret(&service_id, secret)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.public_error().error_code)?;
         profile
             .secret_store
             .delete_secret(&legacy_service_id)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.public_error().error_code)?;
     }
     Ok(legacy_secret)
 }
@@ -104,11 +104,11 @@ pub async fn delete_addon_secret(
     profile
         .secret_store
         .delete_secret(&service_id)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.public_error().error_code)?;
     profile
         .secret_store
         .delete_secret(&legacy_service_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 
 // These read the keyring, which can wait on a slow Secret Service or an unlock
@@ -118,7 +118,7 @@ pub async fn get_profile_sync_identity(profile: ConnectAccess) -> Result<Option<
     profile
         .secret_store
         .get_secret(wealthfolio_core::secrets::SYNC_IDENTITY_KEY)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.public_error().error_code)
 }
 #[tauri::command]
 pub async fn update_profile_sync_identity(

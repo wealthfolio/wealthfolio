@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}} · Return",
+  "currentValue": "Current value",
   "app_name": "Wealthfolio",
   "welcome": "Welcome",
   "loading": "Loading...",
@@ -698,5 +700,19 @@
     "accountCurrency": "Please select a currency.",
     "creditCardTracking": "Credit card accounts cannot use holdings tracking mode.",
     "creditCardBillingDays": "Closing and payment due days must be whole numbers from 1 to 31."
+  },
+  "backendErrors": {
+    "internal": "The operation could not be completed.",
+    "invalidInput": "Check your input and try again.",
+    "conflict": "The change conflicts with existing data.",
+    "notFound": "The requested item was not found.",
+    "unauthorized": "Sign in to continue.",
+    "forbidden": "This operation is not allowed.",
+    "unavailable": "This operation is unavailable.",
+    "providerKeyMissing": "Add an API key for this provider in Settings.",
+    "providerUnknown": "Select a supported provider.",
+    "providerUnavailable": "The provider could not complete the request. Check your provider settings.",
+    "customProviderCodeReserved": "This provider code is reserved. Choose a different code.",
+    "customProviderInUse": "Change the provider for affected assets or remove their symbol mappings before deleting it."
   }
 }

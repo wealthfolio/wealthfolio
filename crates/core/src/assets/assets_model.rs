@@ -564,6 +564,18 @@ impl Asset {
             }
             InstrumentType::Fx => {
                 let symbol = self.instrument_symbol.as_ref()?;
+                // Providers list a crypto-based pair (BTC/USD) as crypto
+                // (Yahoo: BTC-USD), not as a currency pair (BTCUSD=X). A pair
+                // the user pointed at their own scraper keeps the pair symbol
+                // (BTCUSD) its URL templates were written for.
+                if crate::fx::is_crypto_currency(symbol)
+                    && crate::assets::custom_provider_code(self).is_none()
+                {
+                    return Some(InstrumentId::Crypto {
+                        base: Arc::from(symbol.as_str()),
+                        quote: Cow::Owned(self.quote_ccy.clone()),
+                    });
+                }
                 Some(InstrumentId::Fx {
                     base: Cow::Owned(symbol.clone()),
                     quote: Cow::Owned(self.quote_ccy.clone()),
@@ -740,7 +752,14 @@ impl NewAsset {
         let readable_name = format!("{}/{} Exchange Rate", base_upper, quote_upper);
         let display = format!("{}/{}", base_upper, quote_upper);
 
-        let provider_config = if provider == "YAHOO" {
+        // A crypto-based pair gets no saved currency-pair symbol: its provider
+        // symbol comes from the crypto rules (see `to_instrument_id`).
+        let crypto_pair = crate::fx::is_crypto_currency(&base_upper);
+
+        let provider_config = if crypto_pair && (provider == "YAHOO" || provider == "ALPHA_VANTAGE")
+        {
+            Some(serde_json::json!({ "preferred_provider": provider }))
+        } else if provider == "YAHOO" {
             Some(serde_json::json!({
                 "preferred_provider": "YAHOO",
                 "overrides": {
@@ -926,6 +945,16 @@ pub struct UpdateAssetProfile {
     pub instrument_exchange_mic: Option<String>,
     pub provider_config: Option<Value>,
     pub metadata: Option<Value>,
+}
+
+/// The result of previewing an asset profile update.
+#[derive(Debug, Clone)]
+pub struct AssetProfileUpdatePreview {
+    /// The profile `update_asset_profile` would store.
+    pub profile: UpdateAssetProfile,
+    /// Another asset that already has the updated identity; the update would
+    /// be refused.
+    pub conflicting_asset: Option<Asset>,
 }
 
 /// Optional asset metadata that can be passed during activity creation.

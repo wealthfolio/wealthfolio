@@ -68,7 +68,6 @@ function createPortfolioAccount(baseCurrency: string, t: TFunction): UIAccount {
     id: PORTFOLIO_SCOPE_ID,
     name: t("common:component.all_portfolio"),
     accountType: PORTFOLIO_ACCOUNT_TYPE as UIAccountType,
-    balance: 0,
     currency: baseCurrency,
     isDefault: false,
     isActive: true,

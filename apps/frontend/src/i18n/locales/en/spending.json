@@ -252,6 +252,12 @@
     "filteredNet": "Filtered net"
   },
   "period": {
+    "month": "Month",
+    "year": "Year",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "previousYears": "Earlier years",
+    "nextYears": "Later years",
     "selectDates": "Select dates",
     "chooseCustomDates": "Choose custom dates",
     "chooseMonth": "Choose a month",
@@ -933,6 +939,11 @@
     "deselectDay": "Deselect all transactions on {{date}}"
   },
   "tabContent": {
+    "comparePriorPeriod": "Compare to prior period",
+    "comparisonDays": "Day of period",
+    "comparisonWeeks": "Week of period",
+    "comparisonMonths": "Month of period",
+    "comparisonDifference": "Difference",
     "stageWhereLabel": "Where I am",
     "stageWhereSub": "Pace, budget & category breakdown",
     "stageChangedLabel": "What changed",
@@ -980,6 +991,7 @@
     "fromPriorPeriod": "from prior period",
     "intervalMtd": "this month",
     "intervalLastMonth": "last month",
+    "interval1W": "past 7 days",
     "interval3M": "past 3 months",
     "interval6M": "past 6 months",
     "intervalYtd": "year to date",

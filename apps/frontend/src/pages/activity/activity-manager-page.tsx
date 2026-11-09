@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { getAccounts, getAssetHoldings } from "@/adapters";
+import { getAccounts, getAssetHoldingsScope } from "@/adapters";
 import { ExternalLink } from "@/components/external-link";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useAssetProfile } from "@/pages/asset/hooks/use-asset-profile";
@@ -100,29 +100,43 @@ const ActivityManagerPage = () => {
   );
   const needsSellAccount = selectedType === "SELL" && !!assetIdParam && !accountParam;
   const {
-    data: assetHoldings = [],
+    data: assetHoldingsScope,
     isPending: isAssetHoldingsPending,
     isFetching: isAssetHoldingsFetching,
     isError: isAssetHoldingsError,
   } = useQuery({
-    queryKey: [QueryKeys.ASSET_HOLDINGS, assetIdParam],
-    queryFn: () => getAssetHoldings(assetIdParam!),
+    queryKey: [QueryKeys.ASSET_HOLDINGS, assetIdParam, "scope"],
+    queryFn: () => getAssetHoldingsScope(assetIdParam!),
     enabled: needsSellAccount && sellAccount?.assetId !== assetIdParam,
     staleTime: 0,
   });
+  // An account still being recalculated may own the asset. Wait: the portfolio
+  // update's completion refreshes this query.
+  const isAssetHoldingsUpdating =
+    !isAssetHoldingsError &&
+    !!assetHoldingsScope?.incompleteAccounts.some((account) => account.status === "pending");
 
   useEffect(() => {
-    if (!needsSellAccount || isAccountsLoading || isAssetHoldingsPending || isAssetHoldingsFetching)
+    if (
+      !needsSellAccount ||
+      isAccountsLoading ||
+      isAssetHoldingsPending ||
+      isAssetHoldingsFetching ||
+      isAssetHoldingsUpdating
+    )
       return;
-    const owners = isAssetHoldingsError
-      ? []
-      : activeAccounts.filter(
-          (account) =>
-            accountSupportsActivityType(account, "SELL") &&
-            assetHoldings.some(
-              (holding) => holding.accountId === account.id && holding.quantity > 0,
-            ),
-        );
+    const owners =
+      isAssetHoldingsError ||
+      !assetHoldingsScope ||
+      assetHoldingsScope.incompleteAccounts.length > 0
+        ? []
+        : activeAccounts.filter(
+            (account) =>
+              accountSupportsActivityType(account, "SELL") &&
+              assetHoldingsScope.holdings.some(
+                (holding) => holding.accountId === account.id && holding.quantity > 0,
+              ),
+          );
     // Resolve once per asset so background refreshes cannot replace a user choice.
     setSellAccount((previous) =>
       previous?.assetId === assetIdParam
@@ -134,9 +148,10 @@ const ActivityManagerPage = () => {
     isAccountsLoading,
     isAssetHoldingsPending,
     isAssetHoldingsFetching,
+    isAssetHoldingsUpdating,
     isAssetHoldingsError,
     activeAccounts,
-    assetHoldings,
+    assetHoldingsScope,
     assetIdParam,
   ]);
 

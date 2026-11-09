@@ -2,12 +2,22 @@ import { ActivityEditCancelled } from "@/features/spending/components/activity-s
 import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
-import { render, screen, waitFor } from "@/test/render";
+import { render as renderWithFormatting, screen, waitFor } from "@/test/render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { Activity, type ReactNode, type RefObject } from "react";
+import { Activity, type ReactElement, type ReactNode, type RefObject } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import { MobileActivityForm } from "../mobile-activity-form";
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderWithFormatting(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 // The type step scrolls its options, and the scroll area needs a
 // ResizeObserver jsdom does not provide.

@@ -54,7 +54,7 @@ async function createHoldings(page: Page) {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
         expect(holdingsResponse.ok()).toBeTruthy();
-        return ((await holdingsResponse.json()) as unknown[]).length;
+        return ((await holdingsResponse.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )

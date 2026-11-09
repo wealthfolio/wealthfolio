@@ -56,9 +56,7 @@ impl CustomProviderService {
             .into());
         }
         if RESERVED_CODES.contains(&code.as_str()) {
-            return Err(
-                ValidationError::InvalidInput(format!("Code '{}' is reserved", code)).into(),
-            );
+            return Err(ValidationError::CustomProviderCodeReserved.into());
         }
 
         for src in &payload.sources {
@@ -113,13 +111,7 @@ impl CustomProviderService {
         }
         let asset_count = self.repo.get_asset_count_for_provider(provider_id)?;
         if asset_count > 0 {
-            return Err(ValidationError::InvalidInput(format!(
-                "Cannot delete '{}': {} asset(s) still use it as their market data provider \
-                 or in a symbol mapping. Change their provider or remove the mapping first, \
-                 then try again.",
-                provider_id, asset_count
-            ))
-            .into());
+            return Err(ValidationError::CustomProviderInUse.into());
         }
         self.repo.delete(provider_id).await?;
         info!("Deleted custom provider: {}", provider_id);
@@ -177,13 +169,14 @@ impl CustomProviderService {
 
         let response = match request.request_builder(&client).send().await {
             Ok(resp) => resp,
-            Err(e) => {
+            Err(_) => {
                 return Ok(TestSourceResult {
                     success: false,
                     price: None,
                     currency: None,
                     date: None,
-                    error: Some(format!("HTTP request failed: {}", e)),
+                    error: Some(crate::errors::PublicError::provider_unavailable().message),
+                    error_code: Some(crate::errors::PublicError::provider_unavailable().error_code),
                     raw_response: None,
                     detected_elements: None,
                     detected_tables: None,
@@ -214,14 +207,15 @@ impl CustomProviderService {
         }
         let body_bytes = match response.bytes().await {
             Ok(b) => b,
-            Err(e) => {
+            Err(_) => {
                 return Ok(TestSourceResult {
                     success: false,
                     status_code: Some(status.as_u16()),
                     price: None,
                     currency: None,
                     date: None,
-                    error: Some(format!("Failed to read response body: {}", e)),
+                    error: Some(crate::errors::PublicError::provider_unavailable().message),
+                    error_code: Some(crate::errors::PublicError::provider_unavailable().error_code),
                     raw_response: None,
                     detected_elements: None,
                     detected_tables: None,
@@ -332,6 +326,7 @@ impl CustomProviderService {
                             currency,
                             date,
                             error: None,
+                            error_code: None,
                             raw_response: Some(body),
                             detected_elements: None,
                             detected_tables: None,
@@ -458,6 +453,7 @@ impl CustomProviderService {
                             currency: None,
                             date,
                             error: None,
+                            error_code: None,
                             raw_response: None,
                             detected_elements: None,
                             detected_tables: Some(tables),
@@ -523,6 +519,7 @@ impl CustomProviderService {
                         currency: None,
                         date,
                         error: None,
+                        error_code: None,
                         raw_response: Some(body),
                         detected_elements: None,
                         detected_tables: None,

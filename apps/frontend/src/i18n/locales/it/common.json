@@ -1,4 +1,6 @@
 {
+  "periodReturn": "Rendimento {{period}}",
+  "currentValue": "Valore attuale",
   "app_name": "Wealthfolio",
   "welcome": "Benvenuto",
   "loading": "Caricamento...",
@@ -715,5 +717,19 @@
     "accountCurrency": "Seleziona una valuta.",
     "creditCardTracking": "I conti carta di credito non possono usare il monitoraggio delle posizioni.",
     "creditCardBillingDays": "I giorni di chiusura e scadenza devono essere numeri interi da 1 a 31."
+  },
+  "backendErrors": {
+    "internal": "Impossibile completare l’operazione.",
+    "invalidInput": "Controlla i dati inseriti e riprova.",
+    "conflict": "La modifica è in conflitto con i dati esistenti.",
+    "notFound": "L’elemento richiesto non è stato trovato.",
+    "unauthorized": "Accedi per continuare.",
+    "forbidden": "Questa operazione non è consentita.",
+    "unavailable": "Questa operazione non è disponibile.",
+    "providerKeyMissing": "Aggiungi una chiave API per questo fornitore nelle impostazioni.",
+    "providerUnknown": "Seleziona un fornitore supportato.",
+    "providerUnavailable": "Il fornitore non ha potuto completare la richiesta. Controlla le impostazioni del fornitore.",
+    "customProviderCodeReserved": "Questo codice fornitore è riservato. Scegli un altro codice.",
+    "customProviderInUse": "Cambia il fornitore degli asset interessati o rimuovi le relative associazioni dei simboli prima di eliminarlo."
   }
 }

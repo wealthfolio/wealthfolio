@@ -166,6 +166,38 @@ describe("MarketDataSettingsPage", () => {
     );
   });
 
+  it("does not display legacy saved provider error details", async () => {
+    const user = userEvent.setup();
+    hookMocks.useMarketDataProviderSettings.mockReturnValue({
+      data: [
+        marketDataProvider({
+          enabled: true,
+          errorCount: 2,
+          lastSyncError: "FAKE-KEY-2531 /private/portfolio.db",
+          uniqueErrors: ["FAKE-KEY-2531 /private/portfolio.db", "FAKE-KEY-2531 account_balance"],
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    renderPage();
+    await user.click(screen.getByText("2 errors"));
+    expect(
+      screen.getAllByText(
+        "The provider could not complete the request. Check your provider settings.",
+      ),
+    ).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Alpha Vantage settings" }));
+    expect(
+      screen.getAllByText(
+        "The provider could not complete the request. Check your provider settings.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain("FAKE-KEY");
+    expect(document.body.textContent).not.toContain("/private");
+  });
+
   it("keeps a new market data API key visible while typing or pasting", async () => {
     const user = userEvent.setup();
     const input = await openProviderSettings();

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use wealthfolio_core::portfolio::snapshot::ManualHoldingEntry;
 use wealthfolio_core::portfolios::AccountScope;
 
 #[derive(Deserialize)]
@@ -125,41 +126,12 @@ pub struct SnapshotInfo {
     pub cash_total_account_currency: String,
 }
 
-/// Input for a single holding when saving manual holdings
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HoldingInput {
-    /// For existing holdings, pass the known asset ID directly (preferred)
-    pub asset_id: Option<String>,
-    /// Symbol (e.g., "AAPL", "META.TO") - used when asset_id is not provided
-    pub symbol: String,
-    pub quantity: String,
-    pub currency: String,
-    pub average_cost: Option<String>,
-    /// Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Used when asset_id is not provided.
-    pub exchange_mic: Option<String>,
-    /// Quote currency resolved during search/review (e.g., GBp)
-    pub quote_ccy: Option<String>,
-    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
-    pub instrument_type: Option<String>,
-    /// Market data provider that resolved this holding, if selected.
-    pub provider_id: Option<String>,
-    /// Provider-native symbol/code selected by search/import.
-    pub provider_symbol: Option<String>,
-    /// Asset name for new custom assets
-    pub name: Option<String>,
-    /// Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual
-    pub data_source: Option<String>,
-    /// Asset kind (e.g., "INVESTMENT", "OTHER")
-    pub asset_kind: Option<String>,
-}
-
 /// Request body for saving manual holdings
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveManualHoldingsRequest {
     pub account_id: String,
-    pub holdings: Vec<HoldingInput>,
+    pub holdings: Vec<ManualHoldingEntry>,
     pub cash_balances: HashMap<String, String>,
     pub snapshot_date: Option<String>,
 }

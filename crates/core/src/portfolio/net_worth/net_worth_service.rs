@@ -31,7 +31,8 @@ use crate::utils::time_utils::{
 pub const STALENESS_THRESHOLD_DAYS: i64 = 90;
 
 /// Key prefix for a credit-card liability, in the breakdown and the history.
-const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";
+/// History breakdown key prefix for a credit card account's balance.
+pub(crate) const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";
 
 /// Service for calculating net worth.
 #[derive(Clone)]
@@ -261,7 +262,7 @@ impl NetWorthService {
     }
 
     /// Get category key string for serialization.
-    fn category_key(category: AssetCategory) -> &'static str {
+    pub(crate) fn category_key(category: AssetCategory) -> &'static str {
         match category {
             AssetCategory::Cash => "cash",
             AssetCategory::Investment => "investments",

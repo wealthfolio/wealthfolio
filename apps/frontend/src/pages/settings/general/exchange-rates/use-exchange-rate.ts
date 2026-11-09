@@ -115,17 +115,14 @@ export function useExchangeRates() {
     },
   });
 
-  const updateExchangeRate = (rate: ExchangeRate) => {
-    updateExchangeRateMutation.mutate(rate);
-  };
+  // `mutate` keeps its identity across renders, so the settings table's columns can too.
+  const updateExchangeRate = updateExchangeRateMutation.mutate;
 
   const addExchangeRate = (rate: Omit<ExchangeRate, "id">) => {
     addExchangeRateMutation.mutate(rate);
   };
 
-  const deleteExchangeRate = (rateId: string) => {
-    deleteExchangeRateMutation.mutate(rateId);
-  };
+  const deleteExchangeRate = deleteExchangeRateMutation.mutate;
 
   return {
     exchangeRates,

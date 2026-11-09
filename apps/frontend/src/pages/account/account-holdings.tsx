@@ -2,6 +2,7 @@ import { useShowConnectAccountLink } from "@/features/wealthfolio-connect/hooks/
 import { connectPagePath } from "@/features/wealthfolio-connect/lib/connect-url";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useHoldingsWithClosedProbe } from "@/hooks/use-holdings";
+import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { AccountType, isLiabilityAccountType } from "@/lib/constants";
 import { canAddHoldings } from "@/lib/activity-restrictions";
@@ -85,16 +86,17 @@ const AccountHoldings = ({
   );
 
   const includeClosed = effectiveVisibilityFilters.includes("closed");
-  const { holdings, isLoading, hasHiddenClosedPositions } = useHoldingsWithClosedProbe(
-    {
-      type: "account",
-      accountId,
-    },
-    {
-      includeClosed,
-      probeClosedWhenEmpty: showClosedPositions,
-    },
-  );
+  const { holdings, isLoading, isComplete, incompleteAccounts, isError, hasHiddenClosedPositions } =
+    useHoldingsWithClosedProbe(
+      {
+        type: "account",
+        accountId,
+      },
+      {
+        includeClosed,
+        probeClosedWhenEmpty: showClosedPositions,
+      },
+    );
 
   // Check if user can directly edit holdings (manual HOLDINGS-mode accounts only)
   const canEditHoldingsDirectly = useMemo(() => {
@@ -143,8 +145,18 @@ const AccountHoldings = ({
     return null;
   }
 
+  if (!isComplete && holdings.length === 0) {
+    return (
+      <HoldingsScopeNotice
+        isComplete={isComplete}
+        isError={isError}
+        incompleteAccounts={incompleteAccounts}
+      />
+    );
+  }
+
   // Show empty state when there are no holdings
-  if (holdings.length === 0 && !hasHiddenClosedPositions) {
+  if (isComplete && holdings.length === 0 && !hasHiddenClosedPositions) {
     if (!showEmptyState) {
       return null;
     }

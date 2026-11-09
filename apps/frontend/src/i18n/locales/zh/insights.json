@@ -103,7 +103,8 @@
     "category_sheet": {
       "over_period": "在 {{period}} 内",
       "trend_period": "趋势 · {{period}}",
-      "items": "项目"
+      "items": "项目",
+      "view_details": "查看详情"
     },
     "trend": {
       "not_enough_history": "历史数据不足"

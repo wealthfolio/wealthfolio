@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}}のリターン",
+  "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",
   "welcome": "ようこそ",
   "loading": "読み込み中...",
@@ -687,5 +689,19 @@
     "accountCurrency": "通貨を選択してください。",
     "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。",
     "creditCardBillingDays": "締め日と支払日は1～31の整数で指定してください。"
+  },
+  "backendErrors": {
+    "internal": "操作を完了できませんでした。",
+    "invalidInput": "入力内容を確認して、もう一度お試しください。",
+    "conflict": "変更内容が既存のデータと競合しています。",
+    "notFound": "要求された項目が見つかりませんでした。",
+    "unauthorized": "続行するにはログインしてください。",
+    "forbidden": "この操作は許可されていません。",
+    "unavailable": "この操作は利用できません。",
+    "providerKeyMissing": "設定でこのプロバイダーの API キーを追加してください。",
+    "providerUnknown": "対応しているプロバイダーを選択してください。",
+    "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。",
+    "customProviderCodeReserved": "このプロバイダーコードは予約されています。別のコードを選択してください。",
+    "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。"
   }
 }

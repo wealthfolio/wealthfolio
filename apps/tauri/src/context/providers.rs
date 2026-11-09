@@ -380,7 +380,7 @@ async fn build_context(
         ),
     );
     let budget_service = Arc::new(wealthfolio_spending::budget::BudgetService::new(
-        budget_repo,
+        budget_repo.clone(),
         activity_repository.clone(),
         account_repository.clone(),
         activity_assignments_repo.clone(),
@@ -426,7 +426,7 @@ async fn build_context(
         activity_repository.clone(),
         account_repository.clone(),
         analytics_assignment_repo,
-        activity_splits_repo,
+        activity_splits_repo.clone(),
         spending_settings_service.clone(),
         taxonomy_service.clone(),
         fx_service.clone(),
@@ -575,12 +575,8 @@ async fn build_context(
             classification_service.clone(),
             timezone.clone(),
         )
-        .with_income_dependencies(
-            activity_repository.clone(),
-            fx_service.clone(),
-            projection_store,
-        )
-        .with_lot_repository(lots_repository.clone()),
+        .with_lot_repository(lots_repository.clone())
+        .with_projection_store(projection_store),
     );
 
     let allocation_service = Arc::new(
@@ -641,7 +637,8 @@ async fn build_context(
             quote_service.clone(),
         )
         .with_timezone(timezone.clone())
-        .with_event_sink(domain_event_sink.clone()),
+        .with_event_sink(domain_event_sink.clone())
+        .with_fx_registration(fx_service.clone(), base_currency.clone()),
     );
 
     let asset_logo_repository = Arc::new(AssetLogoRepository::new(pool.clone(), writer.clone()));
@@ -693,6 +690,7 @@ async fn build_context(
     );
 
     // Create AI environment and chat service
+    let portfolio_job_binding = super::ai_environment::PortfolioJobBinding::default();
     let ai_environment = Arc::new(TauriAiEnvironment::new(
         base_currency.clone(),
         timezone.clone(),
@@ -723,6 +721,10 @@ async fn build_context(
         spending_insight_service.clone(),
         snapshot_service.clone(),
         lots_repository.clone(),
+        custom_provider_service.clone(),
+        portfolio_job_binding.clone(),
+        fx_service.clone(),
+        alternative_asset_service.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();
@@ -765,6 +767,43 @@ async fn build_context(
     {
         warn!("Failed to prune local sync outbox: {}", err);
     }
+
+    let data_export_service = Arc::new(wealthfolio_core::exports::DataExportService::new(
+        wealthfolio_core::exports::DataExportSources {
+            accounts: account_service.clone(),
+            activities: activity_service.clone(),
+            holdings: holdings_service.clone(),
+            valuations: valuation_service.clone(),
+            snapshots: snapshot_service.clone(),
+            lots: lots_repository.clone(),
+            assets: asset_service.clone(),
+            alternative_assets: alternative_asset_service.clone(),
+            quotes: quote_service.clone(),
+            net_worth: net_worth_service.clone(),
+            portfolios: portfolio_service.clone(),
+            goals: goal_service.clone(),
+            limits: limits_service.clone(),
+            taxonomies: taxonomy_service.clone(),
+            income: income_service.clone(),
+            spending: Arc::new(
+                wealthfolio_spending::exports::SpendingDataExportSource::new(
+                    taxonomy_service.clone(),
+                    account_service.clone(),
+                    activity_assignments_repo.clone(),
+                    activity_splits_repo.clone(),
+                    activity_events_repo.clone(),
+                    events_service.clone(),
+                    budget_repo,
+                    budget_service.clone(),
+                    spending_analytics_service.clone(),
+                    categorization_rules_service.clone(),
+                ),
+            ),
+            base_currency: base_currency.clone(),
+            timezone: timezone.clone(),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+    ));
 
     Ok(BuiltContext {
         context: ServiceContext {
@@ -810,6 +849,7 @@ async fn build_context(
             ai_provider_service,
             ai_chat_service,
             agent_environment,
+            portfolio_job_binding,
             mcp_audit_repository,
             pat_repository,
             addon_service,
@@ -826,6 +866,7 @@ async fn build_context(
             budget_service,
             spending_analytics_service,
             spending_insight_service,
+            data_export_service,
         },
         event_receiver,
         final_cash_rebuild,
