@@ -99,7 +99,7 @@ function hiddenSides(group: HTMLElement): HiddenSides {
 /** Fades the sides with hidden items, so a clipped label reads as more to scroll to. */
 function edgeFadeMask({ left, right }: HiddenSides) {
   if (!left && !right) return undefined;
-  const mask = `linear-gradient(to right, ${left ? "transparent" : "#000"}, #000 ${EDGE_FADE}, #000 calc(100% - ${EDGE_FADE}), ${right ? "transparent" : "#000"})`;
+  const mask = `linear-gradient(to right, ${left ? "transparent" : "black"}, black ${EDGE_FADE}, black calc(100% - ${EDGE_FADE}), ${right ? "transparent" : "black"})`;
   return { maskImage: mask, WebkitMaskImage: mask };
 }
 
