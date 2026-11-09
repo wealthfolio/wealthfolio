@@ -1,8 +1,9 @@
 import { AccountType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, ContributionLimit, NewContributionLimit } from "@/lib/types";
-import { fireEvent, render, screen, waitFor } from "@/test/render";
+import { render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { DirectionProvider } from "@wealthfolio/ui";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,10 +20,10 @@ const adapters = vi.hoisted(() => ({
 }));
 
 vi.mock("@/adapters", () => adapters);
-vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: vi.fn() }));
-vi.mock("./components/contribution-limit-edit-modal", () => ({
-  ContributionLimitEditModal: () => null,
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { timezone: "UTC", baseCurrency: "USD" } }),
 }));
+vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: vi.fn() }));
 
 const account = (id: string, overrides: Partial<Account> = {}): Account => ({
   id,
@@ -89,16 +90,24 @@ describe("contribution limit account selection", () => {
         </QueryClientProvider>,
       );
 
+      const user = userEvent.setup();
+      // The card's actions menu opens the shared edit dialog.
+      const editAccounts = async () => {
+        await user.click(screen.getAllByRole("button", { name: "Open" })[0]);
+        await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+        return within(await screen.findByRole("group", { name: "Accounts that count" }));
+      };
+
       await screen.findAllByText("$50,000.00");
-      fireEvent.click(screen.getAllByRole("button", { name: "Retirement" })[0]);
-      const hiddenAccount = await screen.findByRole("button", { name: /Old plan\s*Hidden/ });
-      expect(hiddenAccount).toHaveAttribute("aria-pressed", "false");
-      expect(screen.queryByRole("button", { name: /Archived plan/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Credit card/ })).not.toBeInTheDocument();
+      let picker = await editAccounts();
+      const hiddenAccount = picker.getByRole("checkbox", { name: /Old plan\s*Hidden/ });
+      expect(hiddenAccount).not.toBeChecked();
+      expect(picker.queryByText("Archived plan")).not.toBeInTheDocument();
+      expect(picker.queryByText("Credit card")).not.toBeInTheDocument();
       expect(adapters.getAccounts).toHaveBeenCalledWith(false);
 
-      fireEvent.click(hiddenAccount);
-      fireEvent.click(screen.getByRole("button", { name: "Save selected accounts" }));
+      await user.click(hiddenAccount);
+      await user.click(screen.getByRole("button", { name: "Update" }));
       await waitFor(() =>
         expect(adapters.updateContributionLimit).toHaveBeenLastCalledWith(
           "limit",
@@ -109,14 +118,14 @@ describe("contribution limit account selection", () => {
       expect(client.getQueryData([QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, "limit"])).toMatchObject({
         total: 0,
       });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
-      // Remount the picker to verify the saved hidden selection can be removed.
-      fireEvent.click(screen.getAllByRole("button", { name: "Retirement" })[0]);
-      fireEvent.click(screen.getAllByRole("button", { name: "Retirement" })[0]);
-      const savedAccount = screen.getByRole("button", { name: /Old plan\s*Hidden/ });
-      expect(savedAccount).toHaveAttribute("aria-pressed", "true");
-      fireEvent.click(savedAccount);
-      fireEvent.click(screen.getByRole("button", { name: "Save selected accounts" }));
+      // Reopen the dialog to verify the saved hidden selection can be removed.
+      picker = await editAccounts();
+      const savedAccount = picker.getByRole("checkbox", { name: /Old plan\s*Hidden/ });
+      expect(savedAccount).toBeChecked();
+      await user.click(savedAccount);
+      await user.click(screen.getByRole("button", { name: "Update" }));
       await waitFor(() =>
         expect(adapters.updateContributionLimit).toHaveBeenLastCalledWith(
           "limit",

@@ -1,5 +1,11 @@
+import { searchActivities } from "@/adapters";
+import { ProgressBar } from "@/features/goals/components/goal-card";
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
+import { ActivityForm, type AccountSelectOption } from "@/pages/activity/components/activity-form";
+import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
+import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useIsCompactTableViewport } from "@/hooks/use-platform";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { cn } from "@/lib/utils";
 import type { ContributionActivityDetail } from "@/lib/types";
@@ -10,6 +16,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   Empty,
@@ -18,45 +25,60 @@ import {
   EmptyTitle,
   Icons,
   PrivacyAmount,
-  Progress,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Switch,
   useDateFormatting,
+  useNumberFormatting,
   buttonVariants,
 } from "@wealthfolio/ui";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import { SettingsHeader } from "../settings-header";
-import { AccountSelection } from "./components/account-selection";
-import { ContributionActivityReview } from "./components/contribution-activity-review";
 import { ContributionLimitEditModal } from "./components/contribution-limit-edit-modal";
+import { parseAccountIds } from "./contribution-limit-accounts";
 import { hasFormerDefaultDates } from "./contribution-limit-dates";
-import { useContributionLimitDetails } from "./use-contribution-limit-details";
+import {
+  useContributionActivityExclusion,
+  useContributionLimitDetails,
+} from "./use-contribution-limit-details";
 
 export function ContributionLimitDetailPage() {
   const { limitId = "" } = useParams();
   const { t } = useTranslation();
   const dates = useDateFormatting();
-  const { accounts } = useAccounts({ filterActive: false });
+  const numbers = useNumberFormatting();
+  const { accounts, isLoading: accountsLoading } = useAccounts({ filterActive: false });
   const { data, isLoading, isError, refetch } = useContributionLimitDetails(limitId);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const exclusion = useContributionActivityExclusion(limitId);
   const [editing, setEditing] = useState(false);
-  const compact = useIsCompactTableViewport();
-  const selected = data?.activities.find((activity) => activity.id === selectedId) ?? null;
+  const isMobile = useIsMobileViewport();
+  const activityDialogs = useActivityActionDialogs();
+  const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
+  const activityFormAccounts: AccountSelectOption[] = accounts
+    .filter((account) => !account.isArchived)
+    .map((account) => ({
+      value: account.id,
+      label: account.name,
+      currency: account.currency,
+      accountType: account.accountType,
+      restrictionLevel: getActivityRestrictionLevel(account),
+    }));
+  // Opens the activity's own edit form, where a transfer can be marked external.
+  const editActivity = async (activityId: string) => {
+    setOpeningActivityId(activityId);
+    try {
+      const found = await searchActivities(0, 1, { activityIds: [activityId] }, "");
+      const details = found.data[0];
+      if (details) await activityDialogs.openForm(details);
+    } finally {
+      setOpeningActivityId(null);
+    }
+  };
   const accountName = (id: string) =>
     accounts.find((account) => account.id === id)?.name ?? t("common:account");
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading || accountsLoading) return <Skeleton className="h-64 w-full" />;
   if (isError || !data)
     return (
       <Alert variant="destructive">
@@ -74,7 +96,8 @@ export function ContributionLimitDetailPage() {
   const total = Number(calculation.total);
   const cap = limit.limitAmount;
   const over = total > cap;
-  const percentage = cap > 0 ? Math.min((total / cap) * 100, 100) : 0;
+  const reached = cap > 0 && total === cap;
+  const share = cap > 0 ? total / cap : 0;
   const formatDate = hasFormerDefaultDates(limit)
     ? (value: string) => dates.formatCalendarDate(value.slice(0, 10))
     : (value: string) => dates.formatDate(value);
@@ -82,30 +105,33 @@ export function ContributionLimitDetailPage() {
     limit.startDate && limit.endDate
       ? `${formatDate(limit.startDate)} – ${formatDate(limit.endDate)}`
       : String(limit.contributionYear);
-  const review = selected && (
-    <ContributionActivityReview
-      key={`${limitId}:${selected.id}:${selected.treatment}`}
-      limitId={limitId}
-      activity={selected}
-      accountName={accountName(selected.accountId)}
-      total={total}
-      baseCurrency={currency}
-    />
+  const daysLeft = limit.endDate
+    ? Math.ceil((new Date(limit.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  // An account deleted since the limit was saved is left out, as on the list card.
+  const limitAccountIds = parseAccountIds(limit.accountIds).filter((id) =>
+    accounts.some((account) => account.id === id),
   );
-  const summary = [
-    { label: t("settings:limits_detail.counted"), value: total },
-    { label: t("settings:limits_detail.annual_limit"), value: cap },
-    {
-      label: over ? t("settings:limits_detail.over") : t("settings:limits_detail.remaining"),
-      value: Math.abs(cap - total),
-      danger: over,
-    },
-  ];
+  const status = over
+    ? { label: t("settings:limits_detail.over"), className: "text-destructive" }
+    : reached
+      ? { label: t("settings:limits_limit_reached"), className: "text-success" }
+      : {
+          label: t("settings:limits_detail.used_percent", {
+            percent: numbers.formatPercent(share, { digits: 0 }),
+          }),
+          className: "text-muted-foreground",
+        };
 
-  const activityLabel = (activity: ContributionActivityDetail) =>
-    t("settings:limits_detail.review_activity", {
-      activity: `${localizeActivityTypeName(t, activity.activityType)} · ${dates.formatDate(activity.activityInstant)}`,
-    });
+  // Rows with a switch first; rows that never count on their own below, with their reason.
+  const countedActivities = activities.filter((activity) => activity.canExclude);
+  const notCountedActivities = activities.filter((activity) => !activity.canExclude);
+
+  // While a switch saves, it shows the value being saved.
+  const counts = (activity: ContributionActivityDetail) =>
+    exclusion.isPending && exclusion.variables?.activityId === activity.id
+      ? !exclusion.variables.excluded
+      : activity.treatment !== "excludedByUser";
 
   return (
     <div className="space-y-6">
@@ -126,49 +152,112 @@ export function ContributionLimitDetailPage() {
           {t("common:edit")}
         </Button>
       </SettingsHeader>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-live="polite">
-        {summary.map(({ label, value, danger }) => (
-          <Card key={label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-muted-foreground text-sm font-normal">{label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PrivacyAmount
-                className={cn("text-2xl font-semibold tabular-nums", danger && "text-destructive")}
-                value={value}
-                currency={currency}
+
+      <Card className="overflow-hidden" aria-live="polite">
+        <CardContent className="p-0">
+          <div className="space-y-4 p-6">
+            <div className="text-muted-foreground text-sm">
+              {t("settings:limits_detail.counted")}
+            </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <PrivacyAmount
+                  className={cn(
+                    "text-3xl font-semibold tracking-tight tabular-nums",
+                    over && "text-destructive",
+                  )}
+                  value={total}
+                  currency={currency}
+                />
+                <span className="text-muted-foreground tabular-nums">
+                  / <PrivacyAmount value={cap} currency={currency} />
+                </span>
+              </div>
+              <span className={cn("text-sm font-medium", status.className)}>{status.label}</span>
+            </div>
+            <div
+              className="bg-muted overflow-hidden rounded-full"
+              role="progressbar"
+              aria-label={t("settings:limits_detail.counted")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(Math.min(share, 1) * 100)}
+            >
+              <ProgressBar
+                progress={share}
+                fillClass={over ? "bg-destructive" : reached ? "bg-success" : "bg-primary"}
               />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <Progress
-        value={percentage}
-        aria-label={t("settings:limits_detail.counted")}
-        className={over ? "bg-destructive-subtle" : undefined}
-      />
-      <details className="rounded-lg border p-4">
-        <summary className="cursor-pointer text-sm font-medium">
-          {t("settings:limits_select_accounts")}
-        </summary>
-        <div className="pt-4">
-          <AccountSelection
-            key={`${limit.id}:${limit.accountIds}`}
-            limit={limit}
-            accounts={accounts}
-            deposits={calculation}
-            isLoading={false}
-          />
-        </div>
-      </details>
-      <div
-        className={cn(
-          "grid min-w-0 grid-cols-1 gap-5",
-          selected && !compact && "lg:grid-cols-[minmax(0,1fr)_18rem]",
-        )}
-      >
-        <section className="min-w-0 space-y-3" aria-label={t("settings:limits_detail.activities")}>
-          <h2 className="font-medium">{t("settings:limits_detail.activities")}</h2>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 divide-y border-t sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <HeroMetric
+              label={
+                over ? t("settings:limits_detail.over") : t("settings:limits_detail.remaining")
+              }
+              className={over ? "text-destructive" : undefined}
+            >
+              <PrivacyAmount value={Math.abs(cap - total)} currency={currency} />
+            </HeroMetric>
+            <HeroMetric label={t("settings:limits_detail.annual_limit")}>
+              <PrivacyAmount value={cap} currency={currency} />
+            </HeroMetric>
+            <HeroMetric label={t("settings:limits_detail.period_ends")}>
+              {limit.endDate ? formatDate(limit.endDate) : String(limit.contributionYear)}
+              {daysLeft !== null && daysLeft > 0 && (
+                <span className="text-muted-foreground ms-2 text-sm font-normal">
+                  {t("settings:limits_days_left", { days: daysLeft })}
+                </span>
+              )}
+            </HeroMetric>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings:limits_form_accounts_label")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {limitAccountIds.length ? (
+            <ul
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+              aria-label={t("settings:limits_form_accounts_label")}
+            >
+              {limitAccountIds.map((id) => (
+                <li
+                  key={id}
+                  className="bg-muted/40 flex min-w-0 items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    <bdi>{accountName(id)}</bdi>
+                  </span>
+                  <PrivacyAmount
+                    className="text-muted-foreground shrink-0 text-sm tabular-nums"
+                    value={calculation.byAccount[id]?.convertedAmount ?? 0}
+                    currency={currency}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                {t("settings:limits_no_accounts_selected")}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                {t("settings:limits_choose_accounts")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings:limits_detail.activities")}</CardTitle>
+          <CardDescription>{t("settings:limits_detail.activity_unchanged")}</CardDescription>
+        </CardHeader>
+        <CardContent>
           {activities.length === 0 ? (
             <Empty>
               <EmptyHeader>
@@ -177,101 +266,203 @@ export function ContributionLimitDetailPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common:activity")}</TableHead>
-                  <TableHead className="text-end">{t("common:amount")}</TableHead>
-                  <TableHead>
-                    <span className="sr-only">
-                      {t("settings:limits_detail.transaction_details")}
-                    </span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activities.map((activity) => (
-                  <TableRow
-                    key={activity.id}
-                    data-state={activity.id === selectedId ? "selected" : undefined}
-                  >
-                    <TableCell className="space-y-1 px-2">
-                      <div className="font-medium">
-                        {localizeActivityTypeName(t, activity.activityType)}
-                      </div>
-                      <div className="text-muted-foreground text-xs">
-                        {dates.formatDate(activity.activityInstant)} ·{" "}
-                        <bdi>{accountName(activity.accountId)}</bdi>
-                      </div>
-                      <Badge
-                        className="max-w-full text-start whitespace-normal"
-                        variant={activity.treatment === "counted" ? "success-subtle" : "secondary"}
-                      >
-                        {t(`settings:limits_detail.treatments.${activity.treatment}`)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-2 text-end tabular-nums">
-                      {activity.amount == null ? (
-                        "—"
-                      ) : (
-                        <PrivacyAmount
-                          value={Number(activity.amount)}
-                          currency={activity.currency}
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell className="px-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={activityLabel(activity)}
-                        aria-pressed={activity.id === selectedId}
-                        onClick={() => setSelectedId(activity.id)}
-                      >
-                        <Icons.ChevronRight className="size-4 rtl:rotate-180" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-6">
+              {countedActivities.length > 0 && (
+                <ActivityGroup title={t("settings:limits_detail.group_counted")}>
+                  {countedActivities.map((activity) => {
+                    const activityName = localizeActivityTypeName(t, activity.activityType);
+                    const counted = counts(activity);
+                    return (
+                      <ActivityRow
+                        key={activity.id}
+                        name={activityName}
+                        meta={
+                          <>
+                            {dates.formatDate(activity.activityInstant)} ·{" "}
+                            <bdi>{accountName(activity.accountId)}</bdi>
+                          </>
+                        }
+                        muted={!counted}
+                        badge={
+                          activity.treatment === "excludedByUser"
+                            ? t("settings:limits_detail.treatments.excludedByUser")
+                            : undefined
+                        }
+                        amount={
+                          <ActivityAmount
+                            activity={activity}
+                            className={cn(!counted && "text-muted-foreground line-through")}
+                          />
+                        }
+                        action={
+                          <Switch
+                            checked={counted}
+                            disabled={exclusion.isPending}
+                            onCheckedChange={(checked) =>
+                              exclusion.mutate({ activityId: activity.id, excluded: !checked })
+                            }
+                            aria-label={t("settings:limits_detail.count_activity", {
+                              activity: `${activityName} · ${dates.formatDate(activity.activityInstant)}`,
+                            })}
+                          />
+                        }
+                      />
+                    );
+                  })}
+                </ActivityGroup>
+              )}
+              {notCountedActivities.length > 0 && (
+                <ActivityGroup
+                  title={t("settings:limits_detail.group_not_counted")}
+                  description={t("settings:limits_detail.group_not_counted_hint")}
+                >
+                  {notCountedActivities.map((activity) => {
+                    const activityName = localizeActivityTypeName(t, activity.activityType);
+                    return (
+                      <ActivityRow
+                        key={activity.id}
+                        name={activityName}
+                        meta={
+                          <>
+                            {dates.formatDate(activity.activityInstant)} ·{" "}
+                            <bdi>{accountName(activity.accountId)}</bdi>
+                          </>
+                        }
+                        muted
+                        badge={t(`settings:limits_detail.treatments.${activity.treatment}`)}
+                        amount={
+                          <ActivityAmount activity={activity} className="text-muted-foreground" />
+                        }
+                        action={
+                          // The edit form has the External toggle for transfers only.
+                          activity.treatment === "notExternal" &&
+                          activity.activityType === "TRANSFER_IN" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={openingActivityId !== null}
+                              onClick={() => void editActivity(activity.id)}
+                              aria-label={t("settings:limits_detail.edit_activity_aria", {
+                                activity: `${activityName} · ${dates.formatDate(activity.activityInstant)}`,
+                              })}
+                            >
+                              {t("settings:limits_detail.edit_activity")}
+                            </Button>
+                          ) : null
+                        }
+                      />
+                    );
+                  })}
+                </ActivityGroup>
+              )}
+            </div>
           )}
-        </section>
-        {selected && !compact && (
-          <Card className="self-start" aria-label={t("settings:limits_detail.transaction_details")}>
-            <CardHeader className="flex-row items-center justify-between gap-2">
-              <CardTitle className="text-sm">
-                {t("settings:limits_detail.transaction_details")}
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("common:close")}
-                onClick={() => setSelectedId(null)}
-              >
-                <Icons.X className="size-4" />
-              </Button>
-            </CardHeader>
-            <CardContent>{review}</CardContent>
-          </Card>
+        </CardContent>
+      </Card>
+      <ContributionLimitEditModal limit={limit} open={editing} onClose={() => setEditing(false)} />
+      {isMobile ? (
+        <MobileActivityForm
+          key={activityDialogs.selectedActivity?.id ?? "none"}
+          accounts={activityFormAccounts}
+          transferAccounts={activityFormAccounts}
+          activity={activityDialogs.selectedActivity}
+          open={activityDialogs.formOpen}
+          onClose={activityDialogs.closeForm}
+        />
+      ) : (
+        <ActivityForm
+          accounts={activityFormAccounts}
+          transferAccounts={activityFormAccounts}
+          activity={activityDialogs.selectedActivity}
+          open={activityDialogs.formOpen}
+          onClose={activityDialogs.closeForm}
+        />
+      )}
+    </div>
+  );
+}
+
+function HeroMetric({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 px-6 py-4">
+      <div className="text-muted-foreground text-sm">{label}</div>
+      <div className={cn("mt-1 text-lg font-semibold tabular-nums", className)}>{children}</div>
+    </div>
+  );
+}
+
+function ActivityGroup({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-1">
+      <h3 className="text-muted-foreground text-sm font-medium">{title}</h3>
+      {description && <p className="text-muted-foreground text-xs">{description}</p>}
+      <ul className="divide-y">{children}</ul>
+    </section>
+  );
+}
+
+function ActivityRow({
+  name,
+  meta,
+  muted,
+  badge,
+  amount,
+  action,
+}: {
+  name: string;
+  meta: ReactNode;
+  muted?: boolean;
+  badge?: string;
+  amount: ReactNode;
+  action: ReactNode;
+}) {
+  return (
+    <li className="flex items-center gap-4 py-3">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className={cn("font-medium", muted && "text-muted-foreground")}>{name}</div>
+        <div className="text-muted-foreground text-xs">{meta}</div>
+        {badge && (
+          <Badge className="max-w-full text-start whitespace-normal" variant="secondary">
+            {badge}
+          </Badge>
         )}
       </div>
-      {selected && compact && (
-        <Sheet
-          open
-          onOpenChange={(open) => {
-            if (!open) setSelectedId(null);
-          }}
-        >
-          <SheetContent side="inline-end" className="overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>{t("settings:limits_detail.transaction_details")}</SheetTitle>
-            </SheetHeader>
-            <div className="p-6">{review}</div>
-          </SheetContent>
-        </Sheet>
+      <div className="shrink-0 text-end text-sm tabular-nums">{amount}</div>
+      <div className="flex w-28 shrink-0 justify-end">{action}</div>
+    </li>
+  );
+}
+
+function ActivityAmount({
+  activity,
+  className,
+}: {
+  activity: ContributionActivityDetail;
+  className?: string;
+}) {
+  return (
+    <span className={className}>
+      {activity.amount == null ? (
+        "—"
+      ) : (
+        <PrivacyAmount value={Number(activity.amount)} currency={activity.currency} />
       )}
-      <ContributionLimitEditModal limit={limit} open={editing} onClose={() => setEditing(false)} />
-    </div>
+    </span>
   );
 }
