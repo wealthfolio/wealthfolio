@@ -16,11 +16,27 @@ const mocks = vi.hoisted(() => ({
   updateContributionLimit: vi.fn(),
   deleteContributionLimit: vi.fn(),
   calculateDepositsForLimit: vi.fn(),
+  searchActivities: vi.fn(),
   logger: { error: vi.fn() },
   toast: vi.fn(),
 }));
 vi.mock("@/adapters", () => mocks);
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: mocks.toast }));
+// The activity edit form stands in as a dialog naming the activity it opened with.
+const forms = vi.hoisted(() => ({
+  activityForm: ({ activity, open }: { activity?: { id?: string }; open?: boolean }) =>
+    open ? <div role="dialog" aria-label={`Edit ${activity?.id}`} /> : null,
+}));
+vi.mock("@/pages/activity/components/activity-form", () => ({ ActivityForm: forms.activityForm }));
+vi.mock("@/pages/activity/components/mobile-forms/mobile-activity-form", () => ({
+  MobileActivityForm: forms.activityForm,
+}));
+vi.mock("@/pages/activity/hooks/use-activity-mutations", () => ({
+  useActivityMutations: () => ({
+    deleteActivityMutation: { mutateAsync: vi.fn(), isPending: false },
+    duplicateActivityMutation: { mutateAsync: vi.fn() },
+  }),
+}));
 vi.mock("./components/contribution-limit-edit-modal", () => ({
   ContributionLimitEditModal: () => null,
 }));
@@ -112,10 +128,10 @@ function countedCard() {
   return within(card);
 }
 
-async function reviewAmount(amount: string, user: ReturnType<typeof userEvent.setup>) {
-  const row = screen.getByText(amount).closest("tr");
+function countsSwitch(amount: string) {
+  const row = screen.getByText(amount).closest("li");
   if (!(row instanceof HTMLElement)) throw new Error("Activity row missing");
-  await user.click(within(row).getByRole("button"));
+  return within(row).getByRole("switch");
 }
 
 describe("contribution limit detail", () => {
@@ -145,8 +161,44 @@ describe("contribution limit detail", () => {
     vi.restoreAllMocks();
   });
 
+  it("lists the limit's accounts with what each contributed", async () => {
+    mocks.getContributionLimitDetails.mockResolvedValue({
+      ...details(),
+      // "gone" was deleted after the limit was saved.
+      limit: { ...details().limit, accountIds: "retirement,gone,source" },
+      calculation: {
+        total: 55000,
+        baseCurrency: "USD",
+        byAccount: { retirement: { amount: 55000, currency: "USD", convertedAmount: 55000 } },
+      },
+    });
+    setup();
+    const list = await screen.findByRole("list", { name: "Accounts that count" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Current plan$55,000.00",
+      "Old plan$0.00",
+    ]);
+    expect(screen.queryByText("Select accounts")).not.toBeInTheDocument();
+    // $55,000 counted against a $24,000 limit.
+    const bar = screen.getByRole("progressbar", { name: "Counted contributions" });
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
+    expect(countedCard().getAllByText("Over limit")).toHaveLength(2);
+    expect(countedCard().getByText("$31,000.00")).toBeInTheDocument();
+  });
+
+  it("offers to choose accounts when the limit has none", async () => {
+    mocks.getContributionLimitDetails.mockResolvedValue({
+      ...details(),
+      limit: { ...details().limit, accountIds: "" },
+    });
+    setup();
+    expect(await screen.findByText("No accounts selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose accounts" })).toBeInTheDocument();
+  });
+
   it.each(["ltr", "rtl"] as const)(
-    "previews, saves and restores exclusions in %s",
+    "excludes and restores an activity from its switch in %s",
     async (direction) => {
       const { client, user } = setup(direction);
       await screen.findByRole("heading", { name: "Retirement" });
@@ -154,74 +206,112 @@ describe("contribution limit detail", () => {
       client.setQueryData(progressKey, details().calculation);
       client.setQueryData([QueryKeys.CONTRIBUTION_LIMIT_DETAILS, "limit-b"], details());
       expect(countedCard().getByText("$55,000.00")).toBeInTheDocument();
-      await reviewAmount("$50,000.00", user);
-      await user.click(screen.getByRole("combobox", { name: "Treatment in this limit" }));
-      await user.click(await screen.findByRole("option", { name: "Exclude from this limit" }));
-      expect(countedCard().getByText("$55,000.00")).toBeInTheDocument();
-      expect(mocks.setContributionActivityExcluded).not.toHaveBeenCalled();
-      await user.click(screen.getByRole("button", { name: "Save treatment" }));
+      const rollover = countsSwitch("$50,000.00");
+      expect(rollover).toHaveAccessibleName("Count Transfer In · Jun 15, 2025 in this limit");
+      expect(rollover).toBeChecked();
+
+      await user.click(rollover);
       await waitFor(() => expect(countedCard().getByText("$5,000.00")).toBeInTheDocument());
       expect(mocks.setContributionActivityExcluded).toHaveBeenLastCalledWith(
         "limit-a",
         "rollover",
         true,
       );
+      expect(countsSwitch("$50,000.00")).not.toBeChecked();
       expect(screen.getByText("Excluded by you")).toBeInTheDocument();
       expect(client.getQueryState(progressKey)?.isInvalidated).toBe(true);
       expect(
         client.getQueryState([QueryKeys.CONTRIBUTION_LIMIT_DETAILS, "limit-b"])?.isInvalidated,
       ).toBe(false);
-      await user.click(screen.getByRole("combobox", { name: "Treatment in this limit" }));
-      await user.click(await screen.findByRole("option", { name: "Count automatically" }));
-      await user.click(screen.getByRole("button", { name: "Save treatment" }));
+
+      await user.click(countsSwitch("$50,000.00"));
       await waitFor(() => expect(countedCard().getByText("$55,000.00")).toBeInTheDocument());
       expect(mocks.setContributionActivityExcluded).toHaveBeenLastCalledWith(
         "limit-a",
         "rollover",
         false,
       );
+      expect(countsSwitch("$50,000.00")).toBeChecked();
     },
   );
 
-  it("keeps automatic exclusions read-only", async () => {
-    const { user } = setup();
+  it("shows why an automatic exclusion can't be switched", async () => {
+    setup();
     await screen.findByRole("heading", { name: "Retirement" });
-    await reviewAmount("$2,000.00", user);
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save treatment" })).not.toBeInTheDocument();
-    expect(mocks.setContributionActivityExcluded).not.toHaveBeenCalled();
+    const row = screen.getByText("$2,000.00").closest("li");
+    if (!(row instanceof HTMLElement)) throw new Error("Activity row missing");
+    expect(within(row).queryByRole("switch")).not.toBeInTheDocument();
+    expect(within(row).getByText("Internal transfer")).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
   });
 
-  it("retains the draft and original total after a failed save", async () => {
+  it("keeps the saved state and total after a failed save", async () => {
     mocks.setContributionActivityExcluded.mockRejectedValueOnce(new Error("Save failed"));
     const { user } = setup();
     await screen.findByRole("heading", { name: "Retirement" });
-    await reviewAmount("$50,000.00", user);
-    await user.click(screen.getByRole("combobox", { name: "Treatment in this limit" }));
-    await user.click(await screen.findByRole("option", { name: "Exclude from this limit" }));
-    await user.click(screen.getByRole("button", { name: "Save treatment" }));
+    await user.click(countsSwitch("$50,000.00"));
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })),
     );
     expect(countedCard().getByText("$55,000.00")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save treatment" })).toBeEnabled();
-    expect(screen.getByRole("combobox", { name: "Treatment in this limit" })).toHaveTextContent(
-      "Exclude from this limit",
-    );
+    expect(countsSwitch("$50,000.00")).toBeChecked();
+    expect(countsSwitch("$50,000.00")).toBeEnabled();
   });
 
-  it("does not invent an FX conversion when restoring an excluded foreign-currency activity", async () => {
-    const data = details(true);
-    data.activities[0].currency = "CAD";
+  it("lists activities that can't be switched below, with an edit action for unmarked transfers", async () => {
+    const data = details();
+    data.activities.push(
+      {
+        id: "unmarked-transfer",
+        accountId: "retirement",
+        activityType: "TRANSFER_IN",
+        activityInstant: "2025-03-15T12:00:00Z",
+        amount: 800,
+        currency: "USD",
+        countedAmount: 0,
+        treatment: "notExternal",
+        canExclude: false,
+      },
+      {
+        id: "interest",
+        accountId: "retirement",
+        activityType: "CREDIT",
+        activityInstant: "2025-02-15T12:00:00Z",
+        amount: 25,
+        currency: "USD",
+        countedAmount: 0,
+        treatment: "notExternal",
+        canExclude: false,
+      },
+    );
     mocks.getContributionLimitDetails.mockResolvedValue(data);
+    mocks.searchActivities.mockResolvedValue({
+      data: [{ id: "unmarked-transfer", activityType: "TRANSFER_IN", accountId: "retirement" }],
+    });
     const { user } = setup();
     await screen.findByRole("heading", { name: "Retirement" });
-    const row = screen.getByText("Excluded by you").closest("tr");
-    if (!(row instanceof HTMLElement)) throw new Error("Excluded row missing");
-    await user.click(within(row).getByRole("button"));
-    await user.click(screen.getByRole("combobox", { name: "Treatment in this limit" }));
-    await user.click(await screen.findByRole("option", { name: "Count automatically" }));
-    expect(screen.getAllByText("Calculated on save")).toHaveLength(2);
-    expect(mocks.setContributionActivityExcluded).not.toHaveBeenCalled();
+
+    const group = (name: string) => {
+      const section = screen.getByRole("heading", { name }).closest("section");
+      if (!(section instanceof HTMLElement)) throw new Error(`${name} group missing`);
+      return within(section);
+    };
+    expect(group("Contributions").getAllByRole("switch")).toHaveLength(2);
+    const notCounted = group("Not counted automatically");
+    expect(notCounted.queryByRole("switch")).not.toBeInTheDocument();
+    expect(notCounted.getByText("Internal transfer")).toBeInTheDocument();
+    // The edit form can mark a transfer external; it has no such option for a credit.
+    const edit = notCounted.getAllByRole("button", { name: /^Edit / });
+    expect(edit).toHaveLength(1);
+    expect(edit[0]).toHaveAccessibleName("Edit Transfer In · Mar 15, 2025");
+
+    await user.click(edit[0]);
+    expect(await screen.findByRole("dialog", { name: "Edit unmarked-transfer" })).toBeVisible();
+    expect(mocks.searchActivities).toHaveBeenCalledWith(
+      0,
+      1,
+      { activityIds: ["unmarked-transfer"] },
+      "",
+    );
   });
 });
