@@ -64,16 +64,26 @@ test("future limits render and recurring projections retain their account and ta
   const limitsResponse = await page.request.get(`${BASE_URL}/api/v1/limits`);
   expect(limitsResponse.ok()).toBe(true);
   const limits = await limitsResponse.json();
-  expect(
-    limits.find(
-      (limit: { contributionYear: number; accountIds?: string }) =>
-        limit.contributionYear === year && limit.accountIds === bobAccountId,
-    ),
-  ).toMatchObject({
-    isRecurring: true,
-    startDate: new Date(Date.UTC(year, 3, 6, 12)).toISOString(),
-    endDate: new Date(Date.UTC(year + 1, 3, 5, 12)).toISOString(),
+  const added = limits.find(
+    (limit: { contributionYear: number; accountIds?: string }) =>
+      limit.contributionYear === year && limit.accountIds === bobAccountId,
+  );
+  expect(added).toMatchObject({ isRecurring: true });
+  // The form saves each picked day at its start in the app's timezone.
+  const settingsResponse = await page.request.get(`${BASE_URL}/api/v1/settings`);
+  expect(settingsResponse.ok()).toBe(true);
+  const timeZone = (await settingsResponse.json()).timezone?.trim() || "UTC";
+  const dayStart = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   });
+  expect(dayStart.format(new Date(added.startDate))).toBe(`${year}-04-06, 00:00`);
+  expect(dayStart.format(new Date(added.endDate))).toBe(`${year + 1}-04-05, 00:00`);
   const invalid = await page.request.post(`${BASE_URL}/api/v1/limits`, {
     data: { groupName: "Unsupported year", contributionYear: 2147483647, limitAmount: 7000 },
   });
