@@ -78,6 +78,31 @@ interface ThumbBox {
   height: number;
 }
 
+/** Which physical sides of an overflowing group have items scrolled out of view. */
+interface HiddenSides {
+  left: boolean;
+  right: boolean;
+}
+
+const NO_HIDDEN_SIDES: HiddenSides = { left: false, right: false };
+const EDGE_FADE = "1.5rem";
+
+function hiddenSides(group: HTMLElement): HiddenSides {
+  const max = group.scrollWidth - group.clientWidth;
+  if (max <= 1) return NO_HIDDEN_SIDES;
+  // Right-to-left scrolling starts at 0 on the right and goes negative.
+  const rtl = getComputedStyle(group).direction === "rtl";
+  const fromLeft = rtl ? max + group.scrollLeft : group.scrollLeft;
+  return { left: fromLeft > 1, right: fromLeft < max - 1 };
+}
+
+/** Fades the sides with hidden items, so a clipped label reads as more to scroll to. */
+function edgeFadeMask({ left, right }: HiddenSides) {
+  if (!left && !right) return undefined;
+  const mask = `linear-gradient(to right, ${left ? "transparent" : "#000"}, #000 ${EDGE_FADE}, #000 calc(100% - ${EDGE_FADE}), ${right ? "transparent" : "#000"})`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+}
+
 function sameBox(a: ThumbBox | null, b: ThumbBox | null) {
   return (
     a === b ||
@@ -110,6 +135,7 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
   const groupRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   const [thumb, setThumb] = useState<ThumbBox | null>(null);
+  const [hidden, setHidden] = useState<HiddenSides>(NO_HIDDEN_SIDES);
 
   const isControlled = controlledValue !== undefined;
   const selected = isControlled ? controlledValue : internalValue;
@@ -130,15 +156,29 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
           }
         : null;
       setThumb((current) => (sameBox(current, next) ? current : next));
+      updateHidden();
+    };
+    const updateHidden = () => {
+      const group = groupRef.current;
+      if (!group) return;
+      const next = hiddenSides(group);
+      setHidden((current) => (current.left === next.left && current.right === next.right ? current : next));
     };
     measure();
     const group = groupRef.current;
-    if (!group || typeof ResizeObserver === "undefined") return;
+    if (!group) return;
+    group.addEventListener("scroll", updateHidden, { passive: true });
+    if (typeof ResizeObserver === "undefined") {
+      return () => group.removeEventListener("scroll", updateHidden);
+    }
     // Labels and the group change size with fonts, the window and the locale.
     const observer = new ResizeObserver(measure);
     observer.observe(group);
     for (const button of buttonRefs.current.values()) observer.observe(button);
-    return () => observer.disconnect();
+    return () => {
+      group.removeEventListener("scroll", updateHidden);
+      observer.disconnect();
+    };
   }, [items, selected]);
 
   const handleSelect = (value: T) => {
@@ -165,6 +205,8 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
       role="group"
       aria-label={ariaLabel}
       className={cn(animatedToggleVariants({ variant, size, rounded }), className)}
+      style={edgeFadeMask(hidden)}
+      data-hidden-sides={[hidden.left && "left", hidden.right && "right"].filter(Boolean).join(" ") || undefined}
     >
       {/* Physical left on purpose: the offsets it moves by are measured from the left. */}
       {thumb && (
