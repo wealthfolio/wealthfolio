@@ -104,7 +104,8 @@
     "category_sheet": {
       "over_period": "over {{period}}",
       "trend_period": "Trend · {{period}}",
-      "items": "Items"
+      "items": "Items",
+      "view_details": "View details"
     },
     "trend": {
       "not_enough_history": "Not enough history"

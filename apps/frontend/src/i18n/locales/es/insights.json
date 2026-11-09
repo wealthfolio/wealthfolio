@@ -107,7 +107,8 @@
     "category_sheet": {
       "over_period": "en {{period}}",
       "trend_period": "Tendencia · {{period}}",
-      "items": "Elementos"
+      "items": "Elementos",
+      "view_details": "Ver detalles"
     },
     "trend": {
       "not_enough_history": "Historial insuficiente"
