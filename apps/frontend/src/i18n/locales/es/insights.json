@@ -30,9 +30,11 @@
       "unit_types": "tipos",
       "unit_currencies": "divisas",
       "unit_groups": "grupos",
-      "other_units": "Otros {{unit}}",
+      "other_units_one": "{{count}} elemento más",
+      "other_units_other": "{{count}} elementos más",
+      "other_units_many": "{{count}} elementos más",
       "breakdown": "Desglose",
-      "top_units": "Principales {{unit}}",
+      "top_units": "Los {{count}} elementos principales",
       "show_less": "Mostrar menos",
       "show_all": "Mostrar todo"
     },

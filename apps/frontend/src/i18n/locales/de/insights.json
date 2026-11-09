@@ -30,9 +30,10 @@
       "unit_types": "Arten",
       "unit_currencies": "Währungen",
       "unit_groups": "Gruppen",
-      "other_units": "Weitere {{unit}}",
+      "other_units_one": "{{count}} weiteres Element",
+      "other_units_other": "{{count}} weitere Elemente",
       "breakdown": "Aufschlüsselung",
-      "top_units": "Top {{unit}}",
+      "top_units": "Top {{count}} Elemente",
       "show_less": "Weniger anzeigen",
       "show_all": "Alle anzeigen"
     },
