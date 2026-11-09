@@ -1,6 +1,7 @@
 //! Asset update tools (#2467) against the mock environment: what is sent to
 //! storage, which provider is asked, and what blocks a commit.
 
+#![cfg(feature = "test-utils")]
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::sync::atomic::Ordering;
