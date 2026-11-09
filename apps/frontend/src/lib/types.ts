@@ -232,6 +232,8 @@ export interface ActivityDetails {
   subtype?: string | null;
   status?: ActivityStatus;
   date: Date;
+  /** Original timestamp when a cash row is adapted for editing. */
+  activityDate?: string;
   quantity: string | null;
   unitPrice: string | null;
   amount: string | null;

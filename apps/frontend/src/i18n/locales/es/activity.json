@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "Cambiar a {{type}}",
+    "description": "Se cambia el tipo de la transacción guardada, se borra su subtipo y se actualizan los metadatos de transferencia. Se conservan el movimiento de efectivo, la cuenta, el importe, la fecha, la moneda, las notas y la categoría; los informes de flujo y rendimiento pueden cambiar. No se incluyen cambios sin guardar.",
+    "external": "La transferencia se marcará como externa. Use Vincular transferencia para asociarla a otra cuenta.",
+    "linked": "Esta transacción pertenece a un grupo de transferencias. Desvincule primero la transferencia y vuelva a abrir Editar. Se conservan ambas transacciones."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} actividad requiere revisión",
     "title_other": "{{count}} actividades requieren revisión",

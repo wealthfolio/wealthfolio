@@ -853,6 +853,86 @@ impl ActivityService {
             ));
         }
 
+        let cash_reclassification = matches!(
+            (existing.effective_type(), activity.activity_type.as_str()),
+            (ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT)
+                | (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL)
+                | (ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN)
+                | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_DEPOSIT)
+        );
+        if cash_reclassification {
+            if Self::non_cash_transfer_asset_key(existing).is_some() {
+                return Err(Self::invalid_activity_data(
+                    "Only cash activities can be reclassified as deposits or withdrawals",
+                ));
+            }
+            if self.is_in_transfer_pair(existing)? {
+                return Err(Self::invalid_activity_data(
+                    "Unlink the transfer pair before changing its activity type",
+                ));
+            }
+            let mut metadata = activity
+                .metadata
+                .as_deref()
+                .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
+                .or_else(|| existing.metadata.clone())
+                .unwrap_or_else(|| serde_json::json!({}));
+            // Preserve other flow facts when reclassification sends a boundary-only patch.
+            if let (Some(stored_flow), Some(flow)) = (
+                existing
+                    .metadata
+                    .as_ref()
+                    .and_then(|value| value.get("flow"))
+                    .and_then(serde_json::Value::as_object),
+                metadata
+                    .get_mut("flow")
+                    .and_then(serde_json::Value::as_object_mut),
+            ) {
+                for (key, value) in stored_flow {
+                    flow.entry(key.clone()).or_insert_with(|| value.clone());
+                }
+            }
+            let becomes_transfer = matches!(
+                activity.activity_type.as_str(),
+                ACTIVITY_TYPE_TRANSFER_IN | ACTIVITY_TYPE_TRANSFER_OUT
+            );
+            if becomes_transfer && !metadata.is_object() {
+                metadata = serde_json::json!({});
+            }
+            if let Some(object) = metadata.as_object_mut() {
+                if becomes_transfer {
+                    let flow = object
+                        .entry("flow")
+                        .or_insert_with(|| serde_json::json!({}));
+                    if !flow.is_object() {
+                        *flow = serde_json::json!({});
+                    }
+                    if let Some(flow) = flow.as_object_mut() {
+                        // The pair-conversion action supplies false. A simple
+                        // reclassification has no counterpart and defaults external.
+                        if flow
+                            .get("is_external")
+                            .and_then(|value| value.as_bool())
+                            .is_none()
+                        {
+                            flow.insert("is_external".into(), serde_json::json!(true));
+                        }
+                    }
+                } else {
+                    object.remove("transfer");
+                    if let Some(flow) = object.get_mut("flow").and_then(|flow| flow.as_object_mut())
+                    {
+                        flow.remove("is_external");
+                        if flow.is_empty() {
+                            object.remove("flow");
+                        }
+                    }
+                }
+            }
+            activity.metadata = Some(metadata.to_string());
+            activity.subtype = Some(String::new());
+        }
+
         if activity
             .subtype
             .as_deref()
@@ -1863,8 +1943,7 @@ impl ActivityService {
         let Some(group_id) = activity
             .source_group_id
             .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.trim().is_empty())
         else {
             return Ok(false);
         };
@@ -2559,8 +2638,7 @@ impl ActivityService {
         let Some(group_id) = activity
             .source_group_id
             .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.trim().is_empty())
         else {
             return Ok(None);
         };

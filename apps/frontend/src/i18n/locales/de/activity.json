@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "In {{type}} ändern",
+    "description": "Der gespeicherte Transaktionstyp wird geändert, sein Untertyp gelöscht und die Transfermetadaten werden aktualisiert. Geldbewegung, Konto, Betrag, Datum, Währung, Notizen und Kategorie bleiben erhalten; Cashflow- und Performanceberichte können sich ändern. Ungespeicherte Änderungen werden nicht übernommen.",
+    "external": "Der Transfer wird als extern markiert. Verknüpfen Sie ihn über Transfer verknüpfen mit einem anderen Konto.",
+    "linked": "Diese Transaktion gehört zu einer Transfergruppe. Heben Sie zuerst die Verknüpfung auf und öffnen Sie Bearbeiten erneut. Beide Transaktionen bleiben erhalten."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} Aktivität muss geprüft werden",
     "title_other": "{{count}} Aktivitäten müssen geprüft werden",

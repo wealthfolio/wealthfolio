@@ -279,6 +279,20 @@ fn project_activity_update(
     existing: &ActivityDB,
     update: &ActivityUpdate,
 ) -> Result<ActivityDB> {
+    let existing_type = effective_activity_type(existing);
+    let was_transfer = matches!(
+        existing_type,
+        ACTIVITY_TYPE_TRANSFER_IN | ACTIVITY_TYPE_TRANSFER_OUT
+    );
+    if was_transfer
+        && update.activity_type != existing_type
+        && source_group_blocks_transfer_link(conn, existing.source_group_id.as_deref())?
+    {
+        return Err(ActivityError::InvalidData(
+            "Unlink the transfer pair before changing its activity type".into(),
+        )
+        .into());
+    }
     let asset_patch_supplied = update.asset.is_some();
     let subtype_patch = update.subtype.clone();
     let existing_activity_type = existing.activity_type.clone();
@@ -368,6 +382,14 @@ fn project_activity_update(
     );
     activity_to_update.activity_type_override =
         stored_type_override(activity_to_update.activity_type_override.as_deref());
+    if was_transfer
+        && matches!(
+            effective_activity_type(&activity_to_update),
+            "DEPOSIT" | "WITHDRAWAL"
+        )
+    {
+        activity_to_update.source_group_id = None;
+    }
     Ok(activity_to_update)
 }
 
@@ -513,6 +535,20 @@ fn preserve_source_classification(
     )
     .is_none()
     {
+        // Cash reclassification replaces a legacy override. Other edits keep
+        // their existing override semantics.
+        if matches!(
+            (
+                type_override(existing_activity_type_override).unwrap_or(existing_activity_type),
+                activity.activity_type.as_str(),
+            ),
+            ("WITHDRAWAL", ACTIVITY_TYPE_TRANSFER_OUT)
+                | (ACTIVITY_TYPE_TRANSFER_OUT, "WITHDRAWAL")
+                | ("DEPOSIT", ACTIVITY_TYPE_TRANSFER_IN)
+                | (ACTIVITY_TYPE_TRANSFER_IN, "DEPOSIT")
+        ) {
+            activity.activity_type_override = None;
+        }
         return;
     }
 
@@ -602,10 +638,7 @@ fn source_group_blocks_transfer_link(
     conn: &mut SqliteConnection,
     source_group_id: Option<&str>,
 ) -> Result<bool> {
-    let Some(group_id) = source_group_id
-        .map(str::trim)
-        .filter(|group_id| !group_id.is_empty())
-    else {
+    let Some(group_id) = source_group_id.filter(|group_id| !group_id.trim().is_empty()) else {
         return Ok(false);
     };
 
@@ -1119,12 +1152,12 @@ fn link_transfer_activities_tx(
         source_group_blocks_transfer_link(tx.conn(), transfer_in.source_group_id.as_deref())?;
     // Linking a pair already linked to each other repairs it: it keeps
     // the group and clears an external marker left on either leg. Both
-    // legs store the same trimmed group id, and that group is a valid
+    // legs store the same persisted group id, and that group is a valid
     // pair, so it holds exactly these two.
-    let shared_group = transfer_in.source_group_id.clone().filter(|group_id| {
-        group_id.trim() == group_id.as_str()
-            && transfer_out.source_group_id.as_deref() == Some(group_id.as_str())
-    });
+    let shared_group = transfer_in
+        .source_group_id
+        .clone()
+        .filter(|group_id| transfer_out.source_group_id.as_deref() == Some(group_id.as_str()));
     let linked_to_each_other = in_group_blocks && shared_group.is_some();
     if !linked_to_each_other
         && (in_group_blocks
@@ -1744,8 +1777,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
     }
 
     fn get_activities_by_source_group_id(&self, source_group_id: &str) -> Result<Vec<Activity>> {
-        let group_id = source_group_id.trim();
-        if group_id.is_empty() {
+        let group_id = source_group_id;
+        if group_id.trim().is_empty() {
             return Ok(Vec::new());
         }
 

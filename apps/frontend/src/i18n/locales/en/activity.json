@@ -1,4 +1,10 @@
 {
+  "cash_reclassification": {
+    "action": "Change to {{type}}",
+    "description": "This changes the saved transaction type, clears its subtype and updates transfer metadata. Cash movement, account, amount, date, currency, notes and category stay the same; cash-flow and performance reporting may change. Unsaved edits are not included.",
+    "external": "The transfer will be marked external. Use Link transfer to pair it with another account.",
+    "linked": "This transaction has a transfer group. Use Unlink transfer first, then reopen Edit to change its type. Both linked transactions are kept."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} activity needs review",
     "title_other": "{{count}} activities need review",
