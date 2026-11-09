@@ -4014,6 +4014,26 @@ impl AppSyncRepository {
                             .map_err(|err| restore_sql_error("copy", "asset_logos", err))?;
                     }
                     if keep_asset_weights {
+                        #[derive(QueryableByName)]
+                        struct DroppedWeight {
+                            #[diesel(sql_type = diesel::sql_types::Text)]
+                            target_id: String,
+                            #[diesel(sql_type = diesel::sql_types::Integer)]
+                            target_bps: i32,
+                        }
+                        // Weights of assets the snapshot no longer has cannot come
+                        // back; their share goes to the target's other securities.
+                        let dropped: Vec<DroppedWeight> = diesel::sql_query(
+                            "SELECT target_id, target_bps FROM _keep_allocation_target_asset_weights WHERE target_id IN (SELECT id FROM allocation_targets) AND asset_id NOT IN (SELECT id FROM assets) ORDER BY id",
+                        )
+                        .load(conn)
+                        .map_err(|err| {
+                            restore_sql_error(
+                                "copy",
+                                "allocation_target_asset_weights",
+                                err,
+                            )
+                        })?;
                         diesel::sql_query(
                             "INSERT OR IGNORE INTO allocation_target_asset_weights SELECT * FROM _keep_allocation_target_asset_weights WHERE target_id IN (SELECT id FROM allocation_targets) AND asset_id IN (SELECT id FROM assets)",
                         )
@@ -4025,6 +4045,13 @@ impl AppSyncRepository {
                                 err,
                             )
                         })?;
+                        for weight in dropped {
+                            crate::portfolio::allocation_targets::spread_into_target(
+                                conn,
+                                &weight.target_id,
+                                weight.target_bps,
+                            )?;
+                        }
                         diesel::sql_query("DROP TABLE _keep_allocation_target_asset_weights")
                             .execute(conn)
                             .map_err(|err| {
@@ -6251,6 +6278,77 @@ mod tests {
         };
         assert_eq!(count_logo(&mut conn, kept_asset_id), 1);
         assert_eq!(count_logo(&mut conn, dropped_asset_id), 0);
+    }
+
+    #[tokio::test]
+    async fn snapshot_restore_of_assets_spreads_weights_of_dropped_assets() {
+        #[derive(diesel::QueryableByName)]
+        struct WeightRow {
+            #[diesel(sql_type = diesel::sql_types::Text)]
+            asset_id: String,
+            #[diesel(sql_type = diesel::sql_types::Integer)]
+            target_bps: i32,
+        }
+
+        let (pool, writer, _dir) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+
+        // Older snapshot: keeps one asset and has no asset weights table.
+        let snapshot_dir = TestDir::new();
+        let snapshot_path = {
+            let app_data = snapshot_dir.path().to_string_lossy().to_string();
+            let db_path = init(&app_data).expect("init db");
+            run_migrations(&db_path).expect("migrate db");
+            let pool = create_pool(&db_path).expect("create pool");
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_asset_kind_for_test(&mut conn, "kept", "INVESTMENT").expect("insert asset");
+            diesel::sql_query("DROP TABLE allocation_target_asset_weights")
+                .execute(&mut conn)
+                .expect("drop asset weights");
+            db_path
+        };
+
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            for asset_id in ["kept", "dropped"] {
+                insert_asset_kind_for_test(&mut conn, asset_id, "INVESTMENT")
+                    .expect("insert local asset");
+            }
+            diesel::sql_query(
+                "INSERT INTO allocation_targets (id, name, scope_type, target_type)
+                 VALUES ('t1', 'T1', 'all', 'asset')",
+            )
+            .execute(&mut conn)
+            .expect("insert target");
+            diesel::sql_query(
+                "INSERT INTO allocation_target_asset_weights (id, target_id, asset_id, target_bps)
+                 VALUES ('w-kept', 't1', 'kept', 6000), ('w-dropped', 't1', 'dropped', 4000)",
+            )
+            .execute(&mut conn)
+            .expect("insert weights");
+        }
+
+        repo.restore_snapshot_tables_from_file(
+            snapshot_path,
+            vec!["assets".to_string()],
+            93,
+            "device-weights-keep".to_string(),
+            Some(1),
+        )
+        .await
+        .expect("restore snapshot");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let rows: Vec<WeightRow> = diesel::sql_query(
+            "SELECT asset_id, target_bps FROM allocation_target_asset_weights ORDER BY asset_id",
+        )
+        .load(&mut conn)
+        .expect("load weights");
+        let rows: Vec<(String, i32)> = rows
+            .into_iter()
+            .map(|row| (row.asset_id, row.target_bps))
+            .collect();
+        assert_eq!(rows, vec![("kept".to_string(), 10000)]);
     }
 
     #[tokio::test]

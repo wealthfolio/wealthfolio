@@ -520,31 +520,42 @@ pub(crate) fn remove_asset_from_targets(conn: &mut SqliteConnection, asset_id: &
     .map_err(StorageError::from)?;
 
     for weight in removed {
-        let rest: Vec<AllocationTargetAssetWeightDB> = allocation_target_asset_weights::table
-            .filter(allocation_target_asset_weights::target_id.eq(&weight.target_id))
-            .order(allocation_target_asset_weights::id.asc())
-            .load(conn)
-            .map_err(StorageError::from)?;
-        let unlocked: Vec<&AllocationTargetAssetWeightDB> =
-            rest.iter().filter(|w| w.is_locked == 0).collect();
-        let takers = if unlocked.is_empty() {
-            rest.iter().collect()
-        } else {
-            unlocked
-        };
-        let shares = spread_bps(
-            weight.target_bps,
-            &takers.iter().map(|w| w.target_bps).collect::<Vec<_>>(),
-        );
-        for (taker, share) in takers.iter().zip(shares) {
-            if share == 0 {
-                continue;
-            }
-            diesel::update(allocation_target_asset_weights::table.find(&taker.id))
-                .set(allocation_target_asset_weights::target_bps.eq(taker.target_bps + share))
-                .execute(conn)
-                .map_err(StorageError::from)?;
+        spread_into_target(conn, &weight.target_id, weight.target_bps)?;
+    }
+    Ok(())
+}
+
+/// Spreads `bps` that left a target over its remaining securities in
+/// proportion: unlocked ones take it, locked ones only when none is unlocked.
+pub(crate) fn spread_into_target(
+    conn: &mut SqliteConnection,
+    target_id: &str,
+    bps: i32,
+) -> Result<()> {
+    let rest: Vec<AllocationTargetAssetWeightDB> = allocation_target_asset_weights::table
+        .filter(allocation_target_asset_weights::target_id.eq(target_id))
+        .order(allocation_target_asset_weights::id.asc())
+        .load(conn)
+        .map_err(StorageError::from)?;
+    let unlocked: Vec<&AllocationTargetAssetWeightDB> =
+        rest.iter().filter(|w| w.is_locked == 0).collect();
+    let takers = if unlocked.is_empty() {
+        rest.iter().collect()
+    } else {
+        unlocked
+    };
+    let shares = spread_bps(
+        bps,
+        &takers.iter().map(|w| w.target_bps).collect::<Vec<_>>(),
+    );
+    for (taker, share) in takers.iter().zip(shares) {
+        if share == 0 {
+            continue;
         }
+        diesel::update(allocation_target_asset_weights::table.find(&taker.id))
+            .set(allocation_target_asset_weights::target_bps.eq(taker.target_bps + share))
+            .execute(conn)
+            .map_err(StorageError::from)?;
     }
     Ok(())
 }
