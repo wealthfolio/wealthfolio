@@ -172,7 +172,7 @@ it.each([true, false])(
   },
 );
 
-function renderEditor(budget: BudgetSnapshot) {
+function renderEditor(budget: BudgetSnapshot, periodKey = "default") {
   vi.mocked(getBudget).mockResolvedValue(budget);
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -183,7 +183,7 @@ function renderEditor(budget: BudgetSnapshot) {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <BudgetEditor mode="setup" periodKey="default" />
+        <BudgetEditor mode={periodKey === "default" ? "setup" : "monthly"} periodKey={periodKey} />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -258,4 +258,45 @@ it("keeps a savings row's own rollover while its group rolls over", async () => 
 
   expect(item).not.toHaveAttribute("aria-disabled", "true");
   expect(item).toHaveTextContent(t.off);
+});
+
+it("measures a rolled-over row against what's available, for an expense and a goal", async () => {
+  // November, rollover on since October with nothing spent or saved then:
+  // groceries 150 of 100 + 100 carried, savings 450 of 400 + 400 carried.
+  const budget = budgetSnapshot([], { target: 400, actual: 450 });
+  const savingsRow = budget.computed.groupRows[0].categories[0];
+  Object.assign(savingsRow, { rolloverEnabled: true, rolloverIn: 400, remaining: 350 });
+  budget.computed.groupRows.unshift({
+    ...budget.computed.groupRows[0],
+    group: budget.state.groups[0],
+    plannedTotal: 100,
+    actual: 150,
+    savingsTargetTotal: 0,
+    savingsActual: 0,
+    categories: [
+      {
+        ...savingsRow,
+        taxonomyId: "spending_categories",
+        categoryId: "cat_groceries",
+        groupId: NEEDS_ID,
+        name: "Groceries",
+        target: 100,
+        actual: 150,
+        rolloverIn: 100,
+        remaining: 50,
+      },
+    ],
+  });
+  const { container } = renderEditor(budget, "2026-11");
+  const user = userEvent.setup();
+  for (const button of await screen.findAllByRole("button", { name: t.expandGroup })) {
+    await user.click(button);
+  }
+
+  const groceries = screen.getByText("Groceries").parentElement!;
+  expect(groceries).toHaveTextContent(`$100.00 ${t.carriedIn}·$50.00 ${t.left}`);
+  const savings = screen.getAllByText("Savings").at(-1)!.parentElement!;
+  expect(savings).toHaveTextContent(`$400.00 ${t.carriedIn}·$350.00 ${t.toGo}`);
+  // 150 of the 200 available is within budget, so nothing is drawn as over.
+  expect(container.querySelector('[style*="--destructive"]')).toBeNull();
 });

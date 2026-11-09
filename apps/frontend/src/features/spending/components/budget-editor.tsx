@@ -1200,10 +1200,27 @@ function BudgetCategoryLine({
   // A savings target is a goal: going past it is ahead, never over budget,
   // and its rollover stays its own when the group rolls over.
   const isGoal = row.taxonomyId === SAVINGS_TAXONOMY;
-  const overBudget = !isGoal && row.target > 0 && row.actual > row.target;
   const rolloverIsGroupWide = groupRolloverEnabled && !isGoal;
+  // With rollover on, last month's carry adds to (or, when negative, takes
+  // from) this month's target, so the row measures against what's available:
+  // budget left for an expense, still to save for a goal.
+  const carry = monthMode && row.rolloverEnabled ? row.rolloverIn : 0;
+  const showsCarry = carry !== 0;
+  const available = row.target + carry;
+  const overBudget =
+    !isGoal && (showsCarry ? row.remaining < 0 : row.target > 0 && row.actual > row.target);
   const sharePct = safePercent(row.target, groupTotal);
-  const usagePct = Math.min(1, safePercent(row.actual, row.target));
+  const usagePct =
+    showsCarry && available <= 0
+      ? Number(row.actual > 0)
+      : Math.min(1, safePercent(row.actual, available));
+  const remainingLabel = isGoal
+    ? row.remaining > 0
+      ? t("spending:budgetEditor.toGo")
+      : t("spending:budgetEditor.ahead")
+    : row.remaining < 0
+      ? t("spending:budgetEditor.over")
+      : t("spending:budgetEditor.left");
 
   return (
     <div className="group/row hover:bg-muted/15 flex items-center gap-2 px-3 py-1.5 text-xs transition-colors sm:gap-3 sm:px-4">
@@ -1214,8 +1231,23 @@ function BudgetCategoryLine({
       >
         <CategoryIcon icon={row.icon ?? null} className="h-3 w-3" />
       </span>
-      <span className="text-foreground min-w-0 flex-1 truncate">
-        {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+      <span className="min-w-0 flex-1">
+        <span className="text-foreground block truncate">
+          {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+        </span>
+        {showsCarry && (
+          <span className="text-muted-foreground text-2xs flex flex-wrap items-center gap-x-1 tabular-nums">
+            <Icons.Refresh className="h-2.5 w-2.5 shrink-0" aria-hidden />
+            <span>
+              <PrivacyAmount value={carry} currency={currency} />{" "}
+              {t("spending:budgetEditor.carriedIn")}
+            </span>
+            <span aria-hidden>·</span>
+            <span className={cn(overBudget && "text-destructive")}>
+              <PrivacyAmount value={Math.abs(row.remaining)} currency={currency} /> {remainingLabel}
+            </span>
+          </span>
+        )}
       </span>
 
       <div className="relative w-20 shrink-0">
@@ -1262,7 +1294,7 @@ function BudgetCategoryLine({
         <TooltipContent side="top" sideOffset={4} className="text-xs">
           <PrivacyAmount value={row.actual} currency={currency} />{" "}
           {isGoal ? t("spending:budgetEditor.savedOf") : t("spending:budgetEditor.spentOf")}{" "}
-          <PrivacyAmount value={row.target} currency={currency} />{" "}
+          <PrivacyAmount value={available} currency={currency} />{" "}
           {t("spending:budgetEditor.ofGroup", {
             pct: numberFormatting.formatPercent(sharePct, { digits: 0 }),
           })}
