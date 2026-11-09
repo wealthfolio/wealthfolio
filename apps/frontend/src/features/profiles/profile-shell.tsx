@@ -1089,6 +1089,14 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                 {/* biometricAvailable === false means confirmed unavailable (hardware absent
                     or no fingerprint enrolled). null means still loading or fetch error —
                     no message yet so the brief loading state doesn't flash an error. */}
+                {platformLoadError && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {t("profiles.errors.biometricCheckFailed", {
+                      defaultValue:
+                        "Could not check Touch ID availability. Restart Wealthfolio to try again.",
+                    })}
+                  </p>
+                )}
                 {biometricAvailable === false && error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
                   <p role="alert" className="text-destructive text-sm">
                     {t("profiles.errors.biometricUnavailable", {
