@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { expect, it, vi } from "vitest";
+import type { LatestQuoteSnapshot } from "@/lib/types";
 import type { ParsedAsset } from "./asset-utils";
 import { AssetsTable } from "./assets-table";
 
@@ -62,3 +63,69 @@ it("closes an open row menu when a refetch moves another security into its row",
   expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   expect(handlers.onDelete).not.toHaveBeenCalled();
 });
+
+it.each([
+  ["isUpdatingQuotes", "Update quotes", "Refetch price history"],
+  ["isRefetchingQuotes", "Refetch price history", "Update quotes"],
+] as const)(
+  "keeps a row's menu open and its button focused while %s and quotes change",
+  async (flag, label, otherLabel) => {
+    const user = userEvent.setup();
+    const handlers = {
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onUpdateQuotes: vi.fn(),
+      onRefetchQuotes: vi.fn(),
+    };
+    const msft = security("msft", "MSFT");
+    const held = new Set([msft.id]);
+    const emptyQuotes = {};
+    const table = (props: {
+      latestQuotes: Record<string, LatestQuoteSnapshot>;
+      isUpdatingQuotes?: boolean;
+      isRefetchingQuotes?: boolean;
+    }) => (
+      <TooltipProvider>
+        <AssetsTable assets={[msft]} heldAssetIds={held} {...handlers} {...props} />
+      </TooltipProvider>
+    );
+    const { rerender } = render(table({ latestQuotes: emptyQuotes }));
+    const trigger = screen.getByRole("button", { name: "Open actions" });
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: label })).not.toHaveAttribute(
+      "data-disabled",
+    );
+
+    // Change the pending flag and quotes separately: neither should remount the cells.
+    rerender(table({ latestQuotes: emptyQuotes, [flag]: true }));
+    expect(trigger.isConnected).toBe(true);
+    expect(screen.getByRole("menuitem", { name: label })).toHaveAttribute("data-disabled");
+    expect(screen.getByRole("menuitem", { name: otherLabel })).not.toHaveAttribute("data-disabled");
+    const quote = {
+      id: "q1",
+      createdAt: "2026-11-02T00:00:00Z",
+      dataSource: "MANUAL",
+      timestamp: "2026-11-02T00:00:00Z",
+      assetId: msft.id,
+      open: 412.5,
+      high: 412.5,
+      low: 412.5,
+      volume: 0,
+      close: 412.5,
+      adjclose: 412.5,
+      currency: "USD",
+    };
+    const quotes = { [msft.id]: { quote, isStale: false, effectiveMarketDate: "2026-11-02" } };
+    rerender(table({ latestQuotes: quotes, [flag]: true }));
+
+    expect(trigger.isConnected).toBe(true);
+    expect(screen.getByRole("menuitem", { name: label })).toHaveAttribute("data-disabled");
+    expect(screen.getByText(/412\.50/)).toBeInTheDocument();
+
+    // Focus goes back to the button when the menu closes; the update ending must keep it there.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    rerender(table({ latestQuotes: quotes }));
+    expect(trigger).toHaveFocus();
+  },
+);
