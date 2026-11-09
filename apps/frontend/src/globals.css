@@ -944,6 +944,12 @@ body.qr-scan-active > .qr-overlay {
     overflow-x: visible;
   }
 
+  /* Below sm an alert dialog's buttons fill its footer, so clipping the footer would
+     cut their focus outline at both sides. They wrap their labels instead. */
+  [data-slot="alert-dialog-footer"] {
+    overflow-x: visible;
+  }
+
   .settings-list .flex,
   .settings-list .grid,
   .feature-status-banner .flex,
