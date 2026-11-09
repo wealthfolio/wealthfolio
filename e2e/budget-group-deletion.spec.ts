@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { BASE_URL } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
-  test(`deleting a default budget group preserves monthly budgets (${direction})`, async ({
+  test(`removing rollover then deleting a default group preserves monthly budgets (${direction})`, async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -71,6 +71,25 @@ for (const direction of ["ltr", "rtl"]) {
       );
     }
 
+    const enabled = direction === "ltr";
+    await api(
+      "spending/budget/rollovers",
+      {
+        targetType: "group",
+        groupId: source,
+        enabled,
+        startMonth: "2026-03",
+        startingBalance: "25",
+      },
+      "POST",
+    );
+    const beforeRemoval = await api("spending/budget?periodKey=2026-03");
+    expect(
+      beforeRemoval.computed.groupRows.find(
+        (row: { group: { id: string } }) => row.group.id === source,
+      ).rolloverIn,
+    ).toBe(enabled ? 25 : 0);
+
     await page.goto(`${BASE_URL}/settings/spending/setup?dir=${direction}`);
     const sourceSection = page
       .locator("section")
@@ -80,6 +99,55 @@ for (const direction of ["ltr", "rtl"]) {
     await page.getByRole("menuitem", { name: "Delete group", exact: true }).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.getByRole("button", { name: "Delete", exact: true })).toBeDisabled();
+    await expect(
+      dialog.getByText("Remove this group's rollover setting before deleting it."),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+    const openRemoval = async () => {
+      await sourceSection.getByRole("button", { name: "Group actions" }).click();
+      await page.getByRole("menuitem", { name: "Remove rollover setting", exact: true }).click();
+      await expect(
+        dialog.getByRole("heading", { name: "Remove rollover setting for Giving?" }),
+      ).toBeVisible();
+      await expect(dialog).toContainText("saved starting balance");
+      await expect(dialog).toContainText("all months");
+      const bounds = await dialog.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    };
+    await openRemoval();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect((await api("spending/budget")).state.rolloverSettings).toEqual(
+      beforeRemoval.state.rolloverSettings,
+    );
+    await openRemoval();
+    await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    const afterRemoval = await api("spending/budget?periodKey=2026-03");
+    expect(
+      afterRemoval.state.rolloverSettings.some(
+        (setting: { groupId: string }) => setting.groupId === source,
+      ),
+    ).toBe(false);
+    expect(afterRemoval.state.groups).toEqual(beforeRemoval.state.groups);
+    expect(afterRemoval.state.groupAssignments).toEqual(beforeRemoval.state.groupAssignments);
+    expect(afterRemoval.state.targets).toEqual(beforeRemoval.state.targets);
+    expect(
+      afterRemoval.computed.groupRows.find(
+        (row: { group: { id: string } }) => row.group.id === source,
+      ).rolloverIn,
+    ).toBe(0);
+    await page.reload();
+    await sourceSection.getByRole("button", { name: "Group actions" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Remove rollover setting", exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Delete group", exact: true }).click();
+    await expect(
+      dialog.getByText("Remove this group's rollover setting before deleting it."),
+    ).toHaveCount(0);
     await dialog.getByRole("combobox", { name: "Move to group" }).click();
     await page.getByRole("option", { name: "Wants", exact: true }).click();
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
