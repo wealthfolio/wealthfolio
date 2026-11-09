@@ -158,6 +158,58 @@ fn keeps_currencies_separate_and_ignores_unposted_future_and_other_accounts() {
 }
 
 #[test]
+fn multiple_cards_keep_their_schedules_and_balances_separate_in_a_shared_history() {
+    let first_card = card(10, 20);
+    let mut second_card = card(25, 5);
+    second_card.id = "second-card".into();
+    let mut second_history = vec![
+        row(
+            "second-close",
+            "2026-10-25T00:00:00Z",
+            "WITHDRAWAL",
+            dec!(200),
+        ),
+        row(
+            "second-current",
+            "2026-10-26T00:00:00Z",
+            "WITHDRAWAL",
+            dec!(25),
+        ),
+    ];
+    for activity in &mut second_history {
+        activity.account_id = second_card.id.clone();
+    }
+    let mut history = vec![
+        row(
+            "first-close",
+            "2026-10-10T00:00:00Z",
+            "WITHDRAWAL",
+            dec!(100),
+        ),
+        row(
+            "first-current",
+            "2026-10-11T00:00:00Z",
+            "WITHDRAWAL",
+            dec!(50),
+        ),
+    ];
+    history.extend(second_history);
+    let today = date("2026-11-07");
+    let first = credit_card_statements(&first_card, &history, today, chrono_tz::UTC).unwrap();
+    let second = credit_card_statements(&second_card, &history, today, chrono_tz::UTC).unwrap();
+    assert_eq!(first[0].start_date, date("2026-10-11"));
+    assert_eq!(first[0].closing_date, date("2026-11-10"));
+    assert_eq!(first[0].due_date, date("2026-11-20"));
+    assert_eq!(first[0].balances[0].balance, "150");
+    assert_eq!(first[1].balances[0].balance, "100");
+    assert_eq!(second[0].start_date, date("2026-10-26"));
+    assert_eq!(second[0].closing_date, date("2026-11-25"));
+    assert_eq!(second[0].due_date, date("2026-12-05"));
+    assert_eq!(second[0].balances[0].balance, "225");
+    assert_eq!(second[1].balances[0].balance, "200");
+}
+
+#[test]
 fn closing_day_includes_the_whole_day_in_the_configured_timezone() {
     let rows = vec![
         row(

@@ -9,6 +9,7 @@ interface CreditCardBillingFieldsProps {
   onChange: (value: string) => void;
 }
 
+/** Edits the optional billing schedule while preserving unrelated account metadata. */
 export function CreditCardBillingFields({ value, onChange }: CreditCardBillingFieldsProps) {
   const { t } = useTranslation();
   const { error, formMessageId } = useFormField();

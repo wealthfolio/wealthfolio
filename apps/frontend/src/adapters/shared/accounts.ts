@@ -13,6 +13,7 @@ export interface CreditCardStatement {
   balances: { currency: string; balance: string }[];
 }
 
+/** Retrieves one card's calendar statements through the active runtime's profile-scoped read. */
 export const getCreditCardStatements = (accountId: string): Promise<CreditCardStatement[]> =>
   invoke("get_credit_card_statements", { accountId });
 

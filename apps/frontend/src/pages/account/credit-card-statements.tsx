@@ -19,6 +19,7 @@ import { buttonVariants } from "@wealthfolio/ui/components/ui/button-variants";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+/** Shows one card's derived statements using shared formatting, privacy and query invalidation. */
 export function CreditCardStatements({ account }: { account: Account }) {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
@@ -117,6 +118,7 @@ export function CreditCardStatements({ account }: { account: Account }) {
   );
 }
 
+/** Highlights a current or closing balance without presenting it as the remaining payment due. */
 function StatementSummary({
   accountId,
   statement,
@@ -178,6 +180,7 @@ function StatementSummary({
   );
 }
 
+/** Opens an older cycle in Activities with the same account and calendar-day bounds. */
 function StatementRow({
   accountId,
   statement,

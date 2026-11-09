@@ -21,11 +21,13 @@ pub struct CreditCardBillingSettings {
     pub due_day: u32,
 }
 
+/// Builds a validation error without exposing the account's metadata.
 fn invalid(message: &str) -> Error {
     Error::Validation(ValidationError::InvalidInput(message.to_string()))
 }
 
 impl CreditCardBillingSettings {
+    /// Requires calendar day numbers in 1..=31; due days may wrap to the next month.
     pub fn validate(&self) -> Result<()> {
         if !(1..=31).contains(&self.closing_day) || !(1..=31).contains(&self.due_day) {
             return Err(invalid(
@@ -35,6 +37,7 @@ impl CreditCardBillingSettings {
         Ok(())
     }
 
+    /// Ignores unrelated legacy metadata but rejects a malformed recognized schedule.
     pub fn from_meta(meta: Option<&str>) -> Result<Option<Self>> {
         // Unrelated legacy metadata keeps its existing interpretation.
         let Some(value) = meta.and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
@@ -81,6 +84,7 @@ impl CreditCardBillingSettings {
     }
 }
 
+/// Clamps a configured day to the last valid day in the supplied month.
 fn day_in_month(month: NaiveDate, day: u32) -> Result<NaiveDate> {
     (1..=day)
         .rev()

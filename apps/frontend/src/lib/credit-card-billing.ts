@@ -5,6 +5,7 @@ export const creditCardBillingSchema = z.object({
   dueDay: z.number().int().min(1).max(31),
 });
 
+/** Returns a valid card schedule, or null for absent, legacy or malformed metadata. */
 export function getCreditCardBillingSettings(meta?: string | null) {
   try {
     const parsed = JSON.parse(meta ?? "{}");

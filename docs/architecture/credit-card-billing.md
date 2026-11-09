@@ -17,6 +17,12 @@ closing-balance caveat stays visible. A billing settings link reuses the account
 settings page. Cards without a schedule show a setup link and do not request
 statement history.
 
+Changing a card to another account type intentionally preserves its inactive
+billing metadata, including incomplete edits, so changing the type does not
+silently discard the user's schedule. Returning to a credit card validates the
+schedule again: complete the visible fields or turn billing off before saving.
+Turning billing off removes only the schedule and preserves unrelated metadata.
+
 ## Balances
 
 Core derives statement balances from the same posted cash ledger used for

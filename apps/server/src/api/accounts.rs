@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 use wealthfolio_core::accounts::AccountServiceTrait;
 
+/// Returns card statements within the router's existing profile/session boundary.
 async fn credit_card_statements(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
