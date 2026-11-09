@@ -135,7 +135,8 @@
     "category_sheet": {
       "items": "العناصر",
       "over_period": "خلال {{period}}",
-      "trend_period": "الاتجاه · {{period}}"
+      "trend_period": "الاتجاه · {{period}}",
+      "view_details": "عرض التفاصيل"
     },
     "chart": {
       "assets_label": "الأصول:",

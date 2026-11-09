@@ -104,7 +104,8 @@
     "category_sheet": {
       "over_period": "在 {{period}} 內",
       "trend_period": "趨勢 · {{period}}",
-      "items": "項目"
+      "items": "項目",
+      "view_details": "查看詳情"
     },
     "trend": {
       "not_enough_history": "歷史資料不足"

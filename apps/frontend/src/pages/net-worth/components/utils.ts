@@ -56,6 +56,19 @@ export interface BreakdownEntry {
 }
 
 /** A breakdown row selected for the detail drawer. */
+/** History key prefix the backend gives a credit card's balance (`CREDIT_CARD:<accountId>`). */
+export const CREDIT_CARD_KEY_PREFIX = "CREDIT_CARD:";
+
+/**
+ * Where a liability's own page is: the account for a credit card, the asset
+ * page for a loan or other liability.
+ */
+export function liabilityDetailPath(key: string): string {
+  return key.startsWith(CREDIT_CARD_KEY_PREFIX)
+    ? `/accounts/${encodeURIComponent(key.slice(CREDIT_CARD_KEY_PREFIX.length))}`
+    : `/holdings/${encodeURIComponent(key)}`;
+}
+
 export interface SelectedCategory {
   /** History/breakdown key: the category key for assets, the assetId for liabilities. */
   key: string;
