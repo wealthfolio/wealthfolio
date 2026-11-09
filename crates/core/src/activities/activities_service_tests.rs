@@ -5315,7 +5315,7 @@ pub(crate) mod tests {
                 "USD",
             );
             stored_asset.metadata =
-                crate::assets::build_option_metadata("AAPL260619C00150000", dec!(10));
+                crate::assets::build_option_metadata("AAPL260619C00150000", dec!(50));
             let mut assets = vec![stored_asset];
             if let Some(multiplier) = replacement_multiplier {
                 let mut replacement = create_test_asset_with_instrument(
@@ -5334,7 +5334,7 @@ pub(crate) mod tests {
             existing.quantity = Some(dec!(1));
             existing.unit_price = Some(dec!(10));
             existing.fee = Some(dec!(0));
-            existing.amount = Some(dec!(100));
+            existing.amount = Some(dec!(500));
             let service = final_total_service("USD", assets, Some(existing));
             let mut update = create_test_activity_update(
                 "mini-option-row",
