@@ -181,6 +181,10 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
           }
           canDelete={row.group.key !== "other" && groups.some((g) => g.id !== row.group.id)}
           deletePending={mutations.removeGroup.isPending}
+          rolloverPending={mutations.removeRollover.isPending || mutations.upsertRollover.isPending}
+          onRemoveGroupRollover={(id, onSuccess) =>
+            mutations.removeRollover.mutate(id, { onSuccess })
+          }
           onSaveGroupRollover={(enabled, startingBalance) =>
             mutations.upsertRollover.mutate({
               targetType: "group",
@@ -506,6 +510,7 @@ function GroupBudgetSection({
   categoryPool,
   canDelete,
   deletePending,
+  rolloverPending,
   onSaveGroupBuffer,
   onSaveCategoryTarget,
   onDeleteOverride,
@@ -513,6 +518,7 @@ function GroupBudgetSection({
   onUpdateGroup,
   onDeleteGroup,
   onSaveGroupRollover,
+  onRemoveGroupRollover,
   onToggleCategoryRollover,
 }: {
   row: BudgetGroupRow;
@@ -526,6 +532,7 @@ function GroupBudgetSection({
   categoryPool: CategoryPoolEntry[];
   canDelete: boolean;
   deletePending: boolean;
+  rolloverPending: boolean;
   onSaveGroupBuffer: (row: BudgetGroupRow, amount: string) => void;
   onSaveCategoryTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
@@ -533,12 +540,14 @@ function GroupBudgetSection({
   onUpdateGroup: (patch: { name?: string; color?: string | null; icon?: string | null }) => void;
   onDeleteGroup: (reassignToGroupId: string) => void;
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
+  onRemoveGroupRollover: (id: string, onSuccess: () => void) => void;
   onToggleCategoryRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmRemoveRolloverOpen, setConfirmRemoveRolloverOpen] = useState(false);
   const groupOverride = findGroupBufferTarget(targets, periodKey, row.group.id);
   const groupRollover = findGroupRollover(rolloverSettings, row.group.id);
   const destinations = groups.filter(
@@ -675,6 +684,7 @@ function GroupBudgetSection({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   closeOnClick={false}
+                  disabled={rolloverPending}
                   onClick={() => {
                     onSaveGroupRollover(!groupRollover?.enabled);
                   }}
@@ -688,6 +698,17 @@ function GroupBudgetSection({
                       : t("spending:budgetEditor.off")}
                   </span>
                 </DropdownMenuItem>
+                {groupRollover && (
+                  <DropdownMenuItem
+                    closeOnClick={false}
+                    disabled={rolloverPending}
+                    onClick={() => setConfirmRemoveRolloverOpen(true)}
+                    className="text-destructive focus:text-destructive text-xs"
+                  >
+                    <Icons.Trash className="me-2 h-3.5 w-3.5" />
+                    {t("spending:budgetEditor.removeGroupRollover")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   disabled={!canDelete}
@@ -708,6 +729,45 @@ function GroupBudgetSection({
           </DropdownMenu>
         )}
       </div>
+
+      {mode === "setup" && (
+        <AlertDialog
+          open={confirmRemoveRolloverOpen}
+          onOpenChange={(nextOpen) => {
+            if (!rolloverPending) setConfirmRemoveRolloverOpen(nextOpen);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("spending:budgetEditor.removeGroupRolloverTitle", {
+                  name: getBudgetGroupLabel(t, row.group.id, row.group.name),
+                })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("spending:budgetEditor.removeGroupRolloverDescription")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rolloverPending}>{t("common:cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventBaseUIHandler();
+                  if (groupRollover && !rolloverPending) {
+                    onRemoveGroupRollover(groupRollover.id, () =>
+                      setConfirmRemoveRolloverOpen(false),
+                    );
+                  }
+                }}
+                disabled={rolloverPending || !groupRollover}
+                variant="destructive"
+              >
+                {t("common:remove")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       {mode === "setup" && (
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>

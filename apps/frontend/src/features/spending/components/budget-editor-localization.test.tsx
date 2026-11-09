@@ -32,6 +32,7 @@ vi.mock("../adapters/budget", () => ({
 import {
   assignCategoryToGroup,
   deleteBudgetGroup,
+  deleteBudgetRolloverSetting,
   getBudget,
   updateBudgetGroup,
   upsertBudgetRolloverSetting,
@@ -665,4 +666,135 @@ it("excludes a destination with enabled group rollover", async () => {
   ).toBeVisible();
   expect(within(dialog).getByRole("button", { name: enCommon.delete })).toBeDisabled();
   expect(deleteBudgetGroup).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["ltr", true],
+  ["rtl", true],
+  ["ltr", false],
+  ["rtl", false],
+] as const)(
+  "confirms removal of a group rollover setting (%s, enabled: %s) before allowing deletion",
+  async (direction, enabled) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings.push({
+      id: "rollover-needs",
+      targetType: "group",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      enabled,
+      startMonth: "2026-01",
+      startingBalance: "25",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const original = structuredClone(budget);
+    const removed = structuredClone(budget);
+    removed.state.rolloverSettings = [];
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementation(() => {
+      vi.mocked(getBudget).mockResolvedValue(removed);
+      return Promise.resolve(removed);
+    });
+    vi.mocked(deleteBudgetGroup).mockResolvedValue(removed);
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    const section = screen
+      .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0]
+      .closest("section")!;
+    const openRemoval = async () => {
+      await user.click(
+        within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+      );
+      await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+      return screen.findByRole("alertdialog");
+    };
+    let dialog = await openRemoval();
+    expect(within(dialog).getByRole("heading")).toHaveTextContent(
+      "Remove rollover setting for Needs?",
+    );
+    expect(dialog).toHaveTextContent("saved starting balance");
+    expect(dialog).toHaveTextContent("all months");
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: enCommon.cancel }));
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    dialog = await openRemoval();
+    await user.click(within(dialog).getByRole("button", { name: enCommon.remove }));
+    await waitFor(() =>
+      expect(deleteBudgetRolloverSetting).toHaveBeenCalledExactlyOnceWith(
+        "rollover-needs",
+        "default",
+      ),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await user.click(
+      within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Remove rollover setting" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+    );
+    dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).queryByText(enSpending.budgetEditor.deleteGroupRollover),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("combobox", { name: enSpending.budgetEditor.moveToGroup }),
+    );
+    await user.click(await screen.findByRole("option", { name: "Wants" }));
+    await user.click(within(dialog).getByRole("button", { name: enCommon.delete }));
+    await waitFor(() =>
+      expect(deleteBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, WANTS_ID, "default"),
+    );
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+    expect(budget).toEqual(original);
+  },
+);
+
+it("keeps rollover removal open on failure and prevents duplicate requests while pending", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings.push({
+    id: "rollover-needs",
+    targetType: "group",
+    groupId: NEEDS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: false,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  let rejectRemoval!: (error: Error) => void;
+  vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        rejectRemoval = reject;
+      }),
+  );
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  await user.click(
+    screen.getAllByRole("button", { name: enSpending.budgetEditor.groupActions })[0],
+  );
+  await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+  const dialog = await screen.findByRole("alertdialog");
+  const confirm = within(dialog).getByRole("button", { name: enCommon.remove });
+  const cancel = within(dialog).getByRole("button", { name: enCommon.cancel });
+  await user.click(confirm);
+  await waitFor(() => expect(confirm).toBeDisabled());
+  expect(cancel).toBeDisabled();
+  await user.click(confirm);
+  expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(1);
+  act(() => rejectRemoval(new Error("Removal failed")));
+  await waitFor(() => expect(confirm).toBeEnabled());
+  expect(cancel).toBeEnabled();
+  expect(dialog).toBeVisible();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+  vi.mocked(deleteBudgetRolloverSetting).mockResolvedValueOnce(budget);
+  await user.click(confirm);
+  await waitFor(() => expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
 });
