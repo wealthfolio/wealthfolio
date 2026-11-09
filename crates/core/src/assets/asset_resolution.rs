@@ -94,6 +94,9 @@ pub struct AssetResolutionOutput {
     pub existing_asset_id: Option<String>,
     pub name: Option<String>,
     pub draft: Option<NewAsset>,
+    /// The selected provider names this new market-priced asset by its own
+    /// identifier, such as a fund's scheme code, so it needs no exchange.
+    pub resolves_without_exchange: bool,
 }
 
 fn provider_overrides_for_asset(asset: &Asset) -> Option<ProviderOverrides> {

@@ -6168,12 +6168,18 @@ impl ActivityService {
                     )
                 });
 
-            // Equity without MIC must either match an existing asset or be manual-quoted.
-            // Check AFTER find_existing_asset_id so custom assets (e.g. delisted TWTR)
-            // with no MIC are still matched.
+            // Equity without MIC must match an existing asset, be manual-quoted or be
+            // resolved by its provider without an exchange. Check AFTER
+            // find_existing_asset_id so custom assets (e.g. delisted TWTR) with no MIC
+            // are still matched.
             let is_equity = effective_kind == AssetKind::Investment
                 && effective_instrument_type.as_ref() == Some(&InstrumentType::Equity);
-            if is_equity && resolved_mic.is_none() && !is_manual_quote && existing_id.is_none() {
+            if is_equity
+                && resolved_mic.is_none()
+                && !is_manual_quote
+                && existing_id.is_none()
+                && !asset_resolution.is_some_and(|output| output.resolves_without_exchange)
+            {
                 activity.is_valid = false;
                 let mut errors = std::collections::HashMap::new();
                 errors.insert(
@@ -8109,7 +8115,11 @@ impl ActivityServiceTrait for ActivityService {
                     .as_deref()
                     .map(|m| m.eq_ignore_ascii_case("MANUAL"))
                     .unwrap_or(false);
-                if is_equity && resolved.exchange_mic.is_none() && !is_manual {
+                if is_equity
+                    && resolved.exchange_mic.is_none()
+                    && !is_manual
+                    && !resolved.resolves_without_exchange
+                {
                     let mut errors = HashMap::new();
                     errors.insert(
                         "symbol".to_string(),

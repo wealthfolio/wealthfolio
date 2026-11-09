@@ -32,7 +32,7 @@ use wealthfolio_market_data::{
     canonicalize_exchange_mic, exchanges_for_currency, has_unrecognized_dotted_suffix,
     mic_to_currency, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
     ExchangeMap, InstrumentId as MarketInstrumentId, ProviderId, ProviderInstrument, QuoteContext,
-    ResolutionSource, ResolverChain, SymbolResolver,
+    ResolutionSource, ResolvedInstrument, ResolverChain, SymbolResolver,
 };
 
 /// Converts a provider's asset_type string to our InstrumentType enum.
@@ -949,6 +949,26 @@ impl AssetService {
         }
     }
 
+    /// How `ResolverChain` resolves `instrument` for `provider` without stored
+    /// overrides. Makes no provider request.
+    fn rules_resolution(
+        provider: &str,
+        instrument: MarketInstrumentId,
+        quote_ccy: Option<&str>,
+    ) -> Option<ResolvedInstrument> {
+        let context = QuoteContext {
+            instrument,
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: quote_ccy.map(|ccy| Cow::Owned(ccy.to_string())),
+            preferred_provider: Some(Cow::Owned(provider.to_string())),
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        let provider_id: ProviderId = Cow::Owned(provider.to_string());
+        ResolverChain::new().resolve(&provider_id, &context).ok()
+    }
+
     fn provider_config_for_resolution(
         provider_id: Option<&str>,
         provider_symbol: Option<&str>,
@@ -978,19 +998,7 @@ impl AssetService {
             return (!default_yahoo).then_some(config);
         };
 
-        let context = QuoteContext {
-            instrument,
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: quote_ccy.map(|ccy| Cow::Owned(ccy.to_string())),
-            preferred_provider: Some(Cow::Owned(provider.to_string())),
-            bond_metadata: None,
-            custom_provider_code: None,
-        };
-        let provider_id: ProviderId = Cow::Owned(provider.to_string());
-        let deterministic = ResolverChain::new()
-            .resolve(&provider_id, &context)
-            .ok()
+        let deterministic = Self::rules_resolution(provider, instrument, quote_ccy)
             .filter(|resolved| resolved.source != ResolutionSource::RulesFallback)
             .map(|resolved| resolved.instrument.to_symbol_string());
 
@@ -1980,6 +1988,7 @@ impl AssetServiceTrait for AssetService {
                     quote_ccy_source: Some(QuoteCcyResolutionSource::ExistingAsset),
                     name,
                     draft: None,
+                    resolves_without_exchange: false,
                 });
                 continue;
             }
@@ -2210,6 +2219,29 @@ impl AssetServiceTrait for AssetService {
                 None
             };
 
+            // A new asset needs no exchange when the selected provider resolves it
+            // from its own identifier, without a venue. A generic or fallback
+            // resolution of a bare ticker doesn't qualify.
+            let resolves_without_exchange = existing_asset_id.is_none()
+                && quote_mode == QuoteMode::Market
+                && exchange_mic.is_none()
+                && provider_id
+                    .as_deref()
+                    .map(str::trim)
+                    .zip(instrument_type.as_ref())
+                    .and_then(|(provider, instrument_type)| {
+                        Self::instrument_id_from_identity(
+                            instrument_type,
+                            &canonical_symbol,
+                            None,
+                            Some(&quote_ccy),
+                        )
+                        .and_then(|instrument| {
+                            Self::rules_resolution(provider, instrument, Some(&quote_ccy))
+                        })
+                    })
+                    .is_some_and(|resolved| resolved.source == ResolutionSource::Identifier);
+
             outputs.push(AssetResolutionOutput {
                 key: input.key,
                 source_symbol,
@@ -2226,6 +2258,7 @@ impl AssetServiceTrait for AssetService {
                 existing_asset_id,
                 name,
                 draft,
+                resolves_without_exchange,
             });
         }
 
@@ -5399,6 +5432,7 @@ mod tests {
             assert_eq!(output.provider_id.as_deref(), Some("YAHOO"));
             assert_eq!(output.provider_symbol.as_deref(), Some("0P0000YWL1.BO"));
             assert_eq!(output.exchange_mic.as_deref(), Some("XBOM"));
+            assert!(!output.resolves_without_exchange);
         }
     }
 
@@ -5442,6 +5476,7 @@ mod tests {
                 "{symbol}"
             );
             assert_eq!(output.exchange_mic, None, "{symbol}");
+            assert!(output.resolves_without_exchange, "{symbol}");
             assert_eq!(output.quote_ccy.as_deref(), Some("INR"), "{symbol}");
             assert_eq!(output.name.as_deref(), Some(name), "{symbol}");
             let draft = output.draft.expect("new fund draft");
@@ -5451,6 +5486,46 @@ mod tests {
                 Some(serde_json::json!({ "preferred_provider": "AMFI" })),
                 "{symbol}"
             );
+        }
+    }
+
+    /// #2461: only a provider that resolves the new asset from its own
+    /// identifier, without a venue, lets it skip the exchange. A bare ticker
+    /// for a generic provider, a symbol the named provider can't resolve, or a
+    /// manually priced asset doesn't qualify.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_resolves_without_exchange_only_by_identifier() {
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let input =
+            |symbol: &str, provider: &str, quote_mode: Option<QuoteMode>| AssetResolutionInput {
+                instrument_type: Some(InstrumentType::Equity),
+                quote_mode,
+                provider_id: Some(provider.to_string()),
+                ..import_input(symbol, "INR")
+            };
+
+        for (input, expected) in [
+            (input("118989", "AMFI", None), true),
+            (input("UNLISTED", "AMFI", None), false),
+            (input("UNLISTED", "YAHOO", None), false),
+            (input("UNLISTED", "MOEX", None), false),
+            (input("UNLISTED", "BOERSE_FRANKFURT", None), false),
+            (input("UNLISTED", "CUSTOM_SCRAPER", None), false),
+            (input("118989", "AMFI", Some(QuoteMode::Manual)), false),
+        ] {
+            let key = format!(
+                "{} {:?} {:?}",
+                input.source_symbol, input.provider_id, input.quote_mode
+            );
+            let output = service
+                .resolve_import_asset_inputs(vec![input])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.exchange_mic, None, "{key}");
+            assert_eq!(output.resolves_without_exchange, expected, "{key}");
         }
     }
 
