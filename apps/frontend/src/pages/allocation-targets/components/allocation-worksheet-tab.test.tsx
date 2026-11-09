@@ -22,7 +22,6 @@ import type {
   Holding,
 } from "@/lib/types";
 import { act, cleanup, render, screen, waitFor, within } from "@/test/render";
-import { queryTooltip } from "@/test/tooltip";
 import { clearProfilePreferences } from "@/hooks/use-persistent-state";
 import type { AllocationWorksheetRequest } from "../hooks/use-allocation-worksheet";
 
@@ -1920,57 +1919,74 @@ describe("AllocationWorksheetTab account allocation (§6)", () => {
     expect(totalOf(retirement)).toHaveTextContent("Total−$200.00$200.00 left");
   });
 
-  it("details a review line's warnings in a tooltip the keyboard reaches", async () => {
-    accountsRef.current = [account("acc-1", "Brokerage")];
-    const warning = (id: string, message: string) => ({
-      id,
-      kind: "stale_quote",
-      lineId: "l1",
-      message,
-      acknowledgementRequired: false,
-    });
-    previewMock.mockResolvedValue({
-      ...previewResult,
-      lines: [
-        previewLine({ lineId: "l1", estimatedAmount: 1000, quantity: 10 }),
-        previewLine({ lineId: "l2", assetId: "bnd", symbol: "BND", name: "Bonds" }),
-      ],
-      warnings: [
-        warning("w1", "VTI is priced from a dated quote."),
-        warning("w2", "VTI is converted at a dated rate."),
-      ],
-    } as unknown as AllocationWorksheetResult);
-    const user = await renderWorksheet();
-    await waitFor(() => expect(previewMock).toHaveBeenCalled(), { timeout: 2000 });
+  it.each(["ltr", "rtl"] as const)(
+    "opens review warnings with hover, touch, and keyboard in %s",
+    async (direction) => {
+      accountsRef.current = [account("acc-1", "Brokerage")];
+      const warning = (id: string, message: string) => ({
+        id,
+        kind: "stale_quote",
+        lineId: "l1",
+        message,
+        acknowledgementRequired: false,
+      });
+      previewMock.mockResolvedValue({
+        ...previewResult,
+        lines: [
+          previewLine({ lineId: "l1", estimatedAmount: 1000, quantity: 10 }),
+          previewLine({ lineId: "l2", assetId: "bnd", symbol: "BND", name: "Bonds" }),
+        ],
+        warnings: [
+          warning("w1", "VTI is priced from a dated quote."),
+          warning("w2", "VTI is converted at a dated rate."),
+        ],
+      } as unknown as AllocationWorksheetResult);
+      const user = await renderWorksheet(driftReport, profile, "US", direction);
+      await waitFor(() => expect(previewMock).toHaveBeenCalled(), { timeout: 2000 });
 
-    await goTo(user, "Review");
+      await goTo(user, "Review");
 
-    const trigger = await screen.findByRole("button", { name: "2 warnings" });
-    expect(trigger).not.toHaveAttribute("title");
-    // A line without warnings shows nothing in their place.
-    const review = trigger.closest<HTMLElement>("[data-review-account]")!;
-    expect(within(review).getAllByText(/warning/)).toHaveLength(1);
-    const details = () =>
-      [...document.querySelectorAll('[data-slot="tooltip-content"] p')].map(
-        (line) => line.textContent,
-      );
+      const trigger = await screen.findByRole("button", { name: "2 warnings" });
+      expect(trigger).not.toHaveAttribute("title");
+      // A line without warnings shows nothing in their place.
+      const review = trigger.closest<HTMLElement>("[data-review-account]")!;
+      expect(within(review).getAllByText(/warning/)).toHaveLength(1);
+      const expectDetails = async () => {
+        const dialog = await screen.findByRole("dialog", { name: "2 warnings" });
+        expect(within(dialog).getByText("VTI is priced from a dated quote.")).toBeVisible();
+        expect(within(dialog).getByText("VTI is converted at a dated rate.")).toBeVisible();
+      };
+      const expectClosed = () =>
+        waitFor(() =>
+          expect(screen.queryByRole("dialog", { name: "2 warnings" })).not.toBeInTheDocument(),
+        );
 
-    await user.hover(trigger);
-    await waitFor(() =>
-      expect(details()).toEqual([
-        "VTI is priced from a dated quote.",
-        "VTI is converted at a dated rate.",
-      ]),
-    );
-    await user.unhover(trigger);
-    await waitFor(() => expect(queryTooltip()).not.toBeInTheDocument());
+      await user.hover(trigger);
+      await expectDetails();
+      await user.unhover(trigger);
+      await expectClosed();
 
-    // Tab from the units just before it, as a keyboard user would.
-    within(trigger.closest("li")!).getByRole("button", { name: "≈ 10 units" }).focus();
-    await user.tab();
-    expect(trigger).toHaveFocus();
-    await waitFor(() => expect(details()).toContain("VTI is converted at a dated rate."));
-  });
+      await user.pointer({ keys: "[TouchA]", target: trigger });
+      await expectDetails();
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await user.pointer({ keys: "[TouchA]", target: screen.getByText("VTI") });
+      await expectClosed();
+
+      // Tab from the units just before it, as a keyboard user would.
+      within(trigger.closest("li")!)
+        .getByRole("button", { name: (name) => stripBidiControls(name) === "≈ 10 units" })
+        .focus();
+      await user.tab();
+      expect(trigger).toHaveFocus();
+      for (const key of ["{Enter}", " "]) {
+        await user.keyboard(key);
+        await expectDetails();
+        await user.keyboard("{Escape}");
+        await expectClosed();
+        expect(trigger).toHaveFocus();
+      }
+    },
+  );
 
   it("tells apart accounts that share a name wherever the name stands alone", async () => {
     accountsRef.current = [
