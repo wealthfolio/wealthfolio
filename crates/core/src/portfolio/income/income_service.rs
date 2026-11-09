@@ -127,21 +127,26 @@ impl IncomeServiceTrait for IncomeService {
         };
         // Months count in the user's timezone, as the income below does.
         let oldest_date = activity_date_in_tz(oldest_date, timezone);
-        let mut months_since_first_transaction: i32 =
-            (current_date.year() - oldest_date.year()) * 12;
-        months_since_first_transaction = months_since_first_transaction
-            + current_date.month() as i32
-            - oldest_date.month() as i32;
 
-        let mut months_in_last_year: i32 = 12;
-        if oldest_date.year() >= current_year - 1 {
-            months_in_last_year = 13 - oldest_date.month() as i32
-        }
-
-        let mut months_two_years_ago: i32 = 12;
-        if oldest_date.year() >= current_year - 2 {
-            months_two_years_ago = 13 - oldest_date.month() as i32
-        }
+        // Every period averages over the same months: from the later of its
+        // start and the first activity's month through the earlier of its end
+        // and the current month, both included.
+        let month_index = |year: i32, month: u32| year * 12 + month as i32 - 1;
+        let first_month = month_index(oldest_date.year(), oldest_date.month());
+        let this_month = month_index(current_year, current_month);
+        let months_between = |start: i32, end: i32| -> u32 {
+            let start = start.max(first_month);
+            let end = end.min(this_month);
+            u32::try_from(end - start + 1).unwrap_or(0)
+        };
+        let months_since_first_transaction = months_between(first_month, this_month);
+        let months_this_year = months_between(month_index(current_year, 1), this_month);
+        let months_in_last_year =
+            months_between(month_index(last_year, 1), month_index(last_year, 12));
+        let months_two_years_ago = months_between(
+            month_index(two_years_ago, 1),
+            month_index(two_years_ago, 12),
+        );
 
         let mut total_summary = IncomeSummary::new("ALL", base_currency.clone());
         let mut ytd_summary = IncomeSummary::new("YTD", base_currency.clone());
@@ -203,10 +208,10 @@ impl IncomeServiceTrait for IncomeService {
             }
         }
 
-        total_summary.calculate_monthly_average(Some(months_since_first_transaction as u32));
-        ytd_summary.calculate_monthly_average(Some(current_month));
-        last_year_summary.calculate_monthly_average(Some(months_in_last_year as u32));
-        two_years_ago_summary.calculate_monthly_average(Some(months_two_years_ago as u32));
+        total_summary.calculate_monthly_average(Some(months_since_first_transaction));
+        ytd_summary.calculate_monthly_average(Some(months_this_year));
+        last_year_summary.calculate_monthly_average(Some(months_in_last_year));
+        two_years_ago_summary.calculate_monthly_average(Some(months_two_years_ago));
 
         // Calculate Year-over-Year Growth using the static helper method
         let ytd_yoy_growth = IncomeService::calculate_yoy_growth(
