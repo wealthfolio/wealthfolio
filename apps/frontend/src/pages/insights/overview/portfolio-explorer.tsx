@@ -286,9 +286,8 @@ export function PortfolioExplorer({
   }
 
   const total = sumValue(active.nodes);
-  const collapsible = active.nodes.length > 6;
+  const collapsible = active.nodes.length > COLLAPSED_TOP_N + 1;
   const otherLabel = t("insights:insights.explorer.other_units", {
-    unit: active.unit,
     count: active.nodes.length - COLLAPSED_TOP_N,
   });
   const barWeights = collapsible
@@ -413,7 +412,6 @@ export function PortfolioExplorer({
             <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
               {collapsible && !showAll
                 ? t("insights:insights.explorer.top_units", {
-                    unit: active.unit,
                     count: COLLAPSED_TOP_N,
                   })
                 : active.label}

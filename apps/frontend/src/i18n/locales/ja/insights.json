@@ -30,9 +30,10 @@
       "unit_types": "種別",
       "unit_currencies": "通貨",
       "unit_groups": "グループ",
-      "other_units": "その他の{{unit}}",
+      "other_units_one": "その他 {{count}} 項目",
+      "other_units_other": "その他 {{count}} 項目",
       "breakdown": "内訳",
-      "top_units": "上位の{{unit}}",
+      "top_units": "上位 {{count}} 項目",
       "show_less": "折りたたむ",
       "show_all": "すべて表示"
     },

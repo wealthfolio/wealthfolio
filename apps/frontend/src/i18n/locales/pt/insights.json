@@ -30,9 +30,11 @@
       "unit_types": "tipos",
       "unit_currencies": "moedas",
       "unit_groups": "grupos",
-      "other_units": "Outros {{unit}}",
+      "other_units_one": "{{count}} outro item",
+      "other_units_other": "{{count}} outros itens",
+      "other_units_many": "{{count}} outros itens",
       "breakdown": "Detalhamento",
-      "top_units": "Principais {{unit}}",
+      "top_units": "{{count}} principais itens",
       "show_less": "Mostrar menos",
       "show_all": "Mostrar tudo"
     },

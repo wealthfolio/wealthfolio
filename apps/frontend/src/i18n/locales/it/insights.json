@@ -30,9 +30,11 @@
       "unit_types": "tipi",
       "unit_currencies": "valute",
       "unit_groups": "gruppi",
-      "other_units": "Altri {{unit}}",
+      "other_units_one": "{{count}} altro elemento",
+      "other_units_other": "{{count}} altri elementi",
+      "other_units_many": "{{count}} altri elementi",
       "breakdown": "Ripartizione",
-      "top_units": "Principali {{unit}}",
+      "top_units": "Primi {{count}} elementi",
       "show_less": "Mostra meno",
       "show_all": "Mostra tutto"
     },

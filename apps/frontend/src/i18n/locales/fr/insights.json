@@ -30,9 +30,11 @@
       "unit_types": "types",
       "unit_currencies": "devises",
       "unit_groups": "groupes",
-      "other_units": "Autres {{unit}}",
+      "other_units_one": "{{count}} autre élément",
+      "other_units_other": "{{count}} autres éléments",
+      "other_units_many": "{{count}} autres éléments",
       "breakdown": "Répartition",
-      "top_units": "Principaux {{unit}}",
+      "top_units": "Les {{count}} principaux éléments",
       "show_less": "Afficher moins",
       "show_all": "Tout afficher"
     },
