@@ -1783,7 +1783,12 @@ fn should_apply_against_metadata(
     // op (create/update/delete) competes on timestamp+event_id. The delete-wins /
     // tombstone branches below would otherwise let a stale delete clobber a newer
     // value and permanently swallow any later re-create of a deleted key.
-    if entity.reuses_entity_ids() {
+    // Reset restores seeded budget-group UUIDs. Custom group deletes keep
+    // permanent tombstones, just as other one-time identities do.
+    if entity.reuses_entity_ids()
+        || (entity == SyncEntity::BudgetGroup
+            && wealthfolio_spending::budget::service::is_default_group_id(&meta.entity_id))
+    {
         Ok(should_apply_lww(
             &meta.last_client_timestamp,
             &meta.last_event_id,

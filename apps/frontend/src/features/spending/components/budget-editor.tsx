@@ -33,6 +33,11 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -171,18 +176,10 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
             })
           }
           onUpdateGroup={(patch) => mutations.updateGroup.mutate({ id: row.group.id, patch })}
-          onDeleteGroup={() => {
-            const target =
-              groups.find((g) => g.key === "other" && g.id !== row.group.id) ??
-              groups.find((g) => g.id !== row.group.id);
-            if (target) {
-              mutations.removeGroup.mutate({
-                id: row.group.id,
-                reassignToGroupId: target.id,
-              });
-            }
-          }}
-          canDelete={!row.group.isSystem && groups.some((g) => g.id !== row.group.id)}
+          onDeleteGroup={(reassignToGroupId) =>
+            mutations.removeGroup.mutate({ id: row.group.id, reassignToGroupId })
+          }
+          canDelete={row.group.key !== "other" && groups.some((g) => g.id !== row.group.id)}
           deletePending={mutations.removeGroup.isPending}
           onSaveGroupRollover={(enabled, startingBalance) =>
             mutations.upsertRollover.mutate({
@@ -534,7 +531,7 @@ function GroupBudgetSection({
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
   onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
   onUpdateGroup: (patch: { name?: string; color?: string | null; icon?: string | null }) => void;
-  onDeleteGroup: () => void;
+  onDeleteGroup: (reassignToGroupId: string) => void;
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
   onToggleCategoryRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
@@ -544,6 +541,12 @@ function GroupBudgetSection({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const groupOverride = findGroupBufferTarget(targets, periodKey, row.group.id);
   const groupRollover = findGroupRollover(rolloverSettings, row.group.id);
+  const destinations = groups.filter(
+    (group) => group.id !== row.group.id && !findGroupRollover(rolloverSettings, group.id)?.enabled,
+  );
+  const [deleteDestination, setDeleteDestination] = useState("");
+  const selectedDestination = destinations.find((group) => group.id === deleteDestination);
+
   const accent = row.group.color ?? SPENDING_THEME.deep;
   // A group lists categories; spending and savings in it are shown apart.
   const hasSavings = row.categories.some((c) => c.taxonomyId === SAVINGS_TAXONOMY);
@@ -690,7 +693,10 @@ function GroupBudgetSection({
                   disabled={!canDelete}
                   closeOnClick={false}
                   onClick={() => {
-                    if (canDelete) setConfirmDeleteOpen(true);
+                    if (canDelete) {
+                      setDeleteDestination("");
+                      setConfirmDeleteOpen(true);
+                    }
                   }}
                   className="text-destructive focus:text-destructive text-xs"
                 >
@@ -713,22 +719,50 @@ function GroupBudgetSection({
                 })}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {row.categories.length > 0
-                  ? t("spending:budgetEditor.deleteGroupWithCategories", {
-                      count: row.categories.length,
-                    })
-                  : t("spending:budgetEditor.cannotUndo")}
+                {t("spending:budgetEditor.deleteGroupDescription")}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {groupRollover && (
+              <p className="text-destructive text-sm">
+                {t("spending:budgetEditor.deleteGroupRollover")}
+              </p>
+            )}
+            <Select
+              value={selectedDestination?.id ?? null}
+              onValueChange={(value) => setDeleteDestination(value ?? "")}
+              items={destinations.map((group) => ({
+                value: group.id,
+                label: getBudgetGroupLabel(t, group.id, group.name),
+              }))}
+            >
+              <SelectTrigger aria-label={t("spending:budgetEditor.moveToGroup")} className="w-full">
+                <SelectValue placeholder={t("spending:budgetEditor.moveToGroup")} />
+              </SelectTrigger>
+              <SelectContent>
+                {destinations.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {getBudgetGroupLabel(t, group.id, group.name)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {groups.some(
+              (group) =>
+                group.id !== row.group.id && findGroupRollover(rolloverSettings, group.id)?.enabled,
+            ) && (
+              <p className="text-muted-foreground text-sm">
+                {t("spending:budgetEditor.deleteGroupDestinationRollover")}
+              </p>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={(event) => {
                   event.preventBaseUIHandler();
-                  onDeleteGroup();
+                  if (selectedDestination) onDeleteGroup(selectedDestination.id);
                   setConfirmDeleteOpen(false);
                 }}
-                disabled={deletePending}
+                disabled={deletePending || !!groupRollover || !selectedDestination}
                 variant="destructive"
               >
                 {deletePending ? t("spending:budgetEditor.deleting") : t("common:delete")}

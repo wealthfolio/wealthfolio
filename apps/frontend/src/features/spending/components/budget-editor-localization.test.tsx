@@ -31,6 +31,7 @@ vi.mock("../adapters/budget", () => ({
 }));
 import {
   assignCategoryToGroup,
+  deleteBudgetGroup,
   getBudget,
   updateBudgetGroup,
   upsertBudgetRolloverSetting,
@@ -539,3 +540,129 @@ it.each(["ltr", "rtl"] as const)(
     expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  ["ltr", false],
+  ["rtl", false],
+  ["ltr", true],
+  ["rtl", true],
+] as const)(
+  "requires a destination when deleting an optional default in %s (empty: %s)",
+  async (direction, empty) => {
+    const budget = budgetSnapshot();
+    if (empty) budget.computed.groupRows[0].categories = [];
+    budget.state.targets.push({
+      id: "future-buffer",
+      periodKey: "2028-05",
+      targetType: "group_buffer",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      amount: "125.50",
+      createdAt: "",
+      updatedAt: "",
+    });
+    vi.mocked(deleteBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    const section = screen
+      .getAllByRole("button", {
+        name: enSpending.budgetEditor.expandGroup,
+      })[0]
+      .closest("section")!;
+    await user.click(
+      within(section).getByRole("button", {
+        name: enSpending.budgetEditor.groupActions,
+      }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(enSpending.budgetEditor.deleteGroupDescription)).toBeVisible();
+    const confirm = within(dialog).getByRole("button", { name: enCommon.delete });
+    expect(confirm).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole("combobox", {
+        name: enSpending.budgetEditor.moveToGroup,
+      }),
+    );
+    await user.click(await screen.findByRole("option", { name: "Wants" }));
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, WANTS_ID, "default"),
+    );
+  },
+);
+
+it("protects Other and blocks deleting a group with a disabled rollover setting", async () => {
+  const budget = budgetSnapshot();
+  budget.state.groups[1].key = "other";
+  budget.state.rolloverSettings.push({
+    id: "rollover",
+    targetType: "group",
+    groupId: NEEDS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: false,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  const sections = screen
+    .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })
+    .map((button) => button.closest("section")!);
+  await user.click(
+    within(sections[1]).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  expect(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await user.keyboard("{Escape}");
+  await user.click(
+    within(sections[0]).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  await user.click(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  );
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(enSpending.budgetEditor.deleteGroupRollover)).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: enCommon.delete })).toBeDisabled();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+});
+
+it("excludes a destination with enabled group rollover", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings.push({
+    id: "rollover",
+    targetType: "group",
+    groupId: WANTS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: true,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  const section = screen
+    .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0]
+    .closest("section")!;
+  await user.click(
+    within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  await user.click(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  );
+  const dialog = await screen.findByRole("alertdialog");
+  expect(
+    within(dialog).getByText(enSpending.budgetEditor.deleteGroupDestinationRollover),
+  ).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: enCommon.delete })).toBeDisabled();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+});

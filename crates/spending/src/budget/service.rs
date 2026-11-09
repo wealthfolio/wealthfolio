@@ -34,7 +34,7 @@ const SPENDING_TAXONOMY: &str = "spending_categories";
 const INCOME_TAXONOMY: &str = "income_sources";
 const SAVINGS_TAXONOMY: &str = "savings_categories";
 const DEFAULT_PERIOD_KEY: &str = "default";
-const OTHER_GROUP_KEY: &str = "other";
+pub const OTHER_GROUP_KEY: &str = "other";
 
 #[derive(Clone, Copy)]
 struct DefaultGroup {
@@ -639,53 +639,12 @@ impl BudgetService {
         currency: &str,
         timezone: &str,
     ) -> Result<BudgetSnapshot> {
-        let groups = self.repo.list_groups().await?;
-        let group = groups
-            .iter()
-            .find(|g| g.id == id)
-            .ok_or_else(|| invalid_budget_input("Budget group not found"))?;
-        if group.is_system {
-            return Err(SpendingError::InvalidInput {
-                message: "System budget groups cannot be deleted".to_string(),
-            }
-            .into());
-        }
-        if reassign_to_group_id == id {
-            return Err(invalid_budget_input(
-                "Cannot reassign categories to the group being deleted",
-            ));
-        }
-        if !groups.iter().any(|g| g.id == reassign_to_group_id) {
-            return Err(invalid_budget_input("Reassignment budget group not found"));
-        }
-        if self
-            .repo
-            .list_rollover_settings()
-            .await?
-            .into_iter()
-            .any(|r| {
-                matches!(r.target_type, BudgetRolloverTargetType::Group)
-                    && r.group_id.as_deref() == Some(id)
-            })
-        {
-            return Err(invalid_budget_input(
-                "Delete the group's rollover setting before deleting the group",
-            ));
-        }
-        let assignments = self.repo.list_group_assignments().await?;
-        let reassignments = assignments
-            .into_iter()
-            .filter(|a| a.group_id == id)
-            .map(|a| NewBudgetGroupAssignment {
-                id: Some(a.id),
-                group_id: reassign_to_group_id.to_string(),
-                taxonomy_id: a.taxonomy_id,
-                category_id: a.category_id,
-            })
-            .collect::<Vec<_>>();
+        // The writer validates against current state and resolves assignments in
+        // the same transaction as the delete, so concurrent edits stay authoritative.
         self.repo
-            .delete_group_and_reassign(id, reassign_to_group_id, reassignments)
-            .await?;
+            .delete_group_and_reassign(id, reassign_to_group_id)
+            .await
+            .map_err(budget_write_error)?;
         self.get(period_key, currency, timezone).await
     }
 
@@ -719,15 +678,7 @@ impl BudgetService {
         currency: &str,
         timezone: &str,
     ) -> Result<BudgetSnapshot> {
-        let groups = self
-            .repo
-            .upsert_system_groups(default_group_inputs())
-            .await?;
-        let group_by_key: HashMap<String, String> =
-            groups.into_iter().map(|g| (g.key, g.id)).collect();
-        self.repo
-            .upsert_system_group_assignments(default_assignment_inputs(&group_by_key))
-            .await?;
+        self.repo.reset_groups().await?;
         self.get(period_key, currency, timezone).await
     }
 
@@ -892,7 +843,8 @@ impl BudgetService {
             .await?;
         self.repo
             .apply_reviewed(review.expected, review.operation)
-            .await?;
+            .await
+            .map_err(budget_write_error)?;
         self.get_readonly(Some(review.period_key), currency, timezone)
             .await
     }
@@ -990,23 +942,7 @@ impl BudgetService {
                 id,
                 reassign_to_group_id,
             } => {
-                if !state.groups.iter().any(|g| g.id == *id && !g.is_system)
-                    || id == reassign_to_group_id
-                    || !has_group(reassign_to_group_id)
-                {
-                    return Err(invalid_budget_input(
-                        "Only custom groups can be deleted; select a different destination group",
-                    ));
-                }
-                if state
-                    .rollover_settings
-                    .iter()
-                    .any(|r| r.group_id.as_deref() == Some(id.as_str()))
-                {
-                    return Err(invalid_budget_input(
-                        "Remove the group's rollover setting before deleting it",
-                    ));
-                }
+                validate_group_deletion(state, id, reassign_to_group_id)?;
             }
             AssignCategory {
                 taxonomy_id,
@@ -1083,9 +1019,8 @@ impl BudgetService {
         let missing = default_group_inputs()
             .into_iter()
             .filter(|g| {
-                g.key
-                    .as_ref()
-                    .is_some_and(|key| !existing_keys.contains(key))
+                g.key.as_deref() == Some(OTHER_GROUP_KEY)
+                    && !existing_keys.contains(OTHER_GROUP_KEY)
             })
             .collect::<Vec<_>>();
         if !missing.is_empty() {
@@ -1493,10 +1428,14 @@ fn compute_rollover_for_month(
 }
 
 /// One pure default resolution for Budget and Insight. Persisted user edits and
-/// custom groups remain authoritative; synthesize only absent system keys.
+/// custom groups remain authoritative; synthesize only the required Other group.
+/// Optional defaults are seeded by migrations and restored only by explicit Reset.
 /// Epoch timestamps identify definitions without pretending a read persisted them.
 pub fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup> {
-    for default in DEFAULT_GROUPS {
+    for default in DEFAULT_GROUPS
+        .into_iter()
+        .filter(|g| g.key == OTHER_GROUP_KEY)
+    {
         if groups
             .iter()
             .any(|group| group.key == default.key || group.id == default.id)
@@ -1516,6 +1455,124 @@ pub fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup> {
         });
     }
     groups
+}
+
+/// Shared deletion policy for review validation and the storage writer's current
+/// state. An enabled destination rollover would recompute carry using the moved
+/// group's history, changing remaining amounts even when monthly targets match.
+pub fn validate_group_deletion(
+    state: &BudgetSnapshotState,
+    id: &str,
+    destination: &str,
+) -> Result<()> {
+    let source = state
+        .groups
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or_else(|| invalid_budget_input("Budget group not found"))?;
+    if source.key == OTHER_GROUP_KEY || source.id == BUDGET_GROUP_OTHER_ID {
+        return Err(invalid_budget_input(
+            "Other is the required fallback budget group and cannot be deleted",
+        ));
+    }
+    if id == destination || !state.groups.iter().any(|g| g.id == destination) {
+        return Err(invalid_budget_input(
+            "Select a different existing destination budget group",
+        ));
+    }
+    for setting in &state.rollover_settings {
+        if !matches!(setting.target_type, BudgetRolloverTargetType::Group) {
+            continue;
+        }
+        if setting.group_id.as_deref() == Some(id) {
+            return Err(invalid_budget_input(
+                "Remove the group's rollover setting before deleting it",
+            ));
+        }
+        if setting.enabled && setting.group_id.as_deref() == Some(destination) {
+            return Err(invalid_budget_input(
+                "Disable destination group rollover before moving budgets into it",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Monthly rows replace defaults. Preserve their effective sum at the union of
+/// override months, including explicit zeroes, and the sum of the defaults for
+/// every other month. Category targets and category rollover are independent.
+pub fn merged_group_buffers(
+    targets: &[BudgetTarget],
+    source: &str,
+    destination: &str,
+) -> Result<Vec<NewBudgetTarget>> {
+    let buffers = targets
+        .iter()
+        .filter(|t| {
+            matches!(t.target_type, BudgetTargetType::GroupBuffer)
+                && matches!(t.group_id.as_deref(), Some(id) if id == source || id == destination)
+        })
+        .collect::<Vec<_>>();
+    if !buffers
+        .iter()
+        .any(|t| t.group_id.as_deref() == Some(source))
+    {
+        return Ok(Vec::new());
+    }
+    let mut amounts = HashMap::new();
+    let mut periods = std::collections::BTreeSet::new();
+    for target in buffers {
+        let amount = Decimal::from_str_exact(&target.amount)
+            .map_err(|_| invalid_budget_input("Invalid group buffer amount"))?;
+        amounts.insert(
+            (
+                target.group_id.as_deref().unwrap_or_default(),
+                target.period_key.as_str(),
+            ),
+            amount,
+        );
+        periods.insert(target.period_key.as_str());
+    }
+    let effective = |group, period| {
+        amounts
+            .get(&(group, period))
+            .or_else(|| amounts.get(&(group, DEFAULT_PERIOD_KEY)))
+            .copied()
+            .unwrap_or(Decimal::ZERO)
+    };
+    periods
+        .into_iter()
+        .map(|period| {
+            let source_amount = effective(source, period);
+            let destination_amount = effective(destination, period);
+            let amount = source_amount
+                .checked_add(destination_amount)
+                // Decimal addition may reduce scale to fit its coefficient.
+                // Reject a sum that cannot preserve both exact input amounts.
+                .filter(|sum| {
+                    sum.checked_sub(source_amount) == Some(destination_amount)
+                        && sum.checked_sub(destination_amount) == Some(source_amount)
+                })
+                .ok_or_else(|| {
+                    invalid_budget_input("Merged group buffer amount cannot be represented exactly")
+                })?;
+            Ok(NewBudgetTarget {
+                id: None,
+                period_key: period.to_string(),
+                target_type: BudgetTargetType::GroupBuffer,
+                taxonomy_id: None,
+                category_id: None,
+                group_id: Some(destination.to_string()),
+                amount: amount.normalize().to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Explicit Reset can restore these seeded identities after deletion. Custom
+/// group UUIDs remain one-time identities for sync conflict resolution.
+pub fn is_default_group_id(id: &str) -> bool {
+    DEFAULT_GROUPS.iter().any(|group| group.id == id)
 }
 
 pub fn default_group_inputs() -> Vec<NewBudgetGroup> {
@@ -1724,6 +1781,18 @@ fn validate_rollover_setting(setting: &NewBudgetRolloverSetting) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// Writer validation must retain the spending error contract used by both
+// runtimes, including constraints rechecked after a concurrent edit.
+fn budget_write_error(error: anyhow::Error) -> anyhow::Error {
+    use wealthfolio_core::errors::{Error, ValidationError};
+    match error.downcast_ref::<Error>() {
+        Some(Error::Validation(ValidationError::InvalidInput(message))) => {
+            invalid_budget_input(message)
+        }
+        _ => error,
+    }
 }
 
 fn invalid_budget_input(message: &str) -> anyhow::Error {
@@ -2335,9 +2404,22 @@ mod tests {
     }
 
     #[test]
-    fn pure_group_resolution_fills_only_missing_defaults_and_preserves_custom_edits() {
-        let defaults = effective_groups(Vec::new());
-        assert_eq!(defaults.len(), DEFAULT_GROUPS.len());
+    fn pure_group_resolution_repairs_only_other_and_preserves_custom_edits() {
+        let defaults = DEFAULT_GROUPS
+            .iter()
+            .map(|default| BudgetGroup {
+                id: default.id.into(),
+                name: default.name.into(),
+                key: default.key.into(),
+                color: Some(default.color.into()),
+                icon: Some(default.icon.into()),
+                sort_order: default.sort_order,
+                is_system: true,
+                created_at: DateTime::UNIX_EPOCH.naive_utc(),
+                updated_at: DateTime::UNIX_EPOCH.naive_utc(),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(effective_groups(Vec::new()).len(), 1);
         for removed in [
             vec![],
             vec![OTHER_GROUP_KEY],
@@ -2358,7 +2440,10 @@ mod tests {
             custom.is_system = false;
             persisted.push(custom);
             let resolved = effective_groups(persisted.clone());
-            assert_eq!(resolved.len(), DEFAULT_GROUPS.len() + 1);
+            assert_eq!(
+                resolved.len(),
+                persisted.len() + usize::from(removed.contains(&OTHER_GROUP_KEY))
+            );
             for original in persisted {
                 let found = resolved
                     .iter()
