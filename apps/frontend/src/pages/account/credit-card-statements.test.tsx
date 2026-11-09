@@ -135,4 +135,48 @@ describe("CreditCardStatements", () => {
     await client.invalidateQueries({ queryKey: [QueryKeys.CREDIT_CARD_STATEMENTS] });
     expect(await screen.findByText(/145\.17/)).toBeInTheDocument();
   });
+
+  it("keeps statement balances and links separate when switching cards in the same cache", async () => {
+    const otherCard = {
+      ...account,
+      id: "card/2",
+      meta: '{"creditCardBilling":{"closingDay":25,"dueDay":5}}',
+    };
+    mocks.get.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === account.id
+          ? statements
+          : [
+              {
+                ...statements[0],
+                startDate: "2026-11-26",
+                closingDate: "2026-12-25",
+                dueDate: "2027-01-05",
+                balances: [{ currency: "BRL", balance: "210.50" }],
+              },
+            ],
+      ),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = (card: Account) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CreditCardStatements account={card} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(account));
+    await screen.findByText(/132\.05/);
+    rerender(view(otherCard));
+    await screen.findByText(/210\.50/);
+    expect(screen.queryByText(/132\.05/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View transactions/ })).toHaveAttribute(
+      "href",
+      "/activities?account=card%2F2&from=2026-11-26&to=2026-12-25",
+    );
+    rerender(view(account));
+    await screen.findByText(/132\.05/);
+    expect(screen.queryByText(/210\.50/)).not.toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith("card/2");
+  });
 });
