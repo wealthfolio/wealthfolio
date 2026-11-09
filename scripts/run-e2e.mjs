@@ -12,13 +12,19 @@ const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
 const cliArgs = process.argv.slice(2);
 const shouldUseUi = cliArgs.includes("--ui");
+// `/` needs a web build in dist/; the health route answers without one.
+export const BACKEND_HEALTH_PATH = "/api/v1/healthz";
 
 const buildHealthUrl = (base, path = "/") =>
   new URL(path, `${base.replace(/\/$/, "")}/`).toString();
 
-const waitForServer = async (url, serverProcess, { timeout = 60_000, interval = 500 } = {}) => {
+export const waitForServer = async (
+  url,
+  serverProcess,
+  { path = "/", timeout = 60_000, interval = 500 } = {},
+) => {
   const deadline = Date.now() + timeout;
-  const healthUrl = buildHealthUrl(url);
+  const healthUrl = buildHealthUrl(url, path);
 
   while (Date.now() < deadline) {
     if (serverProcess.exitCode !== null) {
@@ -37,7 +43,7 @@ const waitForServer = async (url, serverProcess, { timeout = 60_000, interval = 
     await setTimeout(interval);
   }
 
-  throw new Error(`Timed out waiting for ${url}`);
+  throw new Error(`Timed out waiting for ${healthUrl}`);
 };
 
 const spawnCommand = (command, args, extraEnv = {}) =>
@@ -100,7 +106,11 @@ const run = async () => {
     console.log("Waiting for frontend server...");
     await waitForServer(DEV_SERVER_URL, devServer);
     console.log("Frontend ready. Waiting for backend server...");
-    await waitForServer(BACKEND_URL, devServer, { timeout: 120_000, interval: 1000 });
+    await waitForServer(BACKEND_URL, devServer, {
+      path: BACKEND_HEALTH_PATH,
+      timeout: 120_000,
+      interval: 1000,
+    });
     console.log("Backend ready. Starting tests...");
     await runPlaywrightTests(cliArgs);
   } finally {
@@ -108,7 +118,9 @@ const run = async () => {
   }
 };
 
-run().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
