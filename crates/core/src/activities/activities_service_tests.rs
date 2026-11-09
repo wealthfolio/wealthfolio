@@ -357,6 +357,20 @@ pub(crate) mod tests {
                             .as_ref()
                             .map(|(_, mic, _, _, _)| mic.clone());
                     }
+                    // AMFI's scheme 120505 resolves as the real resolver does: no
+                    // exchange, and identified by AMFI's own scheme code.
+                    let provider_id = if source_symbol == "120505" {
+                        Some("AMFI".to_string())
+                    } else {
+                        provider_resolution.as_ref().map(|_| "YAHOO".to_string())
+                    };
+                    let provider_symbol = if source_symbol == "120505" {
+                        Some(source_symbol.clone())
+                    } else {
+                        provider_resolution
+                            .as_ref()
+                            .map(|(_, _, _, _, symbol)| symbol.clone())
+                    };
 
                     let mut instrument_type = input.instrument_type.clone().or_else(|| {
                         if parse_crypto_pair_symbol(base_symbol).is_some()
@@ -532,14 +546,14 @@ pub(crate) mod tests {
                         instrument_symbol: Some(canonical_symbol.clone()),
                         instrument_exchange_mic: exchange_mic.clone(),
                         provider_config: None,
-                        provider_id: provider_resolution.as_ref().map(|_| "YAHOO".to_string()),
-                        provider_symbol: provider_resolution
-                            .as_ref()
-                            .map(|(_, _, _, _, symbol)| symbol.clone()),
+                        provider_id: provider_id.clone(),
+                        provider_symbol: provider_symbol.clone(),
                         notes: None,
                         metadata: None,
                     });
 
+                    let resolves_without_exchange =
+                        source_symbol == "120505" && existing_asset_id.is_none();
                     AssetResolutionOutput {
                         key: input.key,
                         source_symbol,
@@ -549,12 +563,11 @@ pub(crate) mod tests {
                         quote_ccy_source: Some(quote_ccy_source),
                         instrument_type,
                         kind: Some(kind),
-                        provider_id: provider_resolution.as_ref().map(|_| "YAHOO".to_string()),
-                        provider_symbol: provider_resolution
-                            .as_ref()
-                            .map(|(_, _, _, _, symbol)| symbol.clone()),
+                        provider_id: provider_id.clone(),
+                        provider_symbol: provider_symbol.clone(),
                         provider_config: None,
                         review_symbol,
+                        resolves_without_exchange,
                         existing_asset_id,
                         name,
                         draft,
@@ -11067,6 +11080,153 @@ pub(crate) mod tests {
         assert!(checked.errors.is_none());
         assert_eq!(checked.exchange_mic, None);
         assert_eq!(checked.quote_mode.as_deref(), Some("MANUAL"));
+    }
+
+    fn no_exchange_service() -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-1", "INR"));
+        ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    fn no_exchange_fund_import(symbol: &str, provider_id: Option<&str>) -> ActivityImport {
+        ActivityImport {
+            id: None,
+            date: "2026-10-01".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(130)),
+            currency: "INR".to_string(),
+            fee: None,
+            tax: None,
+            amount: Some(dec!(1300)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: Some("INR".to_string()),
+            instrument_type: Some("MUTUALFUND".to_string()),
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            quote_mode: None,
+            provider_id: provider_id.map(str::to_string),
+            provider_symbol: provider_id.map(|_| symbol.to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+            charges: None,
+        }
+    }
+
+    fn no_exchange_fund_candidate(symbol: &str, provider_id: Option<&str>) -> ImportAssetCandidate {
+        ImportAssetCandidate {
+            key: symbol.to_string(),
+            account_id: "acc-1".to_string(),
+            symbol: symbol.to_string(),
+            currency: Some("INR".to_string()),
+            instrument_type: Some("MUTUALFUND".to_string()),
+            quote_ccy: Some("INR".to_string()),
+            quote_mode: None,
+            exchange_mic: None,
+            isin: None,
+            provider_id: provider_id.map(str::to_string),
+            provider_symbol: provider_id.map(|_| symbol.to_string()),
+        }
+    }
+
+    /// #2461: AMFI prices a fund by scheme code, without an exchange. A new
+    /// fund the resolver reports as needing no exchange passes the check.
+    #[tokio::test]
+    async fn test_check_import_accepts_new_amfi_fund_without_exchange() {
+        let service = no_exchange_service();
+        for (symbol, provider_id) in [("120505", None), ("120505", Some("AMFI"))] {
+            let result = service
+                .check_activities_import(vec![no_exchange_fund_import(symbol, provider_id)])
+                .await
+                .expect("import check should succeed");
+
+            let checked = &result[0];
+            assert!(
+                checked.is_valid,
+                "{symbol} {provider_id:?}: {:?}",
+                checked.errors
+            );
+            assert!(checked.errors.is_none(), "{symbol} {provider_id:?}");
+            assert_eq!(checked.exchange_mic, None);
+            assert!(checked
+                .provider_id
+                .as_deref()
+                .is_some_and(|id| id.eq_ignore_ascii_case("AMFI")));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_import_rejects_new_equity_without_exchange_or_amfi() {
+        let service = no_exchange_service();
+        for (symbol, provider_id) in [
+            ("UNLISTED", None),
+            ("UNLISTED", Some("YAHOO")),
+            ("UNLISTED", Some("METAL_PRICE_API")),
+            ("UNLISTED", Some("custom-scraper")),
+            // Naming AMFI isn't enough; the resolver must resolve it without an exchange.
+            ("UNLISTED", Some("AMFI")),
+        ] {
+            let result = service
+                .check_activities_import(vec![no_exchange_fund_import(symbol, provider_id)])
+                .await
+                .expect("import check should succeed");
+
+            let checked = &result[0];
+            assert!(!checked.is_valid, "{provider_id:?}");
+            assert!(checked
+                .errors
+                .as_ref()
+                .is_some_and(|errors| errors.contains_key("symbol")));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_preview_import_assets_accepts_new_amfi_fund_without_exchange() {
+        let service = no_exchange_service();
+        let preview = service
+            .preview_import_assets(vec![no_exchange_fund_candidate("120505", None)])
+            .await
+            .expect("preview should succeed");
+
+        assert_eq!(
+            preview[0].status,
+            ImportAssetPreviewStatus::AutoResolvedNewAsset
+        );
+        assert_eq!(preview[0].resolution_source, "provider_resolution");
+        assert!(preview[0].errors.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_preview_import_assets_flags_new_equity_without_exchange_or_amfi() {
+        let service = no_exchange_service();
+        let preview = service
+            .preview_import_assets(vec![no_exchange_fund_candidate("UNLISTED", None)])
+            .await
+            .expect("preview should succeed");
+
+        assert_eq!(preview[0].status, ImportAssetPreviewStatus::NeedsFixing);
+        assert_eq!(preview[0].resolution_source, "missing_exchange");
     }
 
     #[tokio::test]
