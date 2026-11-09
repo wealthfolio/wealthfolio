@@ -1397,13 +1397,14 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "assign_category_to_group": {
-      const { categoryId, groupId, periodKey } = payload as {
+      const { taxonomyId, categoryId, groupId, periodKey } = payload as {
+        taxonomyId: string;
         categoryId: string;
         groupId: string;
         periodKey?: string;
       };
       addPeriodKey(periodKey);
-      body = JSON.stringify({ categoryId, groupId });
+      body = JSON.stringify({ taxonomyId, categoryId, groupId });
       break;
     }
     case "reset_budget_groups": {

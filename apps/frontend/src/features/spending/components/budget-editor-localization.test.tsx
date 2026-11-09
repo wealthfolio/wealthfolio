@@ -71,6 +71,8 @@ function budgetSnapshot(
         remaining: 0,
         overspent: false,
         rolloverEnabled: false,
+        savingsTargetTotal: 0,
+        savingsActual: 0,
         categories:
           index === 0
             ? [
@@ -101,6 +103,8 @@ function budgetSnapshot(
         spendingPlanned: 0,
         spendingActual: 0,
         spendingRemaining: 0,
+        savingsPlanned: 0,
+        savingsActual: 0,
         incomePlanned: 0,
         incomeActual: 0,
         groupBuffer: 0,
@@ -199,7 +203,12 @@ it.each([
       within(dialog).getByRole("button", { name: enSpending.budgetEditor.moveCategory }),
     );
     await waitFor(() =>
-      expect(assignCategoryToGroup).toHaveBeenCalledWith("cat_housing", WANTS_ID, "default"),
+      expect(assignCategoryToGroup).toHaveBeenCalledWith(
+        "spending_categories",
+        "cat_housing",
+        WANTS_ID,
+        "default",
+      ),
     );
     expect(budget).toEqual(original);
   },

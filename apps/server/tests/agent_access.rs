@@ -5077,12 +5077,21 @@ async fn agent_budget_reads_are_pure_and_share_missing_group_resolution_with_ins
             .iter()
             .map(|group| group["group"]["id"].as_str().unwrap().to_string())
             .collect::<std::collections::BTreeSet<_>>();
-        // Native Insight deliberately omits the Savings group from its
-        // consumption breakdown; preserve that accounting presentation.
-        let consumption_ids = groups
+        // Native Insight leaves out a group that lists only savings
+        // categories, whatever its key: it holds no consumption to show.
+        let consumption_ids = read["budget"]["computed"]["groupRows"]
+            .as_array()
+            .unwrap()
             .iter()
-            .filter(|group| group["key"] != "savings")
-            .map(|group| group["id"].as_str().unwrap().to_string())
+            .filter(|row| {
+                let categories = row["categories"].as_array().unwrap();
+                categories.is_empty()
+                    || row["buffer"].as_f64() != Some(0.0)
+                    || categories
+                        .iter()
+                        .any(|c| c["taxonomyId"] != "savings_categories")
+            })
+            .map(|row| row["group"]["id"].as_str().unwrap().to_string())
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(
             insight_ids, consumption_ids,

@@ -29,6 +29,7 @@ interface BudgetToday {
 }
 
 const MIN_HISTORICAL_PACE_MONTHS = 2;
+const SPENDING_TAXONOMY = "spending_categories";
 
 function parseMonthKey(value: string | null | undefined): { year: number; month: number } | null {
   if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return null;
@@ -153,7 +154,9 @@ export function BudgetLineChartCard({
       const topId = topCategoryId(row.categoryId, categoriesMeta);
       spentByTop.set(topId, (spentByTop.get(topId) ?? 0) + row.amount);
     }
+    // Rings measure spending against its budget; savings goals are not limits.
     return allocations
+      .filter((al) => al.taxonomyId === SPENDING_TAXONOMY)
       .map((al) => {
         const t = al.target || 0;
         if (t <= 0) return null;

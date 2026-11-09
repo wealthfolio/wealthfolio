@@ -660,6 +660,7 @@ async fn delete_budget_group(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AssignCategoryToGroupBody {
+    taxonomy_id: Option<String>,
     category_id: String,
     group_id: String,
 }
@@ -675,6 +676,7 @@ async fn assign_category_to_group(
         state
             .budget_service
             .assign_category_to_group(
+                payload.taxonomy_id,
                 payload.category_id,
                 payload.group_id,
                 query.period_key,
