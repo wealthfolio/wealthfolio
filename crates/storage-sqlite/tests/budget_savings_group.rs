@@ -7,12 +7,14 @@ mod common;
 use std::sync::Arc;
 
 use diesel::connection::SimpleConnection;
-use wealthfolio_core::fx::FxService;
+use wealthfolio_core::fx::{FxService, FxServiceTrait, NewExchangeRate};
 use wealthfolio_core::taxonomies::TaxonomyService;
+use wealthfolio_spending::analytics::{AnalyticsService, MonthlyReport, ReportRequest};
 use wealthfolio_spending::budget::{
     BudgetCategoryRow, BudgetGroupRow, BudgetOperation, BudgetRolloverTargetType, BudgetService,
     BudgetSnapshot, BudgetTargetType, NewBudgetRolloverSetting, NewBudgetTarget,
 };
+use wealthfolio_spending::events::EventsService;
 use wealthfolio_spending::insight::{InsightService, SpendingInsight, SpendingInsightRequest};
 use wealthfolio_spending::settings::{SpendingSettingsService, SpendingSettingsUpdate};
 use wealthfolio_storage_sqlite::accounts::AccountRepository;
@@ -20,8 +22,10 @@ use wealthfolio_storage_sqlite::activities::ActivityRepository;
 use wealthfolio_storage_sqlite::db;
 use wealthfolio_storage_sqlite::fx::FxRepository;
 use wealthfolio_storage_sqlite::spending::activity_assignments::ActivityTaxonomyAssignmentRepository;
+use wealthfolio_storage_sqlite::spending::activity_events::ActivityEventsRepository;
 use wealthfolio_storage_sqlite::spending::activity_splits::ActivitySplitRepository;
 use wealthfolio_storage_sqlite::spending::budget::BudgetRepository;
+use wealthfolio_storage_sqlite::spending::events::{EventTypesRepository, EventsRepository};
 use wealthfolio_storage_sqlite::spending::settings::SpendingSettingsRepository;
 use wealthfolio_storage_sqlite::taxonomies::TaxonomyRepository;
 
@@ -35,6 +39,9 @@ struct Fixture {
     pool: Arc<db::DbPool>,
     service: BudgetService,
     insight: InsightService,
+    analytics: AnalyticsService,
+    settings: Arc<SpendingSettingsService>,
+    fx: Arc<FxService>,
     _dir: common::TestDir,
 }
 
@@ -75,6 +82,24 @@ impl Fixture {
             taxonomy.clone(),
             fx.clone(),
         );
+        let activity_events = Arc::new(ActivityEventsRepository::new(pool.clone(), writer.clone()));
+        let events = Arc::new(EventsService::new(
+            Arc::new(EventTypesRepository::new(pool.clone(), writer.clone())),
+            Arc::new(EventsRepository::new(pool.clone(), writer.clone())),
+            activity_repo.clone(),
+            activity_events.clone(),
+        ));
+        let analytics = AnalyticsService::new(
+            activity_repo.clone(),
+            account_repo.clone(),
+            assignment_repo.clone(),
+            split_repo.clone(),
+            settings.clone(),
+            taxonomy.clone(),
+            events,
+            fx.clone(),
+            activity_events,
+        );
         let insight = InsightService::new(
             budget_repo,
             activity_repo,
@@ -83,12 +108,15 @@ impl Fixture {
             split_repo,
             settings.clone(),
             taxonomy,
-            fx,
+            fx.clone(),
         );
         let fixture = Self {
             pool,
             service,
             insight,
+            analytics,
+            settings: settings.clone(),
+            fx,
             _dir: dir,
         };
         // Two spending accounts and a brokerage account outside the spending set.
@@ -140,6 +168,14 @@ impl Fixture {
         }
     }
 
+    /// Existing split data, seeded without today's cash-flow validation.
+    fn savings_split(&self, activity_id: &str, category_id: &str, amount: &str) {
+        self.seed(&format!(
+            "INSERT INTO spending_activity_splits (id,activity_id,taxonomy_id,category_id,amount)
+             VALUES ('split-{activity_id}-{category_id}','{activity_id}','{SAVINGS}','{category_id}','{amount}');"
+        ));
+    }
+
     /// One posted expense from checking with a spending category.
     fn expense(&self, id: &str, date: &str, amount: &str, category_id: &str) {
         self.seed(&format!(
@@ -172,18 +208,29 @@ impl Fixture {
 
     /// Insight over the whole of June, as the dashboard asks for it.
     async fn insight(&self) -> SpendingInsight {
+        self.insight_window("2026-06-01T00:00:00Z", "2026-06-30T23:59:59Z", "EUR", "UTC")
+            .await
+    }
+
+    async fn insight_window(
+        &self,
+        start: &str,
+        end: &str,
+        currency: &str,
+        timezone: &str,
+    ) -> SpendingInsight {
         self.insight
             .compute(
                 SpendingInsightRequest {
-                    start_date: "2026-06-01T00:00:00Z".into(),
-                    end_date: "2026-06-30T23:59:59Z".into(),
+                    start_date: start.into(),
+                    end_date: end.into(),
                     compare_start_date: None,
                     compare_end_date: None,
                     account_ids: None,
                     compare: None,
                 },
-                "EUR",
-                "UTC",
+                currency,
+                timezone,
             )
             .await
             .unwrap()
@@ -192,6 +239,27 @@ impl Fixture {
     async fn budget(&self, period_key: &str) -> BudgetSnapshot {
         self.service
             .get(Some(period_key.into()), "EUR", "UTC")
+            .await
+            .unwrap()
+    }
+
+    async fn report(
+        &self,
+        start: &str,
+        end: &str,
+        currency: &str,
+        timezone: &str,
+    ) -> MonthlyReport {
+        self.analytics
+            .monthly_report(
+                ReportRequest {
+                    start_date: start.into(),
+                    end_date: end.into(),
+                    account_ids: None,
+                },
+                timezone,
+                currency,
+            )
             .await
             .unwrap()
     }
@@ -330,6 +398,294 @@ async fn savings_row_counts_categorized_transfers_out_of_the_spending_accounts()
     assert_eq!(savings.savings_actual, 350.0);
     // The group's spending figures hold no savings.
     assert_eq!(savings.actual, 0.0);
+}
+
+/// Old assignments and split lines can survive a transfer being linked or its
+/// accounts changing scope. Neither may turn a debt balance transfer into goal
+/// progress, including when the other card is archived or outside the window.
+#[tokio::test]
+async fn budget_balance_transfers_match_insight_despite_stale_savings_allocations() {
+    for archived in [false, true] {
+        for use_split in [false, true] {
+            let f = Fixture::new().await;
+            f.seed(&format!(
+                "UPDATE accounts SET account_type='CREDIT_CARD' WHERE id IN ('checking','brokerage');
+                 UPDATE accounts SET is_archived={} WHERE id='brokerage';",
+                i32::from(archived),
+            ));
+            f.transfer(
+                "balance-out",
+                "checking",
+                "TRANSFER_OUT",
+                "2026-06-05T12:00:00Z",
+                "1000",
+                "pair-balance",
+                (!use_split).then_some("cat_savings_retirement"),
+            );
+            f.transfer(
+                "balance-in",
+                "brokerage",
+                "TRANSFER_IN",
+                "2026-05-31T12:00:00Z",
+                "1000",
+                "pair-balance",
+                None,
+            );
+            if use_split {
+                f.savings_split("balance-out", "cat_savings_retirement", "1000");
+            }
+            // Context lookup must never import unrelated outside-account spend.
+            f.expense("outside", "2026-06-10T12:00:00Z", "900", "cat_groceries");
+            f.seed("UPDATE activities SET account_id='brokerage' WHERE id='outside';");
+
+            let insight = f.insight().await;
+            let report = f
+                .report("2026-06-01T00:00:00Z", "2026-06-30T23:59:59Z", "EUR", "UTC")
+                .await;
+            assert_eq!(insight.headline.saved, 0.0);
+            assert_eq!(insight.headline.spent, 0.0);
+            assert_eq!(report.current.saved, insight.headline.saved);
+            assert_eq!(report.current.outflow, insight.headline.spent);
+            let june = f.budget(MONTH).await;
+            assert_eq!(
+                june.computed.totals.savings_actual, insight.headline.saved,
+                "archived={archived}, split={use_split}",
+            );
+            assert_eq!(june.computed.totals.spending_actual, 0.0);
+            assert_eq!(savings_row(group(&june, SAVINGS_ID)).unwrap().actual, 0.0);
+        }
+    }
+}
+
+/// Both directions of a cross-month internal transfer need the other month's
+/// context. Genuine saving and returns still use their own buckets. Split
+/// lines override a stale assignment, and spending exclusions stay independent.
+#[tokio::test]
+async fn budget_transfer_context_preserves_local_windows_fx_and_allocations() {
+    for account_type in ["CASH", "CREDIT_CARD"] {
+        let f = Fixture::new().await;
+        f.seed(&format!(
+            "UPDATE accounts SET account_type='{account_type}' WHERE id IN ('checking','cash-savings');
+             INSERT INTO taxonomy_categories (id,taxonomy_id,name,key,color,sort_order)
+             VALUES ('other-goal','savings_categories','Other goal','other_goal','#000000',99);"
+        ));
+        f.settings
+            .update(SpendingSettingsUpdate {
+                enabled: None,
+                account_ids: None,
+                excluded_category_ids: Some(vec!["cat_groceries".into()]),
+            })
+            .await
+            .unwrap();
+        f.fx.add_exchange_rate(NewExchangeRate {
+            from_currency: "EUR".into(),
+            to_currency: "USD".into(),
+            rate: rust_decimal::Decimal::from(2),
+            source: "MANUAL".into(),
+        })
+        .await
+        .unwrap();
+
+        for (id, account, kind, date, amount, pair, category) in [
+            (
+                "internal-out",
+                "checking",
+                "TRANSFER_OUT",
+                "2026-06-01T03:59:59Z",
+                "1000",
+                "internal",
+                Some("cat_savings"),
+            ),
+            (
+                "internal-in",
+                "cash-savings",
+                "TRANSFER_IN",
+                "2026-06-01T04:00:00Z",
+                "1000",
+                "internal",
+                Some("cat_savings"),
+            ),
+            (
+                "saved-out",
+                "checking",
+                "TRANSFER_OUT",
+                "2026-06-01T04:00:00Z",
+                "300",
+                "saved",
+                Some("other-goal"),
+            ),
+            (
+                "saved-in",
+                "brokerage",
+                "TRANSFER_IN",
+                "2026-06-01T04:00:00Z",
+                "300",
+                "saved",
+                None,
+            ),
+            (
+                "returned-out",
+                "brokerage",
+                "TRANSFER_OUT",
+                "2026-07-01T03:59:59Z",
+                "70",
+                "returned",
+                None,
+            ),
+            (
+                "returned-in",
+                "checking",
+                "TRANSFER_IN",
+                "2026-07-01T03:59:59Z",
+                "70",
+                "returned",
+                Some("cat_savings"),
+            ),
+            // This genuine saving belongs to July locally and must stay out of June.
+            (
+                "july-out",
+                "checking",
+                "TRANSFER_OUT",
+                "2026-07-01T04:00:00Z",
+                "500",
+                "july",
+                Some("cat_savings"),
+            ),
+            (
+                "july-in",
+                "brokerage",
+                "TRANSFER_IN",
+                "2026-07-01T04:00:00Z",
+                "500",
+                "july",
+                None,
+            ),
+        ] {
+            f.transfer(id, account, kind, date, amount, pair, category);
+        }
+        f.savings_split("saved-out", "cat_savings_retirement", "100");
+        f.savings_split("saved-out", "cat_savings_emergency", "200");
+        f.savings_split("returned-in", "cat_savings", "70");
+        f.expense("excluded", "2026-06-15T12:00:00Z", "60", "cat_groceries");
+        f.expense("included", "2026-06-15T12:00:00Z", "30", "cat_food");
+        f.expense("uncategorized", "2026-06-15T12:00:00Z", "20", "cat_food");
+        f.seed("DELETE FROM activity_taxonomy_assignments WHERE activity_id='uncategorized';");
+
+        let timezone = "America/Toronto";
+        let start = "2026-06-01T04:00:00Z";
+        let end = "2026-07-01T03:59:59Z";
+        let june = f
+            .service
+            .get(Some(MONTH.into()), "USD", timezone)
+            .await
+            .unwrap();
+        let insight = f.insight_window(start, end, "USD", timezone).await;
+        let report = f.report(start, end, "USD", timezone).await;
+        let totals = &june.computed.totals;
+        assert_eq!(totals.savings_actual, 600.0, "{account_type}");
+        assert_eq!(savings_row(group(&june, SAVINGS_ID)).unwrap().actual, 600.0);
+        assert_eq!(
+            june.computed
+                .group_rows
+                .iter()
+                .flat_map(|g| &g.categories)
+                .find(|c| c.category_id == "other-goal")
+                .unwrap()
+                .actual,
+            0.0
+        );
+        assert_eq!(insight.headline.saved, totals.savings_actual);
+        assert_eq!(report.current.saved, totals.savings_actual);
+        assert_eq!(insight.headline.from_savings, 140.0);
+        assert_eq!(report.current.from_savings, 140.0);
+        assert_eq!(totals.spending_actual, 60.0);
+        // Budget rows contain categorized spend; report/insight headlines also
+        // include 40 of uncategorized spend. The excluded 120 appears nowhere.
+        assert_eq!(insight.uncategorized.spent, 40.0);
+        assert_eq!(insight.headline.spent, totals.spending_actual + 40.0);
+        assert_eq!(report.current.outflow, insight.headline.spent);
+        assert_eq!(report.current.net, insight.headline.net_cashflow);
+        let june_bucket = insight.by_month.iter().find(|m| m.month == MONTH).unwrap();
+        assert_eq!(june_bucket.saved, 600.0);
+        assert_eq!(june_bucket.from_savings, 140.0);
+        assert_eq!(insight.by_month.iter().map(|m| m.saved).sum::<f64>(), 600.0);
+        let may = f
+            .service
+            .get(Some("2026-05".into()), "USD", timezone)
+            .await
+            .unwrap();
+        assert_eq!(may.computed.totals.savings_actual, 0.0);
+    }
+}
+
+#[tokio::test]
+async fn budget_balance_transfers_do_not_consume_savings_rollover() {
+    let f = june_fixture().await;
+    f.seed("UPDATE accounts SET account_type='CREDIT_CARD' WHERE id='checking';
+            INSERT INTO accounts (id,name,account_type,currency,is_default,is_active,created_at,updated_at,is_archived,tracking_mode)
+            VALUES ('outside-card','Archived card','CREDIT_CARD','EUR',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,1,'TRANSACTIONS');");
+    f.transfer(
+        "balance-out",
+        "checking",
+        "TRANSFER_OUT",
+        "2026-06-05T12:00:00Z",
+        "1000",
+        "balance",
+        Some("cat_savings"),
+    );
+    f.transfer(
+        "balance-in",
+        "outside-card",
+        "TRANSFER_IN",
+        "2026-05-31T12:00:00Z",
+        "1000",
+        "balance",
+        None,
+    );
+    f.target("default", SAVINGS, "cat_savings", "400").await;
+    f.service
+        .upsert_rollover_setting(category_rollover(true), Some(MONTH.into()), "EUR", "UTC")
+        .await
+        .unwrap();
+
+    let june = f.budget(MONTH).await;
+    assert_eq!(june.computed.totals.savings_actual, 350.0);
+    let july = f.budget("2026-07").await;
+    let row = savings_row(group(&july, SAVINGS_ID)).unwrap();
+    assert_eq!(row.actual, 0.0);
+    assert_eq!(row.rollover_in, 50.0);
+    assert_eq!(row.remaining, 450.0);
+    assert_eq!(row.rollover_out, 450.0);
+    assert!(!row.overspent);
+    assert_eq!(july.computed.totals.spending_actual, 0.0);
+}
+
+#[tokio::test]
+async fn budget_unlinked_transfers_keep_expense_income_and_card_behavior() {
+    for (account_type, spent, income) in [("CASH", 100.0, 40.0), ("CREDIT_CARD", 0.0, 0.0)] {
+        let f = Fixture::new().await;
+        f.seed(&format!(
+            "UPDATE accounts SET account_type='{account_type}' WHERE id='checking';"
+        ));
+        f.expense("out", "2026-06-15T12:00:00Z", "100", "cat_groceries");
+        f.expense("in", "2026-06-15T12:00:00Z", "40", "cat_groceries");
+        f.seed("UPDATE activities SET activity_type='TRANSFER_OUT' WHERE id='out';
+                UPDATE activities SET activity_type='TRANSFER_IN' WHERE id='in';
+                UPDATE activity_taxonomy_assignments SET taxonomy_id='income_sources',category_id='cat_income_salary' WHERE activity_id='in';");
+        let june = f.budget(MONTH).await;
+        let insight = f.insight().await;
+        let report = f
+            .report("2026-06-01T00:00:00Z", "2026-06-30T23:59:59Z", "EUR", "UTC")
+            .await;
+        assert_eq!(june.computed.totals.spending_actual, spent);
+        assert_eq!(june.computed.totals.income_actual, income);
+        assert_eq!(june.computed.totals.savings_actual, 0.0);
+        assert_eq!(insight.headline.spent, spent);
+        assert_eq!(insight.headline.income, income);
+        assert_eq!(report.current.outflow, spent);
+        assert_eq!(report.current.income, income);
+        assert_eq!(report.current.saved, 0.0);
+    }
 }
 
 #[tokio::test]
