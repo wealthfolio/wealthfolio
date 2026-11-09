@@ -194,3 +194,11 @@ export function useIsMobileViewport() {
 export function useIsCompactTableViewport() {
   return useViewportBelow(COMPACT_VIEWPORT_BREAKPOINT);
 }
+
+// Up to this width, globals.css hides the overflow of every `.flex` and `.grid`.
+const CLIPPED_FLEX_MAX_WIDTH = 1024;
+
+/** Whether globals.css clips what overflows `.flex` and `.grid` boxes, such as chart tooltips. */
+export function useClipsFlexOverflow() {
+  return useViewportBelow(CLIPPED_FLEX_MAX_WIDTH + 1);
+}
