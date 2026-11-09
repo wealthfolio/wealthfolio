@@ -1,6 +1,6 @@
 import { useHapticFeedback } from "@/hooks";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useClipsFlexOverflow, useIsMobileViewport } from "@/hooks/use-platform";
+import { useIsMobileViewport, useViewportBelow } from "@/hooks/use-platform";
 import type { NetWorthHistoryPoint } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { AmountDisplay, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
@@ -129,8 +129,8 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
   const { formatAmount } = useAmountFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const isMobile = useIsMobileViewport();
-  // Above the chart, the tooltip would be cut off where `.flex` boxes clip overflow.
-  const keepTooltipInside = useClipsFlexOverflow();
+  // globals.css clips flex overflow through 1024px; useViewportBelow is exclusive.
+  const keepTooltipInside = useViewportBelow(1025);
   const isTouchScrubbingRef = useRef(false);
   const lastHapticLabelRef = useRef<string | number | undefined>(undefined);
   const lastHapticAtRef = useRef(0);
