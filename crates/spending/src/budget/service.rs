@@ -22,8 +22,7 @@ use super::traits::BudgetRepositoryTrait;
 use crate::activity_allocations::{group_assignments, group_splits, SplitsByActivity};
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
-    activity_abs_amount, classify_activity_for_aggregation, decimal_to_f64,
-    within_spending_transfer_groups,
+    activity_abs_amount, classify_activity_for_aggregation, decimal_to_f64, neutral_transfer_groups,
 };
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::category_exclusions::{split_spending_allocations, ExclusionIndex};
@@ -1216,7 +1215,15 @@ impl BudgetService {
             .iter()
             .filter(|a| account_types.contains_key(&a.account_id))
             .collect();
-        let within_spending_groups = within_spending_transfer_groups(&spending_legs);
+        // Match reports and cash-flow validation: linked debt balance transfers
+        // stay neutral even if the other liability is outside Spending or archived.
+        // The linked legs supply context only; actuals still use the window above.
+        let transfer_groups = neutral_transfer_groups(
+            &spending_legs,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         let activity_ids = activities.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
         let assignments = self
             .assignment_repo
@@ -1242,7 +1249,7 @@ impl BudgetService {
                 continue;
             };
             let classification =
-                classify_activity_for_aggregation(&activity, account_type, &within_spending_groups);
+                classify_activity_for_aggregation(&activity, account_type, &transfer_groups);
             let amount = activity_abs_amount(&activity);
             let spending_native = classification.spending_amount(amount);
             let income_native = classification.income_amount(amount);
@@ -1849,6 +1856,8 @@ mod tests {
     use async_trait::async_trait;
     use chrono::{NaiveDate, NaiveDateTime};
     use wealthfolio_core::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
+
+    use crate::activity_classification::within_spending_transfer_groups;
 
     use super::*;
 
