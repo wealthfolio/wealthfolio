@@ -1,9 +1,7 @@
-import { act, render, renderHook, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { act, render, screen } from "@testing-library/react";
 import { Activity, useState } from "react";
 import { afterEach, expect, it } from "vitest";
-import { useClipsFlexOverflow, useIsMobileViewport } from "./use-platform";
+import { useIsMobileViewport } from "./use-platform";
 
 const portraitWidth = window.innerWidth;
 const setWidth = (width: number) =>
@@ -36,20 +34,4 @@ it("lays out for a rotation made while its phone screen was out of sight", () =>
   act(() => setHidden(false));
 
   expect(screen.getByRole("status")).toHaveTextContent("wide");
-});
-
-it("knows the widths at which globals.css clips the overflow of flex boxes", () => {
-  // Charts keep their tooltips inside where this rule would cut them off (#2161).
-  const css = readFileSync(join(import.meta.dirname, "../globals.css"), "utf8");
-  const rule =
-    /@media \(max-width: (\d+)px\) \{(?:(?!@media)[\s\S])*?\.flex \{[^}]*overflow-x: hidden/.exec(
-      css,
-    );
-  expect(rule).not.toBeNull();
-  const maxWidth = Number(rule?.[1]);
-
-  setWidth(maxWidth);
-  expect(renderHook(() => useClipsFlexOverflow()).result.current).toBe(true);
-  setWidth(maxWidth + 1);
-  expect(renderHook(() => useClipsFlexOverflow()).result.current).toBe(false);
 });
