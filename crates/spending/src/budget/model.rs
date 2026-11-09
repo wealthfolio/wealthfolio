@@ -252,7 +252,7 @@ pub struct BudgetGroupRow {
 }
 
 /// `spending_*` is consumption: expense categories plus group buffers.
-/// `savings_*` is the savings goal and net amount saved. The plan's total
+/// `savings_*` is the savings goal and the money moved to savings. The plan's total
 /// allocation, to compare with income, is `spending_planned + savings_planned`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

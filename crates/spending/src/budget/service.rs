@@ -1246,12 +1246,13 @@ impl BudgetService {
             let amount = activity_abs_amount(&activity);
             let spending_native = classification.spending_amount(amount);
             let income_native = classification.income_amount(amount);
+            // A savings goal counts money moved to savings. Money brought back
+            // is one uncategorized "from savings" figure, as in the report, so
+            // it never lowers a goal.
             let saving_native = classification.saving_amount(amount);
-            let savings_withdrawal_native = classification.savings_withdrawal_amount(amount);
             if spending_native == Decimal::ZERO
                 && income_native == Decimal::ZERO
                 && saving_native == Decimal::ZERO
-                && savings_withdrawal_native == Decimal::ZERO
             {
                 continue;
             }
@@ -1302,21 +1303,7 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
-            let savings_withdrawal_missing = add_allocated_actuals(
-                month_actuals,
-                &activity.id,
-                SAVINGS_TAXONOMY,
-                -savings_withdrawal_native,
-                meta.savings,
-                &assignments_by_activity,
-                &splits_by_activity,
-                &no_exclusions,
-                fx,
-                &activity.currency,
-                currency,
-                fx_as_of,
-            );
-            if spending_missing || income_missing || savings_missing || savings_withdrawal_missing {
+            if spending_missing || income_missing || savings_missing {
                 calculation_quality.record_missing(&activity.currency);
             }
         }
