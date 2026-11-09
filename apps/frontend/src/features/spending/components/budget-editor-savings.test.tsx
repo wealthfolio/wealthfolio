@@ -20,12 +20,27 @@ vi.mock("../adapters/budget", () => ({
   upsertBudgetRolloverSetting: vi.fn(),
   upsertBudgetTarget: vi.fn(),
 }));
-import { getBudget, upsertBudgetRolloverSetting } from "../adapters/budget";
+import { assignCategoryToGroup, getBudget, upsertBudgetRolloverSetting } from "../adapters/budget";
 
 const SAVINGS_ID = "1fb6f2a3-3245-4702-83e8-ab116458d13e";
+const NEEDS_ID = "032ecb02-5912-42e8-9724-2cd566fc08d5";
 const t = enSpending.budgetEditor;
 
-function budgetSnapshot(rolloverSettings: BudgetRolloverSetting[]): BudgetSnapshot {
+function budgetSnapshot(
+  rolloverSettings: BudgetRolloverSetting[],
+  saving: { target: number; actual: number } = { target: 0, actual: 0 },
+): BudgetSnapshot {
+  const needs: BudgetGroup = {
+    id: NEEDS_ID,
+    name: "Needs",
+    key: "needs",
+    color: "#4F6B92",
+    icon: null,
+    sortOrder: 1,
+    isSystem: true,
+    createdAt: "",
+    updatedAt: "",
+  };
   const group: BudgetGroup = {
     id: SAVINGS_ID,
     name: "Savings",
@@ -38,7 +53,7 @@ function budgetSnapshot(rolloverSettings: BudgetRolloverSetting[]): BudgetSnapsh
     updatedAt: "",
   };
   return {
-    state: { groups: [group], groupAssignments: [], targets: [], rolloverSettings },
+    state: { groups: [needs, group], groupAssignments: [], targets: [], rolloverSettings },
     computed: {
       currency: "USD",
       periodKey: "default",
@@ -55,6 +70,8 @@ function budgetSnapshot(rolloverSettings: BudgetRolloverSetting[]): BudgetSnapsh
           remaining: 0,
           overspent: false,
           rolloverEnabled: false,
+          savingsTargetTotal: saving.target,
+          savingsActual: saving.actual,
           categories: [
             {
               taxonomyId: "savings_categories",
@@ -64,11 +81,11 @@ function budgetSnapshot(rolloverSettings: BudgetRolloverSetting[]): BudgetSnapsh
               name: "Savings",
               color: "#123456",
               icon: null,
-              target: 0,
-              actual: 0,
+              target: saving.target,
+              actual: saving.actual,
               rolloverIn: 0,
               rolloverOut: 0,
-              remaining: 0,
+              remaining: saving.target - saving.actual,
               overspent: false,
               hasDefaultTarget: false,
               hasMonthOverride: false,
@@ -83,6 +100,8 @@ function budgetSnapshot(rolloverSettings: BudgetRolloverSetting[]): BudgetSnapsh
         spendingPlanned: 0,
         spendingActual: 0,
         spendingRemaining: 0,
+        savingsPlanned: saving.target,
+        savingsActual: saving.actual,
         incomePlanned: 0,
         incomeActual: 0,
         groupBuffer: 0,
@@ -152,3 +171,91 @@ it.each([true, false])(
     );
   },
 );
+
+function renderEditor(budget: BudgetSnapshot) {
+  vi.mocked(getBudget).mockResolvedValue(budget);
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <BudgetEditor mode="setup" periodKey="default" />
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
+
+async function openSavingsGroup() {
+  const user = userEvent.setup();
+  const sections = await screen.findAllByRole("button", { name: t.expandGroup });
+  const section = sections
+    .map((button) => button.closest("section")!)
+    .find((candidate) => within(candidate).queryByText("Savings"))!;
+  await user.click(within(section).getByRole("button", { name: t.expandGroup }));
+  return { user, section };
+}
+
+it("draws a savings row past its goal as ahead, not over budget", async () => {
+  const { container } = renderEditor(budgetSnapshot([], { target: 400, actual: 450 }));
+  await openSavingsGroup();
+
+  expect(container.querySelector('[style*="--destructive"]')).toBeNull();
+});
+
+it("moves a savings category by its taxonomy and id", async () => {
+  const budget = budgetSnapshot([]);
+  vi.mocked(assignCategoryToGroup).mockResolvedValue(budget);
+  renderEditor(budget);
+  const { user, section } = await openSavingsGroup();
+  await user.click(within(section).getByRole("button", { name: t.rowOptions }));
+  await user.click(await screen.findByRole("menuitemradio", { name: "Needs" }));
+
+  await waitFor(() =>
+    expect(assignCategoryToGroup).toHaveBeenCalledWith(
+      "savings_categories",
+      "cat_savings",
+      NEEDS_ID,
+      "default",
+    ),
+  );
+});
+
+it("shows a savings group's goal as saved and counts it in the plan", async () => {
+  renderEditor(budgetSnapshot([], { target: 400, actual: 350 }));
+  const { section } = await openSavingsGroup();
+
+  expect(within(section).getByText(t.saved).parentElement).toHaveTextContent(
+    `${t.saved}$350.00 / $400.00`,
+  );
+  // The plan sets aside the savings goal, so the summary counts it.
+  expect(screen.getByText(t.defaultMonthlyPlan).parentElement).toHaveTextContent("$400.00");
+});
+
+it("keeps a savings row's own rollover while its group rolls over", async () => {
+  renderEditor(
+    budgetSnapshot([
+      {
+        id: "rollover-group",
+        targetType: "group",
+        taxonomyId: null,
+        categoryId: null,
+        groupId: SAVINGS_ID,
+        enabled: true,
+        startMonth: "2026-06",
+        startingBalance: "0",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ]),
+  );
+  const { user, section } = await openSavingsGroup();
+  await user.click(within(section).getByRole("button", { name: t.rowOptions }));
+  const item = await screen.findByRole("menuitem", { name: new RegExp(t.rollover) });
+
+  expect(item).not.toHaveAttribute("aria-disabled", "true");
+  expect(item).toHaveTextContent(t.off);
+});

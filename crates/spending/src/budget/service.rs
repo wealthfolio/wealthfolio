@@ -328,29 +328,31 @@ impl BudgetService {
             .map(|g| g.id.clone())
             .ok_or_else(|| anyhow!("Missing Other budget group"))?;
 
-        let assignment_by_category: HashMap<String, String> = assignments
-            .iter()
-            .filter(|a| a.taxonomy_id == SPENDING_TAXONOMY || a.taxonomy_id == SAVINGS_TAXONOMY)
-            .map(|a| (a.category_id.clone(), a.group_id.clone()))
-            .collect();
-        let group_for_category = |category_id: &str| -> String {
-            resolve_group_for_category(
-                category_id,
-                &assignment_by_category,
-                &spending_category_meta,
-                &other_group_id,
-            )
-        };
-
         let top_savings_categories = top_level_categories(&savings_categories);
+        let spending_group_of = group_assignment_map(&assignments, SPENDING_TAXONOMY);
+        let savings_group_of = group_assignment_map(&assignments, SAVINGS_TAXONOMY);
 
         let mut rows_by_group: HashMap<String, Vec<BudgetCategoryRow>> = HashMap::new();
-        for (taxonomy_id, categories) in [
-            (SPENDING_TAXONOMY, &top_spending_categories),
-            (SAVINGS_TAXONOMY, &top_savings_categories),
+        for (taxonomy_id, categories, group_of, meta) in [
+            (
+                SPENDING_TAXONOMY,
+                &top_spending_categories,
+                &spending_group_of,
+                &spending_category_meta,
+            ),
+            (
+                SAVINGS_TAXONOMY,
+                &top_savings_categories,
+                &savings_group_of,
+                &savings_meta,
+            ),
         ] {
+            // A savings target is a goal: `remaining` is what is still to
+            // save, and saving past it is ahead of the goal, not overspent.
+            let is_goal = taxonomy_id == SAVINGS_TAXONOMY;
             for category in categories {
-                let group_id = group_for_category(&category.id);
+                let group_id =
+                    resolve_group_for_category(&category.id, group_of, meta, &other_group_id);
                 let actual = current_actuals
                     .get(&(taxonomy_id.to_string(), category.id.clone()))
                     .copied()
@@ -400,7 +402,7 @@ impl BudgetService {
                         rollover_in: decimal_to_f64(rollover_in),
                         rollover_out: decimal_to_f64(rollover_out),
                         remaining: decimal_to_f64(remaining),
-                        overspent: remaining < Decimal::ZERO,
+                        overspent: !is_goal && remaining < Decimal::ZERO,
                         has_default_target: target_index
                             .has_default_category(taxonomy_id, &category.id),
                         has_month_override: target_index.has_month_category(
@@ -413,45 +415,52 @@ impl BudgetService {
             }
         }
 
+        // Sum a set of rows' targets or actuals for one month.
+        let target_total = |rows: &[&BudgetCategoryRow], month: &str| {
+            rows.iter()
+                .map(|row| {
+                    target_index.effective_category_decimal(
+                        month,
+                        &row.taxonomy_id,
+                        &row.category_id,
+                    )
+                })
+                .sum::<Decimal>()
+        };
+        let actual_total = |rows: &[&BudgetCategoryRow], month: &str| {
+            rows.iter()
+                .map(|row| {
+                    actuals_by_month
+                        .get(month)
+                        .and_then(|m| m.get(&(row.taxonomy_id.clone(), row.category_id.clone())))
+                        .copied()
+                        .unwrap_or(Decimal::ZERO)
+                })
+                .sum::<Decimal>()
+        };
+
         let mut group_rows = Vec::with_capacity(groups.len());
         let mut spending_planned_total = Decimal::ZERO;
         let mut spending_actual_total = Decimal::ZERO;
         let mut spending_remaining_total = Decimal::ZERO;
+        let mut savings_planned_total = Decimal::ZERO;
+        let mut savings_actual_total = Decimal::ZERO;
         let mut group_buffer_total = Decimal::ZERO;
         let mut rollover_in_total = Decimal::ZERO;
         let mut rollover_out_total = Decimal::ZERO;
         for group in &groups {
             let mut categories = rows_by_group.remove(&group.id).unwrap_or_default();
             categories.sort_by(|a, b| a.name.cmp(&b.name));
-            // Each BudgetCategoryRow carries its own taxonomy_id (spending or
-            // savings), so sum targets and actuals through the row rather than
-            // hardcoding SPENDING_TAXONOMY.
-            let category_target_total_decimal = categories
+            // The group's budget is its consumption: expense rows plus the
+            // buffer. Savings rows listed in it count toward savings instead.
+            let (savings_rows, consumption_rows): (Vec<&BudgetCategoryRow>, Vec<_>) = categories
                 .iter()
-                .map(|row| {
-                    target_index.effective_category_decimal(
-                        &period_key,
-                        &row.taxonomy_id,
-                        &row.category_id,
-                    )
-                })
-                .sum::<Decimal>();
-            let actual_decimal = categories
-                .iter()
-                .map(|row| {
-                    current_actuals
-                        .get(&(row.taxonomy_id.clone(), row.category_id.clone()))
-                        .copied()
-                        .unwrap_or(Decimal::ZERO)
-                })
-                .sum::<Decimal>();
+                .partition(|row| row.taxonomy_id == SAVINGS_TAXONOMY);
+            let category_target_total_decimal = target_total(&consumption_rows, &period_key);
+            let actual_decimal = actual_total(&consumption_rows, &period_key);
             let buffer_decimal =
                 target_index.effective_group_buffer_decimal(&period_key, &group.id);
             let planned_total_decimal = category_target_total_decimal + buffer_decimal;
-            let category_target_total = decimal_to_f64(category_target_total_decimal);
-            let actual = decimal_to_f64(actual_decimal);
-            let buffer = decimal_to_f64(buffer_decimal);
-            let planned_total = decimal_to_f64(planned_total_decimal);
             let rollover = is_month_view
                 .then(|| rollover_index.group(&group.id))
                 .flatten();
@@ -460,32 +469,10 @@ impl BudgetService {
                     setting,
                     &period_key,
                     |month| {
-                        let child_total = categories
-                            .iter()
-                            .map(|row| {
-                                target_index.effective_category_decimal(
-                                    month,
-                                    &row.taxonomy_id,
-                                    &row.category_id,
-                                )
-                            })
-                            .sum::<Decimal>();
-                        child_total + target_index.effective_group_buffer_decimal(month, &group.id)
+                        target_total(&consumption_rows, month)
+                            + target_index.effective_group_buffer_decimal(month, &group.id)
                     },
-                    |month| {
-                        categories
-                            .iter()
-                            .map(|row| {
-                                actuals_by_month
-                                    .get(month)
-                                    .and_then(|m| {
-                                        m.get(&(row.taxonomy_id.clone(), row.category_id.clone()))
-                                    })
-                                    .copied()
-                                    .unwrap_or(Decimal::ZERO)
-                            })
-                            .sum::<Decimal>()
-                    },
+                    |month| actual_total(&consumption_rows, month),
                 )
             } else {
                 (
@@ -494,23 +481,29 @@ impl BudgetService {
                     planned_total_decimal - actual_decimal,
                 )
             };
+            let savings_target_decimal = target_total(&savings_rows, &period_key);
+            let savings_actual_decimal = actual_total(&savings_rows, &period_key);
             spending_planned_total += planned_total_decimal;
             spending_actual_total += actual_decimal;
             spending_remaining_total += remaining;
+            savings_planned_total += savings_target_decimal;
+            savings_actual_total += savings_actual_decimal;
             group_buffer_total += buffer_decimal;
             rollover_in_total += rollover_in;
             rollover_out_total += rollover_out;
             group_rows.push(BudgetGroupRow {
                 group: group.clone(),
-                category_target_total,
-                buffer,
-                planned_total,
-                actual,
+                category_target_total: decimal_to_f64(category_target_total_decimal),
+                buffer: decimal_to_f64(buffer_decimal),
+                planned_total: decimal_to_f64(planned_total_decimal),
+                actual: decimal_to_f64(actual_decimal),
                 rollover_in: decimal_to_f64(rollover_in),
                 rollover_out: decimal_to_f64(rollover_out),
                 remaining: decimal_to_f64(remaining),
                 overspent: remaining < Decimal::ZERO,
                 rollover_enabled: rollover.is_some(),
+                savings_target_total: decimal_to_f64(savings_target_decimal),
+                savings_actual: decimal_to_f64(savings_actual_decimal),
                 categories,
             });
         }
@@ -563,6 +556,8 @@ impl BudgetService {
             spending_planned: decimal_to_f64(spending_planned_total),
             spending_actual: decimal_to_f64(spending_actual_total),
             spending_remaining: decimal_to_f64(spending_remaining_total),
+            savings_planned: decimal_to_f64(savings_planned_total),
+            savings_actual: decimal_to_f64(savings_actual_total),
             income_planned: decimal_to_f64(income_planned_total),
             income_actual: decimal_to_f64(income_actual_total),
             group_buffer: decimal_to_f64(group_buffer_total),
@@ -694,20 +689,24 @@ impl BudgetService {
         self.get(period_key, currency, timezone).await
     }
 
+    /// `taxonomy_id` is optional for callers older than savings support, which
+    /// only moved expense categories; it defaults to the expense taxonomy.
     pub async fn assign_category_to_group(
         &self,
+        taxonomy_id: Option<String>,
         category_id: String,
         group_id: String,
         period_key: Option<String>,
         currency: &str,
         timezone: &str,
     ) -> Result<BudgetSnapshot> {
-        let taxonomy_id = self.group_category_taxonomy(&category_id)?;
+        let taxonomy_id = taxonomy_id.unwrap_or_else(|| SPENDING_TAXONOMY.to_string());
+        self.validate_group_category(&taxonomy_id, &category_id)?;
         self.repo
             .upsert_group_assignment(NewBudgetGroupAssignment {
                 id: None,
                 group_id,
-                taxonomy_id: taxonomy_id.to_string(),
+                taxonomy_id,
                 category_id,
             })
             .await?;
@@ -772,13 +771,15 @@ impl BudgetService {
                     .as_ref()
                     .ok_or_else(|| invalid_budget_input("Group rollover requires groupId"))?;
                 let categories = self.categories_for_group(group_id).await?;
-                for taxonomy_id in [SPENDING_TAXONOMY, SAVINGS_TAXONOMY] {
-                    self.repo
-                        .disable_category_rollovers(taxonomy_id, &categories)
-                        .await?;
-                }
+                self.repo
+                    .disable_category_rollovers(SPENDING_TAXONOMY, &categories)
+                    .await?;
             }
-            BudgetRolloverTargetType::Category if setting.enabled => {
+            // Group rollover carries the group's consumption, so only expense
+            // categories give way to it. A savings goal keeps its own rollover.
+            BudgetRolloverTargetType::Category
+                if setting.enabled && setting.taxonomy_id.as_deref() == Some(SPENDING_TAXONOMY) =>
+            {
                 let category_id = setting
                     .category_id
                     .as_ref()
@@ -1008,10 +1009,11 @@ impl BudgetService {
                 }
             }
             AssignCategory {
+                taxonomy_id,
                 category_id,
                 group_id,
             } => {
-                self.group_category_taxonomy(category_id)?;
+                self.validate_group_category(taxonomy_id, category_id)?;
                 if !has_group(group_id) {
                     return Err(invalid_budget_input("Budget group not found"));
                 }
@@ -1021,17 +1023,12 @@ impl BudgetService {
                 validate_rollover_setting(setting)?;
                 match setting.target_type {
                     BudgetRolloverTargetType::Category => {
-                        // validate_rollover_setting already enforces that
-                        // taxonomy_id is SPENDING_TAXONOMY; savings categories
-                        // also live within that boundary check via the shared
-                        // `category` closure which now accepts both taxonomies.
-                        category(
-                            setting.taxonomy_id.as_deref().unwrap_or(""),
-                            setting.category_id.as_deref().unwrap_or(""),
-                        )?;
-                        if setting.enabled {
-                            let cat_id = setting.category_id.as_deref().unwrap_or("");
-                            let tax_id = setting.taxonomy_id.as_deref().unwrap_or("");
+                        let tax_id = setting.taxonomy_id.as_deref().unwrap_or("");
+                        let cat_id = setting.category_id.as_deref().unwrap_or("");
+                        category(tax_id, cat_id)?;
+                        // As in `upsert_rollover_setting`: only expense
+                        // categories give way to their group's rollover.
+                        if setting.enabled && tax_id == SPENDING_TAXONOMY {
                             let group_id = state
                                 .group_assignments
                                 .iter()
@@ -1097,20 +1094,19 @@ impl BudgetService {
         Ok(())
     }
 
-    /// Taxonomy of a top-level category that can sit in a budget group.
-    fn group_category_taxonomy(&self, category_id: &str) -> Result<&'static str> {
-        for taxonomy_id in [SPENDING_TAXONOMY, SAVINGS_TAXONOMY] {
-            if self
+    /// Budget groups list top-level expense and savings categories.
+    fn validate_group_category(&self, taxonomy_id: &str, category_id: &str) -> Result<()> {
+        if ![SPENDING_TAXONOMY, SAVINGS_TAXONOMY].contains(&taxonomy_id)
+            || !self
                 .taxonomy_categories(taxonomy_id)?
                 .iter()
                 .any(|c| c.id == category_id && c.parent_id.is_none())
-            {
-                return Ok(taxonomy_id);
-            }
+        {
+            return Err(invalid_budget_input(
+                "Select a top-level expense or savings category",
+            ));
         }
-        Err(invalid_budget_input(
-            "Select a top-level spending or savings category",
-        ))
+        Ok(())
     }
 
     fn taxonomy_categories(&self, taxonomy_id: &str) -> Result<Vec<Category>> {
@@ -1121,66 +1117,46 @@ impl BudgetService {
             .unwrap_or_default())
     }
 
+    /// Top-level expense categories that resolve to the group.
     async fn categories_for_group(&self, group_id: &str) -> Result<Vec<String>> {
         let assignments = self.repo.list_group_assignments().await?;
-        let spending_categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
-        let savings_categories = self.taxonomy_categories(SAVINGS_TAXONOMY)?;
-        let groups = self.repo.list_groups().await?;
-        let other_group_id = groups
+        let categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
+        let meta = category_meta(&categories);
+        let other_group_id = self.other_group_id().await?;
+        let group_of = group_assignment_map(&assignments, SPENDING_TAXONOMY);
+        Ok(top_level_categories(&categories)
             .into_iter()
-            .find(|g| g.key == OTHER_GROUP_KEY)
-            .map(|g| g.id)
-            .ok_or_else(|| anyhow!("Missing Other budget group"))?;
-        let assignment_by_category: HashMap<String, String> = assignments
-            .into_iter()
-            .filter(|a| a.taxonomy_id == SPENDING_TAXONOMY || a.taxonomy_id == SAVINGS_TAXONOMY)
-            .map(|a| (a.category_id, a.group_id))
-            .collect();
-
-        // Collect top-level categories from both taxonomies that resolve to this group.
-        let all_categories = top_level_categories(&spending_categories)
-            .into_iter()
-            .chain(top_level_categories(&savings_categories));
-        let spending_meta = category_meta(&spending_categories);
-        let savings_meta = category_meta(&savings_categories);
-        Ok(all_categories
             .filter(|category| {
-                let meta = if spending_meta.contains_key(&category.id) {
-                    &spending_meta
-                } else {
-                    &savings_meta
-                };
-                resolve_group_for_category(
-                    &category.id,
-                    &assignment_by_category,
-                    meta,
-                    &other_group_id,
-                ) == group_id
+                resolve_group_for_category(&category.id, &group_of, &meta, &other_group_id)
+                    == group_id
             })
             .map(|category| category.id)
             .collect())
     }
 
+    /// Group of an expense category.
     async fn group_id_for_category(&self, category_id: &str) -> Result<String> {
         let assignments = self.repo.list_group_assignments().await?;
         let categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
         let meta = category_meta(&categories);
-        let groups = self.repo.list_groups().await?;
-        let other_group_id = groups
-            .iter()
-            .find(|g| g.key == OTHER_GROUP_KEY)
-            .map(|g| g.id.clone())
-            .ok_or_else(|| anyhow!("Missing Other budget group"))?;
-        let assignment_by_category = assignments
-            .into_iter()
-            .map(|a| (a.category_id, a.group_id))
-            .collect::<HashMap<_, _>>();
+        let other_group_id = self.other_group_id().await?;
+        let group_of = group_assignment_map(&assignments, SPENDING_TAXONOMY);
         Ok(resolve_group_for_category(
             category_id,
-            &assignment_by_category,
+            &group_of,
             &meta,
             &other_group_id,
         ))
+    }
+
+    async fn other_group_id(&self) -> Result<String> {
+        self.repo
+            .list_groups()
+            .await?
+            .into_iter()
+            .find(|g| g.key == OTHER_GROUP_KEY)
+            .map(|g| g.id)
+            .ok_or_else(|| anyhow!("Missing Other budget group"))
     }
 
     /// `currency` is the FX target — every counted activity is converted to
@@ -1218,21 +1194,29 @@ impl BudgetService {
         let (start, _) = local_month_bounds_utc(start_period, timezone)?;
         let (_, end) = local_month_bounds_utc(end_period, timezone)?;
 
-        // Fetch the full per-account history first so that `within_spending_groups`
-        // sees both legs of every transfer — even when they land in different
-        // months. Without this a cross-month internal transfer would have only
-        // one leg in the date window and be wrongly treated as a saving.
-        let all_account_activities = self
+        let activities = self
             .activity_repo
-            .get_activities_by_account_ids(&account_ids)
+            .get_activities_by_account_ids_in_date_range(&account_ids, start, end)
             .map_err(|e| anyhow!(e.to_string()))?;
-        let all_refs: Vec<&Activity> = all_account_activities.iter().collect();
-        let within_spending_groups = within_spending_transfer_groups(&all_refs);
-
-        let activities: Vec<_> = all_account_activities
+        // A transfer between two spending accounts is internal even when its
+        // other leg falls outside the window, so read every leg of the linked
+        // transfers in it and keep those in the spending accounts.
+        let transfer_group_ids: Vec<String> = activities
+            .iter()
+            .filter(|a| matches!(a.effective_type(), "TRANSFER_IN" | "TRANSFER_OUT"))
+            .filter_map(|a| a.source_group_id.clone())
+            .collect::<HashSet<_>>()
             .into_iter()
-            .filter(|a| a.activity_date >= start && a.activity_date <= end)
             .collect();
+        let transfer_legs = self
+            .activity_repo
+            .get_activities_by_source_group_ids(&transfer_group_ids)
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let spending_legs: Vec<&Activity> = transfer_legs
+            .iter()
+            .filter(|a| account_types.contains_key(&a.account_id))
+            .collect();
+        let within_spending_groups = within_spending_transfer_groups(&spending_legs);
         let activity_ids = activities.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
         let assignments = self
             .assignment_repo
@@ -1600,6 +1584,19 @@ pub(crate) fn top_level_categories(categories: &[Category]) -> Vec<Category> {
         .collect::<Vec<_>>();
     categories.sort_by(|a, b| a.sort_order.cmp(&b.sort_order).then(a.name.cmp(&b.name)));
     categories
+}
+
+/// Category id → group id for one taxonomy's assignments. Categories are
+/// identified by (taxonomy, id), so each taxonomy resolves on its own.
+pub(crate) fn group_assignment_map(
+    assignments: &[super::model::BudgetGroupAssignment],
+    taxonomy_id: &str,
+) -> HashMap<String, String> {
+    assignments
+        .iter()
+        .filter(|a| a.taxonomy_id == taxonomy_id)
+        .map(|a| (a.category_id.clone(), a.group_id.clone()))
+        .collect()
 }
 
 pub(crate) fn resolve_group_for_category(

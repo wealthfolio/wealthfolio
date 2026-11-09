@@ -1967,7 +1967,8 @@ function CategoryRankedBar({
   const derived = useMemo(() => {
     const categoryGroup = new Map<string, { id: string; name: string; color: string | null }>();
     for (const g of groupRows) {
-      for (const cat of g.categories) {
+      // Rows here are spending categories; a savings one may share an id.
+      for (const cat of g.categories.filter((c) => c.taxonomyId === SPENDING_TAXONOMY)) {
         categoryGroup.set(cat.categoryId, {
           id: g.group.id,
           name: g.group.name,

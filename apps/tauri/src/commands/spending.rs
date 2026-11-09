@@ -740,6 +740,7 @@ pub async fn delete_budget_group(
 
 #[tauri::command]
 pub async fn assign_category_to_group(
+    taxonomy_id: Option<String>,
     category_id: String,
     group_id: String,
     period_key: Option<String>,
@@ -750,7 +751,14 @@ pub async fn assign_category_to_group(
     let timezone = context.get_timezone();
     context
         .budget_service()
-        .assign_category_to_group(category_id, group_id, period_key, &base_currency, &timezone)
+        .assign_category_to_group(
+            taxonomy_id,
+            category_id,
+            group_id,
+            period_key,
+            &base_currency,
+            &timezone,
+        )
         .await
         .map_err(|e| format!("Failed to assign category to group: {}", e))
 }

@@ -53,6 +53,7 @@ import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import { useBudget, useBudgetMutations } from "../hooks/use-budget";
+import { groupAllocation, totalAllocation } from "../lib/budget-allocation";
 import { SPENDING_THEME, tint } from "../lib/theme";
 import type {
   BudgetCategoryRow,
@@ -68,6 +69,8 @@ import { CategoryIcon } from "./category-chips";
 import { EXTENDED_PALETTE } from "./color-picker";
 import { IconPicker } from "./icon-picker";
 import { badgeVariants } from "@wealthfolio/ui";
+
+const SAVINGS_TAXONOMY = "savings_categories";
 
 export type BudgetEditorMode = "setup" | "monthly";
 
@@ -160,8 +163,12 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
           onSaveGroupBuffer={saveGroupBuffer}
           onSaveCategoryTarget={saveCategoryTarget}
           onDeleteOverride={deleteMonthOverride}
-          onMoveCategory={(categoryId, groupId) =>
-            mutations.assignCategory.mutate({ categoryId, groupId })
+          onMoveCategory={(category, groupId) =>
+            mutations.assignCategory.mutate({
+              taxonomyId: category.taxonomyId,
+              categoryId: category.categoryId,
+              groupId,
+            })
           }
           onUpdateGroup={(patch) => mutations.updateGroup.mutate({ id: row.group.id, patch })}
           onDeleteGroup={() => {
@@ -296,7 +303,8 @@ function BudgetSummary({
 }) {
   const totals = budget.computed.totals;
   const groupRows = budget.computed.groupRows;
-  const planned = totals.spendingPlanned;
+  // Spending budgets and savings goals both take a share of income.
+  const planned = totalAllocation(totals);
   const income = totals.incomePlanned;
   const denominator = income > 0 ? income : planned;
   const allocatedPct = denominator > 0 ? planned / denominator : 0;
@@ -399,7 +407,7 @@ function SegmentedGroupBar({
     );
   }
 
-  const visibleRows = groupRows.filter((row) => row.plannedTotal > 0);
+  const visibleRows = groupRows.filter((row) => groupAllocation(row) > 0);
 
   return (
     <div className="bg-muted/40 mt-3 flex h-1.5 overflow-hidden rounded-full">
@@ -408,7 +416,7 @@ function SegmentedGroupBar({
           key={row.group.id}
           className="min-w-[3px] transition-all"
           style={{
-            width: `${Math.max(1, safePercent(row.plannedTotal, total) * 100)}%`,
+            width: `${Math.max(1, safePercent(groupAllocation(row), total) * 100)}%`,
             backgroundColor: row.group.color ?? SPENDING_THEME.deep,
           }}
         />
@@ -429,7 +437,8 @@ function GroupSummaryCell({
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const accent = row.group.color ?? SPENDING_THEME.deep;
-  const pct = safePercent(row.plannedTotal, denominator);
+  const allocation = groupAllocation(row);
+  const pct = safePercent(allocation, denominator);
   return (
     <div className="flex min-w-0 items-center gap-2 py-0.5">
       <span
@@ -444,7 +453,39 @@ function GroupSummaryCell({
         {numberFormatting.formatPercent(pct, { digits: 0 })}
       </span>
       <span className="text-foreground shrink-0 text-xs font-medium tabular-nums">
-        <PrivacyAmount value={row.plannedTotal} currency={currency} />
+        <PrivacyAmount value={allocation} currency={currency} />
+      </span>
+    </div>
+  );
+}
+
+/** Amount against a group's budget or goal; the text wraps under the bar. */
+function GroupProgress({
+  label,
+  value,
+  total,
+  accent,
+  currency,
+}: {
+  label?: string;
+  value: number;
+  total: number;
+  accent: string;
+  currency: string;
+}) {
+  const pct = safePercent(Math.max(0, value), total);
+  return (
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: accent }}
+        />
+      </div>
+      <span className="text-muted-foreground text-2xs tabular-nums">
+        {label && <span className="me-1">{label}</span>}
+        <PrivacyAmount value={value} currency={currency} /> /{" "}
+        <PrivacyAmount value={total} currency={currency} />
       </span>
     </div>
   );
@@ -491,7 +532,7 @@ function GroupBudgetSection({
   onSaveGroupBuffer: (row: BudgetGroupRow, amount: string) => void;
   onSaveCategoryTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
   onUpdateGroup: (patch: { name?: string; color?: string | null; icon?: string | null }) => void;
   onDeleteGroup: () => void;
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
@@ -504,7 +545,10 @@ function GroupBudgetSection({
   const groupOverride = findGroupBufferTarget(targets, periodKey, row.group.id);
   const groupRollover = findGroupRollover(rolloverSettings, row.group.id);
   const accent = row.group.color ?? SPENDING_THEME.deep;
-  const spentPct = safePercent(Math.max(0, row.actual), row.plannedTotal);
+  // A group lists categories; spending and savings in it are shown apart.
+  const hasSavings = row.categories.some((c) => c.taxonomyId === SAVINGS_TAXONOMY);
+  const hasSpending =
+    !hasSavings || row.buffer > 0 || row.categories.some((c) => c.taxonomyId !== SAVINGS_TAXONOMY);
   const totalSuffix =
     mode === "setup"
       ? t("spending:budgetEditor.perDefaultMonth")
@@ -568,27 +612,28 @@ function GroupBudgetSection({
           <div className="text-foreground truncate text-sm font-semibold">
             {getBudgetGroupLabel(t, row.group.id, row.group.name)}
           </div>
-          {/* Spent of planned wraps under the bar rather than ending in an ellipsis. */}
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(100, spentPct * 100)}%`,
-                  backgroundColor: accent,
-                }}
-              />
-            </div>
-            <span className="text-muted-foreground text-2xs tabular-nums">
-              <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
-              <PrivacyAmount value={row.plannedTotal} currency={currency} />
-            </span>
-          </div>
+          {hasSpending && (
+            <GroupProgress
+              value={row.actual}
+              total={row.plannedTotal}
+              accent={accent}
+              currency={currency}
+            />
+          )}
+          {hasSavings && (
+            <GroupProgress
+              label={t("spending:budgetEditor.saved")}
+              value={row.savingsActual}
+              total={row.savingsTargetTotal}
+              accent={accent}
+              currency={currency}
+            />
+          )}
         </button>
 
         <div className="text-end">
           <div className="text-sm font-semibold tabular-nums">
-            <PrivacyAmount value={row.plannedTotal} currency={currency} />
+            <PrivacyAmount value={groupAllocation(row)} currency={currency} />
           </div>
           <div className="text-muted-foreground text-2xs tracking-wide uppercase">
             {totalSuffix}
@@ -705,7 +750,7 @@ function GroupBudgetSection({
           />
           {row.categories.map((category) => (
             <BudgetCategoryLine
-              key={category.categoryId}
+              key={`${category.taxonomyId}:${category.categoryId}`}
               row={category}
               groups={groups}
               target={findCategoryTarget(
@@ -715,7 +760,7 @@ function GroupBudgetSection({
                 category.categoryId,
               )}
               currency={currency}
-              groupTotal={row.plannedTotal}
+              groupTotal={groupAllocation(row)}
               monthMode={monthMode}
               mode={mode}
               rolloverEnabled={findCategoryRollover(rolloverSettings, category)?.enabled ?? false}
@@ -749,7 +794,7 @@ function AddCategoryRow({
   groupId: string;
   groupName: string;
   pool: CategoryPoolEntry[];
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
 }) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -775,7 +820,7 @@ function AddCategoryRow({
       setPendingMove(entry);
       setOpen(false);
     } else {
-      onMoveCategory(entry.category.categoryId, groupId);
+      onMoveCategory(entry.category, groupId);
       setOpen(false);
     }
   };
@@ -811,7 +856,7 @@ function AddCategoryRow({
         const accent = entry.category.color ?? SPENDING_THEME.deep;
         return (
           <button
-            key={entry.category.categoryId}
+            key={`${entry.category.taxonomyId}:${entry.category.categoryId}`}
             type="button"
             onClick={() => handlePick(entry)}
             className={cn(
@@ -949,7 +994,7 @@ function AddCategoryRow({
             <AlertDialogAction
               onClick={() => {
                 if (pendingMove) {
-                  onMoveCategory(pendingMove.category.categoryId, groupId);
+                  onMoveCategory(pendingMove.category, groupId);
                   setPendingMove(null);
                 }
               }}
@@ -1145,14 +1190,18 @@ function BudgetCategoryLine({
   groupRolloverEnabled: boolean;
   onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
-  onMoveCategory: (categoryId: string, groupId: string) => void;
+  onMoveCategory: (category: BudgetCategoryRow, groupId: string) => void;
   onToggleRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const accent = row.color ?? SPENDING_THEME.deep;
   const hasOverride = monthMode && !!target;
-  const overBudget = row.target > 0 && row.actual > row.target;
+  // A savings target is a goal: going past it is ahead, never over budget,
+  // and its rollover stays its own when the group rolls over.
+  const isGoal = row.taxonomyId === SAVINGS_TAXONOMY;
+  const overBudget = !isGoal && row.target > 0 && row.actual > row.target;
+  const rolloverIsGroupWide = groupRolloverEnabled && !isGoal;
   const sharePct = safePercent(row.target, groupTotal);
   const usagePct = Math.min(1, safePercent(row.actual, row.target));
 
@@ -1212,7 +1261,7 @@ function BudgetCategoryLine({
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="text-xs">
           <PrivacyAmount value={row.actual} currency={currency} />{" "}
-          {t("spending:budgetEditor.spentOf")}{" "}
+          {isGoal ? t("spending:budgetEditor.savedOf") : t("spending:budgetEditor.spentOf")}{" "}
           <PrivacyAmount value={row.target} currency={currency} />{" "}
           {t("spending:budgetEditor.ofGroup", {
             pct: numberFormatting.formatPercent(sharePct, { digits: 0 }),
@@ -1238,7 +1287,7 @@ function BudgetCategoryLine({
             <>
               <DropdownMenuRadioGroup
                 value={row.groupId ?? ""}
-                onValueChange={(value) => onMoveCategory(row.categoryId, value)}
+                onValueChange={(value) => onMoveCategory(row, value)}
               >
                 <DropdownMenuLabel className="text-2xs font-semibold tracking-wide uppercase">
                   {t("spending:budgetEditor.moveToGroup")}
@@ -1257,7 +1306,7 @@ function BudgetCategoryLine({
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={groupRolloverEnabled}
+                disabled={rolloverIsGroupWide}
                 closeOnClick={false}
                 onClick={() => {
                   onToggleRollover(row, !rolloverEnabled);
@@ -1267,7 +1316,7 @@ function BudgetCategoryLine({
                 <Icons.Refresh className="me-2 h-3.5 w-3.5" />
                 <span className="flex-1">{t("spending:budgetEditor.rollover")}</span>
                 <span className="text-muted-foreground text-2xs">
-                  {groupRolloverEnabled
+                  {rolloverIsGroupWide
                     ? t("spending:budgetEditor.groupWide")
                     : rolloverEnabled
                       ? t("spending:budgetEditor.on")
@@ -1312,7 +1361,7 @@ function GroupBufferLine({
   const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const hasOverride = monthMode && !!target;
-  const sharePct = safePercent(row.buffer, row.plannedTotal);
+  const sharePct = safePercent(row.buffer, groupAllocation(row));
   const label =
     mode === "setup"
       ? t("spending:budgetEditor.groupBufferDefault")
@@ -1749,6 +1798,16 @@ function BudgetTotalsPanel({
           value={totals.spendingRemaining}
           currency={currency}
           destructive={totals.spendingRemaining < 0}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.savingsGoal")}
+          value={totals.savingsPlanned}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.saved")}
+          value={totals.savingsActual}
+          currency={currency}
         />
         <TotalLine
           label={t("spending:cashFlow.income")}
