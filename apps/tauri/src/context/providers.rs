@@ -785,7 +785,7 @@ async fn build_context(
             limits: limits_service.clone(),
             taxonomies: taxonomy_service.clone(),
             income: income_service.clone(),
-            spending: Some(Arc::new(
+            spending: Arc::new(
                 wealthfolio_spending::exports::SpendingDataExportSource::new(
                     taxonomy_service.clone(),
                     account_service.clone(),
@@ -798,7 +798,7 @@ async fn build_context(
                     spending_analytics_service.clone(),
                     categorization_rules_service.clone(),
                 ),
-            )),
+            ),
             base_currency: base_currency.clone(),
             timezone: timezone.clone(),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
