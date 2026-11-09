@@ -71,7 +71,10 @@ export function GainAmount({
 
   return (
     <div className={cn("flex flex-col items-end text-end text-sm", className)} {...props}>
+      {/* Left to right like the formatters' isolated amounts, so a right-to-left
+          page keeps the sign in front of the number. */}
       <div
+        dir="ltr"
         className={cn(
           "flex items-center",
           displayValue > 0

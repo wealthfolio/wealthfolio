@@ -163,6 +163,19 @@ describe("localized financial components", () => {
     expect(gain).toHaveClass("text-foreground");
   });
 
+  it("keeps a gain amount's sign in front on a right-to-left page", async () => {
+    render(
+      <div dir="rtl">
+        <FormattingProvider locale="US" uiLocale="ar">
+          <GainAmount value={38793.32} currency="USD" />
+        </FormattingProvider>
+      </div>,
+    );
+    const animated = await screen.findByTestId("animated-financial-value");
+    expect(animated.closest("[dir]")).toHaveAttribute("dir", "ltr");
+    expect(animated).toHaveTextContent(/^\+\$38,793\.32$/);
+  });
+
   it("preserves locale percent spacing in the animated fallback", () => {
     const { container } = render(
       <FormattingProvider locale="FR" uiLocale="fr">
