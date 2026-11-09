@@ -12,8 +12,6 @@ const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
 const cliArgs = process.argv.slice(2);
 const shouldUseUi = cliArgs.includes("--ui");
-// `/` needs a web build in dist/; the health route answers without one.
-export const BACKEND_HEALTH_PATH = "/api/v1/healthz";
 
 const buildHealthUrl = (base, path = "/") =>
   new URL(path, `${base.replace(/\/$/, "")}/`).toString();
@@ -45,6 +43,15 @@ export const waitForServer = async (
 
   throw new Error(`Timed out waiting for ${healthUrl}`);
 };
+
+// `/` needs a web build in dist/; the health route answers without one.
+export const waitForBackend = (url, serverProcess, options = {}) =>
+  waitForServer(url, serverProcess, {
+    path: "/api/v1/healthz",
+    timeout: 120_000,
+    interval: 1000,
+    ...options,
+  });
 
 const spawnCommand = (command, args, extraEnv = {}) =>
   spawn(command, args, {
@@ -106,11 +113,7 @@ const run = async () => {
     console.log("Waiting for frontend server...");
     await waitForServer(DEV_SERVER_URL, devServer);
     console.log("Frontend ready. Waiting for backend server...");
-    await waitForServer(BACKEND_URL, devServer, {
-      path: BACKEND_HEALTH_PATH,
-      timeout: 120_000,
-      interval: 1000,
-    });
+    await waitForBackend(BACKEND_URL, devServer);
     console.log("Backend ready. Starting tests...");
     await runPlaywrightTests(cliArgs);
   } finally {

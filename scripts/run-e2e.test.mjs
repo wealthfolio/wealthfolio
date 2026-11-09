@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BACKEND_HEALTH_PATH, waitForServer } from "./run-e2e.mjs";
+import { waitForBackend, waitForServer } from "./run-e2e.mjs";
 
 const BACKEND_URL = "http://127.0.0.1:8188";
 const runningServer = { exitCode: null };
@@ -23,11 +23,7 @@ const withBackendWithoutWebBuild = async (callback) => {
 test("the backend counts as ready without a web build", async () => {
   await withBackendWithoutWebBuild(async (requested) => {
     for (const url of [BACKEND_URL, `${BACKEND_URL}/`]) {
-      await waitForServer(url, runningServer, {
-        path: BACKEND_HEALTH_PATH,
-        timeout: 100,
-        interval: 1,
-      });
+      await waitForBackend(url, runningServer, { timeout: 100, interval: 1 });
     }
     assert.deepEqual(requested, [`${BACKEND_URL}/api/v1/healthz`, `${BACKEND_URL}/api/v1/healthz`]);
   });
