@@ -103,8 +103,14 @@ export function ValueWidget({ metric, data, currency, isLoading }: ValueWidgetPr
           className={cn(gap, pad, "from-muted/60 bg-gradient-to-b to-transparent to-[60%]")}
         >
           <Eyebrow>{t("insights:insights.value_strip.portfolio_value")}</Eyebrow>
-          <div className="flex items-center gap-1">
-            <div className={cn("text-foreground font-bold tabular-nums tracking-tight", totalSize)}>
+          {/* The amount gives way (ending in "…") so a narrow widget never pushes the toggle out. */}
+          <div className="flex min-w-0 items-center gap-1">
+            <div
+              className={cn(
+                "text-foreground min-w-0 truncate font-bold tabular-nums tracking-tight",
+                totalSize,
+              )}
+            >
               <AmountDisplay value={data.total} currency={currency} isHidden={isBalanceHidden} />
             </div>
             <PrivacyToggle variant="ghost" />

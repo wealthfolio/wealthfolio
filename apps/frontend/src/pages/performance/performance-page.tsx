@@ -1982,11 +1982,14 @@ export default function PerformancePage() {
                     boldTerms={selectedItemData.warningTerms}
                   />
                 )}
-                <MetricTile
-                  label={t("performance:metric.annualized_short")}
-                  value={selectedItemData?.annualizedReturn ?? null}
-                  infoText={t(annualizedReturnInfo)}
-                />
+                {/* Only from one year: annualizing a few months misleads, and N/A would say why not. */}
+                {selectedItemData?.annualizedReturn != null && (
+                  <MetricTile
+                    label={t("performance:metric.annualized_short")}
+                    value={selectedItemData.annualizedReturn}
+                    infoText={t(annualizedReturnInfo)}
+                  />
+                )}
                 <MetricTile
                   label={t("performance:metric.volatility")}
                   value={selectedItemData?.volatility ?? null}
