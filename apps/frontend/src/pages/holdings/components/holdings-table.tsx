@@ -229,6 +229,7 @@ export const HoldingsTable = ({
         searchBy="symbol"
         filters={filters}
         showColumnToggle={true}
+        enableColumnReordering={true}
         storageKey={profilePreferenceKey("holdings-table-v4")}
         fallbackStorageKey={usesLegacyPreferences() ? "holdings-table-v4" : undefined}
         defaultColumnVisibility={

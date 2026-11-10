@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
   ColumnDef,
   ColumnFiltersState,
+  ColumnOrderState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -41,6 +42,11 @@ interface DataTableProps<TData, TValue> {
   manualPagination?: boolean;
   scrollable?: boolean;
   showColumnToggle?: boolean;
+  /**
+   * Let the column menu move columns. The first column stays first. The order is saved
+   * under storageKey when one is given.
+   */
+  enableColumnReordering?: boolean;
   toolbarView?: React.ReactNode;
   toolbarFilters?: React.ReactNode;
   toolbarActions?: React.ReactNode;
@@ -85,6 +91,7 @@ export function DataTable<TData, TValue>({
   fallbackStorageKey,
   scrollable = false,
   showColumnToggle = false,
+  enableColumnReordering = false,
   toolbarView,
   toolbarFilters,
   toolbarActions,
@@ -120,6 +127,14 @@ export function DataTable<TData, TValue>({
       )
     : React.useState<SortingState>(defaultSorting || []);
 
+  const [columnOrder, setColumnOrder] = storageKey
+    ? usePersistentState<ColumnOrderState>(
+        `${storageKey}:column-order`,
+        [],
+        fallbackStorageKey ? `${fallbackStorageKey}:column-order` : undefined,
+      )
+    : React.useState<ColumnOrderState>([]);
+
   // Views sharing one storageKey can render different column sets, so a stored sort
   // may reference a column that is absent right now. Fall back for this render only —
   // rewriting the stored value would discard the choice the user made in the other view.
@@ -143,6 +158,7 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnVisibility,
+      columnOrder: enableColumnReordering ? columnOrder : [],
       rowSelection,
       columnFilters,
       pagination: manualPagination
@@ -160,6 +176,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: (updater) => setSorting(typeof updater === "function" ? updater(sorting) : updater),
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -183,6 +200,7 @@ export function DataTable<TData, TValue>({
           viewControl={toolbarView}
           additionalFilters={toolbarFilters}
           showColumnToggle={showColumnToggle}
+          enableColumnReordering={enableColumnReordering}
           actions={toolbarActions}
         />
       </div>
