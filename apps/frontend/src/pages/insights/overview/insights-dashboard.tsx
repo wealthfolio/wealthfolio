@@ -160,6 +160,7 @@ export function InsightsDashboard({
     movers: t("insights:highlights.movers"),
     concentration: t("insights:highlights.concentration"),
     breakdown: t("insights:customize.breakdown"),
+    holdings: t("insights:highlights.holdings"),
   };
   const visibleLayouts = useMemo(
     () =>

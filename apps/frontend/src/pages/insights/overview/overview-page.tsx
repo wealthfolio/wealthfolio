@@ -1,4 +1,5 @@
 import { TopMoversCard, ConcentrationCard } from "./holdings-highlight-cards";
+import { HoldingsDonutCard } from "./holdings-donut-card";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
@@ -550,6 +551,16 @@ export function OverviewPage({
               <HoldingsScopeNotice {...holdingsQuery} />
             ) : (
               <ConcentrationCard
+                holdings={portfolioHoldings}
+                currency={baseCurrency}
+                isLoading={isLoading}
+              />
+            ),
+          holdings:
+            !holdingsQuery.isComplete && !holdingsLoading ? (
+              <HoldingsScopeNotice {...holdingsQuery} />
+            ) : (
+              <HoldingsDonutCard
                 holdings={portfolioHoldings}
                 currency={baseCurrency}
                 isLoading={isLoading}

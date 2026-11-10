@@ -147,7 +147,13 @@
     "portfolio_share": "Share of portfolio value, including cash",
     "largest": "Largest holding",
     "top_five": "Top five holdings",
-    "concentration_unavailable": "Concentration needs positive holdings values and a portfolio without short positions."
+    "concentration_unavailable": "Concentration needs positive holdings values and a portfolio without short positions.",
+    "holdings": "Holdings",
+    "holdings_count_one": "{{count}} holding",
+    "holdings_count_other": "{{count}} holdings",
+    "other_holdings_one": "{{count}} other holding",
+    "other_holdings_other": "{{count}} other holdings",
+    "holdings_unavailable": "The holdings chart needs positive holding values and a portfolio without short positions."
   },
   "customize": {
     "edit": "Customize",

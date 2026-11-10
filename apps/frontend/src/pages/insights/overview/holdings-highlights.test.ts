@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HoldingType } from "@/lib/constants";
 import type { Holding } from "@/lib/types";
-import { getConcentration, getTopMovers } from "./holdings-highlights";
+import { getConcentration, getHoldingsDonut, getTopMovers } from "./holdings-highlights";
 
 function holding(id: string, overrides: Partial<Holding> = {}): Holding {
   return {
@@ -117,5 +117,66 @@ describe("getConcentration", () => {
       topFiveWeight: 0,
       largestWeight: 0,
     });
+  });
+});
+
+describe("getHoldingsDonut", () => {
+  const valued = (id: string, base: number, overrides: Partial<Holding> = {}) =>
+    holding(id, { marketValue: { local: base, base }, ...overrides });
+
+  it("keeps the largest holdings, groups the rest as Other and adds cash last", () => {
+    const holdings = [
+      valued("small", 50),
+      valued("big", 400),
+      valued("mid", 200),
+      valued("tiny", 25),
+      valued("cash", 300, { holdingType: HoldingType.CASH }),
+      valued("house", 10_000, { assetKind: "PROPERTY" }),
+      valued("empty", 0),
+    ];
+    const donut = getHoldingsDonut(holdings, 2)!;
+    expect(donut.total).toBe(975);
+    expect(donut.holdingCount).toBe(4);
+    expect(donut.slices.map((slice) => [slice.id, slice.value])).toEqual([
+      ["big", 400],
+      ["mid", 200],
+      ["other", 75],
+      ["cash", 300],
+    ]);
+    expect(donut.slices.find((slice) => slice.kind === "other")).toMatchObject({ count: 2 });
+    expect(donut.slices.find((slice) => slice.kind === "cash")).toMatchObject({
+      currencies: ["EUR"],
+    });
+    expect(donut.slices.reduce((sum, slice) => sum + slice.weight, 0)).toBeCloseTo(1);
+  });
+
+  it("lists each currency that holds cash once", () => {
+    const donut = getHoldingsDonut([
+      valued("a", 100),
+      valued("eur", 10, { holdingType: HoldingType.CASH }),
+      valued("eur-2", 5, { holdingType: HoldingType.CASH }),
+      valued("usd", 20, { holdingType: HoldingType.CASH, localCurrency: "USD" }),
+      valued("cad", 0, { holdingType: HoldingType.CASH, localCurrency: "CAD" }),
+    ])!;
+    expect(donut.slices.at(-1)).toMatchObject({ kind: "cash", currencies: ["EUR", "USD"] });
+  });
+
+  it("names a single leftover holding instead of showing a one-item Other", () => {
+    const donut = getHoldingsDonut([valued("a", 3), valued("b", 2), valued("c", 1)], 2)!;
+    expect(donut.slices.map((slice) => slice.kind)).toEqual(["holding", "holding", "holding"]);
+  });
+
+  it("matches the Concentration card's weights", () => {
+    const holdings = [valued("a", 300), valued("cash", 100, { holdingType: HoldingType.CASH })];
+    const donut = getHoldingsDonut(holdings)!;
+    expect(donut.slices[0].weight).toBe(getConcentration(holdings)!.largestWeight);
+  });
+
+  it("is unavailable for short positions, negative cash or an empty portfolio", () => {
+    expect(getHoldingsDonut([valued("a", 100), valued("short", -10)])).toBeNull();
+    expect(
+      getHoldingsDonut([valued("a", 100), valued("cash", -10, { holdingType: HoldingType.CASH })]),
+    ).toBeNull();
+    expect(getHoldingsDonut([])).toBeNull();
   });
 });
