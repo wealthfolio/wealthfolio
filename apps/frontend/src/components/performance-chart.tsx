@@ -31,6 +31,8 @@ const noVerticalGridPoints = () => [];
 const TOOLTIP_MAX_ROWS = 6;
 /** A phone draws at most this many points; daily points on a long range only add jitter. */
 const COMPACT_MAX_POINTS = 160;
+/** Share of a phone chart at each end with no x-axis label; half a date label is up to ~25px of ~340px. */
+const COMPACT_AXIS_EDGE_GAP = 0.08;
 /** Every k-th point, keeping the last so the line still ends on the period's value. */
 function thinPoints<T>(points: T[], maxPoints: number): T[] {
   if (points.length <= maxPoints) return points;
@@ -183,9 +185,11 @@ export function PerformanceChart({
         compact ? 3 : 5,
       ),
       zeroOffset: areaTop === areaBottom ? 0 : areaTop / (areaTop - areaBottom),
+      // Phones plot to the card's edge, so a first or last label there would be cut.
       axis: performanceAxis(
         plotted.map((point) => point.date),
         compact ? 4 : 6,
+        compact ? COMPACT_AXIS_EDGE_GAP : 0,
       ),
     };
   }, [compact, data]);
