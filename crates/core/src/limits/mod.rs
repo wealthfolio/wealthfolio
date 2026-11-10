@@ -8,5 +8,5 @@ pub use limits_model::{
     AccountDeposit, ContributionActivity, ContributionActivityDetail, ContributionLimit,
     ContributionLimitDetails, ContributionTreatment, DepositsCalculation, NewContributionLimit,
 };
-pub use limits_service::ContributionLimitService;
+pub use limits_service::{check_contribution_limit_accounts, ContributionLimitService};
 pub use limits_traits::{ContributionLimitRepositoryTrait, ContributionLimitServiceTrait};
