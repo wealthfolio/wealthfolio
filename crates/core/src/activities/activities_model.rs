@@ -1408,6 +1408,30 @@ pub struct ActivityImport {
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub charges: Option<Vec<super::ActivityCharge>>,
+    /// The source's own ID for this row, such as a statement's transaction
+    /// reference. A row with one matches an activity imported with the same
+    /// ID into the same account, whatever its values or comment; the source
+    /// keeps it stable across imports and gives every transaction its own.
+    /// Stored as the activity's `source_record_id`.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_record_id: Option<String>,
+    /// Details the source keeps with the row, stored in the activity's
+    /// metadata. `flow` and `charges` come from `is_external` and `charges`
+    /// only, so a row's own keys of those names are dropped.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, Value>>,
+}
+
+impl ActivityImport {
+    /// The row's source record ID, trimmed; none when blank.
+    pub fn source_record_id(&self) -> Option<&str> {
+        self.source_record_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+    }
 }
 
 /// Model for sorting activities
@@ -2265,6 +2289,7 @@ pub struct PrepareActivitiesResult {
 
 impl From<ActivityImport> for NewActivity {
     fn from(import: ActivityImport) -> Self {
+        let source_record_id = import.source_record_id().map(str::to_string);
         let asset = if import.symbol.is_empty() {
             import
                 .asset_id
@@ -2322,15 +2347,25 @@ impl From<ActivityImport> for NewActivity {
         // have the same net-contribution and flow-classification semantics.
         let is_transfer = import.activity_type == ACTIVITY_TYPE_TRANSFER_IN
             || import.activity_type == ACTIVITY_TYPE_TRANSFER_OUT;
-        let metadata = match (import.activity_type.as_str(), import.is_external) {
+        let mut metadata = import.metadata.unwrap_or_default();
+        metadata.remove("flow");
+        metadata.remove(super::charges::CHARGES_METADATA_KEY);
+        match (import.activity_type.as_str(), import.is_external) {
             (ACTIVITY_TYPE_CREDIT, Some(is_external)) => {
-                Some(serde_json::json!({ "flow": { "is_external": is_external } }))
+                metadata.insert(
+                    "flow".to_string(),
+                    serde_json::json!({ "is_external": is_external }),
+                );
             }
             (_, Some(true)) if is_transfer => {
-                Some(serde_json::json!({ "flow": { "is_external": true } }))
+                metadata.insert(
+                    "flow".to_string(),
+                    serde_json::json!({ "is_external": true }),
+                );
             }
-            _ => None,
-        };
+            _ => {}
+        }
+        let metadata = (!metadata.is_empty()).then_some(Value::Object(metadata));
         let metadata = super::charges::metadata_with_charges(metadata, import.charges)
             .map(|metadata| metadata.to_string());
 
@@ -2353,7 +2388,7 @@ impl From<ActivityImport> for NewActivity {
             metadata,
             needs_review: None,
             source_system: Some("CSV".to_string()),
-            source_record_id: None,
+            source_record_id,
             source_group_id,
             idempotency_key: None,
             import_run_id: None,

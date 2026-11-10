@@ -62,7 +62,8 @@ use crate::activities::charges::{
 };
 use crate::activities::csv_parser::{self, ParseConfig, ParsedCsvResult};
 use crate::activities::idempotency::{
-    compute_activity_idempotency_key, compute_idempotency_key, idempotency_activity_type,
+    compute_activity_idempotency_key, compute_idempotency_key,
+    compute_source_record_idempotency_key, idempotency_activity_type,
 };
 use crate::activities::{
     is_conversion_row, ActivityRepositoryTrait, ActivityServiceTrait, ConversionPair,
@@ -3592,8 +3593,14 @@ impl ActivityService {
         activity: &ActivityImport,
         default_account_id: &str,
     ) -> Option<String> {
-        let date = Self::parse_import_date_for_idempotency(&activity.date)?;
         let account_id = activity.account_id.as_deref().unwrap_or(default_account_id);
+        if let Some(source_record_id) = activity.source_record_id() {
+            return Some(compute_source_record_idempotency_key(
+                account_id,
+                source_record_id,
+            ));
+        }
+        let date = Self::parse_import_date_for_idempotency(&activity.date)?;
 
         // Use UUID when the asset already exists in the DB (set during validation).
         // Falls back to symbol@mic for new assets, matching the apply-step convention.
@@ -3664,6 +3671,7 @@ impl ActivityService {
         existing: &mut HashMap<String, String>,
     ) -> Result<()> {
         let mut keys_by_legacy_key: HashMap<String, HashSet<String>> = HashMap::new();
+        // A row with a source record ID is keyed by it, not by its values.
         for activity in activities {
             if !matches!(
                 activity.activity_type.as_str(),
@@ -3671,6 +3679,7 @@ impl ActivityService {
             ) || activity.amount.is_none()
                 || activity.quantity.is_none()
                 || activity.unit_price.is_none()
+                || activity.source_record_id().is_some()
             {
                 continue;
             }
@@ -3738,6 +3747,10 @@ impl ActivityService {
     ) -> Result<HashMap<usize, String>> {
         let mut rows_by_other_key: HashMap<String, Vec<(usize, &'a str)>> = HashMap::new();
         for (position, activity, asset_id) in activities {
+            // A row with a source record ID is keyed by it, not by its asset.
+            if activity.source_record_id().is_some() {
+                continue;
+            }
             let Some(asset_id) = asset_id.filter(|id| !id.trim().is_empty()) else {
                 continue;
             };
@@ -3795,6 +3808,53 @@ impl ActivityService {
                         .entry(*position)
                         .or_insert_with(|| stored_id.clone());
                 }
+            }
+        }
+        Ok(duplicates)
+    }
+
+    /// The stored activities that rows with a source record ID match by their
+    /// values, by row position. An activity imported before its source sent
+    /// IDs has no ID and is keyed by its values, so a row matches it the way
+    /// the row without its ID would. An activity imported with an ID is keyed
+    /// by the ID, so this never matches it.
+    fn find_duplicates_imported_without_source_ids<'a>(
+        &self,
+        activities: impl Iterator<Item = (usize, &'a ActivityImport, Option<&'a str>)>,
+    ) -> Result<HashMap<usize, String>> {
+        let rows: Vec<(usize, ActivityImport, Option<&str>)> = activities
+            .filter(|(_, activity, _)| activity.source_record_id().is_some())
+            .map(|(position, activity, asset_id)| {
+                let mut row = activity.clone();
+                row.source_record_id = None;
+                (position, row, asset_id)
+            })
+            .collect();
+        let keys: Vec<(usize, String)> = rows
+            .iter()
+            .filter_map(|(position, row, _)| {
+                let account_id = row.account_id.as_deref()?;
+                Some((
+                    *position,
+                    Self::build_import_idempotency_key(row, account_id)?,
+                ))
+            })
+            .collect();
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let unique_keys: HashSet<String> = keys.iter().map(|(_, key)| key.clone()).collect();
+        let mut existing = self.check_existing_duplicates(unique_keys.into_iter().collect())?;
+        self.add_legacy_import_duplicates(rows.iter().map(|(_, row, _)| row), &mut existing)?;
+        let mut duplicates = self.find_other_asset_form_duplicates(
+            rows.iter()
+                .map(|(position, row, asset_id)| (*position, row, *asset_id)),
+            &existing,
+        )?;
+        for (position, key) in keys {
+            if let Some(existing_id) = existing.get(&key) {
+                duplicates.insert(position, existing_id.clone());
             }
         }
         Ok(duplicates)
@@ -6448,7 +6508,7 @@ impl ActivityService {
                 .filter_map(|(activity, key)| key.as_ref().map(|_| activity)),
             &mut existing,
         )?;
-        let other_form_duplicates = self.find_other_asset_form_duplicates(
+        let rows_with_keys = || {
             activities_with_status
                 .iter()
                 .zip(&keys)
@@ -6456,9 +6516,14 @@ impl ActivityService {
                 .filter_map(|(idx, (activity, key))| {
                     key.as_ref()
                         .map(|_| (idx, activity, activity.asset_id.as_deref()))
-                }),
-            &existing,
-        )?;
+                })
+        };
+        let mut other_form_duplicates =
+            self.find_other_asset_form_duplicates(rows_with_keys(), &existing)?;
+        // A row with a source record ID also matches by its values an
+        // activity imported before its source sent IDs.
+        other_form_duplicates
+            .extend(self.find_duplicates_imported_without_source_ids(rows_with_keys())?);
 
         for (idx, maybe_key) in keys.iter().enumerate() {
             let Some(key) = maybe_key else {
@@ -8494,7 +8559,7 @@ impl ActivityServiceTrait for ActivityService {
         )?;
         // Pass the asset step 4.5 resolved, so a symbol-only row is also
         // looked up under its asset ID.
-        let other_form_duplicates = self.find_other_asset_form_duplicates(
+        let rows_to_check = || {
             source_slice
                 .iter()
                 .zip(new_activities.iter())
@@ -8502,12 +8567,18 @@ impl ActivityServiceTrait for ActivityService {
                 .filter(|(position, _)| !policy_failed_positions.contains(position))
                 .map(|(position, (activity, prepared))| {
                     (position, activity, prepared.get_symbol_id())
-                }),
-            &existing_duplicates,
-        )?;
+                })
+        };
+        let mut other_form_duplicates =
+            self.find_other_asset_form_duplicates(rows_to_check(), &existing_duplicates)?;
+        // A row with a source record ID also matches by its values an
+        // activity imported before its source sent IDs.
+        other_form_duplicates
+            .extend(self.find_duplicates_imported_without_source_ids(rows_to_check())?);
 
         let mut duplicate_count = 0u32;
         let mut insertable_positions: Vec<usize> = Vec::with_capacity(new_activities.len());
+        let mut insertable_source_keys = HashSet::new();
 
         for (position, activity) in new_activities.iter_mut().enumerate() {
             if policy_failed_positions.contains(&position) {
@@ -8530,8 +8601,15 @@ impl ActivityServiceTrait for ActivityService {
             {
                 if is_force_import {
                     // User explicitly chose to import despite DB duplicate.
-                    // Clear key so the unique constraint is not violated.
-                    activity.idempotency_key = None;
+                    // Clear key so the unique constraint is not violated. A
+                    // source record key that only matched by values is free
+                    // and stays, so the row is found by its ID next time.
+                    if activity.source_record_id.is_none()
+                        || existing_duplicates.contains_key(&key)
+                        || !insertable_source_keys.insert(key)
+                    {
+                        activity.idempotency_key = None;
+                    }
                     insertable_positions.push(position);
                 } else {
                     if let Some((_, import_activity)) = import_activities_indexed.get_mut(position)
@@ -8551,7 +8629,9 @@ impl ActivityServiceTrait for ActivityService {
             if let Some(first_idx) = batch_dup_sources.get(&position).copied() {
                 if is_force_import {
                     // User explicitly chose to import despite batch duplicate.
-                    activity.idempotency_key = None;
+                    if activity.source_record_id.is_none() || !insertable_source_keys.insert(key) {
+                        activity.idempotency_key = None;
+                    }
                     insertable_positions.push(position);
                 } else {
                     let duplicate_line_number = import_activities_indexed
@@ -8576,6 +8656,9 @@ impl ActivityServiceTrait for ActivityService {
             }
 
             // Not a duplicate — force_import is a no-op, key is preserved.
+            if activity.source_record_id.is_some() {
+                insertable_source_keys.insert(key);
+            }
             insertable_positions.push(position);
         }
 
@@ -10132,6 +10215,8 @@ mod reviewed_import_metadata_tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         }
     }
 
