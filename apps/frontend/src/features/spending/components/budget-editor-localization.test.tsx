@@ -460,7 +460,7 @@ it.each([
     );
     await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
     const item = await screen.findByRole("menuitem", {
-      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+      name: new RegExp(`^${i18n.t("spending:budgetEditor.rollover")}`),
     });
     expect(item).toHaveTextContent(
       i18n.t(enabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
@@ -533,7 +533,7 @@ it.each(["ltr", "rtl"] as const)(
     );
     await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
     const item = await screen.findByRole("menuitem", {
-      name: new RegExp(i18n.t("spending:budgetEditor.rollover")),
+      name: new RegExp(`^${i18n.t("spending:budgetEditor.rollover")}`),
     });
     expect(item).toHaveTextContent(i18n.t("spending:budgetEditor.groupWide"));
     expect(item).toHaveAttribute("aria-disabled", "true");
@@ -798,3 +798,76 @@ it("keeps rollover removal open on failure and prevents duplicate requests while
   await waitFor(() => expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(2));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
 });
+
+it.each([
+  ["ltr", true],
+  ["rtl", true],
+  ["ltr", false],
+  ["rtl", false],
+] as const)(
+  "removes a saved category rollover only after confirmation (%s, enabled: %s)",
+  async (direction, enabled) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings.push({
+      id: "rollover-housing",
+      targetType: "category",
+      groupId: null,
+      taxonomyId: "spending_categories",
+      categoryId: "cat_housing",
+      enabled,
+      startMonth: "2026-01",
+      startingBalance: "23",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const original = structuredClone(budget);
+    const removed = structuredClone(budget);
+    removed.state.rolloverSettings = [];
+    let rejectRemoval!: (error: Error) => void;
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRemoval = reject;
+        }),
+    );
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    await user.click(
+      screen.getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0],
+    );
+    const openRemoval = async () => {
+      await user.click(screen.getByRole("button", { name: enSpending.budgetEditor.rowOptions }));
+      await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+      return screen.findByRole("alertdialog");
+    };
+    let dialog = await openRemoval();
+    expect(within(dialog).getByRole("heading")).toHaveTextContent(
+      "Remove rollover setting for Housing?",
+    );
+    expect(dialog).toHaveTextContent("saved starting balance");
+    await user.click(within(dialog).getByRole("button", { name: enCommon.cancel }));
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    dialog = await openRemoval();
+    const confirm = within(dialog).getByRole("button", { name: enCommon.remove });
+    await user.click(confirm);
+    await waitFor(() => expect(confirm).toBeDisabled());
+    expect(within(dialog).getByRole("button", { name: enCommon.cancel })).toBeDisabled();
+    await user.click(confirm);
+    expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(1);
+    act(() => rejectRemoval(new Error("Removal failed")));
+    await waitFor(() => expect(confirm).toBeEnabled());
+    expect(dialog).toBeVisible();
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(() => {
+      vi.mocked(getBudget).mockResolvedValue(removed);
+      return Promise.resolve(removed);
+    });
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteBudgetRolloverSetting).toHaveBeenLastCalledWith("rollover-housing", "default"),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(budget).toEqual(original);
+    expect(deleteBudgetGroup).not.toHaveBeenCalled();
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+  },
+);

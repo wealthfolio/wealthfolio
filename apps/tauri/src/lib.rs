@@ -373,6 +373,8 @@ pub fn run() {
             commands::spending::create_budget_group,
             commands::spending::update_budget_group,
             commands::spending::delete_budget_group,
+            commands::spending::review_category_merge,
+            commands::spending::merge_category,
             commands::spending::assign_category_to_group,
             commands::spending::reset_budget_groups,
             commands::spending::copy_budget_targets,

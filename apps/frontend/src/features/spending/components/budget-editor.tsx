@@ -731,42 +731,14 @@ function GroupBudgetSection({
       </div>
 
       {mode === "setup" && (
-        <AlertDialog
+        <RolloverRemovalDialog
+          name={getBudgetGroupLabel(t, row.group.id, row.group.name)}
+          settingId={groupRollover?.id}
           open={confirmRemoveRolloverOpen}
-          onOpenChange={(nextOpen) => {
-            if (!rolloverPending) setConfirmRemoveRolloverOpen(nextOpen);
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {t("spending:budgetEditor.removeGroupRolloverTitle", {
-                  name: getBudgetGroupLabel(t, row.group.id, row.group.name),
-                })}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {t("spending:budgetEditor.removeGroupRolloverDescription")}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={rolloverPending}>{t("common:cancel")}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={(event) => {
-                  event.preventBaseUIHandler();
-                  if (groupRollover && !rolloverPending) {
-                    onRemoveGroupRollover(groupRollover.id, () =>
-                      setConfirmRemoveRolloverOpen(false),
-                    );
-                  }
-                }}
-                disabled={rolloverPending || !groupRollover}
-                variant="destructive"
-              >
-                {t("common:remove")}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          onOpenChange={setConfirmRemoveRolloverOpen}
+          pending={rolloverPending}
+          onRemove={onRemoveGroupRollover}
+        />
       )}
 
       {mode === "setup" && (
@@ -858,6 +830,9 @@ function GroupBudgetSection({
               monthMode={monthMode}
               mode={mode}
               rolloverEnabled={findCategoryRollover(rolloverSettings, category)?.enabled ?? false}
+              rolloverId={findCategoryRollover(rolloverSettings, category)?.id}
+              rolloverPending={rolloverPending}
+              onRemoveRollover={onRemoveGroupRollover}
               groupRolloverEnabled={groupRollover?.enabled ?? false}
               onSaveTarget={onSaveCategoryTarget}
               onDeleteOverride={onDeleteOverride}
@@ -1258,6 +1233,56 @@ function GroupEditDialogBody({
   );
 }
 
+function RolloverRemovalDialog({
+  name,
+  settingId,
+  open,
+  onOpenChange,
+  pending,
+  onRemove,
+}: {
+  name: string;
+  settingId: string | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  onRemove: (id: string, onSuccess: () => void) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!pending) onOpenChange(nextOpen);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("spending:budgetEditor.removeGroupRolloverTitle", { name })}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("spending:budgetEditor.removeGroupRolloverDescription")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{t("common:cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(event) => {
+              event.preventBaseUIHandler();
+              if (settingId && !pending) onRemove(settingId, () => onOpenChange(false));
+            }}
+            disabled={pending || !settingId}
+            variant="destructive"
+          >
+            {t("common:remove")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function BudgetCategoryLine({
   row,
   groups,
@@ -1267,6 +1292,9 @@ function BudgetCategoryLine({
   monthMode,
   mode,
   rolloverEnabled,
+  rolloverId,
+  rolloverPending,
+  onRemoveRollover,
   groupRolloverEnabled,
   onSaveTarget,
   onDeleteOverride,
@@ -1281,6 +1309,9 @@ function BudgetCategoryLine({
   monthMode: boolean;
   mode: BudgetEditorMode;
   rolloverEnabled: boolean;
+  rolloverId: string | undefined;
+  rolloverPending: boolean;
+  onRemoveRollover: (id: string, onSuccess: () => void) => void;
   groupRolloverEnabled: boolean;
   onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
@@ -1288,6 +1319,7 @@ function BudgetCategoryLine({
   onToggleRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [confirmRemoveRolloverOpen, setConfirmRemoveRolloverOpen] = useState(false);
   const numberFormatting = useNumberFormatting();
   const accent = row.color ?? SPENDING_THEME.deep;
   const hasOverride = monthMode && !!target;
@@ -1432,7 +1464,7 @@ function BudgetCategoryLine({
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={rolloverIsGroupWide}
+                disabled={rolloverIsGroupWide || rolloverPending}
                 closeOnClick={false}
                 onClick={() => {
                   onToggleRollover(row, !rolloverEnabled);
@@ -1449,6 +1481,17 @@ function BudgetCategoryLine({
                       : t("spending:budgetEditor.off")}
                 </span>
               </DropdownMenuItem>
+              {rolloverId && (
+                <DropdownMenuItem
+                  closeOnClick={false}
+                  disabled={rolloverPending}
+                  onClick={() => setConfirmRemoveRolloverOpen(true)}
+                  className="text-destructive focus:text-destructive text-xs"
+                >
+                  <Icons.Trash className="me-2 h-3.5 w-3.5" />
+                  {t("spending:budgetEditor.removeGroupRollover")}
+                </DropdownMenuItem>
+              )}
             </>
           )}
           {hasOverride && (
@@ -1465,6 +1508,16 @@ function BudgetCategoryLine({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {mode === "setup" && (
+        <RolloverRemovalDialog
+          name={getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+          settingId={rolloverId}
+          open={confirmRemoveRolloverOpen}
+          onOpenChange={setConfirmRemoveRolloverOpen}
+          pending={rolloverPending}
+          onRemove={onRemoveRollover}
+        />
+      )}
     </div>
   );
 }

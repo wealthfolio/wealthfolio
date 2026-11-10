@@ -1147,7 +1147,33 @@
       "duplicate_error": "此类别键已被使用，请尝试其他名称。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
-      "tab_savings_other": "储蓄（{{count}}）"
+      "tab_savings_other": "储蓄（{{count}}）",
+      "merge": {
+        "description": "将{{name}}的所有交易、规则和预算移至另一分类。",
+        "history": "历史报表也将使用新分类。此操作无法撤销。",
+        "destination": "移入…",
+        "choose": "选择类别",
+        "budgets": "预算 · {{name}}",
+        "confirm": "移动并删除",
+        "error": "合并失败或数据已更改。请刷新预览、检查目标后重试。",
+        "refresh": "刷新预览",
+        "none": "没有符合条件的目标。请先解决以下限制，或创建合适的类别。",
+        "blocked": {
+          "invalid_destination": "请在同一支出、收入或储蓄列表中选择其他类别。",
+          "children": "请先移动或合并子类别。有子类别的类别无法合并。",
+          "asset_references": "请先移除资产分类和配置目标引用。",
+          "category_rollover": "请先移除两个类别已保存的结转设置，包括已关闭的设置。",
+          "group_rollover": "跨组移动前，请关闭相关支出组的结转。同组内允许合并。",
+          "exclusions": "来源和目标的实际“从支出中排除”设置必须相同，包括继承的排除设置。",
+          "budget_destination": "此类别有预算目标。两个类别都必须位于顶层，以便这些目标继续生效。"
+        },
+        "period": "月份",
+        "current": "当前",
+        "added": "增加",
+        "after": "新合计",
+        "monthlyDefault": "每月默认",
+        "budgetHint": "其他月份使用每月默认金额。"
+      }
     },
     "events": {
       "heading": "支出事件",

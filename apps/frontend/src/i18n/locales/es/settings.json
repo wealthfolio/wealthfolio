@@ -1201,7 +1201,33 @@
       "tab_income_many": "Ingresos ({{count}})",
       "tab_savings_one": "Ahorro ({{count}})",
       "tab_savings_other": "Ahorro ({{count}})",
-      "tab_savings_many": "Ahorro ({{count}})"
+      "tab_savings_many": "Ahorro ({{count}})",
+      "merge": {
+        "description": "Mueve todas las transacciones, reglas y presupuestos de {{name}}.",
+        "history": "Los informes anteriores usarán la nueva categoría. Esta acción no se puede deshacer.",
+        "destination": "Mover a…",
+        "choose": "Elegir una categoría",
+        "budgets": "Presupuestos · {{name}}",
+        "confirm": "Mover y eliminar",
+        "error": "La combinación falló o los datos cambiaron. Actualiza la vista previa, comprueba el destino e inténtalo de nuevo.",
+        "refresh": "Actualizar vista previa",
+        "none": "No hay un destino válido. Resuelve las restricciones siguientes o crea una categoría adecuada.",
+        "blocked": {
+          "invalid_destination": "Elige otra categoría de la misma lista de gastos, ingresos o ahorros.",
+          "children": "Mueve o combina primero las subcategorías. Las categorías con subcategorías no se pueden combinar.",
+          "asset_references": "Elimina primero las clasificaciones de activos y las referencias a objetivos de asignación.",
+          "category_rollover": "Elimina primero la configuración de arrastre guardada de ambas categorías, incluso si está desactivada.",
+          "group_rollover": "Desactiva el arrastre de los grupos de gastos afectados antes de cambiar de grupo. Se permite combinar dentro del mismo grupo.",
+          "exclusions": "El origen y el destino deben tener la misma configuración efectiva de «Excluir de gastos», incluidas las exclusiones heredadas.",
+          "budget_destination": "Esta categoría tiene objetivos presupuestarios. Ambas categorías deben estar en el nivel superior para que sigan siendo efectivos."
+        },
+        "period": "Mes",
+        "current": "Actual",
+        "added": "Añadido",
+        "after": "Nuevo total",
+        "monthlyDefault": "Mensual base",
+        "budgetHint": "Los demás meses usan el importe mensual predeterminado."
+      }
     },
     "events": {
       "heading": "Eventos de gasto",

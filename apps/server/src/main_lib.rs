@@ -147,6 +147,7 @@ pub struct AppState {
         Arc<wealthfolio_spending::categorization_rules::CategorizationRulesService>,
     pub events_service: Arc<wealthfolio_spending::events::EventsService>,
     pub budget_service: Arc<wealthfolio_spending::budget::BudgetService>,
+    pub category_merge_service: Arc<wealthfolio_spending::category_merge::CategoryMergeService>,
     pub spending_analytics_service: Arc<wealthfolio_spending::analytics::AnalyticsService>,
     pub spending_insight_service: Arc<wealthfolio_spending::insight::InsightService>,
     pub data_export_service: Arc<wealthfolio_core::exports::DataExportService>,
@@ -887,6 +888,10 @@ async fn initialize_profile_state(
         ),
     );
 
+    let category_merge_service = Arc::new(wealthfolio_spending::category_merge::CategoryMergeService::new(
+        Arc::new(wealthfolio_storage_sqlite::spending::category_merge::CategoryMergeRepository::new(pool.clone(), writer.clone())),
+    ));
+
     // Spending: budget
     let budget_repo: Arc<dyn wealthfolio_spending::budget::BudgetRepositoryTrait> = Arc::new(
         wealthfolio_storage_sqlite::spending::budget::BudgetRepository::new(
@@ -1232,6 +1237,7 @@ async fn initialize_profile_state(
         categorization_rules_service,
         events_service,
         budget_service,
+        category_merge_service,
         spending_analytics_service,
         spending_insight_service,
         data_export_service,

@@ -372,6 +372,15 @@ async fn build_context(
         ),
     );
 
+    let category_merge_service = Arc::new(
+        wealthfolio_spending::category_merge::CategoryMergeService::new(Arc::new(
+            wealthfolio_storage_sqlite::spending::category_merge::CategoryMergeRepository::new(
+                pool.clone(),
+                writer.clone(),
+            ),
+        )),
+    );
+
     // Spending: budget
     let budget_repo: Arc<dyn wealthfolio_spending::budget::BudgetRepositoryTrait> = Arc::new(
         wealthfolio_storage_sqlite::spending::budget::BudgetRepository::new(
@@ -864,6 +873,7 @@ async fn build_context(
             categorization_rules_service,
             events_service,
             budget_service,
+            category_merge_service,
             spending_analytics_service,
             spending_insight_service,
             data_export_service,

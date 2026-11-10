@@ -1147,7 +1147,33 @@
       "duplicate_error": "다른 카테고리에서 이미 사용 중인 키입니다. 다른 이름을 입력해 주세요.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
-      "tab_savings_other": "저축 ({{count}})"
+      "tab_savings_other": "저축 ({{count}})",
+      "merge": {
+        "description": "{{name}}의 모든 거래, 규칙 및 예산을 옮깁니다.",
+        "history": "이전 보고서에도 새 카테고리가 적용됩니다. 이 작업은 되돌릴 수 없습니다.",
+        "destination": "이동 대상…",
+        "choose": "카테고리 선택",
+        "budgets": "예산 · {{name}}",
+        "confirm": "이동 후 삭제",
+        "error": "병합에 실패했거나 데이터가 변경되었습니다. 미리보기를 새로 고치고 대상을 확인한 후 다시 시도하세요.",
+        "refresh": "미리보기 새로 고침",
+        "none": "사용 가능한 대상이 없습니다. 아래 제한을 해결하거나 적절한 카테고리를 만드세요.",
+        "blocked": {
+          "invalid_destination": "동일한 지출, 수입 또는 저축 목록에서 다른 카테고리를 선택하세요.",
+          "children": "하위 카테고리를 먼저 이동하거나 병합하세요. 하위 카테고리가 있는 카테고리는 병합할 수 없습니다.",
+          "asset_references": "자산 분류와 배분 목표 참조를 먼저 제거하세요.",
+          "category_rollover": "꺼진 설정을 포함하여 두 카테고리의 저장된 이월 설정을 먼저 제거하세요.",
+          "group_rollover": "그룹 간에 이동하기 전에 영향을 받는 지출 그룹의 이월을 끄세요. 같은 그룹 내 병합은 허용됩니다.",
+          "exclusions": "상속된 제외를 포함하여 원본과 대상의 실제 «지출에서 제외» 설정이 같아야 합니다.",
+          "budget_destination": "이 카테고리에는 예산 목표가 있습니다. 목표가 유효하게 유지되려면 두 카테고리 모두 최상위에 있어야 합니다."
+        },
+        "period": "월",
+        "current": "현재",
+        "added": "추가",
+        "after": "새 합계",
+        "monthlyDefault": "월 기본값",
+        "budgetHint": "다른 월에는 월 기본값이 적용됩니다."
+      }
     },
     "events": {
       "heading": "지출 이벤트",

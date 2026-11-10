@@ -84,8 +84,11 @@ pub const APP_SYNC_TABLES: &[&str] = &[
 /// encryption and includes broker holdings, activities and their import records.
 /// Older clients must not restore it with their manual-only import filters.
 /// Version 5 includes recurring contribution limits and per-limit exclusions. Do not
-/// reuse older snapshots that cannot preserve these settings.
-pub const SNAPSHOT_SCHEMA_VERSION: i32 = 5;
+/// reuse older snapshots that cannot preserve these settings. Version 6 includes
+/// permanent category-merge redirects; older restore filters would discard them.
+/// Version 7 requires atomic merge receipts with budget origins, preserving
+/// independently merged amounts when overlapping operations are replayed.
+pub const SNAPSHOT_SCHEMA_VERSION: i32 = 7;
 
 /// A remote snapshot is reusable only when it covers the required event cursor
 /// and contains at least the schema required by the local client.
@@ -154,6 +157,14 @@ pub enum SyncEntity {
 }
 
 impl SyncEntity {
+    /// Permanent merge receipts must remain replayable after a peer resolves a
+    /// configuration conflict. Never dead-letter them or advance their cursor.
+    pub fn requires_atomic_replay(self, payload: &serde_json::Value) -> bool {
+        self == Self::CustomTaxonomy
+            && (payload.get("category_merges").is_some()
+                || payload.get("merge_operation").and_then(|v| v.as_bool()) == Some(true))
+    }
+
     /// Wire versions share the ordinary row fields and deletion tombstone.
     /// Recurrence uses the V2 entity's own conflict metadata.
     pub fn conflict_entity(self) -> Self {

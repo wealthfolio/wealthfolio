@@ -214,8 +214,28 @@ pub struct CategoryReferences {
     pub budget_group_assignments: usize,
     pub allocation_targets: usize,
     pub automatic_budget_links: usize,
+    #[serde(default)]
+    pub merged_categories: usize,
 }
 impl CategoryReferences {
+    /// Generic category identity/reference invariants, shared by spending merges.
+    pub fn validate_merge(
+        &self,
+        source: &Category,
+        destination: &Category,
+    ) -> Result<(), &'static str> {
+        if source.id == destination.id || source.taxonomy_id != destination.taxonomy_id {
+            return Err("invalid_destination");
+        }
+        if self.children > 0 {
+            return Err("children");
+        }
+        if self.asset_assignments > 0 || self.allocation_targets > 0 {
+            return Err("asset_references");
+        }
+        Ok(())
+    }
+
     pub fn blocking_count(&self) -> usize {
         self.children
             + self.asset_assignments
@@ -226,5 +246,6 @@ impl CategoryReferences {
             + self.budget_rollovers
             + self.budget_group_assignments
             + self.allocation_targets
+            + self.merged_categories
     }
 }

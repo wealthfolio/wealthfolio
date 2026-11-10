@@ -136,6 +136,25 @@ fn parse_event_operation(event_type: &str) -> Option<SyncOperation> {
     }
 }
 
+/// Authenticated plaintext framing for atomic category-merge receipts. Legacy
+/// engines require plain JSON and stop at payload decoding before permissive
+/// storage replay can skip the receipt. The relay and E2EE format are unchanged.
+const CATEGORY_MERGE_PAYLOAD_HEADER: &str = "wealthfolio-sync:category-merge:v1\n";
+
+fn framed_sync_payload(
+    event: &wealthfolio_core::sync::SyncOutboxEvent,
+) -> Result<String, serde_json::Error> {
+    if event.entity == SyncEntity::CustomTaxonomy
+        && event
+            .entity
+            .requires_atomic_replay(&serde_json::from_str(&event.payload)?)
+    {
+        Ok(format!("{CATEGORY_MERGE_PAYLOAD_HEADER}{}", event.payload))
+    } else {
+        Ok(event.payload.clone())
+    }
+}
+
 fn sync_identity_is_revoked(identity: Option<SyncIdentity>) -> bool {
     identity
         .as_ref()
@@ -481,8 +500,20 @@ where
             continue;
         }
         let payload_key_version = event.payload_key_version.max(1);
+        let plaintext_payload = match framed_sync_payload(&event) {
+            Ok(value) => value,
+            Err(err) => {
+                return ctx
+                    .fail(
+                        "push_prepare_error",
+                        format!("Sync payload decode failed: {err}"),
+                        Some(15),
+                    )
+                    .await
+            }
+        };
         let encrypted_payload =
-            match ports.encrypt_sync_payload(&event.payload, &identity, payload_key_version) {
+            match ports.encrypt_sync_payload(&plaintext_payload, &identity, payload_key_version) {
                 Ok(payload) => payload,
                 Err(err) => {
                     return ctx
@@ -873,8 +904,10 @@ where
                             .await;
                     }
                 };
-                let payload_json: serde_json::Value = match serde_json::from_str(&decrypted_payload)
-                {
+                let decoded_payload = decrypted_payload
+                    .strip_prefix(CATEGORY_MERGE_PAYLOAD_HEADER)
+                    .unwrap_or(&decrypted_payload);
+                let payload_json: serde_json::Value = match serde_json::from_str(decoded_payload) {
                     Ok(payload) => payload,
                     Err(err) => {
                         return ctx
@@ -907,6 +940,18 @@ where
             {
                 Ok(applied) => applied,
                 Err(err) => {
+                    if decoded_events
+                        .iter()
+                        .any(|event| event.entity.requires_atomic_replay(&event.payload))
+                    {
+                        return ctx
+                            .fail(
+                                "replay_blocked",
+                                format!("Category merge replay blocked: {err}"),
+                                Some(10),
+                            )
+                            .await;
+                    }
                     warn!(
                         "[DeviceSync] Batch replay apply failed ({}). Falling back to per-event apply with dead-letter skip.",
                         err
@@ -1231,6 +1276,8 @@ mod tests {
         pull_cursors: Arc<Mutex<Vec<Option<i64>>>>,
         set_cursor_calls: Arc<Mutex<Vec<i64>>>,
         applied_events: Arc<Mutex<Vec<ReplayEvent>>>,
+        fail_batch_replay: bool,
+        per_event_apply_calls: Arc<AtomicUsize>,
         pull_complete_counts: Arc<Mutex<Vec<usize>>>,
         push_error: Option<TransportError>,
         push_batches: Arc<Mutex<Vec<Vec<String>>>>,
@@ -1262,6 +1309,8 @@ mod tests {
                 pull_cursors: Arc::new(Mutex::new(Vec::new())),
                 set_cursor_calls: Arc::new(Mutex::new(Vec::new())),
                 applied_events: Arc::new(Mutex::new(Vec::new())),
+                fail_batch_replay: false,
+                per_event_apply_calls: Arc::new(AtomicUsize::new(0)),
                 pull_complete_counts: Arc::new(Mutex::new(Vec::new())),
                 push_error: None,
                 push_batches: Arc::new(Mutex::new(Vec::new())),
@@ -1401,12 +1450,16 @@ mod tests {
             &self,
             events: Vec<ReplayEvent>,
         ) -> Result<usize, String> {
+            if self.fail_batch_replay {
+                return Err("peer configuration conflicts with category merge".into());
+            }
             let applied = events.len();
             self.applied_events.lock().await.extend(events);
             Ok(applied)
         }
 
         async fn apply_remote_event_lww(&self, _event: ReplayEvent) -> Result<bool, String> {
+            self.per_event_apply_calls.fetch_add(1, Ordering::SeqCst);
             Ok(false)
         }
 
@@ -2357,6 +2410,113 @@ mod tests {
             gc_watermark: None,
             latest_snapshot_seq: None,
         }
+    }
+
+    #[test]
+    fn merge_receipts_frame_plaintext_before_encryption_to_block_legacy_decoding() {
+        let mut event = outbox_event("merge", "spending_categories", 1);
+        event.entity = SyncEntity::CustomTaxonomy;
+        for payload in [
+            r#"{"merge_operation":true,"category_merges":[{}]}"#,
+            r#"{"category_merges":[{}]}"#,
+        ] {
+            event.payload = payload.into();
+            let framed = framed_sync_payload(&event).expect("valid payload");
+            assert!(
+                serde_json::from_str::<serde_json::Value>(&framed).is_err(),
+                "legacy engines must stop before storage replay"
+            );
+            assert_eq!(
+                framed.strip_prefix(CATEGORY_MERGE_PAYLOAD_HEADER),
+                Some(payload)
+            );
+        }
+        event.payload = r#"{"categories":[]}"#.into();
+        assert_eq!(
+            framed_sync_payload(&event).expect("valid payload"),
+            event.payload
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_or_malformed_payload_header_keeps_cursor_before_batch_apply() {
+        for payload in [
+            "wealthfolio-sync:category-merge:v999\n{}",
+            "wealthfolio-sync:category-merge:v1\n{broken",
+        ] {
+            let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+            ports.cursor = 5;
+            ports.reconcile_response.cursor = Some(8);
+            ports
+                .pull_responses
+                .lock()
+                .await
+                .push_back(single_event_pull_response(
+                    8,
+                    pull_event(
+                        "merge",
+                        "custom_taxonomy",
+                        "custom_taxonomy.update.v1",
+                        "spending_categories",
+                        8,
+                        payload,
+                    ),
+                ));
+            let result = run_sync_cycle(&ports, false).await.expect("blocked cycle");
+            assert_eq!(result.status, "replay_error");
+            assert_eq!(result.cursor, 5);
+            assert!(ports.set_cursor_calls.lock().await.is_empty());
+            assert!(ports.applied_events.lock().await.is_empty());
+            assert_eq!(ports.per_event_apply_calls.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn merge_conflict_keeps_cursor_without_fallback_and_retries_after_resolution() {
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.cursor = 5;
+        ports.reconcile_response.cursor = Some(8);
+        ports.fail_batch_replay = true;
+        let response = single_event_pull_response(
+            8,
+            pull_event(
+                "merge-remote",
+                "custom_taxonomy",
+                "custom_taxonomy.update.v1",
+                "spending_categories",
+                8,
+                r#"{"category_merges":[{"source_id":"s","destination_id":"d"}],"merge_operation":true}"#,
+            ),
+        );
+        let mut response = response;
+        response.events[0].payload = format!(
+            "{CATEGORY_MERGE_PAYLOAD_HEADER}{}",
+            response.events[0].payload
+        );
+        ports
+            .pull_responses
+            .lock()
+            .await
+            .push_back(response.clone());
+        let result = run_sync_cycle(&ports, false).await.expect("blocked cycle");
+        assert_eq!(result.status, "replay_blocked");
+        assert_eq!(result.cursor, 5);
+        assert!(ports.set_cursor_calls.lock().await.is_empty());
+        assert!(ports.applied_events.lock().await.is_empty());
+        assert_eq!(ports.per_event_apply_calls.load(Ordering::SeqCst), 0);
+        assert!(ports.pull_complete_counts.lock().await.is_empty());
+        // An explicit local resolution allows the same receipt to be retried.
+        ports.fail_batch_replay = false;
+        ports.pull_responses.lock().await.push_back(response);
+        let result = run_sync_cycle(&ports, false).await.expect("resolved cycle");
+        assert_eq!(result.status, "ok");
+        assert_eq!(result.cursor, 8);
+        assert_eq!(ports.set_cursor_calls.lock().await.as_slice(), [8]);
+        assert_eq!(ports.applied_events.lock().await.len(), 1);
+        assert_eq!(
+            ports.pull_cursors.lock().await.as_slice(),
+            [Some(5), Some(5)]
+        );
     }
 
     #[tokio::test]

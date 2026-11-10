@@ -1123,7 +1123,33 @@
       "tab_income_one": "Income ({{count}})",
       "tab_income_other": "Income ({{count}})",
       "tab_savings_one": "Savings ({{count}})",
-      "tab_savings_other": "Savings ({{count}})"
+      "tab_savings_other": "Savings ({{count}})",
+      "merge": {
+        "description": "Move all transactions, rules and budgets from {{name}}.",
+        "history": "Past reports will use the new category. This can’t be undone.",
+        "destination": "Move into…",
+        "choose": "Choose a category",
+        "budgets": "Budgets · {{name}}",
+        "confirm": "Move and delete",
+        "error": "The merge failed or the data changed. Refresh the preview, check the destination, and try again.",
+        "refresh": "Refresh preview",
+        "none": "No eligible destination. Resolve the restrictions below or create a suitable category.",
+        "blocked": {
+          "invalid_destination": "Choose a different category in the same expense, income, or savings list.",
+          "children": "Move or merge subcategories first; categories with children cannot be merged.",
+          "asset_references": "Remove asset classifications and allocation target references first.",
+          "category_rollover": "Remove the saved rollover settings from both categories first, including settings switched off.",
+          "group_rollover": "Disable rollover for the affected expense groups before moving between groups. Merging within the same group is allowed.",
+          "exclusions": "The source and destination must have the same effective “Exclude from spending” setting, including inherited exclusions.",
+          "budget_destination": "This category has budget targets. Both categories must be at the top level so those targets remain effective."
+        },
+        "period": "Month",
+        "current": "Current",
+        "added": "Added",
+        "after": "New total",
+        "monthlyDefault": "Monthly default",
+        "budgetHint": "Other months use the monthly default."
+      }
     },
     "events": {
       "heading": "Spending events",

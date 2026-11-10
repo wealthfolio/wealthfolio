@@ -158,7 +158,7 @@
     "groupBufferDefault": "الهامش الافتراضي للمجموعة",
     "groupRollover": "ترحيل المجموعة",
     "removeGroupRollover": "إزالة إعداد الترحيل",
-    "removeGroupRolloverTitle": "إزالة إعداد الترحيل للمجموعة {{name}}؟",
+    "removeGroupRolloverTitle": "إزالة إعداد الترحيل لـ {{name}}؟",
     "removeGroupRolloverDescription": "سيؤدي هذا إلى حذف الرصيد الافتتاحي المحفوظ وإعادة حساب أرصدة الترحيل لجميع الأشهر. سيتم الاحتفاظ بالفئات وأهداف الميزانية.",
     "groupWide": "على مستوى المجموعة",
     "hideEmptySources": "إخفاء المصادر الفارغة",
