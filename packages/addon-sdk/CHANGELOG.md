@@ -4,22 +4,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- `ActivityImport.sourceRecordId`: your own ID for the transaction a row
-  records. A row with one is a duplicate of the activity your add-on imported
-  with the same ID into the same account, whatever its values or comment, so
-  identical transactions with different IDs import separately. A row with an ID
-  also matches an activity imported before you sent IDs, by its values. The
-  activity stores the trimmed ID as `addon:<your add-on id>:<ID>`; blank IDs are
-  treated as absent. ID matching is scoped to the add-on; the values fallback
-  can match any import without an ID in the account.
-- `ActivityImport.metadata`: details to keep with the imported activity, stored
-  in its metadata under `addons[<your add-on id>]`.
-- Older hosts ignore both fields.
-
 ## [3.13.0] - 2026-11-09
 
 ### Added
@@ -33,6 +17,17 @@ and this project adheres to
   the row is rejected, and `checkImport` flags it. They are stored in the
   activity's `metadata.charges` and change no calculation. Older hosts ignore
   the field.
+- `ActivityImport.sourceRecordId`: your own ID for the transaction a row
+  records. A row with one is a duplicate of the activity your add-on imported
+  with the same ID into the same account, whatever its values or comment, so
+  identical transactions with different IDs import separately. A row with an ID
+  also matches an activity imported before you sent IDs, by its values. The
+  activity stores the trimmed ID as `addon:<your add-on id>:<ID>`; blank IDs are
+  treated as absent. ID matching is scoped to the add-on; the values fallback
+  can match any import without an ID in the account.
+- `ActivityImport.metadata`: details to keep with the imported activity, stored
+  in its metadata under `addons[<your add-on id>]`. Older hosts ignore this
+  field and `sourceRecordId`. (#2621)
 - `allocationTargets`, read-only, in the new Allocation Targets category (high
   risk), each function behind its own grant:
   - `getAll()`: the user's targets, archived ones excluded, each with its scope,
