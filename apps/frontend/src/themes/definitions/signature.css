@@ -2,9 +2,9 @@
 /* @font font-sans */
 :root {
   /* A pale grey page, near-white cards raised a step above it by a half-pixel
-     hairline and soft layered shadows, charcoal glass pill actions, and
-     lavender for information and focus. Charts take the Spending colours. Green
-     is kept to gains. */
+     hairline and soft layered shadows, charcoal glass pill actions, a graphite
+     focus ring, and lavender for information. Charts take the Spending colours.
+     Green is kept to gains. */
   --radius: 1rem;
   /* Pills for actions, badges and segmented controls; cards at the base radius. */
   --button-radius: 9999px;
@@ -52,7 +52,7 @@
   --warning-subtle: #f8eedb;
   --warning-subtle-foreground: var(--warning);
   --warning-subtle-border: #ecd3a6;
-  /* Lavender: information pills and the focus ring. */
+  /* Lavender: information pills. */
   --info: #5b3fc4;
   --info-foreground: #ffffff;
   --info-subtle: #ebe7fb;
@@ -62,7 +62,7 @@
   /* Fields: a pale well one step below the card, with a hairline edge. */
   --input: #e0e0e0;
   --input-bg: #f6f6f6;
-  --ring: #6d50d8;
+  --ring: #5c5c5c;
   /* Slate, mustard, lavender, cornflower, plum-rose, deep blue, pale gold,
      stone, lilac: the Spending category colours, without a gain green or a
      loss red. */
@@ -102,7 +102,7 @@
   --sidebar-accent: #e6e6e6;
   --sidebar-accent-foreground: #121212;
   --sidebar-border: #ececec;
-  --sidebar-ring: #6d50d8;
+  --sidebar-ring: #5c5c5c;
   --toast-border: #ececec;
   /* Holdings treemap: sage gains and rose losses, blue losses when the Gain and loss
      colours setting draws them in blue. */
@@ -232,7 +232,7 @@
   --border: #262629;
   --input: #3a3a3e;
   --input-bg: #1f1f21;
-  --ring: #a996f5;
+  --ring: #a1a1aa;
   --chart-1: #8ea6cf;
   --chart-2: #d4b66a;
   --chart-3: #b2a3d9;
@@ -257,7 +257,7 @@
   --sidebar-accent: #202022;
   --sidebar-accent-foreground: #f4f4f5;
   --sidebar-border: #1c1c1e;
-  --sidebar-ring: #a996f5;
+  --sidebar-ring: #a1a1aa;
   --toast-border: #36363a;
   --heatmap-positive-low: #213a2c;
   --heatmap-positive-high: #86bf9c;
