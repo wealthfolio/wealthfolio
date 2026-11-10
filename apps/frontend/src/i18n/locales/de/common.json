@@ -716,6 +716,7 @@
     "addonManifestMissing": "Die ZIP-Datei des Add-ons enthält keine manifest.json.",
     "addonMainFileMissing": "Die ZIP-Datei des Add-ons enthält nicht die Hauptdatei, die im Manifest angegeben ist.",
     "addonNeedsNewerVersion": "Dieses Add-on erfordert eine neuere Version von Wealthfolio. Aktualisieren Sie Wealthfolio und versuchen Sie es erneut.",
-    "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus."
+    "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus.",
+    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut."
   }
 }

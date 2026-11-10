@@ -733,6 +733,7 @@
     "addonManifestMissing": "El archivo ZIP del complemento no contiene manifest.json.",
     "addonMainFileMissing": "El archivo ZIP del complemento no contiene el archivo principal que indica su manifiesto.",
     "addonNeedsNewerVersion": "Este complemento necesita una versión más reciente de Wealthfolio. Actualiza Wealthfolio e inténtalo de nuevo.",
-    "quoteCurrencyRequired": "La divisa de cotización es obligatoria. Vuelve a seleccionar el símbolo en los resultados de búsqueda."
+    "quoteCurrencyRequired": "La divisa de cotización es obligatoria. Vuelve a seleccionar el símbolo en los resultados de búsqueda.",
+    "rateLimited": "Demasiadas solicitudes. Espera un minuto e inténtalo de nuevo."
   }
 }
