@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { usePersistentState } from "../../../hooks/use-persistent-state";
 
 import type { DataTableFacetedFilterProps } from "./data-table-faceted-filter";
+import { mergeColumnOrder } from "./column-order";
 import { DataTableToolbar } from "./data-table-toolbar";
 
 export { DataTableColumnHeader } from "./data-table-column-header";
@@ -56,21 +57,26 @@ interface DataTableProps<TData, TValue> {
 }
 
 /**
- * Ids of the columns tanstack would let you sort, resolved the same way it resolves them
- * when it builds the table: `id ?? accessorKey.replaceAll(".", "_") ?? string header`,
- * sortable only when the column has an accessor and sorting is not disabled. Group defs
- * carry no accessor, so we descend into their children instead.
+ * Ids of the leaf columns, or with `sortableOnly` of those tanstack would let you sort,
+ * resolved the same way it resolves them when it builds the table:
+ * `id ?? accessorKey.replaceAll(".", "_") ?? string header`, sortable only when the
+ * column has an accessor and sorting is not disabled. Group defs carry no accessor, so we
+ * descend into their children instead.
  */
-function collectSortableColumnIds<TData, TValue>(columns: ColumnDef<TData, TValue>[], ids: string[] = []): string[] {
+function collectLeafColumnIds<TData, TValue>(
+  columns: ColumnDef<TData, TValue>[],
+  sortableOnly: boolean,
+  ids: string[] = [],
+): string[] {
   for (const column of columns) {
     const children = "columns" in column ? column.columns : undefined;
     if (children?.length) {
-      collectSortableColumnIds(children, ids);
+      collectLeafColumnIds(children, sortableOnly, ids);
       continue;
     }
-    if (column.enableSorting === false) continue;
     const accessorKey = "accessorKey" in column ? String(column.accessorKey) : undefined;
-    if (!("accessorFn" in column) && accessorKey === undefined) continue;
+    if (sortableOnly && column.enableSorting === false) continue;
+    if (sortableOnly && !("accessorFn" in column) && accessorKey === undefined) continue;
     const id =
       column.id ?? accessorKey?.replaceAll(".", "_") ?? (typeof column.header === "string" ? column.header : undefined);
     if (id) ids.push(id);
@@ -134,11 +140,16 @@ export function DataTable<TData, TValue>({
         fallbackStorageKey ? `${fallbackStorageKey}:column-order` : undefined,
       )
     : React.useState<ColumnOrderState>([]);
+  const leafColumnIdsKey = collectLeafColumnIds(columns, false).join("\0");
+  const effectiveColumnOrder = React.useMemo(
+    () => (enableColumnReordering ? mergeColumnOrder(leafColumnIdsKey.split("\0").filter(Boolean), columnOrder) : []),
+    [columnOrder, enableColumnReordering, leafColumnIdsKey],
+  );
 
   // Views sharing one storageKey can render different column sets, so a stored sort
   // may reference a column that is absent right now. Fall back for this render only —
   // rewriting the stored value would discard the choice the user made in the other view.
-  const sortableColumnIdsKey = collectSortableColumnIds(columns).join("\0");
+  const sortableColumnIdsKey = collectLeafColumnIds(columns, true).join("\0");
   // Serialised so the memo below stays stable: callers pass defaultSorting as a literal.
   const defaultSortingKey = JSON.stringify(defaultSorting ?? []);
 
@@ -158,7 +169,7 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnVisibility,
-      columnOrder: enableColumnReordering ? columnOrder : [],
+      columnOrder: effectiveColumnOrder,
       rowSelection,
       columnFilters,
       pagination: manualPagination
@@ -201,6 +212,7 @@ export function DataTable<TData, TValue>({
           additionalFilters={toolbarFilters}
           showColumnToggle={showColumnToggle}
           enableColumnReordering={enableColumnReordering}
+          hasCustomColumnOrder={columnOrder.length > 0}
           actions={toolbarActions}
         />
       </div>

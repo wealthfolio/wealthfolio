@@ -24,7 +24,7 @@ const columns: ColumnDef<Row>[] = [
   column("quantity", "Quantity"),
   column("marketValue", "Total Value", false),
   column("currency", "Currency"),
-  { id: "actions", enableHiding: false, header: () => null, cell: () => null },
+  { id: "actions", enableHiding: false, header: () => null, cell: () => "row-actions" },
 ];
 
 const STORAGE_KEY = "column-order-test";
@@ -47,6 +47,8 @@ const headers = () =>
     .getAllByRole("columnheader")
     .map((header) => header.textContent)
     .filter(Boolean);
+
+const lastCell = () => screen.getAllByRole("row")[1]?.lastElementChild?.textContent;
 
 const openColumnsMenu = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: /Columns/ }));
@@ -132,12 +134,55 @@ describe("holdings column order", () => {
     expect(headers()).toEqual(["Position", "Total Value", "Quantity"]);
     expect(JSON.parse(window.localStorage.getItem(ORDER_KEY) ?? "[]")).toEqual([
       "symbol",
+      "symbolName",
       "currency",
       "marketValue",
       "quantity",
-      "symbolName",
       "actions",
     ]);
+  });
+
+  it("keeps row actions last when switching between views with different columns", async () => {
+    const user = userEvent.setup();
+    // Like Open and Closed holdings: each view has columns the other doesn't.
+    const actionsColumn = columns[columns.length - 1];
+    const closedView = [
+      ...columns.filter((candidate) => candidate.id !== "quantity" && candidate !== actionsColumn),
+      column("saleProceeds", "Proceeds"),
+      actionsColumn,
+    ];
+    const view = (tableColumns: ColumnDef<Row>[]) => (
+      <DataTable
+        data={[{ symbol: "VOO" }]}
+        columns={tableColumns}
+        showColumnToggle
+        enableColumnReordering
+        storageKey={STORAGE_KEY}
+        defaultColumnVisibility={{ symbolName: false, currency: false }}
+      />
+    );
+    const { rerender } = render(view(columns));
+
+    let menu = await openColumnsMenu(user);
+    await user.click(within(menu).getByRole("menuitem", { name: "Move Total Value up" }));
+    await user.keyboard("{Escape}");
+    expect(headers()).toEqual(["Position", "Total Value", "Quantity"]);
+
+    rerender(view(closedView));
+    expect(headers()).toEqual(["Position", "Total Value", "Proceeds"]);
+    expect(lastCell()).toBe("row-actions");
+
+    menu = await openColumnsMenu(user);
+    // Past the hidden Currency column, then past Total Value.
+    await user.click(within(menu).getByRole("menuitem", { name: "Move Proceeds up" }));
+    await user.click(within(menu).getByRole("menuitem", { name: "Move Proceeds up" }));
+    await user.keyboard("{Escape}");
+    expect(headers()).toEqual(["Position", "Proceeds", "Total Value"]);
+    expect(lastCell()).toBe("row-actions");
+
+    rerender(view(columns));
+    expect(headers()).toEqual(["Position", "Total Value", "Quantity"]);
+    expect(lastCell()).toBe("row-actions");
   });
 
   it("resets to the defined order", async () => {
