@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use chrono::{DateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 
+use crate::accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait};
 use crate::activities::ActivityRepositoryTrait;
 use crate::errors::{Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
@@ -265,6 +266,54 @@ impl ContributionLimitService {
         )
         .map(|(calculation, _)| calculation)
     }
+}
+
+/// Checks the accounts a limit lists before it is saved. Ids of deleted
+/// accounts are dropped: limits saved before deletes cleaned them up can still
+/// list one, and nothing is counted for it. An account of a type contribution
+/// limits don't count is refused.
+pub fn check_contribution_limit_accounts(
+    accounts: &dyn AccountServiceTrait,
+    limit: &mut NewContributionLimit,
+) -> Result<()> {
+    let Some(account_ids) = limit.account_ids.as_deref() else {
+        return Ok(());
+    };
+    let ids: Vec<String> = account_ids
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+
+    let found = accounts.get_accounts_by_ids(&ids)?;
+    let unsupported: Vec<&str> = found
+        .iter()
+        .filter(|account| {
+            !account_supports_purpose(&account.account_type, AccountPurpose::ContributionLimits)
+        })
+        .map(|account| account.id.as_str())
+        .collect();
+    if !unsupported.is_empty() {
+        return Err(Error::Validation(ValidationError::InvalidInput(format!(
+            "Contribution limits do not support account(s): {}",
+            unsupported.join(", ")
+        ))));
+    }
+
+    let existing: HashSet<&str> = found.iter().map(|account| account.id.as_str()).collect();
+    if ids.iter().any(|id| !existing.contains(id.as_str())) {
+        let kept: Vec<&str> = ids
+            .iter()
+            .map(String::as_str)
+            .filter(|id| existing.contains(id))
+            .collect();
+        limit.account_ids = Some(kept.join(","));
+    }
+    Ok(())
 }
 
 #[async_trait]
