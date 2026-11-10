@@ -896,6 +896,16 @@ export function MobileActivityForm({
       }
 
       if (id) {
+        // A transfer's empty fee is left out so a pair keeps both legs' fees, but
+        // an external transfer is one record: a fee the user cleared saves as 0,
+        // where omission would keep the old fee.
+        if (
+          transferIsExternal &&
+          submitData.fee === undefined &&
+          form.getFieldState("fee").isDirty
+        ) {
+          submitData.fee = 0;
+        }
         const wasAssetBackedIncome = isAssetBackedIncomeSubtype(
           activity?.activityType ?? "",
           activity?.subtype,
