@@ -1,13 +1,34 @@
 import { execFileSync } from "node:child_process";
 import { once } from "node:events";
+import { readdirSync, readFileSync } from "node:fs";
+
+// Lines of "pid ppid" from Linux's procfs, for when `ps` is missing or fails.
+const procTable = () =>
+  readdirSync("/proc")
+    .filter((entry) => /^\d+$/.test(entry))
+    .map((pid) => {
+      try {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        // The command name in parentheses can hold spaces; the parent PID is the
+        // second field after it.
+        return `${pid} ${stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]}`;
+      } catch {
+        return ""; // It exited, or its stat file is unreadable.
+      }
+    })
+    .join("\n");
 
 const descendantsOf = (pid) => {
   let table;
   try {
     table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "ppid="], { encoding: "utf8" });
   } catch {
-    // Without `ps`, stop only the direct child, as before.
-    return [];
+    try {
+      table = procTable();
+    } catch {
+      // Without `ps` or procfs, stop only the direct child, as before.
+      return [];
+    }
   }
   const childrenOf = new Map();
   for (const line of table.split("\n")) {
