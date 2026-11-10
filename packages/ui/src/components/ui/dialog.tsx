@@ -151,7 +151,7 @@ function DialogContent({
         showCloseButton={showCloseButton}
         safeArea={safeArea}
         style={style}
-        className={cn(mobileClassName, "!rounded-t-4xl mx-1", className)}
+        className={cn("grid gap-4 [&>*]:min-w-0", mobileClassName, "!rounded-t-4xl mx-1", className)}
         {...props}
       >
         {children}
