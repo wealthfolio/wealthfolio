@@ -6,6 +6,7 @@ import {
   valueRange,
 } from "@/components/performance-chart-axis";
 import { ReturnData } from "@/lib/types";
+import { useChartScrubHaptic } from "@/hooks/use-chart-scrub-haptic";
 import { cn } from "@/lib/utils";
 import { useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { ChartConfig, ChartContainer, ChartTooltip } from "@wealthfolio/ui/components/ui/chart";
@@ -155,6 +156,7 @@ export function PerformanceChart({
   const fillId = `performance-fill-${useId().replace(/:/g, "")}`;
   const fingerDownRef = useRef(false);
   const usesTouchRef = useRef(false);
+  const scrubHaptic = useChartScrubHaptic();
 
   // Built once per data change: a finger drag re-renders the page on every move, and
   // rebuilding these scanned every series once per plotted date.
@@ -213,13 +215,16 @@ export function PerformanceChart({
   // restart the scrub after the finger lifted. Only moves while a finger is down count,
   // and once touch is used, the mouse events browsers emulate after a tap are ignored.
   const handleTouchMove = (state: MouseHandlerDataParam) => {
-    if (fingerDownRef.current) reportScrub(state);
+    if (!fingerDownRef.current) return;
+    reportScrub(state);
+    if (state.isTooltipActive) scrubHaptic.tick(state.activeLabel);
   };
   const handleMouseMove = (state: MouseHandlerDataParam) => {
     if (!usesTouchRef.current) reportScrub(state);
   };
   const endScrub = () => {
     fingerDownRef.current = false;
+    scrubHaptic.reset();
     onScrub?.(null);
   };
 
