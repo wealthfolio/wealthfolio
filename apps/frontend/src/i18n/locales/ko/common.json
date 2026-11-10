@@ -701,6 +701,10 @@
     "providerUnknown": "지원되는 제공업체를 선택하세요.",
     "providerUnavailable": "제공업체가 요청을 완료하지 못했습니다. 제공업체 설정을 확인하세요.",
     "customProviderCodeReserved": "이 공급자 코드는 예약되어 있습니다. 다른 코드를 선택하세요.",
-    "customProviderInUse": "삭제하기 전에 해당 자산의 공급자를 변경하거나 심볼 매핑을 제거하세요."
+    "customProviderInUse": "삭제하기 전에 해당 자산의 공급자를 변경하거나 심볼 매핑을 제거하세요.",
+    "addonManifestMissing": "애드온 ZIP 파일에 manifest.json이 없습니다.",
+    "addonMainFileMissing": "애드온 ZIP 파일에 매니페스트가 지정한 메인 파일이 없습니다.",
+    "addonNeedsNewerVersion": "이 애드온에는 최신 버전의 Wealthfolio가 필요합니다. Wealthfolio를 업데이트한 후 다시 시도하세요.",
+    "quoteCurrencyRequired": "호가 통화가 필요합니다. 검색 결과에서 심볼을 다시 선택하세요."
   }
 }

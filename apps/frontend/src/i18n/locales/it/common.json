@@ -729,6 +729,10 @@
     "providerUnknown": "Seleziona un fornitore supportato.",
     "providerUnavailable": "Il fornitore non ha potuto completare la richiesta. Controlla le impostazioni del fornitore.",
     "customProviderCodeReserved": "Questo codice fornitore è riservato. Scegli un altro codice.",
-    "customProviderInUse": "Cambia il fornitore degli asset interessati o rimuovi le relative associazioni dei simboli prima di eliminarlo."
+    "customProviderInUse": "Cambia il fornitore degli asset interessati o rimuovi le relative associazioni dei simboli prima di eliminarlo.",
+    "addonManifestMissing": "Il file ZIP del componente aggiuntivo non contiene manifest.json.",
+    "addonMainFileMissing": "Il file ZIP del componente aggiuntivo non contiene il file principale indicato nel suo manifest.",
+    "addonNeedsNewerVersion": "Questo componente aggiuntivo richiede una versione più recente di Wealthfolio. Aggiorna Wealthfolio e riprova.",
+    "quoteCurrencyRequired": "La valuta di quotazione è obbligatoria. Seleziona di nuovo il simbolo dai risultati di ricerca."
   }
 }

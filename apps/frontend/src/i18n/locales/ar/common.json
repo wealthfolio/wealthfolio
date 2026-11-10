@@ -780,6 +780,10 @@
     "providerUnknown": "اختر مزوّدًا مدعومًا.",
     "providerUnavailable": "تعذّر على المزوّد إكمال الطلب. تحقّق من إعدادات المزوّد.",
     "customProviderCodeReserved": "رمز مزوّد الخدمة هذا محجوز. اختر رمزًا آخر.",
-    "customProviderInUse": "غيّر مزوّد الخدمة للأصول المعنية أو أزل تعيينات رموزها قبل حذفه."
+    "customProviderInUse": "غيّر مزوّد الخدمة للأصول المعنية أو أزل تعيينات رموزها قبل حذفه.",
+    "addonManifestMissing": "لا يحتوي ملف ZIP للملحق على ملف manifest.json.",
+    "addonMainFileMissing": "لا يحتوي ملف ZIP للملحق على الملف الرئيسي الذي يحدده ملف manifest.",
+    "addonNeedsNewerVersion": "يتطلب هذا الملحق إصدارًا أحدث من Wealthfolio. حدّث Wealthfolio ثم حاول مجددًا.",
+    "quoteCurrencyRequired": "عملة التسعير مطلوبة. اختر الرمز مرة أخرى من نتائج البحث."
   }
 }
