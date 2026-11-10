@@ -768,8 +768,8 @@ function AttributionDetailMetric({
       <SheetContent
         side={isMobile ? "bottom" : "inline-end"}
         className={cn(
-          "flex w-full flex-col p-0",
-          isMobile ? "mx-1 h-[85vh] rounded-t-4xl" : "h-full sm:max-w-md",
+          "flex flex-col p-0",
+          isMobile ? "mx-1 h-[85vh] rounded-t-4xl" : "h-full w-full sm:max-w-md",
         )}
         showCloseButton={false}
       >

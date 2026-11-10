@@ -502,7 +502,7 @@ export function IssueDetailSheet({
         className={cn(
           "flex flex-col",
           isMobile
-            ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]"
+            ? "mx-1 h-full rounded-t-4xl [--overlay-max-height:90dvh]"
             : "w-full sm:max-w-xl lg:max-w-2xl",
         )}
       >
