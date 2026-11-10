@@ -324,7 +324,19 @@ export function PerformanceChart({
               orientation={compact ? "right" : "left"}
               mirror={compact}
               tickMargin={compact ? 0 : 8}
-              tick={compact ? { fontSize: "0.6875rem", dy: -7 } : undefined}
+              // Lines pass under these in-chart labels; a card-coloured outline keeps them legible.
+              tick={
+                compact
+                  ? {
+                      fontSize: "0.6875rem",
+                      dy: -7,
+                      stroke: "var(--card)",
+                      strokeWidth: 3,
+                      strokeLinejoin: "round",
+                      paintOrder: "stroke",
+                    }
+                  : undefined
+              }
             />
             <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeOpacity={0.45} />
             <ChartTooltip
