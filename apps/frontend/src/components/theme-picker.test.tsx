@@ -53,13 +53,14 @@ async function classReads(classes: string[]) {
 }
 
 describe("ThemePicker", () => {
-  it("offers every theme, Classic first, and checks the saved one", () => {
+  it("offers every theme, Signature first, and checks the saved one", () => {
     render(<ThemePicker value="ember" onChange={vi.fn()} />);
     const radios = screen.getAllByRole("radio");
     expect(radios.map((radio) => (radio as HTMLInputElement).value)).toEqual(
       themes.map(({ id }) => id),
     );
-    expect(radios[0]).toHaveAccessibleName("Classic");
+    expect(radios[0]).toHaveAccessibleName("Signature");
+    expect(radios[1]).toHaveAccessibleName("Classic");
     expect(screen.getByRole("radio", { name: /Ember/ })).toBeChecked();
   });
 
