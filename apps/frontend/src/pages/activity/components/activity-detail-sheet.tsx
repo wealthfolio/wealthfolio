@@ -1,3 +1,5 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionExpiration, formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
@@ -140,6 +142,7 @@ export function ActivityReviewReasons({
 
 export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDetailSheetProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const numberFormatting = useNumberFormatting();
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
@@ -184,7 +187,13 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "overflow-y-auto",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-lg",
+        )}
+      >
         <SheetHeader className="pb-4">
           <SheetTitle className="flex items-center gap-3">
             <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">

@@ -1,3 +1,5 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { ExternalLink } from "@/components/external-link";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
@@ -52,6 +54,7 @@ export function NewAccountsFoundModal({
   onComplete,
 }: NewAccountsFoundModalProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -127,7 +130,13 @@ export function NewAccountsFoundModal({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex h-full w-full flex-col p-0 sm:max-w-xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex h-full flex-col p-0",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-xl",
+        )}
+      >
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle className="flex items-center gap-2">
             <Icons.Users className="h-5 w-5" />
