@@ -72,9 +72,6 @@
     "return": "リターン",
     "time_weighted_return": "時間加重リターン",
     "time_weighted_short": "時間加重",
-    "twr_short": "TWR",
-    "annualized_twr": "年率TWR",
-    "ann_twr_short": "年率TWR",
     "money_weighted_return": "金額加重リターン",
     "money_weighted_short": "金額加重",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "年率MWR",
     "value_return": "評価額リターン",
     "value_return_short": "評価額リターン",
-    "value_short": "評価額",
     "price_return": "価格リターン",
     "price_return_short": "価格リターン",
-    "price_short": "価格",
     "volatility": "ボラティリティ",
-    "vol_short": "ボラ",
     "max_drawdown": "最大ドローダウン",
     "max_drawdown_short": "最大ドローダウン",
     "drawdown_short": "ドローダウン",
@@ -95,11 +89,6 @@
     "annualized_short": "年率",
     "gain_loss": "損益",
     "gain_loss_info": "選択した期間の損益合計です。指標を開くと要因の内訳を確認できます。"
-  },
-  "section": {
-    "returns": "リターン",
-    "risk": "リスク",
-    "total": "合計"
   },
   "help": {
     "aria_label": "パフォーマンス指標の説明",
@@ -149,5 +138,13 @@
     "holdings_volatility": "口座価値の変化のボラティリティです。入出金の調整を行わず、日次評価額に基づいて計算します。市場価値の変動の大きさを示します。",
     "holdings_max_drawdown": "口座価値のピークから底までの最大下落幅です。入出金の調整を行わず、日次評価額に基づいて計算します。"
   },
-  "compare_over_time": "口座の運用成績の推移を比較"
+  "compare_over_time": "口座の運用成績の推移を比較",
+  "series_table": {
+    "label": "比較中の系列",
+    "name": "名前",
+    "show_all": "すべて表示（{{count}}）",
+    "show_less": "表示を減らす",
+    "hide_on_chart": "{{name}} をグラフで非表示",
+    "show_on_chart": "{{name}} をグラフに表示"
+  }
 }

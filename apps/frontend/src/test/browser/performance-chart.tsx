@@ -1,7 +1,8 @@
 import { PerformanceChart } from "@/components/performance-chart";
 
-// Two years of synthetic daily returns: an account and a dashed benchmark, wavy
-// enough that the benchmark is a long path with thousands of dashes, as in #2436.
+// Two years of synthetic daily returns: the active account (a filled area) and a
+// benchmark line, wavy enough that the line is a long path, as in #2436. Recharts
+// draws a line in by rewriting its stroke-dasharray every frame.
 function returns(seed: number) {
   const start = Date.UTC(2024, 0, 1);
   return Array.from({ length: 730 }, (_, day) => ({
@@ -12,7 +13,7 @@ function returns(seed: number) {
 
 const series = [
   { id: "account", name: "Synthetic account", returns: returns(1) },
-  { id: "benchmark", name: "Synthetic benchmark", returns: returns(2), isReference: true },
+  { id: "benchmark", name: "Synthetic benchmark", returns: returns(2) },
 ];
 
 export function PerformanceChartFixture() {

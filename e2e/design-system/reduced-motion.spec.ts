@@ -69,13 +69,15 @@ test("the performance chart draws without animating when the system asks for red
   const dashWrites = async (reducedMotion: "reduce" | "no-preference") => {
     await page.emulateMedia({ reducedMotion });
     await page.goto("/e2e/design-system/?chart");
-    await expect(page.locator("path.recharts-line-curve")).toHaveCount(2);
-    // The lines draw in over 300 ms.
+    // The active series is a filled area; the benchmark is a line.
+    await expect(page.locator("path.recharts-area-curve")).toHaveCount(1);
+    await expect(page.locator("path.recharts-line-curve")).toHaveCount(1);
+    // The series draw in over 300 ms.
     await page.waitForTimeout(1000);
     return page.evaluate(() => (window as unknown as { dashWrites: number }).dashWrites);
   };
-  // Without the setting both lines draw in, the benchmark by rewriting its dash
-  // list every frame.
+  // Without the setting the series draw in, the benchmark line by rewriting its
+  // dash list every frame.
   expect(await dashWrites("no-preference")).toBeGreaterThan(5);
   expect(await dashWrites("reduce")).toBe(0);
 });
