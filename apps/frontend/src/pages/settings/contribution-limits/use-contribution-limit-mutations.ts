@@ -8,7 +8,7 @@ import {
 } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import { NewContributionLimit, DepositsCalculation } from "@/lib/types";
+import { ContributionLimit, NewContributionLimit, DepositsCalculation } from "@/lib/types";
 import { logger } from "@/adapters";
 
 export const useContributionLimitProgress = (limitId: string) => {
@@ -76,11 +76,29 @@ export const useContributionLimitMutations = () => {
     },
   });
 
+  // The portfolio update a delete starts refetches every mounted query when it
+  // ends, which can be before the delete answers or the list refreshes. Keep
+  // the deleted limit's card unmounted so its progress isn't refetched.
+  const removeCachedLimit = (limitId: string) =>
+    queryClient.setQueryData<ContributionLimit[]>([QueryKeys.CONTRIBUTION_LIMITS], (limits) =>
+      limits?.filter((limit) => limit.id !== limitId),
+    );
+
   const deleteContributionLimitMutation = useMutation({
     mutationFn: deleteContributionLimit,
-    // The deleted card can still observe progress until the limits list refreshes.
-    onSuccess: () => handleSuccess(i18n.t("settings:messages.contribution.deleted"), false),
+    onMutate: async (limitId: string) => {
+      await queryClient.cancelQueries({ queryKey: [QueryKeys.CONTRIBUTION_LIMITS] });
+      removeCachedLimit(limitId);
+    },
+    onSuccess: (_, limitId) => {
+      // A list refresh while the delete was pending can have brought it back.
+      removeCachedLimit(limitId);
+      handleSuccess(i18n.t("settings:messages.contribution.deleted"), false);
+    },
     onError: (e) => {
+      // Show the server's list again rather than an older copy, which could
+      // bring back a limit another delete removed meanwhile.
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.CONTRIBUTION_LIMITS] });
       logger.error(`Error deleting contribution limit: ${String(e)}`);
       handleError("delete");
     },
