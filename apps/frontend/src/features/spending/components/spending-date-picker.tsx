@@ -103,10 +103,12 @@ export function SpendingDatePicker({
       type="button"
       data-no-swipe-drag
       variant={selectionLabel ? "ghost" : active ? "default" : "ghost"}
-      size={selectionLabel ? "sm" : "icon"}
+      // icon-xs keeps the icon button the size of the period pills beside it on a
+      // phone, with an invisible 48px tap area, where icon grows it to 44px.
+      size={selectionLabel ? "sm" : "icon-xs"}
       className={cn(
         "shrink-0 rounded-full",
-        selectionLabel ? "h-11 gap-1 px-2 font-medium sm:h-8" : "h-8 w-8",
+        selectionLabel && "h-11 gap-1 px-2 font-medium sm:h-8",
         !selectionLabel && (appearance === "header" ? "w-9" : !active && "bg-muted"),
       )}
       aria-label={
