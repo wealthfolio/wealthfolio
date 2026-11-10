@@ -72,9 +72,6 @@
     "return": "Return",
     "time_weighted_return": "Time-Weighted Return",
     "time_weighted_short": "Time-weighted",
-    "twr_short": "TWR",
-    "annualized_twr": "Annualized TWR",
-    "ann_twr_short": "Ann. TWR",
     "money_weighted_return": "Money-Weighted Return",
     "money_weighted_short": "Money-weighted",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "Ann. MWR",
     "value_return": "Value Return",
     "value_return_short": "Value return",
-    "value_short": "Value",
     "price_return": "Price Return",
     "price_return_short": "Price return",
-    "price_short": "Price",
     "volatility": "Volatility",
-    "vol_short": "Vol",
     "max_drawdown": "Max Drawdown",
     "max_drawdown_short": "Max drawdown",
     "drawdown_short": "Drawdown",
@@ -95,11 +89,6 @@
     "annualized_short": "Annualized",
     "gain_loss": "Gain / loss",
     "gain_loss_info": "Total profit or loss over the selected period. Open the metric for attribution details."
-  },
-  "section": {
-    "returns": "Returns",
-    "risk": "Risk",
-    "total": "Total"
   },
   "help": {
     "aria_label": "Performance metric explanations",
@@ -149,5 +138,13 @@
     "holdings_volatility": "Volatility of account value changes. Based on daily valuations without adjusting for deposits or withdrawals. Reflects how much the market value fluctuates.",
     "holdings_max_drawdown": "Largest peak-to-trough decline in account value. Based on daily valuations without adjusting for deposits or withdrawals."
   },
-  "compare_over_time": "Compare account performance over time"
+  "compare_over_time": "Compare account performance over time",
+  "series_table": {
+    "label": "Compared series",
+    "name": "Name",
+    "show_all": "Show all ({{count}})",
+    "show_less": "Show less",
+    "hide_on_chart": "Hide {{name}} on chart",
+    "show_on_chart": "Show {{name}} on chart"
+  }
 }

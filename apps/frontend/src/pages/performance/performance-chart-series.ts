@@ -11,7 +11,6 @@ export interface ComparableChartDataItem {
   id: string;
   name: string;
   returns: ReturnData[];
-  isReference?: boolean;
 }
 
 type ChartSeriesGroup = "marketComparison" | "valueReturn";
@@ -162,7 +161,6 @@ export function comparablePerformanceChartData(
       id: item.id,
       name: item.name,
       returns,
-      isReference: item.mode === "symbolPriceBased",
     };
   });
 }
