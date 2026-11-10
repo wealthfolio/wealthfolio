@@ -336,6 +336,7 @@ interface LocaleNumberSymbols {
   group?: string;
   currencyGroup?: string;
   integerFormatter: Intl.NumberFormat;
+  numberingSystem: string;
 }
 
 const localeNumberSymbols = new Map<string, LocaleNumberSymbols>();
@@ -346,16 +347,18 @@ function getLocaleNumberSymbols(locale: string): LocaleNumberSymbols {
   if (cached) return cached;
 
   const parts = new Intl.NumberFormat(locale).formatToParts(12345.6);
+  const integerFormatter = new Intl.NumberFormat(locale, {
+    useGrouping: true,
+    maximumFractionDigits: 0,
+  });
   const symbols = {
     decimal: parts.find((part) => part.type === "decimal")?.value,
     group: parts.find((part) => part.type === "group")?.value,
     currencyGroup: new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" })
       .formatToParts(12345.6)
       .find((part) => part.type === "group")?.value,
-    integerFormatter: new Intl.NumberFormat(locale, {
-      useGrouping: true,
-      maximumFractionDigits: 0,
-    }),
+    integerFormatter,
+    numberingSystem: integerFormatter.resolvedOptions().numberingSystem,
   };
   localeNumberSymbols.set(locale, symbols);
   return symbols;
@@ -424,7 +427,9 @@ function stripFinancialAffixes(value: string, locale: string): FinancialNumberIn
     .trim();
   if (/\p{L}|\p{Sc}/u.test(result)) return null;
   const hasCurrencyAffix = result !== value.trim();
-  result = result.replace(/^−/, "-");
+  // In locales such as ar-EG, the parser reads a bare "+" as Arabic notation and
+  // then treats Latin "." and "," as Arabic separator aliases.
+  result = result.replace(/^−/, "-").replace(/^\+(?=\d|\.\d)/, "");
   return result ? { value: result, hasCurrencyAffix } : null;
 }
 
@@ -450,7 +455,7 @@ function hasValidGrouping(value: string, locale: string, parsed: number): boolea
 }
 
 const INVARIANT_NUMBER_PATTERN =
-  /^[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+  /^[+-]?(?:(?:[1-9]\d{0,2}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function normalizeCurrencyGrouping(input: FinancialNumberInput, locale: string): string {
   const { hasCurrencyAffix } = input;
@@ -464,6 +469,15 @@ function normalizeCurrencyGrouping(input: FinancialNumberInput, locale: string):
   return currencyGroup && currencyGroup !== group ? value.replaceAll(currencyGroup, group) : value;
 }
 
+// Locales such as ar-EG default to non-Latin digits but also accept Latin ones,
+// whose separators differ, so Latin-digit text is checked against Latin grouping.
+// Other numbering systems keep the locale, whose parser accepts separator aliases.
+function numberingSystemLocale(value: string, locale: string, parser: NumberParser): string {
+  if (getLocaleNumberSymbols(locale).numberingSystem === "latn") return locale;
+  if (parser.getNumberingSystem(value) !== "latn") return locale;
+  return new Intl.Locale(locale, { numberingSystem: "latn" }).toString();
+}
+
 function parsePreparedNumber(
   input: FinancialNumberInput,
   locale: string,
@@ -472,7 +486,8 @@ function parsePreparedNumber(
   const { value } = input;
   const localizedValue = normalizeCurrencyGrouping(input, locale);
   const localized = parser.parse(localizedValue);
-  if (Number.isFinite(localized) && hasValidGrouping(localizedValue, locale, localized)) {
+  const valueLocale = numberingSystemLocale(localizedValue, locale, parser);
+  if (Number.isFinite(localized) && hasValidGrouping(localizedValue, valueLocale, localized)) {
     return localized;
   }
   if (!INVARIANT_NUMBER_PATTERN.test(value)) return undefined;
@@ -506,8 +521,9 @@ function parsePreparedDecimalString(
   const { value } = input;
   const localizedValue = normalizeCurrencyGrouping(input, locale);
   const localized = parser.parse(localizedValue);
-  if (Number.isFinite(localized) && hasValidGrouping(localizedValue, locale, localized)) {
-    return localizedNumberToInvariant(localizedValue, locale);
+  const valueLocale = numberingSystemLocale(localizedValue, locale, parser);
+  if (Number.isFinite(localized) && hasValidGrouping(localizedValue, valueLocale, localized)) {
+    return localizedNumberToInvariant(localizedValue, valueLocale);
   }
   if (!INVARIANT_NUMBER_PATTERN.test(value)) return undefined;
   return normalizeInvariantNumberString(value);
