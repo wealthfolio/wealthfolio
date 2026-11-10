@@ -432,7 +432,8 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
       </div>
 
       {/* ── Sidebar ── */}
-      <div className="space-y-6 lg:sticky lg:top-6 lg:col-span-1 lg:self-start">
+      {/* Pins 1.5rem below the page's sticky header, not under it. */}
+      <div className="space-y-6 lg:sticky lg:top-[calc(var(--page-header-height,0px)+1.5rem)] lg:col-span-1 lg:self-start">
         <SidebarCard
           kicker={t("goals:save_up.plan_kicker")}
           title={t("goals:save_up.savings_inputs")}
