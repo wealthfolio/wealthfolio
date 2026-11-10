@@ -118,6 +118,16 @@ impl Error {
                 "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
             Self::Validation(_) => PublicError::invalid_input(),
+            // The asset editor names this refusal; the code is fixed by core,
+            // so only the static message below leaves the process.
+            Self::ConstraintViolation(message)
+                if message.starts_with(ASSET_IDENTITY_CONFLICT_PREFIX) =>
+            {
+                PublicError::new(
+                    "ASSET_IDENTITY_CONFLICT",
+                    "An asset with this identity already exists. Your changes were not saved.",
+                )
+            }
             Self::ConstraintViolation(_)
             | Self::Database(
                 DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
@@ -129,6 +139,10 @@ impl Error {
         }
     }
 }
+
+/// Prefix of the core refusal raised when an asset profile edit would collide
+/// with another asset's identity (symbol, exchange, instrument type).
+pub const ASSET_IDENTITY_CONFLICT_PREFIX: &str = "ASSET_IDENTITY_CONFLICT:";
 
 /// Type alias for Result using our Error type.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -460,6 +474,24 @@ mod public_error_tests {
             PublicError::from_error(wrapped.as_ref()).error_code,
             "invalid_input"
         );
+    }
+
+    #[test]
+    fn asset_identity_conflict_keeps_its_public_code_without_details() {
+        let public = Error::ConstraintViolation(format!(
+            "{ASSET_IDENTITY_CONFLICT_PREFIX} FAKE-KEY-2531 /private/portfolio.db"
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "ASSET_IDENTITY_CONFLICT");
+        let json = serde_json::to_string(&public).unwrap();
+        assert!(
+            !json.contains("FAKE-KEY") && !json.contains("/private"),
+            "{json}"
+        );
+
+        // Only the leading code counts; other constraint failures stay generic.
+        let other = Error::ConstraintViolation("UNIQUE failed: ASSET_IDENTITY_CONFLICT:".into());
+        assert_eq!(other.public_error().error_code, "conflict");
     }
 
     #[test]
