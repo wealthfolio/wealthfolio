@@ -110,6 +110,9 @@
     "search": "Search ...",
     "reset": "Reset",
     "columns": "Columns",
+    "moveColumnUp": "Move {{column}} up",
+    "moveColumnDown": "Move {{column}} down",
+    "resetColumnOrder": "Reset column order",
     "sortAsc": "Asc",
     "sortDesc": "Desc",
     "hide": "Hide"

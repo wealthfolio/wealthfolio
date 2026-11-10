@@ -111,6 +111,9 @@
     "search": "Buscar ...",
     "reset": "Redefinir",
     "columns": "Colunas",
+    "moveColumnUp": "Mover {{column}} para cima",
+    "moveColumnDown": "Mover {{column}} para baixo",
+    "resetColumnOrder": "Redefinir ordem das colunas",
     "sortAsc": "Asc",
     "sortDesc": "Desc",
     "hide": "Ocultar"

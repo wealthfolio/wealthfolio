@@ -111,6 +111,9 @@
     "search": "Rechercher ...",
     "reset": "Réinitialiser",
     "columns": "Colonnes",
+    "moveColumnUp": "Monter {{column}}",
+    "moveColumnDown": "Descendre {{column}}",
+    "resetColumnOrder": "Réinitialiser l'ordre des colonnes",
     "sortAsc": "Croissant",
     "sortDesc": "Décroissant",
     "hide": "Masquer"

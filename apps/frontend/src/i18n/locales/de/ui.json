@@ -110,6 +110,9 @@
     "search": "Suchen ...",
     "reset": "Zurücksetzen",
     "columns": "Spalten",
+    "moveColumnUp": "{{column}} nach oben verschieben",
+    "moveColumnDown": "{{column}} nach unten verschieben",
+    "resetColumnOrder": "Spaltenreihenfolge zurücksetzen",
     "sortAsc": "Aufst.",
     "sortDesc": "Abst.",
     "hide": "Ausblenden"

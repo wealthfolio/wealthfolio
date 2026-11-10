@@ -98,6 +98,9 @@
   },
   "dataTable": {
     "columns": "الأعمدة",
+    "moveColumnUp": "نقل {{column}} لأعلى",
+    "moveColumnDown": "نقل {{column}} لأسفل",
+    "resetColumnOrder": "إعادة تعيين ترتيب الأعمدة",
     "firstPage": "الانتقال إلى الصفحة الأولى",
     "hide": "إخفاء",
     "jumpToPage": "أدخل رقم صفحة بين 1 و{{totalPages}}",
