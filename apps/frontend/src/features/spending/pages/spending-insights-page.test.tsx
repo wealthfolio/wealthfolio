@@ -761,7 +761,7 @@ it.each(["ltr", "rtl"] as const)(
       </DirectionProvider>,
     );
     const notice = screen.getByText("Multi-currency:").parentElement!;
-    expect(stripBidiControls(notice.textContent ?? "")).toContain("12.346 USDT + 6789 MyCoin");
+    expect(stripBidiControls(notice.textContent ?? "")).toContain("12.346 USDT + 6.789 MyCoin");
   },
 );
 
