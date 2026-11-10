@@ -152,7 +152,15 @@
     "portfolio_share": "Quota del valore del portafoglio, liquidità inclusa",
     "largest": "Posizione più grande",
     "top_five": "Le cinque posizioni principali",
-    "concentration_unavailable": "La concentrazione richiede valori delle posizioni positivi e un portafoglio senza posizioni corte."
+    "concentration_unavailable": "La concentrazione richiede valori delle posizioni positivi e un portafoglio senza posizioni corte.",
+    "holdings": "Posizioni",
+    "holdings_count_one": "{{count}} posizione",
+    "holdings_count_many": "{{count}} posizioni",
+    "holdings_count_other": "{{count}} posizioni",
+    "other_holdings_one": "{{count}} altra posizione",
+    "other_holdings_many": "{{count}} altre posizioni",
+    "other_holdings_other": "{{count}} altre posizioni",
+    "holdings_unavailable": "Il grafico delle posizioni richiede valori positivi e un portafoglio senza posizioni corte."
   },
   "customize": {
     "edit": "Personalizza",

@@ -147,7 +147,11 @@
     "portfolio_share": "佔投資組合價值的比例（含現金）",
     "largest": "最大持有部位",
     "top_five": "前五大持有部位",
-    "concentration_unavailable": "集中度計算需要持有部位的價值為正，且投資組合中沒有放空部位。"
+    "concentration_unavailable": "集中度計算需要持有部位的價值為正，且投資組合中沒有放空部位。",
+    "holdings": "持倉",
+    "holdings_count_other": "{{count}} 個持倉",
+    "other_holdings_other": "其他 {{count}} 個持倉",
+    "holdings_unavailable": "持倉圖表需要正的持倉價值，且投資組合中沒有空頭部位。"
   },
   "customize": {
     "edit": "自訂",

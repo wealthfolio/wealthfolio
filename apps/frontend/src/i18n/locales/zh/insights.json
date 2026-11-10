@@ -145,7 +145,11 @@
     "portfolio_share": "占投资组合价值的比例（含现金）",
     "largest": "最大持仓",
     "top_five": "前五大持仓",
-    "concentration_unavailable": "集中度计算要求持仓价值为正，且投资组合中没有空头头寸。"
+    "concentration_unavailable": "集中度计算要求持仓价值为正，且投资组合中没有空头头寸。",
+    "holdings": "持仓",
+    "holdings_count_other": "{{count}} 个持仓",
+    "other_holdings_other": "其他 {{count}} 个持仓",
+    "holdings_unavailable": "持仓图表需要正的持仓价值，且投资组合中没有空头头寸。"
   },
   "customize": {
     "edit": "自定义",

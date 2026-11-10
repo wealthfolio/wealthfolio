@@ -11,7 +11,7 @@ import {
 } from "./insights-layout";
 
 describe("insights layout preferences", () => {
-  it.each([undefined, null, {}, { version: 7 }, { version: 1, hiddenWidgets: [], layouts: {} }])(
+  it.each([undefined, null, {}, { version: 8 }, { version: 1, hiddenWidgets: [], layouts: {} }])(
     "falls back for unsupported or missing settings: %j",
     (value) => {
       expect(readInsightsLayout(value)).toEqual(defaultInsightsLayout());
@@ -20,11 +20,15 @@ describe("insights layout preferences", () => {
 
   const withoutNewWidgets = (
     items: ReturnType<typeof defaultInsightsLayout>["layouts"]["desktop"],
-  ) => items.filter((item) => item.i !== "movers" && item.i !== "concentration");
+  ) =>
+    items.filter(
+      (item) => item.i !== "movers" && item.i !== "concentration" && item.i !== "holdings",
+    );
   function previousDefaults() {
     const defaults = defaultInsightsLayout();
     for (const key of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[])
       defaults.layouts[key] = withoutNewWidgets(defaults.layouts[key]);
+    defaults.hiddenWidgets = [];
     return defaults;
   }
 
@@ -64,7 +68,7 @@ describe("insights layout preferences", () => {
       const legacy = legacyLayout(version);
       const snapshot = structuredClone(legacy);
       const migrated = readInsightsLayout(legacy);
-      expect(migrated.version).toBe(6);
+      expect(migrated.version).toBe(7);
       expect(migrated.hiddenWidgets).toEqual([
         "value",
         "cash",
@@ -90,6 +94,7 @@ describe("insights layout preferences", () => {
           "breakdown",
           "movers",
           "concentration",
+          "holdings",
         ]);
         expect(layout.find((item) => item.i === "value")?.y).toBe(322);
         const extraRows = key === "mobile" || key === "tablet" ? 2 : 0;
@@ -165,7 +170,7 @@ describe("insights layout preferences", () => {
     }
     previous.hiddenWidgets = ["cash", "regions"];
     const migrated = readInsightsLayout({ ...previous, version: 3 });
-    expect(migrated.version).toBe(6);
+    expect(migrated.version).toBe(7);
     expect(migrated.hiddenWidgets).toEqual(["cash", "regions"]);
     expect(migrated.layouts.desktop.slice(0, 5).map(({ i, x, w }) => [i, x, w])).toEqual([
       ["value", 0, 4],
@@ -224,7 +229,7 @@ describe("insights layout preferences", () => {
     previous.layouts.desktop.find((item) => item.i === "breakdown")!.y = 4000;
     const snapshot = structuredClone(previous);
     const migrated = readInsightsLayout({ ...previous, version: 5 });
-    expect(migrated.version).toBe(6);
+    expect(migrated.version).toBe(7);
     expect(migrated.hiddenWidgets).toEqual(["cash", "regions"]);
     for (const key of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[]) {
       expect(withoutNewWidgets(migrated.layouts[key])).toEqual(
@@ -254,10 +259,65 @@ describe("insights layout preferences", () => {
         "concentration",
       ]);
       const previousBottom = Math.max(
-        ...withoutNewWidgets(defaults.layouts[key]).map((item) => item.y + item.h),
+        ...defaults.layouts[key]
+          .filter((item) => item.i !== "movers" && item.i !== "concentration")
+          .map((item) => item.y + item.h),
       );
       expect(defaults.layouts[key].find((item) => item.i === "movers")?.y).toBe(previousBottom);
     }
+  });
+
+  it("places the holdings donut beside Breakdown on desktop and below it elsewhere", () => {
+    const defaults = defaultInsightsLayout();
+    for (const key of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[]) {
+      const layout = defaults.layouts[key];
+      const breakdown = layout.find((item) => item.i === "breakdown")!;
+      const holdings = layout.find((item) => item.i === "holdings")!;
+      if (key === "desktop") {
+        expect(breakdown).toMatchObject({ x: 0, w: 6 });
+        expect(holdings).toMatchObject({ x: 6, y: breakdown.y, w: 6, h: breakdown.h });
+      } else {
+        expect(holdings).toMatchObject({
+          x: 0,
+          y: breakdown.y + breakdown.h,
+          w: GRID_COLUMNS[key],
+        });
+      }
+      for (const other of layout.filter((item) => item.i !== "holdings")) {
+        const overlaps =
+          holdings.x < other.x + other.w &&
+          holdings.x + holdings.w > other.x &&
+          holdings.y < other.y + other.h &&
+          holdings.y + holdings.h > other.y;
+        expect(overlaps, other.i).toBe(false);
+      }
+    }
+  });
+
+  it("migrates v6 by appending a visible holdings donut without moving saved cards", () => {
+    const previous = defaultInsightsLayout();
+    for (const key of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[])
+      previous.layouts[key] = previous.layouts[key].filter((item) => item.i !== "holdings");
+    previous.hiddenWidgets = ["sectors"];
+    previous.layouts.desktop.find((item) => item.i === "movers")!.y = 5000;
+    const migrated = readInsightsLayout({ ...previous, version: 6 });
+    expect(migrated.version).toBe(7);
+    expect(migrated.hiddenWidgets).toEqual(["sectors"]);
+    for (const key of Object.keys(GRID_COLUMNS) as LayoutBreakpoint[]) {
+      expect(migrated.layouts[key].slice(0, -1)).toEqual(
+        normalizeLayout(previous.layouts[key], key),
+      );
+      expect(migrated.layouts[key].at(-1)).toMatchObject({
+        i: "holdings",
+        y: Math.max(...previous.layouts[key].map((item) => item.y + item.h)),
+      });
+    }
+  });
+
+  it("keeps a hidden holdings donut hidden when reading v7", () => {
+    const saved = defaultInsightsLayout();
+    saved.hiddenWidgets = ["holdings"];
+    expect(readInsightsLayout(saved).hiddenWidgets).toEqual(["holdings"]);
   });
 
   it("rejects duplicate widgets and invalid geometry", () => {

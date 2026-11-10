@@ -145,7 +145,11 @@
     "portfolio_share": "現金を含むポートフォリオ評価額に占める割合",
     "largest": "最大の保有銘柄",
     "top_five": "上位5銘柄",
-    "concentration_unavailable": "集中度を表示するには、保有銘柄の評価額が正で、空売りポジションがない必要があります。"
+    "concentration_unavailable": "集中度を表示するには、保有銘柄の評価額が正で、空売りポジションがない必要があります。",
+    "holdings": "保有銘柄",
+    "holdings_count_other": "{{count}} 銘柄",
+    "other_holdings_other": "その他 {{count}} 銘柄",
+    "holdings_unavailable": "保有銘柄チャートには、正の評価額と空売りポジションのないポートフォリオが必要です。"
   },
   "customize": {
     "edit": "カスタマイズ",
