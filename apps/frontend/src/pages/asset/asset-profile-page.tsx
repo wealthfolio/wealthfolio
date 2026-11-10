@@ -1558,7 +1558,7 @@ export const AssetProfilePage = () => {
       >
         <div className="group/asset-header flex items-center gap-2" data-tauri-drag-region="true">
           {isAltAsset && altHolding ? (
-            <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-full">
+            <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full md:size-9">
               <AlternativeAssetIcon kind={altHolding.kind} size={20} />
             </div>
           ) : (
@@ -1575,7 +1575,8 @@ export const AssetProfilePage = () => {
                 }
                 instrumentType={holding?.instrument?.instrumentType ?? assetProfile?.instrumentType}
                 assetId={assetProfile?.id ?? assetId}
-                className="size-9"
+                // A step larger on phones, next to the two-line name.
+                className="size-10 md:size-9"
                 onEdit={() => setLogoDialogOpen(true)}
               />
             )
@@ -1588,7 +1589,7 @@ export const AssetProfilePage = () => {
             >
               {assetProfile?.name ?? holding?.instrument?.name ?? assetId ?? "-"}
             </h1>
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs leading-tight md:text-sm">
+            <p className="text-muted-foreground flex items-center gap-1 text-xs leading-tight md:gap-1.5 md:text-sm">
               {isAltAsset && altHolding ? (
                 (altHolding.metadata?.sub_type ?? altHolding.metadata?.liability_type) ===
                 "mortgage" ? (
@@ -1609,8 +1610,8 @@ export const AssetProfilePage = () => {
                             size="icon"
                             className={cn(
                               // The touch minimum would make this 44px and push the line apart; a
-                              // 24px target is enough for a secondary action.
-                              "ms-0.5 size-6 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity] pointer-coarse:min-h-0 pointer-coarse:min-w-0 max-lg:min-h-0 max-lg:min-w-0 pointer-fine:md:h-5",
+                              // 20×24px target is enough for a secondary action.
+                              "ms-1 h-6 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity] pointer-coarse:min-h-0 pointer-coarse:min-w-0 max-lg:min-h-0 max-lg:min-w-0 pointer-fine:md:h-5",
                               // Hidden until hover only for a mouse; touch screens always show it.
                               "pointer-fine:md:ms-0 pointer-fine:md:w-0 pointer-fine:md:opacity-0 md:focus-visible:ms-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ms-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
                               symbolCopied &&
@@ -1632,7 +1633,7 @@ export const AssetProfilePage = () => {
                   </span>
                   {(assetProfile?.quoteCcy ?? profile?.currency) && (
                     <>
-                      <span aria-hidden="true" className="md:hidden">
+                      <span aria-hidden="true" className="pe-0.5 md:hidden">
                         ·
                       </span>
                       <span className="bg-muted-foreground/40 hidden h-3 w-px rounded-full md:block" />
