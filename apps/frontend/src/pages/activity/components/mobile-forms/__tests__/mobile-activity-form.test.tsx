@@ -75,6 +75,12 @@ vi.mock("../mobile-details-step", async () => {
           </button>
           <button
             type="button"
+            onClick={() => form.setValue("fee", undefined, { shouldDirty: true })}
+          >
+            Clear fee
+          </button>
+          <button
+            type="button"
             onClick={() => {
               form.setValue("accountId", "acc_1");
               form.setValue("currency", "USD");
@@ -424,6 +430,54 @@ describe("saved charges on a phone edit", () => {
         expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
       ),
     );
+  });
+
+  it("saves a cleared fee as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "5" });
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
+      ),
+    );
+  });
+
+  it("leaves both legs' fees as stored when a securities transfer's fee is cleared", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    render(
+      <MobileActivityForm
+        accounts={[...accounts, { value: "acc_2", label: "Other account", currency: "USD" }]}
+        open
+        onClose={vi.fn()}
+        activity={{
+          id: "pair-out",
+          activityType: ActivityType.TRANSFER_OUT,
+          accountId: "acc_1",
+          counterpartAccountId: "acc_2",
+          currency: "USD",
+          assetId: "asset-aapl",
+          assetSymbol: "AAPL",
+          quantity: "2",
+          unitPrice: "100",
+          fee: "5",
+          transferOutId: "pair-out",
+          transferInId: "pair-in",
+          date: new Date("2026-01-18T00:00:00Z"),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    const { updates } = noopMutation.mutateAsync.mock.calls[0][0];
+    expect(updates.map((leg: { id: string }) => leg.id)).toEqual(["pair-out", "pair-in"]);
+    for (const leg of updates) expect(leg.fee).toBeUndefined();
   });
 
   it("opens a saved charge with its value", () => {
