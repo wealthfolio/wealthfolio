@@ -160,8 +160,11 @@ impl NavIndex {
             let &[code, payout_isin, reinvestment_isin, name, plan, option, nav, date] =
                 fields.as_slice()
             else {
-                if let Some(category) = heading_category(line) {
-                    debt = is_debt_category(category);
+                // Category headings name schemes; fund-house names don't. A
+                // heading in a shape `heading_category` doesn't read ends the
+                // previous category instead of inheriting it.
+                if line.contains("Scheme") {
+                    debt = heading_category(line).is_some_and(is_debt_category);
                 }
                 continue;
             };
@@ -1543,6 +1546,27 @@ Tata Mutual Fund\r
         for symbol in ["122639", "119635", "120669"] {
             assert_eq!(allocation(symbol).await, None, "{symbol}");
         }
+    }
+
+    #[test]
+    fn nav_all_heading_in_another_shape_ends_a_debt_category() {
+        let index = NavIndex::parse(
+            "Open Ended Schemes(Debt Scheme - Liquid Fund)\r
+PPFAS Mutual Fund\r
+143263;-;INF879O01118;Parag Parikh Liquid Fund;Direct Plan;Daily Reinvestment of IDCW;1000.5405;09-Nov-2026\r
+Open Ended Schemes - Equity Scheme - Flexi Cap Fund\r
+PPFAS Mutual Fund\r
+122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth;88.8018;28-Oct-2026\r
+",
+        );
+        let debt = |code: &str| {
+            index
+                .find(&SchemeRef::Code(code.to_string()))
+                .map(|row| row.debt)
+        };
+
+        assert_eq!(debt("143263"), Some(true));
+        assert_eq!(debt("122639"), Some(false));
     }
 
     #[test]
