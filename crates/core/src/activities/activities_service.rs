@@ -23,7 +23,10 @@
 //! - A patch that changes neither the amount nor the economics never changes
 //!   review state. A currency-only edit is deliberately not an economics
 //!   change: it is a label correction on real data, and re-deriving from
-//!   qty x price would replace an already-correct total.
+//!   qty x price would replace an already-correct total. The same holds for
+//!   a listing correction - another exchange or crypto quote currency for
+//!   the same symbol and instrument type: the row moves to that asset and
+//!   keeps its total.
 //! - `unit_price`, `amount`, `fee`, and `tax` are all denominated in the
 //!   activity currency. The asset quote currency belongs to market valuation,
 //!   not transaction arithmetic; only the resolved asset multiplier affects
@@ -234,7 +237,8 @@ struct UpdateTradeFacts {
     /// The patch swaps the instrument - by a different resolved id, or by a
     /// bare symbol that names something other than the current asset. An
     /// economics change even though `get_symbol_id()` may be empty (bare
-    /// symbols resolve later, in prepare).
+    /// symbols resolve later, in prepare). Another listing of the same
+    /// symbol and instrument type is not a swap.
     replaces_asset: bool,
 }
 
@@ -714,9 +718,8 @@ impl ActivityService {
             .quote_ccy;
         }
         // The row's asset is resolved the way prepare resolves it, so a patch
-        // that moves the row to another asset - by symbol, exchange, crypto
-        // quote currency or instrument type - counts as a replacement and is
-        // priced with that asset's multiplier.
+        // that moves the row to another asset uses that asset's multiplier.
+        // A listing correction alone preserves the stored total.
         let resolved_asset_id = match activity.get_symbol_id() {
             Some(asset_id)
                 if Some(asset_id) != existing.asset_id.as_deref() || existing_asset.is_none() =>
@@ -788,7 +791,17 @@ impl ActivityService {
                 is_crypto: is_crypto_asset(asset.as_ref()),
                 existing_is_crypto,
                 quote_ccy: asset.as_ref().map(|asset| asset.quote_ccy.clone()),
-                replaces_asset: true,
+                replaces_asset: !asset.as_ref().is_some_and(|asset| {
+                    Self::names_same_instrument(
+                        existing_asset.as_ref(),
+                        asset
+                            .instrument_symbol
+                            .as_deref()
+                            .or(asset.display_code.as_deref()),
+                        asset.instrument_type.as_ref(),
+                        asset.instrument_exchange_mic.as_deref(),
+                    )
+                }),
             };
         }
         let patch_symbol = activity
@@ -831,7 +844,12 @@ impl ActivityService {
                 is_crypto: submitted_instrument_type == Some(InstrumentType::Crypto),
                 existing_is_crypto,
                 quote_ccy,
-                replaces_asset: true,
+                replaces_asset: !Self::names_same_instrument(
+                    existing_asset.as_ref(),
+                    normalized_symbol.as_deref(),
+                    submitted_instrument_type.as_ref(),
+                    exchange_mic.as_deref(),
+                ),
             };
         }
         UpdateTradeFacts {
@@ -842,6 +860,47 @@ impl ActivityService {
             quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
             replaces_asset: false,
         }
+    }
+
+    /// Whether a symbol and instrument type name the stored asset's
+    /// instrument on any listing, so moving to that asset - another exchange
+    /// or crypto quote currency - is a correction, not a different trade.
+    fn names_same_instrument(
+        existing_asset: Option<&crate::assets::Asset>,
+        symbol: Option<&str>,
+        instrument_type: Option<&InstrumentType>,
+        exchange_mic: Option<&str>,
+    ) -> bool {
+        existing_asset.is_some_and(|existing| {
+            if existing.instrument_type.is_none()
+                || existing.instrument_type.as_ref() != instrument_type
+            {
+                return false;
+            }
+            let normalize_symbol = |symbol: Option<&str>, mic: Option<&str>| {
+                let (symbol, mic) = Self::submitted_lookup_identity(
+                    symbol,
+                    mic.map(str::to_string),
+                    instrument_type,
+                );
+                canonicalize_market_identity(
+                    instrument_type.cloned(),
+                    symbol.as_deref(),
+                    mic.as_deref(),
+                    None,
+                )
+                .instrument_symbol
+            };
+            normalize_symbol(
+                existing
+                    .instrument_symbol
+                    .as_deref()
+                    .or(existing.display_code.as_deref()),
+                existing.instrument_exchange_mic.as_deref(),
+            )
+            .zip(normalize_symbol(symbol, exchange_mic))
+            .is_some_and(|(stored, submitted)| stored == submitted)
+        })
     }
 
     /// The activity currency prepare resolves for an update: the submitted
