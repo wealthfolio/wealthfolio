@@ -198,8 +198,8 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
         case "card":
           return (
             <div className="border-border bg-background/50 h-full w-full rounded-lg border border-dashed p-2">
-              <div className="flex flex-col items-center justify-center space-y-1">
-                <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="space-y-0.5 text-center">
                   <Skeleton className="mx-auto h-3 w-16" />
                   <Skeleton className="mx-auto h-3 w-20" />
@@ -255,7 +255,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     : "border-border bg-background/50 hover:bg-background/80 hover:border-muted-foreground/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
               )}
             >
-              <div className="flex flex-col items-center justify-center space-y-1">
+              <div className="flex flex-col items-center justify-center space-y-2">
                 <AnimatePresence mode="wait">
                   {selectedAccount ? (
                     <motion.div
@@ -264,12 +264,12 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      className="bg-success-subtle flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      className="bg-success-subtle flex h-10 w-10 items-center justify-center rounded-full shadow-sm"
                     >
                       <motion.div variants={iconVariants} initial="initial" animate="animate">
                         {(() => {
                           const IconComponent = getAccountTypeIcon(selectedAccount.accountType);
-                          return <IconComponent className="text-success h-4 w-4" />;
+                          return <IconComponent className="text-success h-5 w-5" />;
                         })()}
                       </motion.div>
                     </motion.div>
@@ -280,16 +280,16 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      className="bg-muted flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      className="bg-muted flex h-10 w-10 items-center justify-center rounded-full shadow-sm"
                     >
                       <motion.div variants={iconVariants} initial="initial" animate="animate">
-                        <Icons.ChevronsUpDown className="text-muted-foreground h-4 w-4" />
+                        <Icons.ChevronsUpDown className="text-muted-foreground h-5 w-5" />
                       </motion.div>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                <div className="space-y-0 text-center">
+                <div className="space-y-0.5 text-center">
                   <AnimatePresence mode="wait">
                     {selectedAccount ? (
                       <motion.div
