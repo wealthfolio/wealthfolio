@@ -247,7 +247,8 @@ describe("IncomePage top dividend sources", () => {
     );
 
     expect(within(card()).queryByText("CASH")).not.toBeInTheDocument();
-    expect(within(card()).getByText("AAPL")).toBeInTheDocument();
+    // The symbol label; the ticker avatar's fallback letters repeat it.
+    expect(within(card()).getByText("AAPL", { selector: "bdi" })).toBeInTheDocument();
     const bars = card().querySelectorAll<HTMLElement>('[data-slot="tooltip-trigger"]');
     expect(bars).toHaveLength(1);
     expect(bars[0].style.width).toBe("100%");
@@ -277,7 +278,7 @@ describe("IncomePage top dividend sources", () => {
 
     renderPage();
 
-    const symbols = within(card()).getAllByText(/^(AAPL|MSFT)$/);
+    const symbols = within(card()).getAllByText(/^(AAPL|MSFT)$/, { selector: "bdi" });
     expect(symbols.map((symbol) => symbol.textContent)).toEqual(["MSFT", "AAPL"]);
     expect(symbols[0].closest(".justify-between")).toHaveTextContent("$200.00");
     expect(symbols[1].closest(".justify-between")).toHaveTextContent("$100.00");
