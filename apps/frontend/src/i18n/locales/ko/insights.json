@@ -147,7 +147,9 @@
     "top_five": "상위 5개 보유 종목",
     "concentration_unavailable": "집중도를 표시하려면 보유 종목의 가치가 양수이고 공매도 포지션이 없어야 합니다.",
     "holdings": "보유 종목",
+    "holdings_count_one": "{{count}}개 종목",
     "holdings_count_other": "{{count}}개 종목",
+    "other_holdings_one": "기타 {{count}}개 종목",
     "other_holdings_other": "기타 {{count}}개 종목",
     "holdings_unavailable": "보유 종목 차트에는 양수 평가액과 공매도 포지션이 없는 포트폴리오가 필요합니다."
   },
