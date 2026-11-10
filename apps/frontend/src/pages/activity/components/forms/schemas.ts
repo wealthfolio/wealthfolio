@@ -139,7 +139,9 @@ export const createActivitySchemas = (t?: TFunction) => {
       .nullable(),
     sourceCurrency: z.string().optional(),
     destinationCurrency: z.string().optional(),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
+    // No default: a phone edit sends one fee to both legs of an internal
+    // transfer, so an empty fee must leave both stored fees as they are.
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
     assetId: z.string().optional().nullable(),
     quantity: z.coerce
       .number({
