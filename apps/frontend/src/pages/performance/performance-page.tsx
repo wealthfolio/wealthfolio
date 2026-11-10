@@ -725,7 +725,7 @@ function AttributionDetailMetric({
         <Button
           type="button"
           variant="ghost"
-          className="group h-auto min-h-0 gap-1.5 px-0 py-0.5 font-normal hover:bg-transparent max-lg:min-h-0 pointer-coarse:min-h-0"
+          className="group h-auto min-h-0 gap-1.5 px-0 py-0.5 font-normal hover:bg-transparent has-[>svg]:px-0 max-lg:min-h-0 pointer-coarse:min-h-0"
           onClick={() => setIsOpen(true)}
         >
           <AttributionAmount
