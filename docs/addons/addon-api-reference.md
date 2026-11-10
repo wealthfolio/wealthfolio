@@ -532,6 +532,42 @@ const buy: ActivityImport = {
 };
 ```
 
+Use `sourceRecordId` to give each row the ID your source has for its
+transaction, such as a statement's reference. A row with an ID is a duplicate of
+the activity your add-on imported with the same ID into the same account,
+whatever its values or comment, and is skipped like other duplicates
+(`checkImport` sets `duplicateOfId`). Without IDs, two transactions with the
+same values and comment in one account are duplicates of each other; with
+different IDs, both import. Keep each ID the same in every import and different
+for every separate transaction. A row with an ID also matches an activity it
+would match without one that was imported before you sent IDs, so sending IDs
+doesn't import earlier rows again.
+
+Use `metadata` for details to keep with the activity. Your add-on's rows are
+stored with `sourceRecordId` `addon:<your add-on id>:<ID>` and the metadata
+under `metadata.addons[<your add-on id>]`. Matching by ID is scoped to your
+add-on; the values fallback can match any older import without an ID in the
+account, including CSV or another add-on's imports. Your metadata can't change
+the metadata keys Wealthfolio reads. `checkImport` and `import` return these
+fields without the host namespace. IDs are trimmed; blank IDs and null or
+omitted fields are omitted.
+
+```typescript
+const row: ActivityImport = {
+  accountId: "account-123",
+  activityType: "BUY",
+  date: "2026-09-04",
+  symbol: "AAPL",
+  quantity: 10,
+  unitPrice: 180,
+  currency: "USD",
+  sourceRecordId: "statement-2026-09/txn-0042",
+  metadata: { statementLine: 42 },
+  isValid: true,
+  isDraft: false,
+};
+```
+
 #### `checkImport(activities: ActivityImport[]): Promise<ActivityImport[]>`
 
 Validates and normalizes activities without importing them.

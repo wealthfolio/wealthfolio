@@ -123,6 +123,19 @@ pub fn compute_idempotency_key(
     hex::encode(result)
 }
 
+/// Computes the idempotency key of an imported row that carries its source's
+/// record ID: the account and the ID alone, so the row matches its earlier
+/// import whatever its values or comment. The leading tag keeps these keys
+/// apart from value keys.
+pub fn compute_source_record_idempotency_key(account_id: &str, source_record_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"source-record\x1f");
+    hasher.update(account_id.as_bytes());
+    hasher.update(b"\x1f");
+    hasher.update(source_record_id.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 /// Normalize decimal to consistent string format
 fn normalize_decimal(d: Decimal) -> String {
     // Remove trailing zeros for consistent hashing
@@ -191,6 +204,14 @@ mod tests {
             leaving,
             idempotency_activity_type("ADJUSTMENT", Some("CONVERSION_OUT"), Some("g2"))
         );
+    }
+
+    #[test]
+    fn a_source_record_key_depends_on_the_account_and_the_id() {
+        let key = compute_source_record_idempotency_key("acc-1", "r-1");
+        assert_eq!(key, compute_source_record_idempotency_key("acc-1", "r-1"));
+        assert_ne!(key, compute_source_record_idempotency_key("acc-2", "r-1"));
+        assert_ne!(key, compute_source_record_idempotency_key("acc-1", "r-2"));
     }
 
     #[test]

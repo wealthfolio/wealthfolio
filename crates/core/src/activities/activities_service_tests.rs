@@ -1787,8 +1787,8 @@ pub(crate) mod tests {
                     fx_rate: new_activity.fx_rate,
                     notes: new_activity.notes,
                     metadata,
-                    source_system: None,
-                    source_record_id: None,
+                    source_system: new_activity.source_system,
+                    source_record_id: new_activity.source_record_id,
                     source_group_id: new_activity.source_group_id,
                     idempotency_key: new_activity.idempotency_key,
                     import_run_id: new_activity.import_run_id,
@@ -4683,6 +4683,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -5793,6 +5795,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         }
     }
 
@@ -9838,6 +9842,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -9916,6 +9922,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -9993,6 +10001,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -10061,6 +10071,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -10136,6 +10148,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -10211,6 +10225,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -10296,6 +10312,8 @@ pub(crate) mod tests {
                 is_external: None,
                 source_group_id: None,
                 charges: None,
+                source_record_id: None,
+                metadata: None,
             }])
             .await
             .expect("import check should succeed");
@@ -10398,6 +10416,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -10496,6 +10516,8 @@ pub(crate) mod tests {
                 is_external: None,
                 source_group_id: None,
                 charges: None,
+                source_record_id: None,
+                metadata: None,
             },
             ActivityImport {
                 id: None,
@@ -10533,6 +10555,8 @@ pub(crate) mod tests {
                 is_external: None,
                 source_group_id: None,
                 charges: None,
+                source_record_id: None,
+                metadata: None,
             },
         ];
 
@@ -10618,6 +10642,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
         let mut tsx = nyse.clone();
         tsx.exchange_mic = Some("XTSE".to_string());
@@ -10690,6 +10716,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
         let mut second = first.clone();
         second.provider_symbol = Some("XAU-OZ".to_string());
@@ -10940,6 +10968,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11016,6 +11046,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11085,6 +11117,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11161,6 +11195,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11234,6 +11270,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11304,6 +11342,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11380,6 +11420,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11444,6 +11486,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         }
     }
 
@@ -11611,6 +11655,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11685,6 +11731,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11755,6 +11803,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11876,6 +11926,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -11948,6 +12000,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12020,6 +12074,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12092,6 +12148,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12161,6 +12219,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12231,6 +12291,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12303,6 +12365,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12384,6 +12448,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12460,6 +12526,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12545,6 +12613,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12622,6 +12692,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12695,6 +12767,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12776,6 +12850,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let transfer_in = ActivityImport {
@@ -12814,6 +12890,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -12923,6 +13001,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let transfer_in = ActivityImport {
@@ -12961,6 +13041,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -13049,6 +13131,8 @@ pub(crate) mod tests {
             is_external: Some(false),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let transfer_out = ActivityImport {
@@ -13087,6 +13171,8 @@ pub(crate) mod tests {
             is_external: Some(false),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -13211,6 +13297,8 @@ pub(crate) mod tests {
             is_external: Some(false),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -13346,6 +13434,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let transfer_in_duplicate = ActivityImport {
@@ -13384,6 +13474,8 @@ pub(crate) mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -16080,6 +16172,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
         (activity_service, activity_repository, import)
     }
@@ -16333,6 +16427,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -16410,6 +16506,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -16551,6 +16649,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -16645,6 +16745,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         // First row: normal import. Second row: identical but force_import=true.
@@ -16746,6 +16848,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17127,6 +17231,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17198,6 +17304,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17269,6 +17377,8 @@ pub(crate) mod tests {
                 is_external: None,
                 source_group_id: None,
                 charges: None,
+                source_record_id: None,
+                metadata: None,
             };
 
             let result = activity_service
@@ -17352,6 +17462,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17436,6 +17548,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17508,6 +17622,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -17589,6 +17705,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let result = activity_service
@@ -18262,6 +18380,8 @@ pub(crate) mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         }
     }
 
@@ -18681,6 +18801,192 @@ pub(crate) mod tests {
                 .count(),
             1
         );
+    }
+
+    fn qa_msft_buy_row_with_source_id(source_record_id: &str) -> ActivityImport {
+        let mut row = qa_msft_buy_row();
+        row.source_record_id = Some(source_record_id.to_string());
+        row
+    }
+
+    fn rename_stored_activities(repository: &MockActivityRepository, ids: &[&str]) {
+        let mut stored = repository.activities.lock().unwrap();
+        assert_eq!(stored.len(), ids.len());
+        for (activity, id) in stored.iter_mut().zip(ids) {
+            activity.id = id.to_string();
+        }
+    }
+
+    // Two transactions with the same values import as two activities when
+    // their source gives them different IDs, and a later import of each
+    // matches it by ID, even with other values or comment.
+    #[tokio::test]
+    async fn rows_with_source_record_ids_match_by_id_not_values() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let mut rows = vec![
+            qa_msft_buy_row_with_source_id("folio-1/7"),
+            qa_msft_buy_row_with_source_id("folio-2/7"),
+        ];
+        rows[1].line_number = Some(2);
+
+        let checked = service.check_activities_import(rows.clone()).await.unwrap();
+        assert!(checked
+            .iter()
+            .all(|row| row.duplicate_of_id.is_none() && row.duplicate_of_line_number.is_none()));
+        let first = service.import_activities(rows.clone()).await.unwrap();
+        assert_eq!(first.summary.imported, 2);
+        rename_stored_activities(&repository, &["stored-1", "stored-2"]);
+        let stored = repository.get_activities().unwrap();
+        assert_eq!(stored[0].source_record_id.as_deref(), Some("folio-1/7"));
+        assert_eq!(stored[1].source_record_id.as_deref(), Some("folio-2/7"));
+        assert!(stored
+            .iter()
+            .all(|activity| activity.source_system.as_deref() == Some("CSV")));
+
+        let mut again = vec![rows[1].clone(), rows[0].clone()];
+        again[0].source_record_id = Some(" folio-2/7 ".to_string());
+        again[1].comment = Some("Reworded".to_string());
+        again[1].quantity = Some(dec!(3));
+        again[1].amount = Some(dec!(1200));
+        let checked = service
+            .check_activities_import(again.clone())
+            .await
+            .unwrap();
+        assert_eq!(checked[0].duplicate_of_id.as_deref(), Some("stored-2"));
+        assert_eq!(checked[1].duplicate_of_id.as_deref(), Some("stored-1"));
+        for rows in [again, checked] {
+            let result = service.import_activities(rows).await.unwrap();
+            assert_eq!(result.summary.imported, 0);
+            assert_eq!(result.summary.duplicates, 2);
+        }
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_repeated_source_record_id_is_a_duplicate_within_the_batch() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let first = qa_msft_buy_row_with_source_id("r-1");
+        let mut repeat = qa_msft_buy_row_with_source_id("r-1");
+        repeat.line_number = Some(2);
+        repeat.date = "2024-05-03".to_string();
+
+        let checked = service
+            .check_activities_import(vec![first.clone(), repeat.clone()])
+            .await
+            .unwrap();
+        assert!(checked[0].duplicate_of_line_number.is_none());
+        assert_eq!(checked[1].duplicate_of_line_number, Some(1));
+        let result = service
+            .import_activities(vec![first, repeat])
+            .await
+            .unwrap();
+        assert_eq!(result.summary.imported, 1);
+        assert_eq!(result.summary.duplicates, 1);
+        assert_eq!(repository.get_activities().unwrap().len(), 1);
+    }
+
+    // An activity imported before its source sent IDs has none and is keyed
+    // by its values. The same row with an ID finds it by those values, also
+    // under the other asset key form; a forced copy keeps its ID's key and is
+    // found by it from then on.
+    #[tokio::test]
+    async fn a_row_with_a_source_record_id_finds_its_import_without_one() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        service
+            .import_activities(vec![qa_msft_buy_row()])
+            .await
+            .unwrap();
+        rename_stored_activities(&repository, &["imported-without-id"]);
+
+        let row = qa_msft_buy_row_with_source_id("r-1");
+        let checked = service
+            .check_activities_import(vec![row.clone()])
+            .await
+            .unwrap();
+        assert!(checked[0].asset_id.is_some());
+        assert_eq!(
+            checked[0].duplicate_of_id.as_deref(),
+            Some("imported-without-id")
+        );
+        for rows in [vec![row.clone()], checked.clone()] {
+            let result = service.import_activities(rows).await.unwrap();
+            assert_eq!(result.summary.imported, 0);
+            assert_eq!(result.summary.duplicates, 1);
+            assert_eq!(
+                result.activities[0].duplicate_of_id.as_deref(),
+                Some("imported-without-id")
+            );
+        }
+
+        let mut forced = checked[0].clone();
+        forced.force_import = true;
+        let result = service.import_activities(vec![forced]).await.unwrap();
+        assert_eq!(result.summary.imported, 1);
+        rename_stored_activities(&repository, &["imported-without-id", "forced"]);
+        let checked = service.check_activities_import(vec![row]).await.unwrap();
+        assert_eq!(checked[0].duplicate_of_id.as_deref(), Some("forced"));
+    }
+
+    #[tokio::test]
+    async fn forced_source_record_copies_keep_only_a_free_key() {
+        for first_forced in [false, true] {
+            for same_values in [false, true] {
+                let (service, repository, _) = qa_import_service("USD", Vec::new());
+                service
+                    .import_activities(vec![qa_msft_buy_row()])
+                    .await
+                    .unwrap();
+                rename_stored_activities(&repository, &["legacy"]);
+
+                let mut first = qa_msft_buy_row_with_source_id("r-1");
+                first.force_import = first_forced;
+                let mut forced = first.clone();
+                forced.force_import = true;
+                forced.line_number = Some(2);
+                if !same_values {
+                    forced.comment = Some("Reworded".to_string());
+                }
+                let mut another_forced = forced.clone();
+                another_forced.line_number = Some(3);
+                let checked = service
+                    .check_activities_import(vec![first, forced, another_forced])
+                    .await
+                    .unwrap();
+                let result = service.import_activities(checked).await.unwrap();
+                assert_eq!(result.summary.imported, if first_forced { 3 } else { 2 });
+                let stored = repository.get_activities().unwrap();
+                let key = crate::activities::compute_source_record_idempotency_key("qa-acc", "r-1");
+                assert_eq!(
+                    stored
+                        .iter()
+                        .filter(|row| row.idempotency_key.as_deref() == Some(&key))
+                        .count(),
+                    1,
+                    "first_forced={first_forced}, same_values={same_values}"
+                );
+                assert_eq!(stored[1].idempotency_key.as_deref(), Some(key.as_str()));
+
+                let mut again = qa_msft_buy_row_with_source_id("r-1");
+                again.comment = Some("Changed again".to_string());
+                let result = service
+                    .import_activities(vec![again.clone()])
+                    .await
+                    .unwrap();
+                assert_eq!(result.summary.imported, 0);
+                assert_eq!(result.summary.duplicates, 1);
+
+                again.force_import = true;
+                let result = service
+                    .import_activities(vec![again.clone(), again])
+                    .await
+                    .unwrap();
+                assert_eq!(result.summary.imported, 2);
+                let stored = repository.get_activities().unwrap();
+                assert!(stored[stored.len() - 2..]
+                    .iter()
+                    .all(|row| row.idempotency_key.is_none()));
+            }
+        }
     }
 
     #[tokio::test]

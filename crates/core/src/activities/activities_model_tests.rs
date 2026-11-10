@@ -1025,6 +1025,8 @@ mod tests {
             is_external: None,
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1077,6 +1079,8 @@ mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1171,6 +1175,8 @@ mod tests {
                 is_external: Some(is_external),
                 source_group_id: None,
                 charges: None,
+                source_record_id: None,
+                metadata: None,
             };
 
             let converted = NewActivity::from(import);
@@ -1222,6 +1228,8 @@ mod tests {
             is_external: Some(false),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
@@ -1265,8 +1273,72 @@ mod tests {
             is_external: Some(true),
             source_group_id: None,
             charges: None,
+            source_record_id: None,
+            metadata: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_keeps_source_record_id_and_metadata() {
+        let import: ActivityImport = serde_json::from_value(serde_json::json!({
+            "date": "2024-01-15",
+            "symbol": "AAPL",
+            "activityType": "TRANSFER_IN",
+            "quantity": 10,
+            "currency": "USD",
+            "fee": 1,
+            "accountId": "acc-1",
+            "isDraft": false,
+            "isValid": true,
+            "isExternal": true,
+            "sourceRecordId": "  stmt-7  ",
+            "metadata": {
+                "addons": { "statement-importer": { "folio": "123" } },
+                "flow": { "is_external": false },
+                "charges": [{ "category": "tax", "label": "Stamp duty", "amount": 5 }]
+            },
+            "charges": [{ "category": "fee", "label": "Commission", "amount": 1 }]
+        }))
+        .unwrap();
+
+        let converted = NewActivity::from(import);
+        assert_eq!(converted.source_system.as_deref(), Some("CSV"));
+        assert_eq!(converted.source_record_id.as_deref(), Some("stmt-7"));
+        let metadata: serde_json::Value =
+            serde_json::from_str(&converted.metadata.unwrap()).unwrap();
+        assert_eq!(
+            metadata["addons"],
+            serde_json::json!({ "statement-importer": { "folio": "123" } })
+        );
+        assert_eq!(metadata["flow"], serde_json::json!({ "is_external": true }));
+        assert_eq!(metadata["charges"].as_array().unwrap().len(), 1);
+        assert_eq!(metadata["charges"][0]["label"], "Commission");
+    }
+
+    #[test]
+    fn test_activity_import_metadata_cannot_set_flow_or_charges() {
+        let import: ActivityImport = serde_json::from_value(serde_json::json!({
+            "date": "2024-01-15",
+            "symbol": "AAPL",
+            "activityType": "BUY",
+            "quantity": 10,
+            "unitPrice": 150,
+            "currency": "USD",
+            "accountId": "acc-1",
+            "isDraft": false,
+            "isValid": true,
+            "sourceRecordId": "   ",
+            "metadata": {
+                "flow": { "is_external": true },
+                "charges": [{ "category": "fee", "label": "Commission", "amount": 1 }]
+            }
+        }))
+        .unwrap();
+
+        let converted = NewActivity::from(import);
+        assert!(converted.source_record_id.is_none());
+        assert!(converted.metadata.is_none());
     }
 }
