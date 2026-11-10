@@ -1,12 +1,13 @@
 import i18n from "i18next";
 import { exportDataFile, logger } from "@/adapters";
-import { ExportDataType, ExportedFileFormat } from "@/lib/types";
+import type { ExportedFileFormat, ExportOptions, ExportTarget } from "@/lib/types";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 interface ExportParams {
   format: ExportedFileFormat;
-  data: ExportDataType;
+  data: ExportTarget;
+  options: ExportOptions;
 }
 
 interface FileExportResult {
@@ -21,13 +22,14 @@ export function useExportData() {
     isPending: isExporting,
     variables: mutationVariables,
   } = useMutation<ExportMutationResult, Error, ExportParams>({
-    mutationFn: async (params: ExportParams) => {
-      const { format, data: desiredData } = params;
-      const result = await exportDataFile(format, desiredData);
+    mutationFn: async ({ format, data, options }: ExportParams) => {
+      const result = await exportDataFile(format, data, options);
       if (result.status === "empty") {
         toast({
           title: i18n.t("common:notifications.nothing_to_export"),
-          description: i18n.t(`settings:messages.export.empty.${desiredData}`),
+          description: i18n.t(
+            data === "all" ? "settings:data_export.empty_all" : "settings:data_export.empty",
+          ),
         });
         return null;
       }
@@ -71,7 +73,6 @@ export function useExportData() {
   return {
     exportData,
     isExporting,
-    exportingFormat: isExporting ? mutationVariables?.format : null,
     exportingData: isExporting ? mutationVariables?.data : null,
   };
 }

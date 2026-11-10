@@ -70,7 +70,7 @@ test("asset overview retains historical income after a full securities transfer"
       data: { filter: { type: "account", accountId }, includeClosed: true },
     });
     expect(response.ok()).toBeTruthy();
-    return ((await response.json()) as HoldingResponse[]).filter(
+    return ((await response.json()) as { holdings: HoldingResponse[] }).holdings.filter(
       (holding) => holding.instrument?.id === assetId,
     );
   }

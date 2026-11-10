@@ -77,6 +77,8 @@ export interface DraftActivity {
   symbolName?: string;
   quoteCcy?: string;
   instrumentType?: string;
+  /** Provider quote type of the resolved asset (e.g. "MUTUALFUND"); classifies a new asset. */
+  instrumentTypeLabel?: string;
   quoteMode?: string;
   providerId?: string;
   providerSymbol?: string;
@@ -284,7 +286,21 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
       "currency" in updates && !("currencySource" in updates)
         ? { ...updates, currencySource: "manual" as const }
         : updates;
-    return { ...draft, ...normalizedUpdates, isEdited: true };
+    // A quote type belongs to the asset it was resolved for, not to an edited identity.
+    const identityChanged = (
+      ["symbol", "exchangeMic", "instrumentType", "providerId", "providerSymbol", "isin"] as const
+    ).some((field) => field in updates && updates[field] !== draft[field]);
+    const labelUpdate =
+      identityChanged && !("instrumentTypeLabel" in updates)
+        ? { instrumentTypeLabel: undefined }
+        : {};
+    // Validation sends the name as reviewed, so it must not follow the row to another asset.
+    const nameIdentityChanged = (
+      ["symbol", "exchangeMic", "providerId", "providerSymbol", "isin"] as const
+    ).some((field) => field in updates && updates[field] !== draft[field]);
+    const nameUpdate =
+      nameIdentityChanged && !("symbolName" in updates) ? { symbolName: undefined } : {};
+    return { ...draft, ...normalizedUpdates, ...labelUpdate, ...nameUpdate, isEdited: true };
   };
 
   const updatesAffectAssetPreview = (updates: Partial<DraftActivity>) =>
@@ -587,6 +603,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
                 activityType: (draft.activityType || "UNKNOWN") as ActivityImport["activityType"],
                 date: draft.activityDate || "",
                 symbol: draft.symbol || "",
+                symbolName: draft.symbolName,
                 assetId: draft.assetId,
                 exchangeMic: draft.exchangeMic,
                 quoteCcy: draft.quoteCcy,

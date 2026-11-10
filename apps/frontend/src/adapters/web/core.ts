@@ -3,8 +3,11 @@ import { profileFetch } from "@/features/profiles/session";
 // This module exports invoke, logger, and platform constants for shared modules
 
 import { notifyUnauthorized } from "@/lib/auth-token";
+import { BackendError, backendError } from "@/lib/backend-error";
+import type { ExportOptions } from "@/lib/types";
 import type { Logger } from "../types";
 import { invokeTimeoutMs } from "../invoke-timeout";
+import { exportOptionsQuery } from "./export-options";
 
 /** True in every Tauri build (desktop and mobile); use getPlatform() for the OS */
 export const isTauri = false;
@@ -115,7 +118,14 @@ export const COMMANDS: CommandMap = {
   get_transfer_pair_for_activity: { method: "GET", path: "/activities" },
   find_transfer_match_candidates: { method: "POST", path: "/activities/transfer-match-candidates" },
   save_internal_transfer_pair: { method: "POST", path: "/activities/transfer-pair" },
+  convert_to_internal_transfer: { method: "POST", path: "/activities/convert-to-transfer" },
+  review_convert_to_transfer_split_effects: {
+    method: "POST",
+    path: "/activities/convert-to-transfer/split-effects",
+  },
   link_transfer_activities: { method: "POST", path: "/activities/link" },
+  link_transfer_pairs: { method: "POST", path: "/activities/link-pairs" },
+  review_transfer_matches: { method: "GET", path: "/activities/transfer-review" },
   unlink_transfer_activities: { method: "POST", path: "/activities/unlink" },
   // Activity import
   check_activities_import: { method: "POST", path: "/activities/import/check" },
@@ -145,6 +155,8 @@ export const COMMANDS: CommandMap = {
   update_contribution_limit: { method: "PUT", path: "/limits" },
   delete_contribution_limit: { method: "DELETE", path: "/limits" },
   calculate_deposits_for_contribution_limit: { method: "GET", path: "/limits" },
+  get_contribution_limit_details: { method: "GET", path: "/limits" },
+  set_contribution_activity_excluded: { method: "PUT", path: "/limits" },
   // Asset profile
   get_assets: { method: "GET", path: "/assets" },
   create_asset: { method: "POST", path: "/assets" },
@@ -191,6 +203,8 @@ export const COMMANDS: CommandMap = {
   create_category: { method: "POST", path: "/taxonomies/categories" },
   update_category: { method: "PUT", path: "/taxonomies/categories" },
   delete_category: { method: "DELETE", path: "/taxonomies" },
+  review_category_merge: { method: "POST", path: "/spending/categories/merge/review" },
+  merge_category: { method: "POST", path: "/spending/categories/merge" },
   move_category: { method: "POST", path: "/taxonomies/categories/move" },
   import_taxonomy_json: { method: "POST", path: "/taxonomies/import" },
   export_taxonomy_json: { method: "GET", path: "/taxonomies" },
@@ -368,6 +382,7 @@ export const COMMANDS: CommandMap = {
   // Net Worth
   get_net_worth: { method: "GET", path: "/net-worth" },
   get_net_worth_history: { method: "GET", path: "/net-worth/history" },
+  get_data_export_summary: { method: "GET", path: "/utilities/export/summary" },
   // AI Providers
   get_ai_providers: { method: "GET", path: "/ai/providers" },
   update_ai_provider_settings: { method: "PUT", path: "/ai/providers/settings" },
@@ -908,7 +923,9 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "review_internal_transfer_pair_split_effects":
-    case "save_internal_transfer_pair": {
+    case "save_internal_transfer_pair":
+    case "convert_to_internal_transfer":
+    case "review_convert_to_transfer_split_effects": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
       break;
@@ -919,6 +936,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         activityBId: string;
       };
       body = JSON.stringify({ activityAId, activityBId });
+      break;
+    }
+    case "link_transfer_pairs": {
+      const { pairs } = payload as { pairs: unknown[] };
+      body = JSON.stringify({ pairs });
       break;
     }
     case "unlink_transfer_activities": {
@@ -1027,6 +1049,21 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "calculate_deposits_for_contribution_limit": {
       const { limitId } = payload as { limitId: string };
       url += `/${encodeURIComponent(limitId)}/deposits`;
+      break;
+    }
+    case "get_contribution_limit_details": {
+      const { limitId } = payload as { limitId: string };
+      url += `/${encodeURIComponent(limitId)}/details`;
+      break;
+    }
+    case "set_contribution_activity_excluded": {
+      const { limitId, activityId, excluded } = payload as {
+        limitId: string;
+        activityId: string;
+        excluded: boolean;
+      };
+      url += `/${encodeURIComponent(limitId)}/activities/${encodeURIComponent(activityId)}`;
+      body = JSON.stringify({ excluded });
       break;
     }
     case "get_asset_profile": {
@@ -1244,6 +1281,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(taxonomyId)}/categories/${encodeURIComponent(categoryId)}`;
       break;
     }
+    case "review_category_merge":
+    case "merge_category": {
+      body = JSON.stringify(payload?.request);
+      break;
+    }
     case "move_category": {
       const { taxonomyId, categoryId, newParentId, position } = payload as {
         taxonomyId: string;
@@ -1362,13 +1404,14 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "assign_category_to_group": {
-      const { categoryId, groupId, periodKey } = payload as {
+      const { taxonomyId, categoryId, groupId, periodKey } = payload as {
+        taxonomyId: string;
         categoryId: string;
         groupId: string;
         periodKey?: string;
       };
       addPeriodKey(periodKey);
-      body = JSON.stringify({ categoryId, groupId });
+      body = JSON.stringify({ taxonomyId, categoryId, groupId });
       break;
     }
     case "reset_budget_groups": {
@@ -1880,6 +1923,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       }
       break;
     }
+    case "get_data_export_summary": {
+      const { options } = (payload ?? {}) as { options?: ExportOptions };
+      url += exportOptionsQuery(options);
+      break;
+    }
     case "get_net_worth_history": {
       const { startDate, endDate } = payload as { startDate: string; endDate: string };
       const params = new URLSearchParams();
@@ -2224,25 +2272,27 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     notifyUnauthorized();
   }
   if (!res.ok) {
-    let msg = res.statusText;
+    let publicError = new BackendError("internal_error");
     try {
       const err = (await res.json()) as unknown;
+      publicError = backendError(err) ?? publicError;
       if (
         typeof err === "object" &&
         err !== null &&
         "message" in err &&
         typeof err.message === "string"
       ) {
-        msg = err.message;
+        // Compatibility for legacy code-only errors, never arbitrary messages.
+        publicError = backendError(err) ?? backendError(err.message) ?? publicError;
       }
     } catch (_e) {
       // ignore JSON parse error from non-JSON error bodies
       void 0;
     }
-    console.error(`[Invoke] Command "${command}" failed: ${msg}`);
+    console.error(`[Invoke] Command "${command}" failed (HTTP ${res.status})`);
     // The server's 408 timeout leaves owned reset tasks running; 5xx responses
     // can also follow a committed reset whose completion failed.
-    throw Object.assign(new Error(msg), {
+    throw Object.assign(publicError, {
       outcomeUnknown: res.status === 408 || res.status >= 500,
     });
   }

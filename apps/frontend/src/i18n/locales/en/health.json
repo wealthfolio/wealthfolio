@@ -5,6 +5,11 @@
       "title_other": "Missing manual valuations for {{count}} holdings",
       "message": "Manual/custom holdings need a manual valuation before they can be included as valued performance positions."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valuation not updated for {{name}}",
+      "title_other": "Valuations not updated for {{count}} assets",
+      "message": "Some manually valued assets haven't been updated in over {{days}} days, so your net worth may be out of date."
+    },
     "price_no_market_data": {
       "title_one": "No market data for {{symbol}}",
       "title_other": "No market data for {{count}} holdings",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "Rebuild History",
     "add_price": "Add Price",
     "update_cost_basis": "Update Cost Basis",
+    "update_value": "Update Value",
     "review_transaction": "Review Transaction",
     "review_entry": "Review entry"
   },
@@ -275,5 +281,17 @@
     },
     "affectedItems_one": "Affected Item ({{count}})",
     "affectedItems_other": "Affected Items ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Activity: {{id}}",
+    "missing_fx_rate": "No exchange rate from {{from}} to {{to}} is available for {{date}}.",
+    "close_buy_without_short_position": "This purchase is marked to close a position in {{asset}}, but there is no short position to close.",
+    "sell_short_intent_required": "This sale would increase the short position in {{asset}}. Mark it as Sell Short.",
+    "conversion_insufficient_holdings": "This conversion requires {{requested}} units of {{asset}}, but the account holds only {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} is held in {{fromCurrency}} and {{toAsset}} in {{toCurrency}}. A conversion must keep the same currency.",
+    "return_of_capital_amount_required": "Enter an amount for this return of capital.",
+    "sell_without_position": "There is no position in {{asset}} to sell. Only the cash effect was applied.",
+    "insufficient_quantity": "This transaction removes {{requested}} units of {{asset}}, but only {{held}} were held. The remaining {{excess}} units have no cost basis.",
+    "missing_final_cash": "This posted transaction has no final cash amount, so it did not change the cash balance."
   }
 }

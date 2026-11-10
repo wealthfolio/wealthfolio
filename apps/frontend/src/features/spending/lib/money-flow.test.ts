@@ -115,6 +115,8 @@ const group = (id: string, categories: BudgetCategoryRow[], color: string | null
     remaining: 0,
     overspent: false,
     rolloverEnabled: false,
+    savingsTargetTotal: 0,
+    savingsActual: 0,
     categories,
   }) satisfies BudgetGroupRow;
 

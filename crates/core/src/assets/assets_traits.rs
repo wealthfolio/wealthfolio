@@ -1,6 +1,6 @@
 use super::assets_model::{
-    normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetSpec, EnsureAssetsResult,
-    InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
+    normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetProfileUpdatePreview,
+    AssetSpec, EnsureAssetsResult, InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
 };
 use super::{AssetResolutionInput, AssetResolutionOutput};
 use crate::errors::Result;
@@ -23,6 +23,18 @@ pub trait AssetServiceTrait: Send + Sync {
         asset_id: &str,
         payload: UpdateAssetProfile,
     ) -> Result<Asset>;
+    /// What `update_asset_profile` would store for `payload`, and another asset
+    /// that already has the updated identity, without writing anything.
+    fn preview_asset_profile_update(
+        &self,
+        asset_id: &str,
+        payload: UpdateAssetProfile,
+    ) -> Result<AssetProfileUpdatePreview> {
+        let _ = (asset_id, payload);
+        Err(crate::Error::Unexpected(
+            "Asset profile previews are not supported".to_string(),
+        ))
+    }
     /// Updates only asset metadata. Implementations should avoid re-resolving market identity.
     async fn update_asset_metadata(
         &self,
@@ -51,6 +63,26 @@ pub trait AssetServiceTrait: Send + Sync {
         metadata: Option<AssetMetadata>,
         quote_mode: Option<String>,
     ) -> Result<Asset>;
+    /// The stored asset `get_or_create_minimal_asset` would match a listing
+    /// (`metadata` without an asset id) to, without creating, reactivating
+    /// or changing anything. `None` when it would create a new asset.
+    fn find_asset_by_listing(
+        &self,
+        _metadata: &AssetMetadata,
+        _context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        None
+    }
+    /// The instrument key `get_or_create_minimal_asset` matches a listing
+    /// by: two listings with the same key save as one asset. `None` when the
+    /// listing has no key.
+    fn listing_instrument_key(
+        &self,
+        _metadata: &AssetMetadata,
+        _context_currency: Option<&str>,
+    ) -> Option<String> {
+        None
+    }
     async fn update_quote_mode(&self, asset_id: &str, quote_mode: &str) -> Result<Asset>;
     /// Updates quote mode without emitting domain events.
     ///

@@ -1,3 +1,5 @@
+import { sumAmounts } from "@/lib/monetary-value";
+
 export type ReturnType = "daily" | "pnl" | "return";
 
 interface BaseHoldingPerformanceAmounts {
@@ -8,19 +10,19 @@ interface BaseHoldingPerformanceAmounts {
 }
 
 export interface BasePortfolioPerformance {
-  totalPnl: number;
+  totalPnl: number | null;
   totalPnlPct: number | null;
-  totalReturn: number;
+  totalReturn: number | null;
   totalReturnPct: number | null;
 }
 
 interface DailyHoldingPerformanceAmounts {
   dayChangePct?: number | null;
-  marketValueBase: number;
+  marketValueBase: number | null;
 }
 
 export interface DailyPortfolioPerformance {
-  changeAmount: number;
+  changeAmount: number | null;
   changePct: number | null;
 }
 
@@ -37,11 +39,18 @@ export function calculateBasePortfolioPerformance(
   let totalReturn = 0;
   let hasUnbasedPnl = false;
   let hasUnbasedReturn = false;
+  const knownPnl = sumAmounts(holdings.map((holding) => holding.totalGainBase));
+  const knownReturn = sumAmounts(holdings.map((holding) => holding.totalReturnBase));
+  const missingBasis = holdings.some(
+    (holding) =>
+      (holding.returnBasisBase === undefined ? holding.costBasisBase : holding.returnBasisBase) ==
+      null,
+  );
 
   holdings.forEach((holding) => {
     const holdingBasis = Math.abs(holding.returnBasisBase ?? holding.costBasisBase ?? 0);
     const holdingPnl = holding.totalGainBase ?? 0;
-    const holdingReturn = holding.totalReturnBase ?? holding.totalGainBase ?? 0;
+    const holdingReturn = holding.totalReturnBase ?? 0;
 
     basis += holdingBasis;
     totalPnl += holdingPnl;
@@ -51,22 +60,31 @@ export function calculateBasePortfolioPerformance(
   });
 
   return {
-    totalPnl,
-    totalPnlPct: hasUnbasedPnl ? null : percentageFromGrossBasis(totalPnl, basis),
-    totalReturn,
-    totalReturnPct: hasUnbasedReturn ? null : percentageFromGrossBasis(totalReturn, basis),
+    totalPnl: knownPnl,
+    totalPnlPct:
+      knownPnl == null || missingBasis || hasUnbasedPnl
+        ? null
+        : percentageFromGrossBasis(totalPnl, basis),
+    totalReturn: knownReturn,
+    totalReturnPct:
+      knownReturn == null || missingBasis || hasUnbasedReturn
+        ? null
+        : percentageFromGrossBasis(totalReturn, basis),
   };
 }
 
 export function calculateDailyPortfolioPerformance(
   holdings: DailyHoldingPerformanceAmounts[],
 ): DailyPortfolioPerformance {
+  if (holdings.some((holding) => holding.marketValueBase == null || holding.dayChangePct == null)) {
+    return { changeAmount: null, changePct: null };
+  }
   let grossExposure = 0;
   let changeAmount = 0;
   let hasDailyPerformance = false;
 
   holdings.forEach((holding) => {
-    if (holding.dayChangePct == null) return;
+    if (holding.dayChangePct == null || holding.marketValueBase == null) return;
 
     const exposure = Math.abs(holding.marketValueBase);
     hasDailyPerformance = true;

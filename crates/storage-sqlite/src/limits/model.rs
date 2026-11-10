@@ -20,6 +20,9 @@ pub struct ContributionLimitDB {
     pub updated_at: NaiveDateTime,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub is_recurring: bool,
+    #[serde(default)]
+    pub excluded_activity_ids: Option<String>,
 }
 
 /// Database model for creating/updating contribution limits
@@ -34,6 +37,7 @@ pub struct NewContributionLimitDB {
     pub account_ids: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub is_recurring: bool,
 }
 
 // Conversion implementations
@@ -49,6 +53,7 @@ impl From<ContributionLimitDB> for ContributionLimit {
             updated_at: db.updated_at,
             start_date: db.start_date,
             end_date: db.end_date,
+            is_recurring: db.is_recurring,
         }
     }
 }
@@ -63,6 +68,7 @@ impl From<NewContributionLimit> for NewContributionLimitDB {
             account_ids: domain.account_ids,
             start_date: domain.start_date,
             end_date: domain.end_date,
+            is_recurring: domain.is_recurring,
         }
     }
 }
@@ -79,6 +85,8 @@ impl From<ContributionLimit> for ContributionLimitDB {
             updated_at: domain.updated_at,
             start_date: domain.start_date,
             end_date: domain.end_date,
+            is_recurring: domain.is_recurring,
+            excluded_activity_ids: None,
         }
     }
 }

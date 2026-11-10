@@ -125,6 +125,9 @@ pub struct AccountStateSnapshot {
     pub account_id: String,
     pub snapshot_date: NaiveDate,
     pub currency: String, // Account's reporting currency
+    /// Currency used for the precomputed base amounts. Absent on legacy or observed snapshots.
+    #[serde(default)]
+    pub base_currency: Option<String>,
 
     // --- Core State ---
     // Use the detailed Position struct for accuracy, including lots.
@@ -173,6 +176,7 @@ impl Default for AccountStateSnapshot {
             net_contribution_base: Decimal::ZERO,
             cash_total_account_currency: Decimal::ZERO,
             cash_total_base_currency: Decimal::ZERO,
+            base_currency: None,
             calculated_at: Utc::now().naive_utc(),
             source: SnapshotSource::default(),
         }
@@ -182,9 +186,19 @@ impl Default for AccountStateSnapshot {
 impl AccountStateSnapshot {
     /// Returns a stable UUID for a snapshot identity (account_id + snapshot_date).
     pub fn stable_id(account_id: &str, snapshot_date: NaiveDate) -> String {
+        Self::id_in_namespace("wealthfolio:snapshot", account_id, snapshot_date)
+    }
+
+    /// Derived rows must never replace a user's observation for the same date.
+    pub fn calculated_id(account_id: &str, snapshot_date: NaiveDate) -> String {
+        Self::id_in_namespace("wealthfolio:calculated-snapshot", account_id, snapshot_date)
+    }
+
+    fn id_in_namespace(namespace: &str, account_id: &str, snapshot_date: NaiveDate) -> String {
         // Derive a deterministic UUID from account/date so upserts target the same row.
         let name = format!(
-            "wealthfolio:snapshot:{}:{}",
+            "{}:{}:{}",
+            namespace,
             account_id,
             snapshot_date.format("%Y-%m-%d")
         );

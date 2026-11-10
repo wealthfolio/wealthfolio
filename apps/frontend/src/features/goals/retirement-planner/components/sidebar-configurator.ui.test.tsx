@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { DirectionProvider } from "@wealthfolio/ui/components/ui/direction";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,18 +14,25 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: privacy.hidden }),
 }));
 
-function renderConfigurator(plan: RetirementPlan, onSavePlan: (plan: RetirementPlan) => void) {
+function renderConfigurator(
+  plan: RetirementPlan,
+  onSavePlan: (plan: RetirementPlan) => void,
+  locale = "en-US",
+  direction: "ltr" | "rtl" = "ltr",
+) {
   render(
-    <FormattingProvider locale="en-US">
-      <TooltipProvider>
-        <SidebarConfigurator
-          plan={plan}
-          currency="USD"
-          plannerMode="traditional"
-          onSavePlan={onSavePlan}
-        />
-      </TooltipProvider>
-    </FormattingProvider>,
+    <DirectionProvider direction={direction}>
+      <FormattingProvider locale={locale}>
+        <TooltipProvider>
+          <SidebarConfigurator
+            plan={plan}
+            currency="USD"
+            plannerMode="traditional"
+            onSavePlan={onSavePlan}
+          />
+        </TooltipProvider>
+      </FormattingProvider>
+    </DirectionProvider>,
   );
 }
 
@@ -166,3 +175,85 @@ describe("SidebarConfigurator savings goals contribution note", () => {
     expect(screen.queryByText(/Savings goals also plan/)).not.toBeInTheDocument();
   });
 });
+
+describe("SidebarConfigurator regional inputs", () => {
+  it("displays and saves investment rates with Spain's decimal separator", () => {
+    const onSavePlan = vi.fn<(plan: RetirementPlan) => void>();
+    renderConfigurator(structuredClone(DEFAULT_RETIREMENT_PLAN), onSavePlan, "ES");
+    fireEvent.click(screen.getByRole("button", { name: "Edit Projection Assumptions" }));
+    const input = screen.getByRole("textbox", { name: "Return before retirement" });
+    expect(input).toHaveValue("5,8");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "6,5" } });
+    fireEvent.blur(input);
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    expect(onSavePlan.mock.calls[0][0].investment.preRetirementAnnualReturn).toBeCloseTo(0.065);
+  });
+
+  it("preserves decimal commas when editing a spending inflation override", () => {
+    const onSavePlan = vi.fn<(plan: RetirementPlan) => void>();
+    const plan = structuredClone(DEFAULT_RETIREMENT_PLAN);
+    plan.expenses.items![0].inflationRate = 0.025;
+    renderConfigurator(plan, onSavePlan, "ES");
+    fireEvent.click(screen.getByRole("button", { name: "Edit Retirement Spending" }));
+    fireEvent.click(screen.getByText("Living").closest("button")!);
+    const input = screen.getByPlaceholderText("Plan 2,0");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "3,5" } });
+    fireEvent.blur(input);
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    expect(onSavePlan.mock.calls[0][0].expenses.items![0].inflationRate).toBeCloseTo(0.035);
+  });
+});
+
+it("saves an in-place RTL edit of the localized projection return", async () => {
+  const onSavePlan = vi.fn();
+  const user = userEvent.setup();
+  const plan = structuredClone(DEFAULT_RETIREMENT_PLAN);
+  plan.investment.preRetirementAnnualReturn = 0.058;
+  render(
+    <DirectionProvider direction="rtl">
+      <FormattingProvider locale="ES">
+        <TooltipProvider>
+          <SidebarConfigurator
+            plan={plan}
+            currency="USD"
+            plannerMode="traditional"
+            onSavePlan={onSavePlan}
+          />
+        </TooltipProvider>
+      </FormattingProvider>
+    </DirectionProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Edit Projection Assumptions" }));
+  const input = screen.getByRole("textbox", { name: "Return before retirement" });
+  await user.click(input);
+  await user.keyboard("{End}{Backspace}9{Tab}");
+  await user.click(screen.getAllByRole("button", { name: "Save" })[0]);
+  expect(onSavePlan).toHaveBeenCalledOnce();
+  expect(onSavePlan.mock.calls[0][0].investment.preRetirementAnnualReturn).toBeCloseTo(0.059);
+});
+
+it.each([
+  { direction: "ltr" as const, blank: "", expected: undefined },
+  { direction: "rtl" as const, blank: "\u2068 \u2069", expected: undefined },
+  { direction: "ltr" as const, blank: "0", expected: 0 },
+  { direction: "rtl" as const, blank: "0", expected: 0 },
+])(
+  "preserves empty inheritance and explicit zero for inflation overrides in $direction ($expected)",
+  ({ direction, blank, expected }) => {
+    const onSavePlan = vi.fn();
+    const plan = structuredClone(DEFAULT_RETIREMENT_PLAN);
+    plan.expenses.items![0].inflationRate = 0.025;
+    renderConfigurator(plan, onSavePlan, "ES", direction);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Retirement Spending" }));
+    fireEvent.click(screen.getByText("Living").closest("button")!);
+    const input = screen.getByPlaceholderText(/Plan.*2,0/);
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: blank } });
+    fireEvent.blur(input);
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    expect(onSavePlan).toHaveBeenCalledOnce();
+    expect(onSavePlan.mock.calls[0][0].expenses.items[0].inflationRate).toBe(expected);
+  },
+);

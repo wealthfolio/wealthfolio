@@ -195,6 +195,7 @@ pub fn snapshot_rows(
     frames: &[&Keyframe],
     account_id: &str,
     currency: &engine::model::Currency,
+    base_currency: &str,
 ) -> Vec<AccountStateSnapshot> {
     let now = crate::utils::clock::now();
     frames
@@ -228,7 +229,7 @@ pub fn snapshot_rows(
                 })
                 .collect();
             AccountStateSnapshot {
-                id: AccountStateSnapshot::stable_id(account_id, frame.date),
+                id: AccountStateSnapshot::calculated_id(account_id, frame.date),
                 account_id: account_id.to_string(),
                 snapshot_date: frame.date,
                 currency: currency.as_str().to_string(),
@@ -244,6 +245,7 @@ pub fn snapshot_rows(
                 cash_total_account_currency: state.cash_total_account,
                 cash_total_base_currency: state.cash_total_base,
                 calculated_at: now.naive_utc(),
+                base_currency: Some(base_currency.to_string()),
                 source: SnapshotSource::Calculated,
             }
         })
@@ -349,6 +351,8 @@ pub fn disposal_rows(
             proceeds_base: d.proceeds_base.to_string(),
             cost_basis_base: d.cost_basis_base.to_string(),
             realized_pnl_base: d.realized_pnl_base.to_string(),
+            proceeds_base_known: Some(d.proceeds_base_known),
+            cost_basis_base_known: Some(d.cost_basis_base_known),
             currency: d.currency.as_str().to_string(),
             base_currency: base.clone(),
             fx_rate_to_base: d.fx_rate_to_base.to_string(),

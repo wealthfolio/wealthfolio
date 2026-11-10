@@ -148,7 +148,7 @@ export function SavingGoals() {
         const pct = Math.max(0, Math.min(1, progress));
         const currentValue = goal.summaryCurrentValue ?? 0;
         const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
-        const currency = goal.currency ?? "USD";
+        const currency = settings?.baseCurrency ?? goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
         const timeStr = formatTimeRemaining(t, deadline, settings?.timezone);
         const pctDisplay = numberFormatting.formatPercent(pct, { digits: 0 });
@@ -175,9 +175,7 @@ export function SavingGoals() {
               <ItemContent className="min-w-0 gap-0.5">
                 {/* Title row with status dot */}
                 <ItemTitle className="w-full min-w-0 gap-2">
-                  <h3 className="truncate text-sm leading-tight font-semibold md:text-base">
-                    {goal.title}
-                  </h3>
+                  <h3 className="truncate text-base leading-tight font-semibold">{goal.title}</h3>
                   <span
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -190,7 +188,7 @@ export function SavingGoals() {
                 </ItemTitle>
 
                 {/* Amounts directly under title */}
-                <ItemDescription className="line-clamp-none text-xs tabular-nums md:text-sm">
+                <ItemDescription className="line-clamp-none text-sm tabular-nums">
                   {currentDisplay} / {targetDisplay}
                 </ItemDescription>
               </ItemContent>
@@ -200,7 +198,7 @@ export function SavingGoals() {
                 <div className="text-base leading-none font-semibold tabular-nums">
                   {pctDisplay}
                 </div>
-                <div className="text-muted-foreground text-xs md:text-sm">{timeStr}</div>
+                <div className="text-muted-foreground text-sm">{timeStr}</div>
               </ItemActions>
 
               {/* Full-width progress bar at row bottom */}

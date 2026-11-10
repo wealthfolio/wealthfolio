@@ -114,6 +114,7 @@ export function HoldingsTable({ report, taxonomyId }: HoldingsTableProps) {
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const navigate = useNavigate();
   const { accounts } = useAccounts();
 
@@ -209,7 +210,7 @@ export function HoldingsTable({ report, taxonomyId }: HoldingsTableProps) {
                       row.driftBps != null ? driftColor(row.driftBps) : "text-muted-foreground",
                     )}
                   >
-                    {row.driftBps != null ? formatPp(row.driftBps) : "—"}
+                    {row.driftBps != null ? formatPp(row.driftBps, numbers) : "—"}
                   </span>
                 </div>
               </button>
@@ -324,7 +325,7 @@ export function HoldingsTable({ report, taxonomyId }: HoldingsTableProps) {
                         row.driftBps != null ? driftColor(row.driftBps) : "text-muted-foreground",
                       )}
                     >
-                      {row.driftBps != null ? formatPp(row.driftBps) : "—"}
+                      {row.driftBps != null ? formatPp(row.driftBps, numbers) : "—"}
                     </td>
                     {showAccountCol && (
                       <td className="text-muted-foreground ps-2 pe-6 text-end">

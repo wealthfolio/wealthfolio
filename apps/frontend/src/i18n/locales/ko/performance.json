@@ -72,9 +72,6 @@
     "return": "수익률",
     "time_weighted_return": "시간가중수익률",
     "time_weighted_short": "시간가중",
-    "twr_short": "TWR",
-    "annualized_twr": "연환산 시간가중수익률",
-    "ann_twr_short": "연환산 TWR",
     "money_weighted_return": "금액가중수익률",
     "money_weighted_short": "금액가중",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "연환산 MWR",
     "value_return": "가치 수익률",
     "value_return_short": "가치 수익률",
-    "value_short": "가치",
     "price_return": "가격 수익률",
     "price_return_short": "가격 수익률",
-    "price_short": "가격",
     "volatility": "변동성",
-    "vol_short": "변동성",
     "max_drawdown": "최대 낙폭",
     "max_drawdown_short": "최대 낙폭",
     "drawdown_short": "낙폭",
@@ -95,11 +89,6 @@
     "annualized_short": "연환산",
     "gain_loss": "손익",
     "gain_loss_info": "선택한 기간 동안의 총 손익입니다. 지표를 열면 손익 기여 상세 내역을 볼 수 있습니다."
-  },
-  "section": {
-    "returns": "수익률",
-    "risk": "위험",
-    "total": "합계"
   },
   "help": {
     "aria_label": "수익률 지표 설명",
@@ -149,5 +138,13 @@
     "holdings_volatility": "계좌 가치 변화의 변동성입니다. 입출금을 조정하지 않은 일별 평가액을 기준으로 하며, 시장 가치가 얼마나 변동하는지 나타냅니다.",
     "holdings_max_drawdown": "계좌 가치가 고점에서 저점까지 하락한 최대 폭입니다. 입출금을 조정하지 않은 일별 평가액을 기준으로 합니다."
   },
-  "compare_over_time": "시간에 따른 계좌 성과 비교"
+  "compare_over_time": "시간에 따른 계좌 성과 비교",
+  "series_table": {
+    "label": "비교 중인 계열",
+    "name": "이름",
+    "show_all": "모두 보기({{count}})",
+    "show_less": "간단히 보기",
+    "hide_on_chart": "차트에서 {{name}} 숨기기",
+    "show_on_chart": "차트에 {{name}} 표시"
+  }
 }

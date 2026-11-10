@@ -1,3 +1,4 @@
+import type { NumberFormatting } from "@wealthfolio/ui";
 import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { useQueries } from "@tanstack/react-query";
 import {
@@ -541,8 +542,12 @@ interface CalculatedSummaryProps {
  * What the calculation scaled or could not place (§4.6). Stated on screen and
  * in the export, so a scaled figure is never mistaken for the full amount.
  */
-function calculationNotes(calculated: CalculatedAdjustments, t: TFunction): string[] {
-  const percent = (factor: number) => formatDecimalInput(factor * 100, 1);
+function calculationNotes(
+  calculated: CalculatedAdjustments,
+  t: TFunction,
+  formatPercent: NumberFormatting["formatPercent"],
+): string[] {
+  const percent = (factor: number) => formatPercent(factor, { digits: 1 });
   const notes: string[] = [];
   if (calculated.scaling.cashFactor != null) {
     notes.push(
@@ -583,7 +588,8 @@ function CalculatedSummary({
 }: CalculatedSummaryProps) {
   const { t } = useTranslation();
   const { formatAmount } = useAmountFormatting();
-  const notes = calculationNotes(calculated, t);
+  const { formatPercent } = useNumberFormatting();
+  const notes = calculationNotes(calculated, t, formatPercent);
   if (Math.abs(calculated.remainingCash) >= AMOUNT_EPSILON) {
     notes.push(
       t("allocation:worksheet.remainingCash", {
@@ -749,7 +755,7 @@ export function AllocationWorksheetTab({
   const { t } = useTranslation();
   const { formatAmount, formatPrice, currencyFractionDigits } = useAmountFormatting();
   // The export writes numbers the way the user reads them (see toCsv).
-  const { decimalSeparator, formatPercent } = useNumberFormatting();
+  const { decimalSeparator, formatDecimal, formatPercent } = useNumberFormatting();
   const { formatCalendarDate } = useDateFormatting();
   const navigate = useNavigate();
   const worksheet = useAllocationWorksheet();
@@ -880,8 +886,20 @@ export function AllocationWorksheetTab({
       };
     }),
   });
-  const scopedHoldings = holdingQueries.flatMap((query) => query.data ?? []);
-  const holdingsLoading = holdingQueries.some((query) => query.isPending);
+  const holdingsComplete = holdingQueries.every(
+    (query) =>
+      query.isSuccess &&
+      query.data.incompleteAccounts.length === 0 &&
+      query.data.holdings.every((holding) => holding.marketValue.base != null),
+  );
+  const scopedHoldings = holdingsComplete
+    ? holdingQueries.flatMap((query) => query.data?.holdings ?? [])
+    : [];
+  const holdingsLoading = holdingQueries.some(
+    (query) =>
+      query.isLoading ||
+      query.data?.incompleteAccounts.some((account) => account.status === "pending"),
+  );
   const holdingsVersion = holdingQueries.map((query) => query.dataUpdatedAt).join("|");
   // What the chosen accounts can deploy, as the core counts it: one rule per
   // account and in total. The drift report's figure spans the whole scope and
@@ -971,7 +989,7 @@ export function AllocationWorksheetTab({
       isSourceLoading ||
       assetsLoading ||
       accountsLoading ||
-      holdingsLoading
+      !holdingsComplete
     ) {
       return;
     }
@@ -1038,6 +1056,7 @@ export function AllocationWorksheetTab({
     draftStorageKey,
     eligibleAssets,
     holdingsLoading,
+    holdingsComplete,
     isSourceLoading,
     profile?.allowSells,
     scopedAccountIds,
@@ -1088,6 +1107,7 @@ export function AllocationWorksheetTab({
     assetsLoading ||
     accountsLoading ||
     holdingsLoading ||
+    !holdingsComplete ||
     latestQuotes.isFetching;
 
   // Validates and projects the worksheet as it stands. Mode, rule and eligible
@@ -1159,6 +1179,14 @@ export function AllocationWorksheetTab({
   }
   if (!profile || !driftReport)
     return loadingHeading ? <div className="mb-5">{loadingHeading}</div> : null;
+  if (!holdingsComplete) {
+    return (
+      <div className="space-y-5">
+        {loadingHeading}
+        <p role="alert">{t("holdings:scope_unavailable")}</p>
+      </div>
+    );
+  }
 
   const currency = driftReport.baseCurrency;
   const fundingByAccount = new Map(
@@ -1253,7 +1281,9 @@ export function AllocationWorksheetTab({
   const isOutOfDate = inputsChanged || pricesChanged;
   const outOfDateMessage = inputsChanged
     ? t("allocation:worksheet.inputsChanged")
-    : t("allocation:worksheet.pricesChanged", { percent: PRICE_MOVE_THRESHOLD * 100 });
+    : t("allocation:worksheet.pricesChanged", {
+        percent: formatPercent(PRICE_MOVE_THRESHOLD, { digits: 0 }),
+      });
   const generationIssue =
     changeAccountIds.length === 0
       ? t("allocation:worksheet.selectAccountIssue")
@@ -2008,7 +2038,7 @@ export function AllocationWorksheetTab({
                 ? inputsChanged
                   ? t("allocation:worksheet.exportOutOfDateNote")
                   : t("allocation:worksheet.exportPricesChangedNote", {
-                      percent: PRICE_MOVE_THRESHOLD * 100,
+                      percent: formatPercent(PRICE_MOVE_THRESHOLD, { digits: 0 }),
                     })
                 : "",
             ]
@@ -2019,7 +2049,7 @@ export function AllocationWorksheetTab({
     if (!result || !canExport) return;
     try {
       const calculated = generated?.calculated ?? null;
-      const scaling = calculated ? calculationNotes(calculated, t) : [];
+      const scaling = calculated ? calculationNotes(calculated, t, formatPercent) : [];
       const table = worksheetExportRows(
         {
           result,
@@ -2062,7 +2092,7 @@ export function AllocationWorksheetTab({
             : inputsChanged
               ? t("allocation:worksheet.exportOutOfDate")
               : t("allocation:worksheet.exportPricesChanged", {
-                  percent: PRICE_MOVE_THRESHOLD * 100,
+                  percent: formatPercent(PRICE_MOVE_THRESHOLD, { digits: 0 }),
                 }),
           note: t("allocation:worksheet.exportNote"),
           category: t("allocation:worksheet.exportCategory"),
@@ -2219,7 +2249,12 @@ export function AllocationWorksheetTab({
       ? t("allocation:worksheet.limitMinLine", { amount: formatAmount(minLine, currency) })
       : null,
     profile.maxTurnoverBps
-      ? t("allocation:worksheet.limitTurnover", { percent: profile.maxTurnoverBps / 100 })
+      ? t("allocation:worksheet.limitTurnover", {
+          percent: formatDecimal(profile.maxTurnoverBps / 10000, {
+            style: "percent",
+            maximumFractionDigits: 2,
+          }),
+        })
       : null,
   ].filter((limit): limit is string => limit !== null);
 
@@ -2266,7 +2301,9 @@ export function AllocationWorksheetTab({
     generated && isOutOfDate
       ? inputsChanged
         ? t("allocation:worksheet.setupChanged")
-        : t("allocation:worksheet.setupPricesChanged", { percent: PRICE_MOVE_THRESHOLD * 100 })
+        : t("allocation:worksheet.setupPricesChanged", {
+            percent: formatPercent(PRICE_MOVE_THRESHOLD, { digits: 0 }),
+          })
       : null;
 
   /**

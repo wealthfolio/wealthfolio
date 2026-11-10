@@ -6,6 +6,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { CloudBackupOperation } from "@/adapters";
 import commonCopy from "@/i18n/locales/en/common.json";
 import copy from "@/i18n/locales/en/settings.json";
+import { backendError } from "@/lib/backend-error";
 import { CloudBackupCard, CloudBackupSummary } from "./cloud-backup-card";
 const mocks = vi.hoisted(() => ({
   action: vi.fn<(op: CloudBackupOperation) => Promise<unknown>>(),
@@ -765,17 +766,44 @@ it("says so when no backup was started", async () => {
     expect(mocks.toast).toHaveBeenCalledWith({ title: copy.cloud_backup_not_started }),
   );
 });
-it("explains the daily manual limit instead of a generic failure", async () => {
+it.each(["legacy", "structured"])(
+  "explains the daily manual limit instead of a generic failure (%s)",
+  async (format) => {
+    mocks.action.mockImplementation((op) =>
+      Promise.resolve(op.action === "runtimeStatus" ? { state: "idle", retryAt: null } : running),
+    );
+    const failure = "API error (409): BACKUP_MANUAL_LIMIT: FAKE-KEY-2531 /private/portfolio.db";
+    mocks.capture.mockRejectedValue(
+      format === "legacy" ? new Error(failure) : backendError(failure),
+    );
+    mount();
+    await openBackupMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: copy.backup_now }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy.cloud_backup_manual_limit);
+    expect(document.body.textContent).not.toContain("FAKE-KEY");
+    expect(document.body.textContent).not.toContain("/private");
+  },
+);
+
+it("keeps the sign-in recovery link for a normalized backup error", async () => {
   mocks.action.mockImplementation((op) =>
     Promise.resolve(op.action === "runtimeStatus" ? { state: "idle", retryAt: null } : running),
   );
   mocks.capture.mockRejectedValue(
-    new Error("API error (409): BACKUP_MANUAL_LIMIT: Manual backup limit reached"),
+    backendError({
+      errorCode: "BACKUP_REAUTHENTICATION_REQUIRED",
+      message: "FAKE-KEY-2531 /private/portfolio.db",
+    }),
   );
   mount();
   await openBackupMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: copy.backup_now }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(copy.cloud_backup_manual_limit);
+  expect(await screen.findByRole("alert")).toHaveTextContent(copy.cloud_backup_reauth);
+  expect(screen.getByRole("link", { name: copy.cloud_backup_sign_in })).toHaveAttribute(
+    "href",
+    "/settings/connect",
+  );
+  expect(document.body.textContent).not.toContain("FAKE-KEY");
 });
 it.each([
   {

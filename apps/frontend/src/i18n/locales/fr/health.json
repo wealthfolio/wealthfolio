@@ -6,6 +6,12 @@
       "title_many": "Valorisations manuelles manquantes pour {{count}} positions",
       "message": "Les positions manuelles/personnalisées nécessitent une valorisation manuelle avant de pouvoir être incluses comme positions de performance valorisées."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valorisation de {{name}} non mise à jour",
+      "title_other": "Valorisations de {{count}} actifs non mises à jour",
+      "title_many": "Valorisations de {{count}} actifs non mises à jour",
+      "message": "Certains actifs valorisés manuellement n'ont pas été mis à jour depuis plus de {{days}} jours ; votre patrimoine net n'est donc peut-être plus à jour."
+    },
     "price_no_market_data": {
       "title_one": "Aucune donnée de marché pour {{symbol}}",
       "title_other": "Aucune donnée de marché pour {{count}} positions",
@@ -226,6 +232,7 @@
     "rebuild_account_history": "Reconstruire l’historique",
     "add_price": "Ajouter un prix",
     "update_cost_basis": "Mettre à jour le prix de revient",
+    "update_value": "Actualiser la valeur",
     "review_transaction": "Vérifier la transaction",
     "review_entry": "Examiner l’entrée"
   },
@@ -309,5 +316,17 @@
     "affectedItems_one": "Élément concerné ({{count}})",
     "affectedItems_other": "Éléments concernés ({{count}})",
     "affectedItems_many": "Éléments concernés ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Opération : {{id}}",
+    "missing_fx_rate": "Aucun taux de change de {{from}} vers {{to}} n’est disponible pour le {{date}}.",
+    "close_buy_without_short_position": "Cet achat est marqué pour clôturer une position sur {{asset}}, mais aucune position courte n’est à clôturer.",
+    "sell_short_intent_required": "Cette vente augmenterait la position courte sur {{asset}}. Indiquez une vente à découvert.",
+    "conversion_insufficient_holdings": "Cette conversion nécessite {{requested}} unités de {{asset}}, mais le compte n’en détient que {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} est détenu en {{fromCurrency}} et {{toAsset}} en {{toCurrency}}. Une conversion doit conserver la même devise.",
+    "return_of_capital_amount_required": "Saisissez un montant pour ce remboursement de capital.",
+    "sell_without_position": "Aucune position sur {{asset}} ne peut être vendue. Seul l’effet sur les liquidités a été appliqué.",
+    "insufficient_quantity": "Cette opération retire {{requested}} unités de {{asset}}, mais seules {{held}} étaient détenues. Les {{excess}} unités restantes n’ont pas de prix de revient.",
+    "missing_final_cash": "Cette opération comptabilisée n’a pas de montant final en espèces et n’a donc pas modifié le solde de trésorerie."
   }
 }

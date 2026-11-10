@@ -47,6 +47,8 @@ interface SymbolSearchProps<TFieldValues extends FieldValues = FieldValues> {
   existingAssetIdName?: FieldPath<TFieldValues>;
   /** Field name for assetMetadata (optional, to capture asset name for custom assets) */
   assetMetadataName?: FieldPath<TFieldValues>;
+  /** Matches the label to the surrounding form's labels. */
+  labelClassName?: string;
 }
 
 export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
@@ -61,6 +63,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
   instrumentTypeName,
   existingAssetIdName,
   assetMetadataName,
+  labelClassName,
 }: SymbolSearchProps<TFieldValues>) {
   const { t } = useTranslation(["activity"]);
   const resolvedLabel = label ?? t("activity:form.label_symbol");
@@ -280,7 +283,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem className="-mt-2">
-          <FormLabel>{resolvedLabel}</FormLabel>
+          <FormLabel className={labelClassName}>{resolvedLabel}</FormLabel>
           <FormControl>
             {isManualAsset ? (
               <Input

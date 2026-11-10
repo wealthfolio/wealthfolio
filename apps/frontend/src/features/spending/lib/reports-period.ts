@@ -6,6 +6,7 @@
  */
 
 import type { DateRange } from "@/lib/types";
+import { yearReportsRange } from "./year-period";
 
 import {
   addCalendarDays,
@@ -18,9 +19,17 @@ import {
   type ZonedCalendarDate,
 } from "./timezone";
 
-export type ReportsPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
+export type ReportsPeriod = "1W" | "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
-export const REPORTS_PERIODS: ReportsPeriod[] = ["MTD", "LAST_MONTH", "3M", "6M", "YTD", "1Y"];
+export const REPORTS_PERIODS: ReportsPeriod[] = [
+  "1W",
+  "MTD",
+  "LAST_MONTH",
+  "3M",
+  "6M",
+  "YTD",
+  "1Y",
+];
 
 export const DEFAULT_REPORTS_PERIOD: ReportsPeriod = "MTD";
 
@@ -51,6 +60,8 @@ export function periodToReportsRange(
   // current month is naturally the trailing edge.
   const { start, end } = (() => {
     switch (period) {
+      case "1W":
+        return { start: addCalendarDays(today, -6), end: today };
       case "MTD": {
         return {
           start: { year: today.year, month: today.month, day: 1 },
@@ -105,8 +116,10 @@ export function comparisonRange(
   range: ReportsRange,
   mode: ComparisonMode,
   timezone?: string | null,
+  calendarYear?: number | null,
 ): ReportsRange | null {
   if (mode === "none") return null;
+  if (calendarYear != null) return yearReportsRange(calendarYear - 1, timezone);
   const startParts = getZonedDateParts(range.start, timezone);
   const endParts = getZonedDateParts(range.end, timezone);
   if (mode === "yoy") {
@@ -137,6 +150,8 @@ export function toDateRange(range: ReportsRange): DateRange {
 
 export function periodLabel(period: ReportsPeriod): string {
   switch (period) {
+    case "1W":
+      return "Past 7 days";
     case "MTD":
       return "This month";
     case "LAST_MONTH":

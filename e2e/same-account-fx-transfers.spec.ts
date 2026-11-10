@@ -32,7 +32,8 @@ for (const mobile of [false, true]) {
     await gotoAppPath(page, `/activities?tab=investments&account=${account.id}`);
     if (mobile) {
       await page.getByTitle("Add", { exact: true }).click();
-      await page.locator('label[for="TRANSFER_OUT"]').click();
+      // Each card's id carries a prefix unique to the list.
+      await page.locator('label[for$="-TRANSFER_OUT"]').click();
       await page.getByRole("button", { name: "Next", exact: true }).click();
     } else {
       await page.getByTestId("add-activities-button").click();
@@ -46,7 +47,7 @@ for (const mobile of [false, true]) {
       const control = page.getByRole("combobox", { name: label, exact: true });
       if (mobile) {
         await control.click();
-        await page.getByRole("button", { name: new RegExp(account.name) }).click();
+        await page.getByRole("option", { name: new RegExp(account.name) }).click();
       } else await selectAccountOption(page, account.name, "USD", control);
     }
     // Currency choices must be discoverable without opening advanced options.

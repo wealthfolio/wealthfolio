@@ -158,7 +158,7 @@ export function installAddonTranslationRuntime(addonId: string) {
       defaultNS: namespace,
       resources: {},
       // Synchronous init — registerTranslations and t may run in the same tick.
-      initImmediate: false,
+      initAsync: false,
       interpolation: {
         // React already escapes values.
         escapeValue: false,

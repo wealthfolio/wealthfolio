@@ -30,9 +30,11 @@
       "unit_types": "types",
       "unit_currencies": "devises",
       "unit_groups": "groupes",
-      "other_units": "Autres {{unit}}",
+      "other_units_one": "{{count}} autre élément",
+      "other_units_other": "{{count}} autres éléments",
+      "other_units_many": "{{count}} autres éléments",
       "breakdown": "Répartition",
-      "top_units": "Principaux {{unit}}",
+      "top_units": "Les {{count}} principaux éléments",
       "show_less": "Afficher moins",
       "show_all": "Tout afficher"
     },
@@ -82,7 +84,6 @@
       "link_explanation": "Associer un bien existant ne modifie pas votre patrimoine net."
     },
     "failed_to_load": "Échec du chargement de la valeur nette",
-    "stale_valuations_tooltip": "Valorisations obsolètes (90+ jours) :",
     "days_ago": "il y a {{count}}j",
     "no_history_data": "Aucune donnée d'historique disponible",
     "breakdown": "Répartition",
@@ -108,7 +109,8 @@
     "category_sheet": {
       "over_period": "sur {{period}}",
       "trend_period": "Tendance · {{period}}",
-      "items": "Éléments"
+      "items": "Éléments",
+      "view_details": "Voir les détails"
     },
     "trend": {
       "not_enough_history": "Historique insuffisant"

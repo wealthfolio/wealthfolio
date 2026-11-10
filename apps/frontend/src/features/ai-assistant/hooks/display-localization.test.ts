@@ -8,7 +8,7 @@ import zhConnect from "@/i18n/locales/zh/connect.json";
 import zhGoals from "@/i18n/locales/zh/goals.json";
 import zhHealth from "@/i18n/locales/zh/health.json";
 import zhActivity from "@/i18n/locales/zh/activity.json";
-import { formatErrorMessage } from "./use-chat-runtime";
+import { formatChatError, formatErrorMessage } from "./use-chat-runtime";
 import {
   userFacingSyncErrorMessage,
   rawSyncErrorMessage,
@@ -41,8 +41,41 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-describe("localized built-in guidance without changing diagnostics or actions", () => {
-  it("translates every AI error branch with the settings URL and provider details intact", async () => {
+describe("localized built-in guidance and safe backend failures", () => {
+  it.each([
+    ["PROVIDER_RATE_LIMITED", "rateLimit"],
+    ["PROVIDER_AUTH", "authentication"],
+    ["PROVIDER_TIMEOUT", "timeout"],
+  ] as const)(
+    "translates the production provider code without consulting diagnostics (%s)",
+    async (code, key) => {
+      const translator = createInstance();
+      await translator.init({
+        lng: "en",
+        resources: { en: { ai: enAi }, zh: { ai: zhAi }, ar: { ai: arAi } },
+        interpolation: { escapeValue: false },
+      });
+      for (const language of ["en", "zh", "ar"]) {
+        await translator.changeLanguage(language);
+        const settingsLink = `[${translator.t("ai:runtimeErrors.settingsLink")}](/settings/ai-providers)`;
+        const text = formatChatError(code, "FAKE-KEY-2531 /private/portfolio.db", translator.t);
+        expect(text).toBe(translator.t(`ai:runtimeErrors.${key}`, { settingsLink }));
+        expect(text).not.toContain("FAKE-KEY");
+        expect(text).not.toContain("/private");
+      }
+    },
+  );
+  it.each([
+    'Provider error with message: {"error":"FAKE-KEY-2531 /private/portfolio.db"}',
+    '"FAKE-KEY-2531" does not support thinking',
+    "model 'FAKE-KEY-2531' not found",
+    "FAKE-KEY-2531 /private/portfolio.db",
+  ])("does not interpolate sensitive provider diagnostics: %s", (message) => {
+    const text = formatErrorMessage(message);
+    expect(text).not.toContain("FAKE-KEY-2531");
+    expect(text).not.toContain("/private");
+  });
+  it("translates AI guidance without displaying raw provider details", async () => {
     const translator = createInstance();
     await translator.init({
       lng: "zh",
@@ -62,15 +95,30 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     for (const [error, title] of cases) {
       expect(formatErrorMessage(error, translator.t)).toContain(`**${title}**`);
     }
-    expect(formatErrorMessage(cases[0][0], translator.t)).toContain("Model-X");
+    expect(formatErrorMessage(cases[0][0], translator.t)).not.toContain("Model-X");
     expect(formatErrorMessage(cases[0][0], translator.t)).toContain(
       "[AI 提供方设置](/settings/ai-providers)",
     );
-    expect(formatErrorMessage(cases[6][0], translator.t)).toContain("Diagnostic XYZ");
+    expect(formatErrorMessage(cases[6][0], translator.t)).not.toContain("Diagnostic XYZ");
     await translator.changeLanguage("ar");
     expect(formatErrorMessage("401", translator.t)).toContain("فشلت المصادقة");
     await translator.changeLanguage("en");
     expect(formatErrorMessage("429", translator.t)).toContain("**Rate limit exceeded**");
+  });
+
+  it("explains a chat too long for the model from its error code", async () => {
+    const translator = createInstance();
+    await translator.init({
+      lng: "zh",
+      resources: { zh: { ai: zhAi }, en: { ai: enAi } },
+      interpolation: { escapeValue: false },
+    });
+    const overflow = formatChatError("CONTEXT_OVERFLOW", "prompt is too long", translator.t);
+    expect(overflow).toContain("**对话过长**");
+    expect(overflow).toContain("[AI 提供方设置](/settings/ai-providers)");
+    expect(formatChatError("STREAM_ERROR", "429 rate limit", translator.t)).toContain(
+      "**请求过于频繁**",
+    );
   });
 
   it("uses the current language for sync messages and leaves logging details raw", async () => {
@@ -120,6 +168,13 @@ describe("localized built-in guidance without changing diagnostics or actions", 
     const navigation = { route: "/holdings/asset-1", label: "Add Price", query: { tab: "quotes" } };
     expect(translateHealthAction(i18n.t, navigation)).toBe("添加价格");
     expect(navigation.route).toBe("/holdings/asset-1");
+    expect(
+      translateHealthAction(i18n.t, {
+        ...navigation,
+        label: "Update Value",
+        query: { tab: "history" },
+      }),
+    ).toBe("更新估值");
     const snapshot = {
       route: "/accounts/account-1",
       label: "Review entry",

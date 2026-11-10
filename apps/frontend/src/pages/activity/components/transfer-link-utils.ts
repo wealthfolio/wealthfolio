@@ -1,9 +1,13 @@
+import type { TFunction } from "i18next";
+
 import { ActivityType } from "@/lib/constants";
+import { getEffectiveType, type TransferMatchCandidate } from "@/lib/types";
 import { normalizeCurrency } from "@/lib/utils";
 
 export interface TransferLinkActivityLike {
   accountId: string;
   activityType: string;
+  activityTypeOverride?: string | null;
   amount?: string | number | null;
   quantity?: string | number | null;
   unitPrice?: string | number | null;
@@ -58,4 +62,33 @@ export function isSameAccountCashFxConversion(
     // GBP are one currency here as they are once saved.
     normalizeCurrency(first.currency) !== normalizeCurrency(second.currency)
   );
+}
+
+/** A cash deposit or withdrawal, which "Make it a transfer…" can pair with another account. */
+export function canConvertToTransfer(activity: TransferLinkActivityLike): boolean {
+  const type = getEffectiveType(activity);
+  return (
+    (type === ActivityType.DEPOSIT || type === ActivityType.WITHDRAWAL) &&
+    !nonCashTransferAssetKey(activity)
+  );
+}
+
+/** The matcher's warnings, translated; its English text when it sent no codes. */
+export function candidateWarnings(t: TFunction, candidate: TransferMatchCandidate): string[] {
+  if (!candidate.warningCodes) return candidate.warnings;
+  return candidate.warningCodes.map((warning) => {
+    switch (warning.code) {
+      case "dates_differ":
+        return t("activity:transfer_match.warning_dates_differ", { count: warning.days });
+      case "currencies_differ":
+        return t("activity:transfer_match.warning_currencies_differ", {
+          source: warning.source,
+          candidate: warning.candidate,
+        });
+      case "prices_differ":
+        return t("activity:transfer_match.warning_prices_differ");
+      case "another_match":
+        return t("activity:transfer_review.warning_another_match");
+    }
+  });
 }

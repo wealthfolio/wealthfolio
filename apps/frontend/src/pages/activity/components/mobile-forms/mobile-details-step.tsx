@@ -1,10 +1,23 @@
 import { restrictionAllowsType } from "@/lib/activity-restrictions";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import type { ActivityDetails } from "@/lib/types";
+import {
+  ACTIVITY_SUBTYPES,
+  ActivityType,
+  isLiabilityAccountType,
+  QuoteMode,
+} from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Button,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
   DatePickerInput,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -12,11 +25,7 @@ import {
   Icons,
   MoneyInput,
   QuantityInput,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
+  SheetScreen,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -30,7 +39,9 @@ import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { useFormContext } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useAmountFormatting } from "@wealthfolio/ui";
+import { useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
+import { useSellHoldings } from "../../hooks/use-sell-holdings";
+import { SellAllButton } from "../forms/fields/sell-all-button";
 import {
   getCalculationRate,
   getTransferRate,
@@ -50,14 +61,19 @@ import {
   type AssetType,
 } from "../forms/fields";
 import type { NewActivityFormValues } from "../forms/schemas";
+import { useIncomeAmounts, type IncomeAmountTypedLast } from "../forms/use-income-amounts";
 import { calculateIncomeFinalAmount, calculateTradeFinalCash } from "@/lib/activity-final-amount";
+import { AccountTypeIconTile } from "@/components/account-type-icon";
 
 interface MobileDetailsStepProps {
   accounts: AccountSelectOption[];
   activityType: string;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
   /** Owned by the form root; true for a stored or session-entered custom amount. */
   amountWasEdited: RefObject<boolean>;
+  /** Owned by the form root; which cash income amount the user typed last. */
+  incomeAmountTypedLast: RefObject<IncomeAmountTypedLast>;
 }
 
 const INCOME_MODE_CASH = "CASH";
@@ -124,7 +140,9 @@ export function MobileDetailsStep({
   accounts,
   activityType,
   isEditing,
+  originalActivity,
   amountWasEdited,
+  incomeAmountTypedLast,
 }: MobileDetailsStepProps) {
   const { t } = useTranslation();
   const form = useFormContext<NewActivityFormValues>();
@@ -141,10 +159,19 @@ export function MobileDetailsStep({
   const sourceCurrency = watch("sourceCurrency" as any) as string | undefined;
   const destinationCurrency = watch("destinationCurrency" as any) as string | undefined;
 
-  // Filter accounts by activity type (exclude HOLDINGS accounts for unsupported types)
+  const isTransfer = TRANSFER_ACTIVITY_TYPES.includes(activityType);
+  const transferMode = isTransfer ? ((watch("transferMode" as any) as string) ?? "cash") : null;
+
+  // Cards support cash transfers in either direction, but never securities transfers.
+  // Other accounts keep the activity restrictions for their tracking mode.
   const filteredAccounts = useMemo(
-    () => accounts.filter((acc) => restrictionAllowsType(acc.restrictionLevel, activityType)),
-    [accounts, activityType],
+    () =>
+      accounts.filter((acc) =>
+        isTransfer && isLiabilityAccountType(acc.accountType)
+          ? transferMode === "cash"
+          : restrictionAllowsType(acc.restrictionLevel, activityType),
+      ),
+    [accounts, activityType, isTransfer, transferMode],
   );
   const assetCurrency = watch("currency");
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
@@ -165,15 +192,39 @@ export function MobileDetailsStep({
   const optMultiplier = isOption ? ((watch("contractMultiplier" as any) as number) ?? 100) : 1;
 
   // Transfer state
-  const isTransfer = TRANSFER_ACTIVITY_TYPES.includes(activityType);
-  const transferMode = isTransfer ? ((watch("transferMode" as any) as string) ?? "cash") : null;
   const isExternal = isTransfer ? ((watch("isExternal" as any) as boolean) ?? false) : false;
   const direction = isTransfer ? ((watch("direction" as any) as string) ?? "out") : null;
+  // The field's label, which its picker screen also takes as its title.
+  const accountLabel =
+    isTransfer && isExternal
+      ? direction === "in"
+        ? t("activity:form.label_to_account")
+        : t("activity:form.label_from_account")
+      : isTransfer && !isExternal
+        ? t("activity:form.label_from_account")
+        : t("activity:field_account");
   const isSecuritiesTransfer = isTransfer && transferMode === "securities";
   const isCashTransfer = isTransfer && transferMode === "cash";
   const [toAccountSheetOpen, setToAccountSheetOpen] = useState(false);
 
   const subtype = watch("subtype");
+  const sellAssetId = watch("existingAssetId") || watch("assetId") || "";
+  const sellExchangeMic = watch("exchangeMic");
+  const sellDefaults = form.formState.defaultValues;
+  const isLongSell =
+    activityType === ActivityType.SELL && !isOption && subtype !== ACTIVITY_SUBTYPES.POSITION_OPEN;
+  const sellHoldings = useSellHoldings({
+    accountId: accountId ?? "",
+    assetId: sellAssetId,
+    exchangeMic: sellExchangeMic,
+    originalActivity,
+    originalAssetId:
+      sellDefaults?.existingAssetId ||
+      (sellDefaults && "assetId" in sellDefaults ? sellDefaults.assetId : "") ||
+      "",
+    enabled: isLongSell,
+  });
+  const numberFormatting = useNumberFormatting();
   const isDividendActivity = activityType === ActivityType.DIVIDEND;
   const isInterestActivity = activityType === ActivityType.INTEREST;
   const isDividendAssetIncome =
@@ -368,6 +419,21 @@ export function MobileDetailsStep({
   });
 
   const selectedAccount = filteredAccounts.find((acc) => acc.value === accountId);
+  // Cash income asks for the amount received; credit-card interest is a charge.
+  // Cards are blocked for new entries, so look the account up unfiltered.
+  const isReceivedIncome =
+    isIncomeActivity &&
+    !isAssetBackedIncome &&
+    !(
+      isInterestActivity &&
+      isLiabilityAccountType(accounts.find((acc) => acc.value === accountId)?.accountType)
+    );
+  // Cash income is entered before tax; interest also shows a fee, which comes off too.
+  const incomeAmounts = useIncomeAmounts(form, {
+    enabled: isReceivedIncome,
+    includeFee: needsFee,
+    typedLast: incomeAmountTypedLast,
+  });
   const destinationAccount = filteredAccounts.find((acc) => acc.value === toAccountId);
   const accountCurrency = selectedAccount?.currency;
   const effectiveSourceCurrency = sourceCurrency || accountCurrency || currency;
@@ -569,7 +635,13 @@ export function MobileDetailsStep({
             {t("activity:mobile_fee_optional")}
           </FormLabel>
           <FormControl>
-            <MoneyInput {...field} />
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onChargeChange();
+              }}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -588,7 +660,88 @@ export function MobileDetailsStep({
               : t("activity:mobile_form.tax_optional")}
           </FormLabel>
           <FormControl>
-            <MoneyInput {...field} />
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onChargeChange();
+              }}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const amountField = (
+    <FormField
+      control={control}
+      name="amount"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-base leading-none font-medium">
+            {isReceivedIncome
+              ? t("activity:form.received_amount")
+              : activityType === ActivityType.DIVIDEND
+                ? t("activity:field_dividend_amount")
+                : activityType === ActivityType.INTEREST
+                  ? t("activity:field_interest_amount")
+                  : isTaxActivity
+                    ? t("activity:field_tax_amount")
+                    : isCreditActivity
+                      ? t("activity:mobile_form.credit_amount")
+                      : t("activity:form.label_amount")}
+          </FormLabel>
+          <FormControl>
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (!isUserEdit) return;
+                amountWasEdited.current = true;
+                if (isReceivedIncome) incomeAmounts.onReceivedAmountChange(value);
+              }}
+            />
+          </FormControl>
+          {isReceivedIncome && (
+            <FormDescription className="text-xs">
+              {t("activity:form.help_total_credit")}
+            </FormDescription>
+          )}
+          {isBuyOrSell && amountWasEdited.current && calculatedTradeAmount !== undefined && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              onClick={applyCalculatedTradeTotal}
+            >
+              {t("activity:form.use_calculated_total", {
+                amount: formatAmount(calculatedTradeAmount, currency ?? "", Boolean(currency)),
+              })}
+            </button>
+          )}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+  const grossAmountField = (
+    <FormField
+      control={control}
+      name={"grossAmount" as any}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-base leading-none font-medium">
+            {t("activity:form.label_amount_before_tax")}
+          </FormLabel>
+          <FormControl>
+            <MoneyInput
+              {...field}
+              onValueChange={(value, isUserEdit) => {
+                field.onChange(value);
+                if (isUserEdit) incomeAmounts.onGrossAmountChange(value);
+              }}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -704,13 +857,7 @@ export function MobileDetailsStep({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-base leading-none font-medium">
-                    {isTransfer && isExternal
-                      ? direction === "in"
-                        ? t("activity:form.label_to_account")
-                        : t("activity:form.label_from_account")
-                      : isTransfer && !isExternal
-                        ? t("activity:form.label_from_account")
-                        : t("activity:field_account")}
+                    {accountLabel}
                   </FormLabel>
                   <FormControl>
                     <Button
@@ -720,11 +867,13 @@ export function MobileDetailsStep({
                       className="w-full justify-between"
                       onClick={() => setAccountSheetOpen(true)}
                       type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded={accountSheetOpen}
                     >
                       <span className={!field.value ? "text-muted-foreground" : ""}>
                         {displayAccountText}
                       </span>
-                      <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+                      <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
                     </Button>
                   </FormControl>
                   <FormMessage />
@@ -755,11 +904,13 @@ export function MobileDetailsStep({
                           className="w-full justify-between"
                           onClick={() => setToAccountSheetOpen(true)}
                           type="button"
+                          aria-haspopup="dialog"
+                          aria-expanded={toAccountSheetOpen}
                         >
                           <span className={!field.value ? "text-muted-foreground" : ""}>
                             {toDisplayText}
                           </span>
-                          <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+                          <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
                         </Button>
                       </FormControl>
                       <FormMessage />
@@ -822,6 +973,7 @@ export function MobileDetailsStep({
                   existingAssetIdName="existingAssetId"
                   assetMetadataName="assetMetadata"
                   defaultCurrency={accountCurrency}
+                  labelClassName="text-base leading-none font-medium"
                 />
               ))}
           </FormSection>
@@ -838,6 +990,7 @@ export function MobileDetailsStep({
                       control={control as any}
                       name={"subtype" as any}
                       side={activityType === ActivityType.SELL ? "sell" : "buy"}
+                      labelClassName="text-base leading-none font-medium"
                     />
                   )}
                 </div>
@@ -851,12 +1004,50 @@ export function MobileDetailsStep({
                       name="quantity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base leading-none font-medium">
-                            {quantityLabel}
-                          </FormLabel>
+                          <div
+                            className={cn(
+                              "flex flex-wrap items-center justify-between gap-2",
+                              isLongSell ? "min-h-11" : "min-h-7",
+                            )}
+                          >
+                            <FormLabel className="text-base leading-none font-medium">
+                              {quantityLabel}
+                            </FormLabel>
+                            <SellAllButton
+                              availableQuantity={sellHoldings.availableQuantity}
+                              holdingKey={JSON.stringify([
+                                accountId,
+                                sellAssetId,
+                                sellExchangeMic,
+                                subtype,
+                                activityType,
+                              ])}
+                              hidden={!isLongSell}
+                              disabled={
+                                !accountId ||
+                                !sellAssetId ||
+                                sellHoldings.isLoading ||
+                                sellHoldings.isFetching ||
+                                sellHoldings.isError
+                              }
+                            />
+                          </div>
                           <FormControl>
                             <QuantityInput {...field} />
                           </FormControl>
+                          {isLongSell &&
+                            accountId &&
+                            sellAssetId &&
+                            !sellHoldings.isLoading &&
+                            !sellHoldings.isError && (
+                              <FormDescription>
+                                {t("activity:form.available_amount", {
+                                  amount: numberFormatting.formatQuantity(
+                                    sellHoldings.availableQuantity,
+                                  ),
+                                })}
+                              </FormDescription>
+                            )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -867,13 +1058,20 @@ export function MobileDetailsStep({
                         name="unitPrice"
                         render={({ field }) => (
                           <FormItem>
-                            {isFmvPriceLabel ? (
-                              <FmvPerUnitLabel />
-                            ) : (
-                              <FormLabel className="text-base leading-none font-medium">
-                                {priceLabel}
-                              </FormLabel>
-                            )}
+                            <div
+                              className={cn(
+                                "flex items-center",
+                                isLongSell ? "min-h-11" : "min-h-7",
+                              )}
+                            >
+                              {isFmvPriceLabel ? (
+                                <FmvPerUnitLabel />
+                              ) : (
+                                <FormLabel className="text-base leading-none font-medium">
+                                  {priceLabel}
+                                </FormLabel>
+                              )}
+                            </div>
                             <FormControl>
                               <MoneyInput {...field} />
                             </FormControl>
@@ -941,55 +1139,9 @@ export function MobileDetailsStep({
                 </div>
               )}
 
-              {/* Amount */}
-              {needsAmount && (
-                <FormField
-                  control={control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-base leading-none font-medium">
-                        {activityType === ActivityType.DIVIDEND
-                          ? t("activity:field_dividend_amount")
-                          : activityType === ActivityType.INTEREST
-                            ? t("activity:field_interest_amount")
-                            : isTaxActivity
-                              ? t("activity:field_tax_amount")
-                              : isCreditActivity
-                                ? t("activity:mobile_form.credit_amount")
-                                : t("activity:form.label_amount")}
-                      </FormLabel>
-                      <FormControl>
-                        <MoneyInput
-                          {...field}
-                          onValueChange={(value, isUserEdit) => {
-                            field.onChange(value);
-                            if (isUserEdit) amountWasEdited.current = true;
-                          }}
-                        />
-                      </FormControl>
-                      {isBuyOrSell &&
-                        amountWasEdited.current &&
-                        calculatedTradeAmount !== undefined && (
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-                            onClick={applyCalculatedTradeTotal}
-                          >
-                            {t("activity:form.use_calculated_total", {
-                              amount: formatAmount(
-                                calculatedTradeAmount,
-                                currency ?? "",
-                                Boolean(currency),
-                              ),
-                            })}
-                          </button>
-                        )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              {/* Amount; cash income asks for it before tax here and shows the
+                  received amount after the tax */}
+              {needsAmount && (isReceivedIncome ? grossAmountField : amountField)}
 
               {needsInternalCashTransferAmounts && (
                 <div className="space-y-3">
@@ -1124,6 +1276,7 @@ export function MobileDetailsStep({
                   {needsTax && taxField}
                 </>
               )}
+              {needsAmount && isReceivedIncome && amountField}
               {isFeeActivity && (
                 <FormField
                   control={control}
@@ -1188,10 +1341,13 @@ export function MobileDetailsStep({
         </div>
       </ScrollArea>
 
-      {/* Hidden Account Sheets - Rendered outside scrollable area */}
+      {/* Account pickers open as screens of the form's sheet; they render there,
+          not in this hidden box. */}
       <div className="hidden">
         <MobileAccountSheet
           accounts={filteredAccounts}
+          value={accountId}
+          title={accountLabel}
           open={accountSheetOpen}
           onOpenChange={setAccountSheetOpen}
           onSelect={(accountValue) => {
@@ -1202,6 +1358,8 @@ export function MobileDetailsStep({
         {isTransfer && !isExternal && (
           <MobileAccountSheet
             accounts={toAccountOptions}
+            value={toAccountId}
+            title={t("activity:form.label_to_account")}
             open={toAccountSheetOpen}
             onOpenChange={setToAccountSheetOpen}
             onSelect={(accountValue) => {
@@ -1217,45 +1375,69 @@ export function MobileDetailsStep({
 
 interface MobileAccountSheetProps {
   accounts: AccountSelectOption[];
+  title: string;
+  value?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (accountValue: string) => void;
 }
 
-function MobileAccountSheet({ accounts, open, onOpenChange, onSelect }: MobileAccountSheetProps) {
+function MobileAccountSheet({
+  accounts,
+  title,
+  value,
+  open,
+  onOpenChange,
+  onSelect,
+}: MobileAccountSheetProps) {
   const { t } = useTranslation();
-  const handleAccountSelect = (account: AccountSelectOption) => {
-    onSelect(account.value);
-  };
+  // Sorted under their groups when they span more than one, as the expense form's are.
+  const groups = useMemo(() => {
+    const byGroup = new Map<string, AccountSelectOption[]>();
+    for (const account of accounts) {
+      const key = account.group?.trim() ?? "";
+      byGroup.set(key, [...(byGroup.get(key) ?? []), account]);
+    }
+    return byGroup.size < 2
+      ? [{ heading: undefined, items: accounts }]
+      : [...byGroup].map(([group, items]) => ({
+          heading: group || t("dashboard:uncategorized"),
+          items,
+        }));
+  }, [accounts, t]);
+  // A long list gets a search, as the category and symbol pickers have.
+  const showSearch = accounts.length > 8;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-1 h-[70vh] rounded-t-4xl p-0">
-        <SheetHeader className="border-border border-b px-6 py-4">
-          <SheetTitle>{t("activity:select_account")}</SheetTitle>
-          <SheetDescription>{t("activity:mobile_choose_account")}</SheetDescription>
-        </SheetHeader>
-        <ScrollArea className="h-[calc(70vh-5rem)] px-6 py-4">
-          <div className="space-y-2">
-            {accounts.map((account) => (
-              <button
-                key={account.value}
-                onClick={() => handleAccountSelect(account)}
-                className="card-mobile hover:bg-accent active:bg-accent/80 focus:border-primary flex w-full items-center gap-3 border border-transparent text-start transition-colors focus:outline-none"
-              >
-                <div className="bg-primary/10 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full">
-                  <Icons.Briefcase className="text-primary h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-foreground truncate font-medium">{account.label}</div>
-                  <div className="text-muted-foreground mt-0.5 text-sm">{account.currency}</div>
-                </div>
-                <Icons.ChevronRight className="text-muted-foreground h-5 w-5 flex-shrink-0 rtl:rotate-180" />
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+    <SheetScreen open={open} onOpenChange={onOpenChange} title={title}>
+      <Command className="h-auto min-h-0 flex-1 rounded-none bg-transparent [&_[data-slot=command-input-wrapper]]:shrink-0">
+        {showSearch && <CommandInput placeholder={t("common:search_accounts")} />}
+        <CommandList className="max-h-none min-h-0 flex-1">
+          {groups.map((group, index) => (
+            <CommandGroup key={group.heading ?? index} heading={group.heading}>
+              {group.items.map((account) => (
+                <CommandItem
+                  key={account.value}
+                  value={account.value}
+                  keywords={[account.label]}
+                  onSelect={() => onSelect(account.value)}
+                  className="flex items-center gap-2"
+                >
+                  <AccountTypeIconTile accountType={account.accountType} />
+                  <span className="min-w-0 flex-1 truncate">{account.label}</span>
+                  <span className="text-muted-foreground shrink-0 text-sm">{account.currency}</span>
+                  {account.value === value ? (
+                    <Icons.Check
+                      data-slot="command-item-check"
+                      className="text-muted-foreground h-4 w-4 shrink-0"
+                    />
+                  ) : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </Command>
+    </SheetScreen>
   );
 }

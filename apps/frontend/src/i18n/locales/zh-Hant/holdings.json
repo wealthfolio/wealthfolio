@@ -1,4 +1,6 @@
 {
+  "scope_updating": "部分帳戶的計算尚未完成。完成後將顯示合計。",
+  "scope_unavailable": "部分帳戶的持倉無法取得，合計不完整。",
   "holdings": "持有部位",
   "insights": "洞察",
   "my_holdings": "我的持有部位",

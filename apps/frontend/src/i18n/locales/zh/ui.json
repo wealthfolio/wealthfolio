@@ -116,6 +116,8 @@
   "datePicker": {
     "dateLabel": "日期",
     "pick": "选择日期",
+    "time": "时间",
+    "done": "完成",
     "previousMonth": "上个月",
     "nextMonth": "下个月",
     "chooseMonth": "选择月份",
@@ -206,6 +208,7 @@
     "typeToSearch": "输入以搜索"
   },
   "sheet": {
+    "back": "返回",
     "close": "关闭"
   },
   "page": {

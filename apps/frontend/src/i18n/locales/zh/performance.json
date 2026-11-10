@@ -72,9 +72,6 @@
     "return": "回报",
     "time_weighted_return": "时间加权收益率",
     "time_weighted_short": "时间加权",
-    "twr_short": "TWR",
-    "annualized_twr": "年化 TWR",
-    "ann_twr_short": "年化 TWR",
     "money_weighted_return": "资金加权收益率",
     "money_weighted_short": "资金加权",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "年化 MWR",
     "value_return": "价值回报",
     "value_return_short": "价值回报",
-    "value_short": "价值",
     "price_return": "价格回报",
     "price_return_short": "价格回报",
-    "price_short": "价格",
     "volatility": "波动率",
-    "vol_short": "波动",
     "max_drawdown": "最大回撤",
     "max_drawdown_short": "最大回撤",
     "drawdown_short": "回撤",
@@ -95,11 +89,6 @@
     "annualized_short": "年化",
     "gain_loss": "盈亏",
     "gain_loss_info": "所选时间段内的总盈利或亏损。打开指标查看归因详情。"
-  },
-  "section": {
-    "returns": "回报",
-    "risk": "风险",
-    "total": "总计"
   },
   "help": {
     "aria_label": "表现指标说明",
@@ -149,5 +138,13 @@
     "holdings_volatility": "账户价值变化的波动率。根据每日估值计算，不调整入金或出金的影响，反映市场价值的波动程度。",
     "holdings_max_drawdown": "账户价值从峰值到谷值的最大跌幅。根据每日估值计算，不调整入金或出金的影响。"
   },
-  "compare_over_time": "比较账户随时间变化的表现"
+  "compare_over_time": "比较账户随时间变化的表现",
+  "series_table": {
+    "label": "对比系列",
+    "name": "名称",
+    "show_all": "全部显示（{{count}}）",
+    "show_less": "收起",
+    "hide_on_chart": "在图表中隐藏 {{name}}",
+    "show_on_chart": "在图表中显示 {{name}}"
+  }
 }

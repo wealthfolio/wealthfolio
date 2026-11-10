@@ -268,7 +268,7 @@ export function CustomProviderForm({
       }}
     >
       <DialogContent
-        className="flex h-[92vh] w-[98vw] max-w-350 flex-col overflow-hidden p-0 [--input-height:2.25rem]"
+        className="flex h-[92vh] w-[98%] max-w-350 flex-col overflow-hidden p-0 [--input-height:2.25rem]"
         showCloseButton={false}
       >
         {open && (

@@ -15,6 +15,7 @@ import {
   type TransactionRowVM,
 } from "../lib/transactions-helpers";
 import { ActionPalette } from "@/components/action-palette";
+import { canConvertToTransfer } from "@/pages/activity/components/transfer-link-utils";
 
 import { CategoryIcon } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -137,7 +138,8 @@ function TransactionCardImpl({
                 cannot separate the colours. */}
             {row.needsReview && <NeedsReviewMark label={t("spending:transactions.review")} />}
             <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-              {a.notes ?? <span className="text-muted-foreground italic">—</span>}
+              {/* The form saves no notes as "", which must not leave a blank title. */}
+              {a.notes?.trim() ? a.notes : <span className="text-muted-foreground italic">—</span>}
             </span>
             <span
               className={cn(
@@ -325,6 +327,15 @@ function TransactionCardImpl({
                       {
                         icon: Icons.Link,
                         label: t("spending:transactions.linkTransfer"),
+                        onClick: () => onLinkTransfer(row),
+                      },
+                    ]
+                  : []),
+                ...(onLinkTransfer && canConvertToTransfer(a)
+                  ? [
+                      {
+                        icon: Icons.ArrowLeftRight,
+                        label: t("spending:transactions.convertToTransfer"),
                         onClick: () => onLinkTransfer(row),
                       },
                     ]

@@ -1,6 +1,7 @@
+import type { FormattingApi } from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 
-import type { FixAction, HealthIssue, NavigateAction } from "@/lib/types";
+import type { EngineActivityIssue, FixAction, HealthIssue, NavigateAction } from "@/lib/types";
 
 // Prefer the translated `health:issues.<code>.<field>` (interpolated with the
 // backend's params); fall back to the English title/message the backend still
@@ -26,6 +27,7 @@ export function translateHealthAction(t: TFunction, action: FixAction | Navigate
   const routeKeys: Record<string, string> = {
     "/holdings": "activity:import.steps.reviewHoldings",
     "/activities": "activity:import.steps.reviewTransactions",
+    "/activities/transfers": "activity:transfer_review.title",
     "/settings/accounts": "to_accounts",
     "/settings/taxonomies": "to_taxonomies",
     "/settings/market-data": "to_market_data",
@@ -39,6 +41,7 @@ export function translateHealthAction(t: TFunction, action: FixAction | Navigate
   if (action.route.startsWith("/holdings/") && action.query) {
     const tabKeys: Record<string, string> = {
       quotes: "add_price",
+      history: "update_value",
       snapshots: "update_cost_basis",
       activities: "activity:import.steps.reviewTransactions",
     };
@@ -54,4 +57,44 @@ export function translateHealthAction(t: TFunction, action: FixAction | Navigate
   return key
     ? t(key.includes(":") ? key : `health:actions.${key}`, { defaultValue: action.label })
     : action.label;
+}
+
+const ACTIVITY_REASON_KEYS: Record<string, string> = {
+  MISSING_FX_RATE: "missing_fx_rate",
+  CLOSE_BUY_WITHOUT_SHORT_POSITION: "close_buy_without_short_position",
+  SELL_SHORT_INTENT_REQUIRED: "sell_short_intent_required",
+  CONVERSION_INSUFFICIENT_HOLDINGS: "conversion_insufficient_holdings",
+  CONVERSION_CURRENCY_MISMATCH: "conversion_currency_mismatch",
+  RETURN_OF_CAPITAL_AMOUNT_REQUIRED: "return_of_capital_amount_required",
+  SELL_WITHOUT_POSITION: "sell_without_position",
+  INSUFFICIENT_QUANTITY: "insufficient_quantity",
+  MISSING_FINAL_CASH: "missing_final_cash",
+};
+
+/** Localize domain reasons at display time; old and unknown reasons keep their message. */
+export function translateActivityReason(
+  t: TFunction,
+  issue: EngineActivityIssue,
+  formatting: Pick<FormattingApi, "formatDate" | "formatQuantity">,
+): string {
+  const reason = issue.reason;
+  const key =
+    reason && Object.hasOwn(ACTIVITY_REASON_KEYS, reason.code)
+      ? ACTIVITY_REASON_KEYS[reason.code]
+      : undefined;
+  if (!key) return issue.message;
+
+  const params = { ...reason?.params };
+  if (params.date) {
+    params.date = formatting.formatDate(new Date(`${params.date}T00:00:00Z`), {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+  for (const name of ["requested", "held", "excess"]) {
+    if (params[name] != null) params[name] = formatting.formatQuantity(params[name]);
+  }
+  return t(`health:activityReasons.${key}`, { ...params, defaultValue: issue.message });
 }

@@ -4,7 +4,7 @@
  * TypeScript SDK for building Wealthfolio addons with enhanced functionality,
  * type safety, and comprehensive permission management.
  *
- * @version 3.12.0
+ * @version 3.13.0
  * @author Wealthfolio Team
  * @license MIT
  */

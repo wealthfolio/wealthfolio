@@ -14,7 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Input } from "@wealthfolio/ui/components/ui/input";
-import { Icons, Spinner } from "@wealthfolio/ui";
+import { Icons, Spinner, useNumericDraft, useNumberFormatting } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
 import {
   useTaxonomy,
@@ -39,7 +39,6 @@ interface CategoryNode extends TaxonomyCategory {
 
 interface PendingCategory {
   category: CategoryNode;
-  weight: string;
 }
 
 function buildCategoryTree(categories: TaxonomyCategory[]): CategoryNode[] {
@@ -89,17 +88,6 @@ function flattenTree(nodes: CategoryNode[]): CategoryNode[] {
   return result;
 }
 
-function parseWeightInput(value: string): number | null {
-  const num = parseFloat(value.replace("%", ""));
-  if (isNaN(num) || num < 0 || num > 100) return null;
-  return Math.round(num * 100);
-}
-
-function basisPointsToPercent(bp: number): string {
-  const pct = bp / 100;
-  return pct % 1 === 0 ? String(pct) : pct.toFixed(1);
-}
-
 export function MultiSelectTaxonomy({
   taxonomyId,
   assetId,
@@ -107,15 +95,36 @@ export function MultiSelectTaxonomy({
   disabled = false,
 }: MultiSelectTaxonomyProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const compareNames = useNameComparator();
   const [open, setOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<PendingCategory | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
 
   const { data: taxonomyData, isLoading: isLoadingTaxonomy } = useTaxonomy(taxonomyId);
   const { data: allAssignments = [], isLoading: isLoadingAssignments } =
     useAssetTaxonomyAssignments(assetId);
+
+  const editingAssignment = allAssignments.find((assignment) => assignment.id === editingId);
+  const existingWeight = editingAssignment?.weight;
+  const editingDraft = useNumericDraft(
+    existingWeight === undefined ? undefined : existingWeight / 100,
+    {
+      acceptPercent: true,
+      maximumFractionDigits: 2,
+      onEnter: () => {
+        if (editingAssignment) void handleWeightBlur(editingAssignment);
+      },
+      onEscape: () => setEditingId(null),
+    },
+  );
+  const pendingDraft = useNumericDraft(100, {
+    acceptPercent: true,
+    onEnter: () => {
+      void handleConfirmCategory();
+    },
+    onEscape: () => handleCancelPending(),
+  });
 
   const assignMutation = useAssignAssetToCategory();
   const removeMutation = useRemoveAssetTaxonomyAssignment();
@@ -153,15 +162,16 @@ export function MultiSelectTaxonomy({
 
   const handleSelectCategory = (category: CategoryNode) => {
     if (assignedCategoryIds.has(category.id) || isPending) return;
-    setPendingCategory({ category, weight: "100" });
+    pendingDraft.reset();
+    setPendingCategory({ category });
   };
 
   const handleConfirmCategory = async () => {
     if (!pendingCategory || isPending) return;
 
-    const weight = parseWeightInput(pendingCategory.weight);
-    if (weight === null) {
-      setPendingCategory({ ...pendingCategory, weight: "100" });
+    const result = pendingDraft.read();
+    if (result.status !== "valid" || result.value < 0 || result.value > 100) {
+      pendingDraft.reset();
       return;
     }
 
@@ -169,7 +179,7 @@ export function MultiSelectTaxonomy({
       assetId,
       taxonomyId,
       categoryId: pendingCategory.category.id,
-      weight,
+      weight: Math.round(result.value * 100),
       source: "manual",
     });
 
@@ -190,7 +200,11 @@ export function MultiSelectTaxonomy({
   };
 
   const handleWeightBlur = async (assignment: AssetTaxonomyAssignment) => {
-    const newWeight = parseWeightInput(editingValue);
+    const result = editingDraft.read();
+    const newWeight =
+      result.status === "valid" && result.value >= 0 && result.value <= 100
+        ? Math.round(result.value * 100)
+        : null;
     if (newWeight !== null && newWeight !== assignment.weight) {
       await assignMutation.mutateAsync({
         assetId,
@@ -201,12 +215,12 @@ export function MultiSelectTaxonomy({
       });
     }
     setEditingId(null);
-    setEditingValue("");
+    editingDraft.reset();
   };
 
   const startEditing = (assignment: AssetTaxonomyAssignment) => {
     setEditingId(assignment.id);
-    setEditingValue(basisPointsToPercent(assignment.weight));
+    editingDraft.reset();
   };
 
   const assignedCategories = useMemo(() => {
@@ -293,14 +307,7 @@ export function MultiSelectTaxonomy({
                     <div className="relative flex-1">
                       <Input
                         type="text"
-                        value={pendingCategory.weight}
-                        onChange={(e) =>
-                          setPendingCategory({ ...pendingCategory, weight: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleConfirmCategory();
-                          if (e.key === "Escape") handleCancelPending();
-                        }}
+                        {...pendingDraft.inputProps}
                         onFocus={(e) => e.target.select()}
                         autoFocus
                         className="h-8 pe-6 text-sm"
@@ -416,16 +423,8 @@ export function MultiSelectTaxonomy({
                   <Input
                     type="text"
                     aria-label={t("holdings:weight")}
-                    value={editingValue}
-                    onChange={(e) => setEditingValue(e.target.value)}
+                    {...editingDraft.inputProps}
                     onBlur={() => handleWeightBlur(assignment)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleWeightBlur(assignment);
-                      if (e.key === "Escape") {
-                        setEditingId(null);
-                        setEditingValue("");
-                      }
-                    }}
                     className="h-7 pe-5 text-end text-sm"
                     autoFocus
                   />
@@ -439,7 +438,9 @@ export function MultiSelectTaxonomy({
                       disabled && "cursor-not-allowed opacity-50",
                     )}
                   >
-                    {basisPointsToPercent(assignment.weight)}%
+                    {numbers.formatPercent(assignment.weight / 10000, {
+                      digits: Number.isInteger(assignment.weight / 100) ? 0 : 2,
+                    })}
                   </button>
                 )}
               </div>
@@ -477,7 +478,9 @@ export function MultiSelectTaxonomy({
                       : "text-warning",
                 )}
               >
-                {totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)}%
+                {numbers.formatPercent(totalWeight / 100, {
+                  digits: Number.isInteger(totalWeight) ? 0 : 2,
+                })}
               </div>
               <div className="w-7" />
             </div>

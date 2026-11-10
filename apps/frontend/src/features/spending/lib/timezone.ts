@@ -1,3 +1,5 @@
+import { CalendarDate } from "@internationalized/date";
+
 import { resolveDisplayTimezone } from "@/lib/utils";
 
 const WEEKDAY_INDEX: Record<string, number> = {
@@ -21,16 +23,6 @@ export interface ZonedCalendarDate {
   month: number;
   day: number;
 }
-
-const DATE_TIME_PART_OPTIONS: Intl.DateTimeFormatOptions = {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-};
 
 function partValue(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
   return parts.find((part) => part.type === type)?.value;
@@ -72,61 +64,17 @@ export function formatZonedDateKey(date: Date, timezone?: string | null): string
   return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
 }
 
-function timezoneOffsetMs(instant: Date, timezone: string): number {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    ...DATE_TIME_PART_OPTIONS,
-    timeZone: timezone,
-  });
-  const parts = formatter.formatToParts(instant);
-  let hour = partNumber(parts, "hour");
-  if (hour === 24) hour = 0;
-  const asUtc = Date.UTC(
-    partNumber(parts, "year"),
-    partNumber(parts, "month") - 1,
-    partNumber(parts, "day"),
-    hour,
-    partNumber(parts, "minute"),
-    partNumber(parts, "second"),
-    instant.getUTCMilliseconds(),
-  );
-  return asUtc - instant.getTime();
-}
-
-function zonedWallTimeToUtc(
-  date: ZonedCalendarDate,
-  timezone: string,
-  hour: number,
-  minute: number,
-  second: number,
-  millisecond: number,
-): Date {
-  const wallAsUtc = Date.UTC(
-    date.year,
-    date.month - 1,
-    date.day,
-    hour,
-    minute,
-    second,
-    millisecond,
-  );
-  let instant = new Date(wallAsUtc);
-  for (let i = 0; i < 3; i += 1) {
-    const next = new Date(wallAsUtc - timezoneOffsetMs(instant, timezone));
-    if (next.getTime() === instant.getTime()) return next;
-    instant = next;
-  }
-  return instant;
-}
-
 export function zonedCalendarDateBoundaryToDate(
   date: ZonedCalendarDate,
   boundary: "start" | "end",
   timezone?: string | null,
 ): Date {
   const tz = resolveDisplayTimezone(timezone);
+  const day = new CalendarDate(date.year, date.month, date.day);
+  // Use the next day's start so the inclusive end covers any repeated final hour.
   return boundary === "start"
-    ? zonedWallTimeToUtc(date, tz, 0, 0, 0, 0)
-    : zonedWallTimeToUtc(date, tz, 23, 59, 59, 999);
+    ? day.toDate(tz)
+    : new Date(day.add({ days: 1 }).toDate(tz).getTime() - 1);
 }
 
 export function localDateBoundaryToISOString(

@@ -2,12 +2,22 @@ import { ActivityEditCancelled } from "@/features/spending/components/activity-s
 import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
-import { render, screen, waitFor } from "@/test/render";
+import { render as renderWithFormatting, screen, waitFor } from "@/test/render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { Activity, type ReactNode, type RefObject } from "react";
+import { Activity, type ReactElement, type ReactNode, type RefObject } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import { MobileActivityForm } from "../mobile-activity-form";
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderWithFormatting(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 // The type step scrolls its options, and the scroll area needs a
 // ResizeObserver jsdom does not provide.
@@ -52,6 +62,8 @@ vi.mock("../mobile-details-step", async () => {
           data-testid="details-step"
           data-editing={String(!!isEditing)}
           data-quote-ccy={form.getValues("symbolQuoteCcy")}
+          data-fee={String(form.getValues("fee"))}
+          data-tax={String(form.getValues("tax"))}
         >
           {activityType ?? "no-type"}
           <input aria-label="Record notes" {...form.register("comment")} />
@@ -77,6 +89,39 @@ vi.mock("../mobile-details-step", async () => {
           >
             Enter a trade with its own total
           </button>
+          {[
+            { label: "Enter a dividend before tax", grossAmount: 100, tax: 15, fee: 0, amount: 85 },
+            {
+              label: "Enter a tax above the dividend",
+              grossAmount: 10,
+              tax: 15,
+              fee: 0,
+              amount: 0,
+            },
+            {
+              label: "Enter charges above the interest",
+              grossAmount: 10,
+              tax: 5,
+              fee: 10,
+              amount: 0,
+            },
+          ].map(({ label, grossAmount, tax, fee, amount }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                form.setValue("accountId", "acc_1");
+                form.setValue("currency", "USD");
+                if (activityType === ActivityType.DIVIDEND) form.setValue("assetId", "AAPL");
+                form.setValue("grossAmount", grossAmount);
+                form.setValue("tax", tax);
+                form.setValue("fee", fee);
+                form.setValue("amount", amount);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       );
     },
@@ -360,6 +405,69 @@ describe("a trade total typed on a phone screen left for another tab", () => {
         expect.objectContaining({ activityType: ActivityType.BUY, amount: 60 }),
       ),
     );
+  });
+});
+
+describe("saved charges on a phone edit", () => {
+  it("opens a saved 0 fee and tax empty and still saves them as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "0", tax: "0" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "undefined");
+    expect(details).toHaveAttribute("data-tax", "undefined");
+
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", amount: 100, fee: 0 }),
+      ),
+    );
+  });
+
+  it("opens a saved charge with its value", () => {
+    renderForm({ ...activity(ActivityType.DEPOSIT), amount: "100", fee: "1.5", tax: "2" });
+
+    const details = screen.getByTestId("details-step");
+    expect(details).toHaveAttribute("data-fee", "1.5");
+    expect(details).toHaveAttribute("data-tax", "2");
+  });
+});
+
+describe("income entered before tax on a phone", () => {
+  async function enterIncome(type: RegExp, button: string) {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<MobileActivityForm accounts={accounts} open onClose={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: type }));
+    await user.click(screen.getByRole("button", { name: /Next/i }));
+    await user.click(await screen.findByRole("button", { name: button }));
+    await user.click(screen.getByRole("button", { name: "Add Activity" }));
+  }
+
+  it("saves the received amount and not the amount before tax", async () => {
+    await enterIncome(/^Dividend\b/i, "Enter a dividend before tax");
+
+    await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledOnce());
+    const saved = noopMutation.mutateAsync.mock.calls[0][0];
+    expect(saved).toMatchObject({ activityType: ActivityType.DIVIDEND, amount: 85, tax: 15 });
+    expect(saved).not.toHaveProperty("grossAmount");
+  });
+
+  it("is refused when the tax is more than the amount before tax", async () => {
+    await enterIncome(/^Dividend\b/i, "Enter a tax above the dividend");
+
+    // The details step stays open instead of saving.
+    expect(await screen.findByTestId("details-step")).toBeInTheDocument();
+    expect(noopMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("is refused when interest's tax and fee together are more than it", async () => {
+    await enterIncome(/^Interest\b/i, "Enter charges above the interest");
+
+    expect(await screen.findByTestId("details-step")).toBeInTheDocument();
+    expect(noopMutation.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

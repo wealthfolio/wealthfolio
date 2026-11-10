@@ -8,7 +8,8 @@ mod fx_service;
 mod fx_traits;
 
 pub use currency::{
-    denormalization_multiplier, get_normalization_rule, normalize_amount, normalize_currency_code,
+    denormalization_multiplier, get_normalization_rule, is_crypto_currency, normalize_amount,
+    normalize_currency_code,
 };
 pub use currency_converter::CurrencyConverter;
 pub use fx_errors::FxError;
