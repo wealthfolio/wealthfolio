@@ -894,6 +894,23 @@ body.qr-scan-active > .qr-overlay {
     overflow-x: hidden;
   }
 
+  /* Boxes that set no overflow of their own are clipped instead. hidden also turns
+     overflow-y to auto, so a tap layer or glyph a few pixels past the box made it
+     scroll and drew a thin scrollbar where scrollbars are always shown. clip keeps
+     y visible. A scroll container's minimum size is 0, which these boxes relied on
+     to shrink, so the min-* rules keep that. Engines without clip keep hidden.
+     These weigh one class, like the rule above, so they win by coming after it and
+     the opt-outs below still win over them. */
+  :where(.grid, .flex):not([class*="overflow"]) {
+    overflow-x: clip;
+  }
+  :where(.grid, .flex):not([class*="overflow"], [class*="min-w-"]) {
+    min-width: 0;
+  }
+  :where(.grid, .flex):not([class*="overflow"], [class*="min-h-"]) {
+    min-height: 0;
+  }
+
   /* Centred dialogs and side sheets size themselves with max-w-* utilities.
      Those are layered, so the unlayered max-width rules above would replace
      them and stretch the surface to the full window width; revert-layer
@@ -917,11 +934,16 @@ body.qr-scan-active > .qr-overlay {
     box-sizing: revert-layer;
   }
 
+  /* Each opt-out below also restores min-width/min-height: the clip rules above set
+     them to 0, which only boxes that used to be scroll containers relied on. */
+
   /* assistant-ui thread needs native overflow behavior for sticky footer + viewport */
   .aui-root,
   .aui-root .flex,
   .aui-root .grid {
     overflow-x: visible;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 
   /* The .flex/.grid rule above sets overflow-x, which per spec forces the other
@@ -932,6 +954,8 @@ body.qr-scan-active > .qr-overlay {
   .spending-activity-list .flex,
   .spending-activity-list .grid {
     overflow-x: visible;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 
   /* Settings lists and the feature banner put a switch or button at the very edge of
@@ -942,12 +966,16 @@ body.qr-scan-active > .qr-overlay {
      shrinks to the field's width. */
   [data-slot="form-item"] {
     overflow-x: visible;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 
   /* Below sm an alert dialog's buttons fill its footer, so clipping the footer would
      cut their focus outline at both sides. They wrap their labels instead. */
   [data-slot="alert-dialog-footer"] {
     overflow-x: visible;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 
   .settings-list .flex,
@@ -955,6 +983,8 @@ body.qr-scan-active > .qr-overlay {
   .feature-status-banner .flex,
   .feature-status-banner .grid {
     overflow-x: visible;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 
   .aui-thread-viewport {
@@ -970,6 +1000,8 @@ body.qr-scan-active > .qr-overlay {
   .theme-picker :is(.flex, .grid),
   .onboarding-page {
     overflow-x: revert-layer;
+    min-width: revert-layer;
+    min-height: revert-layer;
   }
 }
 
