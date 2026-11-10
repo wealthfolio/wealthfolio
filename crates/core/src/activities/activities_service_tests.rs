@@ -5227,7 +5227,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn grid_edit_bare_crypto_pair_change_recalculates_custom_total() {
+    async fn grid_edit_bare_crypto_pair_change_moves_asset_and_keeps_custom_total() {
         let updated = save_grid_symbol_edit(
             create_test_asset_with_instrument(
                 "asset-btc",
@@ -5246,8 +5246,8 @@ pub(crate) mod tests {
         .await;
 
         assert_ne!(updated.asset_id.as_deref(), Some("asset-btc"));
-        assert_eq!(updated.amount, Some(dec!(10)));
-        assert!(updated.needs_review);
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
     }
 
     #[tokio::test]
@@ -5360,10 +5360,10 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn grid_edit_exchange_change_to_unheld_listing_recalculates_custom_total() {
-        // Search returns `SHOP.TO` as `SHOP` on XTSE: same symbol, another
-        // listing. Prepare moves the row to a new asset, so the custom total
-        // is replaced and flagged, as for any other replacement.
+    async fn grid_edit_exchange_change_to_unheld_listing_keeps_custom_total() {
+        // Search returns `SHOP.TO` as `SHOP` on XTSE: the same instrument on
+        // another listing. The row moves to that listing's asset and keeps
+        // its custom total, as a currency-only correction does.
         let updated = save_grid_symbol_edit(
             create_test_asset_with_instrument(
                 "asset-shop",
@@ -5386,12 +5386,169 @@ pub(crate) mod tests {
         .await;
 
         assert_ne!(updated.asset_id.as_deref(), Some("asset-shop"));
-        assert_eq!(updated.amount, Some(dec!(10)));
-        assert!(updated.needs_review);
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
     }
 
     #[tokio::test]
-    async fn grid_edit_crypto_quote_change_recalculates_custom_total() {
+    async fn grid_edit_listing_with_display_code_only_keeps_custom_total() {
+        let mut stored_asset = create_test_asset_with_instrument(
+            "asset-shop",
+            "SHOP",
+            Some("XNYS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        stored_asset.instrument_symbol = None;
+        let updated = save_grid_symbol_edit(
+            stored_asset,
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-shop".to_string()),
+                symbol: Some("SHOP".to_string()),
+                exchange_mic: Some("XTSE".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("CAD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-shop"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_padded_option_symbol_keeps_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-opt",
+                "AAPL  260619C00150000",
+                None,
+                Some(InstrumentType::Option),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-opt".to_string()),
+                symbol: Some("AAPL  260619C00150000".to_string()),
+                instrument_type: Some("OPTION".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn listing_correction_with_trade_edit_uses_resolved_multiplier() {
+        for resolution in ["picked", "picked-display", "found", "new"] {
+            for edit in ["listing", "quantity", "price"] {
+                let symbol = "AAPL260619C00150000";
+                let stored_asset = create_test_asset_with_instrument(
+                    "stored-option",
+                    symbol,
+                    Some("XNAS"),
+                    Some(InstrumentType::Option),
+                    "USD",
+                );
+                let mut assets = vec![stored_asset];
+                if resolution != "new" {
+                    let mut replacement = create_test_asset_with_instrument(
+                        "replacement-option",
+                        symbol,
+                        Some("XNYS"),
+                        Some(InstrumentType::Option),
+                        "USD",
+                    );
+                    replacement.metadata = crate::assets::build_option_metadata(symbol, dec!(10));
+                    if resolution == "picked-display" {
+                        replacement.instrument_symbol = None;
+                    }
+                    assets.push(replacement);
+                }
+                let mut existing =
+                    create_stored_activity("listing-edit", "acc-final", Some("stored-option"));
+                existing.quantity = Some(dec!(1));
+                existing.unit_price = Some(dec!(10));
+                existing.fee = Some(dec!(0));
+                existing.amount = Some(dec!(1200));
+                let service = final_total_service("USD", assets, Some(existing));
+                let mut update = create_test_activity_update(
+                    "listing-edit",
+                    "acc-final",
+                    Some(AssetResolutionInput {
+                        id: match resolution {
+                            "picked" | "picked-display" => Some("replacement-option".to_string()),
+                            "found" => Some("stored-option".to_string()),
+                            _ => None,
+                        },
+                        symbol: Some(symbol.to_string()),
+                        exchange_mic: Some("XNYS".to_string()),
+                        instrument_type: Some("OPTION".to_string()),
+                        quote_ccy: Some("USD".to_string()),
+                        ..Default::default()
+                    }),
+                    "USD",
+                );
+                update.quantity = Some(Some(if edit == "quantity" { dec!(2) } else { dec!(1) }));
+                update.unit_price = Some(Some(if edit == "price" { dec!(20) } else { dec!(10) }));
+                update.amount = None;
+                update.metadata = Some(r#"{"contract_multiplier": 10}"#.to_string());
+
+                let updated = service.update_activity(update).await.expect("listing edit");
+                assert_ne!(updated.asset_id.as_deref(), Some("stored-option"));
+                assert_eq!(
+                    updated.amount,
+                    Some(if edit == "listing" {
+                        dec!(1200)
+                    } else {
+                        dec!(200)
+                    }),
+                    "{resolution} / {edit}"
+                );
+                assert_eq!(
+                    updated.needs_review,
+                    edit != "listing",
+                    "{resolution} / {edit}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn raw_fx_pair_correction_keeps_custom_total() {
+        for symbol in ["EUR/GBP", "EURGBP=X"] {
+            let updated = save_grid_symbol_edit(
+                create_test_asset_with_instrument(
+                    "asset-eur",
+                    "EUR",
+                    None,
+                    Some(InstrumentType::Fx),
+                    "USD",
+                ),
+                dec!(12),
+                AssetResolutionInput {
+                    id: Some("asset-eur".to_string()),
+                    symbol: Some(symbol.to_string()),
+                    instrument_type: Some("FX".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await;
+
+            assert_ne!(updated.asset_id.as_deref(), Some("asset-eur"));
+            assert_eq!(updated.amount, Some(dec!(12)), "{symbol}");
+            assert!(!updated.needs_review, "{symbol}");
+        }
+    }
+
+    #[tokio::test]
+    async fn grid_edit_crypto_quote_change_keeps_custom_total() {
         let updated = save_grid_symbol_edit(
             create_test_asset_with_instrument(
                 "asset-btc",
@@ -5412,8 +5569,8 @@ pub(crate) mod tests {
         .await;
 
         assert_ne!(updated.asset_id.as_deref(), Some("asset-btc"));
-        assert_eq!(updated.amount, Some(dec!(10)));
-        assert!(updated.needs_review);
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
     }
 
     #[tokio::test]
@@ -5569,8 +5726,8 @@ pub(crate) mod tests {
                     update.unit_price = Some(Some(dec!(10)));
                     update.amount = None;
                     let updated = service.update_activity(update).await.expect("update pair");
-                    assert_eq!(updated.amount, Some(dec!(10)));
-                    assert!(updated.needs_review);
+                    assert_eq!(updated.amount, Some(dec!(12)));
+                    assert!(!updated.needs_review);
                     updated.asset_id
                 }
                 _ => {
@@ -5597,7 +5754,8 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn grid_paste_of_other_crypto_pair_over_stored_id_moves_to_that_pair() {
         // Pasting `BTC-EUR` over a saved BTC/USD row: the pair names its quote
-        // currency even when no quote currency field is sent.
+        // currency even when no quote currency field is sent. The row moves to
+        // BTC/EUR and, as a listing correction, keeps its custom total.
         for instrument_type in [None, Some("CRYPTO".to_string())] {
             let updated = save_grid_symbol_edit(
                 create_test_asset_with_instrument(
@@ -5622,8 +5780,8 @@ pub(crate) mod tests {
                 Some("asset-btc"),
                 "{instrument_type:?}"
             );
-            assert_eq!(updated.amount, Some(dec!(10)), "{instrument_type:?}");
-            assert!(updated.needs_review, "{instrument_type:?}");
+            assert_eq!(updated.amount, Some(dec!(12)), "{instrument_type:?}");
+            assert!(!updated.needs_review, "{instrument_type:?}");
         }
     }
 
