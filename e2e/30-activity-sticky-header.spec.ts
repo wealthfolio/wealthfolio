@@ -154,12 +154,13 @@ test("account activities keep the column header below the page header", async ({
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expectHeaderPinned(page);
 
-  // At 1024px and below, `globals.css` makes flex ancestors scroll containers,
-  // so even a table that fits keeps its header at its own top.
+  // At 1024px and below a table that fits rests at its own top, then pins below
+  // the page header once scrolled, as it does on wider screens.
   await toggleColumns(page, ["Currency", "Quantity", "Fee", "Tax"], false);
   await page.setViewportSize({ width: 1024, height: 900 });
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expect.poll(() => headerOffsetAtRest(page)).toBeLessThanOrEqual(1);
+  await expectHeaderPinned(page);
 });
 
 test("Activities keeps the investment table's column header in view", async ({ page }) => {
