@@ -1460,7 +1460,7 @@
       },
       "market_data_write": {
         "label": "Marktdaten — schreiben",
-        "description": "Geprüfte Kurse für vorhandene Vermögenswerte speichern. Erfordert die Berechtigung Bestände & Wert (Lesen)."
+        "description": "Geprüfte Kurse speichern, den Kursverlauf eines Vermögenswerts aktualisieren oder ersetzen und ändern, wie er bewertet wird: Symbol, Börse, Kurswährung, Kursmodus oder Datenanbieter. Erfordert die Berechtigung Bestände & Wert (Lesen)."
       },
       "spending_read": {
         "label": "Ausgaben ansehen",
