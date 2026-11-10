@@ -446,6 +446,25 @@ describe("saved charges on a phone edit", () => {
     );
   });
 
+  it("saves an external transfer's cleared fee as 0", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    renderForm({
+      ...activity(ActivityType.TRANSFER_OUT),
+      amount: "100",
+      fee: "5",
+      metadata: { flow: { is_external: true } },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear fee" }));
+    await user.click(screen.getByRole("button", { name: "Update Activity" }));
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: "act_1", activityType: ActivityType.TRANSFER_OUT, fee: 0 }),
+      ),
+    );
+  });
+
   it("leaves both legs' fees as stored when a securities transfer's fee is cleared", async () => {
     noopMutation.mutateAsync.mockReset().mockResolvedValue({});
     const user = userEvent.setup();
