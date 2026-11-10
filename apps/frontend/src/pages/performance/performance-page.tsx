@@ -769,7 +769,7 @@ function AttributionDetailMetric({
         side={isMobile ? "bottom" : "inline-end"}
         className={cn(
           "flex w-full flex-col p-0",
-          isMobile ? "h-[85vh] rounded-t-3xl" : "h-full sm:max-w-md",
+          isMobile ? "mx-1 h-[85vh] rounded-t-4xl" : "h-full sm:max-w-md",
         )}
         showCloseButton={false}
       >

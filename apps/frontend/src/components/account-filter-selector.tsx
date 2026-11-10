@@ -339,7 +339,7 @@ export function AccountScopeSelector({
           className={cn(
             "mx-1 p-0",
             portfoliosOnly
-              ? "bg-card [--overlay-max-height:80dvh] rounded-t-2xl"
+              ? "bg-card [--overlay-max-height:80dvh] rounded-t-4xl"
               : "rounded-t-4xl h-[80vh]",
           )}
         >
