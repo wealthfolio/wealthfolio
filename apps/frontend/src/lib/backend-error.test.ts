@@ -74,6 +74,28 @@ describe("public backend errors", () => {
       expect(String(error)).not.toContain("FAKE-KEY");
     },
   );
+  it.each([
+    ["ADDON_MANIFEST_MISSING", "addonManifestMissing"],
+    ["ADDON_MAIN_FILE_MISSING", "addonMainFileMissing"],
+    ["ADDON_NEEDS_NEWER_VERSION", "addonNeedsNewerVersion"],
+    ["QUOTE_CURRENCY_REQUIRED", "quoteCurrencyRequired"],
+  ] as const)("names the refusal the user can act on (%s)", async (errorCode, key) => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: "en",
+      resources: { en: { common: en }, ar: { common: ar } },
+    });
+    // The web envelope and the code desktop commands send.
+    for (const cause of [{ errorCode, message: privateMessage }, errorCode]) {
+      const error = backendError(cause);
+      expect(error?.errorCode).toBe(errorCode);
+      expect(backendErrorText(error, i18n.t)).toBe(en.backendErrors[key]);
+      expect(String(error)).not.toContain("FAKE-KEY");
+    }
+    await i18n.changeLanguage("ar");
+    expect(backendErrorText(errorCode, i18n.t)).toBe(ar.backendErrors[key]);
+  });
+
   it.each([false, true])("retains only the reviewed outcome metadata (%s)", (outcomeUnknown) => {
     const error = backendError({
       message: privateMessage,

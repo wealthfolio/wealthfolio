@@ -25,6 +25,10 @@ const ERROR_KEYS: Record<string, string> = {
   PROFILE_BUSY: "common:profiles.errors.busy",
   custom_provider_code_reserved: "common:backendErrors.customProviderCodeReserved",
   custom_provider_in_use: "common:backendErrors.customProviderInUse",
+  ADDON_MANIFEST_MISSING: "common:backendErrors.addonManifestMissing",
+  ADDON_MAIN_FILE_MISSING: "common:backendErrors.addonMainFileMissing",
+  ADDON_NEEDS_NEWER_VERSION: "common:backendErrors.addonNeedsNewerVersion",
+  QUOTE_CURRENCY_REQUIRED: "common:backendErrors.quoteCurrencyRequired",
 };
 
 /** Retains a code, never the server's arbitrary message, cause, or parameters. */

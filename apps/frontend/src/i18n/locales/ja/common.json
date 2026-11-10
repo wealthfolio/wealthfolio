@@ -701,6 +701,10 @@
     "providerUnknown": "対応しているプロバイダーを選択してください。",
     "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。",
     "customProviderCodeReserved": "このプロバイダーコードは予約されています。別のコードを選択してください。",
-    "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。"
+    "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。",
+    "addonManifestMissing": "アドオンの ZIP ファイルに manifest.json がありません。",
+    "addonMainFileMissing": "アドオンの ZIP ファイルに、マニフェストで指定されたメインファイルがありません。",
+    "addonNeedsNewerVersion": "このアドオンには新しいバージョンの Wealthfolio が必要です。Wealthfolio を更新してから、もう一度お試しください。",
+    "quoteCurrencyRequired": "建値通貨が必要です。検索結果から銘柄コードを選び直してください。"
   }
 }

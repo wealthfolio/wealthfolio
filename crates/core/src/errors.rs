@@ -43,8 +43,9 @@ impl PublicError {
         )
     }
 
-    /// Recover only reviewed control outcomes from legacy string boundaries.
-    /// Device-sync's API wrapper is accepted; diagnostic suffixes are discarded.
+    /// Recover only reviewed control outcomes and refusals from legacy string
+    /// boundaries. Device-sync's API wrapper is accepted; diagnostic suffixes
+    /// are discarded.
     pub fn from_control_message(message: &str) -> Option<Self> {
         let message = if let Some(api) = message.strip_prefix("API error (") {
             let (status, message) = api.split_once("): ")?;
@@ -80,6 +81,26 @@ impl PublicError {
             "BACKUP_MANUAL_LIMIT" => Some(Self::new(
                 "BACKUP_MANUAL_LIMIT",
                 "The daily manual backup limit has been reached.",
+            )),
+            ADDON_MANIFEST_MISSING => Some(Self::new(
+                ADDON_MANIFEST_MISSING,
+                "The add-on ZIP file has no manifest.json.",
+            )),
+            ADDON_MAIN_FILE_MISSING => Some(Self::new(
+                ADDON_MAIN_FILE_MISSING,
+                "The add-on ZIP file doesn't contain the main file its manifest names.",
+            )),
+            ADDON_NEEDS_NEWER_VERSION => Some(Self::new(
+                ADDON_NEEDS_NEWER_VERSION,
+                "This add-on needs a newer version of Wealthfolio.",
+            )),
+            AGENT_SCOPE_UNKNOWN => Some(Self::new(
+                AGENT_SCOPE_UNKNOWN,
+                "A requested scope is not recognized.",
+            )),
+            AGENT_SCOPE_DEPENDENCY => Some(Self::new(
+                AGENT_SCOPE_DEPENDENCY,
+                "A write scope needs its matching read, draft or suggest scope.",
             )),
             _ => None,
         }
@@ -118,6 +139,15 @@ impl Error {
                 "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
             Self::Validation(_) => PublicError::invalid_input(),
+            // The activity form names this refusal; only the static text is compared.
+            Self::Activity(ActivityError::InvalidData(message))
+                if message == QUOTE_CURRENCY_REQUIRED_MESSAGE =>
+            {
+                PublicError::new(
+                    "QUOTE_CURRENCY_REQUIRED",
+                    "Quote currency is required. Select the symbol again from the search results.",
+                )
+            }
             // The asset editor names this refusal; the code is fixed by core,
             // so only the static message below leaves the process.
             Self::ConstraintViolation(message)
@@ -143,6 +173,19 @@ impl Error {
 /// Prefix of the core refusal raised when an asset profile edit would collide
 /// with another asset's identity (symbol, exchange, instrument type).
 pub const ASSET_IDENTITY_CONFLICT_PREFIX: &str = "ASSET_IDENTITY_CONFLICT:";
+
+/// The activity refusal for a security saved without a quote currency.
+pub const QUOTE_CURRENCY_REQUIRED_MESSAGE: &str =
+    "Quote currency is required. Please re-select the symbol.";
+
+// Refusals that add-on packages and agent token scopes raise as text start
+// with one of these codes and a colon. `PublicError::from_control_message`
+// gives each a fixed public message.
+pub const ADDON_MANIFEST_MISSING: &str = "ADDON_MANIFEST_MISSING";
+pub const ADDON_MAIN_FILE_MISSING: &str = "ADDON_MAIN_FILE_MISSING";
+pub const ADDON_NEEDS_NEWER_VERSION: &str = "ADDON_NEEDS_NEWER_VERSION";
+pub const AGENT_SCOPE_UNKNOWN: &str = "AGENT_SCOPE_UNKNOWN";
+pub const AGENT_SCOPE_DEPENDENCY: &str = "AGENT_SCOPE_DEPENDENCY";
 
 /// Type alias for Result using our Error type.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -415,6 +458,11 @@ mod public_error_tests {
             "PROFILE_STALE",
             "PROFILE_BUSY",
             "CONNECT_REBIND_REQUIRED",
+            ADDON_MANIFEST_MISSING,
+            ADDON_MAIN_FILE_MISSING,
+            ADDON_NEEDS_NEWER_VERSION,
+            AGENT_SCOPE_UNKNOWN,
+            AGENT_SCOPE_DEPENDENCY,
         ] {
             for message in [
                 format!("{code}: {private}"),
@@ -474,6 +522,23 @@ mod public_error_tests {
             PublicError::from_error(wrapped.as_ref()).error_code,
             "invalid_input"
         );
+    }
+
+    #[test]
+    fn a_missing_quote_currency_keeps_its_public_code() {
+        let public = Error::Activity(ActivityError::InvalidData(
+            QUOTE_CURRENCY_REQUIRED_MESSAGE.to_string(),
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "QUOTE_CURRENCY_REQUIRED");
+
+        // Other invalid activity data stays generic.
+        let other = Error::Activity(ActivityError::InvalidData(format!(
+            "{QUOTE_CURRENCY_REQUIRED_MESSAGE} FAKE-KEY-2531"
+        )))
+        .public_error();
+        assert_eq!(other.error_code, "internal_error");
+        assert!(!serde_json::to_string(&other).unwrap().contains("FAKE-KEY"));
     }
 
     #[test]

@@ -712,6 +712,10 @@
     "providerUnknown": "Select a supported provider.",
     "providerUnavailable": "The provider could not complete the request. Check your provider settings.",
     "customProviderCodeReserved": "This provider code is reserved. Choose a different code.",
-    "customProviderInUse": "Change the provider for affected assets or remove their symbol mappings before deleting it."
+    "customProviderInUse": "Change the provider for affected assets or remove their symbol mappings before deleting it.",
+    "addonManifestMissing": "The add-on ZIP file has no manifest.json.",
+    "addonMainFileMissing": "The add-on ZIP file doesn't contain the main file its manifest names.",
+    "addonNeedsNewerVersion": "This add-on needs a newer version of Wealthfolio. Update Wealthfolio, then try again.",
+    "quoteCurrencyRequired": "Quote currency is required. Select the symbol again from the search results."
   }
 }

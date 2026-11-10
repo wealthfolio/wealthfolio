@@ -712,6 +712,10 @@
     "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
     "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen.",
     "customProviderCodeReserved": "Dieser Anbietercode ist reserviert. Wählen Sie einen anderen Code.",
-    "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen."
+    "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen.",
+    "addonManifestMissing": "Die ZIP-Datei des Add-ons enthält keine manifest.json.",
+    "addonMainFileMissing": "Die ZIP-Datei des Add-ons enthält nicht die Hauptdatei, die im Manifest angegeben ist.",
+    "addonNeedsNewerVersion": "Dieses Add-on erfordert eine neuere Version von Wealthfolio. Aktualisieren Sie Wealthfolio und versuchen Sie es erneut.",
+    "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus."
   }
 }

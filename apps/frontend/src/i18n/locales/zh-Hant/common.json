@@ -712,6 +712,10 @@
     "providerUnknown": "請選擇支援的提供者。",
     "providerUnavailable": "提供者無法完成請求。請檢查提供者設定。",
     "customProviderCodeReserved": "此提供者代碼已被保留。請選擇其他代碼。",
-    "customProviderInUse": "刪除前，請變更相關資產的提供者或移除其代碼對應。"
+    "customProviderInUse": "刪除前，請變更相關資產的提供者或移除其代碼對應。",
+    "addonManifestMissing": "插件 ZIP 檔案中沒有 manifest.json。",
+    "addonMainFileMissing": "插件 ZIP 檔案中沒有其清單指定的主檔案。",
+    "addonNeedsNewerVersion": "此插件需要較新版本的 Wealthfolio。請更新 Wealthfolio 後再試一次。",
+    "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。"
   }
 }
