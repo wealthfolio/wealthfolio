@@ -25,7 +25,7 @@ use super::{
     asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_known_exchange,
     AssetResolutionInput, AssetResolutionOutput,
 };
-use crate::errors::{DatabaseError, Error, Result};
+use crate::errors::{DatabaseError, Error, Result, ASSET_IDENTITY_CONFLICT_PREFIX};
 
 // Import mic_to_currency for resolving exchange trading currencies
 use wealthfolio_market_data::{
@@ -2315,13 +2315,10 @@ impl AssetServiceTrait for AssetService {
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
         let preview = self.normalize_profile_update(&existing_asset, payload)?;
         if preview.conflicting_asset.is_some() {
-            return Err(Error::ConstraintViolation(
-                concat!(
-                    "ASSET_IDENTITY_CONFLICT: An asset with this identity already exists. ",
-                    "Your changes were not saved."
-                )
-                .to_string(),
-            ));
+            return Err(Error::ConstraintViolation(format!(
+                "{ASSET_IDENTITY_CONFLICT_PREFIX} An asset with this identity already exists. \
+                 Your changes were not saved."
+            )));
         }
         let payload = preview.profile;
 

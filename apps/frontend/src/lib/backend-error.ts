@@ -18,6 +18,7 @@ const ERROR_KEYS: Record<string, string> = {
   provider_unknown: "common:backendErrors.providerUnknown",
   provider_unavailable: "common:backendErrors.providerUnavailable",
   INVALID_SNAPSHOT_DATE: "account:snapshot.invalid_date_update_desc",
+  ASSET_IDENTITY_CONFLICT: "asset:editSheet.identity_conflict",
   [CONNECT_REBIND_REQUIRED]: "common:profiles.errors.rebind",
   [BACKUP_REAUTHENTICATION_REQUIRED]: "settings:cloud_backup_reauth",
   [BACKUP_MANUAL_LIMIT]: "settings:cloud_backup_manual_limit",

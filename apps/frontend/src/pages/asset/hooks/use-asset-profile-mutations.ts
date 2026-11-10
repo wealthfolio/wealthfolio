@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
+import { backendError } from "@/lib/backend-error";
 
 export const useAssetProfileMutations = () => {
   const queryClient = useQueryClient();
@@ -36,10 +37,14 @@ export const useAssetProfileMutations = () => {
     },
     onError: (error) => {
       logger.error(`Error updating asset profile: ${error}`);
+      // Web returns a typed code; desktop rejects with the core error text.
       const message = error instanceof Error ? error.message : String(error);
+      const isIdentityConflict =
+        backendError(error)?.errorCode === "ASSET_IDENTITY_CONFLICT" ||
+        message.includes("ASSET_IDENTITY_CONFLICT:");
       handleError(
         "profile_failed",
-        message.includes("ASSET_IDENTITY_CONFLICT:") ? t("editSheet.identity_conflict") : undefined,
+        isIdentityConflict ? t("editSheet.identity_conflict") : undefined,
       );
     },
   });
