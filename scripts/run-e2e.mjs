@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { stopServer } from "./e2e-server.mjs";
 import { prepE2eEnv } from "./prep-e2e.mjs";
 
 const DEV_SERVER_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
@@ -93,12 +93,7 @@ const run = async () => {
     VITE_DEV_PORT: devServerPort,
   });
 
-  const cleanup = async () => {
-    if (devServer.exitCode === null && !devServer.killed) {
-      devServer.kill("SIGINT");
-      await once(devServer, "exit");
-    }
-  };
+  const cleanup = () => stopServer(devServer, "SIGINT");
 
   const handleSignal = () => {
     cleanup().catch(() => {});
