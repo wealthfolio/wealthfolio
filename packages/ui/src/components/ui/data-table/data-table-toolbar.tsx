@@ -1,4 +1,4 @@
-import type { ColumnOrderState, Table } from "@tanstack/react-table";
+import type { Table } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn, isKeyboardEventComposing } from "../../../lib/utils";
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "../dropdown-menu";
 import { Icons } from "../icons";
+import { moveColumn } from "./column-order";
 import type { DataTableFacetedFilterProps } from "./data-table-faceted-filter";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
@@ -27,34 +28,9 @@ interface DataTableToolbarProps<TData> {
   additionalFilters?: React.ReactNode;
   showColumnToggle?: boolean;
   enableColumnReordering?: boolean;
+  /** A saved order exists, so it can be reset. */
+  hasCustomColumnOrder?: boolean;
   actions?: React.ReactNode;
-}
-
-/** Ids in the order tanstack shows them: listed ids first, the rest in definition order. */
-function displayOrder(columnIds: string[], columnOrder: ColumnOrderState): string[] {
-  const present = new Set(columnIds);
-  const ordered = columnOrder.filter((id) => present.has(id));
-  const placed = new Set(ordered);
-  return [...ordered, ...columnIds.filter((id) => !placed.has(id))];
-}
-
-/**
- * Place `id` just before or after `neighbourId`. Views sharing a storageKey can render
- * different columns, so ids this view doesn't render keep their place in the saved order.
- */
-function moveColumn(
-  columnOrder: ColumnOrderState,
-  columnIds: string[],
-  id: string,
-  neighbourId: string,
-  placement: "before" | "after",
-): ColumnOrderState {
-  const listed = new Set(columnOrder);
-  const order = [...columnOrder, ...columnIds.filter((columnId) => !listed.has(columnId))].filter(
-    (columnId) => columnId !== id,
-  );
-  order.splice(order.indexOf(neighbourId) + (placement === "after" ? 1 : 0), 0, id);
-  return order;
 }
 
 export function DataTableToolbar<TData>({
@@ -65,6 +41,7 @@ export function DataTableToolbar<TData>({
   additionalFilters,
   showColumnToggle = false,
   enableColumnReordering = false,
+  hasCustomColumnOrder = false,
   actions,
 }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation();
@@ -78,7 +55,10 @@ export function DataTableToolbar<TData>({
   // as row actions, which stay where they are.
   const menuColumns = (
     enableColumnReordering
-      ? displayOrder(columnIds, columnOrder)
+      ? table
+          .getAllLeafColumns()
+          .map((column) => column.id)
+          .sort((a, b) => columnOrder.indexOf(a) - columnOrder.indexOf(b))
           .map((id) => table.getColumn(id))
           .filter((column) => column !== undefined)
       : table.getAllColumns()
@@ -89,7 +69,7 @@ export function DataTableToolbar<TData>({
   );
   const movableIds = menuColumns.filter((column) => canMove(column.id)).map((column) => column.id);
   const move = (id: string, neighbourId: string, placement: "before" | "after") =>
-    table.setColumnOrder(moveColumn(columnOrder, columnIds, id, neighbourId, placement));
+    table.setColumnOrder(moveColumn(columnOrder, id, neighbourId, placement));
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -194,7 +174,7 @@ export function DataTableToolbar<TData>({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     closeOnClick={false}
-                    disabled={columnOrder.length === 0}
+                    disabled={!hasCustomColumnOrder}
                     onClick={() => table.setColumnOrder([])}
                   >
                     <Icons.RotateCcw />
