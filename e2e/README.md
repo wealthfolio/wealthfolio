@@ -54,6 +54,10 @@ restarting the server on every run.
 
 #### Step 1 — Prepare a fresh database
 
+If your shell exports an empty `WF_SECRET_KEY_FILE`, unset it first: the script
+and `dev:web` both prefer shell values over `.env.web`, so the empty value hides
+a key file set there and the script replaces it with a throwaway key.
+
 ```bash
 node scripts/prep-e2e.mjs
 ```
@@ -63,9 +67,7 @@ timestamped data directory (e.g. `db/app-testing-20260411T120000Z-XXXXXX/`), and
 writes its database, vault, and addon paths to `.env.web`. When neither
 `WF_SECRET_KEY` nor `WF_SECRET_KEY_FILE` is set, it also writes a throwaway
 server key to `secret.key` in that directory and points `WF_SECRET_KEY_FILE` at
-it; a key you set yourself is kept. If your shell exports an empty
-`WF_SECRET_KEY_FILE`, unset it before starting the server, since `dev:web`
-prefers shell values over `.env.web`. The profile registry and profile databases
+it; a key you set yourself is kept. The profile registry and profile databases
 stay in that directory too. **Run this every time** before starting the server —
 changing only the database filename would reuse the previous installation's
 profiles.
