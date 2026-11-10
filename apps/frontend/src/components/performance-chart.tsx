@@ -9,7 +9,7 @@ import { ReturnData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { ChartConfig, ChartContainer, ChartTooltip } from "@wealthfolio/ui/components/ui/chart";
-import { useId, useRef } from "react";
+import { useId, useMemo, useRef } from "react";
 import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
 import {
   Area,
@@ -154,37 +154,44 @@ export function PerformanceChart({
   const fingerDownRef = useRef(false);
   const usesTouchRef = useRef(false);
 
-  const baseReturns = data[0]?.returns ?? [];
-  const plottedReturns = compact ? thinPoints(baseReturns, COMPACT_MAX_POINTS) : baseReturns;
-  const formattedData = plottedReturns.map((item) => {
-    const dataPoint: Record<string, number | string> = { date: item.date };
-    data.forEach((series) => {
-      const matchingPoint = series.returns?.find((p) => p.date === item.date);
-      if (matchingPoint) {
-        dataPoint[series.id] = matchingPoint.value;
+  // Built once per data change: a finger drag re-renders the page on every move, and
+  // rebuilding these scanned every series once per plotted date.
+  const { formattedData, axis, yAxis, zeroOffset } = useMemo(() => {
+    const baseReturns = data[0]?.returns ?? [];
+    const plotted = compact ? thinPoints(baseReturns, COMPACT_MAX_POINTS) : baseReturns;
+    const valuesBySeries = data.map(
+      (series) =>
+        [series.id, new Map(series.returns.map((point) => [point.date, point.value]))] as const,
+    );
+    const rows = plotted.map((item) => {
+      const dataPoint: Record<string, number | string> = { date: item.date };
+      for (const [id, values] of valuesBySeries) {
+        const value = values.get(item.date);
+        if (value != null) dataPoint[id] = value;
       }
+      return dataPoint;
     });
-    return dataPoint;
-  });
-
-  const axis = performanceAxis(
-    plottedReturns.map((point) => point.date),
-    compact ? 4 : 6,
-  );
+    // The active fill fades toward the 0% line from both sides; the gradient spans
+    // the area's own box, which runs from its lowest value (or 0) to its highest.
+    const { min: areaBottom, max: areaTop } = valueRange(
+      baseReturns.map((point) => Number(point.value)),
+    );
+    return {
+      formattedData: rows,
+      yAxis: percentTicks(
+        data.flatMap((series) => series.returns.map((point) => Number(point.value))),
+        compact ? 3 : 5,
+      ),
+      zeroOffset: areaTop === areaBottom ? 0 : areaTop / (areaTop - areaBottom),
+      axis: performanceAxis(
+        plotted.map((point) => point.date),
+        compact ? 4 : 6,
+      ),
+    };
+  }, [compact, data]);
   const lastIndex = formattedData.length - 1;
   const formatSigned = (value: number) =>
     numberFormatting.formatPercent(value, { signDisplay: "exceptZero" });
-  const yAxis = percentTicks(
-    data.flatMap((series) => series.returns.map((point) => Number(point.value))),
-    compact ? 3 : 5,
-  );
-
-  // The active fill fades toward the 0% line from both sides; the gradient spans
-  // the area's own box, which runs from its lowest value (or 0) to its highest.
-  const { min: areaBottom, max: areaTop } = valueRange(
-    (data[0]?.returns ?? []).map((point) => Number(point.value)),
-  );
-  const zeroOffset = areaTop === areaBottom ? 0 : areaTop / (areaTop - areaBottom);
 
   const chartConfig = data.reduce((config, series, index) => {
     config[series.id] = {
