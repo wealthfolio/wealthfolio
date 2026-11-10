@@ -418,6 +418,13 @@ const METRIC_VARIANT_CLASSES = {
   },
 } as const;
 
+/**
+ * The mobile reset in globals.css clips every .flex and .grid box, which cut a metric's
+ * 44px warning tap area and scrolled it inside the label row. The tile and the phone
+ * containers around it opt out.
+ */
+const METRIC_TAP_AREA_CLASS = "overflow-visible!";
+
 /** One metric in the strip. An unavailable value reads N/A; its reason sits behind the warning. */
 function MetricTile({
   label,
@@ -443,8 +450,8 @@ function MetricTile({
   const classes = METRIC_VARIANT_CLASSES[variant];
 
   return (
-    <div className={cn(classes.box, className)}>
-      <div className="flex max-w-full items-center gap-1">
+    <div className={cn(classes.box, METRIC_TAP_AREA_CLASS, className)}>
+      <div className={cn("flex max-w-full items-center gap-1", METRIC_TAP_AREA_CLASS)}>
         <span className={classes.label}>{label}</span>
         {warningItems.length > 0 && (
           <Popover>
@@ -452,8 +459,10 @@ function MetricTile({
               render={
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="text-warning hover:text-warning h-4 w-4 shrink-0 rounded-full p-0"
+                  size="icon-xs"
+                  // Stays 16px on touch so the label row keeps its height; the variant's
+                  // ::after, grown to 44px here, is the tap area.
+                  className="text-warning hover:text-warning z-10 size-4 shrink-0 rounded-full p-0 max-lg:size-4 max-lg:after:-inset-[0.9375rem] pointer-coarse:size-4 pointer-coarse:after:-inset-[0.9375rem]"
                 />
               }
             >
@@ -1874,8 +1883,8 @@ export default function PerformancePage() {
             </div>
 
             {performanceData && performanceData.length > 0 && isMobile && (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col items-start gap-1">
+              <div className={cn("flex flex-col gap-3", METRIC_TAP_AREA_CLASS)}>
+                <div className={cn("flex flex-col items-start gap-1", METRIC_TAP_AREA_CLASS)}>
                   <MetricTile
                     variant="hero"
                     label={stripReturnLabel(selectedItemData?.label, t)}
@@ -1914,6 +1923,7 @@ export default function PerformancePage() {
                 <div
                   className={cn(
                     "grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-2 transition-opacity",
+                    METRIC_TAP_AREA_CLASS,
                     scrubValues && "opacity-40",
                   )}
                 >
