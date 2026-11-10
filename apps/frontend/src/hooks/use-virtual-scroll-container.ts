@@ -15,9 +15,9 @@ export const observeCurrentScrollOffset: typeof observeElementOffset = (instance
  * own box marks that box.
  *
  * Resolving the port by walking up for a scrollable `overflow` alone would pick
- * the wrong element: below 1024px `globals.css` sets `overflow-x` on every
- * `.flex` and `.grid`, and per spec that makes the other axis compute to
- * `auto`, so most of the ancestor chain reports itself as scrollable.
+ * the wrong element: below 1024px `globals.css` sets `overflow-x: hidden` on
+ * every `.flex` and `.grid` that names its own overflow, and per spec that makes
+ * the other axis compute to `auto`, so those boxes report themselves as scrollable.
  */
 const SCROLL_PARENT_SELECTOR = "[data-virtual-scroll-parent],[data-page-scroll-container]";
 
