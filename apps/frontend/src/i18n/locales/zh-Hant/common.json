@@ -716,6 +716,7 @@
     "addonManifestMissing": "插件 ZIP 檔案中沒有 manifest.json。",
     "addonMainFileMissing": "插件 ZIP 檔案中沒有其清單指定的主檔案。",
     "addonNeedsNewerVersion": "此插件需要較新版本的 Wealthfolio。請更新 Wealthfolio 後再試一次。",
-    "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。"
+    "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。",
+    "rateLimited": "請求過多。請稍候一分鐘後再試一次。"
   }
 }

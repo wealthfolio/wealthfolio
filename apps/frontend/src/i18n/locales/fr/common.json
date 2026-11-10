@@ -733,6 +733,7 @@
     "addonManifestMissing": "Le fichier ZIP du module complémentaire ne contient pas de manifest.json.",
     "addonMainFileMissing": "Le fichier ZIP du module complémentaire ne contient pas le fichier principal indiqué dans son manifeste.",
     "addonNeedsNewerVersion": "Ce module complémentaire nécessite une version plus récente de Wealthfolio. Mettez Wealthfolio à jour, puis réessayez.",
-    "quoteCurrencyRequired": "La devise de cotation est obligatoire. Sélectionnez à nouveau le symbole dans les résultats de recherche."
+    "quoteCurrencyRequired": "La devise de cotation est obligatoire. Sélectionnez à nouveau le symbole dans les résultats de recherche.",
+    "rateLimited": "Trop de requêtes. Patientez une minute, puis réessayez."
   }
 }

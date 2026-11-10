@@ -44,19 +44,44 @@ impl PublicError {
     }
 
     /// Recover only reviewed control outcomes and refusals from legacy string
-    /// boundaries. Device-sync's API wrapper is accepted; diagnostic suffixes
-    /// are discarded.
+    /// boundaries. The cloud API wrappers are accepted: device sync's
+    /// "API error (403): CODE: …" and Connect's "API error 403: CODE: …" or,
+    /// without a code, "API error 429 (…)". Diagnostic suffixes are discarded.
     pub fn from_control_message(message: &str) -> Option<Self> {
-        let message = if let Some(api) = message.strip_prefix("API error (") {
+        let (status, message) = if let Some(api) = message.strip_prefix("API error (") {
             let (status, message) = api.split_once("): ")?;
-            if status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit()) {
+            (Some(status), message)
+        } else if let Some(api) = message.strip_prefix("API error ") {
+            let (status, rest) = (api.get(..3)?, api.get(3..)?);
+            if !(rest.is_empty() || rest.starts_with([':', ' '])) {
                 return None;
             }
-            message
+            (Some(status), rest.strip_prefix(": ").unwrap_or_default())
         } else {
-            message
+            (None, message)
         };
-        match message.split(':').next()? {
+        if status.is_some_and(|status| {
+            status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit())
+        }) {
+            return None;
+        }
+        let code = message.split(':').next()?;
+        // Connect and sync answer every subscription denial with its own
+        // SUBSCRIPTION_* code; the app treats them alike.
+        if code == "BACKUP_SUBSCRIPTION_REQUIRED"
+            || code.strip_prefix("SUBSCRIPTION_").is_some_and(|reason| {
+                !reason.is_empty()
+                    && reason
+                        .bytes()
+                        .all(|byte| byte.is_ascii_uppercase() || byte == b'_')
+            })
+        {
+            return Some(Self::new(
+                "SUBSCRIPTION_REQUIRED",
+                "An active subscription is required.",
+            ));
+        }
+        match code {
             "PROFILE_BUSY"
             | "Profile operations are running. Wait for them to finish and try again."
             | "Connect account change is in progress. Try again." => Some(Self::new(
@@ -101,6 +126,14 @@ impl PublicError {
             AGENT_SCOPE_DEPENDENCY => Some(Self::new(
                 AGENT_SCOPE_DEPENDENCY,
                 "A write scope needs its matching read, draft or suggest scope.",
+            )),
+            "PLAN_UPGRADE_REQUIRED" => Some(Self::new(
+                "PLAN_UPGRADE_REQUIRED",
+                "Upgrade your plan to use this feature.",
+            )),
+            _ if status == Some("429") => Some(Self::new(
+                "RATE_LIMITED",
+                "Too many requests. Wait a minute and try again.",
             )),
             _ => None,
         }
@@ -522,6 +555,47 @@ mod public_error_tests {
             PublicError::from_error(wrapped.as_ref()).error_code,
             "invalid_input"
         );
+    }
+
+    #[test]
+    fn connect_api_errors_keep_subscription_plan_and_rate_limit_codes() {
+        let private = "request_id=FAKE-KEY-2531 /private/portfolio.db";
+        for (message, code) in [
+            (
+                format!("API error 403: SUBSCRIPTION_CANCELED: Subscription required ({private})"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error (403): BACKUP_SUBSCRIPTION_REQUIRED: {private}"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error 403: PLAN_UPGRADE_REQUIRED: Upgrade ({private})"),
+                Some("PLAN_UPGRADE_REQUIRED"),
+            ),
+            (format!("API error 429 ({private})"), Some("RATE_LIMITED")),
+            (
+                format!("API error 429: RATE_LIMITED: Too many requests ({private})"),
+                Some("RATE_LIMITED"),
+            ),
+            (format!("API error (429): {private}"), Some("RATE_LIMITED")),
+            (format!("API error 403: SUBSCRIPTION_: {private}"), None),
+            (
+                format!("API error 403: SUBSCRIPTION_canceled: {private}"),
+                None,
+            ),
+            (format!("API error 401: UNAUTHORIZED: {private}"), None),
+            (format!("API error 4290: {private}"), None),
+            (format!("{private}: API error 429"), None),
+        ] {
+            let public = PublicError::from_control_message(&message);
+            assert_eq!(
+                public.as_ref().map(|public| public.error_code.as_str()),
+                code,
+                "{message}"
+            );
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
     }
 
     #[test]

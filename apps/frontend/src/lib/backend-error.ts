@@ -29,6 +29,9 @@ const ERROR_KEYS: Record<string, string> = {
   ADDON_MAIN_FILE_MISSING: "common:backendErrors.addonMainFileMissing",
   ADDON_NEEDS_NEWER_VERSION: "common:backendErrors.addonNeedsNewerVersion",
   QUOTE_CURRENCY_REQUIRED: "common:backendErrors.quoteCurrencyRequired",
+  SUBSCRIPTION_REQUIRED: "connect:subscription.syncPausedDescription",
+  PLAN_UPGRADE_REQUIRED: "connect:upgrade.title",
+  RATE_LIMITED: "common:backendErrors.rateLimited",
 };
 
 /** Retains a code, never the server's arbitrary message, cause, or parameters. */

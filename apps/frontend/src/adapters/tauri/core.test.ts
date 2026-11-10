@@ -93,6 +93,15 @@ it.each(["BACKUP_REAUTHENTICATION_REQUIRED", "BACKUP_MANUAL_LIMIT"])(
   },
 );
 
+it.each(["SUBSCRIPTION_REQUIRED", "PLAN_UPGRADE_REQUIRED", "RATE_LIMITED"])(
+  "keeps the Connect code the desktop command sends (%s)",
+  async (code) => {
+    mocks.invoke.mockRejectedValueOnce(code);
+    const failure = await invoke("get_user_info").catch((cause: unknown) => cause);
+    expect(failure).toHaveProperty("errorCode", code);
+  },
+);
+
 it("does not trust transport Error objects as public messages", async () => {
   mocks.invoke.mockRejectedValue(new Error("FAKE-KEY-2531 /private/portfolio.db"));
   const failure = await tauriInvoke("get_settings").catch((error: unknown) => error);

@@ -784,6 +784,7 @@
     "addonManifestMissing": "لا يحتوي ملف ZIP للملحق على ملف manifest.json.",
     "addonMainFileMissing": "لا يحتوي ملف ZIP للملحق على الملف الرئيسي الذي يحدده ملف manifest.",
     "addonNeedsNewerVersion": "يتطلب هذا الملحق إصدارًا أحدث من Wealthfolio. حدّث Wealthfolio ثم حاول مجددًا.",
-    "quoteCurrencyRequired": "عملة التسعير مطلوبة. اختر الرمز مرة أخرى من نتائج البحث."
+    "quoteCurrencyRequired": "عملة التسعير مطلوبة. اختر الرمز مرة أخرى من نتائج البحث.",
+    "rateLimited": "طلبات كثيرة جدًا. انتظر دقيقة وحاول مجددًا."
   }
 }
