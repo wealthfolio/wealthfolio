@@ -61,6 +61,7 @@ export function GainAmount({
   }
 
   const formatOptions: Format = {
+    useGrouping: true,
     ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" as const } : {}),
     style: useCurrencyStyle ? "currency" : "decimal",
     minimumFractionDigits: fractionDigits,
