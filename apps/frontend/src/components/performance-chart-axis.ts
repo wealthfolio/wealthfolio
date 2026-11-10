@@ -24,14 +24,24 @@ function daysBetween(from: string, to: string): number {
  * X-axis ticks whose labels never repeat: evenly spaced days up to about three
  * months, then the first date of each month (or year), thinned to `maxTicks`.
  * A fixed index interval with month labels put two "Aug" ticks on a 3M chart.
+ *
+ * `edgeGap` is the share of the plot at each end where a centred label would be
+ * cut off (phones plot to the card's edge); no tick is placed there.
  */
-export function performanceAxis(dates: string[], maxTicks: number): PerformanceAxis {
+export function performanceAxis(dates: string[], maxTicks: number, edgeGap = 0): PerformanceAxis {
   if (dates.length < 2) return { ticks: dates, granularity: "day", showYear: false };
 
-  const span = daysBetween(dates[0], dates[dates.length - 1]);
+  const last = dates.length - 1;
+  const firstIndex = Math.ceil(edgeGap * last);
+  const lastIndex = Math.floor((1 - edgeGap) * last);
+  const span = daysBetween(dates[0], dates[last]);
   if (span <= DAY_LABEL_MAX_DAYS) {
-    const step = Math.max(1, Math.ceil((dates.length - 1) / Math.max(1, maxTicks - 1)));
-    const ticks = dates.filter((_, index) => index % step === 0);
+    if (firstIndex > lastIndex) {
+      return { ticks: [dates[Math.round(last / 2)]], granularity: "day", showYear: false };
+    }
+    const step = Math.max(1, Math.ceil((lastIndex - firstIndex) / Math.max(1, maxTicks - 1)));
+    const ticks: string[] = [];
+    for (let index = firstIndex; index <= lastIndex; index += step) ticks.push(dates[index]);
     return { ticks, granularity: "day", showYear: false };
   }
 
@@ -41,13 +51,13 @@ export function performanceAxis(dates: string[], maxTicks: number): PerformanceA
   // The first point opens a partial period; label where each full period starts.
   const starts: string[] = [];
   let previous = periodOf(dates[0]);
-  for (const date of dates) {
+  dates.forEach((date, index) => {
     const period = periodOf(date);
     if (period !== previous) {
-      starts.push(date);
+      if (index >= firstIndex && index <= lastIndex) starts.push(date);
       previous = period;
     }
-  }
+  });
   const step = Math.max(1, Math.ceil(starts.length / maxTicks));
   const ticks = starts.filter((_, index) => index % step === 0);
   // Month labels need the year once the same month appears twice (a 366-day span can do that).
