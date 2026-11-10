@@ -26,6 +26,7 @@ import { getPageScrollKey } from "../page-scroll-key";
 import { StackScreenContext } from "./mobile-stack-contexts";
 import { describeTransition, topScreen, type StackScreen } from "./stack-model";
 import { useEdgeSwipeBack } from "./use-edge-swipe-back";
+import { useKeptScrollPositions } from "./use-kept-scroll-positions";
 import { useRequiredMobileStack } from "./use-mobile-stack";
 
 /** iOS navigation curve and timing. */
@@ -160,9 +161,12 @@ interface StackLayerProps {
 }
 
 function StackLayer({ screen, role, visible, x, dim, scrollProps }: StackLayerProps) {
+  const layerRef = useRef<HTMLDivElement>(null);
+  useKeptScrollPositions(layerRef, visible);
   return (
     <Activity mode={visible ? "visible" : "hidden"}>
       <motion.div
+        ref={layerRef}
         data-stack-screen={screen.id}
         data-stack-role={role}
         className="bg-background absolute inset-0 flex flex-col"
