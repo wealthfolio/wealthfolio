@@ -1201,7 +1201,33 @@
       "tab_income_other": "Reddito ({{count}})",
       "tab_savings_one": "Risparmio ({{count}})",
       "tab_savings_many": "Risparmio ({{count}})",
-      "tab_savings_other": "Risparmio ({{count}})"
+      "tab_savings_other": "Risparmio ({{count}})",
+      "merge": {
+        "description": "Sposta tutte le transazioni, le regole e i budget da {{name}}.",
+        "history": "I report passati useranno la nuova categoria. Questa azione è irreversibile.",
+        "destination": "Sposta in…",
+        "choose": "Scegli una categoria",
+        "budgets": "Budget · {{name}}",
+        "confirm": "Sposta ed elimina",
+        "error": "L’unione non è riuscita o i dati sono cambiati. Aggiorna l’anteprima, controlla la destinazione e riprova.",
+        "refresh": "Aggiorna anteprima",
+        "none": "Nessuna destinazione idonea. Risolvi le restrizioni seguenti o crea una categoria adatta.",
+        "blocked": {
+          "invalid_destination": "Scegli un’altra categoria nello stesso elenco di spese, entrate o risparmi.",
+          "children": "Sposta o unisci prima le sottocategorie. Le categorie con sottocategorie non possono essere unite.",
+          "asset_references": "Rimuovi prima le classificazioni degli asset e i riferimenti agli obiettivi di allocazione.",
+          "category_rollover": "Rimuovi prima le impostazioni di riporto salvate di entrambe le categorie, anche quelle disattivate.",
+          "group_rollover": "Disattiva il riporto dei gruppi di spesa interessati prima di cambiare gruppo. È consentito unire all’interno dello stesso gruppo.",
+          "exclusions": "Origine e destinazione devono avere la stessa impostazione effettiva «Escludi dalle spese», comprese le esclusioni ereditate.",
+          "budget_destination": "Questa categoria ha obiettivi di budget. Entrambe le categorie devono essere di primo livello affinché restino efficaci."
+        },
+        "period": "Mese",
+        "current": "Attuale",
+        "added": "Aggiunto",
+        "after": "Nuovo totale",
+        "monthlyDefault": "Mensile base",
+        "budgetHint": "Gli altri mesi usano l’importo mensile predefinito."
+      }
     },
     "events": {
       "heading": "Eventi di spesa",

@@ -881,11 +881,20 @@ fn upsert_system_groups_tx(
     }
     .map(|rows| rows.into_iter().map(Into::into).collect())
 }
-fn upsert_target_tx(
+pub(crate) fn upsert_target_tx(
     tx: &mut DbWriteTx<'_>,
     target: NewBudgetTarget,
 ) -> wealthfolio_core::Result<BudgetTarget> {
-    let now = chrono::Utc::now().to_rfc3339();
+    let row = upsert_target_row(tx.conn(), target, &chrono::Utc::now().to_rfc3339())?;
+    project_category_target(tx, &row, SyncOperation::Update)?;
+    Ok(row.into())
+}
+
+pub(crate) fn upsert_target_row(
+    conn: &mut SqliteConnection,
+    target: NewBudgetTarget,
+    now: &str,
+) -> wealthfolio_core::Result<BudgetTargetDB> {
     let NewBudgetTarget {
         id,
         period_key,
@@ -913,8 +922,8 @@ fn upsert_target_tx(
         category_id,
         group_id,
         amount,
-        created_at: now.clone(),
-        updated_at: now,
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
     };
     {
         let existing_id = if row.target_type == "category" {
@@ -924,7 +933,7 @@ fn upsert_target_tx(
                 .filter(budget_targets::taxonomy_id.eq(&row.taxonomy_id))
                 .filter(budget_targets::category_id.eq(&row.category_id))
                 .select(budget_targets::id)
-                .first::<String>(tx.conn())
+                .first::<String>(conn)
                 .optional()
                 .map_err(StorageError::from)?
         } else {
@@ -933,7 +942,7 @@ fn upsert_target_tx(
                 .filter(budget_targets::period_key.eq(&row.period_key))
                 .filter(budget_targets::group_id.eq(&row.group_id))
                 .select(budget_targets::id)
-                .first::<String>(tx.conn())
+                .first::<String>(conn)
                 .optional()
                 .map_err(StorageError::from)?
         };
@@ -943,35 +952,73 @@ fn upsert_target_tx(
                     budget_targets::amount.eq(&row.amount),
                     budget_targets::updated_at.eq(&row.updated_at),
                 ))
-                .execute(tx.conn())
+                .execute(conn)
                 .map_err(StorageError::from)?;
             budget_targets::table
                 .find(&existing_id)
-                .first::<BudgetTargetDB>(tx.conn())
+                .first::<BudgetTargetDB>(conn)
                 .map_err(StorageError::from)?
         } else {
             diesel::insert_into(budget_targets::table)
                 .values(&row)
                 .returning(BudgetTargetDB::as_returning())
-                .get_result(tx.conn())
+                .get_result(conn)
                 .map_err(StorageError::from)?
         };
-        tx.update(&result)?;
         Ok(result)
     }
-    .map(Into::into)
 }
-fn delete_target_tx(tx: &mut DbWriteTx<'_>, id: &str) -> wealthfolio_core::Result<()> {
+pub(crate) fn delete_target_tx(tx: &mut DbWriteTx<'_>, id: &str) -> wealthfolio_core::Result<()> {
     let id = id.to_string();
     {
+        let existing = budget_targets::table
+            .find(&id)
+            .first::<BudgetTargetDB>(tx.conn())
+            .optional()
+            .map_err(StorageError::from)?;
         let affected = diesel::delete(budget_targets::table.find(&id))
             .execute(tx.conn())
             .map_err(StorageError::from)?;
         if affected > 0 {
-            tx.delete::<BudgetTargetDB>(id.clone());
+            if let Some(row) = existing {
+                project_category_target(tx, &row, SyncOperation::Delete)?;
+            }
         }
         Ok(())
     }
+}
+
+fn project_category_target(
+    tx: &mut DbWriteTx<'_>,
+    row: &BudgetTargetDB,
+    op: SyncOperation,
+) -> wealthfolio_core::Result<()> {
+    let sources = if let (Some(tax), Some(cat)) = (&row.taxonomy_id, &row.category_id) {
+        super::category_merge::observed_budget_merges(tx.conn(), tax, cat)?
+    } else {
+        Vec::new()
+    };
+    if sources.is_empty() {
+        if op == SyncOperation::Delete {
+            tx.delete::<BudgetTargetDB>(row.id.clone());
+        } else {
+            tx.update(row)?;
+        }
+    } else {
+        let mut payload = if op == SyncOperation::Delete {
+            serde_json::json!({"id":row.id,"taxonomy_id":row.taxonomy_id,"category_id":row.category_id})
+        } else {
+            serde_json::to_value(row)?
+        };
+        payload["merge_sources"] = serde_json::to_value(sources)?;
+        tx.queue_outbox(crate::sync::OutboxWriteRequest::new(
+            SyncEntity::BudgetTarget,
+            &row.id,
+            op,
+            payload,
+        ));
+    }
+    Ok(())
 }
 fn upsert_rollover_setting_tx(
     tx: &mut DbWriteTx<'_>,
@@ -1127,7 +1174,7 @@ fn copy_period_targets_tx(
                 .execute(tx.conn())
                 .map_err(StorageError::from)?;
             for row in &to_delete {
-                tx.delete::<BudgetTargetDB>(row.id.clone());
+                project_category_target(tx, row, SyncOperation::Delete)?;
             }
         }
 
@@ -1159,7 +1206,7 @@ fn copy_period_targets_tx(
                 .optional()
                 .map_err(StorageError::from)?;
             if let Some(row) = inserted {
-                tx.update(&row)?;
+                project_category_target(tx, &row, SyncOperation::Update)?;
             }
         }
 
@@ -1175,27 +1222,33 @@ fn copy_period_targets_tx(
 fn budget_state_tx(
     tx: &mut DbWriteTx<'_>,
 ) -> wealthfolio_core::Result<wealthfolio_spending::budget::BudgetSnapshotState> {
+    budget_state(tx.conn())
+}
+
+pub(crate) fn budget_state(
+    conn: &mut SqliteConnection,
+) -> wealthfolio_core::Result<wealthfolio_spending::budget::BudgetSnapshotState> {
     Ok(wealthfolio_spending::budget::BudgetSnapshotState {
         groups: budget_groups::table
-            .load::<BudgetGroupDB>(tx.conn())
+            .load::<BudgetGroupDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         group_assignments: budget_group_assignments::table
-            .load::<BudgetGroupAssignmentDB>(tx.conn())
+            .load::<BudgetGroupAssignmentDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         targets: budget_targets::table
-            .load::<BudgetTargetDB>(tx.conn())
+            .load::<BudgetTargetDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)
             .collect(),
         rollover_settings: budget_rollover_settings::table
-            .load::<BudgetRolloverSettingDB>(tx.conn())
+            .load::<BudgetRolloverSettingDB>(conn)
             .map_err(StorageError::from)?
             .into_iter()
             .map(Into::into)

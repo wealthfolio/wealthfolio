@@ -1164,7 +1164,33 @@
       "tab_savings_other": "儲蓄（{{count}}）",
       "tab_expense_one": "支出（{{count}}）",
       "tab_income_one": "收入（{{count}}）",
-      "tab_savings_one": "儲蓄（{{count}}）"
+      "tab_savings_one": "儲蓄（{{count}}）",
+      "merge": {
+        "description": "將{{name}}的所有交易、規則和預算移至其他分類。",
+        "history": "歷史報表也將使用新分類。此操作無法復原。",
+        "destination": "移入…",
+        "choose": "選擇類別",
+        "budgets": "預算 · {{name}}",
+        "confirm": "移動並刪除",
+        "error": "合併失敗或資料已變更。請重新整理預覽、檢查目標後再試。",
+        "refresh": "重新整理預覽",
+        "none": "沒有符合條件的目標。請先解決以下限制，或建立合適的類別。",
+        "blocked": {
+          "invalid_destination": "請在同一支出、收入或儲蓄清單中選擇其他類別。",
+          "children": "請先移動或合併子類別。有子類別的類別無法合併。",
+          "asset_references": "請先移除資產分類和配置目標參照。",
+          "category_rollover": "請先移除兩個類別已儲存的結轉設定，包括已關閉的設定。",
+          "group_rollover": "跨群組移動前，請關閉相關支出群組的結轉。同群組內允許合併。",
+          "exclusions": "來源與目標的實際「從支出中排除」設定必須相同，包括繼承的排除設定。",
+          "budget_destination": "此類別有預算目標。兩個類別都必須位於頂層，讓這些目標持續生效。"
+        },
+        "period": "月份",
+        "current": "目前",
+        "added": "增加",
+        "after": "新合計",
+        "monthlyDefault": "每月預設",
+        "budgetHint": "其他月份使用每月預設金額。"
+      }
     },
     "events": {
       "heading": "支出事件",

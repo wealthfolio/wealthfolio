@@ -1526,24 +1526,51 @@ pub fn merged_group_buffers(
     {
         return Ok(Vec::new());
     }
+    merge_effective_amounts(
+        buffers.into_iter().map(|t| {
+            (
+                t.group_id.as_deref().unwrap_or_default(),
+                t.period_key.as_str(),
+                t.amount.as_str(),
+            )
+        }),
+        source,
+        destination,
+    )?
+    .into_iter()
+    .map(|(period_key, amount)| {
+        Ok(NewBudgetTarget {
+            id: None,
+            period_key,
+            target_type: BudgetTargetType::GroupBuffer,
+            taxonomy_id: None,
+            category_id: None,
+            group_id: Some(destination.to_string()),
+            amount,
+        })
+    })
+    .collect()
+}
+
+/// Shared by group-buffer and category merges. Overrides replace defaults;
+/// amounts must remain exactly representable in every affected month.
+pub(crate) fn merge_effective_amounts<'a>(
+    rows: impl Iterator<Item = (&'a str, &'a str, &'a str)>,
+    source: &str,
+    destination: &str,
+) -> Result<Vec<(String, String)>> {
     let mut amounts = HashMap::new();
     let mut periods = std::collections::BTreeSet::new();
-    for target in buffers {
-        let amount = Decimal::from_str_exact(&target.amount)
-            .map_err(|_| invalid_budget_input("Invalid group buffer amount"))?;
-        amounts.insert(
-            (
-                target.group_id.as_deref().unwrap_or_default(),
-                target.period_key.as_str(),
-            ),
-            amount,
-        );
-        periods.insert(target.period_key.as_str());
+    for (owner, period, value) in rows {
+        let amount = Decimal::from_str_exact(value)
+            .map_err(|_| invalid_budget_input("Invalid budget amount"))?;
+        amounts.insert((owner, period), amount);
+        periods.insert(period);
     }
-    let effective = |group, period| {
+    let effective = |owner, period| {
         amounts
-            .get(&(group, period))
-            .or_else(|| amounts.get(&(group, DEFAULT_PERIOD_KEY)))
+            .get(&(owner, period))
+            .or_else(|| amounts.get(&(owner, DEFAULT_PERIOD_KEY)))
             .copied()
             .unwrap_or(Decimal::ZERO)
     };
@@ -1554,24 +1581,16 @@ pub fn merged_group_buffers(
             let destination_amount = effective(destination, period);
             let amount = source_amount
                 .checked_add(destination_amount)
-                // Decimal addition may reduce scale to fit its coefficient.
-                // Reject a sum that cannot preserve both exact input amounts.
+                // Decimal addition can reduce scale to fit its coefficient.
+                // Both inputs must remain exactly recoverable from the sum.
                 .filter(|sum| {
                     sum.checked_sub(source_amount) == Some(destination_amount)
                         && sum.checked_sub(destination_amount) == Some(source_amount)
                 })
                 .ok_or_else(|| {
-                    invalid_budget_input("Merged group buffer amount cannot be represented exactly")
+                    invalid_budget_input("Merged budget amount cannot be represented exactly")
                 })?;
-            Ok(NewBudgetTarget {
-                id: None,
-                period_key: period.to_string(),
-                target_type: BudgetTargetType::GroupBuffer,
-                taxonomy_id: None,
-                category_id: None,
-                group_id: Some(destination.to_string()),
-                amount: amount.normalize().to_string(),
-            })
+            Ok((period.to_string(), amount.normalize().to_string()))
         })
         .collect()
 }
@@ -1720,7 +1739,7 @@ fn normalize_period_key(period_key: Option<String>, timezone: &str) -> Result<St
     }
 }
 
-fn validate_period_key(period_key: &str) -> Result<()> {
+pub(crate) fn validate_period_key(period_key: &str) -> Result<()> {
     if period_key == DEFAULT_PERIOD_KEY {
         Ok(())
     } else {

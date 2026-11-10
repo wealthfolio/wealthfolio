@@ -1204,7 +1204,33 @@
       "tab_income_many": "Revenus ({{count}})",
       "tab_savings_one": "Épargne ({{count}})",
       "tab_savings_other": "Épargne ({{count}})",
-      "tab_savings_many": "Épargne ({{count}})"
+      "tab_savings_many": "Épargne ({{count}})",
+      "merge": {
+        "description": "Déplacez toutes les transactions, règles et budgets de {{name}}.",
+        "history": "Les anciens rapports utiliseront la nouvelle catégorie. Cette action est irréversible.",
+        "destination": "Déplacer vers…",
+        "choose": "Choisir une catégorie",
+        "budgets": "Budgets · {{name}}",
+        "confirm": "Déplacer et supprimer",
+        "error": "La fusion a échoué ou les données ont changé. Actualisez l’aperçu, vérifiez la destination et réessayez.",
+        "refresh": "Actualiser l’aperçu",
+        "none": "Aucune destination admissible. Corrigez les restrictions ci-dessous ou créez une catégorie adaptée.",
+        "blocked": {
+          "invalid_destination": "Choisissez une autre catégorie dans la même liste de dépenses, de revenus ou d’épargne.",
+          "children": "Déplacez ou fusionnez d’abord les sous-catégories. Une catégorie avec des enfants ne peut pas être fusionnée.",
+          "asset_references": "Supprimez d’abord les classifications d’actifs et les références aux objectifs d’allocation.",
+          "category_rollover": "Supprimez d’abord les paramètres de report enregistrés des deux catégories, même désactivés.",
+          "group_rollover": "Désactivez le report des groupes de dépenses concernés avant de changer de groupe. La fusion au sein d’un même groupe est autorisée.",
+          "exclusions": "La source et la destination doivent avoir le même réglage effectif « Exclure des dépenses », y compris les exclusions héritées.",
+          "budget_destination": "Cette catégorie a des objectifs budgétaires. Les deux catégories doivent être de premier niveau pour qu’ils restent effectifs."
+        },
+        "period": "Mois",
+        "current": "Actuel",
+        "added": "Ajout",
+        "after": "Nouveau total",
+        "monthlyDefault": "Par défaut",
+        "budgetHint": "Les autres mois utilisent le montant mensuel par défaut."
+      }
     },
     "events": {
       "heading": "Événements de dépenses",

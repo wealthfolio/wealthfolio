@@ -1201,7 +1201,33 @@
       "tab_income_many": "Receitas ({{count}})",
       "tab_savings_one": "Poupança ({{count}})",
       "tab_savings_other": "Poupança ({{count}})",
-      "tab_savings_many": "Poupança ({{count}})"
+      "tab_savings_many": "Poupança ({{count}})",
+      "merge": {
+        "description": "Mova todas as transações, regras e orçamentos de {{name}}.",
+        "history": "Os relatórios anteriores usarão a nova categoria. Esta ação não pode ser desfeita.",
+        "destination": "Mover para…",
+        "choose": "Escolher uma categoria",
+        "budgets": "Orçamentos · {{name}}",
+        "confirm": "Mover e eliminar",
+        "error": "A combinação falhou ou os dados mudaram. Atualize a pré-visualização, verifique o destino e tente novamente.",
+        "refresh": "Atualizar pré-visualização",
+        "none": "Nenhum destino elegível. Resolva as restrições abaixo ou crie uma categoria adequada.",
+        "blocked": {
+          "invalid_destination": "Escolha outra categoria na mesma lista de despesas, rendimentos ou poupanças.",
+          "children": "Mova ou combine primeiro as subcategorias. Não é possível combinar categorias com subcategorias.",
+          "asset_references": "Remova primeiro as classificações de ativos e as referências a objetivos de alocação.",
+          "category_rollover": "Remova primeiro as definições de transição guardadas de ambas as categorias, incluindo as desativadas.",
+          "group_rollover": "Desative a transição dos grupos de despesas afetados antes de mudar de grupo. É permitido combinar dentro do mesmo grupo.",
+          "exclusions": "A origem e o destino devem ter a mesma definição efetiva de «Excluir das despesas», incluindo exclusões herdadas.",
+          "budget_destination": "Esta categoria tem objetivos orçamentais. Ambas as categorias devem estar no nível superior para que continuem efetivos."
+        },
+        "period": "Mês",
+        "current": "Atual",
+        "added": "Adicionado",
+        "after": "Novo total",
+        "monthlyDefault": "Mensal padrão",
+        "budgetHint": "Os outros meses usam o valor mensal padrão."
+      }
     },
     "events": {
       "heading": "Eventos de gasto",

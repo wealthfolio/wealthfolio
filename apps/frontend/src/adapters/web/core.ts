@@ -203,6 +203,8 @@ export const COMMANDS: CommandMap = {
   create_category: { method: "POST", path: "/taxonomies/categories" },
   update_category: { method: "PUT", path: "/taxonomies/categories" },
   delete_category: { method: "DELETE", path: "/taxonomies" },
+  review_category_merge: { method: "POST", path: "/spending/categories/merge/review" },
+  merge_category: { method: "POST", path: "/spending/categories/merge" },
   move_category: { method: "POST", path: "/taxonomies/categories/move" },
   import_taxonomy_json: { method: "POST", path: "/taxonomies/import" },
   export_taxonomy_json: { method: "GET", path: "/taxonomies" },
@@ -1277,6 +1279,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "delete_category": {
       const { taxonomyId, categoryId } = payload as { taxonomyId: string; categoryId: string };
       url += `/${encodeURIComponent(taxonomyId)}/categories/${encodeURIComponent(categoryId)}`;
+      break;
+    }
+    case "review_category_merge":
+    case "merge_category": {
+      body = JSON.stringify(payload?.request);
       break;
     }
     case "move_category": {

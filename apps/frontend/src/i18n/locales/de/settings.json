@@ -1152,7 +1152,33 @@
       "tab_income_one": "Einnahmen ({{count}})",
       "tab_income_other": "Einnahmen ({{count}})",
       "tab_savings_one": "Ersparnisse ({{count}})",
-      "tab_savings_other": "Ersparnisse ({{count}})"
+      "tab_savings_other": "Ersparnisse ({{count}})",
+      "merge": {
+        "description": "Alle Transaktionen, Regeln und Budgets von {{name}} verschieben.",
+        "history": "Frühere Berichte verwenden die neue Kategorie. Dies kann nicht rückgängig gemacht werden.",
+        "destination": "Verschieben nach…",
+        "choose": "Kategorie auswählen",
+        "budgets": "Budgets · {{name}}",
+        "confirm": "Verschieben und löschen",
+        "error": "Die Zusammenführung ist fehlgeschlagen oder die Daten wurden geändert. Aktualisieren Sie die Vorschau, prüfen Sie das Ziel und versuchen Sie es erneut.",
+        "refresh": "Vorschau aktualisieren",
+        "none": "Kein geeignetes Ziel. Beheben Sie die folgenden Einschränkungen oder erstellen Sie eine passende Kategorie.",
+        "blocked": {
+          "invalid_destination": "Wählen Sie eine andere Kategorie aus derselben Ausgaben-, Einkommens- oder Sparliste.",
+          "children": "Verschieben oder vereinen Sie zuerst die Unterkategorien. Kategorien mit Unterkategorien können nicht zusammengeführt werden.",
+          "asset_references": "Entfernen Sie zuerst Anlageklassifizierungen und Verweise auf Allokationsziele.",
+          "category_rollover": "Entfernen Sie zuerst die gespeicherten Übertragseinstellungen beider Kategorien, auch deaktivierte Einstellungen.",
+          "group_rollover": "Deaktivieren Sie vor dem Gruppenwechsel den Übertrag der betroffenen Ausgabengruppen. Innerhalb derselben Gruppe ist die Zusammenführung erlaubt.",
+          "exclusions": "Quelle und Ziel müssen dieselbe wirksame Einstellung „Von Ausgaben ausschließen“ haben, einschließlich geerbter Ausschlüsse.",
+          "budget_destination": "Diese Kategorie hat Budgetziele. Beide Kategorien müssen auf oberster Ebene liegen, damit die Ziele wirksam bleiben."
+        },
+        "period": "Monat",
+        "current": "Aktuell",
+        "added": "Hinzu",
+        "after": "Neue Summe",
+        "monthlyDefault": "Monatsstandard",
+        "budgetHint": "Andere Monate verwenden den monatlichen Standardbetrag."
+      }
     },
     "events": {
       "heading": "Ausgabenereignisse",

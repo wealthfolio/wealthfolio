@@ -191,7 +191,7 @@ impl SyncRowFilter {
                 )"
             }
             Self::SyncableSettings => {
-                static FILTER: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids', '{}', '{}')", INSIGHTS_OVERVIEW_LAYOUT_KEY, GAIN_COLORS_KEY));
+                static FILTER: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids', '{}', '{}', '{}')", INSIGHTS_OVERVIEW_LAYOUT_KEY, GAIN_COLORS_KEY, wealthfolio_spending::category_merge::SETTING_KEY_CATEGORY_MERGES));
                 FILTER.as_str()
             },
             Self::UserTaxonomies => "is_system = 0",
@@ -1315,6 +1315,9 @@ fn apply_replay_attempt_tx(
             Ok(applied) => wrote[index] = applied,
             Err(err) => {
                 let err = replay_apply_error(*entity, entity_id, *op, event_id, *seq, err);
+                if entity.requires_atomic_replay(payload) {
+                    return Err(ReplayAttemptError::Failed(err));
+                }
                 return Err(ReplayAttemptError::Culprits(vec![(index, err.to_string())]));
             }
         }
@@ -1328,6 +1331,16 @@ fn apply_replay_attempt_tx(
     match foreign_key_culprits_tx(conn, &violations, events, &wrote)
         .map_err(ReplayAttemptError::Failed)?
     {
+        Some(culprits)
+            if culprits.iter().any(|(index, _)| {
+                let (entity, _, _, _, _, _, payload) = &events[*index];
+                entity.requires_atomic_replay(payload)
+            }) =>
+        {
+            Err(ReplayAttemptError::Failed(foreign_key_violation_error(
+                &violations,
+            )))
+        }
         Some(culprits) => Err(ReplayAttemptError::Culprits(culprits)),
         None => Err(ReplayAttemptError::Failed(foreign_key_violation_error(
             &violations,
@@ -1614,6 +1627,28 @@ fn upsert_entity_metadata_preserving_seq_tx(
     Ok(())
 }
 
+pub(crate) fn stamp_category_merge_write(
+    conn: &mut SqliteConnection,
+    entity: SyncEntity,
+    id: &str,
+    event_id: &str,
+    timestamp: &str,
+    seq: i64,
+    op: SyncOperation,
+) -> Result<()> {
+    if let Some(meta) = load_entity_metadata_tx(conn, &enum_to_db(&entity)?, id)? {
+        if !should_apply_lww(
+            &meta.last_client_timestamp,
+            &meta.last_event_id,
+            timestamp,
+            event_id,
+        ) {
+            return Ok(());
+        }
+    }
+    upsert_entity_metadata_tx(conn, entity, id, event_id, timestamp, op, seq)
+}
+
 pub(in crate::sync::app_sync) fn insert_outbox_event(
     conn: &mut SqliteConnection,
     request: OutboxWriteRequest,
@@ -1629,6 +1664,8 @@ pub(in crate::sync::app_sync) fn insert_outbox_event(
     } = request;
 
     let event_id = event_id.unwrap_or_else(|| Uuid::now_v7().to_string());
+    let semantic_merge = entity == SyncEntity::CustomTaxonomy
+        && payload.get("merge_operation").and_then(|v| v.as_bool()) == Some(true);
     let payload = serde_json::to_string(&normalize_outbox_payload(payload)?)?;
     let now = Utc::now().to_rfc3339();
 
@@ -1657,14 +1694,16 @@ pub(in crate::sync::app_sync) fn insert_outbox_event(
         .execute(conn)
         .map_err(StorageError::from)?;
 
-    upsert_entity_metadata_preserving_seq_tx(
-        conn,
-        entity,
-        &entity_id,
-        &event_id,
-        &client_timestamp,
-        op,
-    )?;
+    if !semantic_merge {
+        upsert_entity_metadata_preserving_seq_tx(
+            conn,
+            entity,
+            &entity_id,
+            &event_id,
+            &client_timestamp,
+            op,
+        )?;
+    }
 
     if entity == SyncEntity::ContributionLimitV2 {
         upsert_entity_metadata_preserving_seq_tx(
@@ -2209,8 +2248,15 @@ fn apply_custom_taxonomy_event(
             }
 
             // Upsert each category
+            let redirects = crate::taxonomies::sync::category_merge_redirects(conn)?;
             let mut incoming_cat_ids: Vec<String> = Vec::new();
             for cat in &bundle.categories {
+                if redirects
+                    .iter()
+                    .any(|r| r.taxonomy_id == taxonomy_id && r.source_id == cat.id)
+                {
+                    continue;
+                }
                 incoming_cat_ids.push(cat.id.clone());
                 let cat_fields = model_to_sql_fields(cat)?;
                 upsert_json_row(
@@ -2222,6 +2268,21 @@ fn apply_custom_taxonomy_event(
             }
 
             // Delete local categories that are NOT in the incoming payload.
+            // A stale bundle may predate a later merge destination. Those
+            // identities cannot be deleted through ordinary category deletion;
+            // retain them when an older device omits them from its category list.
+            for redirect in &redirects {
+                if redirect.taxonomy_id == taxonomy_id {
+                    incoming_cat_ids.push(
+                        crate::spending::category_merge::redirected_category(
+                            &redirects,
+                            taxonomy_id,
+                            &redirect.source_id,
+                        )?
+                        .to_string(),
+                    );
+                }
+            }
             // This cascades their assignments via FK ON DELETE CASCADE.
             if incoming_cat_ids.is_empty() {
                 tombstone_spending_children_for_removed_categories(
@@ -2404,6 +2465,58 @@ fn apply_remote_event_lww_tx(
     let entity_db = enum_to_db(&wire_entity)?;
     let metadata_row = load_entity_metadata_tx(conn, &enum_to_db(&entity)?, &entity_id_value)?;
 
+    let (semantic_merge, merge_changed) = if entity == SyncEntity::CustomTaxonomy
+        && op != SyncOperation::Delete
+    {
+        let bundle: crate::taxonomies::CustomTaxonomyPayload =
+            serde_json::from_value(payload_json.clone()).map_err(|e| {
+                Error::Database(DatabaseError::Internal(format!(
+                    "Invalid custom_taxonomy payload: {e}"
+                )))
+            })?;
+        if bundle.taxonomy.id != entity_id_value
+            || bundle
+                .categories
+                .iter()
+                .any(|c| c.taxonomy_id != entity_id_value)
+        {
+            return Err(
+                ValidationError::InvalidInput("Category merge taxonomy mismatch".into()).into(),
+            );
+        }
+        let changed = crate::spending::category_merge::apply_merge_receipts(
+            conn,
+            &entity_id_value,
+            &bundle.category_merges,
+            &event_id_value,
+            &client_timestamp_value,
+            seq_value,
+        )?;
+        if changed {
+            for table in [
+                "taxonomy_categories",
+                "activity_taxonomy_assignments",
+                "spending_activity_splits",
+                "spending_categorization_rules",
+                "budget_targets",
+                "budget_group_assignments",
+                "app_settings",
+            ] {
+                mark_table_incremental_applied_tx(conn, table)?;
+            }
+        }
+        (bundle.merge_operation, changed)
+    } else {
+        (false, false)
+    };
+
+    let budget_context_applies = entity != SyncEntity::BudgetTarget
+        || crate::spending::category_merge::budget_write_context_applies(
+            conn,
+            &entity_id_value,
+            &mut payload_json,
+        )?;
+
     let versioned_settings = if wire_entity == SyncEntity::ContributionLimitV2
         && op != SyncOperation::Delete
     {
@@ -2430,16 +2543,18 @@ fn apply_remote_event_lww_tx(
         None
     };
 
-    let mut should_apply = match metadata_row.as_ref() {
-        Some(meta) => should_apply_against_metadata(
-            entity,
-            meta,
-            op,
-            &client_timestamp_value,
-            &event_id_value,
-        )?,
-        None => true,
-    };
+    let mut should_apply = !semantic_merge
+        && budget_context_applies
+        && match metadata_row.as_ref() {
+            Some(meta) => should_apply_against_metadata(
+                entity,
+                meta,
+                op,
+                &client_timestamp_value,
+                &event_id_value,
+            )?,
+            None => true,
+        };
 
     let mut record_applied_event = true;
     if should_apply {
@@ -2586,6 +2701,13 @@ fn apply_remote_event_lww_tx(
                         ));
                     }
                     validate_spending_decimal_field(&entity, &fields)?;
+                    if !crate::spending::category_merge::normalize_synced_reference(
+                        conn,
+                        entity,
+                        &mut fields,
+                    )? {
+                        applied_entity_change = false;
+                    }
 
                     let columns = fields
                         .iter()
@@ -2693,7 +2815,7 @@ fn apply_remote_event_lww_tx(
             .map_err(StorageError::from)?;
     }
 
-    Ok(should_apply)
+    Ok(should_apply || merge_changed)
 }
 
 pub struct AppSyncRepository {
@@ -3989,6 +4111,19 @@ impl AppSyncRepository {
                              SELECT entity, entity_id, last_event_id, last_client_timestamp, last_op, last_seq \
                              FROM {snapshot_alias}.sync_entity_metadata WHERE {filter}"
                         )).execute(conn).map_err(StorageError::from)?;
+                    }
+
+                    // Seeded categories are preserved by the snapshot filter.
+                    // A merge ledger in the snapshot still makes their removal
+                    // permanent, after local sidecars have been retargeted.
+                    for taxonomy in wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS {
+                        crate::spending::category_merge::replay_redirects(conn, taxonomy)?;
+                    }
+                    for redirect in crate::taxonomies::sync::category_merge_redirects(conn)? {
+                        diesel::delete(crate::schema::taxonomy_categories::table
+                            .filter(crate::schema::taxonomy_categories::taxonomy_id.eq(&redirect.taxonomy_id))
+                            .filter(crate::schema::taxonomy_categories::id.eq(&redirect.source_id)))
+                            .execute(conn).map_err(StorageError::from)?;
                     }
 
                     ensure_no_foreign_key_violations_tx(

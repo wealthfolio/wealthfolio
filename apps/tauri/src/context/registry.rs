@@ -96,6 +96,7 @@ pub struct ServiceContext {
     pub categorization_rules_service: Arc<CategorizationRulesService>,
     pub events_service: Arc<EventsService>,
     pub budget_service: Arc<BudgetService>,
+    pub category_merge_service: Arc<wealthfolio_spending::category_merge::CategoryMergeService>,
     pub spending_analytics_service: Arc<AnalyticsService>,
     pub spending_insight_service: Arc<InsightService>,
     pub data_export_service: Arc<wealthfolio_core::exports::DataExportService>,
@@ -148,6 +149,12 @@ impl ServiceContext {
 
     pub fn events_service(&self) -> Arc<EventsService> {
         Arc::clone(&self.events_service)
+    }
+
+    pub fn category_merge_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::category_merge::CategoryMergeService> {
+        Arc::clone(&self.category_merge_service)
     }
 
     pub fn budget_service(&self) -> Arc<BudgetService> {
