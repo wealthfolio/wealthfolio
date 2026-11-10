@@ -145,8 +145,8 @@ export function NewAccountsFoundModal({
           <SheetDescription>{t("connect:newAccounts.description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-[calc(100vh-13.75rem)]">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
             <div className="space-y-6 p-6">
               <Alert variant="warning" className="px-3 py-2.5">
                 <Icons.AlertTriangle className="h-4 w-4" />
