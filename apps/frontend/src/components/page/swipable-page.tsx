@@ -130,7 +130,9 @@ function MobileNavigation({
             onClick={() => onViewChange(item.value)}
             className={cn(
               // The tap area fills the strip's height; the pill keeps its compact size.
-              "rounded-(--segmented-radius) relative flex shrink-0 cursor-pointer after:absolute after:inset-x-0 after:-inset-y-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
+              // The mobile reset's overflow-x on .flex would make that taller ::after
+              // scroll inside the button, so overflow stays visible.
+              "rounded-(--segmented-radius) relative flex overflow-visible! shrink-0 cursor-pointer after:absolute after:inset-x-0 after:-inset-y-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
               compact ? "px-2" : "px-3",
               isActive ? "text-foreground" : "text-muted-foreground",
