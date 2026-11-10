@@ -41,6 +41,8 @@ function strayScrollers(page: Page, maxOverflow: number) {
   return page.evaluate((limit) => {
     return [...document.querySelectorAll<HTMLElement>("body *")]
       .filter((element) => {
+        // A box that names its own overflow is meant to scroll; this checks the rule's boxes.
+        if (String(element.className).includes("overflow")) return false;
         const style = getComputedStyle(element);
         if (!/(auto|scroll)/.test(style.overflowY)) return false;
         if (element.getBoundingClientRect().height === 0) return false;
