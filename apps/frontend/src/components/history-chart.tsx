@@ -2,20 +2,21 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useChartScrubHaptic } from "@/hooks/use-chart-scrub-haptic";
 import { useIsMobileViewport, useViewportBelow } from "@/hooks/use-platform";
 import { formatDate } from "@/lib/utils";
-import { AmountDisplay, useDateFormatting } from "@wealthfolio/ui";
-import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
-import { useId, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Area, AreaChart, ReferenceDot, Tooltip, XAxis, YAxis } from "recharts";
-import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
 import {
+  AmountDisplay,
+  useDateFormatting,
   HistoryChartActiveDot,
   HistoryChartMarkerShape,
   lineColorAt,
   type HistoryChartMarkerTone,
   type RechartsActiveDotProps,
   type RechartsMarkerShapeProps,
-} from "./history-chart-marker";
+} from "@wealthfolio/ui";
+import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
+import { useId, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Area, AreaChart, ReferenceDot, Tooltip, XAxis, YAxis } from "recharts";
+import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
 import { getAutomaticHistoryChartScale, type HistoryChartScaleMode } from "./history-chart-scale";
 
 export interface HistoryChartData {
