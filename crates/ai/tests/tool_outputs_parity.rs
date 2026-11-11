@@ -35,6 +35,7 @@ use wealthfolio_core::settings::{Settings, SettingsServiceTrait, SettingsUpdate}
 use wealthfolio_core::taxonomies::{
     AssetTaxonomyAssignment, Category, Taxonomy, TaxonomyWithCategories,
 };
+use wealthfolio_spending::activity_splits::ActivitySplit;
 use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::CashActivity;
 
@@ -827,13 +828,24 @@ output_test_dyn_env!(
     { "activityIds": ["cash-a"] }
 );
 
-/// Env whose search returns the given rows; `neutral` ids take no category.
-fn categorization_env_with(rows: &[(&str, bool)]) -> Arc<MockEnvironment> {
+/// Kind of a fixture row in [`categorization_env_with`].
+#[derive(Clone, Copy, PartialEq)]
+enum Row {
+    /// Takes a category.
+    Spending,
+    /// Neutral transfer: takes no category.
+    Transfer,
+    /// Already split across categories: left as it is.
+    Split,
+}
+
+/// Env whose search returns the given rows.
+fn categorization_env_with(rows: &[(&str, Row)]) -> Arc<MockEnvironment> {
     let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
     env.cash_activity_service = Arc::new(MockCashActivityService {
         items: rows
             .iter()
-            .map(|(id, neutral)| {
+            .map(|(id, kind)| {
                 let mut row = fixture_cash_activity(
                     id,
                     "acc-1",
@@ -841,8 +853,25 @@ fn categorization_env_with(rows: &[(&str, bool)]) -> Arc<MockEnvironment> {
                     &format!("PAYEE {id}"),
                     None,
                 );
-                if *neutral {
-                    row.cash_flow_bucket = CashFlowBucket::Neutral;
+                match kind {
+                    Row::Spending => {}
+                    Row::Transfer => row.cash_flow_bucket = CashFlowBucket::Neutral,
+                    Row::Split => {
+                        let created = DateTime::<Utc>::from_timestamp(0, 0)
+                            .expect("epoch is a valid timestamp")
+                            .naive_utc();
+                        row.splits.push(ActivitySplit {
+                            id: format!("split-{id}"),
+                            activity_id: id.to_string(),
+                            taxonomy_id: "spending_categories".to_string(),
+                            category_id: "dining".to_string(),
+                            amount: Decimal::new(-1250, 2),
+                            note: None,
+                            sort_order: 0,
+                            created_at: created,
+                            updated_at: created,
+                        });
+                    }
                 }
                 row
             })
@@ -856,7 +885,7 @@ fn categorization_env_with(rows: &[(&str, bool)]) -> Arc<MockEnvironment> {
 /// batch made only of them renders no review widget.
 #[tokio::test]
 async fn neutral_rows_are_not_rows_needing_a_choice() {
-    let only_neutral = categorization_env_with(&[("transfer", true)]);
+    let only_neutral = categorization_env_with(&[("transfer", Row::Transfer)]);
     let context = call_json_dyn(
         ListCategorizationContext,
         only_neutral.clone(),
@@ -879,7 +908,7 @@ async fn neutral_rows_are_not_rows_needing_a_choice() {
     assert_eq!(proposals["ok"]["summary"]["total"], 1, "{proposals}");
     assert_eq!(proposals["ok"]["summary"]["unproposed"], 0, "{proposals}");
 
-    let mixed = categorization_env_with(&[("transfer", true), ("unknown", false)]);
+    let mixed = categorization_env_with(&[("transfer", Row::Transfer), ("unknown", Row::Spending)]);
     let proposals = call_json_dyn(
         ProposeCategories,
         mixed,
@@ -895,53 +924,89 @@ async fn neutral_rows_are_not_rows_needing_a_choice() {
     );
 }
 
-/// A search that fills its limit with neutral rows read only the first matches,
-/// so the next step says later matches were not checked instead of "none take a
-/// category". An explicit id list is read whole and keeps the plain wording.
+fn next_step_of(context: &serde_json::Value) -> String {
+    context["ok"]["nextStep"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// A call that fills its limit with rows needing no category read only the
+/// first matches, so the next step says later matches were not checked instead
+/// of "none take a category". This holds for a search and for an id list longer
+/// than the limit; an id list within the limit is read whole.
 #[tokio::test]
 async fn full_batch_of_neutral_rows_is_not_called_complete() {
-    let env = categorization_env_with(&[("transfer-1", true), ("transfer-2", true)]);
-    let next_step = |context: serde_json::Value| {
-        context["ok"]["nextStep"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string()
+    let env = categorization_env_with(&[
+        ("transfer-1", Row::Transfer),
+        ("transfer-2", Row::Transfer),
+        ("transfer-3", Row::Transfer),
+    ]);
+    let next_step = |args: serde_json::Value| {
+        let env = env.clone();
+        async move { next_step_of(&call_json_dyn(ListCategorizationContext, env, args).await) }
     };
 
-    let full = next_step(
-        call_json_dyn(
+    let full = next_step(serde_json::json!({ "status": "all", "limit": 2 })).await;
+    assert!(
+        full.contains("None of the first 2 matching transactions"),
+        "{full}"
+    );
+    assert!(full.contains("Later matches were not checked"), "{full}");
+
+    let partial = next_step(serde_json::json!({ "status": "all", "limit": 4 })).await;
+    assert!(partial.starts_with("None of the matching"), "{partial}");
+
+    let cut_short = next_step(serde_json::json!({
+        "status": "all",
+        "limit": 2,
+        "activityIds": ["transfer-1", "transfer-2", "transfer-3"]
+    }))
+    .await;
+    assert!(
+        cut_short.contains("None of the first 2 matching transactions"),
+        "{cut_short}"
+    );
+
+    let read_whole = next_step(serde_json::json!({
+        "status": "all",
+        "limit": 2,
+        "activityIds": ["transfer-1", "transfer-2"]
+    }))
+    .await;
+    assert!(
+        read_whole.starts_with("None of the matching"),
+        "{read_whole}"
+    );
+}
+
+/// Split rows are left as they are, so a full batch of them has a total of 0.
+/// The next step still says later matches were not checked rather than "no
+/// matching transactions were found".
+#[tokio::test]
+async fn full_batch_of_split_rows_is_not_called_empty() {
+    let env = categorization_env_with(&[("split-1", Row::Split), ("split-2", Row::Split)]);
+
+    let full = next_step_of(
+        &call_json_dyn(
             ListCategorizationContext,
             env.clone(),
             serde_json::json!({ "status": "all", "limit": 2 }),
         )
         .await,
     );
-    assert!(full.contains("first 2 matching transactions"), "{full}");
-    assert!(full.contains("later matches were not checked"), "{full}");
+    assert!(full.contains("2 are split transactions"), "{full}");
+    assert!(full.contains("Later matches were not checked"), "{full}");
 
-    let partial = next_step(
-        call_json_dyn(
+    let partial = next_step_of(
+        &call_json_dyn(
             ListCategorizationContext,
-            env.clone(),
+            env,
             serde_json::json!({ "status": "all", "limit": 3 }),
         )
         .await,
     );
-    assert!(partial.starts_with("None of the matching"), "{partial}");
-
-    let explicit = next_step(
-        call_json_dyn(
-            ListCategorizationContext,
-            env,
-            serde_json::json!({
-                "status": "all",
-                "limit": 2,
-                "activityIds": ["transfer-1", "transfer-2"]
-            }),
-        )
-        .await,
-    );
-    assert!(explicit.starts_with("None of the matching"), "{explicit}");
+    assert!(partial.starts_with("No matching transactions"), "{partial}");
 }
 
 /// A call whose filters match no rows still returns the configured
