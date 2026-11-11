@@ -61,10 +61,10 @@
   "goals": {
     "no_goals_set": "Цели не заданы.",
     "create_first_goal": "Создать вашу первую цель",
-    "more_goals_one": "+{{count}} ещё цель",
-    "more_goals_few": "+{{count}} ещё цели",
-    "more_goals_many": "+{{count}} ещё целей",
-    "more_goals_other": "+{{count}} ещё цели",
+    "more_goals_one": "Ещё {{count}} цель",
+    "more_goals_few": "Ещё {{count}} цели",
+    "more_goals_many": "Ещё {{count}} целей",
+    "more_goals_other": "Ещё {{count}} цели",
     "time_no_deadline": "Без срока",
     "time_due": "Срок"
   },
@@ -92,7 +92,7 @@
     "shares_many": "{{formatted}} акций",
     "shares_other": "{{formatted}} акции",
     "more_holdings": "Ещё позиции: +{{count}}",
-    "more": "Ещё: +{{count}}",
+    "more": "+{{count}} ещё",
     "more_holdings_one": "+{{count}} ещё позиция",
     "more_holdings_few": "+{{count}} ещё позиции",
     "more_holdings_many": "+{{count}} ещё позиций",

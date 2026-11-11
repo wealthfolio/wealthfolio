@@ -219,7 +219,7 @@
       "cost_basis_needs_review": "Себестоимость требует проверки",
       "cost_basis_description": "Обновите себестоимость этой позиции, чтобы Wealthfolio мог рассчитать прибыль/убыток.",
       "transactions_need_review": "Транзакции требуют проверки",
-      "transactions_description": "Проверьте транзакции, которые центр проверки отметил для этой инвестиции.",
+      "transactions_description": "Проверьте транзакции, которые Центр здоровья отметил для этой инвестиции.",
       "refetch_prices": "Повторно запросить цены"
     },
     "confirm_option_expiry_title": "Подтверждение экспирации опциона",
@@ -360,7 +360,7 @@
     "share_many": "акций",
     "share_other": "акции",
     "market_value": "Рыночная стоимость",
-    "shares_suffix": "акции",
+    "shares_suffix": "акц.",
     "cost_basis": "Себестоимость",
     "avg": "ср. {{amount}}",
     "unrealized_gain": "Нереализованная прибыль",
@@ -388,7 +388,7 @@
   },
   "accountHoldings": {
     "manual": "Вручную",
-    "shares_suffix": "акции",
+    "shares_suffix": "акц.",
     "account": "Счёт",
     "shares": "Акции",
     "market_value": "Рыночная стоимость",

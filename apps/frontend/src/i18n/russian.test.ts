@@ -303,10 +303,8 @@ describe("Russian terminology", () => {
       /^(?!Эти(?![а-яё])|Пути(?![а-яё])|Есть(?![а-яё])|Часть(?![а-яё])|Области(?![а-яё]))[А-Яа-яё]{3,}(ать|ять|еть|ить|уть|оть|ыть|ться|ти|чь)(?![а-яё])/u;
     const notImperative =
       /^(The|A|An|This|These|Those|Your|You|No|Some|Each|Every|It|Its|There|We|Are|Is|Not|Unable|Failed|Nothing|Setup|Session|Stopping|Records|Cash|Return|Values|Account|When|If|Only|Higher|Volatility|Portion|Part|Pre|Money|Time|Price|Value|Capabilities|Mirostat|Property|Tracking|Looking|Split|Performance|Transfer)(?![A-Za-z])/;
-    const permissionKey =
-      /^(settings:agentAccess\.scope\.|settings:addonPermissions\.|ai:providerSettings\.)/;
     const found = [...allStrings].flatMap(([key, value]) => {
-      if (permissionKey.test(key)) return [];
+      if (PERMISSION_KEY.test(key)) return [];
       const base = key.replace(/_(one|few|many|other)$/, "");
       const en = englishStrings.get(key) ?? englishStrings.get(`${base}_other`) ?? "";
       const englishImperative = en
@@ -327,7 +325,126 @@ describe("Russian terminology", () => {
       found.filter((line) => !INFINITIVE_CONTROLS.has(line.split(":").slice(0, 2).join(":"))),
     ).toEqual([]);
   });
+
+  // A clause after «·», «—» or «затем» that tells the user what to do is imperative too
+  // («2 строки · нажмите на заголовок столбца»), however short the string is.
+  it("never writes an instruction clause after «·», «—» or «затем» in the infinitive", () => {
+    const infinitive =
+      /^(?!(?:эти|пути|есть|часть|области|почти|сети|части)(?![а-яё]))[а-яё]{3,}(?:ать|ять|еть|ить|уть|оть|ыть|ться|ти|чь)(?![а-яё])/iu;
+    const found = [...allStrings].flatMap(([key, value]) => {
+      if (PERMISSION_KEY.test(key) || INFINITIVE_CONTROLS.has(key)) return [];
+      return value
+        .split(/\s+[·—–]\s+(?:затем\s+)?|,\s+затем\s+|;\s+/u)
+        .slice(1)
+        .filter((clause) => infinitive.test(clause))
+        .map((clause) => `${key}: ${clause}`);
+    });
+    expect(found).toEqual([]);
+  });
+
+  // Short hints, empty states, a required-field message and sheet descriptions tell the user what
+  // to do; the sentence sweep above leaves strings this short to buttons.
+  it.each([
+    ["account:choose_account_to_view", "Выберите счёт для просмотра"],
+    ["settings:tax_select_category_details", "Выберите категорию, чтобы посмотреть детали"],
+    ["settings:tax_select_classification", "Выберите классификацию, чтобы посмотреть категории"],
+    ["settings:accounts.mode_switch_checklist_title", "Убедитесь, что транзакции полные"],
+    ["ai:assetClassification.chooseAsset", "Выберите актив."],
+    ["spending:tabContent.categorizeToImprove", "Категоризируйте их, чтобы улучшить разбивку"],
+    ["settings:market_data_page.unassigned_click_to_pick", "не назначено — нажмите для выбора"],
+    [
+      "settings:market_data_page.arm_hint_arm",
+      "Нажмите, чтобы активировать — затем нажмите на значение в ответе",
+    ],
+    [
+      "activity:import.upload.uploadCsvHelp",
+      "После загрузки перепроверьте настройки разбора ниже — убедитесь, что разделитель, формат даты и количество пропускаемых строк соответствуют вашему файлу.",
+    ],
+    [
+      "activity:datagrid.unit_price_help",
+      "Для покупок и продаж введите цену сделки. Для наград за стейкинг и дивидендов в натуральной форме введите справедливую рыночную стоимость за единицу на момент получения; она задаёт сумму дохода и себестоимость.",
+    ],
+    [
+      "goals:guide.quick_start.step1_desc",
+      "В исходных данных плана укажите тип плана, месяц рождения, возраст выхода на пенсию, горизонт планирования и ежемесячный взнос.",
+    ],
+    ["goals:guide.quick_start.step5_title", "Прочитайте «Обзор», затем откройте «Что если»"],
+    ["spending:cashForm.pickDate", "Выберите дату"],
+    ["common:component.choose_an_action", "Выберите действие"],
+    ["activity:mobile_form.add_details", "Введите данные транзакции"],
+    ["ui:dateRange.pick", "Выберите диапазон дат"],
+  ])("writes the hint %s in the imperative", (key, expected) => {
+    expect(allStrings.get(key)).toBe(expected);
+  });
+
+  // Health Center is the name of a page: «Центр здоровья», declined, with a capital Ц.
+  it("names Health Center «Центр здоровья» wherever English does", () => {
+    const bad = [...englishStrings]
+      .filter(([, source]) => /health center/i.test(source))
+      .map(([key]) => `${key} = ${allStrings.get(key)}`)
+      .filter((line) => !/Центр[а-я]* здоровья/u.test(line));
+    expect(bad).toEqual([]);
+  });
+
+  it("asks «Вы уверены, что хотите…?» in a confirmation, never «Точно хотите…?»", () => {
+    expect(offenders("точно хотите")).toEqual([]);
+  });
+
+  // An inserted name stands in Russian quotes «…».
+  it("quotes an inserted value with «…»", () => {
+    const found = [...allStrings].filter(([, value]) => /["“”„]\{\{|\}\}["“”]/u.test(value));
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it("puts an error message after a colon, as English does", () => {
+    const bad = [...englishStrings]
+      .filter(([, source]) => /: \{\{error\}\}$/.test(source))
+      .map(([key]) => `${key} = ${allStrings.get(key)}`)
+      .filter((line) => !/: \{\{error\}\}$/.test(line));
+    expect(bad).toEqual([]);
+  });
+
+  it("writes «+N more» as «+N ещё»", () => {
+    const bad = [...allStrings].filter(([key, value]) => {
+      const base = key.replace(/_(one|few|many|other)$/, "");
+      const en = englishStrings.get(key) ?? englishStrings.get(`${base}_other`) ?? "";
+      return (
+        /^\s*\(?\+\{\{\w+\}\} more\)?$/.test(en) && !/^\s*\(?\+\{\{\w+\}\} ещё\)?$/u.test(value)
+      );
+    });
+    expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it("writes ё in тяжёлый, путём and всё время", () => {
+    const found = [...allStrings].filter(([, value]) =>
+      /(?<![а-яё])(?:тяжел[а-яё]|путем(?![а-яё])|все время(?![а-яё]))/iu.test(value),
+    );
+    expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  it.each([
+    ["common:component.symbol_ticker", "Тикер"], // Symbol / Ticker: one term
+    ["taxonomies:categoryNames.industries_gics.40201030", "Многопрофильные холдинги"],
+    ["taxonomies:categoryNames.industries_gics.40201060", "Услуги обработки транзакций и платежей"],
+    ["taxonomies:categoryNames.spending_categories.cat_fees_interest", "Начисленные проценты"],
+    [
+      "goals:detail.delete_confirm",
+      "Вы уверены, что хотите удалить «{{title}}»? Это действие нельзя отменить.",
+    ],
+    ["activity:import.parseSettings.customDatePlaceholder", "напр. dd/MM/yyyy HH:mm:ss"],
+    ["ui:interval.label.ALL", "Всё"],
+    [
+      "activity:date_list.review_to_identify",
+      "Проверьте влияние на деньги и текущий остаток ниже, чтобы найти операцию, из-за которой деньги ушли ниже нуля.",
+    ],
+  ])("uses the house wording in %s", (key, expected) => {
+    expect(allStrings.get(key)).toBe(expected);
+  });
 });
+
+/** Permission lists name capabilities, not instructions: the infinitive is right there. */
+const PERMISSION_KEY =
+  /^(settings:agentAccess\.scope\.|settings:addonPermissions\.|ai:providerSettings\.)/;
 
 /** Buttons, menu items, toggles and a tooltip that name an action: the infinitive is right there. */
 const INFINITIVE_CONTROLS = new Set([
@@ -360,7 +477,7 @@ await i18n.init({
   lng: "ru",
   fallbackLng: false,
   interpolation: { escapeValue: false },
-  ns: ["asset", "sync", "health"],
+  ns: [...NAMESPACES],
   resources: {
     ru: Object.fromEntries(
       Object.entries(russian).map(([path, catalog]) => [
@@ -398,7 +515,8 @@ describe("Russian plural output", () => {
     expect(i18n.t("sync:status.daysAgo", { count })).toContain(`${count} ${day}`);
   });
 
-  // English `_one` of these families has no number ("Missing rate"), but Russian `one` is also 21 and 31.
+  // English `_one` of these families has no number ("Outdated exchange rate"), but Russian `one`
+  // is also 21 and 31.
   const countless = [...englishStrings.keys()].filter((key) => {
     if (!key.endsWith("_one")) return false;
     const other = englishStrings.get(`${key.slice(0, -4)}_other`);
@@ -437,6 +555,317 @@ describe("Russian plural output", () => {
     );
     expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
   });
+
+  // Without a plural family a number cannot agree with a full noun: «Секторов: {{sectors}}»,
+  // «{{quantity}} ед.». A single key that shares its name with a family is never rendered with a count.
+  it("never puts a full noun after a counter outside a plural family", () => {
+    const counter =
+      /\{\{(?:count|quantity|sectors|countries)\}\}\s+(?!ещё(?![а-яё]))[а-яё]{3,}(?![а-яё.])/iu;
+    const bad = [...allStrings].filter(
+      ([key, value]) =>
+        !/_(zero|one|two|few|many|other)$/.test(key) &&
+        !allStrings.has(`${key}_one`) &&
+        counter.test(value),
+    );
+    expect(bad.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
+  });
+
+  // A `*_suffix` key whose English is a counted plural noun follows a number in the code.
+  it("abbreviates a counted noun that follows a number («100 акц.»)", () => {
+    const bad = [...englishStrings]
+      .filter(([key, source]) => /_suffix$/.test(key) && /^[a-z]+s$/.test(source))
+      .map(([key]) => `${key} = ${allStrings.get(key)}`)
+      .filter((line) => !/\.$/.test(line));
+    expect(bad).toEqual([]);
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    ["asset:lots.shares_suffix", {}, "акц."],
+    ["asset:accountHoldings.shares_suffix", {}, "акц."],
+    ["allocation:worksheet.accountUnitsSummary", { quantity: "5" }, "≈ 5 ед."],
+    [
+      "settings:tax_migration_success",
+      { sectors: 5, countries: 1 },
+      "Миграция завершена! Перенесено секторов: 5, стран: 1.",
+    ],
+    [
+      "activity:import.upload.showingFirstRows",
+      { max: 100, total: 1234 },
+      "Показаны первые строки: 100 из 1234",
+    ],
+  ])("reads %s at any number", (key, values, expected) => {
+    expect(i18n.t(key, values)).toBe(expected);
+  });
+
+  // `one` also serves 21; after «из», «для» or «с» the number and the noun are genitive.
+  it.each<[string, Record<string, unknown>, string[]]>([
+    [
+      "settings:spending.module.stat_accounts_unit",
+      {},
+      [
+        "из 1 денежного счёта",
+        "из 2 денежных счетов",
+        "из 5 денежных счетов",
+        "из 21 денежного счёта",
+      ],
+    ],
+    [
+      "settings:spending.module.headline_enabled",
+      { tracked: 1 },
+      [1, 2, 5, 21].map(
+        (n) =>
+          `Отслеживание 1 из ${n} ${n % 10 === 1 ? "денежного счёта" : "денежных счетов"}. Добавьте транзакции через импорт или вручную.`,
+      ),
+    ],
+    [
+      "common:globalEvents.priceUpdateFailed",
+      {},
+      [
+        "Не удалось обновить цену для 1 актива",
+        "Не удалось обновить цену для 2 активов",
+        "Не удалось обновить цену для 5 активов",
+        "Не удалось обновить цену для 21 актива",
+      ],
+    ],
+    [
+      "common:globalEvents.priceUpdateSkipped",
+      {},
+      [
+        "Обновление цены пропущено для 1 актива",
+        "Обновление цены пропущено для 2 активов",
+        "Обновление цены пропущено для 5 активов",
+        "Обновление цены пропущено для 21 актива",
+      ],
+    ],
+    [
+      "health:issues.price_manual_valuation_stale.title",
+      {},
+      [
+        "Оценка 1 актива не обновлена",
+        "Оценки 2 активов не обновлены",
+        "Оценки 5 активов не обновлены",
+        "Оценка 21 актива не обновлена",
+      ],
+    ],
+    [
+      "sync:untrusted.enterCodeFromDevices",
+      {},
+      [
+        "Введите код с одного из ваших 1 другого подключённого устройства.",
+        "Введите код с одного из ваших 2 других подключённых устройств.",
+        "Введите код с одного из ваших 5 других подключённых устройств.",
+        "Введите код с одного из ваших 21 другого подключённого устройства.",
+      ],
+    ],
+    [
+      "allocation:worksheet.fundingFromAccounts",
+      {},
+      [
+        "С 1 счёта с деньгами",
+        "С 2 счетов с деньгами",
+        "С 5 счетов с деньгами",
+        "С 21 счёта с деньгами",
+      ],
+    ],
+    [
+      "insights:insights.explorer.other_units",
+      {},
+      ["Ещё 1 элемент", "Ещё 2 элемента", "Ещё 5 элементов", "Ещё 21 элемент"],
+    ],
+    ["dashboard:goals.more_goals", {}, ["Ещё 1 цель", "Ещё 2 цели", "Ещё 5 целей", "Ещё 21 цель"]],
+    [
+      "spending:eventsCard.daysPlanned",
+      {},
+      [
+        "1 день запланирован",
+        "2 дня запланировано",
+        "5 дней запланировано",
+        "21 день запланирован",
+      ],
+    ],
+    [
+      "activity:transfer_review.certain_desc",
+      {},
+      Array(4).fill(
+        "Каждая пара точно совпадает в один день, и ни одна из сторон больше ни с чем не совпадает.",
+      ),
+    ],
+    ["health:detail.affectedItems", {}, [1, 2, 5, 21].map((n) => `Затронутые элементы (${n})`)],
+    [
+      "common:component.calculation_notes",
+      {},
+      [1, 2, 5, 21].map((n) => `Заметки к расчёту (${n})`),
+    ],
+    [
+      "spending:budgetEditor.overridesTitle",
+      {},
+      [1, 2, 5, 21].map((n) => `Переопределения · ${n}`),
+    ],
+    [
+      "goals:card.years_left",
+      {},
+      ["осталось: 1 год", "осталось: 2 года", "осталось: 5 лет", "осталось: 21 год"],
+    ],
+    [
+      "goals:dashboard.badge.years_late",
+      {},
+      ["опоздание на 1 год", "опоздание на 2 года", "опоздание на 5 лет", "опоздание на 21 год"],
+    ],
+    ["goals:risk_lab.results.years_short", {}, ["1 год", "2 года", "5 лет", "21 год"]],
+    [
+      "spending:presets.removeKeptEdited",
+      {},
+      [
+        "Ваше 1 отредактированное правило будет сохранено как отдельное.",
+        "Ваши 2 отредактированных правила будут сохранены как отдельные.",
+        "Ваши 5 отредактированных правил будут сохранены как отдельные.",
+        "Ваше 21 отредактированное правило будет сохранено как отдельное.",
+      ],
+    ],
+    [
+      "settings:tax_migration_skipped",
+      {},
+      [
+        "1 элемент не удалось сопоставить, и он был пропущен.",
+        "2 элемента не удалось сопоставить, и они были пропущены.",
+        "5 элементов не удалось сопоставить, и они были пропущены.",
+        "21 элемент не удалось сопоставить, и он был пропущен.",
+      ],
+    ],
+    [
+      "health:sheet.missingTradingDay",
+      { dates: "3 нояб." },
+      [
+        "1 пропущенный торговый день: 3 нояб.",
+        "2 пропущенных торговых дня: 3 нояб.",
+        "5 пропущенных торговых дней: 3 нояб.",
+        "21 пропущенный торговый день: 3 нояб.",
+      ],
+    ],
+    [
+      "spending:calendar.monthSummary",
+      { month: "ноябрь 2026 г." },
+      [
+        "1 событие за ноябрь 2026 г. · нажмите на столбец, чтобы посмотреть",
+        "2 события за ноябрь 2026 г. · нажмите на столбец, чтобы посмотреть",
+        "5 событий за ноябрь 2026 г. · нажмите на столбец, чтобы посмотреть",
+        "21 событие за ноябрь 2026 г. · нажмите на столбец, чтобы посмотреть",
+      ],
+    ],
+    [
+      "settings:market_data_page.table_click_column_to_map",
+      {},
+      [
+        "1 строка · нажмите на заголовок столбца, чтобы сопоставить",
+        "2 строки · нажмите на заголовок столбца, чтобы сопоставить",
+        "5 строк · нажмите на заголовок столбца, чтобы сопоставить",
+        "21 строка · нажмите на заголовок столбца, чтобы сопоставить",
+      ],
+    ],
+  ])("renders %s at 1, 2, 5 and 21", (key, values, expected) => {
+    const rendered = [1, 2, 5, 21].map((count) => i18n.t(key, { total: count, ...values, count }));
+    expect(rendered).toEqual(expected);
+  });
+});
+
+describe("Russian sentences joined in code", () => {
+  // A Russian date with a year ends in «г.», so it stands in brackets before the full stop.
+  const goal = { title: "Отпуск", date: "1 июн. 2027 г." };
+
+  // save-up-detail.tsx renders prefix + " " + emphasis + suffix.
+  it.each([
+    ["off_track", "Вам не хватает средств на цель «Отпуск» (срок: 1 июн. 2027 г.)."],
+    ["on_track", "Вы идёте по плану к цели «Отпуск» (срок: 1 июн. 2027 г.)."],
+    ["at_risk", "Цель «Отпуск» близка — но не будет полностью покрыта к сроку (1 июн. 2027 г.)."],
+    ["reached", "Вы достигли цели «Отпуск»."],
+    ["setup", "Задайте целевую сумму, чтобы отслеживать цель «Отпуск»."],
+  ])("assembles the save-up headline %s", (state, expected) => {
+    const piece = (part: string) => i18n.t(`goals:save_up.headline_${state}_${part}`, goal);
+    expect(`${piece("prefix")} ${piece("emphasis")}${piece("suffix")}`).toBe(expected);
+  });
+
+  // The amounts sit between the pieces: prefix, contribution + per_month, projected_prefix, gap.
+  it.each([
+    ["summary_above_target", "10 000 ₽", "больше цели"],
+    ["summary_short_by", "2 000 ₽", "меньше цели"],
+  ])("assembles the save-up summary with %s", (key, gap, ending) => {
+    const sentence = [
+      `${i18n.t("goals:save_up.summary_prefix")} 5 000 ₽${i18n.t("goals:save_up.summary_per_month")}`,
+      i18n.t("goals:save_up.summary_projected_prefix"),
+      gap,
+      i18n.t(`goals:save_up.${key}`, { date: "июн. 2027 г." }),
+    ].join(" ");
+    expect(sentence).toBe(
+      `При текущем взносе 5 000 ₽/мес, по прогнозу, накопления к сроку будут на ${gap} ${ending} (июн. 2027 г.).`,
+    );
+  });
+
+  it("assembles the retirement surplus verdict around the amount", () => {
+    const sentence = [
+      i18n.t("goals:dashboard.verdict.surplus_prefix", { age: 65 }),
+      "1,2 млн ₽",
+      i18n.t("goals:dashboard.verdict.surplus_suffix"),
+    ].join(" ");
+    expect(sentence).toBe(
+      "По прогнозу вы выйдете на пенсию в возрасте 65 с профицитом 1,2 млн ₽ сверх плана.",
+    );
+  });
+
+  it("assembles the web access hint around the environment variable", () => {
+    const sentence = [
+      i18n.t("settings:agentAccess.web_hint_prefix"),
+      "WF_MCP_ENABLED=true",
+      i18n.t("settings:agentAccess.web_hint_suffix"),
+    ].join(" ");
+    expect(sentence).toBe(
+      "Задайте WF_MCP_ENABLED=true и перезапустите сервер, чтобы включить эндпоинт, затем создайте токен здесь.",
+    );
+  });
+
+  // headline.ts appends the suffix to a category name of any gender.
+  it("ends the second spending mover without agreeing with its name", () => {
+    expect(`Транспорт${i18n.t("spending:whatChanged.headlineOppositeSuffix")}`).toBe(
+      "Транспорт — в обратную сторону.",
+    );
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    [
+      "spending:timeline.headerSummary",
+      { events: i18n.t("spending:timeline.taggedEvents", { count: 2 }), days: 12 },
+      "2 отмеченных события за 12 дн. · нажмите на полосу, чтобы посмотреть",
+    ],
+    [
+      "spending:whereIAm.daysLeftIn",
+      {
+        days: i18n.t("spending:whereIAm.daysCount", { count: 5 }),
+        scope: i18n.t("spending:whereIAm.inMonth", { month: "ноябрь" }),
+      },
+      "Осталось: 5 дней (ноябрь)",
+    ],
+    [
+      "health:sheet.priceIssueSummary",
+      {
+        diagnosticCount: 3,
+        assetCount: 21,
+        dateWord: i18n.t("health:sheet.priceDate", { count: 3 }),
+        assetWord: i18n.t("health:sheet.investment", { count: 21 }),
+      },
+      "Проблемы с ценами: 3 даты, 21 инвестиция",
+    ],
+    [
+      "activity:form.button_add_prefixed",
+      { action: i18n.t("activity:type_adjustment") },
+      "Добавить: Корректировка",
+    ],
+    [
+      "holdings:show_values_in",
+      { currency: i18n.t("holdings:base_currency") },
+      "Показать стоимость: Базовая валюта",
+    ],
+  ])("fills %s with the values the code passes", (key, values, expected) => {
+    expect(i18n.t(key, values)).toBe(expected);
+  });
 });
 
 describe("Russian words inserted into sentences", () => {
@@ -459,7 +888,7 @@ describe("Russian words inserted into sentences", () => {
   it.each([
     [
       "ai:createRule.draftedRule",
-      'Черновик правила: всё совпадающее с "{{pattern}}" будет «{{category}}».',
+      "Черновик правила: всё совпадающее с «{{pattern}}» будет «{{category}}».",
     ],
     ["holdings:holdings_in_category", "Позиции в категории <1>{{category}}</1>"],
     [
@@ -530,6 +959,7 @@ describe("Russian words inserted into sentences", () => {
     "spending:rules.selectActivityType",
     "spending:rules.selectMatchType",
     "activity:form.placeholder_select_account",
+    "settings:spending.categories.merge.choose",
     // These reach `placeholder=` through a ternary, `??` or a shared variable.
     "ai:providerSettings.enterApiKey",
     "common:profiles.enterPassword",

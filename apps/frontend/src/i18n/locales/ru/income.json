@@ -62,7 +62,7 @@
   "filter_options": "Параметры фильтра",
   "all_accounts": "Все счета",
   "done": "Готово",
-  "failed_to_load": "Не удалось загрузить сводку дохода из-за ошибки {{error}}",
+  "failed_to_load": "Не удалось загрузить сводку дохода: {{error}}",
   "unknown_error": "Неизвестная ошибка",
   "since_last_period_label": "С прошлого периода",
   "other": "Другое",

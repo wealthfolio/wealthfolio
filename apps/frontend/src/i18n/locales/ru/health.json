@@ -9,9 +9,9 @@
     },
     "price_manual_valuation_stale": {
       "title_one": "Оценка {{count}} актива не обновлена",
-      "title_few": "Оценки {{count}} актива не обновлены",
+      "title_few": "Оценки {{count}} активов не обновлены",
       "title_many": "Оценки {{count}} активов не обновлены",
-      "title_other": "Не обновлено {{count}} оценки актива",
+      "title_other": "Оценки {{count}} актива не обновлены",
       "message": "Некоторые активы с ручной оценкой не обновлялись более {{days}} дней, поэтому ваш чистый капитал может быть неактуальным."
     },
     "price_no_market_data": {
@@ -163,11 +163,11 @@
     },
     "account_timezone_invalid": {
       "title": "Недействительный настроенный часовой пояс",
-      "message": "Настроенный часовой пояс: \"{{timezone}}\" — недействителен. Обновите его в общих настройках."
+      "message": "Настроенный часовой пояс «{{timezone}}» недействителен. Обновите его в общих настройках."
     },
     "account_timezone_mismatch": {
       "title": "Различие часовых поясов браузера и приложения",
-      "message": "Настроенный часовой пояс \"{{configured}}\", а часовой пояс браузера \"{{browser}}\". Даты следуют настроенному часовому поясу."
+      "message": "Настроенный часовой пояс — «{{configured}}», а часовой пояс браузера — «{{browser}}». Даты следуют настроенному часовому поясу."
     },
     "quote_sync_error": {
       "title_one": "{{count}} актив: ошибка синхронизации котировок",
@@ -281,12 +281,12 @@
     "pricesByInvestment": "Цены по инвестициям",
     "pricesByInvestmentHint": "Откройте инвестицию, чтобы запросить цены повторно или добавить цены. Если даты были выходными или неторговыми днями, скройте проблему, пожалуйста.",
     "priceHistoryNeedsReview": "История цен требует проверки",
-    "missingTradingDay_one": "{{count}} пропущенный торговый день {{dates}}",
-    "missingTradingDay_few": "{{count}} пропущенных торговых дня {{dates}}",
-    "missingTradingDay_many": "{{count}} пропущенных торговых дней {{dates}}",
-    "missingTradingDay_other": "{{count}} пропущенного торгового дня {{dates}}",
+    "missingTradingDay_one": "{{count}} пропущенный торговый день: {{dates}}",
+    "missingTradingDay_few": "{{count}} пропущенных торговых дня: {{dates}}",
+    "missingTradingDay_many": "{{count}} пропущенных торговых дней: {{dates}}",
+    "missingTradingDay_other": "{{count}} пропущенного торгового дня: {{dates}}",
     "dateRange": "{{from}} — {{to}}",
-    "priceIssueSummary": "Проблемы с ценами за {{diagnosticCount}} {{dateWord}} в {{assetCount}} {{assetWord}}",
+    "priceIssueSummary": "Проблемы с ценами: {{diagnosticCount}} {{dateWord}}, {{assetCount}} {{assetWord}}",
     "priceDate_one": "дата",
     "priceDate_few": "даты",
     "priceDate_many": "дат",
@@ -344,13 +344,13 @@
     "dismiss": "Скрыть",
     "dismissConfirm": {
       "title": "Скрыть эту проблему?",
-      "message": "Это скроет проблему из центра здоровья данных. Она появится снова, если основные данные изменятся.",
+      "message": "Это скроет проблему из Центра здоровья. Она появится снова, если исходные данные изменятся.",
       "pendingText": "Скрытие..."
     },
-    "affectedItems_one": "Затронутый элемент ({{count}})",
-    "affectedItems_few": "Затронутых элемента ({{count}})",
-    "affectedItems_many": "Затронутых элементов ({{count}})",
-    "affectedItems_other": "Затронутых элемента ({{count}})"
+    "affectedItems_one": "Затронутые элементы ({{count}})",
+    "affectedItems_few": "Затронутые элементы ({{count}})",
+    "affectedItems_many": "Затронутые элементы ({{count}})",
+    "affectedItems_other": "Затронутые элементы ({{count}})"
   },
   "activityReasons": {
     "activity_id": "Операция: {{id}}",
