@@ -192,7 +192,7 @@ export function RetirementCoverageChart({
         <YAxis
           tick={{ fontSize: "0.6875rem" }}
           tickFormatter={(v: number) => formatting.formatCompactAmount(v, currency)}
-          width={60}
+          width="auto"
           axisLine={false}
           tickLine={false}
           domain={[0, "auto"]}

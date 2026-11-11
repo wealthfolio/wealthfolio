@@ -115,13 +115,23 @@ export interface BudgetGroupRow {
   remaining: number;
   overspent: boolean;
   rolloverEnabled: boolean;
+  /** Savings categories listed in the group: a goal, outside the figures above. */
+  savingsTargetTotal: number;
+  savingsActual: number;
   categories: BudgetCategoryRow[];
 }
 
+/**
+ * `spending*` is consumption (expense categories and group buffers), a limit.
+ * `savings*` is the savings goal and the money moved to savings. The plan's total
+ * allocation, to compare with income, is `spendingPlanned + savingsPlanned`.
+ */
 export interface BudgetTotals {
   spendingPlanned: number;
   spendingActual: number;
   spendingRemaining: number;
+  savingsPlanned: number;
+  savingsActual: number;
   incomePlanned: number;
   incomeActual: number;
   groupBuffer: number;

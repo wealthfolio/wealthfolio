@@ -30,6 +30,31 @@ describe("trade asset identity defaults", () => {
   );
 });
 
+describe("charge defaults", () => {
+  const charges = {
+    BUY: ["fee", "tax"],
+    SELL: ["fee", "tax"],
+    DIVIDEND: ["tax"],
+    INTEREST: ["tax"],
+  };
+
+  it.each(Object.entries(charges))(
+    "leaves %s charges empty when new or saved as 0, so typing replaces them",
+    (type, fields) => {
+      const config = ACTIVITY_FORM_CONFIG[type as keyof typeof charges];
+      const added = config.getDefaults(undefined, []) as Record<string, unknown>;
+      const edited = config.getDefaults({ fee: "0", tax: "0" }, []) as Record<string, unknown>;
+      const charged = config.getDefaults({ fee: "1.5", tax: "-2" }, []) as Record<string, unknown>;
+
+      for (const field of fields) {
+        expect(added[field]).toBeUndefined();
+        expect(edited[field]).toBeUndefined();
+      }
+      expect(charged.tax).toBe(2);
+    },
+  );
+});
+
 describe("cash transfer defaults", () => {
   it.each([ActivityType.TRANSFER_OUT, ActivityType.TRANSFER_IN])(
     "derives the execution rate from actual amounts when editing %s",

@@ -47,6 +47,10 @@ pub struct AccountStateSnapshotDB {
     pub cash_total_base_currency: String,
     #[diesel(sql_type = Text)]
     pub source: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    // Calculated-only provenance must not change observed-snapshot sync payloads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_currency: Option<String>,
 }
 
 impl From<&AccountStateSnapshotDB> for SnapshotMetadata {
@@ -107,6 +111,7 @@ impl TryFrom<AccountStateSnapshotDB> for AccountStateSnapshot {
                 );
                 Utc::now().naive_utc()
             }),
+            base_currency: db.base_currency,
             source: serde_json::from_str(&format!("\"{}\"", db.source))
                 .unwrap_or(SnapshotSource::Calculated),
         })
@@ -154,6 +159,7 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
                 .calculated_at
                 .format("%Y-%m-%dT%H:%M:%S%.fZ")
                 .to_string(),
+            base_currency: domain.base_currency,
             source: serde_json::to_string(&domain.source)
                 .unwrap_or_else(|_| "\"CALCULATED\"".to_string())
                 .trim_matches('"')
@@ -165,6 +171,21 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_basis_currency_keeps_known_provenance_and_accepts_legacy_payloads() {
+        let row = AccountStateSnapshotDB::from(AccountStateSnapshot {
+            base_currency: Some("CAD".into()),
+            ..Default::default()
+        });
+        let mut payload = serde_json::to_value(row).unwrap();
+        assert_eq!(payload["baseCurrency"], "CAD");
+        let restored: AccountStateSnapshotDB = serde_json::from_value(payload.clone()).unwrap();
+        assert_eq!(restored.base_currency.as_deref(), Some("CAD"));
+        payload.as_object_mut().unwrap().remove("baseCurrency");
+        let legacy: AccountStateSnapshotDB = serde_json::from_value(payload).unwrap();
+        assert_eq!(legacy.base_currency, None);
+    }
 
     #[test]
     fn snapshot_json_columns_preserve_exact_decimals() {

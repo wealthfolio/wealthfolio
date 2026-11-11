@@ -68,7 +68,7 @@
   "other": "기타",
   "other_sources_count_one": "기타 출처 {{count}}개",
   "other_sources_count_other": "기타 출처 {{count}}개",
-  "percent_of_total": "전체의 {{percent}}%",
+  "percent_of_total": "전체의 {{percent}}",
   "view_combined": "통합",
   "view_by_account": "계좌별",
   "monthly_income": "월별 소득",

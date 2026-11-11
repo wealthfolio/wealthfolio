@@ -3,6 +3,7 @@ import { invoke as rawInvoke } from "@tauri-apps/api/core";
 import { debug, error, info, trace, warn } from "@tauri-apps/plugin-log";
 
 import { profileScope, revokeProfileSession } from "@/features/profiles/session";
+import { BackendError, backendError } from "@/lib/backend-error";
 import type { Logger } from "../types";
 import { invokeTimeoutMs } from "../invoke-timeout";
 
@@ -47,7 +48,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     ]);
     return result;
   } catch (err) {
-    logger.error(`[Invoke] Command "${command}" failed: ${err}`);
+    logger.error(`[Invoke] Command "${command}" failed`);
     throw err;
   } finally {
     clearTimeout(timer);
@@ -72,7 +73,12 @@ export async function tauriInvoke<T>(
     return result;
   } catch (error) {
     if (/PROFILE_(LOCKED|STALE)/.test(String(error))) revokeProfileSession();
-    throw error;
+    const publicError = backendError(error);
+    if (publicError) throw publicError;
+    // Preserve session control codes without carrying their diagnostic suffix.
+    const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+    const controlCode = /^((?:PROFILE|CONNECT|SYNC)_[A-Z_]+)(?::|$)/.exec(message)?.[1];
+    throw controlCode ? new Error(controlCode) : new BackendError("internal_error");
   }
 }
 

@@ -162,14 +162,10 @@ impl QuoteSyncCheck {
 
         // Emit error-level issue for persistent sync failures
         if !persistent_errors.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                error_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(error_mv);
 
             // Escalate to Critical if MV% exceeds threshold
-            let severity = if mv_pct > ctx.config.mv_escalation_threshold {
+            let severity = if mv_pct.is_some_and(|pct| pct > ctx.config.mv_escalation_threshold) {
                 Severity::Critical
             } else {
                 Severity::Error
@@ -220,11 +216,7 @@ impl QuoteSyncCheck {
 
         // Emit warning-level issue for recent sync failures
         if !warning_errors.is_empty() {
-            let mv_pct = if ctx.total_portfolio_value > 0.0 {
-                warning_mv / ctx.total_portfolio_value
-            } else {
-                0.0
-            };
+            let mv_pct = ctx.affected_mv_pct(warning_mv);
 
             let count = warning_errors.len();
             let title = if count == 1 {

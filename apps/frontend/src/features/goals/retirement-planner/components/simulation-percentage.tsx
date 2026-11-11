@@ -44,7 +44,7 @@ export function SimulationPercentage({
         collisionPadding={16}
       >
         {t(`goals:risk_lab.results.simulation_tooltip_${plannerMode}`, {
-          percent: formatting.formatDecimal(percent),
+          percent: formatting.formatPercent(percent / 100, { digits: 0 }),
         })}
       </TooltipContent>
     </Tooltip>

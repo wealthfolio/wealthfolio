@@ -140,7 +140,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     setHoverIndex(null);
   }
 
-  const handlePieEnter = (_: React.MouseEvent, index: number) => {
+  const handlePieEnter = (_: unknown, index: number) => {
     setHoverIndex(index);
   };
 

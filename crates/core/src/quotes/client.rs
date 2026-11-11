@@ -827,6 +827,7 @@ impl MarketDataClient {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: result.score.unwrap_or(0.0),
         }

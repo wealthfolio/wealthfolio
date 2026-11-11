@@ -30,9 +30,10 @@
       "unit_types": "个类型",
       "unit_currencies": "种货币",
       "unit_groups": "个分组",
-      "other_units": "其他 {{unit}}",
+      "other_units_one": "其他 {{count}} 项",
+      "other_units_other": "其他 {{count}} 项",
       "breakdown": "明细",
-      "top_units": "前 {{unit}}",
+      "top_units": "前 {{count}} 项",
       "show_less": "收起",
       "show_all": "显示全部"
     },
@@ -78,7 +79,6 @@
       "link_explanation": "关联现有房产不会改变您的净资产。"
     },
     "failed_to_load": "加载净资产失败",
-    "stale_valuations_tooltip": "陈旧估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
     "no_history_data": "暂无可用的历史数据",
     "breakdown": "明细",
@@ -104,7 +104,8 @@
     "category_sheet": {
       "over_period": "在 {{period}} 内",
       "trend_period": "趋势 · {{period}}",
-      "items": "项目"
+      "items": "项目",
+      "view_details": "查看详情"
     },
     "trend": {
       "not_enough_history": "历史数据不足"
@@ -144,7 +145,13 @@
     "portfolio_share": "占投资组合价值的比例（含现金）",
     "largest": "最大持仓",
     "top_five": "前五大持仓",
-    "concentration_unavailable": "集中度计算要求持仓价值为正，且投资组合中没有空头头寸。"
+    "concentration_unavailable": "集中度计算要求持仓价值为正，且投资组合中没有空头头寸。",
+    "holdings": "持仓",
+    "holdings_count_one": "{{count}} 个持仓",
+    "holdings_count_other": "{{count}} 个持仓",
+    "other_holdings_one": "其他 {{count}} 个持仓",
+    "other_holdings_other": "其他 {{count}} 个持仓",
+    "holdings_unavailable": "持仓图表需要正的持仓价值，且投资组合中没有空头头寸。"
   },
   "customize": {
     "edit": "自定义",

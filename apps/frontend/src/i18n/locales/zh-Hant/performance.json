@@ -72,9 +72,6 @@
     "return": "報酬率",
     "time_weighted_return": "時間加權報酬率",
     "time_weighted_short": "時間加權",
-    "twr_short": "TWR",
-    "annualized_twr": "年化 TWR",
-    "ann_twr_short": "年化 TWR",
     "money_weighted_return": "金額加權報酬率",
     "money_weighted_short": "金額加權",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "年化 MWR",
     "value_return": "價值報酬率",
     "value_return_short": "價值報酬率",
-    "value_short": "價值",
     "price_return": "價格報酬率",
     "price_return_short": "價格報酬率",
-    "price_short": "價格",
     "volatility": "波動率",
-    "vol_short": "波動",
     "max_drawdown": "最大跌幅",
     "max_drawdown_short": "最大跌幅",
     "drawdown_short": "跌幅",
@@ -95,11 +89,6 @@
     "annualized_short": "年化",
     "gain_loss": "損益",
     "gain_loss_info": "所選期間內的總獲利或虧損。展開指標即可查看歸因明細。"
-  },
-  "section": {
-    "returns": "報酬率",
-    "risk": "風險",
-    "total": "總計"
   },
   "help": {
     "aria_label": "績效指標說明",
@@ -149,5 +138,13 @@
     "holdings_volatility": "帳戶價值變化的波動率。根據每日估值計算，不調整入金或出金的影響，反映市場價值的波動程度。",
     "holdings_max_drawdown": "帳戶價值從峰值到谷值的最大跌幅。根據每日估值計算，不調整入金或出金的影響。"
   },
-  "compare_over_time": "比較帳戶隨時間變化的績效"
+  "compare_over_time": "比較帳戶隨時間變化的績效",
+  "series_table": {
+    "label": "比較系列",
+    "name": "名稱",
+    "show_all": "全部顯示（{{count}}）",
+    "show_less": "收合",
+    "hide_on_chart": "在圖表中隱藏 {{name}}",
+    "show_on_chart": "在圖表中顯示 {{name}}"
+  }
 }

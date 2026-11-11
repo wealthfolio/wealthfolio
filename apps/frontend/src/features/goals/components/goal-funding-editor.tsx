@@ -1,3 +1,6 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
+import type { NumberFormatting } from "@wealthfolio/ui";
 import { getGoalFunding } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -5,7 +8,7 @@ import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, GoalFundingRule, GoalFundingRuleInput } from "@/lib/types";
-import { Button, useAmountFormatting } from "@wealthfolio/ui";
+import { Button, useNumericDraft, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
@@ -67,35 +70,19 @@ function SharePercentInput({
   label,
   value,
   onChange,
+  onDraftChange,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  /** The valid value being typed, or undefined when there is none to preview. */
+  onDraftChange: (value: number | undefined) => void;
 }) {
-  const [draftValue, setDraftValue] = useState(formatShare(value));
-  const [inputFocused, setInputFocused] = useState(false);
-
-  useEffect(() => {
-    if (!inputFocused) {
-      setDraftValue(formatShare(value));
-    }
-  }, [inputFocused, value]);
-
+  const draft = useNumericDraft(value, { acceptPercent: true, maximumFractionDigits: 1 });
   const commitDraftValue = () => {
-    const raw = draftValue.trim();
-    if (!raw) {
-      setDraftValue(formatShare(value));
-      return;
-    }
-
-    const parsed = parseFloat(raw.replace(/,/g, ""));
-    if (Number.isNaN(parsed)) {
-      setDraftValue(formatShare(value));
-      return;
-    }
-
-    onChange(parsed);
-    setDraftValue(formatShare(parsed));
+    const result = draft.commit();
+    onDraftChange(undefined);
+    if (result.status === "valid") onChange(result.value);
   };
 
   return (
@@ -104,30 +91,12 @@ function SharePercentInput({
         type="text"
         inputMode="decimal"
         aria-label={label}
-        value={draftValue}
-        onFocus={() => {
-          setInputFocused(true);
-          setDraftValue(formatShare(value));
+        {...draft.inputProps}
+        onChange={(event) => {
+          const result = draft.setText(event.currentTarget.value);
+          onDraftChange(result.status === "valid" ? result.value : undefined);
         }}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (/^-?\d*([.,]\d*)?$/.test(next)) {
-            setDraftValue(next);
-          }
-        }}
-        onBlur={() => {
-          setInputFocused(false);
-          commitDraftValue();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.currentTarget.blur();
-          }
-          if (e.key === "Escape") {
-            setDraftValue(formatShare(value));
-            e.currentTarget.blur();
-          }
-        }}
+        onBlur={commitDraftValue}
         className="text-foreground min-w-0 flex-1 bg-transparent text-end text-sm tabular-nums outline-none"
       />
       <span className="text-muted-foreground text-xs tabular-nums">%</span>
@@ -135,16 +104,24 @@ function SharePercentInput({
   );
 }
 
-function formatShare(value: number): string {
-  if (!Number.isFinite(value)) return "0";
+function formatShare(value: number, numbers: NumberFormatting): string {
+  if (!Number.isFinite(value)) return numbers.formatPercent(0, { digits: 0 });
   const rounded = Math.abs(value) < SHARE_EPSILON ? 0 : value;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(/\.0$/, "");
+  return numbers.formatDecimal(rounded / 100, { style: "percent", maximumFractionDigits: 1 });
 }
 
-function allocationLabel(row: AccountAllocationRow, t: TFunction): string {
+function clampShare(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function allocationLabel(
+  row: AccountAllocationRow,
+  t: TFunction,
+  numbers: NumberFormatting,
+): string {
   if (row.overBy > SHARE_EPSILON)
-    return t("goals:funding.over", { percent: formatShare(row.overBy) });
-  return t("goals:funding.left", { percent: formatShare(row.left) });
+    return t("goals:funding.over", { percent: formatShare(row.overBy, numbers) });
+  return t("goals:funding.left", { percent: formatShare(row.left, numbers) });
 }
 
 function allocationLabelClass(row: AccountAllocationRow): string {
@@ -161,6 +138,7 @@ export function GoalFundingEditor({
   onEditingChange,
 }: Props) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { accounts } = useAccounts({ accountPurpose: AccountPurpose.GOAL_FUNDING });
   const { goals } = useGoals();
   const { fundingRules } = useGoalDetail(goalId);
@@ -190,6 +168,9 @@ export function GoalFundingEditor({
   );
 
   const [sharePercents, setSharePercents] = useState<Map<string, number>>(new Map());
+  // Shares still being typed. Save and the overage check use them so the click
+  // that blurs a share input is not dropped on a still-disabled Save button.
+  const [typedShares, setTypedShares] = useState<Map<string, number>>(new Map());
   const [taxBuckets, setTaxBuckets] = useState<Map<string, string>>(new Map());
   const [dirty, setDirty] = useState(false);
   const [internalEditing, setInternalEditing] = useState(false);
@@ -214,6 +195,7 @@ export function GoalFundingEditor({
       if (rule.taxBucket) tbMap.set(rule.accountId, rule.taxBucket);
     }
     setSharePercents(spMap);
+    setTypedShares(new Map());
     setTaxBuckets(tbMap);
     setDirty(false);
   }, [fundingRules]);
@@ -266,7 +248,7 @@ export function GoalFundingEditor({
     return activeAccounts
       .map((account) => {
         const otherAllocations = otherFundingRules.filter((rule) => rule.accountId === account.id);
-        const thisShare = sharePercents.get(account.id) ?? 0;
+        const thisShare = typedShares.get(account.id) ?? sharePercents.get(account.id) ?? 0;
         return {
           account,
           thisShare,
@@ -280,7 +262,14 @@ export function GoalFundingEditor({
         };
       })
       .filter((row) => sharePercents.has(row.account.id) || row.total > SHARE_EPSILON);
-  }, [activeAccounts, isRetirement, otherFundingRules, retirementGoalIds, sharePercents]);
+  }, [
+    activeAccounts,
+    isRetirement,
+    otherFundingRules,
+    retirementGoalIds,
+    sharePercents,
+    typedShares,
+  ]);
 
   const allocationByAccountId = useMemo(
     () => new Map(allocationRows.map((row) => [row.account.id, row])),
@@ -295,6 +284,9 @@ export function GoalFundingEditor({
     [allocationRows, sharePercents],
   );
   const hasInvalidAllocations = invalidAllocationRows.length > 0;
+  const hasTypedChanges = Array.from(typedShares).some(
+    ([accountId, percent]) => percent !== sharePercents.get(accountId),
+  );
 
   const addAccount = (accountId: string) => {
     const maxForThisGoal = isRetirement
@@ -319,8 +311,17 @@ export function GoalFundingEditor({
   }, []);
 
   const updateSharePercent = useCallback((accountId: string, value: number) => {
-    setSharePercents((prev) => new Map(prev).set(accountId, Math.max(0, Math.min(100, value))));
+    setSharePercents((prev) => new Map(prev).set(accountId, clampShare(value)));
     setDirty(true);
+  }, []);
+
+  const updateTypedShare = useCallback((accountId: string, value: number | undefined) => {
+    setTypedShares((prev) => {
+      const next = new Map(prev);
+      if (value === undefined) next.delete(accountId);
+      else next.set(accountId, clampShare(value));
+      return next;
+    });
   }, []);
 
   const cycleTaxBucket = useCallback((accountId: string) => {
@@ -341,7 +342,8 @@ export function GoalFundingEditor({
     for (const [accountId, percent] of sharePercents) {
       rules.push({
         accountId,
-        sharePercent: percent,
+        // A WebView may deliver the click before the share input's blur commits.
+        sharePercent: typedShares.get(accountId) ?? percent,
         taxBucket: isRetirement ? taxBuckets.get(accountId) : undefined,
       });
     }
@@ -351,6 +353,7 @@ export function GoalFundingEditor({
   }, [
     hasInvalidAllocations,
     sharePercents,
+    typedShares,
     taxBuckets,
     isRetirement,
     saveFundingMutation,
@@ -416,7 +419,11 @@ export function GoalFundingEditor({
                 size="sm"
                 className="h-7 text-xs"
                 onClick={handleSave}
-                disabled={saveFundingMutation.isPending || !dirty || hasInvalidAllocations}
+                disabled={
+                  saveFundingMutation.isPending ||
+                  !(dirty || hasTypedChanges) ||
+                  hasInvalidAllocations
+                }
               >
                 {saveFundingMutation.isPending ? t("goals:funding.saving") : t("common:save")}
               </Button>
@@ -457,8 +464,10 @@ export function GoalFundingEditor({
                   {includedAccounts.map((a) => {
                     const isDcLinked = dcLinkedSet.has(a.id);
                     const tb = taxBuckets.get(a.id);
-                    const percent = sharePercents.get(a.id) ?? 100;
+                    const committedPercent = sharePercents.get(a.id) ?? 100;
                     const allocation = allocationByAccountId.get(a.id);
+                    // Includes a share still being typed, like the allocation labels.
+                    const percent = allocation?.thisShare ?? committedPercent;
                     const overBy = allocation?.overBy ?? 0;
                     const maxForThisGoal = allocation?.maxForThisGoal ?? 100;
                     const otherTotal = allocation?.otherReserved ?? 0;
@@ -511,7 +520,7 @@ export function GoalFundingEditor({
                             <span
                               className={`text-2xs w-16 shrink-0 text-end font-medium tabular-nums ${allocationLabelClass(allocation)}`}
                             >
-                              {allocationLabel(allocation, t)}
+                              {allocationLabel(allocation, t, numbers)}
                             </span>
                           )}
 
@@ -519,8 +528,9 @@ export function GoalFundingEditor({
                           {!isDcLinked && (
                             <SharePercentInput
                               label={a.name}
-                              value={percent}
+                              value={committedPercent}
                               onChange={(value) => updateSharePercent(a.id, value)}
+                              onDraftChange={(value) => updateTypedShare(a.id, value)}
                             />
                           )}
 
@@ -558,16 +568,16 @@ export function GoalFundingEditor({
                                 <span className="truncate">
                                   {otherTotal > SHARE_EPSILON
                                     ? t("goals:funding.used_by_other_goals", {
-                                        percent: formatShare(otherTotal),
+                                        percent: formatShare(otherTotal, numbers),
                                       })
                                     : t("goals:funding.still_unassigned", {
-                                        percent: formatShare(unassigned),
+                                        percent: formatShare(unassigned, numbers),
                                       })}
                                 </span>
                                 {countsLess && (
                                   <span className="text-foreground shrink-0 font-medium tabular-nums">
                                     {t("goals:funding.counting", {
-                                      percent: formatShare(counted),
+                                      percent: formatShare(counted, numbers),
                                     })}
                                   </span>
                                 )}
@@ -580,7 +590,7 @@ export function GoalFundingEditor({
                                     onClick={() => updateSharePercent(a.id, maxForThisGoal)}
                                   >
                                     {t("goals:funding.use_max", {
-                                      percent: formatShare(maxForThisGoal),
+                                      percent: formatShare(maxForThisGoal, numbers),
                                     })}
                                   </button>
                                 )}
@@ -589,7 +599,7 @@ export function GoalFundingEditor({
                             {hasOverage && (
                               <p className="text-destructive text-2xs mt-1">
                                 {t("goals:funding.overallocated", {
-                                  percent: formatShare(overBy),
+                                  percent: formatShare(overBy, numbers),
                                 })}
                               </p>
                             )}
@@ -678,7 +688,9 @@ export function GoalFundingEditor({
                         )}
                         {isRetirement && counted < percent - SHARE_EPSILON && (
                           <span className="text-muted-foreground text-2xs shrink-0 tabular-nums">
-                            {t("goals:funding.counting", { percent: formatShare(counted) })}
+                            {t("goals:funding.counting", {
+                              percent: formatShare(counted, numbers),
+                            })}
                           </span>
                         )}
                         {amountForShare(a.id, isRetirement ? counted : percent) && (
@@ -686,7 +698,9 @@ export function GoalFundingEditor({
                             {amountForShare(a.id, isRetirement ? counted : percent)}
                           </span>
                         )}
-                        <span className="text-sm font-semibold tabular-nums">{percent}%</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatShare(percent, numbers)}
+                        </span>
                       </div>
                     );
                   })}
@@ -724,9 +738,17 @@ function AllocationDetailsSheet({
   retirementGoalIds: ReadonlySet<string>;
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
+  const numbers = useNumberFormatting();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex h-full w-full flex-col p-0 sm:max-w-3xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex h-full flex-col p-0",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-3xl",
+        )}
+      >
         <SheetHeader className="border-border border-b px-6 py-5">
           <SheetTitle>{t("goals:funding.allocation_details")}</SheetTitle>
           <SheetDescription>{t("goals:funding.allocation_details_description")}</SheetDescription>
@@ -777,19 +799,19 @@ function AllocationDetailsSheet({
                           >
                             {formatShare(
                               shareForGoal(row, goal.id, currentGoalId, retirementGoalIds),
+                              numbers,
                             )}
-                            %
                           </td>
                         ))}
                         <td className="border-border border-b px-3 py-3 text-end tabular-nums">
-                          {formatShare(row.free)}%
+                          {formatShare(row.free, numbers)}
                         </td>
                         <td
                           className={`border-border border-b py-3 ps-3 text-end font-semibold tabular-nums ${
                             isOver ? "text-destructive" : ""
                           }`}
                         >
-                          {formatShare(row.total)}%
+                          {formatShare(row.total, numbers)}
                         </td>
                       </tr>
                     );

@@ -239,19 +239,6 @@ async fn process_event_batch(
         // 3. Plan and trigger broker sync for eligible tracking mode changes
         let sync_account_ids = plan_broker_sync(events);
         if !sync_account_ids.is_empty() {
-            // Check plan entitlement before syncing
-            match context.connect_service().has_broker_sync().await {
-                Ok(true) => {}
-                Ok(false) => {
-                    info!("Broker sync skipped after tracking mode change: plan does not include broker sync");
-                    return;
-                }
-                Err(e) => {
-                    warn!("Broker sync skipped after tracking mode change: could not verify entitlement ({})", e);
-                    return;
-                }
-            }
-
             info!(
                 "Triggering broker sync for {} accounts (tracking mode changed)",
                 sync_account_ids.len()
@@ -268,6 +255,9 @@ async fn process_event_batch(
                             "Broker sync completed after tracking mode change: success={}, message={}",
                             result.success, result.message
                         );
+                    }
+                    Err(e) if wealthfolio_connect::is_subscription_denial(&e) => {
+                        log::debug!("Broker sync skipped after tracking mode change: {}", e);
                     }
                     Err(e) => {
                         warn!("Broker sync failed after tracking mode change: {}", e);

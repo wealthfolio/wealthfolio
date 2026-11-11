@@ -15,10 +15,10 @@ import { Separator } from "@wealthfolio/ui/components/ui/separator";
 
 interface AssetDetail {
   numShares: number;
-  marketValue: number;
-  costBasis: number;
-  averagePrice: number;
-  portfolioPercent: number;
+  marketValue: number | null;
+  costBasis: number | null;
+  averagePrice: number | null;
+  portfolioPercent: number | null;
   todaysReturn: number | null;
   todaysReturnPercent: number | null;
   unrealizedPnl: number | null;
@@ -124,11 +124,16 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
     },
     {
       label: averageCostLabel,
-      value: <PriceDisplay value={averagePrice} currency={currency} isHidden={isBalanceHidden} />,
+      value:
+        averagePrice == null ? (
+          "—"
+        ) : (
+          <PriceDisplay value={averagePrice} currency={currency} isHidden={isBalanceHidden} />
+        ),
     },
     {
       label: t("asset:detailCard.percent_of_portfolio"),
-      value: numberFormatting.formatPercent(portfolioPercent),
+      value: portfolioPercent == null ? "—" : numberFormatting.formatPercent(portfolioPercent),
     },
   ];
 
@@ -379,7 +384,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                   <span className="text-sm font-medium">
                     {bondSpec.couponFrequency === "ZERO"
                       ? t("asset:detailCard.zero_coupon")
-                      : `${(bondSpec.couponRate * 100).toFixed(3)}%`}
+                      : numberFormatting.formatPercent(bondSpec.couponRate, { digits: 3 })}
                     {bondSpec.couponFrequency &&
                       bondSpec.couponFrequency !== "ZERO" &&
                       ` ${bondSpec.couponFrequency.replace("_", " ").toLowerCase()}`}

@@ -63,6 +63,9 @@ for (const direction of ["ltr", "rtl"] as const) {
     await gotoAppPath(page, `/settings/securities?dir=${direction}`);
     await expect(page.getByRole("heading", { name: "Securities", exact: true })).toBeVisible();
     const reset = page.getByRole("button", { name: "Reset", exact: true });
+    // The filters render with the loaded table: before it, Reset is missing even
+    // though the default Current filter will hide the new security.
+    await expect(page.getByRole("button", { name: /^Portfolio/ })).toBeVisible();
     if (await reset.isVisible()) await reset.click();
     const row = page.getByRole("row").filter({ hasText: "AFLT" }).first();
     await expect(row).toBeVisible();

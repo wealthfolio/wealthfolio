@@ -1,3 +1,4 @@
+import { useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
@@ -45,6 +46,7 @@ export function ModelPresetPicker({
   compact = false,
 }: ModelPresetPickerProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const categories = currentCategories.map((category, sortOrder) => ({
     id: category.categoryId,
     name: category.categoryName,
@@ -69,7 +71,7 @@ export function ModelPresetPicker({
   }
 
   const taxonomyPresets = BUILT_IN_PRESETS.filter((preset) => preset.taxonomyId === taxonomyId)
-    .map((preset) => ({ preset, title: modelPresetTitle(preset, categories, t) }))
+    .map((preset) => ({ preset, title: modelPresetTitle(preset, categories, t, numbers) }))
     .sort((left, right) => left.title.localeCompare(right.title));
   const primaryPresets = taxonomyPresets.slice(0, 3);
   const secondaryPresets = taxonomyPresets.slice(3);
@@ -151,7 +153,7 @@ export function ModelPresetPicker({
         <PresetCard
           preset={currentPreset}
           title={
-            modelPresetTitle(currentPreset, categories, t) ||
+            modelPresetTitle(currentPreset, categories, t, numbers) ||
             t("allocation:presets.noCurrentHoldings")
           }
           current

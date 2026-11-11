@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}}のリターン",
+  "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",
   "welcome": "ようこそ",
   "loading": "読み込み中...",
@@ -180,13 +182,13 @@
     "rebuild_full_history": "全履歴を更新",
     "rebuild_full_history_label": "全履歴を更新",
     "rebuilding_history": "全履歴を更新…",
-    "record_buy": "買付を記録",
-    "record_sell": "売却を記録",
-    "record_dividend": "配当を記録",
-    "record_deposit": "入金を記録",
-    "record_withdrawal": "出金を記録",
+    "record_buy": "購入を追加",
+    "record_sell": "売却を追加",
+    "record_dividend": "配当を追加",
+    "record_deposit": "入金を追加",
+    "record_withdrawal": "出金を追加",
     "add_holding": "保有銘柄を追加",
-    "record_interest": "利息を記録",
+    "record_interest": "利息を追加",
     "add_transaction": "取引を追加",
     "import_activities": "取引をインポート",
     "manage_securities": "銘柄を管理",
@@ -316,7 +318,10 @@
     "unable_to_open_changelog": "変更履歴を開けません",
     "try_open_changelog_manually": "ブラウザで変更履歴を手動で開いてみてください。",
     "all_portfolio": "ポートフォリオ全体",
-    "calculation_notes_other": "計算メモ({{count}})"
+    "calculation_notes_other": "計算メモ({{count}})",
+    "launcher_navigation": "移動",
+    "launcher_appearance": "外観",
+    "launcher_tools": "ツール"
   },
   "globalEvents": {
     "syncingMarket": "市場データを同期中...",
@@ -683,5 +688,24 @@
     "accountNumberMax": "口座番号は64文字以内で入力してください。",
     "accountCurrency": "通貨を選択してください。",
     "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。"
+  },
+  "backendErrors": {
+    "internal": "操作を完了できませんでした。",
+    "invalidInput": "入力内容を確認して、もう一度お試しください。",
+    "conflict": "変更内容が既存のデータと競合しています。",
+    "notFound": "要求された項目が見つかりませんでした。",
+    "unauthorized": "続行するにはログインしてください。",
+    "forbidden": "この操作は許可されていません。",
+    "unavailable": "この操作は利用できません。",
+    "providerKeyMissing": "設定でこのプロバイダーの API キーを追加してください。",
+    "providerUnknown": "対応しているプロバイダーを選択してください。",
+    "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。",
+    "customProviderCodeReserved": "このプロバイダーコードは予約されています。別のコードを選択してください。",
+    "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。",
+    "addonManifestMissing": "アドオンの ZIP ファイルに manifest.json がありません。",
+    "addonMainFileMissing": "アドオンの ZIP ファイルに、マニフェストで指定されたメインファイルがありません。",
+    "addonNeedsNewerVersion": "このアドオンには新しいバージョンの Wealthfolio が必要です。Wealthfolio を更新してから、もう一度お試しください。",
+    "quoteCurrencyRequired": "建値通貨が必要です。検索結果から銘柄コードを選び直してください。",
+    "rateLimited": "リクエストが多すぎます。1 分ほど待ってから、もう一度お試しください。"
   }
 }

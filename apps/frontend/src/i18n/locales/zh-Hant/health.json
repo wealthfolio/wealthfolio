@@ -5,6 +5,11 @@
       "title_other": "{{count}} 項持有部位缺少手動估值",
       "message": "手動／自訂持有部位需要先提供手動估值，才能納入績效統計。"
     },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}} 的估值未更新",
+      "title_other": "{{count}} 項資產的估值未更新",
+      "message": "部分手動估值的資產已超過 {{days}} 天未更新，淨資產可能不是最新的。"
+    },
     "price_no_market_data": {
       "title_one": "{{symbol}} 沒有市場資料",
       "title_other": "{{count}} 項持有部位沒有市場資料",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "重建歷史",
     "add_price": "新增價格",
     "update_cost_basis": "更新成本基礎",
+    "update_value": "更新估值",
     "review_transaction": "檢查交易",
     "review_entry": "查看紀錄"
   },
@@ -275,5 +281,17 @@
     },
     "affectedItems_other": "受影響的項目（{{count}}）",
     "affectedItems_one": "受影響項目（{{count}}）"
+  },
+  "activityReasons": {
+    "activity_id": "交易：{{id}}",
+    "missing_fx_rate": "{{date}}沒有從{{from}}兌換為{{to}}的匯率。",
+    "close_buy_without_short_position": "此買入被標記為平倉{{asset}}，但沒有可平倉的空頭部位。",
+    "sell_short_intent_required": "此賣出會增加{{asset}}的空頭部位。請將其標記為放空。",
+    "conversion_insufficient_holdings": "此轉換需要{{requested}}單位的{{asset}}，但帳戶僅持有{{held}}單位。",
+    "conversion_currency_mismatch": "{{fromAsset}}以{{fromCurrency}}計價持有，{{toAsset}}以{{toCurrency}}計價持有。轉換必須維持相同幣別。",
+    "return_of_capital_amount_required": "請輸入此資本返還的金額。",
+    "sell_without_position": "沒有可賣出的{{asset}}部位。僅計入了現金影響。",
+    "insufficient_quantity": "此交易減少{{requested}}單位的{{asset}}，但僅持有{{held}}單位。剩餘{{excess}}單位沒有成本基礎。",
+    "missing_final_cash": "此已入帳交易沒有最終現金金額，因此未改變現金餘額。"
   }
 }

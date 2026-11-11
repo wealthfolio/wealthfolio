@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
+import { parseISO } from "date-fns";
 import { loanCalculationRequest, useLoanPayments } from "../hooks/use-loan-calculation";
 import { recalculateLoan } from "@/adapters";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +34,8 @@ interface CloseLoanDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (date: Date) => Promise<void>;
   originationDate: Date | null;
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
 }
 
 export function CloseLoanDialog({
@@ -40,14 +43,20 @@ export function CloseLoanDialog({
   onOpenChange,
   onSubmit,
   originationDate,
+  today,
 }: CloseLoanDialogProps) {
   const { t } = useTranslation();
-  const [date, setDate] = useState<Date>(() => new Date());
+  const [date, setDate] = useState<Date>(() => parseISO(today));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isDateInvalid = (originationDate !== null && date < originationDate) || date > new Date();
+  const isDateInvalid =
+    !Number.isFinite(date.getTime()) ||
+    (originationDate !== null && date < originationDate) ||
+    formatDateISO(date) > today;
 
   useEffectOnChange(() => {
-    if (open) setDate(new Date());
+    if (open) setDate(parseISO(today));
+    // Today as of opening: a new day while the sheet is open keeps the draft.
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [open]);
 
   const handleSubmit = async () => {
@@ -55,7 +64,7 @@ export function CloseLoanDialog({
     setIsSubmitting(true);
     try {
       await onSubmit(date);
-      setDate(new Date());
+      setDate(parseISO(today));
     } finally {
       setIsSubmitting(false);
     }
@@ -111,6 +120,8 @@ interface RecalculateScheduleDialogProps {
   assetId: string;
   metadata: Record<string, unknown>;
   quoteHistory: Quote[];
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
   onSubmit: (newRate: number, effectiveDate: Date) => Promise<void>;
 }
 
@@ -123,10 +134,12 @@ export function RecalculateScheduleDialog({
   assetId,
   metadata,
   quoteHistory,
+  today,
   onSubmit,
 }: RecalculateScheduleDialogProps) {
-  const { t, i18n } = useTranslation();
-  const [effectiveDate, setEffectiveDate] = useState(() => new Date());
+  const { t } = useTranslation();
+  const dates = useDateFormatting();
+  const [effectiveDate, setEffectiveDate] = useState(() => parseISO(today));
   const rateInputId = useId();
   const [newRate, setNewRate] = useState<string>(() => String(interestRate));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -134,8 +147,10 @@ export function RecalculateScheduleDialog({
   useEffectOnChange(() => {
     if (open) {
       setNewRate(String(interestRate));
-      setEffectiveDate(new Date());
+      setEffectiveDate(parseISO(today));
     }
+    // Today as of opening: a new day while the sheet is open keeps the draft.
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [interestRate, open]);
 
   const parsedRate = Number(newRate);
@@ -144,7 +159,7 @@ export function RecalculateScheduleDialog({
     !Number.isFinite(parsedRate) ||
     parsedRate < 0 ||
     parsedRate > 100 ||
-    effectiveDate > new Date();
+    formatDateISO(effectiveDate) > today;
   const payments = useLoanPayments(assetId, open);
   const request = {
     ...loanCalculationRequest(
@@ -223,7 +238,7 @@ export function RecalculateScheduleDialog({
               <>
                 <span className="text-muted-foreground">{t("asset:altContent.end_date")}</span>
                 <span className="text-end font-medium">
-                  {endDate.toLocaleDateString(i18n.language, {
+                  {dates.formatCalendarDate(formatDateISO(endDate), {
                     month: "short",
                     year: "numeric",
                   })}
@@ -290,6 +305,8 @@ interface LoanBalanceEventDialogProps {
   confirmations?: Quote[];
   /** The "Paid from" account an extra repayment is withdrawn from. */
   paidFrom?: string;
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
   onSubmit: (date: Date, amount: number) => Promise<void>;
 }
 
@@ -300,6 +317,7 @@ export function LoanBalanceEventDialog({
   currency,
   confirmations = [],
   paidFrom,
+  today,
   onSubmit,
 }: LoanBalanceEventDialogProps) {
   const { t } = useTranslation();
@@ -308,7 +326,7 @@ export function LoanBalanceEventDialog({
   const amountId = useId();
   const [amountTouched, setAmountTouched] = useState(false);
   const [dateTouched, setDateTouched] = useState(false);
-  const [date, setDate] = useState<Date>(() => new Date());
+  const [date, setDate] = useState<Date>(() => parseISO(today));
   // Empty until typed: a prefilled 0 put the caret before it, so "500" became 5000.
   const [amount, setAmount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -316,7 +334,7 @@ export function LoanBalanceEventDialog({
   const isCorrection = mode === "balance_correction";
   const amountInvalid =
     amount == null || !Number.isFinite(amount) || amount < 0 || (!isCorrection && amount === 0);
-  const dateInvalid = !Number.isFinite(date.getTime()) || date > new Date();
+  const dateInvalid = !Number.isFinite(date.getTime()) || formatDateISO(date) > today;
   const invalid = amountInvalid || dateInvalid;
   const showValidation = (amountTouched && amountInvalid) || (dateTouched && dateInvalid);
   // A recorded balance on or after the repayment date already sets the balance from then on.
@@ -333,11 +351,13 @@ export function LoanBalanceEventDialog({
 
   useEffectOnChange(() => {
     if (!open) return;
-    setDate(new Date());
+    setDate(parseISO(today));
     setAmount(null);
     setError(null);
     setAmountTouched(false);
     setDateTouched(false);
+    // Today as of opening: a new day while the sheet is open keeps the draft.
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [open, mode]);
 
   const handleSubmit = async () => {

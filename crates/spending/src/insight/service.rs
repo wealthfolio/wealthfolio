@@ -23,11 +23,12 @@ use crate::activity_allocations::{
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
-    within_spending_transfer_groups,
+    neutral_transfer_groups,
 };
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::budget::service::{
-    category_meta, resolve_group_for_category, top_category_id, top_level_categories, TargetIndex,
+    category_meta, group_assignment_map, resolve_group_for_category, top_category_id,
+    top_level_categories, TargetIndex,
 };
 use crate::budget::BudgetRepositoryTrait;
 use crate::category_exclusions::{
@@ -41,10 +42,6 @@ const INCOME_TAXONOMY: &str = "income_sources";
 const SAVINGS_TAXONOMY: &str = "savings_categories";
 const UNCATEGORIZED_CATEGORY_ID: &str = "__uncategorized__";
 const OTHER_GROUP_KEY: &str = "other";
-/// The system "Savings" budget group. Savings is now its own headline figure
-/// (an income-pattern bucket), not a consumption budget line — so its group is
-/// retired from the spending "Where it went" breakdown.
-const SAVINGS_GROUP_KEY: &str = "savings";
 const TRAILING_WINDOW_DAYS: i64 = 7;
 /// Pace status flips to `Approaching` when projected spend reaches 90% of budget.
 const APPROACHING_THRESHOLD: f64 = 0.9;
@@ -185,10 +182,21 @@ impl InsightService {
                 None => return Ok(empty_insight(period, prior, currency)),
             },
         };
-        let assignment_by_category: HashMap<String, String> = group_assignments
+        let assignment_by_category = group_assignment_map(&group_assignments, SPENDING_TAXONOMY);
+        // Groups that list savings categories. Savings is its own headline
+        // figure, so a group holding nothing else has no consumption to show.
+        let savings_categories = self
+            .taxonomy_service
+            .get_taxonomy(SAVINGS_TAXONOMY)?
+            .map(|t| t.categories)
+            .unwrap_or_default();
+        let savings_meta = category_meta(&savings_categories);
+        let savings_group_of = group_assignment_map(&group_assignments, SAVINGS_TAXONOMY);
+        let groups_with_savings: HashSet<String> = top_level_categories(&savings_categories)
             .iter()
-            .filter(|a| a.taxonomy_id == SPENDING_TAXONOMY)
-            .map(|a| (a.category_id.clone(), a.group_id.clone()))
+            .map(|c| {
+                resolve_group_for_category(&c.id, &savings_group_of, &savings_meta, &other_group_id)
+            })
             .collect();
 
         // ── 4. Fetch activities and partition into current + prior windows ────
@@ -197,7 +205,12 @@ impl InsightService {
             .get_activities_by_account_ids(&all_spending_account_ids)
             .map_err(|e| anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
         let in_window = |a: &Activity, lo: DateTime<Utc>, hi: DateTime<Utc>| {
             a.activity_date >= lo && a.activity_date <= hi
         };
@@ -333,12 +346,13 @@ impl InsightService {
 
         let mut group_insights: Vec<GroupInsight> = Vec::with_capacity(groups.len());
         for g in &groups {
-            // Savings is tracked as its own headline figure, not a consumption
-            // budget group — skip it so it doesn't show as an empty row.
-            if g.key == SAVINGS_GROUP_KEY {
+            let mut categories = rows_by_group.remove(&g.id).unwrap_or_default();
+            let buffer = group_buffers.remove(&g.id).unwrap_or_default();
+            // Which group a category is listed in never changes how its money
+            // counts: leave out only a group of savings categories alone.
+            if categories.is_empty() && buffer.total == 0.0 && groups_with_savings.contains(&g.id) {
                 continue;
             }
-            let mut categories = rows_by_group.remove(&g.id).unwrap_or_default();
             categories.sort_by(|a, b| {
                 b.spent
                     .partial_cmp(&a.spent)
@@ -351,7 +365,6 @@ impl InsightService {
                 total: category_budget_total,
                 monthly_breakdown: combine_monthly(categories.iter().map(|c| &c.budget)),
             };
-            let buffer = group_buffers.remove(&g.id).unwrap_or_default();
             let remaining = category_block.total + buffer.total - group_spent;
             group_insights.push(GroupInsight {
                 group: g.clone(),
@@ -1662,6 +1675,7 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activity_classification::within_spending_transfer_groups;
     use async_trait::async_trait;
     use chrono::TimeZone;
     use wealthfolio_core::fx::{ExchangeRate, NewExchangeRate};

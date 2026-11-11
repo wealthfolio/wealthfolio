@@ -21,7 +21,8 @@ fixtures; application APIs and persistence are not mocked.
 
 The easiest way to run the entire suite. Handles everything automatically:
 prepares a fresh database, starts the web app, waits for both servers, runs
-Playwright, and shuts everything down.
+Playwright, and shuts everything down. `.env.web` is created from
+`.env.web.example` when missing.
 
 ```bash
 pnpm test:e2e
@@ -53,14 +54,21 @@ restarting the server on every run.
 
 #### Step 1 — Prepare a fresh database
 
+If your shell exports an empty `WF_SECRET_KEY_FILE`, unset it first: the script
+and `dev:web` both prefer shell values over `.env.web`, so the empty value hides
+a key file set there and the script replaces it with a throwaway key.
+
 ```bash
 node scripts/prep-e2e.mjs
 ```
 
-This creates a unique timestamped data directory (e.g.
-`db/app-testing-20260411T120000Z-XXXXXX/`) and writes its database, vault, and
-addon paths to `.env.web`. The profile registry and profile databases stay in
-that directory too. **Run this every time** before starting the server —
+This creates `.env.web` from `.env.web.example` if needed, then a unique
+timestamped data directory (e.g. `db/app-testing-20260411T120000Z-XXXXXX/`), and
+writes its database, vault, and addon paths to `.env.web`. When neither
+`WF_SECRET_KEY` nor `WF_SECRET_KEY_FILE` is set, it also writes a throwaway
+server key to `secret.key` in that directory and points `WF_SECRET_KEY_FILE` at
+it; a key you set yourself is kept. The profile registry and profile databases
+stay in that directory too. **Run this every time** before starting the server —
 changing only the database filename would reuse the previous installation's
 profiles.
 
@@ -133,6 +141,7 @@ npx playwright test && npx playwright show-report
 
 | File                                   | What it tests                                                                                                               |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `health-activity-reasons.spec.ts`      | Persisted engine activity reasons rendered in French on desktop and Arabic on mobile, with RTL and overflow checks          |
 | `01-happy-path.spec.ts`                | Onboarding, accounts, deposits, trades                                                                                      |
 | `02-activities.spec.ts`                | All activity types                                                                                                          |
 | `03-fx-cash-balance.spec.ts`           | FX cash balances                                                                                                            |
@@ -164,6 +173,7 @@ npx playwright test && npx playwright show-report
 | `35-holdings-sticky-header.spec.ts`    | Holdings, account Holdings tab, Securities: header stays pinned as rows scroll, in short windows and on Shift+Tab (#2125)   |
 | `36-phone-taps-and-swipes.spec.ts`     | Phone: Spending's Next doesn't save, Performance's Plus stays on screen, swipes scroll period rows                          |
 | `38-account-section-scroll.spec.ts`    | Phone, in WebKit: switching an account between Holdings and Activities keeps the page's scroll position                     |
+| `48-account-gain-row.spec.ts`          | The account's gain row keeps its height while the gain loads and when balances are hidden (#2438)                           |
 | `34-import-mapping-sticky.spec.ts`     | CSV import Mapping step: the Activity Preview's header row and # column stay pinned as it scrolls (#2010)                   |
 | `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
 | `39-text-size.spec.ts`                 | Appearance's text size saves, scales the root font size, and is applied by index.html before the app loads (#1734)          |
@@ -172,6 +182,7 @@ npx playwright test && npx playwright show-report
 | `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
 | `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
 | `46-phone-tab-links.spec.ts`           | Phone: links to the dashboard's and Insights' Spending tab open it, though the tab joins the page after settings load       |
+| `47-currency-picker-scroll.spec.ts`    | Desktop currency pickers (base currency, exchange rate From/To) scroll in one area, not two nested ones (#2450)             |
 
 ---
 

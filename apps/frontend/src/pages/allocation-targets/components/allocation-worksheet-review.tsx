@@ -1,5 +1,8 @@
 import {
   Icons,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -19,11 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { AddDepositButton } from "./allocation-worksheet-account-allocation";
 import { displayUnits } from "./allocation-worksheet-amounts";
-import {
-  formatDecimalInput,
-  formatSignedAmount,
-  isShortOfFunding,
-} from "./allocation-worksheet-utils";
+import { formatSignedAmount, isShortOfFunding } from "./allocation-worksheet-utils";
 
 /** A change the review cannot include yet, and why. */
 export interface HeldLine {
@@ -78,7 +77,7 @@ export function ReviewPanel({
 }: ReviewPanelProps) {
   const { t } = useTranslation();
   const { formatAmount, formatPrice } = useAmountFormatting();
-  const { formatQuantity } = useNumberFormatting();
+  const { formatQuantity, formatDecimal } = useNumberFormatting();
   const { formatDateTime } = useDateFormatting();
 
   const warningsByLine = new Map<string, string[]>();
@@ -256,7 +255,9 @@ export function ReviewPanel({
                                 {t("allocation:worksheet.fxConversionSource", {
                                   from: line.fxSource.fromCurrency,
                                   to: line.fxSource.toCurrency,
-                                  rate: formatDecimalInput(line.fxSource.value, 6),
+                                  rate: formatDecimal(line.fxSource.value, {
+                                    maximumFractionDigits: 6,
+                                  }),
                                   date: formatDateTime(line.fxSource.timestamp),
                                 })}
                               </p>
@@ -266,13 +267,35 @@ export function ReviewPanel({
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <p
-                        className="text-2xs text-warning-subtle-foreground truncate text-end"
-                        title={warnings.join("\n")}
-                      >
-                        {warnings.length > 0 &&
-                          t("allocation:worksheet.lineWarningCount", { count: warnings.length })}
-                      </p>
+                      {warnings.length > 0 && (
+                        <Popover>
+                          <PopoverTrigger
+                            openOnHover
+                            delay={150}
+                            render={
+                              <button
+                                type="button"
+                                className="text-warning-subtle-foreground border-warning-subtle-foreground/40 text-2xs max-w-full cursor-pointer justify-self-end truncate border-b border-dotted text-end"
+                              />
+                            }
+                          >
+                            {t("allocation:worksheet.lineWarningCount", {
+                              count: warnings.length,
+                            })}
+                          </PopoverTrigger>
+                          <PopoverContent
+                            aria-label={t("allocation:worksheet.lineWarningCount", {
+                              count: warnings.length,
+                            })}
+                            side="inline-start"
+                            className="w-80 max-w-[calc(100vw-2rem)] space-y-1 p-3 text-xs"
+                          >
+                            {warnings.map((warning, index) => (
+                              <p key={index}>{warning}</p>
+                            ))}
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </li>
                   );
                 })}

@@ -14,7 +14,15 @@ import {
   hasVisibleAllocation,
   isOutOfBand,
 } from "@/pages/allocation-targets/components/drift-row-utils";
-import { Button, Card, Icons, Skeleton, useAmountFormatting, useDirection } from "@wealthfolio/ui";
+import {
+  Button,
+  Card,
+  Icons,
+  Skeleton,
+  useAmountFormatting,
+  useDirection,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { useLayoutEffect, useRef } from "react";
 import { formatCompact } from "./allocation-derivations";
@@ -47,6 +55,7 @@ export function TargetRailsCard({
 }: TargetRailsCardProps) {
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const direction = useDirection();
   const selectorRef = useRef<HTMLDivElement>(null);
@@ -80,16 +89,12 @@ export function TargetRailsCard({
 
   const toleranceLabel = (() => {
     const requiredRows = rows.filter((r) => r.isRequired && r.targetBps > 0);
-    if (!requiredRows.length) return formatTolerance(selectedTarget?.driftBandBps ?? 0);
+    if (!requiredRows.length) return formatTolerance(selectedTarget?.driftBandBps ?? 0, numbers);
     const bands = requiredRows.map((r) => r.effectiveBandBps);
     const minBand = Math.min(...bands);
     const maxBand = Math.max(...bands);
-    if (minBand === maxBand) return formatTolerance(minBand);
-    const fmt = (bps: number) => {
-      const pp = bps / 100;
-      return Number.isInteger(pp) ? pp.toFixed(0) : pp.toFixed(1);
-    };
-    return `±${fmt(minBand)}–${fmt(maxBand)}%`;
+    if (minBand === maxBand) return formatTolerance(minBand, numbers);
+    return `${formatTolerance(minBand, numbers)}–${formatTolerance(maxBand, numbers)}`;
   })();
   const maxScale =
     Math.max(1, ...rows.flatMap((r) => [r.currentBps / 100, r.targetBps / 100])) * 1.08;
@@ -99,6 +104,7 @@ export function TargetRailsCard({
     .sort((a, b) => Math.abs(b.driftBps) - Math.abs(a.driftBps))[0];
   const largestGapLabel = formatDriftBps(
     largestGapRow?.driftBps ?? resolvedDriftReport?.maxDriftBps ?? 0,
+    numbers,
   );
 
   // How far each out-of-range category sits from its target, largest first.
@@ -138,7 +144,7 @@ export function TargetRailsCard({
           ref={selectorRef}
           role="group"
           aria-label={t("allocation:header.selectTarget")}
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-1 flex [scrollbar-width:none] gap-1.5 overflow-x-auto px-1 pb-1 [&::-webkit-scrollbar]:hidden"
         >
           {targets.map((p) => (
             <button
@@ -197,7 +203,7 @@ export function TargetRailsCard({
                     />
                   </span>
                   <span className={cn("text-2xs text-end font-bold tabular-nums", driftClass(row))}>
-                    {formatDriftBps(row.driftBps)}
+                    {formatDriftBps(row.driftBps, numbers)}
                   </span>
                 </div>
               );

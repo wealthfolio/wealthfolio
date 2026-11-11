@@ -18,6 +18,7 @@ import {
   StarRatingDisplay,
   buttonVariants,
   Spinner,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -43,17 +44,12 @@ export function AddonStoreCard({
   isRatingSubmitting: _isRatingSubmitting = false,
 }: AddonStoreCardProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const [ratingDialogOpen, setRatingDialogOpen] = React.useState(false);
   const addonDetailUrl = `https://wealthfolio.app/addons/${encodeURIComponent(listing.id)}`;
 
-  const formatDownloads = (downloads: number) => {
-    if (downloads >= 1000000) {
-      return `${(downloads / 1000000).toFixed(1)}M`;
-    } else if (downloads >= 1000) {
-      return `${(downloads / 1000).toFixed(1)}K`;
-    }
-    return downloads.toString();
-  };
+  const formatDownloads = (downloads: number) =>
+    numbers.formatDecimal(downloads, { notation: "compact", maximumFractionDigits: 1 });
 
   return (
     <Card className="hover:shadow-primary/10 group relative h-full overflow-hidden transition-all duration-200 hover:shadow-lg">

@@ -49,6 +49,7 @@ export function toActivityDetails(activity: CashActivity, account?: Account): Ac
     subtype: activity.subtype ?? null,
     status: activity.status,
     date: new Date(activity.activityDate),
+    activityDate: activity.activityDate,
     quantity: activity.quantity ?? null,
     unitPrice: activity.unitPrice ?? null,
     amount: activity.amount ?? null,

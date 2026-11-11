@@ -59,7 +59,7 @@ for (const dir of ["ltr", "rtl"]) {
     await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 30_000 });
 
     const response = await page.request.post(`${BASE_URL}/api/v1/activities/search`, {
-      data: { page: 0, pageSize: 100 },
+      data: { page: 0, pageSize: 100, accountIdFilter: [account.id] },
     });
     expect(response.ok(), await response.text()).toBeTruthy();
     const body = (await response.json()) as {
@@ -74,7 +74,14 @@ for (const dir of ["ltr", "rtl"]) {
     const rows = body.data.filter((row) => row.accountId === account.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ activityType: "DEPOSIT", comment: "Prepared comment" });
-    expect(rows[0].date).toMatch(/^2024-02-02/);
+    // A date-only value is imported as midnight in the browser's time zone.
+    const localDate = await page.evaluate((iso) => {
+      const date = new Date(iso);
+      return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+        .map((part) => String(part).padStart(2, "0"))
+        .join("-");
+    }, rows[0].date);
+    expect(localDate).toBe("2024-02-02");
     expect(Number(rows[0].amount)).toBe(75);
   });
 }

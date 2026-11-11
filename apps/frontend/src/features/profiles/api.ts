@@ -59,6 +59,13 @@ export interface ProfileState {
   /** Why the only profile did not open at startup, until the next unlock. */
   autoOpenError?: string | null;
 }
+// Without a sign-in, the server gives each request that has no browser cookie a
+// new browser id. Calls that overlap this document's first state read share it,
+// so they all get one id and the profile session opened for it. A read that
+// fails may not have reached the server, so the next one is shared again.
+let firstStateRead: Promise<unknown> | undefined;
+let firstStateReadDone = false;
+
 export async function profileCommand<T>(
   command: string,
   payload: Record<string, unknown> = {},
@@ -68,6 +75,25 @@ export async function profileCommand<T>(
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<T>(command, { ...payload, ...(scoped ? { scopeId: profileScope() } : {}) });
   }
+  if (command === "get_profile_state" && !firstStateReadDone) {
+    firstStateRead ??= webProfileCommand<T>(command, payload, scoped)
+      .then((state) => {
+        firstStateReadDone = true;
+        return state;
+      })
+      .finally(() => {
+        firstStateRead = undefined;
+      });
+    return firstStateRead as Promise<T>;
+  }
+  return webProfileCommand<T>(command, payload, scoped);
+}
+
+async function webProfileCommand<T>(
+  command: string,
+  payload: Record<string, unknown>,
+  scoped: boolean,
+): Promise<T> {
   // Bound state reads so startup Retry remains usable if the server is unreachable.
   // Bound web locking too, so its existing retry screen remains usable offline.
   const controller =

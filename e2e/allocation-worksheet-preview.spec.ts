@@ -37,10 +37,9 @@ async function enterAmount(field: Locator, value: string) {
   await field.pressSequentially(value);
 }
 
-test("whole-share edits update impact and require account placement, in LTR and RTL", async ({
-  page,
-}) => {
+async function checkWorksheetPreview(page: Page, region: "US" | "ES") {
   test.setTimeout(180000);
+  requestHeaders = {};
   page.setDefaultTimeout(15000);
   // Give this spec its own profile so other specs' accounts and targets cannot leak in.
   const profileName = "Worksheet preview";
@@ -55,7 +54,13 @@ test("whole-share edits update impact and require account placement, in LTR and 
   requestHeaders = { "x-wf-profile-scope": session.scopeId };
   const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
     headers: requestHeaders,
-    data: { onboardingCompleted: true, language: "en", timezone: "UTC", baseCurrency: "USD" },
+    data: {
+      onboardingCompleted: true,
+      language: "en",
+      timezone: "UTC",
+      baseCurrency: "USD",
+      formattingRegion: region,
+    },
   });
   expect(settings.ok(), await settings.text()).toBe(true);
 
@@ -153,11 +158,15 @@ test("whole-share edits update impact and require account placement, in LTR and 
   await expect
     .poll(
       async () => {
-        const drift = await post<{ rows: { categoryId: string; currentBps: number }[] }>(
-          page,
-          `/allocation-targets/${saved.target.id}/drift`,
-          { filter: { type: "all" }, includeHoldings: true },
+        const response = await page.request.post(
+          `${BASE_URL}/api/v1/allocation-targets/${saved.target.id}/drift`,
+          { data: { filter: { type: "all" }, includeHoldings: true }, headers: requestHeaders },
         );
+        // Drift answers 400 while the recalculation above is still running.
+        if (!response.ok()) return 0;
+        const drift = (await response.json()) as {
+          rows: { categoryId: string; currentBps: number }[];
+        };
         return drift.rows.find((row) => row.categoryId === "EQUITY")?.currentBps ?? 0;
       },
       { timeout: 60000 },
@@ -247,7 +256,7 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await positionDetails.click();
     await expect(row.locator("[data-position-details]")).toHaveCount(0);
     await amount.focus();
-    await expect(amount).toHaveValue(/^-?\d+\.\d{2}$/);
+    await expect(amount).toHaveValue(/^-?\d+[.,]\d{2}$/);
     await expect(page.getByText("Estimated impact: account allocation incomplete")).toBeVisible();
     const rail = page.locator('[data-impact-class="EQUITY"]');
     const current = rail.locator("[data-current-marker]");
@@ -271,13 +280,16 @@ test("whole-share edits update impact and require account placement, in LTR and 
     expect(activeBounds!.height).toBeCloseTo(restingBounds!.height, 1);
     await amount.focus();
     const before = await projected.getAttribute("style");
-    const original = Number((await amount.inputValue()).replaceAll(",", ""));
+    const original = Number((await amount.inputValue()).replace(",", "."));
     const nextAmount = (original + 1000).toFixed(2);
     await enterAmount(amount, nextAmount);
     await expect.poll(() => projected.getAttribute("style")).not.toBe(before);
     await expect(amount).toHaveValue(nextAmount);
     await expect(page.locator("html")).toHaveAttribute("dir", dir);
-    await page.screenshot({ path: `test-results/worksheet-preview-${dir}.png`, fullPage: true });
+    await page.screenshot({
+      path: `test-results/worksheet-preview-${region}-${dir}.png`,
+      fullPage: true,
+    });
     // The steps move under the title when the heading area is narrower than 36rem. At
     // 1024 px with the sidebar open it is within a few pixels of that under any font
     // (586 px with Sans, 567 px with Mono), so check the narrow layout clearly below it.
@@ -317,7 +329,7 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await amount.click();
     await row.getByRole("button", { name: "Reduce to zero" }).click();
     const otherAmount = page.getByLabel("Adjustment for MSFT", { exact: true });
-    const otherNext = (Number((await otherAmount.inputValue()).replaceAll(",", "")) + 1000).toFixed(
+    const otherNext = (Number((await otherAmount.inputValue()).replace(",", ".")) + 1000).toFixed(
       2,
     );
     const response = page.waitForResponse((result) => {
@@ -372,4 +384,12 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await positionDetails.click();
     await page.setViewportSize({ width: 1280, height: 720 });
   }
-});
+}
+
+for (const region of ["US", "ES"] as const) {
+  test(`whole-share edits update impact and require account placement in ${region}, LTR and RTL`, async ({
+    page,
+  }) => {
+    await checkWorksheetPreview(page, region);
+  });
+}

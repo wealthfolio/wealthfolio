@@ -123,6 +123,19 @@ pub fn compute_idempotency_key(
     hex::encode(result)
 }
 
+/// Computes the idempotency key of an imported row that carries its source's
+/// record ID: the account and the ID alone, so the row matches its earlier
+/// import whatever its values or comment. The leading tag keeps these keys
+/// apart from value keys.
+pub fn compute_source_record_idempotency_key(account_id: &str, source_record_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"source-record\x1f");
+    hasher.update(account_id.as_bytes());
+    hasher.update(b"\x1f");
+    hasher.update(source_record_id.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 /// Normalize decimal to consistent string format
 fn normalize_decimal(d: Decimal) -> String {
     // Remove trailing zeros for consistent hashing
@@ -191,6 +204,14 @@ mod tests {
             leaving,
             idempotency_activity_type("ADJUSTMENT", Some("CONVERSION_OUT"), Some("g2"))
         );
+    }
+
+    #[test]
+    fn a_source_record_key_depends_on_the_account_and_the_id() {
+        let key = compute_source_record_idempotency_key("acc-1", "r-1");
+        assert_eq!(key, compute_source_record_idempotency_key("acc-1", "r-1"));
+        assert_ne!(key, compute_source_record_idempotency_key("acc-2", "r-1"));
+        assert_ne!(key, compute_source_record_idempotency_key("acc-1", "r-2"));
     }
 
     #[test]
@@ -452,5 +473,62 @@ mod tests {
         assert!(key1.starts_with("manual:"));
         assert!(key2.starts_with("manual:"));
         assert_ne!(key1, key2); // Should be unique
+    }
+
+    #[test]
+    fn golden_idempotency_keys() {
+        // Stored keys deduplicate later imports, so today's values must not change.
+        let date = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
+        let full = compute_idempotency_key(
+            "account-1",
+            "BUY",
+            &date,
+            Some("AAPL"),
+            Some(Decimal::from_str("10.50").unwrap()),
+            Some(Decimal::from_str("150.2500").unwrap()),
+            Some(Decimal::from_str("1577.625").unwrap()),
+            Some(Decimal::from_str("1.00").unwrap()),
+            "USD",
+            Some("ref-123"),
+            Some("  Bought   shares  "),
+        );
+        assert_eq!(
+            full,
+            "23cc6832daa510ff81c342891927247e8d717000d19074da5673a120bdf6b566"
+        );
+        let minimal = compute_idempotency_key(
+            "account-1",
+            "DEPOSIT",
+            &date,
+            None,
+            None,
+            None,
+            Some(Decimal::from(500)),
+            None,
+            "EUR",
+            None,
+            None,
+        );
+        assert_eq!(
+            minimal,
+            "95de3f6a36e841e7e6af4d0365d447c5bf6915074c0f401f1ec19846a4399c74"
+        );
+        let conversion = compute_idempotency_key(
+            "account-1",
+            &idempotency_activity_type("ADJUSTMENT", Some("CONVERSION_OUT"), Some(" group-1 ")),
+            &date,
+            Some("FUND-A"),
+            Some(Decimal::from(5)),
+            None,
+            None,
+            None,
+            "USD",
+            None,
+            None,
+        );
+        assert_eq!(
+            conversion,
+            "aa94510fa9f2f336c8fa295135b59ad654cfda623359db5b69f6664fee43ebd6"
+        );
     }
 }

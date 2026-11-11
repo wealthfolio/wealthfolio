@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Icons,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 
 import type { CategorizationRule } from "../types/rule";
@@ -52,6 +53,7 @@ export function RuleItem({
   onDelete,
 }: RuleItemProps) {
   const { t } = useTranslation();
+  const numbers = useNumberFormatting();
   const MATCH_TYPE_LABELS = useMemo<Record<string, string>>(
     () => ({
       contains: t("spending:rules.matchContains"),
@@ -99,7 +101,7 @@ export function RuleItem({
   const activityTypeLabel = rule.activityType
     ? (ACTIVITY_TYPE_LABELS[rule.activityType] ?? rule.activityType)
     : null;
-  const formatAmount = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 20 });
+  const formatAmount = (n: number) => numbers.formatDecimal(n, { maximumFractionDigits: 20 });
   const amountLabel =
     rule.amountOp && rule.amountValue != null
       ? rule.amountOp === "between"

@@ -1,4 +1,6 @@
 {
+  "periodReturn": "عائد {{period}}",
+  "currentValue": "القيمة الحالية",
   "about": "حول",
   "account": "الحساب",
   "accounts": "الحسابات",
@@ -173,12 +175,12 @@
     "rebuild_full_history_label": "تحديث السجل الكامل",
     "rebuilding_history": "جارٍ تحديث السجل الكامل…",
     "recent": "الأحدث",
-    "record_buy": "تسجيل شراء",
-    "record_deposit": "تسجيل إيداع",
-    "record_dividend": "تسجيل توزيعات أرباح",
-    "record_interest": "تسجيل فائدة",
-    "record_sell": "تسجيل بيع",
-    "record_withdrawal": "تسجيل سحب",
+    "record_buy": "إضافة شراء",
+    "record_deposit": "إضافة إيداع",
+    "record_dividend": "إضافة توزيعات أرباح",
+    "record_interest": "إضافة فائدة",
+    "record_sell": "إضافة بيع",
+    "record_withdrawal": "إضافة سحب",
     "related": "ذات صلة",
     "remind_me_later": "ذكّرني لاحقًا",
     "required_for_import": "مطلوب للاستيراد",
@@ -235,7 +237,10 @@
     "update_quotes_label": "تحديث الأسعار",
     "updating_quotes": "جارٍ تحديث الأسعار...",
     "view_changelog": "عرض سجل التغييرات",
-    "view_release": "عرض الإصدار"
+    "view_release": "عرض الإصدار",
+    "launcher_navigation": "الانتقال إلى",
+    "launcher_appearance": "المظهر",
+    "launcher_tools": "الأدوات"
   },
   "confirm": "تأكيد",
   "connect": "Connect",
@@ -762,5 +767,24 @@
     "accountNumberMax": "يجب ألا يزيد رقم الحساب على 64 حرفًا.",
     "accountCurrency": "يرجى اختيار عملة.",
     "creditCardTracking": "لا يمكن لحسابات بطاقات الائتمان استخدام وضع تتبّع الحيازات."
+  },
+  "backendErrors": {
+    "internal": "تعذّر إكمال العملية.",
+    "invalidInput": "تحقّق من البيانات المدخلة وحاول مجددًا.",
+    "conflict": "يتعارض التغيير مع البيانات الموجودة.",
+    "notFound": "لم يتم العثور على العنصر المطلوب.",
+    "unauthorized": "سجّل الدخول للمتابعة.",
+    "forbidden": "هذه العملية غير مسموح بها.",
+    "unavailable": "هذه العملية غير متاحة.",
+    "providerKeyMissing": "أضف مفتاح API لهذا المزوّد في الإعدادات.",
+    "providerUnknown": "اختر مزوّدًا مدعومًا.",
+    "providerUnavailable": "تعذّر على المزوّد إكمال الطلب. تحقّق من إعدادات المزوّد.",
+    "customProviderCodeReserved": "رمز مزوّد الخدمة هذا محجوز. اختر رمزًا آخر.",
+    "customProviderInUse": "غيّر مزوّد الخدمة للأصول المعنية أو أزل تعيينات رموزها قبل حذفه.",
+    "addonManifestMissing": "لا يحتوي ملف ZIP للملحق على ملف manifest.json.",
+    "addonMainFileMissing": "لا يحتوي ملف ZIP للملحق على الملف الرئيسي الذي يحدده ملف manifest.",
+    "addonNeedsNewerVersion": "يتطلب هذا الملحق إصدارًا أحدث من Wealthfolio. حدّث Wealthfolio ثم حاول مجددًا.",
+    "quoteCurrencyRequired": "عملة التسعير مطلوبة. اختر الرمز مرة أخرى من نتائج البحث.",
+    "rateLimited": "طلبات كثيرة جدًا. انتظر دقيقة وحاول مجددًا."
   }
 }

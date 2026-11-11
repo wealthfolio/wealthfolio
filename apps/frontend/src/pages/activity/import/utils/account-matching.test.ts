@@ -6,7 +6,6 @@ import { autoMatchAccountMappings, collectCsvAccountValues } from "./account-mat
 function makeAccount(overrides: Partial<Account> & Pick<Account, "id" | "name">): Account {
   return {
     accountType: AccountType.SECURITIES,
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,

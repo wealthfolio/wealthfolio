@@ -4,7 +4,9 @@ use super::fx_model::{ExchangeRate, NewExchangeRate};
 use super::fx_traits::{FxRepositoryTrait, FxServiceTrait};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
-use crate::fx::currency::{denormalization_multiplier, normalize_currency_code};
+use crate::fx::currency::{
+    denormalization_multiplier, get_normalization_rule, is_crypto_currency, normalize_currency_code,
+};
 use crate::quotes::constants::{DATA_SOURCE_MANUAL, DATA_SOURCE_YAHOO};
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
@@ -185,6 +187,21 @@ impl FxServiceTrait for FxService {
     }
 
     async fn add_exchange_rate(&self, new_rate: NewExchangeRate) -> Result<ExchangeRate> {
+        // Conversions look up quote units (GBp, ZAc, ...) through their major
+        // currency's pair, so a pair saved in a quote unit is never used as a
+        // direct rate (#2460).
+        for code in [&new_rate.from_currency, &new_rate.to_currency] {
+            if let Some(rule) = get_normalization_rule(code) {
+                return Err(FxError::InvalidCurrencyCode(format!(
+                    "{} is a quote unit of {}; enter the {} rate instead",
+                    code.trim(),
+                    rule.major_code,
+                    rule.major_code
+                ))
+                .into());
+            }
+        }
+
         // Create/get the FX asset — returns the asset UUID
         let asset_id = self
             .repository
@@ -396,9 +413,17 @@ impl FxServiceTrait for FxService {
             .ok();
 
         if existing_rate.is_none() {
+            // Providers only quote crypto against another currency (BTC/USD),
+            // never the reverse, so register that side; conversion inverts it.
+            let (base, quote) =
+                if is_crypto_currency(normalized_to) && !is_crypto_currency(normalized_from) {
+                    (normalized_to, normalized_from)
+                } else {
+                    (normalized_from, normalized_to)
+                };
             let asset_id = self
                 .repository
-                .create_fx_asset(normalized_from, normalized_to, DATA_SOURCE_YAHOO)
+                .create_fx_asset(base, quote, DATA_SOURCE_YAHOO)
                 .await?;
 
             self.event_sink
@@ -458,6 +483,7 @@ impl FxServiceTrait for FxService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::Error;
     use crate::fx::fx_model::ExchangeRateDateQuery;
     use crate::quotes::Quote;
     use chrono::NaiveDateTime;
@@ -585,6 +611,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn register_currency_pair_puts_crypto_first() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        // A USD activity in a BTC account: providers only quote BTC/USD.
+        service.register_currency_pair("USD", "BTC").await.unwrap();
+        service.register_currency_pair("BTC", "EUR").await.unwrap();
+        // Crypto on both sides keeps the order it came in.
+        service.register_currency_pair("ETH", "BTC").await.unwrap();
+
+        let created: Vec<(String, String)> = repo
+            .created_pairs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(from, to, _)| (from.clone(), to.clone()))
+            .collect();
+        assert_eq!(
+            created,
+            vec![
+                ("BTC".to_string(), "USD".to_string()),
+                ("BTC".to_string(), "EUR".to_string()),
+                ("ETH".to_string(), "BTC".to_string()),
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn add_exchange_rate_manual_persists_quote() {
         let repo = Arc::new(MockFxRepository::default());
         let service = FxService::new(repo.clone());
@@ -602,6 +656,80 @@ mod tests {
         let saved = repo.saved_rates.lock().unwrap();
         assert_eq!(saved.len(), 1, "manual rate should be persisted as a quote");
         assert_eq!(saved[0].rate, Decimal::new(11, 1));
+    }
+
+    /// Conversions look quote units up through their major currency's pair,
+    /// so a GBX/USD pair saved here could never be used as a direct rate (#2460).
+    #[tokio::test]
+    async fn add_exchange_rate_rejects_quote_units_without_registering_a_pair() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        for (from, to, major) in [
+            ("GBX", "USD", "GBP"),
+            (" gbx ", "USD", "GBP"),
+            ("GBp", "USD", "GBP"),
+            ("zac", "USD", "ZAR"),
+            ("ZAC", "USD", "ZAR"),
+            ("ILA", "USD", "ILS"),
+            ("ila", "USD", "ILS"),
+            ("KWF", "USD", "KWD"),
+            ("kwf", "USD", "KWD"),
+            ("USX", "USD", "USD"),
+            ("uSx", "USD", "USD"),
+            ("EUR", "GBp", "GBP"),
+        ] {
+            let err = service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::new(125, 4),
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .expect_err("a quote-unit pair should be rejected");
+            assert!(
+                matches!(&err, Error::Fx(FxError::InvalidCurrencyCode(msg)) if msg.contains(major)),
+                "{from}/{to}: {err}"
+            );
+
+            let err = service
+                .update_exchange_rate(from, to, Decimal::new(125, 4))
+                .await
+                .expect_err("editing a quote-unit pair should be rejected");
+            assert!(matches!(err, Error::Fx(FxError::InvalidCurrencyCode(_))));
+        }
+
+        assert!(repo.created_pairs.lock().unwrap().is_empty());
+        assert!(repo.saved_rates.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn add_exchange_rate_preserves_major_currency_casing() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+        for (from, to) in [
+            ("GBP", "USD"),
+            ("gbp", "USD"),
+            ("USD", "GBP"),
+            ("USD", "gbp"),
+        ] {
+            service
+                .add_exchange_rate(NewExchangeRate {
+                    from_currency: from.to_string(),
+                    to_currency: to.to_string(),
+                    rate: Decimal::ONE,
+                    source: DATA_SOURCE_MANUAL.to_string(),
+                })
+                .await
+                .unwrap();
+            service
+                .update_exchange_rate(from, to, Decimal::ONE)
+                .await
+                .unwrap();
+        }
+        assert_eq!(repo.created_pairs.lock().unwrap().len(), 8);
+        assert_eq!(repo.saved_rates.lock().unwrap().len(), 8);
     }
 
     /// The converter is consulted before the repository on every dated lookup,
@@ -689,6 +817,38 @@ mod tests {
             .get_exchange_rate_for_date("USD", "EUR", date)
             .unwrap();
         assert_eq!(rate, Decimal::new(90, 2));
+    }
+
+    #[test]
+    fn get_exchange_rate_for_date_scales_minor_units() {
+        let date = NaiveDate::from_ymd_opt(2026, 5, 18).unwrap();
+        let repo = Arc::new(MockFxRepository::default());
+        repo.historical_rates
+            .lock()
+            .unwrap()
+            .push(make_historical_rate(
+                "GBP",
+                "USD",
+                Decimal::new(125, 2),
+                date,
+            ));
+        let service = FxService::new(repo);
+        service.initialize().unwrap();
+
+        // One penny is a hundredth of a pound, either way round.
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("GBp", "USD", date)
+                .unwrap(),
+            Decimal::new(125, 4)
+        );
+        assert_eq!(
+            service
+                .get_exchange_rate_for_date("USD", "GBp", date)
+                .unwrap()
+                .round_dp(6),
+            Decimal::new(80, 0)
+        );
     }
 
     #[test]

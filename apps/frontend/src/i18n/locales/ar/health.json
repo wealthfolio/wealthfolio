@@ -18,6 +18,7 @@
     "rebuild_account_history": "إعادة بناء السجل",
     "add_price": "إضافة سعر",
     "update_cost_basis": "تحديث أساس التكلفة",
+    "update_value": "تحديث القيمة",
     "review_transaction": "مراجعة المعاملة",
     "review_entry": "مراجعة السجل"
   },
@@ -316,6 +317,15 @@
       "title_two": "تقييمات يدوية مفقودة لحيازتين",
       "title_zero": "تقييمات يدوية مفقودة لـ {{count}} حيازات"
     },
+    "price_manual_valuation_stale": {
+      "message": "لم تُحدَّث بعض الأصول ذات التقييم اليدوي منذ أكثر من {{days}} يومًا، لذا قد لا يكون صافي ثروتك محدَّثًا.",
+      "title_few": "لم تُحدَّث تقييمات {{count}} أصول",
+      "title_many": "لم تُحدَّث تقييمات {{count}} أصلًا",
+      "title_one": "لم يُحدَّث تقييم {{name}}",
+      "title_other": "لم تُحدَّث تقييمات {{count}} أصل",
+      "title_two": "لم تُحدَّث تقييمات أصلين",
+      "title_zero": "لم تُحدَّث تقييمات {{count}} أصول"
+    },
     "price_no_market_data": {
       "message": "تعذّر جلب بيانات السوق لبعض الحيازات. قد يكون ذلك بسبب رموز غير صالحة أو مشكلات لدى المزوّد. قد تكون قيمة محفظتك غير دقيقة.",
       "title_few": "لا توجد بيانات سوق لـ {{count}} حيازات",
@@ -411,5 +421,17 @@
     "pricesByInvestment": "الأسعار حسب الاستثمار",
     "pricesByInvestmentHint": "افتح استثمارًا لإعادة جلب الأسعار أو إضافتها. إذا كانت التواريخ عطلات أو أيامًا بلا تداول، فتجاهل المشكلة."
   },
-  "updatedAt": "تم التحديث {{time}}"
+  "updatedAt": "تم التحديث {{time}}",
+  "activityReasons": {
+    "activity_id": "المعاملة: {{id}}",
+    "missing_fx_rate": "لا يتوفر سعر صرف من {{from}} إلى {{to}} بتاريخ {{date}}.",
+    "close_buy_without_short_position": "عملية الشراء هذه محددة لإغلاق مركز في {{asset}}، لكن لا يوجد مركز قصير لإغلاقه.",
+    "sell_short_intent_required": "ستزيد عملية البيع هذه المركز القصير في {{asset}}. حددها كبيع على المكشوف.",
+    "conversion_insufficient_holdings": "يتطلب هذا التحويل {{requested}} وحدة من {{asset}}، لكن الحساب يحتفظ فقط بـ {{held}}.",
+    "conversion_currency_mismatch": "يُحتفظ بـ {{fromAsset}} بعملة {{fromCurrency}} وبـ {{toAsset}} بعملة {{toCurrency}}. يجب أن يحافظ التحويل على العملة نفسها.",
+    "return_of_capital_amount_required": "أدخل مبلغًا لإعادة رأس المال هذه.",
+    "sell_without_position": "لا يوجد مركز في {{asset}} للبيع. طُبق التأثير النقدي فقط.",
+    "insufficient_quantity": "تزيل هذه المعاملة {{requested}} وحدة من {{asset}}، لكن الكمية المحتفظ بها كانت {{held}} فقط. الوحدات المتبقية البالغ عددها {{excess}} ليس لها أساس تكلفة.",
+    "missing_final_cash": "لا تحتوي هذه المعاملة المرحّلة على مبلغ نقدي نهائي، لذا لم يتغير الرصيد النقدي."
+  }
 }

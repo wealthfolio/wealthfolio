@@ -72,8 +72,12 @@ export const getNoQuoteReasonText = (
     : undefined;
   if (reasonKey) return i18n.t(`asset:noQuote.${reasonKey}`);
 
+  if (snapshot?.noQuoteReason?.code === "LAST_ERROR") {
+    return i18n.t("common:backendErrors.providerUnavailable");
+  }
+
   if (snapshot?.noQuoteReason?.message) {
-    return snapshot.noQuoteReason.message;
+    return i18n.t("asset:noQuote.no_data");
   }
 
   if (asset?.quoteMode === "MANUAL") {

@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "Vermögenswert hinzufügen",
     "add_liability": "Verbindlichkeit hinzufügen",
-    "record_transaction": "Transaktion erfassen",
     "sync_broker_accounts": "Brokerkonten synchronisieren",
     "sync_devices": "Geräte synchronisieren",
     "update_prices": "Kurse aktualisieren",

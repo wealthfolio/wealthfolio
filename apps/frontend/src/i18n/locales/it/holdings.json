@@ -1,4 +1,6 @@
 {
+  "scope_updating": "I calcoli di alcuni conti sono incompleti. I totali saranno disponibili al termine.",
+  "scope_unavailable": "Le posizioni di alcuni conti non sono disponibili. I totali sono incompleti.",
   "holdings": "Posizioni",
   "insights": "Analisi",
   "my_holdings": "Le mie posizioni",

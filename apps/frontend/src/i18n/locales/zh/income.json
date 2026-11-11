@@ -68,7 +68,7 @@
   "other": "其他",
   "other_sources_count_one": "{{count}} 个其他来源",
   "other_sources_count_other": "{{count}} 个其他来源",
-  "percent_of_total": "占总额 {{percent}}%",
+  "percent_of_total": "占总额 {{percent}}",
   "view_combined": "合并",
   "view_by_account": "按账户",
   "monthly_income": "月度收入",

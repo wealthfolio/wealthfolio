@@ -8,10 +8,12 @@ import {
 } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
+import type { ReactNode } from "react";
 
 interface QuantityInputProps<TFieldValues extends FieldValues = FieldValues> {
   name: FieldPath<TFieldValues>;
   label?: string;
+  action?: ReactNode;
   placeholder?: string;
   "data-testid"?: string;
   /** Maximum decimal places (default: 8 for shares) */
@@ -30,6 +32,7 @@ function toInputTestId(name: string) {
 export function QuantityInput<TFieldValues extends FieldValues = FieldValues>({
   name,
   label,
+  action,
   placeholder,
   "data-testid": dataTestId,
   maxDecimalPlaces = 8,
@@ -46,7 +49,14 @@ export function QuantityInput<TFieldValues extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{resolvedLabel}</FormLabel>
+          {action ? (
+            <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+              <FormLabel>{resolvedLabel}</FormLabel>
+              {action}
+            </div>
+          ) : (
+            <FormLabel>{resolvedLabel}</FormLabel>
+          )}
           <FormControl>
             <BaseQuantityInput
               ref={field.ref}
