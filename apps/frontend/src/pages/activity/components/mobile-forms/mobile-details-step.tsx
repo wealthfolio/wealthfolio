@@ -665,6 +665,7 @@ export function MobileDetailsStep({
               linesName="feeLines"
               category="fee"
               currency={currency}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               onTotalChange={incomeAmounts.onChargeChange}
             />
           )}
@@ -703,6 +704,7 @@ export function MobileDetailsStep({
               linesName="taxLines"
               category="tax"
               currency={currency}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               onTotalChange={incomeAmounts.onChargeChange}
             />
           )}
