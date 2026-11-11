@@ -1,4 +1,5 @@
 use crate::profiles::ProfileAccess;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use std::sync::Arc;
 use tauri::AppHandle;
 
@@ -23,15 +24,24 @@ fn addon_service(
     Ok(Arc::clone(&state.addon_service))
 }
 
+/// The frontend sends add-on zips as base64: a JSON array with one number per
+/// byte takes gigabytes of memory to send and parse for a zip of a few MiB.
+fn decode_zip_data(zip_data_b64: &str) -> Result<Vec<u8>, String> {
+    BASE64
+        .decode(zip_data_b64)
+        .map_err(|error| format!("Invalid add-on zip data: {error}"))
+}
+
 #[tauri::command]
 pub async fn install_addon_zip(
     app_handle: AppHandle,
-    zip_data: Vec<u8>,
+    zip_data_b64: String,
     enable_after_install: Option<bool>,
     approved_network_hosts: Option<Vec<String>>,
     state: ProfileAccess,
 ) -> Result<AddonManifest, String> {
     let context = state.context()?;
+    let zip_data = decode_zip_data(&zip_data_b64)?;
     addon_service(&app_handle, &context)?
         .install_addon_zip(
             zip_data,
@@ -119,9 +129,9 @@ pub async fn get_enabled_addons_on_startup(
 #[tauri::command]
 pub async fn extract_addon_zip(
     _app_handle: AppHandle,
-    zip_data: Vec<u8>,
+    zip_data_b64: String,
 ) -> Result<ExtractedAddon, String> {
-    addons::extract_addon_zip_internal(zip_data).map_err(addon_error)
+    addons::extract_addon_zip_internal(decode_zip_data(&zip_data_b64)?).map_err(addon_error)
 }
 
 /// Check for updates for a specific addon from the addon store
@@ -341,4 +351,19 @@ pub async fn delete_addon_storage_item(
     addon_service(&app_handle, &context)?
         .delete_addon_storage_item(&addon_id, &key)
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_zip_data;
+
+    #[test]
+    fn decodes_base64_zip_data() {
+        assert_eq!(decode_zip_data("UEsDBA==").unwrap(), b"PK\x03\x04");
+    }
+
+    #[test]
+    fn rejects_invalid_base64_zip_data() {
+        assert!(decode_zip_data("not base64!").is_err());
+    }
 }
