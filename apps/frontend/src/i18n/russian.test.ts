@@ -87,7 +87,7 @@ describe("Russian terminology", () => {
     ["holdings:sector", "Сектор"], // Sector
     ["allocation:worksheet.modeRebalance", "Ребалансировка"], // Rebalance
     ["dashboard:uncategorized", "Без категории"], // Uncategorized
-    ["performance:section.risk", "Риск"], // Risk
+    ["insights:insights.explorer.lens_risk", "Риск"], // Risk
     ["account:type_cryptocurrency", "Криптовалюта"], // Cryptocurrency
     ["account:volatility", "Волатильность"], // Volatility
     ["allocation:editor.industry", "Отрасль"], // Industry
