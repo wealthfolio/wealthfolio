@@ -273,9 +273,19 @@ describe("locale formatting", () => {
     },
   );
 
-  it("does not let a word shared by every Catalan month hide the real month", () => {
+  it("does not let a word shared by most Catalan months hide the real month", () => {
     expect(parseLocalizedDate("15 de març de 2026", "ca-ES")).toEqual(new Date(2026, 2, 15));
   });
+
+  it.each([
+    ["1 ก.ย. 2567", new Date(2024, 8, 1)],
+    ["1 พ.ย. 2567", new Date(2024, 10, 1)],
+  ])(
+    "keeps parsing the Thai standalone month names whose fragments repeat in %s",
+    (value, expected) => {
+      expect(parseLocalizedDate(value, "th-TH")).toEqual(expected);
+    },
+  );
 
   it("parses localized month names and CJK full-width calendar dates", () => {
     const spanish = createFormatter("es-ES");
