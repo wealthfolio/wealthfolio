@@ -435,8 +435,15 @@ describe("Russian terminology", () => {
     ["ui:interval.label.ALL", "Всё"],
     [
       "activity:date_list.review_to_identify",
-      "Проверьте влияние на деньги и текущий остаток ниже, чтобы найти операцию, из-за которой деньги ушли ниже нуля.",
+      "Проверьте «Влияние на деньги» и «Текущие деньги» ниже, чтобы найти операцию, из-за которой деньги ушли ниже нуля.",
     ],
+    // Both sentences fill one alert and point at the column «Текущие деньги» by its label.
+    [
+      "activity:date_list.carry_forward",
+      "Отрицательный баланс перенесён из операции (от {{date}}). Проверьте «Влияние на деньги» и «Текущие деньги» ниже.",
+    ],
+    // An empty-state hint is an instruction, like «Введите, чтобы найти больше...».
+    ["ui:search.typeToSearch", "Введите запрос для поиска"],
   ])("uses the house wording in %s", (key, expected) => {
     expect(allStrings.get(key)).toBe(expected);
   });
@@ -560,7 +567,7 @@ describe("Russian plural output", () => {
   // «{{quantity}} ед.». A single key that shares its name with a family is never rendered with a count.
   it("never puts a full noun after a counter outside a plural family", () => {
     const counter =
-      /\{\{(?:count|quantity|sectors|countries)\}\}\s+(?!ещё(?![а-яё]))[а-яё]{3,}(?![а-яё.])/iu;
+      /\{\{(?:count|quantity|all|sectors|countries)\}\}\s+(?!ещё(?![а-яё]))[а-яё]{3,}(?![а-яё.])/iu;
     const bad = [...allStrings].filter(
       ([key, value]) =>
         !/_(zero|one|two|few|many|other)$/.test(key) &&
@@ -587,6 +594,11 @@ describe("Russian plural output", () => {
       "settings:tax_migration_success",
       { sectors: 5, countries: 1 },
       "Миграция завершена! Перенесено секторов: 5, стран: 1.",
+    ],
+    [
+      "activity:import.review.errorsDescription",
+      { valid: 3, all: 21 },
+      "Строк, готовых к импорту: 3 из 21. Исправьте ошибки ниже или пропустите их, чтобы продолжить.",
     ],
     [
       "activity:import.upload.showingFirstRows",
@@ -647,14 +659,15 @@ describe("Russian plural output", () => {
         "Оценка 21 актива не обновлена",
       ],
     ],
+    // The count follows a label, so one sentence holds at 1, 2, 5 and 21.
     [
       "sync:untrusted.enterCodeFromDevices",
       {},
       [
-        "Введите код с одного из ваших 1 другого подключённого устройства.",
-        "Введите код с одного из ваших 2 других подключённых устройств.",
-        "Введите код с одного из ваших 5 других подключённых устройств.",
-        "Введите код с одного из ваших 21 другого подключённого устройства.",
+        "Введите код с другого подключённого устройства. Подключено устройств: 1.",
+        "Введите код с другого подключённого устройства. Подключено устройств: 2.",
+        "Введите код с другого подключённого устройства. Подключено устройств: 5.",
+        "Введите код с другого подключённого устройства. Подключено устройств: 21.",
       ],
     ],
     [
@@ -778,7 +791,8 @@ describe("Russian sentences joined in code", () => {
     ["on_track", "Вы идёте по плану к цели «Отпуск» (срок: 1 июн. 2027 г.)."],
     ["at_risk", "Цель «Отпуск» близка — но не будет полностью покрыта к сроку (1 июн. 2027 г.)."],
     ["reached", "Вы достигли цели «Отпуск»."],
-    ["setup", "Задайте целевую сумму, чтобы отслеживать цель «Отпуск»."],
+    // The setup state covers a missing amount and a missing date.
+    ["setup", "Задайте сумму и срок, чтобы отслеживать цель «Отпуск»."],
   ])("assembles the save-up headline %s", (state, expected) => {
     const piece = (part: string) => i18n.t(`goals:save_up.headline_${state}_${part}`, goal);
     expect(`${piece("prefix")} ${piece("emphasis")}${piece("suffix")}`).toBe(expected);
@@ -870,9 +884,10 @@ describe("Russian sentences joined in code", () => {
 
 describe("Russian dates inside sentences", () => {
   // A Russian date with a year ends in «г.» («1 июн. 2027 г.»), so a full stop right after the
-  // placeholder of such a date renders «г..». The date stands mid-sentence or in brackets.
-  // `date` and `asOfDate` receive calendar dates formatted with a year.
-  const DATE_PLACEHOLDERS = ["date", "asOfDate"];
+  // placeholder of such a date renders «г..»; a short range ends in an abbreviated month
+  // («5 нояб. → 11 нояб.») and renders «нояб..». The date stands mid-sentence or in brackets.
+  // `date` and `asOfDate` receive calendar dates formatted with a year, `period` a date range.
+  const DATE_PLACEHOLDERS = ["date", "asOfDate", "period"];
   // Receives a date with a time of day («1 июн. 2027 г., 14:30»), which ends with the time.
   const DATE_WITH_TIME = new Set(["settings:cloud_backup_recovery_deadline"]);
   const afterDate = new RegExp(`\\{\\{(?:${DATE_PLACEHOLDERS.join("|")})\\}\\}\\.`);
@@ -900,6 +915,12 @@ describe("Russian dates inside sentences", () => {
     ],
   ])("renders %s without a doubled full stop", (key, values) => {
     expect(i18n.t(key, values)).not.toContain("г..");
+  });
+
+  it("renders a short date range without a doubled full stop", () => {
+    const sentence = i18n.t("spending:moneyFlow.subtitle", { period: "5 нояб. → 11 нояб." });
+    expect(sentence).toBe("Откуда пришли ваши деньги и куда они ушли (за 5 нояб. → 11 нояб.).");
+    expect(sentence).not.toContain("..");
   });
 });
 

@@ -117,14 +117,19 @@ describe("locale formatting", () => {
       getWeekInfo: () => unknown;
       weekInfo: unknown;
     };
-    const getWeekInfo = vi.spyOn(prototype, "getWeekInfo").mockReturnValue(undefined);
-    const weekInfo = vi.spyOn(prototype, "weekInfo", "get").mockReturnValue(undefined);
+    // Stub only what the runtime has: a spy on a missing method or accessor throws.
+    const spies = [];
+    if (typeof prototype.getWeekInfo === "function") {
+      spies.push(vi.spyOn(prototype, "getWeekInfo").mockReturnValue(undefined));
+    }
+    if (Object.getOwnPropertyDescriptor(prototype, "weekInfo")?.get) {
+      spies.push(vi.spyOn(prototype, "weekInfo", "get").mockReturnValue(undefined));
+    }
     try {
       // An English UI with the Russian region: the week comes from the region, not the language.
       expect(dateFnsLocaleFor("en-RU").options?.weekStartsOn).toBe(1);
     } finally {
-      getWeekInfo.mockRestore();
-      weekInfo.mockRestore();
+      spies.forEach((spy) => spy.mockRestore());
     }
   });
 
