@@ -188,6 +188,7 @@ export function buildImportAssetCandidateFromDraft(
     isin: draft.isin,
     providerId: draft.providerId,
     providerSymbol: draft.providerSymbol,
+    name: draft.symbolName,
   };
 }
 

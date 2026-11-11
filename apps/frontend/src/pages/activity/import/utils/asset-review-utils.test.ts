@@ -232,3 +232,20 @@ describe("canProceedFromAssetReviewStep", () => {
     ).toBe(true);
   });
 });
+
+describe("buildImportAssetCandidateFromDraft", () => {
+  it("sends the draft's name for an asset no provider names", () => {
+    const fund = "PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN";
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "INF879O01027",
+        symbolName: fund,
+        isin: "INF879O01027",
+        currency: "INR",
+      }),
+    );
+
+    expect(candidate?.symbol).toBe("INF879O01027");
+    expect(candidate?.name).toBe(fund);
+  });
+});

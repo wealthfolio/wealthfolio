@@ -59,7 +59,11 @@ import {
 } from "./utils/asset-review-utils";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "./utils/account-matching";
 import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
-import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
+import {
+  findMappedActivityType,
+  isinFallbackSymbol,
+  validateTickerSymbol,
+} from "./utils/validation-utils";
 import {
   activityTypeAllowedForImportProfile,
   getActivityImportProfileForImportContext,
@@ -106,7 +110,7 @@ const HOLDINGS_REQUIRED_FIELDS: HoldingsFormat[] = [
 /**
  * Check if a step can proceed to the next step (for activity import)
  */
-function useStepValidation(
+export function useStepValidation(
   isHoldingsMode: boolean,
   importProfile: ActivityImportProfile,
   accounts?: Account[],
@@ -227,6 +231,12 @@ function useStepValidation(
                 .map((h) => headers.indexOf(h))
                 .filter((i) => i !== -1)
             : [];
+          const isinMapping = mapping.fieldMappings[ImportFormat.ISIN];
+          const isinCols = isinMapping
+            ? (Array.isArray(isinMapping) ? isinMapping : [isinMapping])
+                .map((h) => headers.indexOf(h))
+                .filter((i) => i !== -1)
+            : [];
 
           if (symbolHeaderIndex !== -1) {
             const symbolsNeedingResolution = new Set<string>();
@@ -262,6 +272,10 @@ function useStepValidation(
                   return;
                 }
               }
+
+              // A row whose Symbol isn't a symbol resolves by its valid ISIN instead
+              const isin = isinCols.map((idx) => row[idx]?.trim()).find(Boolean);
+              if (isinFallbackSymbol(symbol, isin)) return;
 
               symbolsNeedingResolution.add(symbol);
             });
