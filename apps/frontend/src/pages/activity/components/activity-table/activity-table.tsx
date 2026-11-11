@@ -517,8 +517,7 @@ export const ActivityTable = ({
             //   gross so the table stays consistent with the form's grossAmount.
             // – INTEREST: the mobile form includes a fee field
             //   (FEE_FIELD_ACTIVITY_TYPES) → include the stored fee.
-            const feeForGross =
-              activityType === ActivityType.DIVIDEND ? null : row.original.fee;
+            const feeForGross = activityType === ActivityType.DIVIDEND ? null : row.original.fee;
             const gross = calculateIncomeGrossAmount({
               receivedAmount: absAmount,
               tax: row.original.tax,
@@ -529,11 +528,7 @@ export const ActivityTable = ({
             if (gross === undefined) return <div className="pe-4 text-end">-</div>;
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
-                <AmountDisplay
-                  value={gross}
-                  currency={currency}
-                  isHidden={isBalanceHidden}
-                />
+                <AmountDisplay value={gross} currency={currency} isHidden={isBalanceHidden} />
               </div>
             );
           }
@@ -781,7 +776,7 @@ export const ActivityTable = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {hideableColumns.map((column) => {
-                    const meta = column.columnDef.meta as { label?: string } | undefined;
+                    const meta = column.columnDef.meta;
                     return (
                       <DropdownMenuCheckboxItem
                         key={column.id}
