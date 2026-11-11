@@ -510,10 +510,13 @@ export const ActivityTable = ({
               tax: row.original.tax,
               fee: row.original.fee,
             });
+            // gross is undefined only when receivedAmount is missing; render
+            // "—" rather than a misleading zero.
+            if (gross === undefined) return <div className="pe-4 text-end">-</div>;
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
                 <AmountDisplay
-                  value={gross ?? 0}
+                  value={gross}
                   currency={currency}
                   isHidden={isBalanceHidden}
                 />
