@@ -1932,20 +1932,20 @@ impl MockEnvironment {
 #[async_trait::async_trait]
 impl AgentEnvironment for MockEnvironment {
     fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
-        unimplemented!("MCP-only service")
+        unimplemented!("Spending service not mocked for assistant tests and evals")
     }
     fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
-        unimplemented!("MCP-only service")
+        unimplemented!("Spending service not mocked for assistant tests and evals")
     }
     fn spending_analytics_service(
         &self,
     ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
-        unimplemented!("MCP-only service")
+        unimplemented!("Spending service not mocked for assistant tests and evals")
     }
     fn spending_insight_service(
         &self,
     ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
-        unimplemented!("MCP-only service")
+        unimplemented!("Spending service not mocked for assistant tests and evals")
     }
     fn base_currency(&self) -> String {
         self.base_currency.clone()

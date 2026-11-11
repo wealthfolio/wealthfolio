@@ -524,6 +524,8 @@
       "holdingsDescription": "포지션, 해당 가치 및 순자산",
       "transactionsLabel": "거래",
       "transactionsDescription": "활동 보기, 초안 작성, 가져오기 및 분류",
+      "spendingLabel": "지출",
+      "spendingDescription": "지출 보고서, 예산, 거래 및 이벤트",
       "performanceLabel": "성과",
       "performanceDescription": "수익률 및 성과 지표",
       "incomeLabel": "소득",

@@ -542,6 +542,8 @@
       "holdingsDescription": "Positions, their values, and net worth",
       "transactionsLabel": "Transactions",
       "transactionsDescription": "View, draft, import, and categorize activities",
+      "spendingLabel": "Spending",
+      "spendingDescription": "Spending reports, budgets, transactions, and events",
       "performanceLabel": "Performance",
       "performanceDescription": "Returns and performance metrics",
       "incomeLabel": "Income",

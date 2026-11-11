@@ -524,6 +524,8 @@
       "holdingsDescription": "ポジション、その評価額、純資産",
       "transactionsLabel": "取引",
       "transactionsDescription": "取引の表示、下書き作成、インポート、分類",
+      "spendingLabel": "支出",
+      "spendingDescription": "支出レポート、予算、取引、イベント",
       "performanceLabel": "パフォーマンス",
       "performanceDescription": "リターンとパフォーマンス指標",
       "incomeLabel": "収入",

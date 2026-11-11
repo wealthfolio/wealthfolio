@@ -26,12 +26,13 @@ impl AgentToolCatalog {
         Self::new(crate::tools::v1_read_tools())
     }
 
-    /// The in-app assistant catalog: read tools plus the draft/suggest tools.
-    /// Commit tools are NOT included — the assistant persists drafts through
-    /// its confirmation widget, never directly.
+    /// The in-app assistant catalog: read tools, the draft/suggest tools and
+    /// the Spending reads. Commit tools are NOT included — the assistant
+    /// persists drafts through its confirmation widget, never directly.
     pub fn assistant_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
+        tools.extend(crate::tools::spending_read_tools());
         Self::new(tools)
     }
 
@@ -595,6 +596,22 @@ mod tests {
         assert!(!names.contains(&"get_exchange_rates"));
         assert!(!names.contains(&"prepare_alternative_asset"));
         assert!(!names.contains(&"commit_alternative_asset"));
+    }
+
+    #[test]
+    fn assistant_catalog_has_spending_reads_but_no_spending_workflows() {
+        let assistant = AgentToolCatalog::assistant_catalog();
+        let mcp = AgentToolCatalog::mcp_catalog();
+        for tool in crate::tools::spending_read_tools() {
+            assert_eq!(tool.access_level(), crate::tool::AgentToolAccess::Read);
+            assert!(assistant.get(tool.name()).is_some(), "{}", tool.name());
+        }
+        for tool in crate::tools::spending_access_tools() {
+            assert!(mcp.get(tool.name()).is_some(), "{}", tool.name());
+            if tool.access_level() != crate::tool::AgentToolAccess::Read {
+                assert!(assistant.get(tool.name()).is_none(), "{}", tool.name());
+            }
+        }
     }
 
     #[tokio::test]

@@ -524,6 +524,8 @@
       "holdingsDescription": "头寸、其价值及净资产",
       "transactionsLabel": "交易",
       "transactionsDescription": "查看、起草、导入并归类活动",
+      "spendingLabel": "支出",
+      "spendingDescription": "支出报告、预算、交易和事件",
       "performanceLabel": "绩效",
       "performanceDescription": "回报与绩效指标",
       "incomeLabel": "收入",

@@ -542,6 +542,8 @@
       "holdingsDescription": "部位、價值與淨資產",
       "transactionsLabel": "交易",
       "transactionsDescription": "查看、建立草稿、匯入並分類交易紀錄",
+      "spendingLabel": "支出",
+      "spendingDescription": "支出報告、預算、交易和事件",
       "performanceLabel": "績效",
       "performanceDescription": "報酬與績效指標",
       "incomeLabel": "收入",
