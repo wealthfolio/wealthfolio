@@ -211,10 +211,28 @@ describe("Russian terminology", () => {
   it("starts a sentence with a capital where English does", () => {
     const bad: string[] = [];
     for (const [key, source] of englishStrings) {
+      // Country names are CLDR's, and CLDR writes some in lowercase («о-ва Кайман»).
+      if (key.startsWith("taxonomies:categoryNames.regions.country_")) continue;
       const value = allStrings.get(key) ?? "";
       if (/^[A-Z]/.test(source) && /^[а-яё]/.test(value)) bad.push(`${key} = ${value}`);
     }
     expect(bad).toEqual([]);
+  });
+
+  // Country labels are the CLDR names of `Intl.DisplayNames`, as in every other locale.
+  it.each([
+    ["RU", "Россия"],
+    ["US", "Соединенные Штаты"],
+    ["KG", "Киргизия"],
+    ["CF", "Центрально-Африканская Республика"],
+    ["ZA", "Южно-Африканская Республика"],
+    ["AE", "ОАЭ"],
+    ["KR", "Республика Корея"],
+    ["SY", "Сирия"],
+    ["HK", "Гонконг (САР)"],
+    ["KY", "о-ва Кайман"],
+  ])("names the country %s as CLDR does", (code, name) => {
+    expect(allStrings.get(`taxonomies:categoryNames.regions.country_${code}`)).toBe(name);
   });
   // dashboard-page.tsx joins prefix + age + suffix; the preposition lives in the prefix.
   it.each([61, 65])("assembles the goals verdict sentences at age %i", (age) => {
