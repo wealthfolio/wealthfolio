@@ -223,6 +223,16 @@ describe("mobile income amount before tax", () => {
     expect(screen.getByRole("textbox", { name: "Line amount" })).toHaveValue("0.000000001");
   });
 
+  it("lets a new phone line take as many decimals as its total", async () => {
+    render(<TestForm activityType={ActivityType.INTEREST} />);
+    await retype("Fee (Optional)", "0.0005");
+    await userEvent.click(screen.getAllByRole("button", { name: "Break down" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Add line" }));
+    const second = screen.getAllByRole("textbox", { name: "Line amount" })[1];
+    await userEvent.type(second, "0.0001");
+    expect(second).toHaveValue("0.0001");
+  });
+
   it("keeps the phone total unchanged when its last fractional line is removed", async () => {
     render(
       <TestForm
