@@ -44,6 +44,13 @@ import {
   RecordActivityToolUI,
   RecordActivitiesToolUI,
   ValuationToolUI,
+  ListSpendingEventsToolUI,
+  SpendingBudgetToolUI,
+  SpendingContextToolUI,
+  SpendingEventsToolUI,
+  SpendingInsightToolUI,
+  SpendingReportToolUI,
+  SpendingTransactionsToolUI,
 } from "./tool-uis";
 import { ChatModelProvider, useChatModelContext } from "../hooks/use-chat-model-context";
 import { useChatRuntime } from "../hooks/use-chat-runtime";
@@ -261,6 +268,13 @@ function ChatShellInner({ className }: ChatShellProps) {
         <AssetClassificationToolUI />
         <ListCategorizationContextToolUI />
         <CategorizationProposalsToolUI />
+        <SpendingContextToolUI />
+        <ListSpendingEventsToolUI />
+        <SpendingInsightToolUI />
+        <SpendingReportToolUI />
+        <SpendingTransactionsToolUI />
+        <SpendingBudgetToolUI />
+        <SpendingEventsToolUI />
 
         <InitialPromptSender />
 
