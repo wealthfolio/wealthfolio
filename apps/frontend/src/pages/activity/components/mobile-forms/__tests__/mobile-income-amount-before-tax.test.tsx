@@ -1,4 +1,5 @@
 import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
+import type { ChargeLineFormValues } from "@/lib/activity-charges";
 import { render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
@@ -25,7 +26,7 @@ function TestForm({
 }: {
   activityType: string;
   subtype?: string | null;
-  saved?: { amount: number; tax: number; fee?: number };
+  saved?: { amount: number; tax: number; fee?: number } & ChargeLineFormValues;
 }) {
   const form = useForm<NewActivityFormValues>({
     defaultValues: {
@@ -183,5 +184,58 @@ describe("mobile income amount before tax", () => {
     render(<TestForm activityType={ActivityType.DIVIDEND} subtype={ACTIVITY_SUBTYPES.DRIP} />);
 
     expect(screen.queryByLabelText("Amount before tax")).toBeNull();
+  });
+
+  it("keeps a deposit fee editable when hidden trade lines remain", async () => {
+    render(
+      <TestForm
+        activityType={ActivityType.DEPOSIT}
+        saved={{
+          amount: 100,
+          tax: 0,
+          fee: 5,
+          feeLines: [{ label: "Commission", amount: 5 }],
+        }}
+      />,
+    );
+
+    expect(field("Fee (Optional)")).not.toHaveAttribute("readonly");
+    expect(screen.queryByRole("button", { name: "Remove line" })).not.toBeInTheDocument();
+    await retype("Fee (Optional)", "7");
+    expect(field("Fee (Optional)")).toHaveValue("7");
+  });
+
+  it("preserves precision in a line-owned phone total", () => {
+    render(
+      <TestForm
+        activityType={ActivityType.INTEREST}
+        saved={{
+          amount: 100,
+          tax: 0,
+          fee: 0.000000001,
+          feeLines: [{ label: "Commission", amount: 0.000000001 }],
+        }}
+      />,
+    );
+
+    expect(field("Fee (Optional)")).toHaveAttribute("readonly");
+    expect(field("Fee (Optional)")).toHaveValue("0.000000001");
+    expect(screen.getByRole("textbox", { name: "Line amount" })).toHaveValue("0.000000001");
+  });
+
+  it("keeps the phone total unchanged when its last fractional line is removed", async () => {
+    render(
+      <TestForm
+        activityType={ActivityType.DIVIDEND}
+        saved={{
+          amount: 1,
+          tax: 0.000000001,
+          taxLines: [{ label: "a", amount: 0.000000001 }],
+        }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Remove line" }));
+    await waitFor(() => expect(field("Withholding tax (Optional)")).toHaveValue("0.000000001"));
+    expect(field("Withholding tax (Optional)")).not.toHaveAttribute("readonly");
   });
 });
