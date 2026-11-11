@@ -827,6 +827,74 @@ output_test_dyn_env!(
     { "activityIds": ["cash-a"] }
 );
 
+/// Env whose search returns the given rows; `neutral` ids take no category.
+fn categorization_env_with(rows: &[(&str, bool)]) -> Arc<MockEnvironment> {
+    let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
+    env.cash_activity_service = Arc::new(MockCashActivityService {
+        items: rows
+            .iter()
+            .map(|(id, neutral)| {
+                let mut row = fixture_cash_activity(
+                    id,
+                    "acc-1",
+                    "2024-06-15T00:00:00Z",
+                    &format!("PAYEE {id}"),
+                    None,
+                );
+                if *neutral {
+                    row.cash_flow_bucket = CashFlowBucket::Neutral;
+                }
+                row
+            })
+            .collect(),
+    });
+    Arc::new(env)
+}
+
+/// Rows that take no category (neutral transfers) count toward `total` but
+/// appear in neither list, so they never become "rows needing a choice" and a
+/// batch made only of them renders no review widget.
+#[tokio::test]
+async fn neutral_rows_are_not_rows_needing_a_choice() {
+    let only_neutral = categorization_env_with(&[("transfer", true)]);
+    let context = call_json_dyn(
+        ListCategorizationContext,
+        only_neutral.clone(),
+        serde_json::json!({ "status": "all" }),
+    )
+    .await;
+    assert_eq!(context["ok"]["summary"]["total"], 1, "{context}");
+    assert!(
+        context["ok"]["nextStep"]
+            .as_str()
+            .is_some_and(|step| step.contains("no categorization widget")),
+        "{context}"
+    );
+    let proposals = call_json_dyn(
+        ProposeCategories,
+        only_neutral,
+        serde_json::json!({ "status": "all", "aiProposals": [] }),
+    )
+    .await;
+    assert_eq!(proposals["ok"]["summary"]["total"], 1, "{proposals}");
+    assert_eq!(proposals["ok"]["summary"]["unproposed"], 0, "{proposals}");
+
+    let mixed = categorization_env_with(&[("transfer", true), ("unknown", false)]);
+    let proposals = call_json_dyn(
+        ProposeCategories,
+        mixed,
+        serde_json::json!({ "status": "all", "aiProposals": [] }),
+    )
+    .await;
+    assert_eq!(proposals["ok"]["summary"]["total"], 2, "{proposals}");
+    assert_eq!(proposals["ok"]["summary"]["unproposed"], 1, "{proposals}");
+    assert_eq!(
+        proposals["ok"]["unproposed"].as_array().map(Vec::len),
+        Some(1),
+        "{proposals}"
+    );
+}
+
 /// A call whose filters match no rows still returns the configured
 /// categories, so the review card says "no transactions matched" rather than
 /// "no spending taxonomies are configured".
