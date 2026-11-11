@@ -23,6 +23,7 @@ import {
   AdvancedOptionsSection,
   AmountInput,
   AssetTypeSelector,
+  ChargeLinesField,
   createValidatedSubmit,
   DatePicker,
   FormSection,
@@ -36,6 +37,7 @@ import {
   type AccountSelectOption,
   type AssetType,
 } from "./fields";
+import { createChargeLineFields, createChargeLinesRefinement } from "./schemas";
 import { useTradeTotal } from "./use-trade-total";
 
 // Asset metadata schema for custom assets
@@ -162,7 +164,10 @@ export const createSellFormSchema = (t?: TFunction) =>
           ),
         })
         .optional(),
+      // Fee and tax lines (metadata.charges)
+      ...createChargeLineFields(t),
     })
+    .superRefine(createChargeLinesRefinement(t))
     .superRefine((data, ctx) => {
       // Options build their symbol at submit time; stocks/bonds require it upfront
       if (data.assetType !== "option" && (!data.assetId || data.assetId.trim() === "")) {
@@ -678,14 +683,18 @@ export function SellForm({
                 currency={currency}
               />
             </div>
-            <AmountInput
-              name="fee"
+            <ChargeLinesField
+              totalName="fee"
+              linesName="feeLines"
+              category="fee"
               label={t("activity:form.label_fee")}
               currency={currency}
               maxDecimalPlaces={moneyDecimals}
             />
-            <AmountInput
-              name="tax"
+            <ChargeLinesField
+              totalName="tax"
+              linesName="taxLines"
+              category="tax"
               label={t("activity:form.label_tax")}
               currency={currency}
               maxDecimalPlaces={moneyDecimals}

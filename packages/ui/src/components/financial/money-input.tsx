@@ -138,6 +138,10 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         }}
         inputMode="decimal"
         onPaste={(event) => {
+          if (readOnly || disabled) {
+            event.preventDefault();
+            return;
+          }
           const clipboardValue = event.clipboardData.getData("text");
           const input = event.currentTarget;
           const hasSelection =

@@ -4,6 +4,7 @@ import type { ActivityDetails } from "@/lib/types";
 import {
   ACTIVITY_SUBTYPES,
   ActivityType,
+  DECIMAL_PRECISION,
   isLiabilityAccountType,
   QuoteMode,
 } from "@/lib/constants";
@@ -52,6 +53,7 @@ import { useActivityCurrency } from "../../hooks/use-activity-currency";
 import {
   AdvancedOptionsSection,
   AssetTypeSelector,
+  ChargeLinesEditor,
   FormSection,
   OptionContractFields,
   PositionIntentSelector,
@@ -64,6 +66,8 @@ import type { NewActivityFormValues } from "../forms/schemas";
 import { useIncomeAmounts, type IncomeAmountTypedLast } from "../forms/use-income-amounts";
 import { calculateIncomeFinalAmount, calculateTradeFinalCash } from "@/lib/activity-final-amount";
 import { AccountTypeIconTile } from "@/components/account-type-icon";
+import { mobileChargeLineCategories } from "./mobile-activity-utils";
+import { valueDecimalPlaces } from "@/lib/currency-decimals";
 
 interface MobileDetailsStepProps {
   accounts: AccountSelectOption[];
@@ -623,8 +627,15 @@ export function MobileDetailsStep({
     needsTax ||
     isFeeActivity;
 
-  // Fee + Tax share a row when both are present (e.g. trades, interest).
+  // Fee + Tax share a row when both are present (e.g. trades, interest),
+  // unless one is broken down into lines, which need the full width.
   const showFeeOptional = !isFeeActivity && needsFee;
+  const chargeCategories = mobileChargeLineCategories(activityType);
+  const feeLines = watch("feeLines" as any) as unknown[] | undefined;
+  const taxLines = watch("taxLines" as any) as unknown[] | undefined;
+  const feeHasLines = chargeCategories.includes("fee") && (feeLines?.length ?? 0) > 0;
+  const taxHasLines = chargeCategories.includes("tax") && (taxLines?.length ?? 0) > 0;
+  const hasChargeLines = feeHasLines || taxHasLines;
   const feeOptionalField = (
     <FormField
       control={control}
@@ -637,13 +648,26 @@ export function MobileDetailsStep({
           <FormControl>
             <MoneyInput
               {...field}
+              readOnly={feeHasLines}
+              className={feeHasLines ? "text-muted-foreground" : undefined}
+              maxDecimalPlaces={Math.max(DECIMAL_PRECISION, valueDecimalPlaces(field.value))}
               onValueChange={(value, isUserEdit) => {
+                if (feeHasLines) return;
                 field.onChange(value);
                 if (isUserEdit) incomeAmounts.onChargeChange();
               }}
             />
           </FormControl>
           <FormMessage />
+          {chargeCategories.includes("fee") && (
+            <ChargeLinesEditor
+              totalName="fee"
+              linesName="feeLines"
+              category="fee"
+              currency={currency}
+              onTotalChange={incomeAmounts.onChargeChange}
+            />
+          )}
         </FormItem>
       )}
     />
@@ -662,13 +686,26 @@ export function MobileDetailsStep({
           <FormControl>
             <MoneyInput
               {...field}
+              readOnly={taxHasLines}
+              className={taxHasLines ? "text-muted-foreground" : undefined}
+              maxDecimalPlaces={Math.max(DECIMAL_PRECISION, valueDecimalPlaces(field.value))}
               onValueChange={(value, isUserEdit) => {
+                if (taxHasLines) return;
                 field.onChange(value);
                 if (isUserEdit) incomeAmounts.onChargeChange();
               }}
             />
           </FormControl>
           <FormMessage />
+          {chargeCategories.includes("tax") && (
+            <ChargeLinesEditor
+              totalName="tax"
+              linesName="taxLines"
+              category="tax"
+              currency={currency}
+              onTotalChange={incomeAmounts.onChargeChange}
+            />
+          )}
         </FormItem>
       )}
     />
@@ -1265,7 +1302,7 @@ export function MobileDetailsStep({
               )}
 
               {/* Fee + Tax — paired in a row when both are shown */}
-              {showFeeOptional && needsTax ? (
+              {showFeeOptional && needsTax && !hasChargeLines ? (
                 <div className="grid grid-cols-2 gap-3">
                   {feeOptionalField}
                   {taxField}

@@ -301,6 +301,83 @@ describe("Form Schemas Validation", () => {
     }
   });
 
+  describe("fee and tax lines", () => {
+    const base = { accountId: "acc-123", activityDate: new Date(), currency: "USD" };
+    const trade = { ...base, assetId: "AAPL", quantity: 10, unitPrice: 150.5, fee: 5, tax: 2 };
+    const income = { ...base, symbol: "AAPL", amount: 25.5, tax: 2 };
+    const lines = {
+      feeLines: [{ label: "Commission", amount: 5 }],
+      taxLines: [{ label: "Stamp duty", amount: 2 }],
+      hadChargeLines: true,
+    };
+
+    it.each([
+      ["buy", buyFormSchema, trade],
+      ["sell", sellFormSchema, trade],
+      ["dividend", dividendFormSchema, income],
+      ["interest", interestFormSchema, income],
+      ["phone", newActivitySchema, { ...trade, activityType: ActivityType.BUY }],
+    ] as const)("keeps the %s form's lines for its payload", (_name, schema, values) => {
+      const supportedLines = "symbol" in values ? { ...lines, feeLines: [] } : lines;
+      const result = schema.safeParse({ ...values, ...supportedLines });
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject(supportedLines);
+    });
+
+    it("asks for each line's label and amount", () => {
+      const result = buyFormSchema.safeParse({
+        ...trade,
+        feeLines: [{ label: " ", amount: 5 }, { label: "Exchange fee" }],
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((issue) => [issue.path.join("."), issue.message])).toEqual([
+        ["feeLines.0.label", "Enter a label."],
+        ["feeLines.1.amount", "Enter an amount."],
+      ]);
+    });
+
+    it.each([null, ""])("does not coerce an empty line amount (%s) to zero", (amount) => {
+      expect(
+        buyFormSchema.safeParse({
+          ...trade,
+          feeLines: [{ label: "Commission", amount }],
+        }).success,
+      ).toBe(false);
+    });
+
+    it.each([
+      [buyFormSchema, trade],
+      [sellFormSchema, trade],
+      [newActivitySchema, { ...trade, activityType: ActivityType.BUY }],
+      [newActivitySchema, { ...trade, activityType: ActivityType.INTEREST, amount: 25 }],
+    ])("requires a breakdown for the other nonzero total", (schema, values) => {
+      const result = schema.safeParse({ ...values, feeLines: lines.feeLines });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toEqual(
+        expect.arrayContaining([expect.objectContaining({ path: ["tax"] })]),
+      );
+    });
+
+    it.each([buyFormSchema, sellFormSchema])(
+      "rejects a line sum that loses precision",
+      (schema) => {
+        const result = schema.safeParse({
+          ...trade,
+          fee: 9007199254740992,
+          tax: 0,
+          feeLines: [
+            { label: "a", amount: 9007199254740991 },
+            { label: "b", amount: 2 },
+          ],
+        });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues).toEqual(
+          expect.arrayContaining([expect.objectContaining({ path: ["fee"] })]),
+        );
+      },
+    );
+  });
+
   describe("buyFormSchema", () => {
     it("validates a complete valid buy form", () => {
       const validData = {
