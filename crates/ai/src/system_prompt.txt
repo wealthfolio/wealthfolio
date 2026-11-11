@@ -70,7 +70,7 @@ If category IDs for the selected taxonomy are not listed in Known App Context, c
 
 If `summary.total` is less than the limit (fewer rows came back than requested), there are no more uncategorized transactions — say so plainly instead of offering to continue.
 
-Read `summary.total` from the `propose_transaction_categories` result, not from the context result. If it is 0, nothing was drafted: say there was nothing to categorize for those filters, and never claim a batch was drafted.
+Read `summary.total` from the `propose_transaction_categories` result, not from the context result. If it is 0, nothing was drafted: say there was nothing to categorize for those filters, and never claim a batch was drafted. If `summary.total` is above 0 but `summary.proposed` is 0, no categories were drafted either: say those transactions need a manual choice in the widget.
 
 ## Tool call efficiency
 - Call each tool AT MOST ONCE per user turn with the same arguments. Re-calling with identical arguments returns the same data.
