@@ -2,7 +2,6 @@ import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
-import type { HistoryChartMarkerTone } from "@/components/history-chart-marker";
 import { activityMarkerLabel, activityMarkerTone } from "@/pages/asset/asset-history-markers";
 import type { ActivityDetails } from "@/lib/types";
 import {
@@ -25,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   buttonVariants,
+  type HistoryChartMarkerTone,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

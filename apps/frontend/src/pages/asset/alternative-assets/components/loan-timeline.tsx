@@ -21,10 +21,10 @@ import {
   Icons,
   useDateFormatting,
   useNumberFormatting,
+  HistoryChartActiveDot,
 } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
-import { HistoryChartActiveDot } from "@/components/history-chart-marker";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import type { Quote } from "@/lib/types";
