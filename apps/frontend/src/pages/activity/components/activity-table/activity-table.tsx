@@ -498,12 +498,26 @@ export const ActivityTable = ({
               </div>
             );
           }
+          // Cash income (Dividend/Interest, not asset-backed): Price/Amount shows
+          // the gross amount before withholding tax so the row reads
+          //   Price/Amount (gross) − Tax = Total (net received).
+          if (isIncomeActivity(activityType) && !isIncomeInKind) {
+            const taxAmt = Math.abs(Number(row.original.tax ?? 0));
+            return (
+              <div className="text-end whitespace-nowrap tabular-nums">
+                <AmountDisplay
+                  value={Number(amount) + taxAmt}
+                  currency={currency}
+                  isHidden={isBalanceHidden}
+                />
+              </div>
+            );
+          }
           if (
             (isCashActivity(activityType) &&
               !isIncomeInKind &&
               !isSecuritiesTransfer(activityType, assetSymbol, row.original.assetId)) ||
-            isCashTransfer(activityType, assetSymbol, row.original.assetId) ||
-            (isIncomeActivity(activityType) && !isIncomeInKind)
+            isCashTransfer(activityType, assetSymbol, row.original.assetId)
           ) {
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
