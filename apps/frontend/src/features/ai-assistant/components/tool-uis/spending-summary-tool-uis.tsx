@@ -131,6 +131,18 @@ function ChangeCell({ row }: { row: CategoryRow }) {
   );
 }
 
+/**
+ * Formats a period bound in the timezone the result was computed in, so a saved
+ * chat keeps its days after the timezone setting changes.
+ */
+function formatPeriodDate(
+  dates: ReturnType<typeof useDateFormatting>,
+  value: string,
+  timeZone: string | undefined,
+) {
+  return dates.formatDate(value, timeZone ? { dateStyle: "medium", timeZone } : {});
+}
+
 type InsightProps = ToolCallMessagePartProps<ToolArgs, SpendingInsightOutput>;
 
 export function SpendingInsightContentImpl({ result, status }: InsightProps) {
@@ -182,8 +194,8 @@ export function SpendingInsightContentImpl({ result, status }: InsightProps) {
 
   const { headline, currency } = insight;
   const subtitle = t("ai:spendingCards.period", {
-    start: dates.formatDate(insight.period.start),
-    end: dates.formatDate(insight.period.end),
+    start: formatPeriodDate(dates, insight.period.start, data.context?.timezone),
+    end: formatPeriodDate(dates, insight.period.end, data.context?.timezone),
   });
 
   return (
@@ -350,8 +362,8 @@ export function SpendingReportContentImpl({ result, status }: ReportProps) {
     <SpendingCard
       title={title}
       subtitle={t("ai:spendingCards.period", {
-        start: dates.formatDate(data.period.startDate),
-        end: dates.formatDate(data.period.endDate),
+        start: formatPeriodDate(dates, data.period.startDate, data.context?.timezone),
+        end: formatPeriodDate(dates, data.period.endDate, data.context?.timezone),
       })}
       badge={
         <Badge variant="outline" className="text-xs">

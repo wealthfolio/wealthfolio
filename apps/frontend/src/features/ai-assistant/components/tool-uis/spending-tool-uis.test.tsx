@@ -214,6 +214,41 @@ describe("spending insight card", () => {
   });
 });
 
+describe("spending period", () => {
+  // Local midnight in UTC+14 is the previous day in any runtime timezone
+  // behind UTC+10, so this fails unless the result's timezone is used.
+  const kiritimati = { ...context, timezone: "Pacific/Kiritimati" };
+  const start = "2026-09-30T10:00:00Z";
+  const end = "2026-10-31T09:59:59.999Z";
+
+  it("shows insight days in the timezone the result was computed in", () => {
+    renderTool(SpendingInsightContentImpl as ComponentType<never>, {
+      ...insight,
+      context: kiritimati,
+      insight: { ...insight.insight, period: { ...insight.insight.period, start, end } },
+    });
+    expect(screen.getByText("Oct 1, 2026 – Oct 31, 2026")).toBeInTheDocument();
+  });
+
+  it("shows report days in the timezone the result was computed in", () => {
+    renderTool(SpendingReportContentImpl as ComponentType<never>, {
+      context: kiritimati,
+      period: { startDate: start, endDate: end, currency: "CAD" },
+      report: {
+        baseCurrency: "CAD",
+        current: { income: 0, outflow: 0, saved: 0, net: 0, count: 0 },
+        prior: { income: 0, outflow: 0, saved: 0, net: 0, count: 0 },
+        spendingBreakdown: [],
+        incomeBreakdown: [],
+        savingsBreakdown: [],
+        byDay: [],
+        byDayByCategory: [],
+      },
+    });
+    expect(screen.getByText("Oct 1, 2026 – Oct 31, 2026")).toBeInTheDocument();
+  });
+});
+
 describe("spending report card", () => {
   it("shows cash flow and rolls subcategories up to their parent", () => {
     renderTool(SpendingReportContentImpl as ComponentType<never>, {
