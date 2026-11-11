@@ -868,6 +868,41 @@ describe("Russian sentences joined in code", () => {
   });
 });
 
+describe("Russian dates inside sentences", () => {
+  // A Russian date with a year ends in «г.» («1 июн. 2027 г.»), so a full stop right after the
+  // placeholder of such a date renders «г..». The date stands mid-sentence or in brackets.
+  // `date` and `asOfDate` receive calendar dates formatted with a year.
+  const DATE_PLACEHOLDERS = ["date", "asOfDate"];
+  // Receives a date with a time of day («1 июн. 2027 г., 14:30»), which ends with the time.
+  const DATE_WITH_TIME = new Set(["settings:cloud_backup_recovery_deadline"]);
+  const afterDate = new RegExp(`\\{\\{(?:${DATE_PLACEHOLDERS.join("|")})\\}\\}\\.`);
+
+  it("puts no full stop directly after a date placeholder", () => {
+    const found = [...allStrings]
+      .filter(([key, value]) => afterDate.test(value) && !DATE_WITH_TIME.has(key))
+      .map(([key, value]) => `${key} = ${value}`);
+    expect(found).toEqual([]);
+  });
+
+  it.each([
+    ["activity:date_list.carry_forward", { date: "1 июн. 2027 г." }],
+    ["allocation:worksheet.warning.staleQuote", { symbol: "AAPL", date: "1 июн. 2027 г." }],
+    ["allocation:worksheet.warning.staleFx", { symbol: "EUR", date: "1 июн. 2027 г." }],
+    [
+      "asset:loanActions.balance_replaces_confirmation",
+      { amount: "5 000 ₽", date: "1 июн. 2027 г." },
+    ],
+    ["asset:loanActions.balance_estimate", { amount: "5 000 ₽", date: "1 июн. 2027 г." }],
+    ["asset:loanOverview.payoff_estimate_hint", { date: "1 июн. 2027 г." }],
+    [
+      "spending:insightsPage.multiCurrencyDetail",
+      { currency: "₽", foreign: "USD", asOfDate: "1 июн. 2027 г." },
+    ],
+  ])("renders %s without a doubled full stop", (key, values) => {
+    expect(i18n.t(key, values)).not.toContain("г..");
+  });
+});
+
 describe("Russian words inserted into sentences", () => {
   it("keeps the embedded loan durations in a label form", () => {
     expect(i18n.t("asset:loanOverview.early_by", { duration: "2 года" })).toBe(

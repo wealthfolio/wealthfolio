@@ -644,7 +644,7 @@
     "source": "источник:",
     "sources": "источники:",
     "multiCurrency": "Мультивалютность:",
-    "multiCurrencyDetail": "Итоги показаны в {{currency}}, пересчитаны из {{foreign}} по курсам на {{asOfDate}}."
+    "multiCurrencyDetail": "Итоги показаны в {{currency}}, пересчитаны из {{foreign}} (по курсам на {{asOfDate}})."
   },
   "whenYouSpend": {
     "customSubtitle": "Выбранный период · интенсивность расходов по дням недели и часам.",
