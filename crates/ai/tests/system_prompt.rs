@@ -181,6 +181,13 @@ fn empty_categorization_batch_is_not_called_a_draft() {
 }
 
 #[test]
+fn full_empty_batch_is_not_called_nothing_to_categorize() {
+    let lower = SYSTEM_PROMPT.to_lowercase();
+    assert!(lower.contains("when it equals the limit, only the first matches were checked"));
+    assert!(lower.contains("suggest a narrower date range"));
+}
+
+#[test]
 fn rows_waiting_for_a_choice_are_not_called_done() {
     let lower = SYSTEM_PROMPT.to_lowercase();
     assert!(lower.contains("only say nothing is left to categorize when `unproposed` is empty"));
