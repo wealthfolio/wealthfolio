@@ -173,4 +173,5 @@ fn empty_categorization_batch_is_not_called_a_draft() {
     let lower = SYSTEM_PROMPT.to_lowercase();
     assert!(lower.contains("read `summary.total` from the `propose_transaction_categories` result"));
     assert!(lower.contains("never claim a batch was drafted"));
+    assert!(lower.contains("`summary.proposed` is 0, no categories were drafted"));
 }
