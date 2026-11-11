@@ -143,6 +143,9 @@ describe("Russian terminology", () => {
     ["сурплус", [] as string[]], // surplus
     ["бакет", [] as string[]], // bucket
     ["чекинг", [] as string[]], // Checking
+    ["счета денег", [] as string[]], // Cash Account is «Денежный счёт» (owner, 2026-11-11)
+    ["счетов денег", [] as string[]],
+    ["счёта денег", [] as string[]],
   ])("rejects %s", (term, allowed) => {
     expect(offenders(term, new Set(allowed))).toEqual([]);
   });
@@ -255,7 +258,74 @@ describe("Russian terminology", () => {
     );
     expect(found.map(([key, value]) => `${key} = ${value}`)).toEqual([]);
   });
+
+  it.each([
+    ["health:issues.quote_sync_error.message", /Проверьте тикеры/],
+    ["health:issues.account_timezone_invalid.message", /Обновите его/],
+  ])("tells the user what to do in the imperative in %s", (key, pattern) => {
+    expect(allStrings.get(key)).toMatch(pattern);
+  });
+
+  // Instruction sentences in messages and descriptions are imperative, like hints. Buttons, menu
+  // items and permission lists keep the infinitive and are not swept: a sentence counts only when
+  // it ends with a full stop or is long, the English counterpart opens with a bare verb, and the
+  // key is not a permission description.
+  it("never writes an instruction sentence to the user in the infinitive", () => {
+    const infinitive =
+      /^(?!Эти(?![а-яё])|Пути(?![а-яё])|Есть(?![а-яё])|Часть(?![а-яё])|Области(?![а-яё]))[А-Яа-яё]{3,}(ать|ять|еть|ить|уть|оть|ыть|ться|ти|чь)(?![а-яё])/u;
+    const notImperative =
+      /^(The|A|An|This|These|Those|Your|You|No|Some|Each|Every|It|Its|There|We|Are|Is|Not|Unable|Failed|Nothing|Setup|Session|Stopping|Records|Cash|Return|Values|Account|When|If|Only|Higher|Volatility|Portion|Part|Pre|Money|Time|Price|Value|Capabilities|Mirostat|Property|Tracking|Looking|Split|Performance|Transfer)(?![A-Za-z])/;
+    const permissionKey =
+      /^(settings:agentAccess\.scope\.|settings:addonPermissions\.|ai:providerSettings\.)/;
+    const found = [...allStrings].flatMap(([key, value]) => {
+      if (permissionKey.test(key)) return [];
+      const base = key.replace(/_(one|few|many|other)$/, "");
+      const en = englishStrings.get(key) ?? englishStrings.get(`${base}_other`) ?? "";
+      const englishImperative = en
+        .split(/(?<=[.!?…])\s+/)
+        .some((sentence) => /^[A-Z][a-z]+/.test(sentence) && !notImperative.test(sentence));
+      const sentences = value.split(/(?<=[.!?…])\s+/);
+      const bad = sentences.filter(
+        (sentence) =>
+          infinitive.test(sentence) &&
+          !/\?\s*$/.test(sentence) &&
+          (/[.…]$/.test(sentence.trim()) ||
+            sentences.length > 1 ||
+            sentence.split(/\s+/).length >= 7),
+      );
+      return englishImperative ? bad.map((sentence) => `${key}: ${sentence}`) : [];
+    });
+    expect(
+      found.filter((line) => !INFINITIVE_CONTROLS.has(line.split(":").slice(0, 2).join(":"))),
+    ).toEqual([]);
+  });
 });
+
+/** Buttons, menu items, toggles and a tooltip that name an action: the infinitive is right there. */
+const INFINITIVE_CONTROLS = new Set([
+  "activity:operations.link_transfer",
+  "activity:operations.convert_to_transfer",
+  "activity:import.reviewToolbar.importAnywayTooltip",
+  "ai:model.addModels",
+  "allocation:worksheet.addAsDepositTo",
+  "asset:historyCard.hide_activity_markers",
+  "asset:historyCard.show_activity_markers",
+  "common:load_more",
+  "common:map_to",
+  "common:component.track_assets_not_found",
+  "goals:funding.use_max",
+  "goals:risk_lab.montecarlo.run_10k",
+  "goals:risk_lab.montecarlo.run_100k",
+  "settings:market_data_page.reset_history_menu",
+  "settings:spending.categories.merge.destination",
+  "spending:transactions.linkTransfer",
+  "spending:transactions.convertToTransfer",
+  "spending:dashboard.viewAllToTag",
+  "spending:dashboard.viewAllToTag_one",
+  "spending:dashboard.viewAllToTag_few",
+  "spending:dashboard.viewAllToTag_many",
+  "spending:dashboard.viewAllToTag_other",
+]);
 
 const i18n = createInstance();
 await i18n.init({
