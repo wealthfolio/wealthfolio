@@ -505,8 +505,15 @@ export const ActivityTable = ({
           // calculateIncomeGrossAmount uses scaled-integer arithmetic to avoid
           // float rounding (e.g. 0.60 + 0.28 → 0.88, not 0.8800000000000001).
           if (isIncomeActivity(activityType) && !isIncomeInKind) {
+            // Use the absolute magnitude so legacy negatively-stored income
+            // amounts still produce the correct positive gross. Null/empty are
+            // passed through unchanged so the missing-amount guard below fires.
+            const absAmount =
+              amount != null && amount !== "" && Number.isFinite(Number(amount))
+                ? Math.abs(Number(amount))
+                : amount;
             const gross = calculateIncomeGrossAmount({
-              receivedAmount: amount,
+              receivedAmount: absAmount,
               tax: row.original.tax,
               fee: row.original.fee,
             });
