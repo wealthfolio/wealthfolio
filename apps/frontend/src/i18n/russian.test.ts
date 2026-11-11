@@ -398,9 +398,9 @@ describe("Russian terminology", () => {
 
   it("puts an error message after a colon, as English does", () => {
     const bad = [...englishStrings]
-      .filter(([, source]) => /: \{\{error\}\}$/.test(source))
+      .filter(([, source]) => source.endsWith(": {{error}}"))
       .map(([key]) => `${key} = ${allStrings.get(key)}`)
-      .filter((line) => !/: \{\{error\}\}$/.test(line));
+      .filter((line) => !line.endsWith(": {{error}}"));
     expect(bad).toEqual([]);
   });
 
@@ -573,9 +573,9 @@ describe("Russian plural output", () => {
   // A `*_suffix` key whose English is a counted plural noun follows a number in the code.
   it("abbreviates a counted noun that follows a number («100 акц.»)", () => {
     const bad = [...englishStrings]
-      .filter(([key, source]) => /_suffix$/.test(key) && /^[a-z]+s$/.test(source))
+      .filter(([key, source]) => key.endsWith("_suffix") && /^[a-z]+s$/.test(source))
       .map(([key]) => `${key} = ${allStrings.get(key)}`)
-      .filter((line) => !/\.$/.test(line));
+      .filter((line) => !line.endsWith("."));
     expect(bad).toEqual([]);
   });
 
