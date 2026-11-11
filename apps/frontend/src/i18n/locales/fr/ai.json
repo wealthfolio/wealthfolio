@@ -580,6 +580,8 @@
       "holdingsDescription": "Positions, leurs valeurs et valeur nette",
       "transactionsLabel": "Transactions",
       "transactionsDescription": "Consulter, rédiger, importer et catégoriser les activités",
+      "spendingLabel": "Dépenses",
+      "spendingDescription": "Rapports de dépenses, budgets, transactions et événements",
       "performanceLabel": "Performance",
       "performanceDescription": "Rendements et indicateurs de performance",
       "incomeLabel": "Revenus",

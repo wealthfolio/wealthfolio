@@ -580,6 +580,8 @@
       "holdingsDescription": "Posizioni, i loro valori e il patrimonio netto",
       "transactionsLabel": "Transazioni",
       "transactionsDescription": "Visualizza, redigi, importa e categorizza i movimenti",
+      "spendingLabel": "Spese",
+      "spendingDescription": "Report delle spese, budget, transazioni ed eventi",
       "performanceLabel": "Performance",
       "performanceDescription": "Rendimenti e metriche di performance",
       "incomeLabel": "Reddito",

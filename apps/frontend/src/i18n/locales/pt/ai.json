@@ -580,6 +580,8 @@
       "holdingsDescription": "Posições, seus valores e patrimônio líquido",
       "transactionsLabel": "Transações",
       "transactionsDescription": "Visualizar, redigir, importar e categorizar atividades",
+      "spendingLabel": "Gastos",
+      "spendingDescription": "Relatórios de gastos, orçamentos, transações e eventos",
       "performanceLabel": "Desempenho",
       "performanceDescription": "Rentabilidades e métricas de desempenho",
       "incomeLabel": "Rendimentos",

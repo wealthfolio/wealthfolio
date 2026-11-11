@@ -542,6 +542,8 @@
       "holdingsDescription": "Positionen, ihre Werte und das Nettovermögen",
       "transactionsLabel": "Transaktionen",
       "transactionsDescription": "Aktivitäten anzeigen, entwerfen, importieren und kategorisieren",
+      "spendingLabel": "Ausgaben",
+      "spendingDescription": "Ausgabenberichte, Budgets, Transaktionen und Ereignisse",
       "performanceLabel": "Performance",
       "performanceDescription": "Renditen und Performance-Kennzahlen",
       "incomeLabel": "Erträge",
