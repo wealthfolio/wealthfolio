@@ -1,4 +1,4 @@
-import { devices, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
@@ -8,10 +8,7 @@ test.use({
   hasTouch: true,
 });
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
 });
 

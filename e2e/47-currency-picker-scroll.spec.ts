@@ -24,6 +24,8 @@ async function expectOneScrollingList(page: Page) {
   await page.mouse.wheel(0, 100_000);
   await expect(last).toBeInViewport({ ratio: 1 });
   await page.keyboard.press("Escape");
+  // Closing animates; the next picker would otherwise open beside this one.
+  await expect(page.locator("[cmdk-list]").filter({ visible: true })).toHaveCount(0);
 }
 
 for (const direction of ["ltr", "rtl"] as const) {

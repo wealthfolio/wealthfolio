@@ -1,6 +1,12 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-export const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
+// `pnpm test:e2e` starts one server per Playwright worker and lists them in
+// WF_E2E_WORKER_URLS; a worker uses the one at its parallel index.
+const workerUrls = process.env.WF_E2E_WORKER_URLS?.split(",").filter(Boolean) ?? [];
+export const BASE_URL =
+  process.env.WF_E2E_BASE_URL ||
+  workerUrls[Number(process.env.TEST_PARALLEL_INDEX ?? 0)] ||
+  "http://localhost:1420";
 export const TEST_PASSWORD = "password001";
 
 const ACTIVITY_TYPE_TEST_IDS: Record<string, string> = {

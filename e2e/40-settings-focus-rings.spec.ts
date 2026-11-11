@@ -1,32 +1,33 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { updateSettings, type Settings } from "./api";
 import { BASE_URL } from "./helpers";
 
 // Below 1024px globals.css clips every .flex and .grid (overflow-x: hidden, which also makes
 // them clip vertically). A settings list row or the feature banner must still show a focused
 // switch's whole focus ring and its enlarged touch area.
 
+// The settings each test changed, put back after it for the next spec on this worker.
+let previousSettings: Settings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSettings) await updateSettings(page, previousSettings);
+  previousSettings = undefined;
+});
+
 async function openSettings(page: Page, path: string, direction: string) {
   const state = await (
     await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
   ).json();
-  const session = await (
-    await page.request.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
-      data: { profileId: state.profiles[0].id },
-    })
-  ).json();
-  const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
-    headers: { "x-wf-profile-scope": session.scopeId },
-    data: {
-      baseCurrency: "USD",
-      timezone: "UTC",
-      onboardingCompleted: true,
-      language: "en",
-      theme: "light",
-      syncEnabled: false,
-    },
+  await page.request.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
+    data: { profileId: state.profiles[0].id },
   });
-  expect(settings.ok()).toBeTruthy();
-  expect(await settings.json()).toMatchObject({ baseCurrency: "USD", timezone: "UTC" });
+  previousSettings = await updateSettings(page, {
+    baseCurrency: "USD",
+    timezone: "UTC",
+    onboardingCompleted: true,
+    language: "en",
+    theme: "light",
+    syncEnabled: false,
+  });
   await page.goto(`${BASE_URL}${path}?dir=${direction}`);
 }
 

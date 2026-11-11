@@ -1,39 +1,21 @@
-import { devices, expect, test, type Page } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { devices, expect, test } from "@playwright/test";
+import {
+  createAccount,
+  createActivity,
+  restoreSpendingSettings,
+  uniqueName,
+  useSpendingAccounts,
+} from "./api";
+import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const iphone =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 test.use({ viewport: { width: 390, height: 844 }, userAgent: iphone, hasTouch: true });
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
   await gotoAppPath(page, "/");
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
 });
-
-async function profileRequest(
-  page: Page,
-  url: string,
-  options: { data: unknown; method?: string },
-) {
-  return page.evaluate(
-    async ({ url, options }) => {
-      // Use this application's admitted session; do not unlock or switch profiles.
-      const { profileScope } = await import(
-        new URL("/src/features/profiles/session.ts", location.href).href
-      );
-      const response = await fetch(url, {
-        method: options.method ?? "POST",
-        headers: { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() },
-        body: JSON.stringify(options.data),
-      });
-      return { ok: response.ok, data: await response.json() };
-    },
-    { url, options },
-  );
-}
 
 test("the legacy Add Holding command opens the existing entry dialog", async ({ page }) => {
   await gotoAppPath(page, "/activities/add?tab=holdings");
@@ -106,77 +88,51 @@ test("Android navigation retains destination labels in both orientations", async
 });
 
 test("Spending dashboard opens its transaction form directly", async ({ page }) => {
-  const account = await profileRequest(page, `${BASE_URL}/api/v1/accounts`, {
-    data: {
-      name: "Mobile entry QA",
-      accountType: "CASH",
-      currency: "USD",
-      isActive: true,
-      isDefault: false,
-      isArchived: false,
-      trackingMode: "TRANSACTIONS",
-    },
+  const account = await createAccount(page, {
+    name: uniqueName("Mobile entry QA"),
+    accountType: "CASH",
   });
-  expect(account.ok).toBe(true);
-  const { id } = account.data;
-  const settings = await profileRequest(page, `${BASE_URL}/api/v1/spending/settings`, {
-    method: "PUT",
-    data: { enabled: true, accountIds: [id] },
-  });
-  expect(settings.ok).toBe(true);
-  await gotoAppPath(page, "/?tab=spending");
-  // Spending joins the tabs once settings load; Investments' menu has its own
-  // "Add transaction", which opens the investment form instead.
-  await expect(
-    page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
-  ).toHaveAttribute("aria-current", "page");
-  // Creation lives in the tab's overflow menu.
-  await page.getByRole("button", { name: "More options", exact: true }).first().click();
-  await page.getByRole("button", { name: "Add transaction", exact: true }).click();
-  const form = page.getByRole("dialog", { name: "Add Transaction", exact: true });
-  await expect(form).toBeVisible();
-  await expect(form.getByText("Select Transaction Type", { exact: true })).toBeVisible();
+  const previous = await useSpendingAccounts(page, [account.id]);
+  try {
+    await gotoAppPath(page, "/?tab=spending");
+    // Spending joins the tabs once settings load; Investments' menu has its own
+    // "Add transaction", which opens the investment form instead.
+    await expect(
+      page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+    ).toHaveAttribute("aria-current", "page");
+    // Creation lives in the tab's overflow menu.
+    await page.getByRole("button", { name: "More options", exact: true }).first().click();
+    await page.getByRole("button", { name: "Add transaction", exact: true }).click();
+    const form = page.getByRole("dialog", { name: "Add Transaction", exact: true });
+    await expect(form).toBeVisible();
+    await expect(form.getByText("Select Transaction Type", { exact: true })).toBeVisible();
+  } finally {
+    await restoreSpendingSettings(page, previous);
+  }
 });
 
 test("editor Save stays visible and dismissal preserves a draft until confirmed", async ({
   page,
 }) => {
-  const accountResponse = await profileRequest(page, `${BASE_URL}/api/v1/accounts`, {
-    data: {
-      name: "Mobile editor QA",
-      accountType: "SECURITIES",
-      currency: "USD",
-      isActive: true,
-      isDefault: false,
-      isArchived: false,
-      trackingMode: "TRANSACTIONS",
-    },
+  const symbol = `MOBILEQA${Date.now().toString(36).toUpperCase()}`;
+  const account = await createAccount(page, { name: uniqueName("Mobile editor QA") });
+  await createActivity(page, {
+    accountId: account.id,
+    activityType: "BUY",
+    activityDate: "2024-01-02T15:00:00Z",
+    currency: "USD",
+    quantity: 1,
+    unitPrice: 100,
+    asset: { symbol, name: "Mobile editor asset" },
   });
-  expect(accountResponse.ok).toBe(true);
-  const { id: accountId } = accountResponse.data;
-  const buy = await profileRequest(page, `${BASE_URL}/api/v1/activities`, {
-    data: {
-      accountId,
-      activityType: "BUY",
-      activityDate: "2024-01-02T15:00:00Z",
-      currency: "USD",
-      fee: 0,
-      needsReview: false,
-      quantity: 1,
-      unitPrice: 100,
-      asset: {
-        name: "Mobile editor asset",
-        symbol: "MOBILEQA",
-        kind: "INVESTMENT",
-        quoteCcy: "USD",
-        quoteMode: "MANUAL",
-      },
-    },
-  });
-  expect(buy.ok).toBe(true);
   await gotoAppPath(page, "/settings/securities");
-  await page.getByPlaceholder("Search...").fill("MOBILEQA");
-  await page.getByRole("button", { name: "Open actions", exact: true }).click();
+  await page.getByPlaceholder("Search...").fill(symbol);
+  // The innermost card that names this run's asset.
+  const row = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: symbol })
+    .filter({ hasNot: page.locator('[data-slot="card"]') });
+  await row.getByRole("button", { name: "Open actions", exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog").first();
   await expect(editor.getByRole("button", { name: "Save changes", exact: true })).toBeInViewport();

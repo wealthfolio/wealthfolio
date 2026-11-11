@@ -20,9 +20,27 @@ fixtures; application APIs and persistence are not mocked.
 ### Automated — full suite
 
 The easiest way to run the entire suite. Handles everything automatically:
-prepares a fresh database, starts the web app, waits for both servers, runs
-Playwright, and shuts everything down. `.env.web` is created from
-`.env.web.example` when missing.
+prepares a fresh data directory, builds the web app (`pnpm build:types`, then
+`pnpm build` with `VITE_E2E=true`) and the server, starts one server per
+Playwright worker, runs Playwright, and shuts everything down. `.env.web` is
+created from `.env.web.example` when missing.
+
+- **Built app, not the Vite dev server.** Each server serves the build and the
+  API on one port. Each test opens a fresh browser, and a cold dev-server load
+  fetches about 1,400 modules; on seven specs the build cut the run from 416 s
+  to 293 s. `VITE_E2E=true` keeps the `?dir=` and `?swipe=` test switches, which
+  other production builds strip. Specs can't import `/src/...` modules in the
+  page.
+- **One server and database per worker.** `WF_E2E_WORKERS` (default 4) servers
+  listen on consecutive ports from 8088 (`WF_E2E_BACKEND_URL` moves the first),
+  each with its own folder under the data directory. A worker uses the server at
+  its parallel index (`WF_E2E_WORKER_URLS`, read by `e2e/helpers.ts`).
+- **Onboarding first.** `01-happy-path` (project `onboarding`) runs alone on the
+  first server while it is new; the runner onboards the others through the API.
+  Every other spec (project `chromium`) starts on an onboarded database that
+  earlier specs on the same worker have used: create preconditions through the
+  API (`e2e/api.ts`), name records uniquely, assert only on your own records,
+  and put back app-wide settings you change.
 
 ```bash
 pnpm test:e2e
@@ -128,12 +146,15 @@ npx playwright test && npx playwright show-report
 - **Always run `prep-e2e.mjs` before starting the server.** Tests assume an
   empty database. If you run against an existing database, setup steps may
   silently skip asset creation and tests may fail for unrelated reasons.
-- **Do not run E2E tests against the Tauri desktop app.** The tests default to
-  `http://localhost:1420`; use `WF_E2E_BASE_URL` when that port is occupied.
+- **Do not run E2E tests against the Tauri desktop app.** The manual flow's
+  tests default to `http://localhost:1420` (`WF_E2E_BASE_URL` changes it);
+  `pnpm test:e2e` uses its own servers from port 8088 (`WF_E2E_BACKEND_URL`
+  moves them).
 - **Do not run E2E tests while the Tauri dev server (`pnpm tauri dev`) is
   running** on the same ports — they conflict.
-- Tests run **serially** (1 worker, serial mode). Do not try to parallelize
-  them.
+- Tests in one file run in order; files run in parallel only through
+  `pnpm test:e2e`, which gives each worker its own server and database. Don't
+  raise `--workers` against a single server.
 
 ---
 
@@ -218,7 +239,7 @@ pnpm test:e2e:addon-sandbox
 ```
 
 The top-level application specs do not run in CI. That suite needs a built Rust
-backend on :8088, a seeded database, and serial execution against shared state.
+backend and one server and database per worker (`scripts/run-e2e.mjs`).
 
 Standing that up is its own change — it should add the whole suite as one job,
 not smuggle individual specs in. Until then these specs are a local gate only:

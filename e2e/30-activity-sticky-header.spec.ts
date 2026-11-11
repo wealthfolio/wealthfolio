@@ -1,7 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
+import { restoreSpendingSettings, useSpendingAccounts, type SpendingSettings } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const api = `${BASE_URL}/api/v1`;
+
+// Spending is pointed at each test's own account; put the worker's settings back
+// after it for the next spec.
+let previousSpending: SpendingSettings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSpending = undefined;
+});
 
 /** An account with enough activities for the page to scroll well past its table's top. */
 async function createAccountWithActivities(page: Page, accountType = "SECURITIES") {
@@ -178,10 +187,7 @@ test("Activities keeps the investment table's column header in view", async ({ p
 test("Spending keeps its column header in view like Investments", async ({ page }) => {
   test.setTimeout(120_000);
   const accountId = await createAccountWithActivities(page, "CASH");
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBe(true);
+  previousSpending = await useSpendingAccounts(page, [accountId]);
   await gotoAppPath(page, "/activities?tab=spending");
   await expect(page.getByRole("columnheader", { name: "Name / Notes" })).toBeVisible();
   await expect(
@@ -194,10 +200,7 @@ test("Spending keeps its column header in view like Investments", async ({ page 
 test("Spending keeps rows rendered when the tablet scrollport moves", async ({ page }) => {
   test.setTimeout(120_000);
   const accountId = await createAccountWithActivities(page, "CASH");
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBe(true);
+  previousSpending = await useSpendingAccounts(page, [accountId]);
 
   for (const direction of ["ltr", "rtl"]) {
     for (const width of [768, 1024]) {

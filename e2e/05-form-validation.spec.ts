@@ -1,7 +1,11 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded, selectFirstAccount } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded, selectAccountOption } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
+
+const ACCOUNT_NAME = uniqueName("Form Validation");
+const ACCOUNT_CURRENCY = "USD";
 
 test.describe("Activity Form Validation", () => {
   let page: Page;
@@ -17,6 +21,9 @@ test.describe("Activity Form Validation", () => {
   test("1. Setup: login", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
+    await createAccount(page, { name: ACCOUNT_NAME, currency: ACCOUNT_CURRENCY });
+    // The forms preselect the only account; a second one keeps the field empty.
+    await createAccount(page, { name: uniqueName("Form Validation other"), currency: "CAD" });
     await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("portfolio-balance-value")).toBeVisible({ timeout: 30000 });
   });
@@ -47,7 +54,7 @@ test.describe("Activity Form Validation", () => {
       waitUntil: "domcontentloaded",
     });
 
-    await selectFirstAccount(page);
+    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
 
     await page.getByTestId("amount-input").fill("0");
     await page.getByRole("button", { name: /Add Deposit/i }).click();
@@ -59,8 +66,7 @@ test.describe("Activity Form Validation", () => {
     await page.goto(`${BASE_URL}/activities/manage?type=BUY`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
-    // Select an account
-    await selectFirstAccount(page);
+    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
 
     // Fill quantity and price but NOT symbol
     const quantityInput = page.getByTestId("quantity-input");
@@ -86,8 +92,7 @@ test.describe("Activity Form Validation", () => {
     await page.goto(`${BASE_URL}/activities/manage?type=BUY`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
-    // Select an account
-    await selectFirstAccount(page);
+    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
 
     // Fill quantity as 0
     const quantityInput = page.getByTestId("quantity-input");

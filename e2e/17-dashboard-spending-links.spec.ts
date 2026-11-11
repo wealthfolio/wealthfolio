@@ -1,13 +1,12 @@
 import { expect, Page, test } from "@playwright/test";
 import {
-  BASE_URL,
-  completeOnboardingIfNeeded,
-  gotoActivities,
-  gotoAppPath,
-  openAddActivitySheet,
-  selectAccountOption,
-  selectActivityType,
-} from "./helpers";
+  createAccount,
+  createActivity,
+  restoreSpendingSettings,
+  type SpendingSettings,
+  useSpendingAccounts,
+} from "./api";
+import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -23,6 +22,7 @@ test.describe("Dashboard spending deep links", () => {
   const ACCOUNT_CURRENCY = "CAD";
   const WITHDRAWAL_AMOUNT = 123.45;
   let accountId: string;
+  let previousSpending: SpendingSettings | undefined;
 
   const pad = (value: number) => String(value).padStart(2, "0");
   const toLocalISO = (date: Date) =>
@@ -33,6 +33,7 @@ test.describe("Dashboard spending deep links", () => {
   });
 
   test.afterAll(async () => {
+    if (previousSpending) await restoreSpendingSettings(page, previousSpending);
     await page.close();
   });
 
@@ -40,71 +41,32 @@ test.describe("Dashboard spending deep links", () => {
     test.setTimeout(180000);
     await completeOnboardingIfNeeded(page);
 
-    // Spending only classifies activities from CASH / CREDIT_CARD accounts, and
-    // the account-creation UI defaults to a securities account — create via API.
-    const response = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
-      data: {
+    // Spending only classifies activities from CASH / CREDIT_CARD accounts.
+    accountId = (
+      await createAccount(page, {
         name: ACCOUNT_NAME,
         accountType: "CASH",
         currency: ACCOUNT_CURRENCY,
-        isDefault: false,
-        isActive: true,
-      },
-    });
-    expect(response.ok()).toBe(true);
-    accountId = ((await response.json()) as { id: string }).id;
+      })
+    ).id;
   });
 
   test("2. Create a withdrawal dated today", async () => {
-    await gotoActivities(page);
-    await openAddActivitySheet(page);
-    await selectActivityType(page, "Withdrawal");
-    // Select OUR account by name — earlier specs leave other accounts behind,
-    // and "first account in the picker" lands the withdrawal in one of those
-    // (often a securities account, whose activities spending ignores).
-    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
-
-    // The form defaults to today's date, which lies inside every dashboard
-    // interval (MTD/YTD/...), so we don't need to touch the date field.
-    const dialog = page.getByRole("dialog", { name: "Add Activity" });
-    const amountInput = dialog.getByTestId("amount-input");
-    await expect(amountInput).toBeVisible({ timeout: 5000 });
-    await amountInput.fill(String(WITHDRAWAL_AMOUNT));
-    await amountInput.blur();
-
-    const submitButton = page.getByRole("button", { name: /Add Withdrawal/i });
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
-    await submitButton.click();
-    await expect(page.getByRole("heading", { name: "Add Activity" })).not.toBeVisible({
-      timeout: 20000,
+    // Today lies inside every dashboard interval (MTD/YTD/...).
+    await createActivity(page, {
+      accountId,
+      activityType: "WITHDRAWAL",
+      activityDate: new Date().toISOString(),
+      amount: WITHDRAWAL_AMOUNT,
+      currency: ACCOUNT_CURRENCY,
     });
-
-    // Fail fast if the withdrawal landed in a different account — otherwise
-    // the mistake only surfaces in test 4 as an opaque missing-row timeout.
-    const searchResponse = await page.request.post(`${BASE_URL}/api/v1/activities/search`, {
-      data: {
-        page: 0,
-        pageSize: 10,
-        accountIdFilter: [accountId],
-        activityTypeFilter: ["WITHDRAWAL"],
-      },
-    });
-    expect(searchResponse.ok()).toBe(true);
-    const { data: withdrawals } = (await searchResponse.json()) as {
-      data: { amount: string | number }[];
-    };
-    expect(withdrawals).toHaveLength(1);
-    expect(Number(withdrawals[0].amount)).toBeCloseTo(WITHDRAWAL_AMOUNT, 2);
   });
 
   test("3. Enroll the account for spending via API", async () => {
     // Enroll only the account this spec created: enrolling every account
     // would pull earlier specs' cash activities into the where-it-went
     // rollup and make the assertions below depend on unrelated test data.
-    const updateResponse = await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
-      data: { enabled: true, accountIds: [accountId] },
-    });
-    expect(updateResponse.ok()).toBe(true);
+    previousSpending = await useSpendingAccounts(page, [accountId]);
   });
 
   test("4. Where-it-went row links carry the YTD date range", async () => {

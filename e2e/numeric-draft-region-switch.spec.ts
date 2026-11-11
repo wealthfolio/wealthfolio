@@ -67,27 +67,31 @@ for (const dir of ["ltr", "rtl"] as const) {
       await input.fill("12.34");
       await expect(input).toBeFocused();
 
-      // Changing pages would blur and commit the draft first. Refresh real saved
-      // settings through the existing host API so this remains an active draft.
+      // Changing pages would blur and commit the draft first. Instead, save the
+      // region and run a portfolio update for this account: its completion event
+      // makes the app refetch its queries, settings included, while the draft
+      // stays active. No API responses or parsers are mocked.
       const changed = await page.request.put(`${api}/settings`, {
         headers,
         data: { formattingRegion: "US" },
       });
       expect(changed.ok()).toBe(true);
       const refreshed = page.waitForResponse(
-        (response) =>
+        async (response) =>
           response.request().method() === "GET" &&
-          new URL(response.url()).pathname.endsWith("/settings"),
+          new URL(response.url()).pathname.endsWith("/api/v1/settings") &&
+          (await response.json().catch(() => null))?.formattingRegion === "US",
       );
-      await page.evaluate(async () => {
-        // Vite serves the app's own host bridge; no API responses or parsers are mocked.
-        const modulePath = "/src/addons/addons-runtime-context.ts";
-        const { createAddonHostAPI } = await import(/* @vite-ignore */ modulePath);
-        createAddonHostAPI("numeric-draft-browser-regression").query.refetchQueries("settings");
+      const update = await page.request.post(`${api}/portfolio/update`, {
+        headers,
+        data: {
+          accountIds: [account.id],
+          marketSyncMode: { type: "incremental", asset_ids: [] },
+        },
       });
+      expect(update.ok()).toBe(true);
       const response = await refreshed;
       expect(response.ok()).toBe(true);
-      expect(await response.json()).toMatchObject({ formattingRegion: "US" });
       // Wait for React to apply the settings response, even though the exact draft
       // text correctly stays identical for this invariant-decimal fallback case.
       // The label previews the typed 12.34% share.

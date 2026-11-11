@@ -1,7 +1,16 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { restoreSpendingSettings, useSpendingAccounts, type SpendingSettings } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const api = `${BASE_URL}/api/v1`;
+
+// Spending is pointed at each test's own account; put the worker's settings back
+// after it for the next spec.
+let previousSpending: SpendingSettings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSpending = undefined;
+});
 
 async function createPortfolio(page: Page) {
   await completeOnboardingIfNeeded(page);
@@ -175,10 +184,7 @@ test("Spending preserves scroll during selection and mobile tab switching", asyn
     });
     expect(activity.ok(), await activity.text()).toBeTruthy();
   }
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBeTruthy();
+  previousSpending = await useSpendingAccounts(page, [accountId]);
   await gotoAppPath(page, "/activities?tab=spending");
   // Rows sharing a timestamp list newest-created first, so the last one is on top.
   await expect(page.getByText("Scroll expense 30", { exact: true })).toBeVisible({

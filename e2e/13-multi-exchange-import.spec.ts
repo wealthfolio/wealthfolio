@@ -1,7 +1,8 @@
 import { expect, Locator, Page, test } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
-import { BASE_URL, createAccount, loginIfNeeded, waitForSyncToast } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -9,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, "fixtures");
 const MULTI_EXCHANGE_CSV = path.join(FIXTURES, "multi-exchange-import.csv");
 
-const IMPORT_ACCOUNT = "Multi-Exchange EUR Account";
+const IMPORT_ACCOUNT = uniqueName("Multi-Exchange EUR Account");
 
 async function selectImportAccount(page: Page, accountName: string) {
   const selectorTrigger = page.getByRole("combobox", { name: /Select an account/i });
@@ -48,6 +49,7 @@ function rowFor(page: Page, symbol: string): Locator {
 
 test.describe("Issue #855 — symbol resolution and region classification", () => {
   let page: Page;
+  let accountId: string;
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
@@ -60,7 +62,7 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
   test("0. Setup: login and create EUR import account", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
-    await createAccount(page, IMPORT_ACCOUNT, "EUR", "Transactions");
+    accountId = (await createAccount(page, { name: IMPORT_ACCOUNT, currency: "EUR" })).id;
   });
 
   test("1. Upload CSV and reach asset-review step", async () => {
@@ -240,10 +242,11 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 120000 });
   });
 
-  test("12. Holdings page shows imported assets across exchanges and currencies", async () => {
+  test("12. Account holdings show imported assets across exchanges and currencies", async () => {
     test.setTimeout(120000);
 
-    await page.goto(`${BASE_URL}/holdings`, { waitUntil: "domcontentloaded" });
+    // The account page lists only this spec's holdings, not other specs' on the same database.
+    await page.goto(`${BASE_URL}/accounts/${accountId}`, { waitUntil: "domcontentloaded" });
     await waitForSyncToast(page, 90000);
     await page.waitForTimeout(2000);
 

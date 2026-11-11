@@ -1,9 +1,10 @@
 import { expect, Page, test } from "@playwright/test";
-import { createAccount, gotoActivities, loginIfNeeded, waitForSyncToast } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { gotoActivities, loginIfNeeded, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
-const ACCOUNT_NAME = "Bulk Holdings Test";
+const ACCOUNT_NAME = uniqueName("Bulk Holdings Test");
 const ACCOUNT_CURRENCY = "USD";
 
 /** Search for a symbol in an open ticker search popover, wait for results, and click the match. */
@@ -41,7 +42,7 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
   test("1. Login and create test account", async () => {
     test.setTimeout(120000);
     await loginIfNeeded(page);
-    await createAccount(page, ACCOUNT_NAME, ACCOUNT_CURRENCY, "Transactions");
+    await createAccount(page, { name: ACCOUNT_NAME, currency: ACCOUNT_CURRENCY });
   });
 
   test("2. Add holdings and submit", async () => {

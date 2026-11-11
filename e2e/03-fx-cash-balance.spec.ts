@@ -1,7 +1,7 @@
 import { expect, Page, test } from "@playwright/test";
+import { createAccount, deposit, uniqueName } from "./api";
 import {
   completeOnboardingIfNeeded,
-  createAccount,
   gotoActivities,
   gotoAppPath,
   selectAccountOption,
@@ -11,9 +11,10 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("FX Cash Balance - Cross-currency Buy", () => {
   let page: Page;
+  let accountId: string;
 
   // Test scenario: EUR account buys USD-denominated asset
-  const ACCOUNT_NAME = "FX Test EUR";
+  const ACCOUNT_NAME = uniqueName("FX Test EUR");
   const ACCOUNT_CURRENCY = "EUR";
   const DEPOSIT_AMOUNT = 10000;
 
@@ -89,6 +90,13 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     await page.waitForTimeout(100);
   }
 
+  function isoDaysAgo(daysAgo: number) {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    date.setHours(10, 0, 0, 0);
+    return date.toISOString();
+  }
+
   async function waitForOverlayClose() {
     await page
       .locator('[data-slot$="-overlay"][data-open]')
@@ -117,40 +125,12 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
   });
 
   test("2. Create EUR account", async () => {
-    await createAccount(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
+    accountId = (await createAccount(page, { name: ACCOUNT_NAME, currency: ACCOUNT_CURRENCY })).id;
   });
 
   test("3. Deposit 10,000 EUR", async () => {
-    await gotoActivities(page);
-
-    await openAddActivitySheet();
-
-    // Select Deposit type
-    const depositButton = page.getByTestId("activity-type-deposit");
-    await depositButton.click();
-    await page.waitForTimeout(200);
-
-    // Select account
-    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
-
-    // Fill date (15 days ago - before the buy)
-    await fillDateField(page, 15);
-
-    // Fill amount
-    const amountInput = page.getByTestId("amount-input");
-    await amountInput.fill(String(DEPOSIT_AMOUNT));
-    await amountInput.blur();
-    await page.waitForTimeout(200);
-
-    // Submit
-    const submitButton = page.getByRole("button", { name: /Add Deposit/i });
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
-    await submitButton.click();
-
-    await expect(page.getByRole("heading", { name: "Add Activity" })).not.toBeVisible({
-      timeout: 20000,
-    });
-    await page.waitForTimeout(500);
+    // 15 days ago - before the buy
+    await deposit(page, accountId, DEPOSIT_AMOUNT, ACCOUNT_CURRENCY, isoDaysAgo(15));
   });
 
   test("4. Buy PANW (USD) from EUR account with FX rate", async () => {
@@ -238,16 +218,8 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     await gotoAppPath(page, "/dashboard");
     await page.waitForTimeout(3000);
 
-    // Navigate to accounts list
-    await gotoAppPath(page, "/settings/accounts");
-    await expect(
-      page.getByTestId("settings-accounts-page").filter({ visible: true }).first(),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click on the EUR test account to go to its detail page
-    const accountLink = page.getByRole("link", { name: ACCOUNT_NAME });
-    await expect(accountLink).toBeVisible({ timeout: 10000 });
-    await accountLink.click();
+    // Go to the EUR test account's detail page
+    await gotoAppPath(page, `/accounts/${accountId}`);
 
     // Wait for the account metrics and read the cash balance value directly
     const cashBalance = page.getByTestId("account-cash-balance-value");

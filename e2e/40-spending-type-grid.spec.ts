@@ -1,4 +1,11 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import {
+  restoreSpendingSettings,
+  seedSpendingAccounts,
+  translator,
+  updateSettings,
+  type Settings,
+} from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
@@ -8,50 +15,21 @@ test.use({
   hasTouch: true,
 });
 
-async function seedAccounts(page: Page) {
-  await page.evaluate(async () => {
-    const { profileScope } = await import(
-      new URL("/src/features/profiles/session.ts", location.href).href
-    );
-    const headers = { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() };
-    const ids = [];
-    for (const [name, accountType] of [
-      ["Grid bank", "CASH"],
-      ["Grid card", "CREDIT_CARD"],
-    ]) {
-      const response = await fetch("/api/v1/accounts", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name,
-          accountType,
-          currency: "USD",
-          isActive: true,
-          isDefault: false,
-          isArchived: false,
-          trackingMode: "TRANSACTIONS",
-        }),
-      });
-      if (!response.ok) throw new Error("Could not seed spending account");
-      ids.push((await response.json()).id);
-    }
-    const response = await fetch("/api/v1/spending/settings", {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ enabled: true, accountIds: ids }),
-    });
-    if (!response.ok) throw new Error("Could not enable spending fixture");
-  });
-}
+let seeded: Awaited<ReturnType<typeof seedSpendingAccounts>> | undefined;
+let previousSettings: Settings | undefined;
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
+  seeded = await seedSpendingAccounts(page, "Grid");
   await gotoAppPath(page, "/");
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-  await seedAccounts(page);
+});
+
+test.afterEach(async ({ page }) => {
+  if (previousSettings) await updateSettings(page, previousSettings);
+  if (seeded) await restoreSpendingSettings(page, seeded.previous);
+  previousSettings = undefined;
+  seeded = undefined;
 });
 
 for (const scenario of [
@@ -63,37 +41,41 @@ for (const scenario of [
   test(`Spending grid preserves account-specific choices at ${scenario.width}px, ${scenario.language}, ${scenario.largeText ? "large" : "default"} text`, async ({
     page,
   }) => {
+    const { bank, card } = seeded!;
+    previousSettings = await updateSettings(page, {
+      language: scenario.language,
+      textSize: scenario.largeText ? "extra-large" : "default",
+    });
+    const t = translator(scenario.language);
+    const copy = {
+      spending: t("dashboard:tabs.spending"),
+      moreOptions: t("common:layout.more_options"),
+      addTransaction: t("spending:txTab.addTransaction"),
+      account: t("common:account"),
+      next: t("common:next"),
+      back: t("common:back"),
+      deposit: t("activity:type_deposit"),
+      withdrawal: t("activity:type_withdrawal"),
+      charge: t("spending:activityTypes.charge"),
+      fee: t("activity:type_fee"),
+      refund: t("spending:activityTypes.refundCredit"),
+      withdrawalDescription: t("spending:cashForm.descWithdrawal"),
+      creditDescription: t("spending:cashForm.descCredit"),
+    };
     await page.setViewportSize({ width: scenario.width, height: 844 });
     await gotoAppPath(page, `/?tab=spending&dir=${scenario.direction}`);
     // Spending joins the tabs once settings load; Investments' menu has its own
     // "Add transaction", which opens the investment form instead.
     await expect(
-      page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
+      page.getByRole("button", { name: copy.spending, exact: true }).filter({ visible: true }),
     ).toHaveAttribute("aria-current", "page");
-    await page.getByRole("button", { name: "More options", exact: true }).first().click();
-    await page.getByRole("button", { name: "Add transaction", exact: true }).click();
+    await page.getByRole("button", { name: copy.moreOptions, exact: true }).first().click();
+    await page.getByRole("button", { name: copy.addTransaction, exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    const copy = await page.evaluate(async ({ language, largeText }) => {
-      const { default: i18n } = await import(new URL("/src/i18n/i18n.ts", location.href).href);
-      await i18n.changeLanguage(language);
-      if (largeText) document.documentElement.dataset.textSize = "extra-large";
-      return {
-        account: i18n.t("common:account"),
-        next: i18n.t("common:next"),
-        back: i18n.t("common:back"),
-        deposit: i18n.t("activity:type_deposit"),
-        withdrawal: i18n.t("activity:type_withdrawal"),
-        charge: i18n.t("spending:activityTypes.charge"),
-        fee: i18n.t("activity:type_fee"),
-        refund: i18n.t("spending:activityTypes.refundCredit"),
-        withdrawalDescription: i18n.t("spending:cashForm.descWithdrawal"),
-        creditDescription: i18n.t("spending:cashForm.descCredit"),
-      };
-    }, scenario);
     const account = dialog.getByRole("combobox", { name: copy.account, exact: true });
     await account.click();
-    await page.getByRole("option", { name: /^Grid bank\b/ }).click();
+    await page.getByRole("option", { name: bank.name }).click();
     const grid = dialog.getByRole("radiogroup");
     const bankHeight = (await dialog.boundingBox())!.height;
     await expect(grid.getByRole("radio")).toHaveCount(6);
@@ -154,7 +136,7 @@ for (const scenario of [
     expect(writes).toHaveLength(0);
 
     await account.click();
-    await page.getByRole("option", { name: /^Grid card\b/ }).click();
+    await page.getByRole("option", { name: card.name }).click();
     await expect(grid.getByRole("radio")).toHaveCount(4);
     if (!scenario.largeText)
       expect((await dialog.boundingBox())!.height).toBeLessThan(bankHeight - 32);

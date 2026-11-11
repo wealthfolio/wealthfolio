@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { ImportTemplateData } from "../apps/frontend/src/lib/types";
-import { BASE_URL, createAccount, loginIfNeeded } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded } from "./helpers";
 
 async function saveTemplate(page: Page, buttonName: string): Promise<ImportTemplateData> {
   const [response] = await Promise.all([
@@ -20,14 +21,10 @@ for (const direction of ["ltr", "rtl"]) {
   test(`CSV template saving without randomUUID (${direction})`, async ({ page }) => {
     test.setTimeout(180_000);
     await loginIfNeeded(page);
-    const accountName = `Template saving ${direction}`;
-    await createAccount(page, accountName, "USD", "Transactions");
-    await page.goto(`${BASE_URL}/import?dir=${direction}`);
+    const account = await createAccount(page, { name: `Template saving ${direction}` });
+    await page.goto(`${BASE_URL}/import?account=${account.id}&dir=${direction}`);
     await expect(page.locator("html")).toHaveAttribute("dir", direction);
 
-    await page.getByRole("combobox", { name: /Select an account/i }).click();
-    await page.getByPlaceholder("Search accounts...").fill(accountName);
-    await page.getByRole("option", { name: new RegExp(accountName) }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: "template.csv",
       mimeType: "text/csv",
@@ -35,7 +32,9 @@ for (const direction of ["ltr", "rtl"]) {
     });
     await page.getByRole("button", { name: "Configure Mapping" }).click();
     const nameInput = page.getByRole("textbox", { name: "Template Name", exact: true });
-    await nameInput.fill(`CSV template ${direction}`);
+    // Unique per run: a rerun on the same database would list two of each name.
+    const templateName = uniqueName(`CSV template ${direction}`);
+    await nameInput.fill(templateName);
 
     // Reproduce browsers where randomUUID is unavailable while getRandomValues works.
     await page.evaluate(() => {
@@ -49,12 +48,12 @@ for (const direction of ["ltr", "rtl"]) {
     expect(saved.id).toMatch(/^[A-Za-z0-9_-]{21}$/);
     expect(saved.scope).toBe("USER");
 
-    await nameInput.fill(`Updated CSV template ${direction}`);
+    await nameInput.fill(`Updated ${templateName}`);
     const updated = await saveTemplate(page, "Update Template");
     expect(updated.id).toBe(saved.id);
-    expect(updated.name).toBe(`Updated CSV template ${direction}`);
+    expect(updated.name).toBe(`Updated ${templateName}`);
 
-    await nameInput.fill(`Copied CSV template ${direction}`);
+    await nameInput.fill(`Copied ${templateName}`);
     const copied = await saveTemplate(page, "Save as New");
     expect(copied.id).toMatch(/^[A-Za-z0-9_-]{21}$/);
     expect(copied.id).not.toBe(saved.id);

@@ -66,10 +66,7 @@ for (const direction of ["ltr", "rtl"]) {
         accountId: account.id,
       });
 
-      await page.goto(`${BASE_URL}/import?dir=${direction}`);
-      await page.getByRole("combobox", { name: /Select an account/i }).click();
-      await page.getByPlaceholder("Search accounts...").fill(account.name);
-      await page.getByRole("option", { name: `${account.name} (USD)`, exact: true }).click();
+      await page.goto(`${BASE_URL}/import?account=${account.id}&dir=${direction}`);
       await page.locator('input[type="file"]').setInputFiles({
         name: `savings-withdrawal-${direction}.csv`,
         mimeType: "text/csv",

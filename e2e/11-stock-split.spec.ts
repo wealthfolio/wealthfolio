@@ -1,8 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
+import { api, createAccount, deposit, uniqueName } from "./api";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
-  createAccount,
   fillDateField,
   gotoActivities,
   gotoAppPath,
@@ -17,10 +17,11 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("Stock split adjusts holdings shares", () => {
   let page: Page;
+  let accountId: string;
 
   // Use a dedicated account + symbol so this spec is isolated from others
   // (specs share a single fresh DB across the run).
-  const ACCOUNT_NAME = "Split Test Account";
+  const ACCOUNT_NAME = uniqueName("Split Test Account");
   const CURRENCY = "USD";
   const SYMBOL = "TSLA";
   const INITIAL_SHARES = 30;
@@ -64,11 +65,7 @@ test.describe("Stock split adjusts holdings shares", () => {
   }
 
   async function gotoAccountPage() {
-    await gotoAppPath(page, "/settings/accounts");
-    const link = page.getByRole("link", { name: ACCOUNT_NAME });
-    await expect(link).toBeVisible({ timeout: 10000 });
-    await link.click();
-    await expect(page).toHaveURL(/\/accounts\/[^/]+/, { timeout: 10000 });
+    await gotoAppPath(page, `/accounts/${accountId}`);
     // Holdings table should appear (the account has at least one position once
     // we've executed the buy)
     await expect(page.locator("table").first()).toBeVisible({ timeout: 15000 });
@@ -142,35 +139,39 @@ test.describe("Stock split adjusts holdings shares", () => {
   });
 
   test("2. Create dedicated split-test account", async () => {
-    await createAccount(page, ACCOUNT_NAME, CURRENCY);
+    accountId = (await createAccount(page, { name: ACCOUNT_NAME, currency: CURRENCY })).id;
   });
 
   test("3. Deposit + buy seeds the position with 30 shares", async () => {
     test.setTimeout(120_000);
 
     // Deposit ahead of the buy
-    await gotoActivities(page);
-    await openAddActivitySheet(page);
-    await selectActivityType(page, "Deposit");
-    await selectAccount(ACCOUNT_NAME, CURRENCY);
-    await fillDateField(page, daysAgoFromIso(DEPOSIT_DATE));
-    await fillTestId("amount-input", 50_000);
-    await submitForm(/Add Deposit/i);
+    await deposit(page, accountId, 50_000, CURRENCY, `${DEPOSIT_DATE}T10:00:00.000Z`);
 
     // Buy 30 TSLA at the actual pre-split close on 2020-01-15 (~$103).
     // Recording the real raw price means the snapshot's split-adjusted
     // average cost ($103 / 15 ≈ $6.87) lines up with Yahoo's adjusted history
     // and the displayed market value reflects TSLA's true run-up rather than
     // looking like the cost basis was multiplied by the split factor.
-    await gotoActivities(page);
-    await openAddActivitySheet(page);
-    await selectActivityType(page, "Buy");
-    await selectAccount(ACCOUNT_NAME, CURRENCY);
-    await searchAndSelectSymbol(page, SYMBOL);
-    await fillDateField(page, daysAgoFromIso(BUY_DATE));
-    await fillTestId("quantity-input", INITIAL_SHARES);
-    await fillTestId("price-input", BUY_PRICE);
-    await submitForm(/Add Buy/i);
+    // The market-quoted asset is the one the Split form's symbol search picks.
+    await api(page, "POST", "/activities", {
+      accountId,
+      activityType: "BUY",
+      activityDate: `${BUY_DATE}T10:00:00.000Z`,
+      asset: {
+        symbol: SYMBOL,
+        quoteMode: "MARKET",
+        quoteCcy: CURRENCY,
+        instrumentType: "EQUITY",
+        exchangeMic: "XNAS",
+      },
+      quantity: INITIAL_SHARES,
+      unitPrice: BUY_PRICE,
+      amount: INITIAL_SHARES * BUY_PRICE,
+      currency: CURRENCY,
+      fee: 0,
+    });
+    await triggerFullRecalculation();
 
     await gotoAccountPage();
     await expectSharesInHoldings(INITIAL_SHARES);

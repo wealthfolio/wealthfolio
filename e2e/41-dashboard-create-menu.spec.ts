@@ -1,4 +1,5 @@
-import { devices, expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+import { restoreSpendingSettings, seedSpendingAccounts } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
@@ -22,56 +23,25 @@ async function tapArea(control: Locator) {
   });
 }
 
-async function seedAccounts(page: Page) {
-  await page.evaluate(async () => {
-    const { profileScope } = await import(
-      new URL("/src/features/profiles/session.ts", location.href).href
-    );
-    const headers = { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() };
-    const ids = [];
-    for (const [name, accountType] of [
-      ["Grid bank", "CASH"],
-      ["Grid card", "CREDIT_CARD"],
-    ]) {
-      const response = await fetch("/api/v1/accounts", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name,
-          accountType,
-          currency: "USD",
-          isActive: true,
-          isDefault: false,
-          isArchived: false,
-          trackingMode: "TRANSACTIONS",
-        }),
-      });
-      if (!response.ok) throw new Error("Could not seed spending account");
-      ids.push((await response.json()).id);
-    }
-    const response = await fetch("/api/v1/spending/settings", {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ enabled: true, accountIds: ids }),
-    });
-    if (!response.ok) throw new Error("Could not enable spending fixture");
-  });
-}
+let seeded: Awaited<ReturnType<typeof seedSpendingAccounts>> | undefined;
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
+  seeded = await seedSpendingAccounts(page, "Grid");
   await gotoAppPath(page, "/");
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-  await seedAccounts(page);
+});
+
+test.afterEach(async ({ page }) => {
+  if (seeded) await restoreSpendingSettings(page, seeded.previous);
+  seeded = undefined;
 });
 
 for (const direction of ["ltr", "rtl"] as const) {
   test(`contextual creation menu and direct Spending entries at 320px ${direction}`, async ({
     page,
   }) => {
+    const { bank, card } = seeded!;
     await page.setViewportSize({ width: 320, height: 844 });
     await gotoAppPath(page, `/?tab=spending&dir=${direction}`);
     // Spending joins the tabs once settings load; until then the header shows
@@ -98,7 +68,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     const save = dialog.getByRole("button", { name: "Add expense", exact: true });
     await expect(save).toBeEnabled();
     await account.click();
-    await page.getByRole("option", { name: /^Grid card\b/ }).click();
+    await page.getByRole("option", { name: card.name }).click();
     await amount.fill("12.50");
     const created = page.waitForResponse(
       (response) =>
@@ -119,11 +89,11 @@ for (const direction of ["ltr", "rtl"] as const) {
     dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "Add income" })).toBeVisible();
     await expect(dialog.getByRole("combobox", { name: "Account", exact: true })).toContainText(
-      "Grid bank",
+      bank.name,
     );
     await dialog.getByRole("combobox", { name: "Account", exact: true }).click();
-    await expect(page.getByRole("option", { name: /^Grid card\b/ })).toHaveCount(0);
-    await page.getByRole("option", { name: /^Grid bank\b/ }).click();
+    await expect(page.getByRole("option", { name: card.name })).toHaveCount(0);
+    await page.getByRole("option", { name: bank.name }).click();
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page).not.toHaveURL(/transactions\/new/);
 

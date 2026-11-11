@@ -1,7 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
-import { BASE_URL, createAccount, loginIfNeeded } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -9,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, "fixtures");
 const KWEB_NO_CURRENCY_CSV = path.join(FIXTURES, "cad-account-usd-symbol-import.csv");
 
-const IMPORT_ACCOUNT = "Currency Resolution Import Account";
+const IMPORT_ACCOUNT = uniqueName("Currency Resolution Import Account");
 
 async function selectImportAccount(page: Page, accountName: string) {
   const selectorTrigger = page.getByRole("combobox", { name: /Select an account/i });
@@ -27,8 +28,8 @@ async function selectImportAccount(page: Page, accountName: string) {
   await page.waitForTimeout(300);
 }
 
-async function searchImportedKwebActivity(page: Page) {
-  return page.evaluate(async () => {
+async function searchImportedKwebActivity(page: Page, accountId: string) {
+  return page.evaluate(async (accountId) => {
     const response = await fetch("/api/v1/activities/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,6 +37,7 @@ async function searchImportedKwebActivity(page: Page) {
       body: JSON.stringify({
         page: 0,
         pageSize: 10,
+        accountIdFilter: [accountId],
         assetIdKeyword: "KWEB",
         sort: { id: "date", desc: true },
       }),
@@ -56,12 +58,8 @@ async function searchImportedKwebActivity(page: Page) {
       }>;
     };
 
-    return payload.data.find(
-      (activity) =>
-        activity.accountName === "Currency Resolution Import Account" &&
-        activity.assetSymbol === "KWEB",
-    );
-  });
+    return payload.data.find((activity) => activity.assetSymbol === "KWEB");
+  }, accountId);
 }
 
 test.describe("CSV import currency resolution", () => {
@@ -79,7 +77,7 @@ test.describe("CSV import currency resolution", () => {
     test.setTimeout(180000);
 
     await loginIfNeeded(page);
-    await createAccount(page, IMPORT_ACCOUNT, "CAD", "Transactions");
+    const account = await createAccount(page, { name: IMPORT_ACCOUNT, currency: "CAD" });
 
     await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /Import Activities/i })).toBeVisible({
@@ -131,7 +129,7 @@ test.describe("CSV import currency resolution", () => {
 
     await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 60000 });
 
-    const imported = await searchImportedKwebActivity(page);
+    const imported = await searchImportedKwebActivity(page, account.id);
     expect(imported).toMatchObject({
       accountName: IMPORT_ACCOUNT,
       accountCurrency: "CAD",

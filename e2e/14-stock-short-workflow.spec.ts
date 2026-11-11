@@ -1,8 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
+import { api, createAccount, uniqueName } from "./api";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
-  createAccount,
   fillDateField,
   gotoActivities,
   loginIfNeeded,
@@ -11,19 +11,6 @@ import {
   selectActivityType,
   waitForSyncToast,
 } from "./helpers";
-
-interface AccountPayload {
-  id: string;
-  name: string;
-  currency: string;
-}
-
-interface AssetPayload {
-  id: string;
-  displayCode?: string | null;
-  instrumentSymbol?: string | null;
-  instrumentType?: string | null;
-}
 
 interface HoldingPayload {
   quantity: number | string;
@@ -77,7 +64,7 @@ interface ShortStateSummary {
   assetLots: AssetLotSummary[];
 }
 
-const STOCK_SHORT_ACCOUNT = "E2E Stock Short Account";
+const STOCK_SHORT_ACCOUNT = uniqueName("E2E Stock Short Account");
 const STOCK_SHORT_SYMBOL = "AAPL";
 const ACCOUNT_CURRENCY = "USD";
 
@@ -90,8 +77,10 @@ test.describe("Stock short workflow", () => {
     test.setTimeout(180000);
     await completeOnboardingIfNeeded(page);
     await loginIfNeeded(page);
-    await createAccount(page, STOCK_SHORT_ACCOUNT, ACCOUNT_CURRENCY);
-    const account = await getAccountByName(page, STOCK_SHORT_ACCOUNT);
+    const account = await createAccount(page, {
+      name: STOCK_SHORT_ACCOUNT,
+      currency: ACCOUNT_CURRENCY,
+    });
 
     await gotoActivities(page);
     await assertBuyFormDoesNotOfferBuyShort(page);
@@ -104,7 +93,7 @@ test.describe("Stock short workflow", () => {
       daysAgo: 9,
       submitLabel: "Sell Short",
     });
-    const assetId = await getAssetIdForSymbol(page, STOCK_SHORT_SYMBOL);
+    const assetId = await getTradedAssetId(page, account.id);
     await expectShortState(page, account.id, assetId, {
       holding: {
         quantity: -10,
@@ -285,22 +274,17 @@ async function searchAndSelectSymbol(
   await symbolOption.click();
 }
 
-async function getAccountByName(page: Page, accountName: string): Promise<AccountPayload> {
-  const accounts = await apiGet<AccountPayload[]>(page, "/accounts");
-  const account = accounts.find((candidate) => candidate.name === accountName);
-  expect(account, `Expected account ${accountName} to exist`).toBeTruthy();
-  return account!;
-}
-
-async function getAssetIdForSymbol(page: Page, symbol: string): Promise<string> {
-  const assets = await apiGet<AssetPayload[]>(page, "/assets");
-  const asset = assets.find(
-    (candidate) =>
-      candidate.displayCode === symbol ||
-      (candidate.instrumentSymbol === symbol && candidate.instrumentType === "EQUITY"),
+/** The asset of the short sale this spec recorded, not any other asset coded AAPL. */
+async function getTradedAssetId(page: Page, accountId: string): Promise<string> {
+  const { data } = await api<{ data: Array<{ assetId: string; assetSymbol: string }> }>(
+    page,
+    "POST",
+    "/activities/search",
+    { page: 0, pageSize: 10, accountIdFilter: [accountId] },
   );
-  expect(asset, `Expected ${symbol} asset to exist`).toBeTruthy();
-  return asset!.id;
+  const activity = data.find((candidate) => candidate.assetSymbol === STOCK_SHORT_SYMBOL);
+  expect(activity, `Expected a ${STOCK_SHORT_SYMBOL} activity in the account`).toBeTruthy();
+  return activity!.assetId;
 }
 
 async function expectShortState(

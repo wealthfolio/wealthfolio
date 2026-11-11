@@ -1,5 +1,13 @@
-import { devices, expect, test, type Page } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { expect, test } from "@playwright/test";
+import {
+  restoreSpendingSettings,
+  seedSpendingAccounts,
+  translator,
+  updateSettings,
+  type Settings,
+  type SpendingSettings,
+} from "./api";
+import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -8,58 +16,22 @@ test.use({
   hasTouch: true,
 });
 
-async function seedAccounts(page: Page) {
-  await page.evaluate(async () => {
-    const { profileScope } = await import(
-      new URL("/src/features/profiles/session.ts", location.href).href
-    );
-    const headers = { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() };
-    const ids = [];
-    for (const [name, accountType] of [
-      ["Grid bank", "CASH"],
-      ["Grid card", "CREDIT_CARD"],
-    ]) {
-      const response = await fetch("/api/v1/accounts", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name,
-          accountType,
-          currency: "USD",
-          isActive: true,
-          isDefault: false,
-          isArchived: false,
-          trackingMode: "TRANSACTIONS",
-        }),
-      });
-      if (!response.ok) throw new Error("Could not seed spending account");
-      ids.push((await response.json()).id);
-    }
-    const response = await fetch("/api/v1/spending/settings", {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ enabled: true, accountIds: ids }),
-    });
-    if (!response.ok) throw new Error("Could not enable spending fixture");
-  });
-}
+let previousSpending: SpendingSettings | undefined;
+let previousSettings: Settings | undefined;
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
+  previousSpending = (await seedSpendingAccounts(page, "Grid")).previous;
   await gotoAppPath(page, "/");
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-  await seedAccounts(page);
 });
 
-// Later specs expect English at the default text size.
+// Later specs expect the language and text size this worker started with.
 test.afterEach(async ({ page }) => {
-  const reset = await page.request.put(`${BASE_URL}/api/v1/settings`, {
-    data: { language: "en", textSize: "default" },
-  });
-  expect(reset.ok(), await reset.text()).toBeTruthy();
+  if (previousSettings) await updateSettings(page, previousSettings);
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSettings = undefined;
+  previousSpending = undefined;
 });
 
 for (const scenario of [
@@ -71,41 +43,32 @@ for (const scenario of [
   }) => {
     test.setTimeout(60000);
     await page.setViewportSize({ width: scenario.width, height: 844 });
-    await page.evaluate(async ({ language }) => {
-      const { profileScope } = await import(
-        new URL("/src/features/profiles/session.ts", location.href).href
-      );
-      const response = await fetch("/api/v1/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() },
-        body: JSON.stringify({ language, textSize: language === "ar" ? "extra-large" : "default" }),
-      });
-      if (!response.ok) throw new Error("Could not configure test language");
-    }, scenario);
+    previousSettings = await updateSettings(page, {
+      language: scenario.language,
+      textSize: scenario.language === "ar" ? "extra-large" : "default",
+    });
     await gotoAppPath(page, `/?dir=${scenario.direction}`);
-    const copy = await page.evaluate(async ({ language }) => {
-      const { default: i18n } = await import(new URL("/src/i18n/i18n.ts", location.href).href);
-      await i18n.changeLanguage(language);
-      if (language === "ar") document.documentElement.dataset.textSize = "extra-large";
-      const keys = {
-        add: "common:add",
-        transaction: "common:component.add_transaction",
-        expense: "spending:cashForm.addExpense",
-        income: "spending:cashForm.addIncome",
-        holdings: "common:component.add_holding",
-        search: "common:search",
-        appearance: "common:component.launcher_appearance",
-        bulkTitle: "activity:form.bulk_add_existing_title",
-        symbolTitle: "common:component.select_symbol_title",
-        symbolPlaceholder: "common:search_symbol",
-        custom: "common:component.create_custom_manual",
-        shares: "activity:form.bulk_col_shares",
-        cost: "activity:form.bulk_col_average_cost",
-        purchase: "common:component.record_buy",
-        launcherPlaceholder: "common:component.search_actions_holdings_accounts",
-      };
-      return Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, i18n.t(value)]));
-    }, scenario);
+    const t = translator(scenario.language);
+    const keys = {
+      add: "common:add",
+      transaction: "common:component.add_transaction",
+      expense: "spending:cashForm.addExpense",
+      income: "spending:cashForm.addIncome",
+      holdings: "common:component.add_holding",
+      search: "common:search",
+      appearance: "common:component.launcher_appearance",
+      bulkTitle: "activity:form.bulk_add_existing_title",
+      symbolTitle: "common:component.select_symbol_title",
+      symbolPlaceholder: "common:search_symbol",
+      custom: "common:component.create_custom_manual",
+      shares: "activity:form.bulk_col_shares",
+      cost: "activity:form.bulk_col_average_cost",
+      purchase: "common:component.record_buy",
+      launcherPlaceholder: "common:component.search_actions_holdings_accounts",
+    };
+    const copy = Object.fromEntries(
+      Object.entries(keys).map(([key, value]) => [key, t(value)]),
+    ) as Record<keyof typeof keys, string>;
     await page.getByRole("link", { name: copy.search, exact: true }).click();
     const drawer = page.getByRole("dialog");
     const add = drawer.getByRole("group", { name: copy.add, exact: true });
