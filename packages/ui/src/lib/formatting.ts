@@ -593,9 +593,21 @@ function monthTokens(locale: string): Map<string, number> {
   if (cached) return cached;
 
   const tokens = new Map<string, number>();
+  const ambiguous = new Set<string>();
+  const addToken = (token: string, month: number) => {
+    const known = tokens.get(token);
+    if (known !== undefined && known !== month) ambiguous.add(token);
+    tokens.set(token, month);
+  };
   const formatters = [
     new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }),
     new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }),
+  ];
+  // Some locales (Russian, Polish, Catalan) inflect the month inside a date
+  // ("15 января", not the standalone "январь"), so also read the in-date forms.
+  const inDateFormatters = [
+    new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }),
+    new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }),
   ];
   const numericFormatter = new Intl.DateTimeFormat(locale, {
     month: "numeric",
@@ -616,9 +628,19 @@ function monthTokens(locale: string): Map<string, number> {
       // token such as the `3` in "Jul 3, 2026" look like March.
       const name = formatter.format(date);
       if (!name) continue;
-      for (const token of normalizedDateTokens(name, locale)) tokens.set(token, month);
+      for (const token of normalizedDateTokens(name, locale)) addToken(token, month);
+    }
+    for (const formatter of inDateFormatters) {
+      const part = formatter.formatToParts(date).find((p) => p.type === "month")?.value;
+      // Only a word counts: ja-JP gives the bare digit "1" (see above), and
+      // native digits would equally turn a day into a month.
+      if (!part || !/\p{L}/u.test(part)) continue;
+      for (const token of normalizedDateTokens(part, locale)) addToken(token, month);
     }
   }
+  // A word shared by every in-date month (Catalan "de gener", "de març") says
+  // nothing about which month it is.
+  for (const token of ambiguous) tokens.delete(token);
   localizedMonths.set(locale, tokens);
   return tokens;
 }

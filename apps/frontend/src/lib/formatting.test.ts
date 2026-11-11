@@ -254,6 +254,29 @@ describe("locale formatting", () => {
     expect(parseLocalizedDate(value, "ja-JP")).toEqual(expected);
   });
 
+  it.each([
+    ["15 января 2026 г.", new Date(2026, 0, 15)],
+    ["15 мая 2026 г.", new Date(2026, 4, 15)],
+  ])("parses the Russian in-date month form in %s", (value, expected) => {
+    expect(parseLocalizedDate(value, "ru-RU")).toEqual(expected);
+  });
+
+  it.each(["medium", "long"] as const)(
+    "round-trips all twelve Russian months with dateStyle %s",
+    (dateStyle) => {
+      const russian = createFormatter("ru-RU");
+      for (let month = 0; month < 12; month++) {
+        const iso = `2026-${String(month + 1).padStart(2, "0")}-15`;
+        const rendered = russian.formatCalendarDate(iso, { dateStyle });
+        expect(russian.parseDate(rendered), rendered).toEqual(new Date(2026, month, 15));
+      }
+    },
+  );
+
+  it("does not let a word shared by every Catalan month hide the real month", () => {
+    expect(parseLocalizedDate("15 de març de 2026", "ca-ES")).toEqual(new Date(2026, 2, 15));
+  });
+
   it("parses localized month names and CJK full-width calendar dates", () => {
     const spanish = createFormatter("es-ES");
     const rendered = spanish.formatDate(new Date(2023, 0, 3));
