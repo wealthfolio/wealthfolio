@@ -254,5 +254,7 @@
     "status_update_balance": "Cập nhật số dư",
     "update_balance": "Cập nhật số dư",
     "schedule": "Lịch thanh toán"
-  }
+  },
+  "scope_updating": "Một số tính toán tài khoản chưa hoàn tất. Tổng số sẽ hiển thị khi quá trình kết thúc.",
+  "scope_unavailable": "Một số vị thế tài khoản không khả dụng. Tổng số chưa đầy đủ."
 }

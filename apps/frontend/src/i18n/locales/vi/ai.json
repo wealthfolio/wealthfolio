@@ -639,7 +639,8 @@
     "rateLimit": "**Rate limit exceeded**\n\nYou've made too many requests. Please wait a moment and try again.",
     "timeout": "**Request timed out**\n\nThe AI provider took too long to respond. This could be due to:\n- A slow network connection\n- The provider being overloaded\n- A very complex request\n\nPlease try again or select a faster model in {{settingsLink}}.",
     "provider": "**Provider error**\n\n{{error}}\n\nCheck your {{settingsLink}} if this persists.",
-    "unknown": "**Something went wrong**\n\n{{error}}\n\nIf this persists, please check your {{settingsLink}}."
+    "unknown": "**Something went wrong**\n\n{{error}}\n\nIf this persists, please check your {{settingsLink}}.",
+    "contextOverflow": "**Cuộc trò chuyện quá dài**\n\nĐoạn trò chuyện này không còn vừa với cửa sổ ngữ cảnh của mô hình. Hãy bắt đầu cuộc trò chuyện mới, hoặc chọn mô hình có cửa sổ ngữ cảnh lớn hơn trong {{settingsLink}}."
   },
   "importSessionErrors": {
     "missingCsv": "No CSV content available. The AI tool result may be incomplete.",

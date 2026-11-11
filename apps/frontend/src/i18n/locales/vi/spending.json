@@ -171,7 +171,8 @@
     "unlinkTransfer": "Hủy liên kết chuyển khoản",
     "linkTransfer": "Liên kết chuyển khoản...",
     "deleteConfirmMany_one": "Bạn có chắc chắn muốn xóa {{count}} giao dịch không?",
-    "deleteConfirmMany_other": "Bạn có chắc chắn muốn xóa {{count}} giao dịch không?"
+    "deleteConfirmMany_other": "Bạn có chắc chắn muốn xóa {{count}} giao dịch không?",
+    "convertToTransfer": "Chuyển thành chuyển khoản..."
   },
   "cashFlow": {
     "income": "Thu nhập",
@@ -247,7 +248,13 @@
     "viewingMonth": "Đang xem {{label}}, nhấp để thay đổi",
     "pickMonth": "Chọn một tháng cụ thể",
     "selectMonth": "Chọn tháng",
-    "clearMonth": "Xóa lựa chọn tháng"
+    "clearMonth": "Xóa lựa chọn tháng",
+    "month": "Tháng",
+    "year": "Năm",
+    "previousPeriod": "Kỳ trước",
+    "nextPeriod": "Kỳ sau",
+    "previousYears": "Các năm trước",
+    "nextYears": "Các năm sau"
   },
   "presets": {
     "loading": "Đang tải mẫu có sẵn…",
@@ -869,7 +876,12 @@
     "notesPayee": "Ghi chú / Đơn vị thụ hưởng",
     "notesPlaceholder": "ví dụ: SIEU THI, CAFE, NHA HANG",
     "updateTransaction": "Cập nhật giao dịch",
-    "createTransaction": "Tạo giao dịch"
+    "createTransaction": "Tạo giao dịch",
+    "none": "Không có",
+    "addExpense": "Thêm chi phí",
+    "addIncome": "Thêm thu nhập",
+    "expenseAdded": "Đã thêm chi phí.",
+    "incomeAdded": "Đã thêm thu nhập."
   },
   "txTab": {
     "duplicatedComment": "Đã nhân bản",
@@ -962,7 +974,13 @@
     "intervalYtd": "từ đầu năm đến nay",
     "interval1Y": "năm qua",
     "plusMore_one": "+ {{count}} mục khác",
-    "plusMore_other": "+ {{count}} mục khác"
+    "plusMore_other": "+ {{count}} mục khác",
+    "comparePriorPeriod": "So sánh với kỳ trước",
+    "comparisonDays": "Ngày trong kỳ",
+    "comparisonWeeks": "Tuần trong kỳ",
+    "comparisonMonths": "Tháng trong kỳ",
+    "comparisonDifference": "Chênh lệch",
+    "interval1W": "7 ngày qua"
   },
   "budgetEditor": {
     "newGroup": "Nhóm mới",
@@ -1046,7 +1064,21 @@
     "addSource_other": "Thêm nguồn ({{count}} khả dụng)",
     "overridesTitle_one": "Ghi đè · {{count}}",
     "overridesTitle_other": "Ghi đè · {{count}}",
-    "sourceMonth": "Tháng nguồn"
+    "sourceMonth": "Tháng nguồn",
+    "removeGroupRollover": "Xóa cài đặt cộng dồn",
+    "removeGroupRolloverTitle": "Xóa cài đặt cộng dồn cho {{name}}?",
+    "removeGroupRolloverDescription": "Thao tác này sẽ hủy số dư ban đầu đã lưu và tính lại số dư cộng dồn cho tất cả các tháng. Các danh mục và hạn mức ngân sách vẫn được giữ nguyên.",
+    "deleteGroupDescription": "Các danh mục và số dư đệm hàng tháng của nhóm này sẽ chuyển sang nhóm đã chọn. Thao tác này không thể hoàn tác.",
+    "deleteGroupRollover": "Xóa cài đặt cộng dồn của nhóm này trước khi xóa nhóm.",
+    "deleteGroupDestinationRollover": "Tắt cộng dồn trên nhóm đích trước khi chuyển ngân sách vào đó.",
+    "savedOf": "đã tiết kiệm trên",
+    "saved": "Đã tiết kiệm",
+    "savingsGoal": "Mục tiêu tiết kiệm",
+    "carriedIn": "chuyển sang",
+    "left": "còn lại",
+    "over": "vượt mức",
+    "toGo": "cần thêm",
+    "ahead": "vượt tiến độ"
   },
   "budgetGroupNames": {
     "032ecb02-5912-42e8-9724-2cd566fc08d5": "Nhóm ngân sách 1",

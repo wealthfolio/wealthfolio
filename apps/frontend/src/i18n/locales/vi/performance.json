@@ -72,9 +72,6 @@
     "return": "Lợi nhuận",
     "time_weighted_return": "Lợi nhuận theo trọng số thời gian",
     "time_weighted_short": "Trọng số thời gian",
-    "twr_short": "TWR",
-    "annualized_twr": "TWR hàng năm hóa",
-    "ann_twr_short": "TWR năm",
     "money_weighted_return": "Lợi nhuận theo trọng số tiền tệ",
     "money_weighted_short": "Trọng số tiền tệ",
     "mwr_short": "MWR",
@@ -82,12 +79,9 @@
     "ann_mwr_short": "MWR năm",
     "value_return": "Lợi nhuận giá trị",
     "value_return_short": "Lợi nhuận giá trị",
-    "value_short": "Giá trị",
     "price_return": "Lợi nhuận giá",
     "price_return_short": "Lợi nhuận giá",
-    "price_short": "Giá",
     "volatility": "Độ biến động",
-    "vol_short": "Biến động",
     "max_drawdown": "Mức sụt giảm tối đa",
     "max_drawdown_short": "Mức sụt giảm tối đa",
     "drawdown_short": "Sụt giảm",
@@ -96,11 +90,7 @@
     "gain_loss": "Lãi / lỗ",
     "gain_loss_info": "Tổng lãi hoặc lỗ trong khoảng thời gian đã chọn. Mở chỉ số để xem chi tiết phân bổ."
   },
-  "section": {
-    "returns": "Lợi nhuận",
-    "risk": "Rủi ro",
-    "total": "Tổng"
-  },
+  "section": {},
   "help": {
     "aria_label": "Giải thích chỉ số hiệu suất",
     "title": "Chỉ số hiệu suất",
@@ -149,5 +139,13 @@
     "holdings_volatility": "Volatility of account value changes. Based on daily valuations without adjusting for deposits or withdrawals. Reflects how much the market value fluctuates.",
     "holdings_max_drawdown": "Largest peak-to-trough decline in account value. Based on daily valuations without adjusting for deposits or withdrawals."
   },
-  "compare_over_time": "Compare account performance over time"
+  "compare_over_time": "Compare account performance over time",
+  "series_table": {
+    "label": "Chuỗi so sánh",
+    "name": "Tên",
+    "show_all": "Hiển thị tất cả ({{count}})",
+    "show_less": "Thu gọn",
+    "hide_on_chart": "Ẩn {{name}} trên biểu đồ",
+    "show_on_chart": "Hiện {{name}} trên biểu đồ"
+  }
 }

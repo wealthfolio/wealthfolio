@@ -157,6 +157,10 @@
       "title_one": "Tỷ giá hối đoái cho {{from}} và {{to}} xung đột",
       "title_other": "Tỷ giá hối đoái xung đột cho {{count}} cặp tiền tệ",
       "message": "Tỷ giá được ghi nhận theo cả hai chiều cho cùng những ngày đó nhưng không khớp nhau. Mỗi chiều được sử dụng như đã ghi, nên quy đổi một chiều rồi đổi ngược lại sẽ cho số tiền khác nhau. Hãy sửa hoặc xóa tỷ giá sai."
+    },
+    "price_manual_valuation_stale": {
+      "title_other": "Định giá chưa được cập nhật cho {{count}} tài sản",
+      "message": "Một số tài sản định giá thủ công chưa được cập nhật trong hơn {{days}} ngày, do đó giá trị tài sản ròng của bạn có thể đã cũ."
     }
   },
   "page": {
@@ -197,7 +201,8 @@
     "add_price": "Add Price",
     "update_cost_basis": "Update Cost Basis",
     "review_transaction": "Review Transaction",
-    "review_entry": "Review entry"
+    "review_entry": "Review entry",
+    "update_value": "Cập nhật giá trị"
   },
   "updatedAt": "Đã cập nhật {{time}}",
   "healthy": {
@@ -275,5 +280,17 @@
     },
     "affectedItems_one": "Mục bị ảnh hưởng ({{count}})",
     "affectedItems_other": "Mục bị ảnh hưởng ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Hoạt động: {{id}}",
+    "missing_fx_rate": "Không có tỷ giá hối đoái từ {{from}} sang {{to}} cho ngày {{date}}.",
+    "close_buy_without_short_position": "Giao dịch mua này được đánh dấu để đóng vị thế trong {{asset}}, nhưng không có vị thế bán khống nào để đóng.",
+    "sell_short_intent_required": "Giao dịch bán này sẽ làm tăng vị thế bán khống trong {{asset}}. Hãy đánh dấu là Bán khống.",
+    "conversion_insufficient_holdings": "Giao dịch chuyển đổi này yêu cầu {{requested}} đơn vị {{asset}}, nhưng tài khoản chỉ có {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} được giữ bằng {{fromCurrency}} và {{toAsset}} bằng {{toCurrency}}. Giao dịch chuyển đổi phải giữ nguyên loại tiền tệ.",
+    "return_of_capital_amount_required": "Nhập số tiền cho khoản hoàn vốn này.",
+    "sell_without_position": "Không có vị thế trong {{asset}} để bán. Chỉ áp dụng hiệu ứng tiền mặt.",
+    "insufficient_quantity": "Giao dịch này giảm {{requested}} đơn vị {{asset}}, nhưng chỉ nắm giữ {{held}}. {{excess}} đơn vị còn lại không có giá vốn.",
+    "missing_final_cash": "Giao dịch đã ghi nhận này không có số tiền mặt cuối cùng, do đó không làm thay đổi số dư tiền mặt."
   }
 }

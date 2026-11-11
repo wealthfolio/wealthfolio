@@ -1047,5 +1047,33 @@
     "paused": "Sync paused after repeated errors",
     "pending": "No provider quote has been synced yet",
     "no_data": "No data available from provider yet"
+  },
+  "loanExport": {
+    "action": "Xuất lịch trả nợ",
+    "title": "Lịch trả nợ khoản vay",
+    "date": "Ngày",
+    "status": "Trạng thái",
+    "status_past": "Đã qua",
+    "status_projected": "Dự kiến",
+    "confirmed": "Số dư đã xác nhận",
+    "scheduled_payment": "Khoản thanh toán định kỳ",
+    "opening_balance": "Số dư đầu kỳ",
+    "payment": "Thanh toán",
+    "principal": "Gốc",
+    "interest": "Lãi",
+    "extra_payment": "Trả thêm",
+    "balance_adjustment": "Điều chỉnh số dư",
+    "balance": "Số dư cuối kỳ",
+    "loan": "Khoản vay",
+    "exported_on": "Xuất ngày",
+    "currency": "Tiền tệ",
+    "annual_rate": "Lãi suất (%)",
+    "payment_amount": "Khoản thanh toán định kỳ",
+    "payoff_date": "Ngày tất toán dự kiến",
+    "interest_to_date": "Tiền lãi tính đến nay",
+    "projected_interest": "Tiền lãi dự kiến",
+    "note_label": "Ghi chú",
+    "note": "Các hàng có ngày sau ngày xuất là dự báo từ lãi suất, các khoản thanh toán và số dư đã ghi nhận của bạn. Chúng sẽ thay đổi khi bạn ghi nhận các khoản thanh toán, số dư hoặc thay đổi lãi suất mới.",
+    "failed": "Không thể xuất lịch trả nợ."
   }
 }

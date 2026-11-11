@@ -939,5 +939,41 @@
         "description": "Thị trường sụt giảm 30% trong năm nghỉ hưu đầu tiên."
       }
     }
+  },
+  "export": {
+    "action": "Xuất dự báo",
+    "retirement_title": "Dự báo hưu trí",
+    "save_up_title": "Dự báo tiết kiệm",
+    "goal": "Mục tiêu",
+    "exported_on": "Xuất ngày",
+    "currency": "Tiền tệ",
+    "note_label": "Ghi chú",
+    "retirement_note": "Dự báo từ kế hoạch của bạn tính đến ngày xuất. Các số tiền theo loại tiền tệ của từng năm, chưa điều chỉnh theo lạm phát. Dữ liệu sẽ thay đổi khi kế hoạch, danh mục hoặc giả định của bạn thay đổi.",
+    "save_up_note": "Dự báo từ kế hoạch đã lưu tính đến ngày xuất. Lạc quan và bi quan sử dụng tỷ suất lợi nhuận cao hơn và thấp hơn dự kiến.",
+    "age": "Tuổi",
+    "year": "Năm",
+    "phase": "Giai đoạn",
+    "phase_accumulation": "Tích lũy",
+    "phase_retirement": "Nghỉ hưu",
+    "portfolio_start": "Danh mục đầu năm",
+    "annual_contribution": "Đóng góp",
+    "annual_income": "Thu nhập hưu trí",
+    "annual_expenses": "Chi tiêu",
+    "planned_expenses": "Chi tiêu dự kiến",
+    "funded_expenses": "Chi tiêu được tài trợ",
+    "annual_shortfall": "Thiếu hụt",
+    "net_withdrawal": "Rút ròng từ danh mục",
+    "gross_withdrawal": "Tổng rút từ danh mục",
+    "annual_taxes": "Thuế ước tính",
+    "portfolio_end": "Danh mục cuối năm",
+    "required_capital": "Vốn cần thiết",
+    "pension_assets": "Tài sản quỹ hưu trí",
+    "date": "Ngày",
+    "projected": "Số dư dự báo",
+    "optimistic": "Lạc quan",
+    "pessimistic": "Bi quan",
+    "target": "Số tiền mục tiêu",
+    "needed": "Cần thiết để đúng tiến độ",
+    "failed": "Không thể xuất dự báo."
   }
 }

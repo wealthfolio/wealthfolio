@@ -317,7 +317,10 @@
     "try_open_changelog_manually": "Hãy thử mở nhật ký thay đổi thủ công trong trình duyệt của bạn.",
     "all_portfolio": "Tất cả danh mục",
     "calculation_notes_one": "Ghi chú tính toán ({{count}})",
-    "calculation_notes_other": "Ghi chú tính toán ({{count}})"
+    "calculation_notes_other": "Ghi chú tính toán ({{count}})",
+    "launcher_navigation": "Đi tới",
+    "launcher_appearance": "Giao diện",
+    "launcher_tools": "Công cụ"
   },
   "globalEvents": {
     "syncingMarket": "Đang đồng bộ dữ liệu thị trường...",
@@ -694,5 +697,21 @@
     "accountNumberMax": "Account number must not be longer than 64 characters.",
     "accountCurrency": "Please select a currency.",
     "creditCardTracking": "Credit card accounts cannot use holdings tracking mode."
+  },
+  "periodReturn": "{{period}} · Lợi nhuận",
+  "currentValue": "Giá trị hiện tại",
+  "backendErrors": {
+    "internal": "Không thể hoàn thành thao tác.",
+    "invalidInput": "Kiểm tra lại dữ liệu nhập và thử lại.",
+    "conflict": "Thay đổi xung đột với dữ liệu hiện có.",
+    "notFound": "Không tìm thấy mục yêu cầu.",
+    "unauthorized": "Đăng nhập để tiếp tục.",
+    "forbidden": "Thao tác này không được phép.",
+    "unavailable": "Thao tác này hiện không khả dụng.",
+    "providerKeyMissing": "Thêm khóa API cho nhà cung cấp này trong Cài đặt.",
+    "providerUnknown": "Chọn một nhà cung cấp được hỗ trợ.",
+    "providerUnavailable": "Nhà cung cấp không thể hoàn thành yêu cầu. Kiểm tra lại cài đặt nhà cung cấp.",
+    "customProviderCodeReserved": "Mã nhà cung cấp này đã được hệ thống sử dụng. Vui lòng chọn mã khác.",
+    "customProviderInUse": "Thay đổi nhà cung cấp cho các tài sản bị ảnh hưởng hoặc xóa liên kết mã chứng khoán trước khi xóa."
   }
 }

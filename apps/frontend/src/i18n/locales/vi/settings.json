@@ -94,15 +94,12 @@
   "limits_delete_description": "Hành động này không thể hoàn tác.",
   "limits_form_update_title": "Cập nhật hạn mức đóng góp",
   "limits_form_add_title": "Thêm hạn mức đóng góp",
-  "limits_form_update_description": "Cập nhật thông tin hạn mức đóng góp",
   "limits_form_add_description": "Thêm một hạn mức đóng góp mới.",
   "limits_form_group_name_label": "Tên nhóm",
   "limits_form_group_name_placeholder": "ví dụ: Quỹ hưu trí, 401(k), TFSA",
-  "limits_form_group_name_description": "Tên của nhóm hạn mức đóng góp",
   "limits_form_group_name_required": "Tên nhóm là bắt buộc",
   "limits_form_limit_amount_label": "Số tiền hạn mức",
   "limits_form_limit_amount_placeholder": "ví dụ: 6,000.00",
-  "limits_form_limit_amount_description": "Số tiền đóng góp tối đa cho phép",
   "limits_form_limit_amount_number": "Số tiền hạn mức phải là một số dương.",
   "limits_form_limit_amount_non_negative": "Số tiền hạn mức không được là số âm.",
   "limits_form_year_label": "Năm",
@@ -114,11 +111,6 @@
   "limits_form_updating": "Đang cập nhật...",
   "limits_form_saving": "Đang lưu...",
   "limits_form_update_button": "Cập nhật",
-  "limits_select_accounts": "Chọn tài khoản",
-  "limits_loading": "Đang tải...",
-  "limits_contributed": "Đã đóng góp",
-  "limits_saving": "Đang lưu...",
-  "limits_save_selected_accounts": "Lưu các tài khoản đã chọn",
   "addons_info_title": "🔌 Tiện ích mở rộng & Ứng dụng phụ",
   "addons_info_description": "Các tiện ích mở rộng giúp bạn bổ sung tính năng mới, phân tích tùy chỉnh và mở rộng trải nghiệm quản lý tài chính.",
   "addons_security_notice": "Thông báo an ninh:",
@@ -154,17 +146,6 @@
   "export_title": "Xuất dữ liệu",
   "export_description": "Lưu bản sao lưu danh mục đầu tư hoặc xuất dữ liệu để sử dụng ở nơi khác.",
   "export_tab_backup": "Bản sao lưu",
-  "export_section_description": "Xuất các loại dữ liệu cụ thể dưới nhiều định dạng phục vụ phân tích.",
-  "export_format_title": "Chọn định dạng ưu tiên",
-  "export_format_csv_description": "Định dạng bảng tính đơn giản, tương thích rộng rãi",
-  "export_format_json_description": "Dữ liệu cấu trúc dễ lập trình truy cập",
-  "export_customize_title": "Tùy chỉnh dữ liệu xuất",
-  "export_type_accounts_description": "Các tài khoản tài chính của bạn",
-  "export_type_activities": "Hoạt động",
-  "export_type_activities_description": "Lịch sử và nhật ký giao dịch chi tiết",
-  "export_type_goals_description": "Các mục tiêu tài chính và theo dõi tiến trình",
-  "export_type_portfolio_history": "Lịch sử danh mục",
-  "export_type_portfolio_history_description": "Hiệu suất danh mục đầu tư của bạn theo thời gian.",
   "backup_title": "Bản sao lưu cục bộ",
   "backup_restore_title": "Khôi phục bản sao lưu",
   "about_description": "Thông tin ứng dụng",
@@ -304,9 +285,6 @@
   "about_db_path": "Đường dẫn cơ sở dữ liệu",
   "about_copy_db_path": "Sao chép đường dẫn cơ sở dữ liệu",
   "about_copy_logs_dir": "Sao chép thư mục nhật ký",
-  "export_type_holdings_description": "Vị thế hiện tại với dữ liệu định giá, hiệu suất và phân bổ",
-  "export_exporting_item": "Đang xuất {{name}}...",
-  "export_export_item": "Xuất {{name}}",
   "backup_unknown_date": "Ngày không xác định",
   "backup_creating_short": "Đang lưu bản sao lưu…",
   "backup_empty_title": "Chưa có bản sao lưu nào",
@@ -976,7 +954,33 @@
       "tab_income_other": "Thu nhập ({{count}})",
       "tab_savings_one": "Tiết kiệm ({{count}})",
       "tab_savings_other": "Tiết kiệm ({{count}})",
-      "duplicate_error": "Another category uses this key. Try a different name."
+      "duplicate_error": "Another category uses this key. Try a different name.",
+      "merge": {
+        "description": "Chuyển tất cả giao dịch, quy tắc và ngân sách từ {{name}}.",
+        "history": "Các báo cáo trong quá khứ sẽ sử dụng danh mục mới. Thao tác này không thể hoàn tác.",
+        "destination": "Chuyển vào…",
+        "choose": "Chọn một danh mục",
+        "budgets": "Ngân sách · {{name}}",
+        "confirm": "Chuyển và xóa",
+        "error": "Hợp nhất thất bại hoặc dữ liệu đã thay đổi. Làm mới bản xem trước, kiểm tra đích đến và thử lại.",
+        "refresh": "Làm mới xem trước",
+        "none": "Không có danh mục đích đủ điều kiện. Giải quyết các hạn chế bên dưới hoặc tạo một danh mục phù hợp.",
+        "blocked": {
+          "invalid_destination": "Chọn một danh mục khác trong cùng danh sách chi phí, thu nhập hoặc tiết kiệm.",
+          "children": "Chuyển hoặc hợp nhất các danh mục con trước; không thể hợp nhất danh mục có danh mục con.",
+          "asset_references": "Xóa phân loại tài sản và tham chiếu mục tiêu phân bổ trước.",
+          "category_rollover": "Xóa cài đặt cộng dồn đã lưu khỏi cả hai danh mục trước, bao gồm cả cài đặt đã tắt.",
+          "group_rollover": "Tắt cộng dồn cho các nhóm chi phí bị ảnh hưởng trước khi chuyển giữa các nhóm. Cho phép hợp nhất trong cùng một nhóm.",
+          "exclusions": "Danh mục nguồn và đích phải có cùng cài đặt “Loại trừ khỏi chi tiêu”, bao gồm cả loại trừ kế thừa.",
+          "budget_destination": "Danh mục này có mục tiêu ngân sách. Cả hai danh mục phải ở cấp cao nhất để các mục tiêu đó tiếp tục có hiệu lực."
+        },
+        "period": "Tháng",
+        "current": "Hiện tại",
+        "added": "Đã thêm",
+        "after": "Tổng mới",
+        "monthlyDefault": "Mặc định hàng tháng",
+        "budgetHint": "Các tháng khác sử dụng mặc định hàng tháng."
+      }
     },
     "events": {
       "heading": "Sự kiện chi tiêu",
@@ -1255,6 +1259,14 @@
       "budget_write": {
         "label": "Manage budgets",
         "description": "Change default and monthly budgets, groups, buffers, and rollovers. Requires View spending."
+      },
+      "accounts_write": {
+        "label": "Tài khoản — ghi",
+        "description": "Tạo tài khoản và thay đổi tên, loại, nhóm, số tài khoản, chế độ theo dõi cũng như trạng thái ẩn hoặc lưu trữ. Yêu cầu phạm vi đọc tài khoản."
+      },
+      "holdings_write": {
+        "label": "Vị thế — ghi",
+        "description": "Lưu bản ghi nhanh vị thế (vị thế và tiền mặt vào một ngày) cho các tài khoản theo dõi vị thế, và thêm tài sản/nợ thay thế. Yêu cầu phạm vi đọc vị thế."
       }
     },
     "preset": {
@@ -1277,7 +1289,9 @@
     "edit_title": "Permissions for {{name}}",
     "edit_description": "The key remains unchanged. Permissions apply to subsequent requests. Refresh tools or reconnect your client to discover newly granted tools.",
     "edit_success": "Permissions updated",
-    "edit_failed": "Failed to update permissions"
+    "edit_failed": "Failed to update permissions",
+    "scope_locked_accounts_title": "Yêu cầu bởi Tài khoản — ghi",
+    "scope_locked_holdings_title": "Yêu cầu bởi Vị thế — ghi"
   },
   "tax_add_category": "Thêm danh mục",
   "tax_categories_count": "{{count}} danh mục",
@@ -1564,15 +1578,7 @@
       "addingFailed": "There was a problem adding the exchange rate: {{error}}",
       "deletingFailed": "There was a problem deleting the exchange rate: {{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "No accounts available to export right now.",
-        "activities": "No activities available to export right now.",
-        "holdings": "No holdings available to export right now.",
-        "goals": "No goals available to export right now.",
-        "portfolio-history": "No portfolio history records available to export right now."
-      }
-    },
+    "export": {},
     "providerUpdateFailed": "Failed to update settings for provider {{provider}}",
     "httpFailed": "HTTP request failed.",
     "addonDownloadFailed": "Failed to download the addon.",
@@ -1690,7 +1696,9 @@
       "events_onUpdateError": "Monitor portfolio update errors",
       "events_onSyncStart": "Monitor market sync start",
       "events_onSyncComplete": "Monitor market sync completion",
-      "network_request": "Send brokered network requests"
+      "network_request": "Send brokered network requests",
+      "allocation-targets_getAll": "Xem các mục tiêu phân bổ của bạn",
+      "allocation-targets_getDrift": "So sánh vị thế nắm giữ của bạn với mục tiêu"
     },
     "categories": {
       "accounts": {
@@ -1768,7 +1776,189 @@
       "network": {
         "name": "Network Access",
         "description": "Access to declared external HTTPS hosts through the host network broker"
+      },
+      "allocation-targets": {
+        "name": "Mục tiêu phân bổ",
+        "description": "Quyền chỉ đọc đối với các mục tiêu phân bổ của bạn và mức độ so sánh giữa vị thế nắm giữ với chúng"
       }
     }
-  }
+  },
+  "limits_future_years": "Các năm tới",
+  "limits_projected_badge": "Dự kiến",
+  "limits_projected_description": "Được tạo tự động từ hạn mức định kỳ năm {{year}} của bạn. Thêm vào để tùy chỉnh số tiền năm nay.",
+  "limits_projected_add_button": "Thêm năm nay",
+  "limits_projected_add_aria": "Thêm {{group}} cho năm {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "Chưa chọn tài khoản",
+  "limits_choose_accounts": "Chọn tài khoản",
+  "limits_accounts_more": "+{{number}} tài khoản khác",
+  "limits_form_recurring_label": "Lặp lại hàng năm",
+  "limits_form_recurring_description": "Tự động hiển thị hạn mức dự kiến cho các năm tới với cùng số tiền, cho đến khi bạn thêm hoặc chỉnh sửa năm đó.",
+  "limits_form_accounts_label": "Tài khoản được tính",
+  "limits_form_accounts_description": "Các khoản đóng góp vào những tài khoản này sẽ được tính vào hạn mức này.",
+  "limits_form_accounts_selected": "Đã chọn {{selected}} trên {{total}}",
+  "limits_form_accounts_search": "Tìm tài khoản",
+  "limits_form_accounts_no_match": "Không có tài khoản nào phù hợp với tìm kiếm của bạn.",
+  "limits_form_accounts_empty": "Chưa có tài khoản nào có thể nhận đóng góp.",
+  "limits_detail": {
+    "back": "Hạn mức đóng góp",
+    "counted": "Đóng góp được tính",
+    "annual_limit": "Số tiền hạn mức",
+    "remaining": "Hạn mức còn lại",
+    "used_percent": "Đã dùng {{percent}}",
+    "period_ends": "Kỳ kết thúc",
+    "over": "Vượt hạn mức",
+    "activities": "Hoạt động đóng góp",
+    "group_counted": "Đóng góp",
+    "group_not_counted": "Không tự động tính",
+    "group_not_counted_hint": "Chuyển khoản nội bộ không bao giờ được tính. Nếu tiền đến từ bên ngoài tài khoản của bạn, hãy chỉnh sửa hoạt động và đánh dấu là ngoại bộ.",
+    "edit_activity": "Chỉnh sửa hoạt động",
+    "edit_activity_aria": "Chỉnh sửa {{activity}}",
+    "edit_activity_error": "Không thể chỉnh sửa hoạt động.",
+    "count_activity": "Tính {{activity}} vào hạn mức này",
+    "activity_unchanged": "Chỉ mức sử dụng của hạn mức này thay đổi. Hoạt động tài khoản vẫn giữ nguyên.",
+    "save_success": "Đã lưu xử lý đóng góp.",
+    "save_error": "Không thể lưu xử lý đóng góp.",
+    "load_error": "Không thể tải hạn mức đóng góp này.",
+    "no_activities": "Không có hoạt động đóng góp nào trong kỳ này.",
+    "treatments": {
+      "counted": "Được tính",
+      "excludedByUser": "Bạn đã loại trừ",
+      "internalTransfer": "Chuyển khoản nội bộ",
+      "notExternal": "Chưa đánh dấu ngoại bộ"
+    }
+  },
+  "data_export": {
+    "intro": "Các tệp có thể đọc dành cho bảng tính và ứng dụng khác. Không thể khôi phục các tệp này vào Wealthfolio: để chuyển sang thiết bị khác, hãy sử dụng bản sao lưu.",
+    "all_title": "Xuất tất cả dữ liệu của bạn",
+    "all_description_csv": "Một tệp ZIP chứa tệp CSV cho từng tập dữ liệu và tệp README giải thích về chúng.",
+    "all_description_json": "Một tệp JSON chứa mọi tập dữ liệu dưới dạng từng phần.",
+    "all_info": "Dự báo cho các mục tiêu và lịch trả nợ khoản vay không được bao gồm, vì chúng thay đổi mỗi ngày. Xuất chúng từ mục tiêu hoặc khoản vay.",
+    "all_info_label": "Giới thiệu về xuất dữ liệu",
+    "all_button": "Xuất tất cả",
+    "all_pending": "Đang xuất…",
+    "format_label": "Định dạng tệp",
+    "include_archived": "Bao gồm tài khoản đã lưu trữ",
+    "include_archived_help": "Thêm các tài khoản đã lưu trữ cùng các hoạt động, lô thuế và khoản thanh toán khoản vay của chúng.",
+    "dates_title": "Thời gian",
+    "start_date": "Từ",
+    "end_date": "Đến",
+    "dates_help": "Giới hạn hoạt động, bán, giá, định giá và lịch sử. Để trống cho tất cả các ngày.",
+    "date_order_error": "Ngày bắt đầu sau ngày kết thúc.",
+    "clear_dates": "Xóa ngày",
+    "datasets_title": "Chọn nội dung cần xuất",
+    "datasets_description": "Tải xuống từng tập dữ liệu một lần.",
+    "groups": {
+      "accounts": "Tài khoản và hoạt động",
+      "investments": "Đầu tư",
+      "net-worth": "Tài sản ròng",
+      "spending": "Chi tiêu và ngân sách",
+      "planning": "Lập kế hoạch",
+      "organization": "Tổ chức"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Tài khoản",
+        "description": "Các tài khoản của bạn với số dư mới nhất, đánh dấu các tài khoản đã lưu trữ"
+      },
+      "activities": {
+        "name": "Hoạt động",
+        "description": "Mọi giao dịch, cùng với số dư tiền mặt và danh mục chi tiêu"
+      },
+      "holdings": {
+        "name": "Vị thế",
+        "description": "Các vị thế cùng với giá trị, giá vốn và lãi/lỗ"
+      },
+      "lots": {
+        "name": "Lô thuế",
+        "description": "Các lô đang mở và đã đóng cùng với giá vốn"
+      },
+      "realized-gains": {
+        "name": "Lãi đã thực hiện",
+        "description": "Mỗi giao dịch bán được khớp với các lô đã đóng"
+      },
+      "manual-prices": {
+        "name": "Giá thủ công",
+        "description": "Giá bạn đã nhập cho các tài sản tự định giá"
+      },
+      "income": {
+        "name": "Thu nhập",
+        "description": "Cổ tức và tiền lãi mỗi tháng, cho từng tài khoản"
+      },
+      "income-by-source": {
+        "name": "Thu nhập theo nguồn",
+        "description": "Thu nhập từ từng vị thế, toàn thời gian và theo từng năm"
+      },
+      "assets-and-liabilities": {
+        "name": "Tài sản và nợ phải trả",
+        "description": "Bất động sản, phương tiện, đồ có giá trị và khoản vay, kèm điều khoản vay"
+      },
+      "asset-valuations": {
+        "name": "Định giá tài sản",
+        "description": "Mọi giá trị bạn đã ghi nhận cho các tài sản và nợ phải trả đó"
+      },
+      "loan-payments": {
+        "name": "Thanh toán khoản vay",
+        "description": "Các khoản thanh toán liên kết với từng khoản vay"
+      },
+      "net-worth-history": {
+        "name": "Lịch sử tài sản ròng",
+        "description": "Tài sản ròng hàng ngày: đầu tư, tài sản khác và nợ phải trả"
+      },
+      "portfolio-history": {
+        "name": "Lịch sử danh mục",
+        "description": "Giá trị hàng ngày của từng tài khoản"
+      },
+      "budgets": {
+        "name": "Ngân sách",
+        "description": "Số tiền cho từng kỳ, kèm cài đặt cộng dồn"
+      },
+      "budget-actuals": {
+        "name": "Ngân sách so với thực tế",
+        "description": "Ngân sách, đã chi và còn lại theo từng danh mục, theo từng tháng"
+      },
+      "budget-groups": {
+        "name": "Nhóm ngân sách",
+        "description": "Các nhóm và các danh mục trong mỗi nhóm"
+      },
+      "spending-rules": {
+        "name": "Quy tắc phân loại",
+        "description": "Các quy tắc tự động phân loại giao dịch"
+      },
+      "spending-events": {
+        "name": "Sự kiện",
+        "description": "Chuyến đi và các sự kiện khác, kèm số tiền đã chi cho mỗi sự kiện"
+      },
+      "goals": {
+        "name": "Mục tiêu",
+        "description": "Cài đặt kế hoạch, tài khoản liên kết và tiến độ"
+      },
+      "contribution-limits": {
+        "name": "Hạn mức đóng góp",
+        "description": "Các hạn mức và tài khoản áp dụng"
+      },
+      "portfolios": {
+        "name": "Danh mục",
+        "description": "Các nhóm tài khoản"
+      },
+      "categories": {
+        "name": "Danh mục",
+        "description": "Mọi danh mục thuộc mọi phân loại, bao gồm chi tiêu"
+      },
+      "classifications": {
+        "name": "Phân loại tài sản",
+        "description": "Từng tài sản thuộc danh mục nào"
+      }
+    },
+    "rows_one": "{{count}} hàng",
+    "rows_other": "{{count}} hàng",
+    "daily": "Giá trị hàng ngày",
+    "holdings_today": "Vị thế hiện tại",
+    "none_yet": "Chưa có",
+    "download": "Tải xuống {{name}}",
+    "downloading": "Đang tải xuống {{name}}…",
+    "summary_error": "Không thể đếm dữ liệu của bạn. Bạn vẫn có thể xuất dữ liệu.",
+    "empty": "Chưa có dữ liệu nào để xuất trong tập dữ liệu này.",
+    "empty_all": "Chưa có dữ liệu nào để xuất."
+  },
+  "fx_err_quote_unit": "{{code}} là đơn vị báo giá của {{major}}. Vui lòng nhập tỷ giá theo {{major}}."
 }

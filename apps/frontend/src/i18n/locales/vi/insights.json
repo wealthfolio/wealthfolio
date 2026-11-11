@@ -30,11 +30,11 @@
       "unit_types": "loại",
       "unit_currencies": "loại tiền tệ",
       "unit_groups": "nhóm",
-      "other_units": "{{unit}} khác",
       "breakdown": "Cơ cấu",
-      "top_units": "{{unit}} hàng đầu",
+      "top_units": "Top {{count}} mục",
       "show_less": "Thu gọn",
-      "show_all": "Hiển thị tất cả"
+      "show_all": "Hiển thị tất cả",
+      "other_units_other": "{{count}} mục khác"
     },
     "rails": {
       "target_allocation": "Phân bổ mục tiêu",
@@ -79,7 +79,6 @@
       "link_explanation": "Liên kết một bất động sản hiện có không làm thay đổi giá trị tài sản ròng của bạn."
     },
     "failed_to_load": "Không thể tải giá trị tài sản ròng",
-    "stale_valuations_tooltip": "Định giá cũ (trên 90 ngày):",
     "days_ago": "{{count}} ngày trước",
     "no_history_data": "Không có dữ liệu lịch sử",
     "breakdown": "Cơ cấu",
@@ -105,7 +104,8 @@
     "category_sheet": {
       "over_period": "trong {{period}}",
       "trend_period": "Xu hướng · {{period}}",
-      "items": "Mục"
+      "items": "Mục",
+      "view_details": "Xem chi tiết"
     },
     "trend": {
       "not_enough_history": "Không đủ dữ liệu lịch sử"

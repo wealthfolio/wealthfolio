@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "Thêm tài sản",
     "add_liability": "Thêm nợ phải trả",
-    "record_transaction": "Ghi nhận giao dịch",
     "sync_broker_accounts": "Đồng bộ tài khoản chứng khoán",
     "sync_devices": "Đồng bộ thiết bị",
     "update_prices": "Cập nhật giá",

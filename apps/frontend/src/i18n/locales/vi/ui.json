@@ -122,7 +122,9 @@
     "chooseMonth": "Chọn tháng",
     "chooseYear": "Chọn năm",
     "previousYear": "Năm trước",
-    "nextYear": "Năm sau"
+    "nextYear": "Năm sau",
+    "time": "Thời gian",
+    "done": "Xong"
   },
   "dateRange": {
     "pick": "Chọn khoảng ngày",
@@ -207,7 +209,8 @@
     "typeToSearch": "Nhập để tìm kiếm"
   },
   "sheet": {
-    "close": "Đóng"
+    "close": "Đóng",
+    "back": "Quay lại"
   },
   "page": {
     "back": "Quay lại"

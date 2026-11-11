@@ -325,7 +325,8 @@
   "operations": {
     "more_details": "Thêm chi tiết",
     "unlink_transfer": "Hủy liên kết chuyển khoản",
-    "link_transfer": "Liên kết chuyển khoản..."
+    "link_transfer": "Liên kết chuyển khoản...",
+    "convert_to_transfer": "Chuyển thành chuyển khoản..."
   },
   "date_sheet": {
     "title": "Hoạt động vào ngày {{date}}",
@@ -448,11 +449,6 @@
     "no_eligible_filters": "Không có chuyển khoản đủ điều kiện nào phù hợp với bộ lọc hiện tại.",
     "unlink_button": "Hủy liên kết chuyển khoản",
     "unlink_button_plural": "Hủy liên kết các chuyển khoản",
-    "link_button": "Liên kết các chuyển khoản",
-    "reason_fx_conversion": "Chuyển đổi ngoại tệ trong cùng tài khoản",
-    "reason_same_asset_quantity": "Cùng tài sản và số lượng",
-    "reason_same_amount_currency": "Cùng số tiền và loại tiền tệ",
-    "reason_eligible_opposite": "Chuyển khoản đối ứng đủ điều kiện",
     "warning_dates_differ_one": "Ngày khác nhau {{count}} ngày.",
     "warning_dates_differ_other": "Ngày khác nhau {{count}} ngày.",
     "warning_currencies_differ": "Tiền tệ khác nhau ({{source}} / {{candidate}}).",
@@ -463,7 +459,22 @@
     "error_load_pair": "Không thể tải cặp chuyển khoản đã liên kết.",
     "error_search": "Không thể tìm kiếm các hoạt động.",
     "within_days_one": "Trong vòng {{count}} ngày",
-    "within_days_other": "Trong vòng {{count}} ngày"
+    "within_days_other": "Trong vòng {{count}} ngày",
+    "this_activity": "Hoạt động này",
+    "selected_match": "Giao dịch khớp đã chọn",
+    "choose_match_below": "Chọn một giao dịch phù hợp bên dưới để so sánh.",
+    "value_differs": "khác biệt",
+    "field": "Trường",
+    "convert_title": "Chuyển thành chuyển khoản",
+    "convert_desc": "Biến hoạt động này thành giao dịch chuyển khoản giữa các tài khoản của bạn. Chọn hoạt động khớp ở tài khoản khác, hoặc tạo mới tại đó.",
+    "convert_no_matches": "Không có hoạt động nào khớp trong vòng 7 ngày.",
+    "convert_new": "Tạo tại tài khoản khác",
+    "convert_removes_split": "Chuyển thành chuyển khoản sẽ xóa chia tách giao dịch.",
+    "convert_account": "Tài khoản khác",
+    "convert_amount": "Số tiền bằng {{currency}}",
+    "convert_button": "Chuyển thành chuyển khoản",
+    "convert_success": "Đã chuyển thành chuyển khoản",
+    "convert_error": "Chuyển thành chuyển khoản thất bại"
   },
   "form": {
     "section_asset_account": "Tài sản & Tài khoản",
@@ -696,7 +707,10 @@
     "conversion_hint": "Chuyển đổi",
     "button_add_conversion": "Thêm chuyển đổi",
     "warn_converting_more_than_held": "You are converting {{converting}} units, but this account holds {{available}} today.",
-    "err_conversion_same_asset": "Lỗi: Chuyển đổi cùng loại tài sản"
+    "err_conversion_same_asset": "Lỗi: Chuyển đổi cùng loại tài sản",
+    "label_amount_before_tax": "Số tiền trước thuế",
+    "sell_all": "Bán tất cả",
+    "err_charges_exceed_amount_before_tax": "Thuế và phí không thể lớn hơn số tiền trước thuế."
   },
   "datagrid": {
     "pagination": {
@@ -791,12 +805,6 @@
     "day_count_one": "{{count}} hoạt động",
     "day_count_other": "{{count}} hoạt động",
     "day_end_cash": "Tiền mặt"
-  },
-  "mobile_type_category": {
-    "trade": "Giao dịch",
-    "cash": "Tiền mặt",
-    "income": "Thu nhập",
-    "other": "Khác"
   },
   "mobile_type_transfer_desc": "Di chuyển tiền mặt hoặc chứng khoán giữa các tài khoản",
   "mobile_type_adjustment_label": "Điều chỉnh",
@@ -1421,5 +1429,63 @@
     "external": "External Transfer",
     "direction": "Transfer Direction",
     "mode": "Transfer Mode"
+  },
+  "cash_reclassification": {
+    "action": "Chuyển sang {{type}}",
+    "description": "Thao tác này thay đổi loại giao dịch đã lưu, xóa loại phụ và cập nhật siêu dữ liệu chuyển khoản. Luồng tiền mặt, tài khoản, số tiền, ngày, loại tiền, ghi chú và danh mục vẫn giữ nguyên; báo cáo dòng tiền và hiệu suất có thể thay đổi. Các chỉnh sửa chưa lưu không được bao gồm.",
+    "external": "Giao dịch chuyển khoản này sẽ được đánh dấu là ngoại bộ. Sử dụng Liên kết chuyển khoản để ghép cặp với tài khoản khác.",
+    "linked": "Giao dịch này có nhóm chuyển khoản. Hãy sử dụng Hủy liên kết chuyển khoản trước, sau đó mở lại Chỉnh sửa để đổi loại giao dịch. Cả hai giao dịch đã liên kết vẫn được giữ lại."
+  },
+  "transfer_review": {
+    "title": "Khớp giao dịch chuyển khoản",
+    "description": "Liên kết cả hai vế của mỗi giao dịch chuyển khoản giữa các tài khoản của bạn, để hệ thống không tính đó là tiền vào hoặc ra khỏi danh mục đầu tư.",
+    "certain_title": "Sẵn sàng liên kết",
+    "certain_desc_other": "Mỗi cặp khớp chính xác trong cùng một ngày và không có giao dịch nào khác khớp với một trong hai vế.",
+    "link_all_other": "Liên kết tất cả {{count}} cặp",
+    "pair_count_other": "{{count}} cặp",
+    "linking_other": "Đang liên kết {{done}} trên {{count}} cặp",
+    "linking_hint": "Giữ mở trang này cho đến khi hoàn tất.",
+    "stop_after_batch": "Dừng sau đợt này",
+    "stopping": "Đang dừng sau đợt này…",
+    "result_linked_other": "Đã liên kết {{count}} cặp",
+    "result_failed_other": "{{count}} cặp không thể liên kết",
+    "result_stopped_other": "Đã dừng. {{count}} cặp vẫn sẵn sàng liên kết.",
+    "show_failed": "Xem chi tiết",
+    "hide_failed": "Ẩn",
+    "needs_review_title": "Cần xem xét",
+    "needs_review_desc": "Chọn vế còn lại của mỗi giao dịch chuyển khoản, hoặc đánh dấu là ngoại bộ nếu tiền vào hoặc ra khỏi danh mục của bạn.",
+    "section_dates_differ": "Đến vào ngày khác nhau",
+    "section_dates_differ_hint": "Một giao dịch có khả năng khớp, được ghi nhận cách nhau vài ngày như chuyển khoản ngân hàng thông thường. Kiểm tra ngày, sau đó liên kết.",
+    "section_more_than_one": "Có nhiều hơn một giao dịch khớp tiềm năng",
+    "section_more_than_one_hint": "Cùng một số tiền đã chuyển nhiều lần quanh ngày đó. Hãy liên kết từng giao dịch chuyển khoản với đúng vế đối ứng.",
+    "section_cash_flow": "Vế còn lại được ghi nhận là nạp tiền hoặc rút tiền",
+    "section_cash_flow_hint": "Liên kết sẽ chuyển khoản nạp tiền hoặc rút tiền đó thành vế đối ứng của giao dịch chuyển khoản.",
+    "section_other": "Có điểm khác biệt khác",
+    "section_other_hint": "Giao dịch có khả năng khớp nhưng có điểm khác biệt cần kiểm tra, được ghi chú trên từng dòng.",
+    "section_no_match": "Không tìm thấy vế đối ứng",
+    "section_no_match_hint": "Thường là tiền vào hoặc rút ra khỏi danh mục của bạn. Đánh dấu là ngoại bộ, hoặc tự tìm giao dịch khớp.",
+    "also_matches": "{{account}} cũng khớp. Chỉ liên kết với đúng giao dịch.",
+    "also_match_count_other": "{{count}} giao dịch khác cũng khớp. Chỉ liên kết với đúng giao dịch.",
+    "no_other_side": "Không có giao dịch khớp",
+    "state_broken_link": "Liên kết bị hỏng",
+    "no_match": "Không có giao dịch khớp tiềm năng nào trong vòng 7 ngày.",
+    "link": "Liên kết",
+    "converts_hint": "Giao dịch này sẽ trở thành vế đối ứng của chuyển khoản.",
+    "find_match": "Tìm giao dịch khớp",
+    "mark_external": "Đánh dấu ngoại bộ",
+    "mark_external_account": "Đánh dấu khoản chuyển {{account}} là ngoại bộ",
+    "skip": "Bỏ qua",
+    "more_actions": "Thêm tác vụ",
+    "show_more": "Xem thêm",
+    "skipped_other": "Đã bỏ qua {{count}} mục tạm thời",
+    "show_skipped": "Hiện mục đã bỏ qua",
+    "marked_external_badge": "Đã đánh dấu ngoại bộ",
+    "warning_another_match": "Một giao dịch chuyển khoản khác cũng khớp.",
+    "linked_other": "Đã liên kết {{count}} giao dịch chuyển khoản",
+    "link_failed_other": "{{count}} giao dịch chuyển khoản không thể liên kết",
+    "marked_external": "Đã đánh dấu là ngoại bộ",
+    "load_error": "Không thể tải các giao dịch chuyển khoản cần khớp.",
+    "empty_title": "Tất cả các khoản chuyển đã được ghép cặp",
+    "empty_desc": "Không có giao dịch chuyển khoản nào bị thiếu vế đối ứng."
   }
 }
