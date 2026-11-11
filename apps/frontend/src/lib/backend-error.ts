@@ -60,6 +60,11 @@ export class BackendError extends Error {
             : "The operation could not be completed.",
     });
   }
+
+  // Views show errors with String(error); keep the class name out of that text.
+  override toString(): string {
+    return this.message;
+  }
 }
 
 /** Normalize both HTTP error envelopes and Tauri CommandError payloads. */
