@@ -805,6 +805,12 @@ fn next_step_instruction(summary: &ContextSummary, same_filters: &str) -> String
             .to_string();
     }
 
+    // Matched rows that take no category (neutral transfers) appear in neither list.
+    if summary.deterministically_proposed == 0 && summary.needs_ai_judgement == 0 {
+        return "None of the matching transactions takes a category; there is no categorization widget to render."
+            .to_string();
+    }
+
     if summary.needs_ai_judgement == 0 {
         return format!(
             "Call propose_transaction_categories with aiProposals: [] and {same_filters} to render the review widget. Rule/history matches are draft proposals, not applied categories."

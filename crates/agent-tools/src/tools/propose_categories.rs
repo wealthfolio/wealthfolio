@@ -77,8 +77,10 @@ pub struct ProposeCategoriesArgs {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProposalSummary {
+    /// Rows fetched for the batch, including rows that take no category.
     pub total: usize,
     pub proposed: usize,
+    /// Rows listed for a manual choice.
     pub unproposed: usize,
     pub avg_confidence: f32,
     #[serde(default)]
@@ -200,6 +202,9 @@ impl ProposeCategories {
 
         let total = state.total;
         let proposed = state.proposals.len();
+        // Rows the widget lists for a manual choice. `total` also counts rows
+        // that take no category (neutral transfers), which appear in neither list.
+        let unproposed = state.unproposed.len();
         let avg_confidence = if proposed > 0 {
             state.proposals.iter().map(|p| p.confidence).sum::<f32>() / proposed as f32
         } else {
@@ -212,7 +217,7 @@ impl ProposeCategories {
             summary: ProposalSummary {
                 total,
                 proposed,
-                unproposed: total.saturating_sub(proposed),
+                unproposed,
                 avg_confidence,
                 protected_splits: state.protected_splits,
             },
