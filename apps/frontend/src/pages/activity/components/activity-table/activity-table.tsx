@@ -512,16 +512,15 @@ export const ActivityTable = ({
               amount != null && amount !== "" && Number.isFinite(Number(amount))
                 ? Math.abs(Number(amount))
                 : amount;
-            // Mirror the fee-inclusion rule of the income forms:
-            // – DIVIDEND: no form ever surfaces a fee field → exclude fee from
-            //   gross so the table stays consistent with the form's grossAmount.
-            // – INTEREST: the mobile form includes a fee field
-            //   (FEE_FIELD_ACTIVITY_TYPES) → include the stored fee.
-            const feeForGross = activityType === ActivityType.DIVIDEND ? null : row.original.fee;
+            // Mirror the core resolver: gross = received + tax + fee.
+            // The dividend form hides the fee field, so form-created dividends
+            // always have fee = null — their gross is unaffected (null → 0).
+            // Imported dividends may carry a stored fee; including it here keeps
+            // the table gross aligned with the core resolver for those rows.
             const gross = calculateIncomeGrossAmount({
               receivedAmount: absAmount,
               tax: row.original.tax,
-              fee: feeForGross,
+              fee: row.original.fee,
             });
             // gross is undefined only when receivedAmount is missing; render
             // "—" rather than a misleading zero.
