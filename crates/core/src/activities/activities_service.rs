@@ -4044,6 +4044,7 @@ impl ActivityService {
                     asset_id: None,
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 }
             })
             .collect();
@@ -5963,6 +5964,7 @@ impl ActivityService {
             asset_id: activity.asset_id.clone(),
             provider_id: None,
             provider_symbol: None,
+            name: None,
         }
         .reviewed_metadata_is_sufficient()
     }
@@ -6042,6 +6044,7 @@ impl ActivityService {
                     asset_id: a.asset_id.clone(),
                     provider_id: a.provider_id.clone(),
                     provider_symbol: a.provider_symbol.clone(),
+                    name: None,
                 })
             })
             .collect();
@@ -8191,6 +8194,7 @@ impl ActivityServiceTrait for ActivityService {
                     asset_id: None,
                     provider_id: candidate.provider_id.clone(),
                     provider_symbol: candidate.provider_symbol.clone(),
+                    name: candidate.name.clone(),
                 }
             })
             .collect();

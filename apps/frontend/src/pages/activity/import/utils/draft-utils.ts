@@ -7,7 +7,7 @@ import {
   ImportFormat,
   POSITION_INTENT_ALIASES,
 } from "@/lib/constants";
-import { canonicalizeActivitySubtype } from "@/lib/activity-utils";
+import { canonicalizeActivitySubtype, shouldResolveImportAsset } from "@/lib/activity-utils";
 import type { ActivityImport } from "@/lib/types";
 import { type DateOrder, detectDateOrder, tryParseDate } from "@/lib/utils";
 import { isValid, parse, parseISO } from "date-fns";
@@ -15,6 +15,7 @@ import { findMappedActivityType } from "./activity-type-mapping";
 import { getDateFnsPattern } from "./date-format-options";
 import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instrument-type";
 import { buildImportAssetCandidateKey } from "./asset-review-utils";
+import { isinFallbackSymbol } from "./validation-utils";
 import {
   parseNumericValue,
   parseSignedNumericValue,
@@ -840,10 +841,21 @@ export function createDraftActivities(
       providerId: mappedProviderId,
       providerSymbol: mappedProviderSymbol,
     } = mapSymbol(rawSymbol, symbolMappings, symbolMappingMeta);
+    // An unmapped Symbol that isn't a symbol, such as a fund name, resolves by the
+    // row's valid ISIN and stays on as the asset's name.
+    const trimmedRawSymbol = rawSymbol?.trim();
+    const isinSymbol =
+      trimmedRawSymbol &&
+      activityType &&
+      shouldResolveImportAsset(activityType, rawSubtype, trimmedRawSymbol) &&
+      !symbolMappings[trimmedRawSymbol]
+        ? isinFallbackSymbol(trimmedRawSymbol, rawIsin)
+        : undefined;
+    const symbolName = mappedSymbolName ?? (isinSymbol ? trimmedRawSymbol : undefined);
 
     // Parse typed symbol prefixes (e.g., "bond:US037833DU14")
     const { symbol: prefixParsedSymbol, instrumentType: prefixInstrumentType } =
-      splitInstrumentPrefixedSymbol(mappedSymbol);
+      splitInstrumentPrefixedSymbol(isinSymbol ?? mappedSymbol);
     const symbol = prefixParsedSymbol;
 
     // Normalize instrument type: explicit CSV column > prefix > symbol mapping meta
@@ -939,7 +951,7 @@ export function createDraftActivities(
       symbol,
       isin: rawIsin?.trim() || undefined,
       exchangeMic: mappedExchangeMic,
-      symbolName: mappedSymbolName,
+      symbolName,
       quoteCcy: mappedQuoteCcy,
       instrumentType: resolvedInstrumentType,
       quoteMode: mappedQuoteMode,

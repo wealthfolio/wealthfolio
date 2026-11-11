@@ -10794,6 +10794,7 @@ pub(crate) mod tests {
                     isin: Some("ca82509l1076".to_string()),
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 },
                 ImportAssetCandidate {
                     key: "shop-2".to_string(),
@@ -10807,6 +10808,7 @@ pub(crate) mod tests {
                     isin: Some("CA82509L1077".to_string()),
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 },
             ])
             .await
@@ -10851,6 +10853,7 @@ pub(crate) mod tests {
                 isin: None,
                 provider_id: None,
                 provider_symbol: None,
+                name: None,
             }])
             .await
             .expect("preview should succeed");
@@ -10900,6 +10903,7 @@ pub(crate) mod tests {
                 isin: None,
                 provider_id: Some("METAL_PRICE_API".to_string()),
                 provider_symbol: Some("XAU-1KG".to_string()),
+                name: None,
             }])
             .await
             .expect("preview should succeed");
@@ -11504,6 +11508,7 @@ pub(crate) mod tests {
             isin: None,
             provider_id: provider_id.map(str::to_string),
             provider_symbol: provider_id.map(|_| symbol.to_string()),
+            name: None,
         }
     }
 
