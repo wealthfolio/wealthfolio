@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}} · Доходность",
+  "currentValue": "Текущая стоимость",
   "app_name": "Wealthfolio",
   "welcome": "Добро пожаловать",
   "loading": "Загрузка...",
@@ -182,13 +184,13 @@
     "rebuild_full_history": "Обновить всю историю",
     "rebuild_full_history_label": "Обновить всю историю",
     "rebuilding_history": "Обновление всей истории…",
-    "record_buy": "Записать покупку",
-    "record_sell": "Записать продажу",
-    "record_dividend": "Записать дивиденд",
-    "record_deposit": "Записать пополнение",
-    "record_withdrawal": "Записать вывод средств",
+    "record_buy": "Добавить покупку",
+    "record_sell": "Добавить продажу",
+    "record_dividend": "Добавить дивиденд",
+    "record_deposit": "Добавить пополнение",
+    "record_withdrawal": "Добавить вывод средств",
     "add_holding": "Добавить позицию",
-    "record_interest": "Записать проценты",
+    "record_interest": "Добавить проценты",
     "add_transaction": "Добавить транзакцию",
     "import_activities": "Импортировать операции",
     "manage_securities": "Управлять ценными бумагами",
@@ -329,7 +331,10 @@
     "calculation_notes_one": "Заметка к расчёту ({{count}})",
     "calculation_notes_few": "Заметки к расчёту ({{count}})",
     "calculation_notes_many": "Заметок к расчёту ({{count}})",
-    "calculation_notes_other": "Заметки к расчёту ({{count}})"
+    "calculation_notes_other": "Заметки к расчёту ({{count}})",
+    "launcher_navigation": "Перейти",
+    "launcher_appearance": "Оформление",
+    "launcher_tools": "Инструменты"
   },
   "globalEvents": {
     "syncingMarket": "Синхронизация рыночных данных...",
@@ -728,5 +733,24 @@
     "accountNumberMax": "Номер счёта должен содержать не более 64 символов.",
     "accountCurrency": "Выберите валюту, пожалуйста.",
     "creditCardTracking": "Счета кредитных карт не могут использовать режим отслеживания позиций."
+  },
+  "backendErrors": {
+    "internal": "Не удалось выполнить операцию.",
+    "invalidInput": "Проверьте введённые данные и попробуйте ещё раз.",
+    "conflict": "Изменение конфликтует с существующими данными.",
+    "notFound": "Запрошенный элемент не найден.",
+    "unauthorized": "Войдите, чтобы продолжить.",
+    "forbidden": "Эта операция не разрешена.",
+    "unavailable": "Эта операция недоступна.",
+    "providerKeyMissing": "Добавьте API-ключ этого поставщика в Настройках.",
+    "providerUnknown": "Выберите поддерживаемого поставщика.",
+    "providerUnavailable": "Поставщик не смог выполнить запрос. Проверьте настройки поставщика.",
+    "customProviderCodeReserved": "Этот код поставщика зарезервирован. Выберите другой код.",
+    "customProviderInUse": "Измените поставщика для затронутых активов или удалите сопоставления их тикеров перед его удалением.",
+    "addonManifestMissing": "ZIP-файл дополнения не содержит manifest.json.",
+    "addonMainFileMissing": "ZIP-файл дополнения не содержит основной файл, указанный в его манифесте.",
+    "addonNeedsNewerVersion": "Этому дополнению нужна более новая версия Wealthfolio. Обновите Wealthfolio и попробуйте ещё раз.",
+    "quoteCurrencyRequired": "Валюта котировки обязательна. Выберите тикер ещё раз из результатов поиска.",
+    "rateLimited": "Слишком много запросов. Подождите минуту и попробуйте ещё раз."
   }
 }

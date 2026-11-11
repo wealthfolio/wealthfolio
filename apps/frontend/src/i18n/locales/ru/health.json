@@ -7,6 +7,13 @@
       "title_other": "{{count}} позиции без ручной оценки",
       "message": "Позиции с ручным вводом нуждаются в ручной оценке, чтобы их можно было учитывать как оцениваемые позиции доходности."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Оценка {{count}} актива не обновлена",
+      "title_few": "Оценки {{count}} актива не обновлены",
+      "title_many": "Оценки {{count}} активов не обновлены",
+      "title_other": "Не обновлено {{count}} оценки актива",
+      "message": "Некоторые активы с ручной оценкой не обновлялись более {{days}} дней, поэтому ваш чистый капитал может быть неактуальным."
+    },
     "price_no_market_data": {
       "title_one": "{{count}} позиция без рыночных данных",
       "title_few": "{{count}} позиции без рыночных данных",
@@ -256,6 +263,7 @@
     "rebuild_account_history": "Перестроить историю",
     "add_price": "Добавить цену",
     "update_cost_basis": "Обновить себестоимость",
+    "update_value": "Обновить стоимость",
     "review_transaction": "Проверить транзакцию",
     "review_entry": "Проверить запись"
   },
@@ -343,5 +351,17 @@
     "affectedItems_few": "Затронутых элемента ({{count}})",
     "affectedItems_many": "Затронутых элементов ({{count}})",
     "affectedItems_other": "Затронутых элемента ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Операция: {{id}}",
+    "missing_fx_rate": "Обменный курс из {{from}} в {{to}} за {{date}} отсутствует.",
+    "close_buy_without_short_position": "Эта покупка отмечена как закрытие позиции в {{asset}}, но короткая позиция для закрытия отсутствует.",
+    "sell_short_intent_required": "Эта продажа увеличит короткую позицию в {{asset}}. Отметьте её как «Продать в шорт».",
+    "conversion_insufficient_holdings": "Для этой конвертации требуется {{requested}} единиц актива {{asset}}, но на счёте только {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} хранится в {{fromCurrency}}, а {{toAsset}} — в {{toCurrency}}. Конвертация должна сохранять ту же валюту.",
+    "return_of_capital_amount_required": "Введите сумму для этого возврата капитала.",
+    "sell_without_position": "Нет позиции в {{asset}} для продажи. Применено только изменение денег.",
+    "insufficient_quantity": "Эта транзакция списывает {{requested}} единиц актива {{asset}}, а в наличии было только {{held}}. Оставшиеся {{excess}} единиц не имеют себестоимости.",
+    "missing_final_cash": "У этой проведённой транзакции нет итоговой суммы денег, поэтому денежный баланс не изменился."
   }
 }

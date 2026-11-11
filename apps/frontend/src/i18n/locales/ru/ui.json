@@ -112,6 +112,9 @@
     "search": "Поиск ...",
     "reset": "Сбросить",
     "columns": "Столбцы",
+    "moveColumnUp": "Переместить вверх: {{column}}",
+    "moveColumnDown": "Переместить вниз: {{column}}",
+    "resetColumnOrder": "Сбросить порядок столбцов",
     "sortAsc": "Возр.",
     "sortDesc": "Убыв.",
     "hide": "Скрыть"
@@ -119,6 +122,8 @@
   "datePicker": {
     "dateLabel": "Дата",
     "pick": "Выбрать дату",
+    "time": "Время",
+    "done": "Готово",
     "previousMonth": "Предыдущий месяц",
     "nextMonth": "Следующий месяц",
     "chooseMonth": "Выбрать месяц",
@@ -209,6 +214,7 @@
     "typeToSearch": "Ввести для поиска"
   },
   "sheet": {
+    "back": "Назад",
     "close": "Закрыть"
   },
   "page": {

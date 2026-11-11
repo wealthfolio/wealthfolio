@@ -70,7 +70,7 @@
   "other_sources_count_few": "{{count}} других источника",
   "other_sources_count_many": "{{count}} других источников",
   "other_sources_count_other": "{{count}} других источника",
-  "percent_of_total": "{{percent}}% от общего",
+  "percent_of_total": "{{percent}} от итога",
   "view_combined": "Вместе",
   "view_by_account": "По счетам",
   "monthly_income": "Ежемесячный доход",

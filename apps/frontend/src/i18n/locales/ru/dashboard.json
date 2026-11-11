@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "Добавить актив",
     "add_liability": "Добавить обязательство",
-    "record_transaction": "Записать транзакцию",
     "sync_broker_accounts": "Синхронизировать счета брокера",
     "sync_devices": "Синхронизировать устройства",
     "update_prices": "Обновить цены",

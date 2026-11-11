@@ -30,9 +30,12 @@
       "unit_types": "типы",
       "unit_currencies": "валюты",
       "unit_groups": "группы",
-      "other_units": "Другие: {{unit}}",
+      "other_units_one": "Другой {{count}} элемент",
+      "other_units_few": "Другие {{count}} элемента",
+      "other_units_many": "Других {{count}} элементов",
+      "other_units_other": "Другого {{count}} элемента",
       "breakdown": "Разбивка",
-      "top_units": "Топ: {{unit}}",
+      "top_units": "Топ: {{count}}",
       "show_less": "Показать меньше",
       "show_all": "Показать всё"
     },
@@ -85,7 +88,6 @@
       "link_explanation": "Привязка существующей недвижимости не меняет ваш чистый капитал."
     },
     "failed_to_load": "Не удалось загрузить чистый капитал",
-    "stale_valuations_tooltip": "Устаревшие оценки (90+ дней):",
     "days_ago": "Дней назад: {{count}}",
     "no_history_data": "Нет данных истории",
     "breakdown": "Разбивка",
@@ -111,7 +113,8 @@
     "category_sheet": {
       "over_period": "за {{period}}",
       "trend_period": "Тренд · {{period}}",
-      "items": "Элементы"
+      "items": "Элементы",
+      "view_details": "Просмотреть подробности"
     },
     "trend": {
       "not_enough_history": "Недостаточно истории"
@@ -154,7 +157,17 @@
     "portfolio_share": "Доля стоимости портфеля, включая деньги",
     "largest": "Крупнейшая позиция",
     "top_five": "Топ-5 позиций",
-    "concentration_unavailable": "Для концентрации нужны положительные стоимости позиций и портфель без коротких позиций."
+    "concentration_unavailable": "Для концентрации нужны положительные стоимости позиций и портфель без коротких позиций.",
+    "holdings": "Позиции",
+    "holdings_count_one": "{{count}} позиция",
+    "holdings_count_few": "{{count}} позиции",
+    "holdings_count_many": "{{count}} позиций",
+    "holdings_count_other": "{{count}} позиции",
+    "other_holdings_one": "{{count}} другая позиция",
+    "other_holdings_few": "{{count}} другие позиции",
+    "other_holdings_many": "{{count}} других позиций",
+    "other_holdings_other": "{{count}} другой позиции",
+    "holdings_unavailable": "График позиций требует положительной стоимости позиций и портфеля без коротких позиций."
   },
   "customize": {
     "edit": "Настроить",
