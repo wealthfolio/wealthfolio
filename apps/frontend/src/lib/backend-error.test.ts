@@ -132,6 +132,11 @@ describe("public backend errors", () => {
     expect(error.message).toBe(fr.backendErrors.providerUnavailable);
     expect(error.errorCode).toBe("provider_unavailable");
   });
+  it("shows only the translated message when a view turns the error into text", () => {
+    const error = new BackendError("provider_unavailable");
+    expect(String(error)).toBe(en.backendErrors.providerUnavailable);
+    expect(`${error}`).toBe(en.backendErrors.providerUnavailable);
+  });
   it("preserves loan refusal behavior and translations without exposing unknown diagnostics", async () => {
     const i18n = createInstance();
     await i18n.init({ lng: "en", resources: { en: { common: en, asset: enAsset } } });
