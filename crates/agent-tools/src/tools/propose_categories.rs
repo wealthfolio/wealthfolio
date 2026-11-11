@@ -32,6 +32,7 @@ use crate::tools::categorization_context::{
     compute_categorization_state, CategorizationFilters, CategoryExample, Proposal,
     TaxonomySummary, UnproposedActivity, MAX_LIMIT,
 };
+use crate::tools::date_bounds::DATE_BOUND_DESCRIPTION;
 
 /// One AI-inferred category for a row, supplied by the chat agent on its second
 /// call to this tool. The agent reasons about the unproposed rows in chat context
@@ -158,7 +159,7 @@ impl ProposeCategories {
                     avg_confidence: 0.0,
                     protected_splits: state.protected_splits,
                 },
-                taxonomies: Vec::new(),
+                taxonomies: state.taxonomies,
                 examples: Vec::new(),
                 draft_status: "draft".to_string(),
             });
@@ -251,8 +252,8 @@ impl AgentTool for ProposeCategories {
                     "enum": ["uncategorized", "all", "needs_review"],
                     "description": "Default: uncategorized."
                 },
-                "startDate": { "type": "string", "description": "Inclusive ISO 8601 lower bound." },
-                "endDate":   { "type": "string", "description": "Inclusive ISO 8601 upper bound." },
+                "startDate": { "type": "string", "description": DATE_BOUND_DESCRIPTION },
+                "endDate":   { "type": "string", "description": DATE_BOUND_DESCRIPTION },
                 "limit": {
                     "type": "integer",
                     "minimum": 1,
