@@ -44,8 +44,9 @@ function offenders(term: string, allowed: ReadonlySet<string> = new Set()) {
     .map(([key, value]) => `${key} = ${value}`);
 }
 
+/** Named tags (`<strong>`) and the indexed tags of `<Trans>` (`<0>`, `<1>`). */
 function tags(value: string) {
-  return [...value.matchAll(/<\/?[A-Za-z][^>]*>/g)].map((match) => match[0]).sort();
+  return [...value.matchAll(/<\/?[A-Za-z0-9][^>]*>/g)].map((match) => match[0]).sort();
 }
 
 describe("Russian terminology", () => {
@@ -102,19 +103,19 @@ describe("Russian terminology", () => {
     ["income:ex_dividend_date", "Экс-дивидендная дата"], // Ex-Dividend Date
     ["holdings:sale_proceeds", "Выручка от продажи"], // Sale Proceeds
     ["asset:altContent.interest_rate", "Процентная ставка"], // Interest Rate
-    ["connect:newAccounts.transactions", "Транзакции"], // transactions (owner)
+    ["connect:newAccounts.transactions", "Транзакции"], // Transactions
     ["holdings:holdings", "Позиции"], // Holdings
     ["activity:filter_account", "Счёт"], // Account (broker account)
   ])("uses the house term in %s", (key, expected) => {
     expect(allStrings.get(key)).toBe(expected);
   });
 
-  // Owner decision: the user's sign-in account is «аккаунт» (a broker account stays «счёт»).
+  // The user's sign-in account is «аккаунт»; a broker account stays «счёт».
   it("says аккаунт for the signed-in user's account", () => {
     expect(allStrings.get("auth:context.oidcErrors.forbidden")).toMatch(/аккаунт/i);
   });
 
-  // Owner decision: «профиль» only where English says profile.
+  // «профиль» only where English says profile.
   it("says профиль where English says profile", () => {
     expect(allStrings.get("common:profiles.yourProfile")).toMatch(/профил/i);
   });
@@ -143,7 +144,7 @@ describe("Russian terminology", () => {
     ["сурплус", [] as string[]], // surplus
     ["бакет", [] as string[]], // bucket
     ["чекинг", [] as string[]], // Checking
-    ["счета денег", [] as string[]], // Cash Account is «Денежный счёт» (owner, 2026-11-11)
+    ["счета денег", [] as string[]], // Cash Account is «денежный счёт»
     ["счетов денег", [] as string[]],
     ["счёта денег", [] as string[]],
   ])("rejects %s", (term, allowed) => {
@@ -162,6 +163,15 @@ describe("Russian terminology", () => {
     }
   });
 
+  // `<Trans>` puts its components at `<0>`, `<1>`: the Terms and Privacy links, the email.
+  it.each([
+    ["auth:connect.terms", ["</0>", "</1>", "<0>", "<1>"]],
+    ["auth:connect.otp.sentTo", ["</0>", "<0>"]],
+    ["holdings:holdings_in_category", ["</1>", "<1>"]],
+  ])("keeps the indexed tags of %s", (key, expected) => {
+    expect(tags(allStrings.get(key) ?? "")).toEqual(expected);
+  });
+
   // `other` is the fractional category ("1,5 года"): it takes the form of `few`, not of `many`.
   it("does not copy `many` into `other` where `few` differs", () => {
     const bad: string[] = [];
@@ -177,7 +187,7 @@ describe("Russian terminology", () => {
     expect(bad).toEqual([]);
   });
 
-  // Owner decision: only a lone Cash is «деньги»; Cash Balance is «денежный баланс», Cash Account «денежный счёт».
+  // Only a lone Cash is «деньги»; Cash Balance is «денежный баланс», Cash Account «денежный счёт».
   it.each([
     ["баланс денег", /баланс\w* (ваших )?денег/iu],
     ["счёт денег", /сч[её]т\w* денег/iu],
@@ -502,8 +512,7 @@ describe("Russian words inserted into sentences", () => {
     "spending:rules.selectActivityType",
     "spending:rules.selectMatchType",
     "activity:form.placeholder_select_account",
-    // Found through ternaries, `??` and shared variables: provider-settings-card.tsx:448,
-    // profile-shell.tsx:1041, mapping-table-cells.tsx:96, template-picker.tsx:34.
+    // These reach `placeholder=` through a ternary, `??` or a shared variable.
     "ai:providerSettings.enterApiKey",
     "common:profiles.enterPassword",
     "activity:import.mapping.selectColumn",
