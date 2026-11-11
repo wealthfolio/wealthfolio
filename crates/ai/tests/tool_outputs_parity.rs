@@ -31,6 +31,7 @@ use wealthfolio_ai::tools::{
 use wealthfolio_core::accounts::{Account, TrackingMode};
 use wealthfolio_core::activities::{Activity, ActivityStatus};
 use wealthfolio_core::assets::{Asset, AssetKind, InstrumentType, QuoteMode};
+use wealthfolio_core::settings::{Settings, SettingsServiceTrait, SettingsUpdate};
 use wealthfolio_core::taxonomies::{
     AssetTaxonomyAssignment, Category, Taxonomy, TaxonomyWithCategories,
 };
@@ -851,25 +852,66 @@ async fn no_matching_rows_still_return_the_configured_categories() {
     }
 }
 
-/// Plain YYYY-MM-DD bounds are accepted; they failed with "premature end of
-/// input" before.
+/// Settings that only answer the timezone.
+struct TimezoneSettings(&'static str);
+
+#[async_trait::async_trait]
+impl SettingsServiceTrait for TimezoneSettings {
+    fn get_settings(&self) -> wealthfolio_core::errors::Result<Settings> {
+        Ok(Settings {
+            timezone: self.0.to_string(),
+            ..Settings::default()
+        })
+    }
+    async fn update_settings(&self, _: &SettingsUpdate) -> wealthfolio_core::errors::Result<()> {
+        unreachable!()
+    }
+    fn get_base_currency(&self) -> wealthfolio_core::errors::Result<Option<String>> {
+        unreachable!()
+    }
+    fn is_auto_update_check_enabled(&self) -> wealthfolio_core::errors::Result<bool> {
+        unreachable!()
+    }
+    fn is_sync_enabled(&self) -> wealthfolio_core::errors::Result<bool> {
+        unreachable!()
+    }
+    fn get_setting_value(&self, _: &str) -> wealthfolio_core::errors::Result<Option<String>> {
+        unreachable!()
+    }
+    async fn set_setting_value(&self, _: &str, _: &str) -> wealthfolio_core::errors::Result<()> {
+        unreachable!()
+    }
+}
+
+/// Plain YYYY-MM-DD bounds cover that day in the settings timezone. They
+/// failed with "premature end of input" before. `cash-a` posted at
+/// 2024-06-15T00:00Z: June 15 in UTC, June 14 in Toronto. Explicit IDs take
+/// the path that filters dates in code (the mock search ignores them).
 #[tokio::test]
-async fn categorization_accepts_plain_date_bounds() {
-    for tool_result in [
-        call_json_dyn(
-            ListCategorizationContext,
-            categorization_env(),
-            serde_json::json!({ "status": "all", "startDate": "2024-01-01", "endDate": "2024-12-31" }),
-        )
-        .await,
-        call_json_dyn(
-            ProposeCategories,
-            categorization_env(),
-            serde_json::json!({ "startDate": "2024-01-01", "aiProposals": [] }),
-        )
-        .await,
-    ] {
-        assert!(tool_result.get("ok").is_some(), "{tool_result}");
+async fn categorization_reads_plain_dates_as_local_days() {
+    let env_in = |timezone: &'static str| {
+        let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
+        env.settings_service = Arc::new(TimezoneSettings(timezone));
+        Arc::new(env)
+    };
+    let filters = serde_json::json!({
+        "activityIds": ["cash-a"],
+        "status": "all",
+        "startDate": "2024-06-15",
+        "endDate": "2024-06-15",
+    });
+    let mut propose = filters.clone();
+    propose["aiProposals"] = serde_json::json!([]);
+    for (timezone, expected) in [("UTC", 1), ("America/Toronto", 0)] {
+        for result in [
+            call_json_dyn(ListCategorizationContext, env_in(timezone), filters.clone()).await,
+            call_json_dyn(ProposeCategories, env_in(timezone), propose.clone()).await,
+        ] {
+            assert_eq!(
+                result["ok"]["summary"]["total"], expected,
+                "{timezone}: {result}"
+            );
+        }
     }
     let bad = call_json_dyn(
         ListCategorizationContext,
