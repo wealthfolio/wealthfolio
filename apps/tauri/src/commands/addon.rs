@@ -26,7 +26,8 @@ fn addon_service(
 
 /// The frontend sends add-on zips as base64: a JSON array with one number per
 /// byte takes gigabytes of memory to send and parse for a zip of a few MiB.
-fn decode_zip_data(zip_data_b64: &str) -> Result<Vec<u8>, String> {
+/// Takes the text by value so it is freed before the zip is processed.
+fn decode_zip_data(zip_data_b64: String) -> Result<Vec<u8>, String> {
     BASE64
         .decode(zip_data_b64)
         .map_err(|error| format!("Invalid add-on zip data: {error}"))
@@ -41,7 +42,7 @@ pub async fn install_addon_zip(
     state: ProfileAccess,
 ) -> Result<AddonManifest, String> {
     let context = state.context()?;
-    let zip_data = decode_zip_data(&zip_data_b64)?;
+    let zip_data = decode_zip_data(zip_data_b64)?;
     addon_service(&app_handle, &context)?
         .install_addon_zip(
             zip_data,
@@ -131,7 +132,7 @@ pub async fn extract_addon_zip(
     _app_handle: AppHandle,
     zip_data_b64: String,
 ) -> Result<ExtractedAddon, String> {
-    addons::extract_addon_zip_internal(decode_zip_data(&zip_data_b64)?).map_err(addon_error)
+    addons::extract_addon_zip_internal(decode_zip_data(zip_data_b64)?).map_err(addon_error)
 }
 
 /// Check for updates for a specific addon from the addon store
@@ -359,11 +360,14 @@ mod tests {
 
     #[test]
     fn decodes_base64_zip_data() {
-        assert_eq!(decode_zip_data("UEsDBA==").unwrap(), b"PK\x03\x04");
+        assert_eq!(
+            decode_zip_data("UEsDBA==".to_string()).unwrap(),
+            b"PK\x03\x04"
+        );
     }
 
     #[test]
     fn rejects_invalid_base64_zip_data() {
-        assert!(decode_zip_data("not base64!").is_err());
+        assert!(decode_zip_data("not base64!".to_string()).is_err());
     }
 }
