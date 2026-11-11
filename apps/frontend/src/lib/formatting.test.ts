@@ -112,6 +112,22 @@ describe("locale formatting", () => {
     expect(formatDistance(new Date(2026, 0, 1), new Date(2026, 0, 3), { locale })).toMatch(/[а-я]/);
   });
 
+  it("takes the Russian region's Monday week from date-fns when Intl has no week info", () => {
+    const prototype = Intl.Locale.prototype as Intl.Locale & {
+      getWeekInfo: () => unknown;
+      weekInfo: unknown;
+    };
+    const getWeekInfo = vi.spyOn(prototype, "getWeekInfo").mockReturnValue(undefined);
+    const weekInfo = vi.spyOn(prototype, "weekInfo", "get").mockReturnValue(undefined);
+    try {
+      // An English UI with the Russian region: the week comes from the region, not the language.
+      expect(dateFnsLocaleFor("en-RU").options?.weekStartsOn).toBe(1);
+    } finally {
+      getWeekInfo.mockRestore();
+      weekInfo.mockRestore();
+    }
+  });
+
   it.each(["zh-TW", "zh-Hant", "zh-Hant-TW", "zh-HK", "zh-MO"])(
     "gives %s Traditional calendar text with a Sunday week start",
     (tag) => {
