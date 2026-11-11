@@ -579,7 +579,7 @@
     "remove_charge_line": "移除明細",
     "charge_line_label": "明細名稱",
     "charge_line_amount": "明細金額",
-    "placeholder_fee_line": "例如：佣金",
+    "placeholder_fee_line": "例如：手續費",
     "placeholder_tax_line": "例如：印花稅",
     "label_quantity": "數量",
     "label_contracts": "合約",
