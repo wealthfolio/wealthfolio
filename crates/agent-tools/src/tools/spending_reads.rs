@@ -4,6 +4,7 @@
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
+use crate::tools::date_bounds::{date_bound, optional_date_bound, Bound, DATE_BOUND_DESCRIPTION};
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -98,7 +99,10 @@ struct SearchArgs {
     query: Option<String>,
 }
 
-fn parse_search(args: Value) -> Result<CashActivitySearchRequest, AgentToolError> {
+fn parse_search(
+    env: &dyn AgentEnvironment,
+    args: Value,
+) -> Result<CashActivitySearchRequest, AgentToolError> {
     let schema = SearchSpendingTransactions.input_schema();
     if args.as_object().is_none_or(|object| {
         object
@@ -114,6 +118,9 @@ fn parse_search(args: Value) -> Result<CashActivitySearchRequest, AgentToolError
     })?;
     let request = &mut args.request;
     request.search = args.query.or(request.search.take());
+    request.start_date =
+        optional_date_bound(env, "startDate", request.start_date.take(), Bound::Start)?;
+    request.end_date = optional_date_bound(env, "endDate", request.end_date.take(), Bound::End)?;
     if !(1..=100).contains(&request.limit) {
         return Err(AgentToolError::InvalidInput(
             "limit must be between 1 and 100".to_string(),
@@ -202,7 +209,7 @@ impl AgentTool for SearchSpendingTransactions {
             "activityIds":ids, "accountIds":ids, "categoryIds":ids, "subcategoryIds":ids, "eventIds":ids,
             "activityTypes":{"type":"array","items":{"type":"string","enum":wealthfolio_spending::cash_activities::CASH_ACTIVITY_TYPES}},
             "status":{"type":"string","enum":["all","uncategorized","categorized","needs_review"]},
-            "startDate":{"type":"string","description":"Inclusive RFC3339 timestamp."}, "endDate":{"type":"string","description":"Inclusive RFC3339 timestamp."},
+            "startDate":{"type":"string","description":DATE_BOUND_DESCRIPTION}, "endDate":{"type":"string","description":DATE_BOUND_DESCRIPTION},
             "minAmount":{"type":"number","minimum":0}, "maxAmount":{"type":"number","minimum":0},
             "sortBy":{"type":"string","enum":["date","amount"]}, "sortDir":{"type":"string","enum":["asc","desc"]},
             "offset":{"type":"integer","minimum":0,"default":0}, "limit":{"type":"integer","minimum":1,"maximum":100,"default":50}
@@ -222,7 +229,7 @@ impl AgentTool for SearchSpendingTransactions {
         env: Arc<dyn AgentEnvironment>,
         args: Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let request = parse_search(args)?;
+        let request = parse_search(env.as_ref(), args)?;
         let offset = request.offset;
         let limit = request.limit;
         let requested_accounts = request.account_ids.clone();
@@ -368,14 +375,15 @@ struct ReportArgs {
 }
 
 fn report_schema(insight: bool) -> Value {
+    let date = json!({"type":"string","description":DATE_BOUND_DESCRIPTION});
     let mut schema = json!({"type":"object","additionalProperties":false,"properties":{
-        "startDate":{"type":"string","format":"date-time"},
-        "endDate":{"type":"string","format":"date-time"},
+        "startDate":date,
+        "endDate":date,
         "accountIds":{"type":"array","maxItems":100,"items":{"type":"string"}}
     },"required":["startDate","endDate"]});
     if insight {
-        schema["properties"]["compareStartDate"] = json!({"type":"string","format":"date-time"});
-        schema["properties"]["compareEndDate"] = json!({"type":"string","format":"date-time"});
+        schema["properties"]["compareStartDate"] = date.clone();
+        schema["properties"]["compareEndDate"] = date;
         schema["properties"]["compare"] =
             json!({"type":"string","enum":["prior","year_over_year"]});
     }
@@ -409,6 +417,20 @@ async fn report_args(
     }
     let mut args: ReportArgs = serde_json::from_value(args)
         .map_err(|_| AgentToolError::InvalidInput("Invalid report arguments".into()))?;
+    args.start_date = date_bound(env, "startDate", &args.start_date, Bound::Start)?;
+    args.end_date = date_bound(env, "endDate", &args.end_date, Bound::End)?;
+    args.compare_start_date = optional_date_bound(
+        env,
+        "compareStartDate",
+        args.compare_start_date.take(),
+        Bound::Start,
+    )?;
+    args.compare_end_date = optional_date_bound(
+        env,
+        "compareEndDate",
+        args.compare_end_date.take(),
+        Bound::End,
+    )?;
     validate_window(&args.start_date, &args.end_date)?;
     match (&args.compare_start_date, &args.compare_end_date) {
         (Some(start), Some(end)) => validate_window(start, end)?,
@@ -560,7 +582,8 @@ impl AgentTool for GetEventSpendingSummaries {
         "Read native per-event Spending totals, categories and daily breakdowns in base currency. Optional date bounds select events by overlap; all opted-in transactions tagged to visible events contribute, including purchases outside event dates. FX uses the end bound or now. Inspect calculationQuality; unavailable FX is excluded by the native service."
     }
     fn input_schema(&self) -> Value {
-        json!({"type":"object","additionalProperties":false,"properties":{"startDate":{"type":"string","format":"date-time"},"endDate":{"type":"string","format":"date-time"}}})
+        let date = json!({"type":"string","description":DATE_BOUND_DESCRIPTION});
+        json!({"type":"object","additionalProperties":false,"properties":{"startDate":date,"endDate":date}})
     }
     fn required_scopes(&self) -> &'static [AgentScope] {
         &[AgentScope::SpendingRead]
@@ -576,15 +599,16 @@ impl AgentTool for GetEventSpendingSummaries {
         env: Arc<dyn AgentEnvironment>,
         args: Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: EventSummaryArgs = serde_json::from_value(args)
+        let mut args: EventSummaryArgs = serde_json::from_value(args)
             .map_err(|_| AgentToolError::InvalidInput("Invalid event summary arguments".into()))?;
-        for value in [&args.start_date, &args.end_date].into_iter().flatten() {
-            if DateTime::parse_from_rfc3339(value).is_err() {
-                return Err(AgentToolError::InvalidInput(
-                    "Date bounds must be RFC3339".into(),
-                ));
-            }
-        }
+        args.start_date = optional_date_bound(
+            env.as_ref(),
+            "startDate",
+            args.start_date.take(),
+            Bound::Start,
+        )?;
+        args.end_date =
+            optional_date_bound(env.as_ref(), "endDate", args.end_date.take(), Bound::End)?;
         if let (Some(start), Some(end)) = (&args.start_date, &args.end_date) {
             validate_window(start, end)?;
         }
@@ -614,6 +638,19 @@ impl AgentTool for GetEventSpendingSummaries {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Fails the test if parsing reaches a service.
+    struct NoServices;
+
+    #[async_trait::async_trait]
+    impl AgentEnvironment for NoServices {
+        crate::tools::test_support::unreachable_services!();
+    }
+
+    fn parse_search(args: Value) -> Result<CashActivitySearchRequest, AgentToolError> {
+        super::parse_search(&NoServices, args)
+    }
+
     #[test]
     fn search_rejects_bad_filters_without_echoing_private_values() {
         for args in [

@@ -17,6 +17,7 @@ use std::sync::Arc;
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
+use crate::tools::date_bounds::{optional_date_bound, Bound, DATE_BOUND_DESCRIPTION};
 use wealthfolio_core::accounts::account_types;
 use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::{
@@ -151,8 +152,11 @@ pub struct CategorizationState {
 /// `list_categorization_context` (which exposes the agent-facing context only).
 pub async fn compute_categorization_state(
     env: &dyn AgentEnvironment,
-    filters: CategorizationFilters,
+    mut filters: CategorizationFilters,
 ) -> Result<CategorizationState, AgentToolError> {
+    filters.start_date =
+        optional_date_bound(env, "startDate", filters.start_date.take(), Bound::Start)?;
+    filters.end_date = optional_date_bound(env, "endDate", filters.end_date.take(), Bound::End)?;
     let limit = filters
         .limit
         .map(|n| (n as usize).min(MAX_LIMIT))
@@ -199,7 +203,9 @@ pub async fn compute_categorization_state(
             protected_splits,
             proposals: Vec::new(),
             unproposed: Vec::new(),
-            taxonomies: Vec::new(),
+            // Keep the categories so "nothing matched" never reads as
+            // "nothing configured".
+            taxonomies: load_activity_taxonomies(env)?.summaries,
             examples: Vec::new(),
             key_lookup: HashMap::new(),
         });
@@ -216,61 +222,11 @@ pub async fn compute_categorization_state(
         })
     });
 
-    let tax_service = env.taxonomy_service();
-    let all_taxonomies = tax_service
-        .get_taxonomies_with_categories()
-        .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
-    let activity_taxonomies: Vec<_> = all_taxonomies
-        .into_iter()
-        .filter(|t| {
-            t.taxonomy.scope == "activity"
-                && wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
-                    .contains(&t.taxonomy.id.as_str())
-        })
-        .collect();
-
-    // category_id -> (taxonomy_id, taxonomy_name, category_name, path, color)
-    let mut category_lookup: HashMap<String, (String, String, String, String, String)> =
-        HashMap::new();
-    let mut key_lookup: HashMap<(String, String), (String, String, String)> = HashMap::new();
-    let mut taxonomy_summaries = Vec::with_capacity(activity_taxonomies.len());
-    for entry in &activity_taxonomies {
-        let cats_by_id: HashMap<&str, &_> = entry
-            .categories
-            .iter()
-            .map(|c| (c.id.as_str(), c))
-            .collect();
-        let mut options = Vec::with_capacity(entry.categories.len());
-        for cat in &entry.categories {
-            let path = build_category_path(cat, &cats_by_id);
-            category_lookup.insert(
-                cat.id.clone(),
-                (
-                    entry.taxonomy.id.clone(),
-                    entry.taxonomy.name.clone(),
-                    cat.name.clone(),
-                    path.clone(),
-                    cat.color.clone(),
-                ),
-            );
-            key_lookup.insert(
-                (entry.taxonomy.id.clone(), cat.key.clone()),
-                (entry.taxonomy.id.clone(), cat.id.clone(), path.clone()),
-            );
-            options.push(CategoryOption {
-                category_id: cat.id.clone(),
-                key: cat.key.clone(),
-                name: cat.name.clone(),
-                path,
-                color: cat.color.clone(),
-            });
-        }
-        taxonomy_summaries.push(TaxonomySummary {
-            taxonomy_id: entry.taxonomy.id.clone(),
-            taxonomy_name: entry.taxonomy.name.clone(),
-            categories: options,
-        });
-    }
+    let TaxonomyCatalog {
+        summaries: taxonomy_summaries,
+        category_lookup,
+        key_lookup,
+    } = load_activity_taxonomies(env)?;
 
     let history_request = CashActivitySearchRequest {
         account_ids: history_account_ids,
@@ -467,6 +423,77 @@ pub fn validate_explicit_activity_ids(ids: &[String]) -> Result<(), AgentToolErr
         )));
     }
     Ok(())
+}
+
+/// category_id -> (taxonomy_id, taxonomy_name, category_name, path, color)
+type CategoryInfo = (String, String, String, String, String);
+
+/// The activity-scope taxonomies and the lookups built from them.
+struct TaxonomyCatalog {
+    summaries: Vec<TaxonomySummary>,
+    category_lookup: HashMap<String, CategoryInfo>,
+    key_lookup: HashMap<(String, String), (String, String, String)>,
+}
+
+fn load_activity_taxonomies(env: &dyn AgentEnvironment) -> Result<TaxonomyCatalog, AgentToolError> {
+    let all_taxonomies = env
+        .taxonomy_service()
+        .get_taxonomies_with_categories()
+        .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+    let activity_taxonomies: Vec<_> = all_taxonomies
+        .into_iter()
+        .filter(|t| {
+            t.taxonomy.scope == "activity"
+                && wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
+                    .contains(&t.taxonomy.id.as_str())
+        })
+        .collect();
+
+    let mut category_lookup: HashMap<String, CategoryInfo> = HashMap::new();
+    let mut key_lookup: HashMap<(String, String), (String, String, String)> = HashMap::new();
+    let mut taxonomy_summaries = Vec::with_capacity(activity_taxonomies.len());
+    for entry in &activity_taxonomies {
+        let cats_by_id: HashMap<&str, &_> = entry
+            .categories
+            .iter()
+            .map(|c| (c.id.as_str(), c))
+            .collect();
+        let mut options = Vec::with_capacity(entry.categories.len());
+        for cat in &entry.categories {
+            let path = build_category_path(cat, &cats_by_id);
+            category_lookup.insert(
+                cat.id.clone(),
+                (
+                    entry.taxonomy.id.clone(),
+                    entry.taxonomy.name.clone(),
+                    cat.name.clone(),
+                    path.clone(),
+                    cat.color.clone(),
+                ),
+            );
+            key_lookup.insert(
+                (entry.taxonomy.id.clone(), cat.key.clone()),
+                (entry.taxonomy.id.clone(), cat.id.clone(), path.clone()),
+            );
+            options.push(CategoryOption {
+                category_id: cat.id.clone(),
+                key: cat.key.clone(),
+                name: cat.name.clone(),
+                path,
+                color: cat.color.clone(),
+            });
+        }
+        taxonomy_summaries.push(TaxonomySummary {
+            taxonomy_id: entry.taxonomy.id.clone(),
+            taxonomy_name: entry.taxonomy.name.clone(),
+            categories: options,
+        });
+    }
+    Ok(TaxonomyCatalog {
+        summaries: taxonomy_summaries,
+        category_lookup,
+        key_lookup,
+    })
 }
 
 /// Apply account/date/status filters to explicitly-requested targets,
@@ -678,8 +705,8 @@ impl AgentTool for ListCategorizationContext {
                     "enum": ["uncategorized", "all", "needs_review"],
                     "description": "Default: uncategorized."
                 },
-                "startDate": { "type": "string", "description": "Inclusive ISO 8601 lower bound." },
-                "endDate":   { "type": "string", "description": "Inclusive ISO 8601 upper bound." },
+                "startDate": { "type": "string", "description": DATE_BOUND_DESCRIPTION },
+                "endDate":   { "type": "string", "description": DATE_BOUND_DESCRIPTION },
                 "limit": {
                     "type": "integer",
                     "minimum": 1,
@@ -713,6 +740,7 @@ impl AgentTool for ListCategorizationContext {
                 "Invalid categorization arguments; see the input schema".into(),
             )
         })?;
+        let same_filters = repeat_filters(&args);
 
         let state = compute_categorization_state(
             env.as_ref(),
@@ -733,7 +761,7 @@ impl AgentTool for ListCategorizationContext {
             needs_ai_judgement: state.unproposed.len(),
             protected_splits: state.protected_splits,
         };
-        let next_step = next_step_instruction(&summary);
+        let next_step = next_step_instruction(&summary, &same_filters);
 
         let output = ListCategorizationContextOutput {
             taxonomies: state.taxonomies,
@@ -748,18 +776,43 @@ impl AgentTool for ListCategorizationContext {
     }
 }
 
-fn next_step_instruction(summary: &ContextSummary) -> String {
+/// Names the filter arguments the follow-up `propose_transaction_categories`
+/// call must repeat. Dropping one (such as `status`) proposes a different set
+/// of rows.
+fn repeat_filters(args: &ListCategorizationContextArgs) -> String {
+    let mut filters = serde_json::Map::new();
+    let mut put = |key: &str, value: serde_json::Value| {
+        if !value.is_null() {
+            filters.insert(key.to_string(), value);
+        }
+    };
+    put("activityIds", serde_json::json!(args.activity_ids));
+    put("accountIds", serde_json::json!(args.account_ids));
+    put("status", serde_json::json!(args.status));
+    put("startDate", serde_json::json!(args.start_date));
+    put("endDate", serde_json::json!(args.end_date));
+    put("limit", serde_json::json!(args.limit));
+    if filters.is_empty() {
+        "no filters".to_string()
+    } else {
+        format!("the same filters {}", serde_json::Value::Object(filters))
+    }
+}
+
+fn next_step_instruction(summary: &ContextSummary, same_filters: &str) -> String {
     if summary.total == 0 {
         return "No matching transactions were found; there is no categorization widget to render."
             .to_string();
     }
 
     if summary.needs_ai_judgement == 0 {
-        return "Call propose_transaction_categories with aiProposals: [] and the same filters to render the review widget. Rule/history matches are draft proposals, not applied categories.".to_string();
+        return format!(
+            "Call propose_transaction_categories with aiProposals: [] and {same_filters} to render the review widget. Rule/history matches are draft proposals, not applied categories."
+        );
     }
 
     format!(
-        "Infer categories for the {} unproposed row(s), then call propose_transaction_categories with those aiProposals and the same filters to render the review widget.",
+        "Infer categories for the {} unproposed row(s), then call propose_transaction_categories with those aiProposals and {same_filters} to render the review widget.",
         summary.needs_ai_judgement
     )
 }

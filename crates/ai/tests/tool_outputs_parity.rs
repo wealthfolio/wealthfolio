@@ -25,8 +25,8 @@ use wealthfolio_ai::env::test_env::{
 use wealthfolio_ai::tools::{
     GetAccounts, GetAssetAllocation, GetAssetTaxonomyAssignments, GetCashBalances, GetGoals,
     GetHealthStatus, GetHoldings, GetIncome, GetPerformance, GetValuationHistory,
-    ListAssetTaxonomies, ListCategorizationContext, PrepareAssetClassification, RecordActivities,
-    RecordActivity, RigAgentTool, SearchActivities,
+    ListAssetTaxonomies, ListCategorizationContext, PrepareAssetClassification, ProposeCategories,
+    RecordActivities, RecordActivity, RigAgentTool, SearchActivities,
 };
 use wealthfolio_core::accounts::{Account, TrackingMode};
 use wealthfolio_core::activities::{Activity, ActivityStatus};
@@ -825,6 +825,65 @@ output_test_dyn_env!(
     categorization_env(),
     { "activityIds": ["cash-a"] }
 );
+
+/// A call whose filters match no rows still returns the configured
+/// categories, so the review card says "no transactions matched" rather than
+/// "no spending taxonomies are configured".
+#[tokio::test]
+async fn no_matching_rows_still_return_the_configured_categories() {
+    let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
+    env.cash_activity_service = Arc::new(MockCashActivityService { items: Vec::new() });
+    let env = Arc::new(env);
+    for result in [
+        call_json_dyn(
+            ProposeCategories,
+            env.clone(),
+            serde_json::json!({ "aiProposals": [] }),
+        )
+        .await,
+        call_json_dyn(ListCategorizationContext, env, serde_json::json!({})).await,
+    ] {
+        assert_eq!(result["ok"]["summary"]["total"], 0, "{result}");
+        assert_eq!(
+            result["ok"]["taxonomies"][0]["taxonomyId"], "spending_categories",
+            "{result}"
+        );
+    }
+}
+
+/// Plain YYYY-MM-DD bounds are accepted; they failed with "premature end of
+/// input" before.
+#[tokio::test]
+async fn categorization_accepts_plain_date_bounds() {
+    for tool_result in [
+        call_json_dyn(
+            ListCategorizationContext,
+            categorization_env(),
+            serde_json::json!({ "status": "all", "startDate": "2024-01-01", "endDate": "2024-12-31" }),
+        )
+        .await,
+        call_json_dyn(
+            ProposeCategories,
+            categorization_env(),
+            serde_json::json!({ "startDate": "2024-01-01", "aiProposals": [] }),
+        )
+        .await,
+    ] {
+        assert!(tool_result.get("ok").is_some(), "{tool_result}");
+    }
+    let bad = call_json_dyn(
+        ListCategorizationContext,
+        categorization_env(),
+        serde_json::json!({ "startDate": "Jan 1" }),
+    )
+    .await;
+    assert!(
+        bad["err"]
+            .as_str()
+            .is_some_and(|e| e.contains("startDate must be")),
+        "{bad}"
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Draft/suggest tool outputs (migrated from `crates/ai/src/tools/*.rs` inline
