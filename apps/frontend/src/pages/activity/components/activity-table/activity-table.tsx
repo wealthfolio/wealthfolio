@@ -512,10 +512,17 @@ export const ActivityTable = ({
               amount != null && amount !== "" && Number.isFinite(Number(amount))
                 ? Math.abs(Number(amount))
                 : amount;
+            // Mirror the fee-inclusion rule of the income forms:
+            // – DIVIDEND: no form ever surfaces a fee field → exclude fee from
+            //   gross so the table stays consistent with the form's grossAmount.
+            // – INTEREST: the mobile form includes a fee field
+            //   (FEE_FIELD_ACTIVITY_TYPES) → include the stored fee.
+            const feeForGross =
+              activityType === ActivityType.DIVIDEND ? null : row.original.fee;
             const gross = calculateIncomeGrossAmount({
               receivedAmount: absAmount,
               tax: row.original.tax,
-              fee: row.original.fee,
+              fee: feeForGross,
             });
             // gross is undefined only when receivedAmount is missing; render
             // "—" rather than a misleading zero.
