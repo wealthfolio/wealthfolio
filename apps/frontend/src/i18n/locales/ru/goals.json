@@ -750,7 +750,7 @@
     "per_month_suffix": "/мес",
     "your_target_date": "ваша целевая дата",
     "status_setup_needed": "Нужна настройка",
-    "headline_setup_prefix": "Задайте целевую сумму, чтобы",
+    "headline_setup_prefix": "Задайте сумму и срок, чтобы",
     "headline_setup_emphasis": "отслеживать",
     "headline_setup_suffix": " цель «{{title}}».",
     "status_reached": "Достигнуто",
