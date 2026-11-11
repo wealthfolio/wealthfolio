@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getPlatform as getPlatformApi,
   isTauri,
@@ -36,6 +36,12 @@ export interface UsePlatformResult {
    * the same as a confirmed "feature not supported" response.
    */
   error: boolean;
+  /**
+   * Re-fetch platform capabilities from the backend, bypassing the module-level
+   * cache. Use this after the user may have changed system settings (e.g. enrolled
+   * a fingerprint in System Settings → Touch ID) so the UI reflects the new state.
+   */
+  refetch: () => void;
 }
 
 // Cache platform info to avoid multiple invocations
@@ -47,6 +53,15 @@ export function usePlatform(): UsePlatformResult {
   const [platform, setPlatform] = useState<PlatformInfo | null>(cachedPlatform);
   const [loading, setLoading] = useState(!cachedPlatform);
   const [platformError, setPlatformError] = useState(cachedPlatformError);
+  // Incrementing this counter clears the cache and re-triggers the fetch effect.
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  const refetch = useCallback(() => {
+    cachedPlatform = null;
+    cachedPlatformError = false;
+    setLoading(true);
+    setRefetchTrigger((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     // If we already have cached platform info, use it
@@ -88,7 +103,10 @@ export function usePlatform(): UsePlatformResult {
       setPlatformError(false);
       setLoading(false);
     }
-  }, []);
+    // refetchTrigger is intentionally included: clearing the cache and bumping
+    // it re-runs this effect so a fresh platform query replaces the stale data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetchTrigger]);
 
   const isWeb = isWebEnv;
 
@@ -105,6 +123,7 @@ export function usePlatform(): UsePlatformResult {
     isTauri,
     loading,
     error: platformError,
+    refetch,
   };
 }
 

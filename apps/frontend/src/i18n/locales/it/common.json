@@ -533,10 +533,11 @@
       "teamChanged": "Il tuo nucleo familiare è cambiato. Ricollega Wealthfolio Connect per continuare.",
       "rebind": "Ricollega Wealthfolio Connect per confermare l’account e il nucleo familiare di questo profilo.",
       "cooldown_many": "Troppi tentativi. Riprova tra {{count}} secondi.",
+      "biometricCheckFailed": "Impossibile verificare la disponibilità di Touch ID. Riavvia Wealthfolio per riprovare.",
       "biometricUnavailable": "Touch ID non è disponibile. Aggiungi un’impronta nelle Impostazioni di Sistema → Touch ID e codice.",
       "biometricStoreFailed": "Impossibile salvare il token Touch ID. Assicurati che il dispositivo abbia un codice.",
       "biometricNotEnrolled": "Touch ID non è più disponibile. Usa la tua password per sbloccare.",
-      "biometricNotEnrolledNoPassword": "Touch ID non è più disponibile. Usa il pulsante Indietro e riattivalo nelle impostazioni del profilo."
+      "biometricNotEnrolledNoPassword": "I dati Touch ID sono andati persi. Autenticati con Touch ID per ripristinare l’accesso a questo profilo."
     }
   },
   "remove": "Rimuovi",

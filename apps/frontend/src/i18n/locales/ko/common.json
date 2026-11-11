@@ -509,10 +509,11 @@
       "accountMismatch": "이 프로필에 처음 연결한 Connect 계정으로 로그인하세요.",
       "teamChanged": "가구가 변경되었습니다. 계속하려면 Wealthfolio Connect를 다시 연결하세요.",
       "rebind": "Wealthfolio Connect를 다시 연결하여 이 프로필의 계정과 가구를 확인하세요.",
+      "biometricCheckFailed": "Touch ID 사용 가능 여부를 확인할 수 없습니다. Wealthfolio를 재시작하여 다시 시도하세요.",
       "biometricUnavailable": "Touch ID를 사용할 수 없습니다. 시스템 설정 → Touch ID 및 암호에서 지문을 추가하세요.",
       "biometricStoreFailed": "Touch ID 토큰을 저장하지 못했습니다. 기기에 암호가 설정되어 있는지 확인하세요.",
       "biometricNotEnrolled": "Touch ID를 더 이상 사용할 수 없습니다. 비밀번호를 사용하여 잠금을 해제하세요.",
-      "biometricNotEnrolledNoPassword": "Touch ID를 더 이상 사용할 수 없습니다. 뒤로 버튼을 사용하고 프로필 설정에서 다시 활성화하세요."
+      "biometricNotEnrolledNoPassword": "Touch ID 데이터가 손실되었습니다. Touch ID로 인증하여 이 프로필에 대한 접근을 복구하세요."
     }
   },
   "remove": "제거",

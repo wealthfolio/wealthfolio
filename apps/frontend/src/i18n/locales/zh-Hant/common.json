@@ -518,10 +518,11 @@
       "accountMismatch": "請使用最初連結至此個人資料的 Connect 帳戶登入。",
       "teamChanged": "您的家庭已變更。請重新連線至 Wealthfolio Connect 以繼續。",
       "rebind": "請重新連線至 Wealthfolio Connect，以確認此個人資料的帳戶和家庭。",
+      "biometricCheckFailed": "無法檢查 Touch ID 可用性。請重新啟動 Wealthfolio 再試一次。",
       "biometricUnavailable": "Touch ID 無法使用。請在系統設定 → Touch ID 與密碼中新增指紋。",
       "biometricStoreFailed": "無法儲存 Touch ID 令牌。請確認裝置已設定密碼。",
       "biometricNotEnrolled": "Touch ID 不再可用。請使用密碼解鎖。",
-      "biometricNotEnrolledNoPassword": "Touch ID 不再可用。請使用「返回」按鈕，並在個人檔案設定中重新啟用。"
+      "biometricNotEnrolledNoPassword": "Touch ID 資料已遺失。請使用 Touch ID 驗證以還原此個人檔案的存取權限。"
     }
   },
   "remove": "移除",

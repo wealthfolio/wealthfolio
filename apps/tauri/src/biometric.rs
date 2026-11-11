@@ -126,7 +126,12 @@ mod imp {
         // Err(false) = user cancelled or other failure.
         let (tx, rx) = mpsc::channel::<Result<(), bool>>();
 
-        unsafe {
+        // Block the calling thread inside the `unsafe` block so that `context`,
+        // `ns_reason`, and `block` remain alive until after the reply fires.
+        // LAContext documents that it retains the reply block until after the
+        // callback runs, but releasing the LAContext itself before the callback
+        // can cause undefined behaviour on some macOS versions.
+        let recv_result = unsafe {
             let context: Retained<AnyObject> = msg_send![class!(LAContext), new];
             let ns_reason = NSString::from_str(reason);
 
@@ -142,10 +147,12 @@ mod imp {
                     } else {
                         // Distinguish hardware-unavailable / not-enrolled from
                         // other failures (user cancel, lockout, etc.).
-                        // LAErrorBiometryNotAvailable = 6
-                        // LAErrorBiometryNotEnrolled  = 7
-                        const LA_ERROR_BIOMETRY_NOT_AVAILABLE: isize = 6;
-                        const LA_ERROR_BIOMETRY_NOT_ENROLLED: isize = 7;
+                        // LA error codes are NEGATIVE integers (defined as kLAError* in
+                        // <LocalAuthentication/LAPublicDefines.h>):
+                        //   kLAErrorBiometryNotAvailable = -6
+                        //   kLAErrorBiometryNotEnrolled  = -7
+                        const LA_ERROR_BIOMETRY_NOT_AVAILABLE: isize = -6;
+                        const LA_ERROR_BIOMETRY_NOT_ENROLLED: isize = -7;
                         // SAFETY: `error` is a non-null NSError pointer supplied by
                         // LAContext's reply block. The LAContext framework guarantees it
                         // is a valid NSError object whenever success is NO.
@@ -167,10 +174,14 @@ mod imp {
                 localizedReason: &*ns_reason,
                 reply: &*block
             ];
-        }
 
-        // Block the calling thread until the sheet resolves.
-        match rx.recv() {
+            // Block the calling thread here so `context`, `ns_reason`, and `block`
+            // are kept alive (on the stack) until the reply has arrived.
+            rx.recv()
+            // `context`, `ns_reason`, and `block` are dropped here, after recv.
+        };
+
+        match recv_result {
             Ok(Ok(())) => Ok(()),
             Ok(Err(true)) => Err("BIOMETRIC_NOT_ENROLLED".to_owned()),
             _ => Err("BIOMETRIC_CANCELLED".to_owned()),

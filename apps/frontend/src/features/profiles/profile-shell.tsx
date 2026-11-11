@@ -95,7 +95,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const { platform, loading: platformLoading, error: platformLoadError } = usePlatform();
+  const { platform, loading: platformLoading, error: platformLoadError, refetch: refetchPlatform } = usePlatform();
   // Three-state: null = not yet known (loading or fetch failed); true/false = confirmed.
   // Loading and fetch-error must not be coerced to the same false as "confirmed unavailable"
   // so callers can decide whether to disable-and-explain vs. disable-and-wait.
@@ -1138,16 +1138,32 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                     or no fingerprint enrolled). null: still loading/fetch error — no message yet.
                     BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR: detected at runtime during an unlock
                     attempt (fingerprints removed after the page loaded). Both cases show the same
-                    unavailable message. Suppress it when the token-missing error is showing. */}
+                    unavailable message. Suppress it when the token-missing error is showing.
+                    The Retry button re-checks availability in case the user just enrolled a
+                    fingerprint in System Settings → Touch ID & Password. */}
                 {(biometricAvailable === false ||
                   error === BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR) &&
                   error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
-                    <p role="alert" className="text-destructive text-sm">
-                      {t("profiles.errors.biometricUnavailable", {
-                        defaultValue:
-                          "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
-                      })}
-                    </p>
+                    <div className="space-y-2">
+                      <p role="alert" className="text-destructive text-sm">
+                        {t("profiles.errors.biometricUnavailable", {
+                          defaultValue:
+                            "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+                        })}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={busy || biometricBusy || platformLoading}
+                        onClick={() => refetchPlatform()}
+                      >
+                        {platformLoading
+                          ? t("profiles.biometricChecking", { defaultValue: "Checking…" })
+                          : t("profiles.retryTouchId", { defaultValue: "Retry Touch ID" })}
+                      </Button>
+                    </div>
                   )}
                 {/* Token-missing error for a profile that also has a password: tell the user
                     to use their password instead. */}

@@ -533,10 +533,11 @@
       "teamChanged": "Votre foyer a changé. Reconnectez Wealthfolio Connect pour continuer.",
       "rebind": "Reconnectez Wealthfolio Connect pour confirmer le compte et le foyer de ce profil.",
       "cooldown_many": "Trop de tentatives. Réessayez dans {{count}} secondes.",
+      "biometricCheckFailed": "Impossible de vérifier la disponibilité de Touch ID. Redémarrez Wealthfolio pour réessayer.",
       "biometricUnavailable": "Touch ID n’est pas disponible. Ajoutez une empreinte dans Réglages Système → Touch ID et code.",
       "biometricStoreFailed": "Impossible d’enregistrer le jeton Touch ID. Vérifiez que l’appareil a un code d’accès.",
       "biometricNotEnrolled": "Touch ID n’est plus disponible. Utilisez votre mot de passe pour déverrouiller.",
-      "biometricNotEnrolledNoPassword": "Touch ID n’est plus disponible. Utilisez le bouton Retour et réactivez-le dans les paramètres de votre profil."
+      "biometricNotEnrolledNoPassword": "Les données Touch ID ont été perdues. Authentifiez-vous avec Touch ID pour restaurer l’accès à ce profil."
     }
   },
   "remove": "Supprimer",

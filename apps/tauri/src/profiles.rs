@@ -805,7 +805,7 @@ pub async fn enable_biometric_lock(
     // Used in the rollback below: if store_bypass_token fails we restore the
     // old verifier instead of calling disable_biometric_lock, which would strip
     // the only protection from a Touch-ID-only profile.
-    let (old_biometric_verifier, was_biometric_enabled) = state
+    let (old_biometric_verifier, was_biometric_enabled, was_never_protected) = state
         .registry
         .get_biometric_state(profile_id)
         .map_err(|e| e.to_string())?;
@@ -844,6 +844,7 @@ pub async fn enable_biometric_lock(
             profile_id,
             old_biometric_verifier.as_deref(),
             was_biometric_enabled,
+            was_never_protected,
         ) {
             log::error!(
                 "Failed to restore biometric state for profile {profile_id}: {rollback_err}"

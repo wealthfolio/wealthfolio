@@ -475,10 +475,11 @@
       "startupFailed": "تعذّر على الخادم فتح هذا الملف الشخصي. أعد المحاولة، أو اطلب من مسؤول الخادم التحقق من خطأ بدء التشغيل.",
       "teamChanged": "تغيّرت أسرتك. أعد الاتصال بـ Wealthfolio Connect للمتابعة.",
       "unavailable": "تعذّر فتح هذا الملف الشخصي. أعد تشغيل Wealthfolio وحاول مرة أخرى.",
+      "biometricCheckFailed": "تعذّر التحقق من توفر Touch ID. أعد تشغيل Wealthfolio للمحاولة مرة أخرى.",
       "biometricUnavailable": "Touch ID غير متوفر. أضف بصمة في إعدادات النظام ← Touch ID وكلمة المرور.",
       "biometricStoreFailed": "تعذّر حفظ رمز Touch ID. تأكد من تعيين رمز مرور للجهاز.",
       "biometricNotEnrolled": "Touch ID لم يعد متاحًا. استخدم كلمة المرور لفتح القفل.",
-      "biometricNotEnrolledNoPassword": "Touch ID لم يعد متاحًا. استخدم زر الرجوع وأعد تفعيله في إعدادات ملفك الشخصي."
+      "biometricNotEnrolledNoPassword": "فُقدت بيانات Touch ID. استخدم Touch ID للمصادقة واستعادة الوصول إلى هذا الملف الشخصي."
     },
     "exportBackup": "صدّر نسخة احتياطية أولًا",
     "firstProfile": "أنشئ ملفك الشخصي الأول",
