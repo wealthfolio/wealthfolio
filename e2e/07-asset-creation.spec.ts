@@ -1,9 +1,13 @@
 import { expect, Page, test } from "@playwright/test";
+import { api } from "./api";
 import { BASE_URL, loginIfNeeded } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
-const CUSTOM_SYMBOL = "TESTASSET01";
+// Unique per run, so the create flow runs even on a database that already has one.
+const CUSTOM_SYMBOL = `TESTASSET${Date.now().toString(36).toUpperCase()}`;
+// A fixture instrument (e2e/fixtures/quotes) that no other spec creates.
+const SEARCH_SYMBOL = "BALTEST";
 
 test.describe("Asset Creation", () => {
   let page: Page;
@@ -39,12 +43,6 @@ test.describe("Asset Creation", () => {
   test("3. Create manual asset", async () => {
     await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
-
-    // Skip if already exists
-    const existingRow = page.getByRole("row").filter({ hasText: CUSTOM_SYMBOL });
-    if (await existingRow.isVisible().catch(() => false)) {
-      return;
-    }
 
     await page.getByRole("button", { name: "Add security" }).click();
     await expect(page.getByRole("dialog", { name: "Add security", exact: true })).toBeVisible({
@@ -84,7 +82,13 @@ test.describe("Asset Creation", () => {
     await expect(assetRow.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("4. Create from ticker search — AAPL", async () => {
+  test("4. Create from ticker search", async () => {
+    // A retry runs on the same database: drop the asset an earlier attempt created.
+    const assets = await api<{ id: string; displayCode?: string | null }[]>(page, "GET", "/assets");
+    for (const asset of assets.filter((item) => item.displayCode === SEARCH_SYMBOL)) {
+      await api(page, "DELETE", `/assets/${asset.id}`);
+    }
+
     await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
@@ -92,9 +96,7 @@ test.describe("Asset Creation", () => {
     await expect(page.getByRole("table")).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(1000);
 
-    // Skip if AAPL already exists (likely from earlier specs like CSV import)
-    const existingStock = page.getByTestId("security-EQUITY-AAPL");
-    test.skip((await existingStock.count()) > 0, "AAPL already exists");
+    const createdStock = page.getByTestId(`security-EQUITY-${SEARCH_SYMBOL}`);
 
     const dialog = page.getByRole("dialog", { name: "Add security", exact: true });
     await page.getByRole("button", { name: "Add security" }).click();
@@ -105,35 +107,35 @@ test.describe("Asset Creation", () => {
     await searchTrigger.click();
 
     // Fill the actual CommandInput inside the popover
-    const escapedSymbol = "AAPL".replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedSymbol = SEARCH_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const exactSymbolPattern = new RegExp(`^${escapedSymbol}$`, "i");
     const searchInput = page.getByPlaceholder("Search for symbol");
     await expect(searchInput).toBeVisible({ timeout: 5000 });
-    await searchInput.fill("AAPL");
+    await searchInput.fill(SEARCH_SYMBOL);
 
-    // Wait for search results to appear and select AAPL
+    // Wait for search results to appear and select the symbol
     const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
     await expect(suggestions).toBeVisible({ timeout: 10000 });
-    const aaplOption = suggestions
+    const symbolOption = suggestions
       .getByRole("option")
       .filter({
         has: page.locator("span.font-mono").filter({ hasText: exactSymbolPattern }),
         hasNotText: /Create custom|manual/i,
       })
       .first();
-    await expect(aaplOption).toBeVisible({ timeout: 30000 });
-    await aaplOption.click();
+    await expect(symbolOption).toBeVisible({ timeout: 30000 });
+    await symbolOption.click();
 
     // Verify symbol field got auto-filled
     const symbolInput = dialog.getByPlaceholder("e.g., AAPL");
-    await expect(symbolInput).toHaveValue(/AAPL/i);
+    await expect(symbolInput).toHaveValue(new RegExp(escapedSymbol, "i"));
 
     // Click Create Security
     await dialog.getByRole("button", { name: "Create security", exact: true }).click();
     await expect(dialog).not.toBeVisible({ timeout: 10000 });
 
     await page.waitForTimeout(1000);
-    await expect(existingStock.first()).toBeVisible({ timeout: 10000 });
+    await expect(createdStock.first()).toBeVisible({ timeout: 10000 });
   });
 
   test("5. Edit asset — add notes", async () => {
@@ -148,7 +150,7 @@ test.describe("Asset Creation", () => {
       await page.waitForTimeout(500);
     }
 
-    // Find the TESTASSET01 row
+    // Find this spec's asset row
     const assetRow = page.getByRole("row").filter({ hasText: CUSTOM_SYMBOL });
     await expect(assetRow.first()).toBeVisible({ timeout: 10000 });
 
@@ -166,7 +168,7 @@ test.describe("Asset Creation", () => {
     // Find and fill notes field
     const notesTextarea = page.getByPlaceholder("Any additional notes...");
     if (await notesTextarea.isVisible().catch(() => false)) {
-      await notesTextarea.fill("E2E test notes for TESTASSET01");
+      await notesTextarea.fill(`E2E test notes for ${CUSTOM_SYMBOL}`);
     } else {
       // Notes may be on a different tab
       const notesTab = page.getByRole("tab", { name: /Notes|Details/i });
@@ -175,7 +177,7 @@ test.describe("Asset Creation", () => {
         await page.waitForTimeout(300);
         await page
           .getByPlaceholder("Any additional notes...")
-          .fill("E2E test notes for TESTASSET01");
+          .fill(`E2E test notes for ${CUSTOM_SYMBOL}`);
       }
     }
 

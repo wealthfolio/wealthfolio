@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createAccount } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
-
-const api = `${BASE_URL}/api/v1`;
 
 // Symbols from e2e/fixtures/quotes, one BUY and one DIVIDEND each, so the preview overflows.
 const SYMBOLS = ["AAPL", "SHOP", "PANW", "MSFT", "TSLA", "NVDA", "ASML", "VOO", "KWEB", "JNJ"];
@@ -29,26 +28,12 @@ async function openActivityPreview(page: Page, csv: string) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await completeOnboardingIfNeeded(page);
 
-  const accountName = `Sticky header ${Date.now().toString(36)}`;
-  const accountResponse = await page.request.post(`${api}/accounts`, {
-    data: {
-      name: accountName,
-      accountType: "SECURITIES",
-      currency: "USD",
-      isDefault: false,
-      isActive: true,
-      trackingMode: "TRANSACTIONS",
-    },
-  });
-  expect(accountResponse.ok(), await accountResponse.text()).toBeTruthy();
+  const account = await createAccount(page, { name: `Sticky header ${Date.now().toString(36)}` });
 
-  await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE_URL}/import?account=${account.id}`, { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: /Import Activities/i })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole("combobox", { name: /Select an account/i }).click();
-  await page.getByPlaceholder("Search accounts...").fill(accountName);
-  await page.getByRole("option", { name: accountName }).first().click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "sticky-header.csv",
     mimeType: "text/csv",

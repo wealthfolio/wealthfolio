@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, createAccount } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 test("option expiration preserves month/day while entering the year", async ({ page }) => {
   test.setTimeout(180000);
   await completeOnboardingIfNeeded(page);
-  await createAccount(page, "Option expiration regression", "USD");
+  await createAccount(page, { name: uniqueName("Option expiration regression") });
   await page.goto(`${BASE_URL}/activities/manage?type=BUY`, { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Option", exact: true }).click();
 

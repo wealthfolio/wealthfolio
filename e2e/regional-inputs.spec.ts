@@ -29,7 +29,8 @@ test("manual exchange rates display and save Spain's decimal commas in LTR and R
   expect(settings.ok()).toBeTruthy();
   const created = await page.request.post(`${api}/exchange-rates`, {
     headers,
-    data: { fromCurrency: "USD", toCurrency: "EUR", source: "MANUAL", rate: 1.2345 },
+    // A pair no other spec or account uses, so the row below is this test's own.
+    data: { fromCurrency: "NZD", toCurrency: "SEK", source: "MANUAL", rate: 1.2345 },
   });
   expect(created.ok(), await created.text()).toBeTruthy();
   const rate = await created.json();
@@ -37,11 +38,7 @@ test("manual exchange rates display and save Spain's decimal commas in LTR and R
     for (const dir of ["ltr", "rtl"]) {
       await gotoAppPath(page, `/settings/general?dir=${dir}`);
       await expect(page.locator("html")).toHaveAttribute("dir", dir);
-      const row = page
-        .getByRole("row")
-        .filter({ hasText: "USD" })
-        .filter({ hasText: "EUR" })
-        .first();
+      const row = page.getByRole("row").filter({ hasText: "NZD" }).filter({ hasText: "SEK" });
       await expect(row).toContainText(dir === "ltr" ? "1,2345" : "1,5678");
       await row.getByRole("button", { name: "Edit", exact: true }).click();
       const input = row.getByRole("textbox", { name: "Rate", exact: true });

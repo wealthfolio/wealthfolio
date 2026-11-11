@@ -1,52 +1,21 @@
 import { devices, expect, test, type Page } from "@playwright/test";
+import { restoreSpendingSettings, seedSpendingAccounts, type SpendingSettings } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({ ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } });
 
-async function seedAccounts(page: Page) {
-  await page.evaluate(async () => {
-    const { profileScope } = await import(
-      new URL("/src/features/profiles/session.ts", location.href).href
-    );
-    const headers = { "Content-Type": "application/json", "x-wf-profile-scope": profileScope() };
-    const ids = [];
-    for (const [name, accountType] of [
-      ["Grid bank", "CASH"],
-      ["Grid card", "CREDIT_CARD"],
-    ]) {
-      const response = await fetch("/api/v1/accounts", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name,
-          accountType,
-          currency: "USD",
-          isActive: true,
-          isDefault: false,
-          isArchived: false,
-          trackingMode: "TRANSACTIONS",
-        }),
-      });
-      if (!response.ok) throw new Error("Could not seed spending account");
-      ids.push((await response.json()).id);
-    }
-    const response = await fetch("/api/v1/spending/settings", {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ enabled: true, accountIds: ids }),
-    });
-    if (!response.ok) throw new Error("Could not enable spending fixture");
-  });
-}
+let previousSpending: SpendingSettings | undefined;
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
+  previousSpending = (await seedSpendingAccounts(page, "Grid")).previous;
   await gotoAppPath(page, "/");
   await expect(page.locator("[data-page-scroll-container]")).toBeVisible();
-  await seedAccounts(page);
+});
+
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSpending = undefined;
 });
 
 async function markOrigin(page: Page) {

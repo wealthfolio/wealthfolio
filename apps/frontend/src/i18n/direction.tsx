@@ -59,10 +59,10 @@ function parseDirection(value: unknown): TextDirection | null {
   return value === "rtl" || value === "ltr" ? value : null;
 }
 
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV || import.meta.env.VITE_E2E === "true") {
   // `?dir=rtl` on the first load, or `__wealthfolioSetDirection("rtl")` at
   // runtime (`null` returns to the language's direction). Both are stripped
-  // from production builds.
+  // from production builds, except the E2E build (`VITE_E2E=true`).
   if (typeof window !== "undefined") {
     developmentOverride = parseDirection(new URLSearchParams(window.location.search).get("dir"));
   }

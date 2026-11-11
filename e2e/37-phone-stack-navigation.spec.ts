@@ -1,23 +1,17 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 // The phone layout stacks the screens of Holdings and Settings: a pushed screen
 // slides over the one it came from, which stays mounted, and back returns to it
 // as it was left. Runs on an iPhone-sized screen with real touch input, so the
-// browser's touch handling applies; `?swipe=app` (development builds only)
+// browser's touch handling applies; `?swipe=app` (development and E2E builds)
 // turns on the swipe back the iOS app has.
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 test.use({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, hasTouch: true });
 
-test.beforeEach(async ({ browser, page }) => {
-  // The iPhone app's onboarding has one step fewer than the shared helper walks
-  // through, so a fresh profile is onboarded from a desktop browser first.
-  // Contexts from `browser` take this file's phone options unless told otherwise.
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
 });
 

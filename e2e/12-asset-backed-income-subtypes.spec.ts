@@ -1,8 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
+import { createAccount } from "./api";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
-  createAccount,
   fillDateField,
   gotoActivities,
   gotoAppPath,
@@ -14,12 +14,6 @@ import {
 } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
-
-interface AccountResponse {
-  id: string;
-  name: string;
-  currency: string;
-}
 
 interface HoldingLotResponse {
   quantity: number;
@@ -50,6 +44,7 @@ interface ExpectedHolding {
 
 test.describe("Asset-backed income subtypes update holdings", () => {
   let page: Page;
+  let accountId: string;
   const runId = Date.now().toString(36);
   const accountName = `Asset-backed Income ${runId}`;
   const currency = "USD";
@@ -88,19 +83,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
     return Math.round(value * factor) / factor;
   }
 
-  async function getAccountId() {
-    const response = await page.request.get(`${BASE_URL}/api/v1/accounts`);
-    expect(response.ok()).toBeTruthy();
-    const accounts = (await response.json()) as AccountResponse[];
-    const account = accounts.find(
-      (item) => item.name === accountName && item.currency === currency,
-    );
-    expect(account, `Expected account ${accountName} to exist`).toBeTruthy();
-    return account!.id;
-  }
-
   async function getHoldings() {
-    const accountId = await getAccountId();
     const response = await page.request.get(
       `${BASE_URL}/api/v1/holdings?accountId=${encodeURIComponent(accountId)}`,
     );
@@ -171,7 +154,6 @@ test.describe("Asset-backed income subtypes update holdings", () => {
     await expect
       .poll(
         async () => {
-          const accountId = await getAccountId();
           const holdings = await getHoldings();
           const listHolding = holdings.find(
             (item) => item.instrument?.symbol?.toUpperCase() === expected.symbol,
@@ -212,11 +194,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   }
 
   async function expectHoldingVisibleInAccount(symbol: string, quantity: number) {
-    await gotoAppPath(page, "/settings/accounts");
-    const accountLink = page.getByRole("link", { name: accountName });
-    await expect(accountLink).toBeVisible({ timeout: 10000 });
-    await accountLink.click();
-    await expect(page).toHaveURL(/\/accounts\/[^/]+/, { timeout: 10000 });
+    await gotoAppPath(page, `/accounts/${accountId}`);
 
     const row = page.locator("tbody tr").filter({ hasText: symbol }).first();
     await expect(row).toBeVisible({ timeout: 15000 });
@@ -228,7 +206,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
     test.setTimeout(180_000);
 
     await completeOnboardingIfNeeded(page);
-    await createAccount(page, accountName, currency);
+    accountId = (await createAccount(page, { name: accountName, currency })).id;
   });
 
   test("2. Dividend in kind creates shares with matching cost basis", async () => {

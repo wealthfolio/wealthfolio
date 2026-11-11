@@ -1,5 +1,6 @@
 import { expect, Page, test } from "@playwright/test";
 import {
+  BASE_URL,
   completeOnboardingIfNeeded,
   createAccount,
   gotoActivities,
@@ -12,7 +13,6 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Onboarding And Main Flow", () => {
-  const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
   let page: Page;
 
   // Helper to generate date parts for a date N days ago

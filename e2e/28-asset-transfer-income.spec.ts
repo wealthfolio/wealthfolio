@@ -1,15 +1,6 @@
 import { expect, test } from "@playwright/test";
-import {
-  BASE_URL,
-  completeOnboardingIfNeeded,
-  fillDateField,
-  gotoActivities,
-  gotoAppPath,
-  openAddActivitySheet,
-  searchAndSelectSymbol,
-  selectAccountOption,
-  selectActivityType,
-} from "./helpers";
+import { api } from "./api";
+import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test("asset overview retains historical income after a full securities transfer", async ({
   page,
@@ -82,31 +73,27 @@ test("asset overview retains historical income after a full securities transfer"
   await gotoAppPath(page, `/holdings/${encodeURIComponent(assetId)}`);
   await expect(incomeRow()).toContainText("25.00");
 
-  await gotoActivities(page);
-  await openAddActivitySheet(page);
-  await selectActivityType(page, "Transfer");
-  await page.getByRole("button", { name: "Securities" }).click();
-  await selectAccountOption(
+  // An internal securities transfer pair, as the Add Activity sheet saves it.
+  const transfer = await api<{ created: unknown[]; errors: unknown[] }>(
     page,
-    sender.name,
-    "USD",
-    page.getByRole("combobox", { name: "From Account" }),
+    "POST",
+    "/activities/bulk",
+    {
+      creates: [
+        { accountId: sender.id, activityType: "TRANSFER_OUT" },
+        { accountId: receiver.id, activityType: "TRANSFER_IN" },
+      ].map((leg) => ({
+        ...leg,
+        asset: { id: assetId },
+        quantity: 10,
+        currency: "USD",
+        activityDate: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+        sourceGroupId: `wf-transfer-${runId}`,
+      })),
+    },
   );
-  await selectAccountOption(
-    page,
-    receiver.name,
-    "USD",
-    page.getByRole("combobox", { name: "To Account" }),
-  );
-  await searchAndSelectSymbol(page, symbol);
-  await fillDateField(page, 10);
-  const quantity = page.getByTestId("quantity-input");
-  await quantity.fill("10");
-  await quantity.blur();
-  await page.getByRole("button", { name: /^Transfer\s+/i }).click();
-  await expect(page.getByRole("heading", { name: "Add Activity" })).not.toBeVisible({
-    timeout: 20_000,
-  });
+  expect(transfer.errors).toEqual([]);
+  expect(transfer.created).toHaveLength(2);
 
   await expect
     .poll(
@@ -131,10 +118,21 @@ test("asset overview retains historical income after a full securities transfer"
 
   await gotoAppPath(page, `/holdings/${encodeURIComponent(assetId)}`);
   await expect(incomeRow()).toContainText("25.00");
-  const receiverHolding = (await assetHoldings(receiver.id))[0];
-  const senderHolding = (await assetHoldings(sender.id))[0];
+  // Loading the page starts a portfolio update, which lists holdings again once done.
+  let receiverHolding: HoldingResponse | undefined;
+  let senderHolding: HoldingResponse | undefined;
+  await expect
+    .poll(
+      async () => {
+        [receiverHolding] = await assetHoldings(receiver.id);
+        [senderHolding] = await assetHoldings(sender.id);
+        return Boolean(receiverHolding && senderHolding);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
   const totalReturn =
-    Number(receiverHolding.totalReturn?.local) + Number(senderHolding.totalReturn?.local);
+    Number(receiverHolding?.totalReturn?.local) + Number(senderHolding?.totalReturn?.local);
   await expect(page.getByText("Total Return", { exact: true }).locator("..")).toContainText(
     Math.abs(totalReturn).toLocaleString("en-US", {
       minimumFractionDigits: 2,

@@ -1,4 +1,5 @@
-import { devices, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { translator, updateSettings, type Settings } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test.use({
@@ -8,11 +9,15 @@ test.use({
   hasTouch: true,
 });
 
-test.beforeEach(async ({ browser, page }) => {
-  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
-  await completeOnboardingIfNeeded(await desktop.newPage());
-  await desktop.close();
+let previousSettings: Settings | undefined;
+
+test.beforeEach(async ({ page }) => {
   await completeOnboardingIfNeeded(page);
+});
+
+test.afterEach(async ({ page }) => {
+  if (previousSettings) await updateSettings(page, previousSettings);
+  previousSettings = undefined;
 });
 
 for (const scenario of [
@@ -24,22 +29,22 @@ for (const scenario of [
   test(`two-column picker remains usable at ${scenario.width}px, ${scenario.language}, ${scenario.largeText ? "large" : "default"} text`, async ({
     page,
   }) => {
+    previousSettings = await updateSettings(page, {
+      language: scenario.language,
+      textSize: scenario.largeText ? "extra-large" : "default",
+    });
+    const t = translator(scenario.language);
+    const copy = {
+      buy: t("activity:type_buy"),
+      sell: t("activity:type_sell"),
+      next: t("activity:mobile_next"),
+      back: t("activity:mobile_back"),
+    };
     await page.setViewportSize({ width: scenario.width, height: 844 });
     await gotoAppPath(page, `/activities/manage?dir=${scenario.direction}`);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("radio")).toHaveCount(11);
-    const copy = await page.evaluate(async ({ language, largeText }) => {
-      const { default: i18n } = await import(new URL("/src/i18n/i18n.ts", location.href).href);
-      await i18n.changeLanguage(language);
-      if (largeText) document.documentElement.dataset.textSize = "extra-large";
-      return {
-        buy: i18n.t("activity:type_buy"),
-        sell: i18n.t("activity:type_sell"),
-        next: i18n.t("activity:mobile_next"),
-        back: i18n.t("activity:mobile_back"),
-      };
-    }, scenario);
     const grid = dialog.getByRole("radiogroup");
     const cards = grid.locator("label");
     const first = (await cards.nth(0).boundingBox())!;

@@ -1,8 +1,8 @@
 import { expect, type Locator, Page, test } from "@playwright/test";
+import { createAccount } from "./api";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
-  createAccount,
   gotoActivities,
   gotoAppPath,
   selectAccountOption,
@@ -13,29 +13,32 @@ test.describe.configure({ mode: "serial" });
 test.describe("Activity Creation Tests", () => {
   let page: Page;
   const runId = Date.now().toString(36);
+  const USD_ACCOUNT = `Test USD Account ${runId}`;
+  const CAD_ACCOUNT = `Test CAD Account ${runId}`;
+  const accountIds: Record<string, string> = {};
 
   // Test data for activities
   const TEST_DATA = {
     accounts: [
-      { name: "Test USD Account", currency: "USD" },
-      { name: "Test CAD Account", currency: "CAD" },
+      { name: USD_ACCOUNT, currency: "USD" },
+      { name: CAD_ACCOUNT, currency: "CAD" },
     ],
     // Activities to test - organized by type
     activities: {
       deposit: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 10000,
         notes: "Initial deposit for testing",
       },
       withdrawal: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 500,
         notes: "Test withdrawal",
       },
       buy: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "AAPL",
         quantity: 5,
@@ -44,7 +47,7 @@ test.describe("Activity Creation Tests", () => {
         notes: "Test buy order",
       },
       buyWithAdvanced: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "MSFT",
         quantity: 3,
@@ -57,7 +60,7 @@ test.describe("Activity Creation Tests", () => {
         },
       },
       sell: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "AAPL",
         quantity: 2,
@@ -66,14 +69,14 @@ test.describe("Activity Creation Tests", () => {
         notes: "Test sell order",
       },
       dividend: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "AAPL",
         amount: 25,
         notes: "Dividend received",
       },
       dividendWithSubtype: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "MSFT",
         amount: 15,
@@ -83,32 +86,32 @@ test.describe("Activity Creation Tests", () => {
         subtype: "In kind",
       },
       transfer: {
-        fromAccount: "Test USD Account",
-        toAccount: "Test CAD Account",
+        fromAccount: USD_ACCOUNT,
+        toAccount: CAD_ACCOUNT,
         amount: 1000,
         notes: "Transfer between accounts",
       },
       externalCashTransferOut: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 500,
         notes: "External cash transfer out",
       },
       externalCashTransferIn: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 750,
         notes: "External cash transfer in",
       },
       internalSecuritiesTransfer: {
-        fromAccount: "Test USD Account",
-        toAccount: "Test CAD Account",
+        fromAccount: USD_ACCOUNT,
+        toAccount: CAD_ACCOUNT,
         symbol: "AAPL",
         quantity: 1,
         notes: "Internal securities transfer",
       },
       externalSecuritiesTransferIn: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "MSFT",
         quantity: 2,
@@ -116,25 +119,25 @@ test.describe("Activity Creation Tests", () => {
         notes: "External securities transfer in",
       },
       fee: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 25,
         notes: "Management fee",
       },
       interest: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 50,
         notes: "Interest earned",
       },
       tax: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 100,
         notes: "Withholding tax",
       },
       credit: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         amount: 75.25,
         updatedAmount: 80.5,
@@ -157,7 +160,7 @@ test.describe("Activity Creation Tests", () => {
         notes: `E2E option expiry ${runId}`,
       },
       split: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         symbol: "AAPL",
         splitRatio: 2,
@@ -165,7 +168,7 @@ test.describe("Activity Creation Tests", () => {
       },
       // Custom asset activity
       customAssetBuy: {
-        account: "Test USD Account",
+        account: USD_ACCOUNT,
         currency: "USD",
         customAsset: {
           symbol: "MYCOIN",
@@ -466,19 +469,10 @@ test.describe("Activity Creation Tests", () => {
     comment: string | null;
   }
 
-  async function getTestAccountId() {
-    const response = await page.request.get(`${BASE_URL}/api/v1/accounts`);
-    expect(response.ok()).toBeTruthy();
-    const accounts = (await response.json()) as Array<{
-      id: string;
-      name: string;
-      currency: string;
-    }>;
-    const account = accounts.find(
-      (item) => item.name === "Test USD Account" && item.currency === "USD",
-    );
-    expect(account, "Expected the activities E2E account to exist").toBeTruthy();
-    return account!.id;
+  /** The activities page filtered to one of this spec's accounts, so other specs' rows stay out. */
+  async function gotoAccountActivities(accountName = USD_ACCOUNT) {
+    await gotoAppPath(page, `/activities?tab=investments&account=${accountIds[accountName]}`);
+    await expect(page.getByTestId("add-activities-button")).toBeVisible({ timeout: 10000 });
   }
 
   async function seedActivity(data: Record<string, unknown>) {
@@ -498,7 +492,7 @@ test.describe("Activity Creation Tests", () => {
   }
 
   async function openActivityEditor(...rowText: string[]) {
-    await gotoActivities(page);
+    await gotoAccountActivities();
     let row = page.locator("tbody tr");
     for (const text of rowText) {
       row = row.filter({ hasText: text });
@@ -506,9 +500,12 @@ test.describe("Activity Creation Tests", () => {
     const targetRow = row.first();
     await expect(targetRow).toBeVisible({ timeout: 10000 });
     const dialog = page.getByRole("dialog", { name: "Update Activity" });
-    await targetRow.getByRole("button", { name: "Open", exact: true }).press("Enter");
     const editItem = page.getByRole("menuitem", { name: "Edit", exact: true });
-    await expect(editItem).toBeVisible();
+    // A refetch can re-render the row as the key lands; press again until the menu opens.
+    await expect(async () => {
+      await targetRow.getByRole("button", { name: "Open", exact: true }).press("Enter");
+      await expect(editItem).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     await page.keyboard.press("ArrowDown");
     await expect(editItem).toBeFocused();
     await page.keyboard.press("Enter");
@@ -544,7 +541,8 @@ test.describe("Activity Creation Tests", () => {
     // Look for the activity row with matching type and symbol
     const displayType = ACTIVITY_TYPE_DISPLAY[type] || type;
 
-    // Find a row containing both the type badge and symbol/Cash
+    // Find a row of this spec's account containing both the type badge and symbol/Cash
+    await gotoAccountActivities();
     const displaySymbol = symbol || "Cash";
     const row = page
       .locator("tr")
@@ -573,7 +571,7 @@ test.describe("Activity Creation Tests", () => {
 
   test("2. Create test accounts", async () => {
     for (const account of TEST_DATA.accounts) {
-      await createAccount(page, account.name, account.currency);
+      accountIds[account.name] = (await createAccount(page, account)).id;
     }
   });
 
@@ -730,10 +728,10 @@ test.describe("Activity Creation Tests", () => {
     const transfer = TEST_DATA.activities.transfer;
 
     // Select from account
-    await selectAccount("Test USD Account", "USD", "From Account");
+    await selectAccount(USD_ACCOUNT, "USD", "From Account");
 
     // Select to account
-    await selectAccount("Test CAD Account", "CAD", "To Account");
+    await selectAccount(CAD_ACCOUNT, "CAD", "To Account");
 
     await selectDate();
     await fillInternalTransferCashAmount(transfer.amount);
@@ -809,8 +807,8 @@ test.describe("Activity Creation Tests", () => {
     await page.waitForTimeout(200);
 
     // Select from/to accounts (internal transfer)
-    await selectAccount("Test USD Account", "USD", "From Account");
-    await selectAccount("Test CAD Account", "CAD", "To Account");
+    await selectAccount(USD_ACCOUNT, "USD", "From Account");
+    await selectAccount(CAD_ACCOUNT, "CAD", "To Account");
 
     // Search and select symbol
     await searchAndSelectSymbol(transfer.symbol);
@@ -914,7 +912,7 @@ test.describe("Activity Creation Tests", () => {
 
   test("13. Edit ADJUSTMENT through cash and securities modes", async () => {
     const adjustment = TEST_DATA.activities.cashAdjustment;
-    const accountId = await getTestAccountId();
+    const accountId = accountIds[USD_ACCOUNT];
     const seeded = await seedActivity({
       accountId,
       activityType: "ADJUSTMENT",
@@ -927,7 +925,7 @@ test.describe("Activity Creation Tests", () => {
     });
 
     const cashDialog = await openActivityEditor("Adjustment", "CASH_SWEEP", "$10.00");
-    await expect(cashDialog.getByTestId("account-select")).toContainText("Test USD Account");
+    await expect(cashDialog.getByTestId("account-select")).toContainText(USD_ACCOUNT);
     await expect(cashDialog.getByRole("button", { name: "Cash", exact: true })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -957,7 +955,7 @@ test.describe("Activity Creation Tests", () => {
     await expect(
       securitiesDialog.getByRole("button", { name: "Securities", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
-    await expect(securitiesDialog.getByTestId("account-select")).toContainText("Test USD Account");
+    await expect(securitiesDialog.getByTestId("account-select")).toContainText(USD_ACCOUNT);
     await expectInputNumber(securitiesDialog, "quantity-input", adjustment.quantity);
     await expectInputNumber(securitiesDialog, "unit-price-input", adjustment.unitPrice);
     await expectInputNumber(securitiesDialog, "amount-input", adjustment.securitiesAmount);
@@ -982,7 +980,7 @@ test.describe("Activity Creation Tests", () => {
 
   test("14. Edit option-expiry ADJUSTMENT with option-only subtype", async () => {
     const adjustment = TEST_DATA.activities.optionExpiryAdjustment;
-    const accountId = await getTestAccountId();
+    const accountId = accountIds[USD_ACCOUNT];
     const seeded = await seedActivity({
       accountId,
       activityType: "ADJUSTMENT",
@@ -1005,7 +1003,7 @@ test.describe("Activity Creation Tests", () => {
     });
 
     const dialog = await openActivityEditor("Adjustment", "Option Expiry");
-    await expect(dialog.getByTestId("account-select")).toContainText("Test USD Account");
+    await expect(dialog.getByTestId("account-select")).toContainText(USD_ACCOUNT);
     await expect(dialog.getByRole("button", { name: "Securities", exact: true })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -1214,23 +1212,27 @@ test.describe("Activity Creation Tests", () => {
   });
 
   test("21. Verify activity count in activities page", async () => {
-    await gotoActivities(page);
-
     // Count activities - we created activities:
     // deposit, withdrawal, 2 buys, sell, 2 dividends,
     // internal cash transfer (creates 2), external cash transfer out (1), external cash transfer in (1),
     // internal securities transfer (creates 2), external securities transfer in (1),
     // 1 fee, credit, cash adjustment, option-expiry adjustment, interest, 1 tax, split, custom buy
-    // Total: 19 existing activities + 3 new-form activities = 22
+    // Total: 22 — 20 in the USD account, and the 2 transfer-ins in the CAD account.
     // The table is virtualized, so mounted rows do not represent the total.
-    const activityCount = page.getByRole("main").getByRole("status");
-    await expect
-      .poll(async () => {
-        const match = (await activityCount.textContent())?.match(
-          /^\s*\d+\s*\/\s*(\d+)\s+activities\s*$/,
-        );
-        return match ? Number(match[1]) : 0;
-      })
-      .toBeGreaterThanOrEqual(22);
+    for (const [accountName, expected] of [
+      [USD_ACCOUNT, 20],
+      [CAD_ACCOUNT, 2],
+    ] as const) {
+      await gotoAccountActivities(accountName);
+      const activityCount = page.getByRole("main").getByRole("status");
+      await expect
+        .poll(async () => {
+          const match = (await activityCount.textContent())?.match(
+            /^\s*\d+\s*\/\s*(\d+)\s+activities\s*$/,
+          );
+          return match ? Number(match[1]) : 0;
+        })
+        .toBe(expected);
+    }
   });
 });

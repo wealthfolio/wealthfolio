@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import zhActivity from "../apps/frontend/src/i18n/locales/zh/activity.json" with { type: "json" };
-import zhCommon from "../apps/frontend/src/i18n/locales/zh/common.json" with { type: "json" };
 import zhSettings from "../apps/frontend/src/i18n/locales/zh/settings.json" with { type: "json" };
-import { BASE_URL, completeOnboardingIfNeeded, createAccount } from "./helpers";
+import { createAccount } from "./api";
+import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 for (const direction of ["ltr", "rtl"] as const) {
   test(`currency selectors localize names while retaining codes in ${direction}`, async ({
@@ -10,8 +10,7 @@ for (const direction of ["ltr", "rtl"] as const) {
   }) => {
     test.setTimeout(120000);
     await completeOnboardingIfNeeded(page);
-    const accountName = `Currency localization ${direction}`;
-    await createAccount(page, accountName, "USD");
+    const account = await createAccount(page, { name: `Currency localization ${direction}` });
     const settingsUrl = `${BASE_URL}/api/v1/settings`;
     const saved = await page.request.put(settingsUrl, { data: { language: "zh" } });
     expect(saved.ok()).toBe(true);
@@ -29,6 +28,8 @@ for (const direction of ["ltr", "rtl"] as const) {
       await page.getByRole("option", { name: "人民币 (CNY)", exact: true }).click();
       await page.keyboard.press("Escape");
       await expect(from).toHaveText("人民币 (CNY)");
+      // Closing animates; the next picker would otherwise open beside this one.
+      await expect(page.locator("[cmdk-list]").filter({ visible: true })).toHaveCount(0);
       await dialog.getByRole("combobox", { name: zhSettings.fx_to_currency }).click();
       await page
         .getByPlaceholder(zhSettings.fx_search_currency)
@@ -42,9 +43,7 @@ for (const direction of ["ltr", "rtl"] as const) {
       await page.keyboard.press("Escape");
       await expect(dialog).not.toBeVisible();
 
-      await page.goto(`${BASE_URL}/import?dir=${direction}`);
-      await page.getByRole("combobox", { name: zhCommon.component.select_an_account }).click();
-      await page.getByRole("option", { name: new RegExp(accountName) }).click();
+      await page.goto(`${BASE_URL}/import?account=${account.id}&dir=${direction}`);
       await page.locator('input[type="file"]').setInputFiles({
         name: "currency-localization.csv",
         mimeType: "text/csv",

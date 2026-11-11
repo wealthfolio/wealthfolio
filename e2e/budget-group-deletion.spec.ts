@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
+import { restoreSpendingSettings, updateSettings, useSpendingAccounts } from "./api";
 import { BASE_URL } from "./helpers";
+
+// Puts back the app-wide settings a test changed, so the next spec on this worker
+// starts from defaults.
+let restore: (() => Promise<unknown>) | undefined;
+test.afterEach(async () => {
+  await restore?.();
+  restore = undefined;
+});
+
+interface GroupRow {
+  group: { id: string };
+  buffer: number;
+}
 
 for (const direction of ["ltr", "rtl"]) {
   test(`removing rollover then deleting a default group preserves monthly budgets (${direction})`, async ({
@@ -24,19 +38,16 @@ for (const direction of ["ltr", "rtl"]) {
       expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
       return response.json();
     };
-    await api(
-      "settings",
-      {
-        baseCurrency: "USD",
-        timezone: "UTC",
-        onboardingCompleted: true,
-        language: "en",
-        theme: "light",
-        syncEnabled: false,
-        autoUpdateCheckEnabled: false,
-      },
-      "PUT",
-    );
+    const previousSettings = await updateSettings(page, {
+      baseCurrency: "USD",
+      timezone: "UTC",
+      onboardingCompleted: true,
+      language: "en",
+      theme: "light",
+      syncEnabled: false,
+      autoUpdateCheckEnabled: false,
+    });
+    restore = () => updateSettings(page, previousSettings);
     const account = await api(
       "accounts",
       {
@@ -49,7 +60,11 @@ for (const direction of ["ltr", "rtl"]) {
       },
       "POST",
     );
-    await api("spending/settings", { enabled: true, accountIds: [account.id] }, "PUT");
+    const previousSpending = await useSpendingAccounts(page, [account.id]);
+    restore = async () => {
+      await restoreSpendingSettings(page, previousSpending);
+      await updateSettings(page, previousSettings);
+    };
     await api("spending/budget/groups/reset", {}, "POST");
     const source = "8cbd26c8-e3b2-4176-8c61-e5c11e10b808";
     const destination = "a409e0d6-9152-49c8-a5b4-a147a8ac636e";
@@ -139,6 +154,16 @@ for (const direction of ["ltr", "rtl"]) {
         (row: { group: { id: string } }) => row.group.id === source,
       ).rolloverIn,
     ).toBe(0);
+    // Other specs' budget targets count in the totals, so compare against these and
+    // check this test's two groups by their own rows.
+    const marchBefore = afterRemoval;
+    const aprilBefore = await api("spending/budget?periodKey=2026-04");
+    const ownBuffer = (snapshot: { computed: { groupRows: GroupRow[] } }) =>
+      snapshot.computed.groupRows
+        .filter((row) => row.group.id === source || row.group.id === destination)
+        .reduce((sum, row) => sum + row.buffer, 0);
+    expect(ownBuffer(marchBefore)).toBe(250);
+    expect(ownBuffer(aprilBefore)).toBe(300);
     await page.reload();
     await sourceSection.getByRole("button", { name: "Group actions" }).click();
     await expect(
@@ -153,9 +178,14 @@ for (const direction of ["ltr", "rtl"]) {
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(sourceSection).toHaveCount(0);
     const march = await api("spending/budget?periodKey=2026-03");
-    expect(march.computed.totals.groupBuffer).toBe(250);
-    expect(march.computed.totals.spendingRemaining).toBe(250);
-    expect((await api("spending/budget?periodKey=2026-04")).computed.totals.groupBuffer).toBe(300);
+    const april = await api("spending/budget?periodKey=2026-04");
+    expect(ownBuffer(march)).toBe(250);
+    expect(ownBuffer(april)).toBe(300);
+    expect(march.computed.totals.groupBuffer).toBe(marchBefore.computed.totals.groupBuffer);
+    expect(march.computed.totals.spendingRemaining).toBe(
+      marchBefore.computed.totals.spendingRemaining,
+    );
+    expect(april.computed.totals.groupBuffer).toBe(aprilBefore.computed.totals.groupBuffer);
     await page.reload();
     await expect(page.getByRole("button", { name: "Reset to defaults" })).toBeVisible();
     await expect(sourceSection).toHaveCount(0);

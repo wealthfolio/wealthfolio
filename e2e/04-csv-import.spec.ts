@@ -1,7 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
-import { BASE_URL, createAccount, loginIfNeeded } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -11,7 +12,7 @@ const HAPPY_PATH_CSV = path.join(FIXTURES, "happy-path-import.csv");
 const SEMICOLON_CSV = path.join(FIXTURES, "semicolon-delimiter.csv");
 const DUPLICATE_CSV = path.join(FIXTURES, "duplicate-detection.csv");
 
-const IMPORT_ACCOUNT = "Import USD Account";
+const IMPORT_ACCOUNT = uniqueName("Import USD Account");
 
 async function selectImportAccount(page: Page, accountName: string) {
   // The AccountSelector card variant renders with role="combobox" and aria-label="Select an account"
@@ -67,7 +68,7 @@ test.describe("CSV Import Wizard", () => {
   test("1. Setup: login and create Import USD Account", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
-    await createAccount(page, IMPORT_ACCOUNT, "USD", "Transactions");
+    await createAccount(page, { name: IMPORT_ACCOUNT });
   });
 
   test("2. Happy path: upload CSV, auto-map, review, confirm import", async () => {

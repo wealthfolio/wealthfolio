@@ -1,7 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
-import { BASE_URL, createAccount, loginIfNeeded } from "./helpers";
+import { createAccount, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded } from "./helpers";
 
 /**
  * Final-cash writer policy through the real CSV import path.
@@ -18,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POLICY_CSV = path.join(__dirname, "fixtures", "final-cash-policy.csv");
 
-const IMPORT_ACCOUNT = "Final Cash Policy Account";
+const IMPORT_ACCOUNT = uniqueName("Final Cash Policy Account");
 
 /** tag (from the comment column) → expected persisted state */
 const EXPECTED_ROWS: Record<string, { amount: number; needsReview: boolean }> = {
@@ -60,6 +61,7 @@ async function selectImportAccount(page: Page, accountName: string) {
 
 test.describe("Final-cash import policy", () => {
   let page: Page;
+  let accountId: string;
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
@@ -72,7 +74,7 @@ test.describe("Final-cash import policy", () => {
   test("1. Setup: login and create the policy account", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
-    await createAccount(page, IMPORT_ACCOUNT, "USD", "Transactions");
+    accountId = (await createAccount(page, { name: IMPORT_ACCOUNT })).id;
   });
 
   test("2. Import the policy fixture through the wizard", async () => {
@@ -122,12 +124,11 @@ test.describe("Final-cash import policy", () => {
 
     const response = await page.request.post(`${BASE_URL}/api/v1/activities/search`, {
       // page is 0-based on this endpoint
-      data: { page: 0, pageSize: 100 },
+      data: { page: 0, pageSize: 100, accountIdFilter: [accountId] },
     });
     expect(response.ok()).toBeTruthy();
     const body = (await response.json()) as {
       data: Array<{
-        accountName: string;
         activityType: string;
         amount: string | null;
         needsReview: boolean;
@@ -135,7 +136,7 @@ test.describe("Final-cash import policy", () => {
       }>;
     };
 
-    const rows = body.data.filter((row) => row.accountName === IMPORT_ACCOUNT);
+    const rows = body.data;
     expect(rows.length).toBe(Object.keys(EXPECTED_ROWS).length);
 
     let cashTotal = 0;

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createAccount, uniqueName } from "./api";
 import {
   completeOnboardingIfNeeded,
-  createAccount,
   gotoActivities,
   gotoAppPath,
   selectAccountOption,
@@ -26,11 +26,11 @@ for (const mobile of [false, true]) {
   }) => {
     test.setTimeout(180_000);
     page.setDefaultTimeout(15_000);
-    const source = `Transfer currency ${mobile ? "mobile" : "desktop"} A`;
-    const destination = `Transfer currency ${mobile ? "mobile" : "desktop"} B`;
+    const source = uniqueName(`Transfer currency ${mobile ? "mobile" : "desktop"} A`);
+    const destination = uniqueName(`Transfer currency ${mobile ? "mobile" : "desktop"} B`);
     await completeOnboardingIfNeeded(page);
-    await createAccount(page, source, "USD");
-    await createAccount(page, destination, "USD");
+    await createAccount(page, { name: source });
+    await createAccount(page, { name: destination });
     if (mobile) await page.setViewportSize({ width: 390, height: 844 });
     const openActivities = () =>
       mobile ? gotoAppPath(page, "/activities?tab=investments") : gotoActivities(page);

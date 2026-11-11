@@ -1,10 +1,17 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, gotoActivities, loginIfNeeded } from "./helpers";
+import { createAccount, deposit, uniqueName } from "./api";
+import { BASE_URL, loginIfNeeded } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
+const ACCOUNT_NAME = uniqueName("Data Grid");
+const ACCOUNT_CURRENCY = "USD";
+const SEEDED_ROWS = 5;
+
 test.describe("Activity Data Grid Inline Editing", () => {
   let page: Page;
+  // The grid is scoped to this spec's account, so it edits and deletes only its own rows.
+  let activitiesUrl: string;
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
@@ -14,14 +21,21 @@ test.describe("Activity Data Grid Inline Editing", () => {
     await page.close();
   });
 
-  test("1. Setup: login and navigate to activities", async () => {
+  test("1. Setup: login and seed activities", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
-    await gotoActivities(page);
+    const account = await createAccount(page, { name: ACCOUNT_NAME, currency: ACCOUNT_CURRENCY });
+    for (let daysAgo = 1; daysAgo <= SEEDED_ROWS; daysAgo++) {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      await deposit(page, account.id, 100 * daysAgo, ACCOUNT_CURRENCY, date.toISOString());
+    }
+    activitiesUrl = `${BASE_URL}/activities?account=${account.id}`;
   });
 
   test("2. Grid loads: switch to edit mode, verify rows", async () => {
-    await gotoActivities(page);
+    await page.goto(activitiesUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("add-activities-button")).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Switch to data grid (Edit mode)
@@ -34,17 +48,16 @@ test.describe("Activity Data Grid Inline Editing", () => {
     const gridEl = page.locator('[data-slot="grid"]');
     await expect(gridEl).toBeVisible({ timeout: 10000 });
 
-    // At least 5 data rows (from spec 02 which created 19 activities)
+    // Exactly the rows this spec seeded in its own account
     const dataRows = page.locator('[data-slot="grid-row"]');
-    const rowCount = await dataRows.count();
-    expect(rowCount).toBeGreaterThanOrEqual(5);
+    await expect(dataRows).toHaveCount(SEEDED_ROWS, { timeout: 10000 });
 
     // Save/Cancel buttons should NOT be visible initially (no unsaved changes)
     await expect(page.getByRole("button", { name: "Save changes" })).not.toBeVisible();
   });
 
   test("3. Inline edit comment: dirty state and Save appears", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
+    await page.goto(activitiesUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
     // Switch to edit mode
@@ -73,7 +86,7 @@ test.describe("Activity Data Grid Inline Editing", () => {
   });
 
   test("4. Save edits: pending changes clear after save", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
+    await page.goto(activitiesUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
     // Switch to edit mode
@@ -104,7 +117,7 @@ test.describe("Activity Data Grid Inline Editing", () => {
   });
 
   test("5. Discard changes: Cancel reverts edits", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
+    await page.goto(activitiesUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
     // Switch to edit mode
@@ -136,7 +149,7 @@ test.describe("Activity Data Grid Inline Editing", () => {
   });
 
   test("6. Delete row: select row and delete", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
+    await page.goto(activitiesUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
 
     // Switch to edit mode
@@ -144,8 +157,7 @@ test.describe("Activity Data Grid Inline Editing", () => {
     await page.waitForTimeout(1000);
 
     const dataRows = page.locator('[data-slot="grid-row"]');
-    const initialCount = await dataRows.count();
-    expect(initialCount).toBeGreaterThan(0);
+    await expect(dataRows).toHaveCount(SEEDED_ROWS, { timeout: 10000 });
 
     // Select the first row via its "Select row" checkbox
     const firstRowCheckbox = dataRows.first().getByRole("checkbox", { name: "Select row" });
@@ -167,5 +179,6 @@ test.describe("Activity Data Grid Inline Editing", () => {
     await saveBtn.click();
 
     await expect(page.getByText(/pending change/i)).not.toBeVisible({ timeout: 10000 });
+    await expect(dataRows).toHaveCount(SEEDED_ROWS - 1, { timeout: 10000 });
   });
 });

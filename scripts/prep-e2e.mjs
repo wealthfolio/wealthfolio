@@ -99,6 +99,7 @@ export const prepE2eEnv = async ({ envPath = ENV_PATH, env = process.env } = {})
   }
   await writeFile(envPath, updated);
   console.log(`Updated .env.web to use isolated data directory ${dataDirectory}`);
+  return dataDirectory;
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

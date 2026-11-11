@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import frHealth from "../apps/frontend/src/i18n/locales/fr/health.json" with { type: "json" };
 import arHealth from "../apps/frontend/src/i18n/locales/ar/health.json" with { type: "json" };
 import type { HealthIssue } from "../apps/frontend/src/lib/types";
+import { updateSettings, type Settings } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test("engine activity reasons reach the Health Center in French and Arabic", async ({ page }) => {
@@ -38,6 +39,7 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
   expect(created.ok(), await created.text()).toBeTruthy();
   const { id: activityId } = await created.json();
   let issue: HealthIssue | undefined;
+  let previousSettings: Settings | undefined;
   try {
     await expect
       .poll(
@@ -45,8 +47,13 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
           const response = await page.request.post(`${api}/health/check`);
           expect(response.ok()).toBeTruthy();
           const status = await response.json();
+          // Other specs' rejected activities share this issue; find ours in it.
           issue = (status.issues as HealthIssue[]).find(
-            (candidate) => candidate.code === "data_rejected_activity",
+            (candidate) =>
+              candidate.code === "data_rejected_activity" &&
+              candidate.diagnostics?.some((diagnostic) =>
+                diagnostic.evidence.some((row) => row.activityIssue?.activityId === activityId),
+              ),
           );
           return issue?.diagnostics
             ?.flatMap((diagnostic) => diagnostic.evidence)
@@ -66,12 +73,15 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
       ["fr", frHealth, "ltr", 1440],
       ["ar", arHealth, "rtl", 390],
     ] as const) {
-      expect((await page.request.put(`${api}/settings`, { data: { language } })).ok()).toBeTruthy();
+      const replaced = await updateSettings(page, { language });
+      previousSettings ??= replaced;
       await page.setViewportSize({ width, height: 900 });
       await gotoAppPath(page, `/health?dir=${direction}`);
       await expect(page.locator("html")).toHaveAttribute("dir", direction);
+      // The title counts the rejected activities, which other specs may add to;
+      // the message does not.
       await page
-        .getByText(catalog.issues.data_rejected_activity.title_one, { exact: true })
+        .getByText(catalog.issues.data_rejected_activity.message, { exact: true })
         .first()
         .click();
       const sheet = page.getByRole("dialog");
@@ -92,6 +102,6 @@ test("engine activity reasons reach the Health Center in French and Arabic", asy
   } finally {
     await page.request.delete(`${api}/activities/${activityId}`);
     await page.request.delete(`${api}/accounts/${accountId}`);
-    await page.request.put(`${api}/settings`, { data: { language: "en" } });
+    if (previousSettings) await page.request.put(`${api}/settings`, { data: previousSettings });
   }
 });

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { restoreSpendingSettings, uniqueName, useSpendingAccounts } from "./api";
 import { BASE_URL } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
@@ -47,79 +48,79 @@ for (const direction of ["ltr", "rtl"]) {
       isActive: true,
       trackingMode: "TRANSACTIONS",
     });
-    await api("spending/settings", { enabled: true, accountIds: [account.id] }, "PUT");
-
-    const note = `Imported credit without subtype ${direction}`;
-    await page.goto(`${BASE_URL}/import?dir=${direction}`);
-    await page.getByRole("combobox", { name: /Select an account/i }).click();
-    await page.getByPlaceholder("Search accounts...").fill(account.name);
-    await page.getByRole("option", { name: new RegExp(account.name) }).click();
-    await page.locator('input[type="file"]').setInputFiles({
-      name: `untyped-credit-${direction}.csv`,
-      mimeType: "text/csv",
-      buffer: Buffer.from(
-        `date,activityType,amount,currency,comment\n${new Date().toISOString().slice(0, 10)},CREDIT,100,USD,${note}\n`,
-      ),
-    });
-    await expect(page.getByText("CSV Preview")).toBeVisible();
-    for (const name of [
-      /Configure Mapping/i,
-      /Review Transactions/i,
-      /Continue to Import/i,
-      /Import \d+ Activit/i,
-    ]) {
-      const button = page.getByRole("button", { name });
-      await expect(button).toBeEnabled({ timeout: 30_000 });
-      await button.click();
-    }
-    await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 30_000 });
-
-    const search = () =>
-      api("spending/cash-activities/search", {
-        accountIds: [account.id],
-        includeCashBalances: true,
-        limit: 50,
+    const previousSpending = await useSpendingAccounts(page, [account.id]);
+    try {
+      const note = uniqueName(`Imported credit without subtype ${direction}`);
+      await page.goto(`${BASE_URL}/import?account=${account.id}&dir=${direction}`);
+      await page.locator('input[type="file"]').setInputFiles({
+        name: `untyped-credit-${direction}.csv`,
+        mimeType: "text/csv",
+        buffer: Buffer.from(
+          `date,activityType,amount,currency,comment\n${new Date().toISOString().slice(0, 10)},CREDIT,100,USD,${note}\n`,
+        ),
       });
-    const imported = await search();
-    expect(imported.totalCount).toBe(1);
-    expect(imported.items[0]).toMatchObject({
-      activityType: "CREDIT",
-      subtype: null,
-      cashFlowBucket: "neutral",
-      netAmount: 100,
-      visibleSpendingAmount: 0,
-    });
-    expect(Number(imported.items[0].cashBalance)).toBe(100);
+      await expect(page.getByText("CSV Preview")).toBeVisible();
+      for (const name of [
+        /Configure Mapping/i,
+        /Review Transactions/i,
+        /Continue to Import/i,
+        /Import \d+ Activit/i,
+      ]) {
+        const button = page.getByRole("button", { name });
+        await expect(button).toBeEnabled({ timeout: 30_000 });
+        await button.click();
+      }
+      await expect(page.getByText("Import Complete")).toBeVisible({ timeout: 30_000 });
 
-    await page.goto(`${BASE_URL}/activities?tab=spending&dir=${direction}`);
-    await expect(page.getByText(note, { exact: true })).toBeVisible();
-    if (direction === "rtl") {
+      const search = () =>
+        api("spending/cash-activities/search", {
+          accountIds: [account.id],
+          includeCashBalances: true,
+          limit: 50,
+        });
+      const imported = await search();
+      expect(imported.totalCount).toBe(1);
+      expect(imported.items[0]).toMatchObject({
+        activityType: "CREDIT",
+        subtype: null,
+        cashFlowBucket: "neutral",
+        netAmount: 100,
+        visibleSpendingAmount: 0,
+      });
+      expect(Number(imported.items[0].cashBalance)).toBe(100);
+
+      await page.goto(`${BASE_URL}/activities?tab=spending&dir=${direction}`);
+      await expect(page.getByText(note, { exact: true })).toBeVisible();
+      if (direction === "rtl") {
+        await page.getByRole("button", { name: "Row actions", exact: true }).click();
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      } else {
+        await page.getByText(note, { exact: true }).click();
+      }
+      const form = page.getByRole("dialog", { name: "Edit Transaction", exact: true });
+      // On a phone the field is a row whose trigger also shows its label.
+      await expect(
+        form.getByRole("combobox", { name: "Type" }).locator('[data-slot="select-value"]'),
+      ).toHaveText("Credit");
+      await expect(form.getByText("Neutral", { exact: true })).toBeVisible();
+      await expect(form.getByText("Neutral transfer", { exact: true })).toHaveCount(0);
+      await form.getByRole("button", { name: /^Update(?: Transaction)?$/ }).click();
+      await expect(form).not.toBeVisible();
+      const saved = await search();
+      expect(saved.items[0]).toMatchObject({ subtype: null, cashFlowBucket: "neutral" });
+
       await page.getByRole("button", { name: "Row actions", exact: true }).click();
-      await page.getByRole("button", { name: "Edit", exact: true }).click();
-    } else {
-      await page.getByText(note, { exact: true }).click();
+      await page
+        .getByRole(direction === "rtl" ? "button" : "menuitem", { name: "Delete", exact: true })
+        .click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Delete", exact: true })
+        .click();
+      await expect(page.getByText(note, { exact: true })).toHaveCount(0);
+      expect((await search()).totalCount).toBe(0);
+    } finally {
+      await restoreSpendingSettings(page, previousSpending);
     }
-    const form = page.getByRole("dialog", { name: "Edit Transaction", exact: true });
-    // On a phone the field is a row whose trigger also shows its label.
-    await expect(
-      form.getByRole("combobox", { name: "Type" }).locator('[data-slot="select-value"]'),
-    ).toHaveText("Credit");
-    await expect(form.getByText("Neutral", { exact: true })).toBeVisible();
-    await expect(form.getByText("Neutral transfer", { exact: true })).toHaveCount(0);
-    await form.getByRole("button", { name: /^Update(?: Transaction)?$/ }).click();
-    await expect(form).not.toBeVisible();
-    const saved = await search();
-    expect(saved.items[0]).toMatchObject({ subtype: null, cashFlowBucket: "neutral" });
-
-    await page.getByRole("button", { name: "Row actions", exact: true }).click();
-    await page
-      .getByRole(direction === "rtl" ? "button" : "menuitem", { name: "Delete", exact: true })
-      .click();
-    await page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "Delete", exact: true })
-      .click();
-    await expect(page.getByText(note, { exact: true })).toHaveCount(0);
-    expect((await search()).totalCount).toBe(0);
   });
 }
