@@ -895,6 +895,55 @@ async fn neutral_rows_are_not_rows_needing_a_choice() {
     );
 }
 
+/// A search that fills its limit with neutral rows read only the first matches,
+/// so the next step says later matches were not checked instead of "none take a
+/// category". An explicit id list is read whole and keeps the plain wording.
+#[tokio::test]
+async fn full_batch_of_neutral_rows_is_not_called_complete() {
+    let env = categorization_env_with(&[("transfer-1", true), ("transfer-2", true)]);
+    let next_step = |context: serde_json::Value| {
+        context["ok"]["nextStep"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    let full = next_step(
+        call_json_dyn(
+            ListCategorizationContext,
+            env.clone(),
+            serde_json::json!({ "status": "all", "limit": 2 }),
+        )
+        .await,
+    );
+    assert!(full.contains("first 2 matching transactions"), "{full}");
+    assert!(full.contains("later matches were not checked"), "{full}");
+
+    let partial = next_step(
+        call_json_dyn(
+            ListCategorizationContext,
+            env.clone(),
+            serde_json::json!({ "status": "all", "limit": 3 }),
+        )
+        .await,
+    );
+    assert!(partial.starts_with("None of the matching"), "{partial}");
+
+    let explicit = next_step(
+        call_json_dyn(
+            ListCategorizationContext,
+            env,
+            serde_json::json!({
+                "status": "all",
+                "limit": 2,
+                "activityIds": ["transfer-1", "transfer-2"]
+            }),
+        )
+        .await,
+    );
+    assert!(explicit.starts_with("None of the matching"), "{explicit}");
+}
+
 /// A call whose filters match no rows still returns the configured
 /// categories, so the review card says "no transactions matched" rather than
 /// "no spending taxonomies are configured".

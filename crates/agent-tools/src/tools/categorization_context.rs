@@ -146,6 +146,15 @@ pub struct CategorizationState {
     pub key_lookup: HashMap<(String, String), (String, String, String)>,
 }
 
+/// Rows one categorization call reads: the requested limit, capped at
+/// `MAX_LIMIT`, or `DEFAULT_LIMIT`.
+fn effective_limit(limit: Option<u32>) -> usize {
+    limit
+        .map(|n| (n as usize).min(MAX_LIMIT))
+        .unwrap_or(DEFAULT_LIMIT)
+        .max(1)
+}
+
 /// Shared deterministic pass — fetches activities + taxonomies + history, runs
 /// rules + same-payee match, returns the full state. Used by both
 /// `propose_transaction_categories` (which then merges agent aiProposals) and
@@ -157,11 +166,7 @@ pub async fn compute_categorization_state(
     filters.start_date =
         optional_date_bound(env, "startDate", filters.start_date.take(), Bound::Start)?;
     filters.end_date = optional_date_bound(env, "endDate", filters.end_date.take(), Bound::End)?;
-    let limit = filters
-        .limit
-        .map(|n| (n as usize).min(MAX_LIMIT))
-        .unwrap_or(DEFAULT_LIMIT)
-        .max(1);
+    let limit = effective_limit(filters.limit);
 
     let status = match filters.status.as_deref() {
         Some("all") => CashActivityStatusFilter::All,
@@ -741,6 +746,11 @@ impl AgentTool for ListCategorizationContext {
             )
         })?;
         let same_filters = repeat_filters(&args);
+        // A filter search reads at most `limit` rows; an explicit id list is read whole.
+        let search_limit = args
+            .activity_ids
+            .is_none()
+            .then(|| effective_limit(args.limit));
 
         let state = compute_categorization_state(
             env.as_ref(),
@@ -761,7 +771,9 @@ impl AgentTool for ListCategorizationContext {
             needs_ai_judgement: state.unproposed.len(),
             protected_splits: state.protected_splits,
         };
-        let next_step = next_step_instruction(&summary, &same_filters);
+        let unread_matches =
+            search_limit.filter(|limit| summary.total + summary.protected_splits >= *limit);
+        let next_step = next_step_instruction(&summary, unread_matches, &same_filters);
 
         let output = ListCategorizationContextOutput {
             taxonomies: state.taxonomies,
@@ -799,7 +811,13 @@ fn repeat_filters(args: &ListCategorizationContextArgs) -> String {
     }
 }
 
-fn next_step_instruction(summary: &ContextSummary, same_filters: &str) -> String {
+/// `full_batch` is the search limit when the search filled it, so later
+/// matches were not read.
+fn next_step_instruction(
+    summary: &ContextSummary,
+    full_batch: Option<usize>,
+    same_filters: &str,
+) -> String {
     if summary.total == 0 {
         return "No matching transactions were found; there is no categorization widget to render."
             .to_string();
@@ -807,6 +825,11 @@ fn next_step_instruction(summary: &ContextSummary, same_filters: &str) -> String
 
     // Matched rows that take no category (neutral transfers) appear in neither list.
     if summary.deterministically_proposed == 0 && summary.needs_ai_judgement == 0 {
+        if let Some(limit) = full_batch {
+            return format!(
+                "The first {limit} matching transactions take no category; later matches were not checked. There is no categorization widget to render. Tell the user only the first {limit} were checked and suggest a narrower date range."
+            );
+        }
         return "None of the matching transactions takes a category; there is no categorization widget to render."
             .to_string();
     }

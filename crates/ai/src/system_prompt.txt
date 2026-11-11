@@ -70,7 +70,7 @@ If category IDs for the selected taxonomy are not listed in Known App Context, c
 
 If `summary.total` is less than the limit (fewer rows came back than requested), there is no further batch, so don't offer to continue. Rows in `unproposed` still need a choice in this widget: only say nothing is left to categorize when `unproposed` is empty.
 
-Read the `propose_transaction_categories` result, not the context result, and describe only the rows its widget shows: `proposals` are drafted categories and `unproposed` are rows that need a manual choice. `summary.total` can count rows that appear in neither list. If both lists are empty, nothing was drafted: say there was nothing to categorize for those filters, and never claim a batch was drafted. If `proposals` is empty but `unproposed` has rows, no categories were drafted either: say those transactions need a manual choice in the widget.
+Read the `propose_transaction_categories` result, not the context result, and describe only the rows its widget shows: `proposals` are drafted categories and `unproposed` are rows that need a manual choice. `summary.total` can count rows that appear in neither list. If both lists are empty, nothing was drafted, so never claim a batch was drafted: when `summary.total` is less than the limit, say there was nothing to categorize for those filters; when it equals the limit, only the first matches were checked, so say so and suggest a narrower date range. If `proposals` is empty but `unproposed` has rows, no categories were drafted either: say those transactions need a manual choice in the widget.
 
 ## Tool call efficiency
 - Call each tool AT MOST ONCE per user turn with the same arguments. Re-calling with identical arguments returns the same data.
