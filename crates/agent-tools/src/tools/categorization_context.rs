@@ -746,11 +746,13 @@ impl AgentTool for ListCategorizationContext {
             )
         })?;
         let same_filters = repeat_filters(&args);
-        // A filter search reads at most `limit` rows; an explicit id list is read whole.
-        let search_limit = args
+        // Both a search and an explicit id list read at most `limit` rows; an id
+        // list no longer than the limit is read whole.
+        let limit = effective_limit(args.limit);
+        let may_be_cut_short = args
             .activity_ids
-            .is_none()
-            .then(|| effective_limit(args.limit));
+            .as_ref()
+            .is_none_or(|ids| ids.len() > limit);
 
         let state = compute_categorization_state(
             env.as_ref(),
@@ -771,9 +773,9 @@ impl AgentTool for ListCategorizationContext {
             needs_ai_judgement: state.unproposed.len(),
             protected_splits: state.protected_splits,
         };
-        let unread_matches =
-            search_limit.filter(|limit| summary.total + summary.protected_splits >= *limit);
-        let next_step = next_step_instruction(&summary, unread_matches, &same_filters);
+        let full_batch = (may_be_cut_short && summary.total + summary.protected_splits >= limit)
+            .then_some(limit);
+        let next_step = next_step_instruction(&summary, full_batch, &same_filters);
 
         let output = ListCategorizationContextOutput {
             taxonomies: state.taxonomies,
@@ -811,25 +813,30 @@ fn repeat_filters(args: &ListCategorizationContextArgs) -> String {
     }
 }
 
-/// `full_batch` is the search limit when the search filled it, so later
-/// matches were not read.
+/// `full_batch` is the limit when the call filled it, so later matches were
+/// not read.
 fn next_step_instruction(
     summary: &ContextSummary,
     full_batch: Option<usize>,
     same_filters: &str,
 ) -> String {
+    // Split rows are left as they are and neutral transfers take no category,
+    // so neither appears in either list.
+    let nothing_to_propose =
+        summary.deterministically_proposed == 0 && summary.needs_ai_judgement == 0;
+    if let Some(limit) = full_batch.filter(|_| nothing_to_propose) {
+        return format!(
+            "None of the first {limit} matching transactions needs a category: {} are split transactions, which keep their split categories, and the rest are transfers, which take none. Later matches were not checked. There is no categorization widget to render. Tell the user only the first {limit} were checked and suggest a narrower date range.",
+            summary.protected_splits
+        );
+    }
+
     if summary.total == 0 {
         return "No matching transactions were found; there is no categorization widget to render."
             .to_string();
     }
 
-    // Matched rows that take no category (neutral transfers) appear in neither list.
-    if summary.deterministically_proposed == 0 && summary.needs_ai_judgement == 0 {
-        if let Some(limit) = full_batch {
-            return format!(
-                "The first {limit} matching transactions take no category; later matches were not checked. There is no categorization widget to render. Tell the user only the first {limit} were checked and suggest a narrower date range."
-            );
-        }
+    if nothing_to_propose {
         return "None of the matching transactions takes a category; there is no categorization widget to render."
             .to_string();
     }
