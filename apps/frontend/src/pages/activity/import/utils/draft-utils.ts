@@ -841,8 +841,13 @@ export function createDraftActivities(
       providerId: mappedProviderId,
       providerSymbol: mappedProviderSymbol,
     } = mapSymbol(rawSymbol, symbolMappings, symbolMappingMeta);
+
+    // Parse typed symbol prefixes (e.g., "bond:US037833DU14")
+    const { symbol: prefixParsedSymbol, instrumentType: prefixInstrumentType } =
+      splitInstrumentPrefixedSymbol(mappedSymbol);
+
     // An unmapped Symbol that isn't a symbol, such as a fund name, resolves by the
-    // row's valid ISIN and stays on as the asset's name.
+    // row's valid ISIN and stays on as the asset's name. A type prefix still applies.
     const trimmedRawSymbol = rawSymbol?.trim();
     const isinSymbol =
       trimmedRawSymbol &&
@@ -851,12 +856,8 @@ export function createDraftActivities(
       !symbolMappings[trimmedRawSymbol]
         ? isinFallbackSymbol(trimmedRawSymbol, rawIsin)
         : undefined;
-    const symbolName = mappedSymbolName ?? (isinSymbol ? trimmedRawSymbol : undefined);
-
-    // Parse typed symbol prefixes (e.g., "bond:US037833DU14")
-    const { symbol: prefixParsedSymbol, instrumentType: prefixInstrumentType } =
-      splitInstrumentPrefixedSymbol(isinSymbol ?? mappedSymbol);
-    const symbol = prefixParsedSymbol;
+    const symbol = isinSymbol ?? prefixParsedSymbol;
+    const symbolName = mappedSymbolName ?? (isinSymbol ? prefixParsedSymbol : undefined);
 
     // Normalize instrument type: explicit CSV column > prefix > symbol mapping meta
     const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);

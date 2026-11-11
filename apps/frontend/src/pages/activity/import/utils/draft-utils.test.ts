@@ -1300,6 +1300,21 @@ describe("createDraftActivities ISIN fallback for a name in Symbol", () => {
     },
   );
 
+  it("keeps a Symbol's instrument prefix when it resolves by the ISIN", () => {
+    const draft = draftFor([
+      "2026-10-01",
+      "buy",
+      "bond:Example Treasury Note",
+      "US912810TH14",
+      "1",
+      "100",
+    ]);
+
+    expect(draft.symbol).toBe("US912810TH14");
+    expect(draft.instrumentType).toBe("BOND");
+    expect(draft.symbolName).toBe("Example Treasury Note");
+  });
+
   it("keeps a valid Symbol and a name with an invalid ISIN", () => {
     expect(draftFor(["2026-10-01", "buy", "AAPL", "US0378331005", "1", "200"]).symbol).toBe("AAPL");
 
