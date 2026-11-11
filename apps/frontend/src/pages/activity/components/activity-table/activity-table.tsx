@@ -77,6 +77,7 @@ import {
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
+import { calculateIncomeGrossAmount } from "@/lib/activity-final-amount";
 import { flattenDayGroups } from "@/lib/day-groups";
 import { groupActivitiesByDay } from "./activity-day-groups";
 import { ActivityDayHeaderRow } from "./activity-day-header";
@@ -499,14 +500,20 @@ export const ActivityTable = ({
             );
           }
           // Cash income (Dividend/Interest, not asset-backed): Price/Amount shows
-          // the gross amount before withholding tax so the row reads
-          //   Price/Amount (gross) − Tax = Total (net received).
+          // the gross amount before charges so the row reads
+          //   Price/Amount (gross) − Tax − Fee = Total (net received).
+          // calculateIncomeGrossAmount uses scaled-integer arithmetic to avoid
+          // float rounding (e.g. 0.60 + 0.28 → 0.88, not 0.8800000000000001).
           if (isIncomeActivity(activityType) && !isIncomeInKind) {
-            const taxAmt = Math.abs(Number(row.original.tax ?? 0));
+            const gross = calculateIncomeGrossAmount({
+              receivedAmount: amount,
+              tax: row.original.tax,
+              fee: row.original.fee,
+            });
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
                 <AmountDisplay
-                  value={Number(amount) + taxAmt}
+                  value={gross ?? 0}
                   currency={currency}
                   isHidden={isBalanceHidden}
                 />
