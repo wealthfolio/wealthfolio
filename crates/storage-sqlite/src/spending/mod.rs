@@ -8,6 +8,7 @@ pub mod activity_splits;
 pub(crate) mod activity_sync;
 pub mod budget;
 pub mod categorization_rules;
+pub mod category_merge;
 pub(crate) mod deterministic_ids;
 pub mod events;
 pub mod settings;

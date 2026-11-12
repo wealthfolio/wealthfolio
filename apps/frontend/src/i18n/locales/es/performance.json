@@ -73,9 +73,6 @@
     "return": "Rentabilidad",
     "time_weighted_return": "Rentabilidad ponderada por tiempo",
     "time_weighted_short": "Ponderada por tiempo",
-    "twr_short": "TWR",
-    "annualized_twr": "TWR anualizada",
-    "ann_twr_short": "TWR an.",
     "money_weighted_return": "Rentabilidad ponderada por dinero",
     "money_weighted_short": "Ponderada por dinero",
     "mwr_short": "MWR",
@@ -83,12 +80,9 @@
     "ann_mwr_short": "MWR an.",
     "value_return": "Rentabilidad por valor",
     "value_return_short": "Rent. por valor",
-    "value_short": "Valor",
     "price_return": "Rentabilidad por precio",
     "price_return_short": "Rent. por precio",
-    "price_short": "Precio",
     "volatility": "Volatilidad",
-    "vol_short": "Vol",
     "max_drawdown": "Caída máxima",
     "max_drawdown_short": "Caída máx.",
     "drawdown_short": "Caída",
@@ -96,11 +90,6 @@
     "annualized_short": "Anualizada",
     "gain_loss": "Ganancia / pérdida",
     "gain_loss_info": "Ganancia o pérdida total durante el periodo seleccionado. Abre la métrica para ver los detalles de atribución."
-  },
-  "section": {
-    "returns": "Rentabilidades",
-    "risk": "Riesgo",
-    "total": "Total"
   },
   "help": {
     "aria_label": "Explicaciones de las métricas de rendimiento",
@@ -150,5 +139,13 @@
     "holdings_volatility": "Volatilidad de los cambios en el valor de la cuenta. Se basa en valoraciones diarias sin ajustar depósitos ni retiradas. Refleja cuánto fluctúa el valor de mercado.",
     "holdings_max_drawdown": "Mayor caída del valor de la cuenta desde un máximo hasta un mínimo. Se basa en valoraciones diarias sin ajustar depósitos ni retiradas."
   },
-  "compare_over_time": "Comparar el rendimiento de las cuentas a lo largo del tiempo"
+  "compare_over_time": "Comparar el rendimiento de las cuentas a lo largo del tiempo",
+  "series_table": {
+    "label": "Series comparadas",
+    "name": "Nombre",
+    "show_all": "Mostrar todo ({{count}})",
+    "show_less": "Mostrar menos",
+    "hide_on_chart": "Ocultar {{name}} en el gráfico",
+    "show_on_chart": "Mostrar {{name}} en el gráfico"
+  }
 }

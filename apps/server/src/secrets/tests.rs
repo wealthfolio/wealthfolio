@@ -22,6 +22,13 @@ fn legacy_payload() -> Vec<u8> {
 }
 
 #[test]
+fn cipher_wipes_its_key_on_drop() {
+    // chacha20poly1305 0.11 wipes keys only with its `zeroize` feature.
+    fn wipes_on_drop<T: zeroize::ZeroizeOnDrop>() {}
+    wipes_on_drop::<ChaCha20Poly1305>();
+}
+
+#[test]
 fn encrypted_crud_survives_reopen_and_uses_fresh_nonces() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("secrets.json");
@@ -249,6 +256,29 @@ fn encrypted_credentials_survive_process_restart() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[test]
+fn golden_secrets_file_still_opens() {
+    // Written today by this store, with the key derived from a fixed synthetic WF_SECRET_KEY.
+    // Never regenerate this file to make a dependency upgrade pass.
+    let master =
+        crate::auth::decode_secret_key("CzBVep/E6Q4zWH2ix+wRNluApcrvFDleg6jN8hc8YYY=").unwrap();
+    let (_, key) = crate::auth::derive_keys(&master);
+    let golden = r#"{
+  "version": 1,
+  "nonce": "g4LPLuoKlQiIdkLT",
+  "ciphertext": "d+BWIDKycvsCLyr/HbBB9XPTdMJWweU749Rfe1rJFFRtNUPB++e3WtyD3LPbgqy3D7wID3Dqd78dP5OPDmzRa3sP2q8XQxg3WJMEDR8gOQ8WoqRUAnuGlOxJVvaaJg=="
+}"#;
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("secrets.json");
+    fs::write(&path, golden).unwrap();
+    let store = build_secret_store(path.clone(), Some(key), None).unwrap();
+    assert_eq!(
+        store.get_secret("golden-provider").unwrap().as_deref(),
+        Some("synthetic-token-0001")
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), golden);
 }
 
 #[test]

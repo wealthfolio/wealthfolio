@@ -76,11 +76,9 @@
   "max_drawdown": "أقصى تراجع",
   "metric": {
     "ann_mwr_short": "MWR على أساس سنوي",
-    "ann_twr_short": "TWR على أساس سنوي",
     "annualized_mwr": "MWR على أساس سنوي",
     "annualized_return": "العائد المحسوب على أساس سنوي",
     "annualized_short": "على أساس سنوي",
-    "annualized_twr": "TWR على أساس سنوي",
     "drawdown_short": "التراجع",
     "gain_loss": "ربح / خسارة",
     "gain_loss_info": "إجمالي الربح أو الخسارة خلال الفترة المحددة. افتح المقياس لعرض تفاصيل الإسناد.",
@@ -91,15 +89,11 @@
     "mwr_short": "MWR",
     "price_return": "عائد السعر",
     "price_return_short": "عائد السعر",
-    "price_short": "السعر",
     "return": "العائد",
     "time_weighted_return": "العائد المرجح زمنيًا",
     "time_weighted_short": "مرجح زمنيًا",
-    "twr_short": "TWR",
     "value_return": "عائد القيمة",
     "value_return_short": "عائد القيمة",
-    "value_short": "القيمة",
-    "vol_short": "التقلب",
     "volatility": "التقلب"
   },
   "money_weighted_return": "العائد المرجح بالنقود",
@@ -120,11 +114,6 @@
   "reference": "المرجع",
   "remove_item": "إزالة {{name}}",
   "retry": "إعادة المحاولة",
-  "section": {
-    "returns": "العوائد",
-    "risk": "المخاطر",
-    "total": "الإجمالي"
-  },
   "select_benchmark": "اختر المؤشر المرجعي",
   "sharpe_ratio": "نسبة شارب",
   "start_date": "تاريخ البدء",
@@ -153,5 +142,13 @@
     "holdings_volatility": "تقلب تغيرات قيمة الحساب. يستند إلى التقييمات اليومية دون تعديل أثر الإيداعات أو السحوبات، ويعكس مقدار تذبذب القيمة السوقية.",
     "holdings_max_drawdown": "أكبر انخفاض في قيمة الحساب من القمة إلى القاع. يستند إلى التقييمات اليومية دون تعديل أثر الإيداعات أو السحوبات."
   },
-  "compare_over_time": "مقارنة أداء الحسابات بمرور الوقت"
+  "compare_over_time": "مقارنة أداء الحسابات بمرور الوقت",
+  "series_table": {
+    "label": "السلاسل المقارنة",
+    "name": "الاسم",
+    "show_all": "عرض الكل ({{count}})",
+    "show_less": "عرض أقل",
+    "hide_on_chart": "إخفاء {{name}} من المخطط",
+    "show_on_chart": "إظهار {{name}} على المخطط"
+  }
 }

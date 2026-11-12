@@ -28,7 +28,7 @@ it("round-trips classification weights through Spain's decimal format", async ()
       <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
     </FormattingProvider>,
   );
-  fireEvent.click(screen.getByRole("button", { name: /33,3\s%/ }));
+  fireEvent.click(screen.getByRole("button", { name: /33,30\s%/ }));
   const input = screen.getByRole("textbox", { name: "Weight" });
   expect(input).toHaveValue("33,3");
   fireEvent.change(input, { target: { value: "34,5" } });
@@ -51,9 +51,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 it.each([
-  ["US", /33.3%/, "34.5%"],
-  ["ES", /33,3\s%/, "34,5 %"],
-  ["tr-TR", /%33,3/, "%34,5"],
+  ["US", /33.30%/, "34.5%"],
+  ["ES", /33,30\s%/, "34,5 %"],
+  ["tr-TR", /%33,30/, "%34,5"],
 ])("accepts a pasted percent suffix in %s", async (locale, label, value) => {
   render(
     <FormattingProvider locale={locale}>
@@ -75,7 +75,7 @@ it.each(["101%", "-1%", "34bad%", "34%%", "%34%", ""])(
         <MultiSelectTaxonomy taxonomyId="custom" assetId="asset" label="Classes" />
       </FormattingProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: /33.3%/ }));
+    fireEvent.click(screen.getByRole("button", { name: /33.30%/ }));
     const input = screen.getByRole("textbox", { name: "Weight" });
     fireEvent.change(input, { target: { value } });
     fireEvent.blur(input);

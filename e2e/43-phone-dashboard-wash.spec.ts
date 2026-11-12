@@ -28,6 +28,7 @@ async function seedCashAccount(page: Page) {
     },
   });
   expect(deposit.ok(), await deposit.text()).toBeTruthy();
+  return id;
 }
 
 // Scrolls the visible dashboard tab to its end and measures its coloured wash.
@@ -61,27 +62,51 @@ async function measureWash(page: Page) {
 test("phone dashboard tabs paint their wash down to the bottom of the screen", async ({ page }) => {
   test.setTimeout(120_000);
   await completeOnboardingIfNeeded(page);
-  await seedCashAccount(page);
+  const accountId = await seedCashAccount(page);
+  // Earlier specs leave many accounts in the shared profile, so the short-content
+  // case shows a portfolio holding only this account.
+  const portfolio = await page.request.post(`${api}/portfolios`, {
+    data: { name: `Dashboard wash ${Date.now().toString(36)}`, accountIds: [accountId] },
+  });
+  expect(portfolio.ok(), await portfolio.text()).toBeTruthy();
+  const { id: portfolioId } = (await portfolio.json()) as { id: string };
+  const state = await (
+    await page.request.post(`${api}/profiles/get_profile_state`, { data: {} })
+  ).json();
+  const portfolioKey = `profile:${state.session?.profileId ?? state.profiles[0].id}:dashboard-portfolio-id`;
 
-  for (const tab of ["investments", "net-worth"]) {
-    for (const { viewport, scrolls } of [
-      // Content longer than the screen: no plain band below the wash at the end.
-      { viewport: { width: 375, height: 667 }, scrolls: true },
-      // Content shorter than the screen: the wash still fills it.
-      { viewport: { width: 393, height: 4000 }, scrolls: false },
-    ]) {
-      await page.setViewportSize(viewport);
-      await gotoAppPath(page, `/dashboard?tab=${tab}`);
-      await expect(async () => {
-        const layout = await measureWash(page);
-        expect(layout, `${tab} wash not found`).not.toBeNull();
-        expect(layout!.scrolls).toBe(scrolls);
-        expect(Math.abs(layout!.bandBelowWash)).toBeLessThanOrEqual(1);
-        // The nav bar floats over the content: the last card must end above it.
-        if (layout!.lastCardBottom !== null) {
-          expect(layout!.lastCardBottom).toBeLessThanOrEqual(layout!.navTop + 1);
+  try {
+    for (const tab of ["investments", "net-worth"]) {
+      for (const { viewport, scrolls } of [
+        // Content longer than the screen: no plain band below the wash at the end.
+        { viewport: { width: 375, height: 667 }, scrolls: true },
+        // Content shorter than the screen: the wash still fills it.
+        { viewport: { width: 393, height: 4000 }, scrolls: false },
+      ]) {
+        await page.setViewportSize(viewport);
+        await gotoAppPath(page, `/dashboard?tab=${tab}`);
+        if (tab === "investments" && !scrolls) {
+          await page.evaluate(({ key, id }) => localStorage.setItem(key, JSON.stringify(id)), {
+            key: portfolioKey,
+            id: portfolioId,
+          });
+          await page.reload();
         }
-      }, `${tab} at ${viewport.width}×${viewport.height}`).toPass({ timeout: 30_000 });
+        await expect(async () => {
+          const layout = await measureWash(page);
+          expect(layout, `${tab} wash not found`).not.toBeNull();
+          expect(layout!.scrolls).toBe(scrolls);
+          expect(Math.abs(layout!.bandBelowWash)).toBeLessThanOrEqual(1);
+          // The nav bar floats over the content: the last card must end above it.
+          if (layout!.lastCardBottom !== null) {
+            expect(layout!.lastCardBottom).toBeLessThanOrEqual(layout!.navTop + 1);
+          }
+        }, `${tab} at ${viewport.width}×${viewport.height}`).toPass({ timeout: 30_000 });
+      }
     }
+  } finally {
+    // Spec 29 expects only its own portfolios.
+    const removed = await page.request.delete(`${api}/portfolios/${portfolioId}`);
+    expect(removed.ok(), await removed.text()).toBeTruthy();
   }
 });

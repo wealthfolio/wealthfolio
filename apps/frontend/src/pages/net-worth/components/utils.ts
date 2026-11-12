@@ -56,6 +56,19 @@ export interface BreakdownEntry {
 }
 
 /** A breakdown row selected for the detail drawer. */
+/** History key prefix the backend gives a credit card's balance (`CREDIT_CARD:<accountId>`). */
+export const CREDIT_CARD_KEY_PREFIX = "CREDIT_CARD:";
+
+/**
+ * Where a liability's own page is: the account for a credit card, the asset
+ * page for a loan or other liability.
+ */
+export function liabilityDetailPath(key: string): string {
+  return key.startsWith(CREDIT_CARD_KEY_PREFIX)
+    ? `/accounts/${encodeURIComponent(key.slice(CREDIT_CARD_KEY_PREFIX.length))}`
+    : `/holdings/${encodeURIComponent(key)}`;
+}
+
 export interface SelectedCategory {
   /** History/breakdown key: the category key for assets, the assetId for liabilities. */
   key: string;
@@ -296,13 +309,17 @@ export function computeMomentum(
   longHistory: ParsedHistoryPoint[],
   rangeStartISO: string,
   rangeEndISO: string,
+  calendarYear?: number | null,
 ): Momentum | null {
   if (longHistory.length < 2) return null;
 
   const rangeDays = daysBetween(rangeStartISO, rangeEndISO) || 1;
-  const priorStartISO = new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
-    .toISOString()
-    .slice(0, 10);
+  const priorStartISO =
+    calendarYear != null
+      ? `${calendarYear - 1}-01-01`
+      : new Date(new Date(rangeStartISO).getTime() - rangeDays * MS_PER_DAY)
+          .toISOString()
+          .slice(0, 10);
 
   const nwEnd = netWorthAsOf(longHistory, rangeEndISO);
   const nwStart = netWorthAsOf(longHistory, rangeStartISO);
@@ -311,7 +328,9 @@ export function computeMomentum(
   const earliest = longHistory[0].date;
   const hasPrior = earliest <= priorStartISO;
   const nwPriorStart = netWorthAsOf(longHistory, priorStartISO);
-  const priorChange = hasPrior ? nwStart - nwPriorStart : null;
+  const nwPriorEnd =
+    calendarYear != null ? netWorthAsOf(longHistory, `${calendarYear - 1}-12-31`) : nwStart;
+  const priorChange = hasPrior ? nwPriorEnd - nwPriorStart : null;
   const beatBy = priorChange != null ? currentChange - priorChange : null;
 
   // Monthly net worth change bars across the prior + current windows.

@@ -1,4 +1,6 @@
 {
+  "periodReturn": "Rendite {{period}}",
+  "currentValue": "Aktueller Wert",
   "welcome": "Willkommen",
   "success": "Erfolg",
   "filter": "Filter",
@@ -178,13 +180,13 @@
     "rebuild_full_history": "Gesamten Verlauf aktualisieren",
     "rebuild_full_history_label": "Gesamten Verlauf aktualisieren",
     "rebuilding_history": "Gesamten Verlauf aktualisieren…",
-    "record_buy": "Kauf erfassen",
-    "record_sell": "Verkauf erfassen",
-    "record_dividend": "Dividende erfassen",
-    "record_deposit": "Einzahlung erfassen",
-    "record_withdrawal": "Auszahlung erfassen",
+    "record_buy": "Kauf hinzufügen",
+    "record_sell": "Verkauf hinzufügen",
+    "record_dividend": "Dividende hinzufügen",
+    "record_deposit": "Einzahlung hinzufügen",
+    "record_withdrawal": "Auszahlung hinzufügen",
     "add_holding": "Bestand hinzufügen",
-    "record_interest": "Zinsen erfassen",
+    "record_interest": "Zinsen hinzufügen",
     "add_transaction": "Transaktion hinzufügen",
     "import_activities": "Aktivitäten importieren",
     "manage_securities": "Wertpapiere verwalten",
@@ -315,7 +317,10 @@
     "try_open_changelog_manually": "Versuchen Sie, das Änderungsprotokoll manuell in Ihrem Browser zu öffnen.",
     "all_portfolio": "Gesamtes Portfolio",
     "calculation_notes_one": "Berechnungshinweis ({{count}})",
-    "calculation_notes_other": "Berechnungshinweise ({{count}})"
+    "calculation_notes_other": "Berechnungshinweise ({{count}})",
+    "launcher_navigation": "Gehe zu",
+    "launcher_appearance": "Darstellung",
+    "launcher_tools": "Werkzeuge"
   },
   "app_name": "Wealthfolio",
   "deselect_all": "Alle abwählen",
@@ -694,5 +699,24 @@
     "accountNumberMax": "Die Kontonummer darf höchstens 64 Zeichen enthalten.",
     "accountCurrency": "Bitte wählen Sie eine Währung.",
     "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden."
+  },
+  "backendErrors": {
+    "internal": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "invalidInput": "Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
+    "conflict": "Die Änderung steht im Konflikt mit vorhandenen Daten.",
+    "notFound": "Das angeforderte Element wurde nicht gefunden.",
+    "unauthorized": "Melden Sie sich an, um fortzufahren.",
+    "forbidden": "Dieser Vorgang ist nicht erlaubt.",
+    "unavailable": "Dieser Vorgang ist nicht verfügbar.",
+    "providerKeyMissing": "Fügen Sie in den Einstellungen einen API-Schlüssel für diesen Anbieter hinzu.",
+    "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
+    "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen.",
+    "customProviderCodeReserved": "Dieser Anbietercode ist reserviert. Wählen Sie einen anderen Code.",
+    "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen.",
+    "addonManifestMissing": "Die ZIP-Datei des Add-ons enthält keine manifest.json.",
+    "addonMainFileMissing": "Die ZIP-Datei des Add-ons enthält nicht die Hauptdatei, die im Manifest angegeben ist.",
+    "addonNeedsNewerVersion": "Dieses Add-on erfordert eine neuere Version von Wealthfolio. Aktualisieren Sie Wealthfolio und versuchen Sie es erneut.",
+    "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus.",
+    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut."
   }
 }

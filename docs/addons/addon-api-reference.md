@@ -502,6 +502,72 @@ const conversion: ActivityImport[] = [
 ];
 ```
 
+Use `charges` to keep the fee and tax lines a statement lists. Each line is a
+`fee` or `tax` with a free-text label and an amount in the row's currency. The
+fee lines must add up to `fee` and the tax lines to `tax`, or the row is
+rejected (`checkImport` reports it under `errors.charges`). Lines in a minor
+unit such as GBp are converted to the major unit with the totals. The lines are
+stored in the activity's `metadata.charges` and only describe the totals: every
+calculation keeps using `fee` and `tax`. Editing a total later without sending
+new lines drops them.
+
+```typescript
+const buy: ActivityImport = {
+  accountId: "account-123",
+  activityType: "BUY",
+  date: "2026-09-04",
+  symbol: "AZN.L",
+  quantity: 10,
+  unitPrice: 140.82,
+  currency: "GBP",
+  fee: 9.99,
+  tax: 7.04,
+  charges: [
+    { category: "fee", label: "Commission", amount: 8 },
+    { category: "fee", label: "Exchange fee", amount: 1.99 },
+    { category: "tax", label: "Stamp duty", amount: 7.04 },
+  ],
+  isValid: true,
+  isDraft: false,
+};
+```
+
+Use `sourceRecordId` to give each row the ID your source has for its
+transaction, such as a statement's reference. A row with an ID is a duplicate of
+the activity your add-on imported with the same ID into the same account,
+whatever its values or comment, and is skipped like other duplicates
+(`checkImport` sets `duplicateOfId`). Without IDs, two transactions with the
+same values and comment in one account are duplicates of each other; with
+different IDs, both import. Keep each ID the same in every import and different
+for every separate transaction. A row with an ID also matches an activity it
+would match without one that was imported before you sent IDs, so sending IDs
+doesn't import earlier rows again.
+
+Use `metadata` for details to keep with the activity. Your add-on's rows are
+stored with `sourceRecordId` `addon:<your add-on id>:<ID>` and the metadata
+under `metadata.addons[<your add-on id>]`. Matching by ID is scoped to your
+add-on; the values fallback can match any older import without an ID in the
+account, including CSV or another add-on's imports. Your metadata can't change
+the metadata keys Wealthfolio reads. `checkImport` and `import` return these
+fields without the host namespace. IDs are trimmed; blank IDs and null or
+omitted fields are omitted.
+
+```typescript
+const row: ActivityImport = {
+  accountId: "account-123",
+  activityType: "BUY",
+  date: "2026-09-04",
+  symbol: "AAPL",
+  quantity: 10,
+  unitPrice: 180,
+  currency: "USD",
+  sourceRecordId: "statement-2026-09/txn-0042",
+  metadata: { statementLine: 42 },
+  isValid: true,
+  isDraft: false,
+};
+```
+
 #### `checkImport(activities: ActivityImport[]): Promise<ActivityImport[]>`
 
 Validates and normalizes activities without importing them.
@@ -805,6 +871,58 @@ const performance = await ctx.api.performance.calculateAccountsSimple([
   "account-123",
   "account-456",
 ]);
+```
+
+---
+
+## Allocation Targets API
+
+Read the user's allocation targets and how their holdings compare to them.
+Read-only: targets are created and edited only in the Wealthfolio UI. Requires a
+release shipping the Allocation Targets API. Both methods use the high-risk
+`allocation-targets` permission; declare only the methods your addon calls.
+
+Weights and differences are in basis points (10000 = 100%). Values are in the
+base currency.
+
+| Method               | Permission category       | Behavior                                                                                 |
+| -------------------- | ------------------------- | ---------------------------------------------------------------------------------------- |
+| `getAll()`           | high `allocation-targets` | Live targets with scope, range settings and weights; archived targets are left out       |
+| `getDrift(targetId)` | high `allocation-targets` | Current against target by category over the target's own scope; `null` for an unknown id |
+
+### Methods
+
+#### `getAll(): Promise<AllocationTarget[]>`
+
+Returns every live target. Several targets can share a scope: `scopeType` is
+`'all'`, `'portfolio'` or `'account'`, and `scopeId` is the portfolio or account
+id (`null` for `'all'`). Each weight carries its category's `categoryId`,
+`categoryKey` and `categoryName`. Ids of user-created categories differ between
+installs, so match categories by `categoryKey`.
+
+```typescript
+const targets = await ctx.api.allocationTargets.getAll();
+const overall = targets.find((target) => target.scopeType === "all");
+const realEstateBps =
+  overall?.weights.find((weight) => weight.categoryKey === "REAL_ESTATE")
+    ?.targetBps ?? 0;
+```
+
+#### `getDrift(targetId: string): Promise<AllocationDrift | null>`
+
+Compares current holdings with the target over the target's own scope. There is
+one row per weighted category, and a `not_targeted` row for each held category
+without a weight. `status` is `'in_band'`, `'underweight'`, `'overweight'` or
+`'not_targeted'`, judged against `effectiveBandBps`. It values holdings live, so
+call it when the user opens a view rather than on a timer.
+
+```typescript
+const drift = await ctx.api.allocationTargets.getDrift(targetId);
+if (drift) {
+  for (const row of drift.rows) {
+    console.log(row.categoryName, row.currentBps, row.targetBps, row.driftBps);
+  }
+}
 ```
 
 ---

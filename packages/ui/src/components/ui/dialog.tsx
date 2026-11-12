@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
 import { Sheet, SheetContent } from "./sheet";
+import { OverlayViewport, overlayContentStyle } from "./overlay-viewport";
 
 // ============================================================================
 // Mobile Detection
@@ -115,7 +116,8 @@ function DialogOverlay({ className, ...props }: DialogOverlayProps) {
 interface DialogContentProps extends Omit<DialogPrimitive.Popup.Props, "className"> {
   className?: string;
   /**
-   * Custom className for mobile sheet content
+   * Custom classes for mobile sheet content. Bottom dialogs fit their content
+   * by default; use an explicit height only for a full-height workspace.
    */
   mobileClassName?: string;
   /**
@@ -126,14 +128,17 @@ interface DialogContentProps extends Omit<DialogPrimitive.Popup.Props, "classNam
    * Whether to show the close button (default: true)
    */
   showCloseButton?: boolean;
+  safeArea?: boolean;
 }
 
 function DialogContent({
   className,
   children,
-  mobileClassName = "h-[90vh] overflow-y-auto",
+  mobileClassName = "overflow-y-auto [--overlay-max-height:90dvh]",
   side = "bottom",
   showCloseButton = true,
+  safeArea = true,
+  style,
   ...props
 }: DialogContentProps) {
   const { t } = useTranslation();
@@ -144,7 +149,10 @@ function DialogContent({
       <SheetContent
         side={side}
         showCloseButton={showCloseButton}
-        className={cn(mobileClassName, "!rounded-t-4xl mx-1", className)}
+        safeArea={safeArea}
+        style={style}
+        className={cn("grid gap-4 [&>*]:min-w-0", mobileClassName, "!rounded-t-4xl mx-1", className)}
+        {...props}
       >
         {children}
       </SheetContent>
@@ -154,25 +162,28 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn(
-          "bg-card text-card-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 outline-none duration-100 [&>*]:min-w-0",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="focus-visible:outline-ring absolute end-4 top-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <Icons.X />
-            <span className="sr-only">{t("ui:dialog.close", "Close")}</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+      <OverlayViewport safeArea={safeArea}>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          className={cn(
+            "pointer-events-auto max-h-[min(100%,var(--overlay-max-height,100%))] bg-card text-card-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 rounded-(--dialog-radius) border-(color:--overlay-border) shadow-(--overlay-shadow) fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 outline-none duration-100 [&>*]:min-w-0",
+            className,
+          )}
+          {...props}
+          style={overlayContentStyle(style)}
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              className="focus-visible:outline-ring absolute end-4 top-4 flex items-center justify-center rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid disabled:pointer-events-none max-lg:min-h-11 max-lg:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            >
+              <Icons.X />
+              <span className="sr-only">{t("ui:dialog.close", "Close")}</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Popup>
+      </OverlayViewport>
     </DialogPortal>
   );
 }

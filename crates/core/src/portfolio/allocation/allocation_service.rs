@@ -552,7 +552,7 @@ impl AllocationService {
         total_value: Decimal,
         rollup_to_top_level: bool,
         cash_overrides: &HashMap<String, String>,
-    ) -> TaxonomyAllocation {
+    ) -> Result<TaxonomyAllocation> {
         // Build category lookup maps
         let category_by_id: HashMap<&str, &Category> =
             categories.iter().map(|c| (c.id.as_str(), c)).collect();
@@ -575,7 +575,9 @@ impl AllocationService {
         let mut rolled_up_values: HashMap<String, Decimal> = HashMap::new();
 
         for holding in holdings {
-            let market_value = holding.market_value.base;
+            let market_value = holding.market_value.base.ok_or_else(|| {
+                crate::Error::HoldingsUnavailable("allocation valuation is incomplete".into())
+            })?;
             let shares = self.contribution_shares_for_holding(
                 holding,
                 taxonomy_id,
@@ -684,12 +686,12 @@ impl AllocationService {
                 .then_with(|| a.category_id.cmp(&b.category_id))
         });
 
-        TaxonomyAllocation {
+        Ok(TaxonomyAllocation {
             taxonomy_id: taxonomy_id.to_string(),
             taxonomy_name: taxonomy_name.to_string(),
             color: taxonomy_color.to_string(),
             categories: allocations,
-        }
+        })
     }
 
     /// Appends the residual child for a rolled-up category: the part of its value that carries no
@@ -776,9 +778,18 @@ impl AllocationService {
             .iter()
             .filter(|h| h.holding_type != HoldingType::Cash)
             .map(|h| h.market_value.base)
-            .sum();
+            .sum::<Option<Decimal>>()
+            .ok_or_else(|| {
+                crate::Error::HoldingsUnavailable("allocation valuation is incomplete".into())
+            })?;
 
-        let total_with_cash: Decimal = holdings.iter().map(|h| h.market_value.base).sum();
+        let total_with_cash: Decimal = holdings
+            .iter()
+            .map(|h| h.market_value.base)
+            .sum::<Option<Decimal>>()
+            .ok_or_else(|| {
+                crate::Error::HoldingsUnavailable("allocation valuation is incomplete".into())
+            })?;
 
         // 3. Get all taxonomies with categories
         let taxonomies = self.taxonomy_service.get_taxonomies_with_categories()?;
@@ -814,7 +825,7 @@ impl AllocationService {
                         total_with_cash,
                         true,
                         &cash_overrides,
-                    );
+                    )?;
                 }
                 "industries_gics" => {
                     sectors_alloc = self.aggregate_by_taxonomy(
@@ -827,7 +838,7 @@ impl AllocationService {
                         total_value,
                         true,
                         &cash_overrides,
-                    );
+                    )?;
                 }
                 "regions" => {
                     regions_alloc = self.aggregate_by_taxonomy(
@@ -840,7 +851,7 @@ impl AllocationService {
                         total_value,
                         true,
                         &cash_overrides,
-                    );
+                    )?;
                 }
                 "risk_category" => {
                     risk_alloc = self.aggregate_by_taxonomy(
@@ -853,7 +864,7 @@ impl AllocationService {
                         total_value,
                         false,
                         &cash_overrides,
-                    );
+                    )?;
                 }
                 "instrument_type" => {
                     security_types_alloc = self.aggregate_by_taxonomy(
@@ -866,7 +877,7 @@ impl AllocationService {
                         total_with_cash,
                         true,
                         &cash_overrides,
-                    );
+                    )?;
                 }
                 _ if !taxonomy.is_system || taxonomy.id == CUSTOM_GROUPS_TAXONOMY_ID => {
                     // User-created custom taxonomies plus the seeded Custom Groups taxonomy.
@@ -882,7 +893,7 @@ impl AllocationService {
                         total_value,
                         false,
                         &cash_overrides,
-                    );
+                    )?;
                     // Only include if there are real categories (not just Unknown)
                     if custom_alloc
                         .categories
@@ -968,7 +979,11 @@ impl AllocationService {
             let mut value_by_category: BTreeMap<String, Decimal> = BTreeMap::new();
             for share in shares {
                 *value_by_category.entry(share.category_id).or_default() +=
-                    holding.market_value.base * share.share;
+                    holding.market_value.base.ok_or_else(|| {
+                        crate::Error::HoldingsUnavailable(
+                            "allocation valuation is incomplete".into(),
+                        )
+                    })? * share.share;
             }
 
             for (category_id, value) in value_by_category {
@@ -1124,7 +1139,9 @@ impl AllocationService {
                 continue;
             }
 
-            let matched_value = holding.market_value.base * matched_share;
+            let matched_value = holding.market_value.base.ok_or_else(|| {
+                crate::Error::HoldingsUnavailable("allocation valuation is incomplete".into())
+            })? * matched_share;
             let (asset_id, symbol, name) = Self::holding_display(holding);
             matched_values.push((
                 HoldingSummary {
@@ -1632,6 +1649,17 @@ mod tests {
         AllocationService::new(Arc::new(NoopHoldings), Arc::new(NoopTaxonomies))
     }
 
+    #[tokio::test]
+    async fn allocations_reject_a_partial_valuation_instead_of_reweighting_priced_holdings() {
+        let priced = make_holding("priced", dec!(100));
+        let mut unpriced = make_holding("unpriced", dec!(50));
+        unpriced.market_value = MonetaryValue::unavailable();
+        let result = svc()
+            .compute_allocations_from_holdings(&[priced, unpriced], "USD", &[])
+            .await;
+        assert!(matches!(result, Err(crate::Error::HoldingsUnavailable(_))));
+    }
+
     fn now() -> NaiveDateTime {
         Utc::now().naive_utc()
     }
@@ -1730,11 +1758,9 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: "USD".to_string(),
             base_currency: "USD".to_string(),
+            translate_observed_basis: false,
             fx_rate: None,
-            market_value: MonetaryValue {
-                local: base_value,
-                base: base_value,
-            },
+            market_value: MonetaryValue::new(base_value, base_value),
             cost_basis: None,
             price: None,
             purchase_price: None,
@@ -1751,7 +1777,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: Decimal::ZERO,
+            weight: Some(Decimal::ZERO),
             as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
             metadata: None,
             source_account_ids: vec![],
@@ -1772,11 +1798,9 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: currency.to_string(),
             base_currency: "USD".to_string(),
+            translate_observed_basis: false,
             fx_rate: None,
-            market_value: MonetaryValue {
-                local: base_value,
-                base: base_value,
-            },
+            market_value: MonetaryValue::new(base_value, base_value),
             cost_basis: None,
             price: None,
             purchase_price: None,
@@ -1793,7 +1817,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: Decimal::ZERO,
+            weight: Some(Decimal::ZERO),
             as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
             metadata: None,
             source_account_ids: vec![],
@@ -1824,17 +1848,19 @@ mod tests {
             ],
         );
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "regions",
-            "Regions",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1000),
-            false,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "regions",
+                "Regions",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1000),
+                false,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let total_pct: Decimal = result.categories.iter().map(|c| c.percentage).sum();
         assert!(
@@ -1858,17 +1884,19 @@ mod tests {
             vec![make_assignment("AAPL", "regions", "North_America", 6000)],
         );
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "regions",
-            "Regions",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1000),
-            false,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "regions",
+                "Regions",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1000),
+                false,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let north_america = result
             .categories
@@ -1910,17 +1938,19 @@ mod tests {
             ],
         );
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1000),
-            false,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1000),
+                false,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         assert!(
             !result
@@ -1974,6 +2004,7 @@ mod tests {
                 false,
                 &HashMap::new(),
             )
+            .unwrap()
             .categories
             .iter()
             .any(|c| c.category_id == "__UNKNOWN__")
@@ -2009,6 +2040,7 @@ mod tests {
                 false,
                 &HashMap::new(),
             )
+            .unwrap()
             .categories
             .iter()
             .any(|c| c.category_id == "__UNKNOWN__")
@@ -2072,17 +2104,19 @@ mod tests {
             ],
         );
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "regions",
-            "Regions",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1000),
-            true, // rollup_to_top_level
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "regions",
+                "Regions",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1000),
+                true, // rollup_to_top_level
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let americas = result
             .categories
@@ -2137,17 +2171,19 @@ mod tests {
             ),
         ]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(2000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(2000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let fixed_income = result
             .categories
@@ -2203,17 +2239,19 @@ mod tests {
             ),
         ]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(2000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(2000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let fixed_income = result
             .categories
@@ -2254,17 +2292,19 @@ mod tests {
             )],
         )]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1200),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1200),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let fixed_income = result
             .categories
@@ -2286,17 +2326,19 @@ mod tests {
             vec![make_assignment("VOO", "asset_classes", "EQUITY", 10000)],
         )]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &assignments,
-            dec!(1000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &assignments,
+                dec!(1000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let equity = result
             .categories
@@ -2923,17 +2965,19 @@ mod tests {
             make_category("CASH_BANK_DEPOSITS", Some("CASH")),
         ];
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &HashMap::new(),
-            dec!(12000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &HashMap::new(),
+                dec!(12000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let cash = result
             .categories
@@ -2953,17 +2997,19 @@ mod tests {
             make_category("CASH", Some("CASH_FX")),
         ];
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "instrument_type",
-            "Instrument Type",
-            "#ccc",
-            &categories,
-            &HashMap::new(),
-            dec!(12000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "instrument_type",
+                "Instrument Type",
+                "#ccc",
+                &categories,
+                &HashMap::new(),
+                dec!(12000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let cash_fx = result
             .categories
@@ -3059,20 +3105,22 @@ mod tests {
         ];
         let overrides = HashMap::from([("savings".to_string(), "FIXED_INCOME".to_string())]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &HashMap::from([(
-                "AAPL".to_string(),
-                vec![make_assignment("AAPL", "asset_classes", "EQUITY", 10000)],
-            )]),
-            dec!(10000),
-            true,
-            &overrides,
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &HashMap::from([(
+                    "AAPL".to_string(),
+                    vec![make_assignment("AAPL", "asset_classes", "EQUITY", 10000)],
+                )]),
+                dec!(10000),
+                true,
+                &overrides,
+            )
+            .unwrap();
 
         let fi = result
             .categories
@@ -3098,17 +3146,19 @@ mod tests {
         ];
         let overrides = HashMap::from([("savings".to_string(), "FIXED_INCOME".to_string())]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "instrument_type",
-            "Instrument Type",
-            "#ccc",
-            &categories,
-            &HashMap::new(),
-            dec!(5000),
-            true,
-            &overrides,
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "instrument_type",
+                "Instrument Type",
+                "#ccc",
+                &categories,
+                &HashMap::new(),
+                dec!(5000),
+                true,
+                &overrides,
+            )
+            .unwrap();
 
         let cash_fx = result
             .categories
@@ -3143,20 +3193,22 @@ mod tests {
             make_category("CASH_BANK_DEPOSITS", Some("CASH")),
         ];
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &HashMap::from([(
-                "AAPL".to_string(),
-                vec![make_assignment("AAPL", "asset_classes", "EQUITY", 10000)],
-            )]),
-            dec!(10000),
-            true,
-            &HashMap::new(),
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &HashMap::from([(
+                    "AAPL".to_string(),
+                    vec![make_assignment("AAPL", "asset_classes", "EQUITY", 10000)],
+                )]),
+                dec!(10000),
+                true,
+                &HashMap::new(),
+            )
+            .unwrap();
 
         let cash = result.categories.iter().find(|c| c.category_id == "CASH");
         assert!(cash.is_some(), "CASH should exist with default behavior");
@@ -3179,17 +3231,19 @@ mod tests {
         // savings has override, checking does not → mixed → should fall back to CASH
         let overrides = HashMap::from([("savings".to_string(), "FIXED_INCOME".to_string())]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &HashMap::new(),
-            dec!(10000),
-            true,
-            &overrides,
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &HashMap::new(),
+                dec!(10000),
+                true,
+                &overrides,
+            )
+            .unwrap();
 
         let cash = result.categories.iter().find(|c| c.category_id == "CASH");
         assert!(cash.is_some(), "mixed sources should fall back to CASH");
@@ -3223,17 +3277,19 @@ mod tests {
             ("sav2".to_string(), "FIXED_INCOME".to_string()),
         ]);
 
-        let result = svc.aggregate_by_taxonomy(
-            &holdings,
-            "asset_classes",
-            "Asset Classes",
-            "#ccc",
-            &categories,
-            &HashMap::new(),
-            dec!(10000),
-            true,
-            &overrides,
-        );
+        let result = svc
+            .aggregate_by_taxonomy(
+                &holdings,
+                "asset_classes",
+                "Asset Classes",
+                "#ccc",
+                &categories,
+                &HashMap::new(),
+                dec!(10000),
+                true,
+                &overrides,
+            )
+            .unwrap();
 
         let fi = result
             .categories

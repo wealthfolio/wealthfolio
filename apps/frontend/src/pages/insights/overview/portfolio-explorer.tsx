@@ -33,6 +33,7 @@ import {
   toBreakdownNodes,
   type BreakdownNode,
 } from "./allocation-derivations";
+import { LensSwitcher } from "./lens-switcher";
 
 interface PortfolioExplorerProps {
   allocations?: PortfolioAllocations;
@@ -60,6 +61,9 @@ interface Lens {
 function sumOfCategories(allocation: TaxonomyAllocation | undefined): number {
   return (allocation?.categories ?? []).reduce((s, c) => s + (c.value > 0 ? c.value : 0), 0);
 }
+
+/** Rows kept before the rest collapse into one "Other" row; the labels count rows, not underlying items. */
+const COLLAPSED_TOP_N = 5;
 
 function sumValue(nodes: BreakdownNode[]): number {
   return nodes.reduce((s, n) => s + n.value, 0);
@@ -163,6 +167,7 @@ function accountsLens(label: string, unit: string, nodes: BreakdownNode[]): Lens
   };
 }
 
+/** Lens-based breakdown of the portfolio: allocation, accounts, sectors, regions, risk, types, currency, custom groups. */
 export function PortfolioExplorer({
   allocations,
   holdings,
@@ -282,11 +287,17 @@ export function PortfolioExplorer({
   }
 
   const total = sumValue(active.nodes);
-  const collapsible = active.nodes.length > 6;
-  const otherLabel = t("insights:insights.explorer.other_units", { unit: active.unit });
-  const barWeights = collapsible ? collapseWeights(active.nodes, 5, otherLabel) : active.nodes;
+  const collapsible = active.nodes.length > COLLAPSED_TOP_N + 1;
+  const otherLabel = t("insights:insights.explorer.other_units", {
+    count: active.nodes.length - COLLAPSED_TOP_N,
+  });
+  const barWeights = collapsible
+    ? collapseWeights(active.nodes, COLLAPSED_TOP_N, otherLabel)
+    : active.nodes;
   const listWeights =
-    collapsible && !showAll ? collapseWeights(active.nodes, 5, otherLabel) : active.nodes;
+    collapsible && !showAll
+      ? collapseWeights(active.nodes, COLLAPSED_TOP_N, otherLabel)
+      : active.nodes;
 
   function renderNode(node: BreakdownNode): React.ReactNode[] {
     const hasChildren = !!node.children?.length;
@@ -365,27 +376,20 @@ export function PortfolioExplorer({
   return (
     <div>
       <Card className="overflow-hidden p-0">
-        {/* Title and lens tabs */}
-        <div className="bg-muted/30 flex flex-wrap items-center gap-1 border-b px-6 py-2.5">
-          <CardTitle className="text-muted-foreground me-5 flex shrink-0 items-center gap-4 py-2 text-sm font-medium tracking-wider uppercase">
-            {t("insights:insights.explorer.breakdown")}
-            <Icons.ChevronRight className="h-4 w-4 opacity-40 rtl:rotate-180" aria-hidden="true" />
-          </CardTitle>
-          {lenses.map((lens) => (
-            <button
-              key={lens.key}
-              type="button"
-              onClick={() => selectLens(lens.key)}
-              className={cn(
-                "rounded-lg px-4 py-2 text-sm transition-colors",
-                lens.key === active.key
-                  ? "bg-foreground text-background font-semibold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {lens.label}
-            </button>
-          ))}
+        {/* Title and lens switcher; narrow cards give the switcher its own row. */}
+        <div className="@container px-6 pt-5 pb-1">
+          <div className="flex flex-col gap-3 @[34rem]:flex-row @[34rem]:items-center @[34rem]:gap-4">
+            <CardTitle className="text-muted-foreground shrink-0 text-sm font-medium tracking-wider uppercase">
+              {t("insights:insights.explorer.breakdown")}
+            </CardTitle>
+            <LensSwitcher
+              lenses={lenses}
+              activeKey={active.key}
+              onSelect={selectLens}
+              aria-label={t("insights:insights.explorer.breakdown")}
+              className="w-full @[34rem]:justify-end"
+            />
+          </div>
         </div>
 
         {/* Full-width breakdown */}
@@ -401,7 +405,9 @@ export function PortfolioExplorer({
           <div className="mt-4 mb-1 flex items-baseline justify-between">
             <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
               {collapsible && !showAll
-                ? t("insights:insights.explorer.top_units", { unit: active.unit })
+                ? t("insights:insights.explorer.top_units", {
+                    count: COLLAPSED_TOP_N,
+                  })
                 : active.label}
             </span>
             {collapsible && (

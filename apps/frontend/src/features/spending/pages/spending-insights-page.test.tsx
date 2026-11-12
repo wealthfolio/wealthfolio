@@ -2,7 +2,7 @@ import { act, render, screen, fireEvent, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import enCommon from "@/i18n/locales/en/common.json";
@@ -145,6 +145,79 @@ it("keeps desktop toolbar controls in sync and clears them when leaving the tab"
 });
 
 describe("This month comparisons", () => {
+  it("compares 1W using seven calendar days across DST in Insights", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-10T12:00:00Z"));
+    try {
+      render(
+        <MemoryRouter initialEntries={["/insights?tab=spending&period=1W"]}>
+          <SpendingInsightsPage />
+        </MemoryRouter>,
+      );
+      expect(insightQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startDate: "2026-03-04T05:00:00.000Z",
+          endDate: "2026-03-11T03:59:59.999Z",
+          compareStartDate: "2026-02-25T05:00:00.000Z",
+          compareEndDate: "2026-03-04T04:59:59.999Z",
+        }),
+        undefined,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([
+    [
+      "2026-12-15T12:00:00Z",
+      "spendingMonth=2026-11",
+      "2026-09-30T22:00:00.000Z",
+      "2026-10-31T22:59:59.999Z",
+    ],
+    [
+      "2026-04-15T12:00:00Z",
+      "spendingMonth=2026-03",
+      "2026-01-31T23:00:00.000Z",
+      "2026-02-28T22:59:59.999Z",
+    ],
+    [
+      "2024-04-15T12:00:00Z",
+      "spendingMonth=2024-03",
+      "2024-01-31T23:00:00.000Z",
+      "2024-02-29T22:59:59.999Z",
+    ],
+    ["2026-11-08T12:00:00Z", "period=MTD", "2026-09-30T22:00:00.000Z", "2026-10-31T22:59:59.999Z"],
+    [
+      "2026-12-15T12:00:00Z",
+      "period=LAST_MONTH",
+      "2026-09-30T22:00:00.000Z",
+      "2026-10-31T22:59:59.999Z",
+    ],
+  ])(
+    "compares %s / %s with the entire prior calendar month in every stage (#2553)",
+    (now, query, start, end) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+      testSettings.timezone = "Europe/Madrid";
+      try {
+        for (const stage of ["where", "changed", "when"]) {
+          const view = render(
+            <MemoryRouter initialEntries={[`/spending/insights?stage=${stage}&${query}`]}>
+              <SpendingInsightsPage />
+            </MemoryRouter>,
+          );
+          expect(insightQuery).toHaveBeenCalledWith(
+            expect.objectContaining({ compareStartDate: start, compareEndDate: end }),
+            undefined,
+          );
+          view.unmount();
+          insightQuery.mockClear();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
   it.each([
     [
       "2026-09-29T12:00:00Z",
@@ -346,6 +419,99 @@ it.each(["changed", "when"])(
 );
 
 describe("period shared with the dashboard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["2026", "invalid"])(
+    "consumes invalid year-only link %s without replacing the shared selection",
+    (year) => {
+      localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
+      render(
+        <MemoryRouter initialEntries={[`/insights?tab=spending&spendingYear=${year}`]}>
+          <SpendingInsightsPage />
+          <Location />
+        </MemoryRouter>,
+      );
+      expect(sharedPick()).toEqual({ kind: "year", year: 2025 });
+      expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+      expect(screen.getByTestId("location")).not.toHaveTextContent("spendingYear");
+      expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    },
+  );
+
+  it.each(["2026", "1969", "2025.5", "invalid"])(
+    "rejects invalid year %s in a link and uses its valid preset",
+    (year) => {
+      render(
+        <MemoryRouter initialEntries={[`/insights?tab=spending&spendingYear=${year}&period=3M`]}>
+          <SpendingInsightsPage />
+          <Location />
+        </MemoryRouter>,
+      );
+      expect(sharedPick()).toEqual({ kind: "spending", code: "3M" });
+      expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+      expect(screen.queryByTestId("spending-selected-range")).not.toBeInTheDocument();
+    },
+  );
+
+  it("prioritizes a custom range over a conflicting year link", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/insights?tab=spending&spendingYear=2025&spendingFrom=2024-02-01&spendingTo=2024-02-29",
+        ]}
+      >
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    expect(sharedPick()).toEqual({ kind: "range", from: "2024-02-01", to: "2024-02-29" });
+  });
+
+  it("consumes a year link once, preserving year identity and calendar comparisons", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "spending", code: "MTD" }));
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/insights?tab=spending&spendingYear=2025&spendingMonth=2024-06&period=YTD",
+        ]}
+      >
+        <SpendingInsightsPage />
+        <Location />
+      </MemoryRouter>,
+    );
+    expect(sharedPick()).toEqual({ kind: "year", year: 2025 });
+    expect(screen.getByTestId("location")).toHaveTextContent("?tab=spending");
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    expect(insightQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2025-01-01T05:00:00.000Z",
+        endDate: "2026-01-01T04:59:59.999Z",
+        compareStartDate: "2024-01-01T05:00:00.000Z",
+        compareEndDate: "2025-01-01T04:59:59.999Z",
+      }),
+      undefined,
+    );
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  });
+
+  it("follows a dashboard year instead of an old month preference", () => {
+    localStorage.setItem("spending-month", JSON.stringify("2024-06"));
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "year", year: 2025 }));
+    render(
+      <MemoryRouter initialEntries={["/insights?tab=spending"]}>
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("2025");
+    expect(insightQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ compareStartDate: "2024-01-01T05:00:00.000Z" }),
+      undefined,
+    );
+  });
   function renderAt(search: string) {
     render(
       <MemoryRouter initialEntries={[`/spending/insights${search}`]}>
@@ -355,6 +521,22 @@ describe("period shared with the dashboard", () => {
     );
     return userEvent.setup();
   }
+
+  it.each([
+    ["3M", "2026-01-01T05:00:00.000Z", "2026-04-01T03:59:59.999Z"],
+    ["6M", "2025-04-01T04:00:00.000Z", "2025-10-01T03:59:59.999Z"],
+    ["1Y", "2023-10-01T04:00:00.000Z", "2024-10-01T03:59:59.999Z"],
+  ])(
+    "compares a historical calendar-aligned %s window with the preceding calendar block",
+    async (code, start, end) => {
+      const user = renderAt(`?stage=where&period=${code}`);
+      await user.click(screen.getByRole("button", { name: "Previous period" }));
+      expect(insightQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ compareStartDate: start, compareEndDate: end }),
+        undefined,
+      );
+    },
+  );
 
   it("follows the period picked on the dashboard when the URL names none", () => {
     localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
@@ -382,16 +564,137 @@ describe("period shared with the dashboard", () => {
     expect(screen.getByTestId("location")).not.toHaveTextContent("period=");
   });
 
-  it("shares a period picked here with the dashboard", async () => {
+  it("replaces Last month with Previous and returns to This month with Next", async () => {
     const user = renderAt("?stage=where");
-    await user.click(screen.getByRole("button", { name: /Last month/ }));
-    expect(JSON.parse(localStorage.getItem("dashboard-period") ?? "null")).toEqual({
-      kind: "spending",
-      code: "LAST_MONTH",
-    });
-    expect(JSON.parse(localStorage.getItem("dashboard-interval") ?? "null")).toBe("1M");
+    expect(screen.queryByRole("button", { name: /Last month/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    expect(sharedPick()).toEqual({ kind: "month", monthKey: "2026-08" });
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("August 2026");
+    expect(insightQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2026-08-01T04:00:00.000Z",
+        endDate: "2026-09-01T03:59:59.999Z",
+      }),
+      undefined,
+    );
+    await user.click(screen.getByRole("button", { name: "Next period" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
     // Back/forward can only revive what is in the URL, so a pick never goes there.
     expect(screen.getByTestId("location")).not.toHaveTextContent("period=");
+  });
+
+  it.each([
+    ["3M", "2026-04-01T04:00:00.000Z", "2026-07-01T03:59:59.999Z"],
+    ["6M", "2025-10-01T04:00:00.000Z", "2026-04-01T03:59:59.999Z"],
+    ["YTD", "2025-01-01T05:00:00.000Z", "2025-09-16T03:59:59.999Z"],
+    ["1Y", "2024-10-01T04:00:00.000Z", "2025-10-01T03:59:59.999Z"],
+  ])(
+    "navigates the shared %s windows and retains the selected preset",
+    async (code, startDate, endDate) => {
+      const user = renderAt(`?stage=where&period=${code}`);
+      await user.click(screen.getByRole("button", { name: "Previous period" }));
+      expect(screen.getByRole("button", { name: code })).toHaveAttribute("aria-pressed", "true");
+      expect(sharedPick()).toMatchObject({
+        kind: "range",
+        presetWindow: { preset: { kind: "spending", code }, anchor: "2026-09-15", offset: -1 },
+      });
+      expect(insightQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ startDate, endDate }),
+        undefined,
+      );
+      await user.click(screen.getByRole("button", { name: "Next period" }));
+      expect(sharedPick()).toEqual({ kind: "spending", code });
+      expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+    },
+  );
+
+  it("restores historical navigation after remount and returns by reselecting the preset", async () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
+    const user = userEvent.setup();
+    const first = render(
+      <MemoryRouter>
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    first.unmount();
+    render(
+      <MemoryRouter>
+        <SpendingInsightsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("button", { name: "6M" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Next period" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "6M" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "6M" });
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  });
+
+  it("clears a stepped month back to the visible preset rather than a stale Insights preference", async () => {
+    localStorage.setItem("spending-insights-period", JSON.stringify("6M"));
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "spending", code: "MTD" }));
+    const user = renderAt("?stage=where");
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    await user.click(screen.getByRole("button", { name: "Select dates" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("continues a dashboard 1M pick instead of treating it as a manual range", async () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "1M" }));
+    const user = renderAt("?stage=where");
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    expect(sharedPick()).toMatchObject({
+      kind: "range",
+      from: "2026-07-15",
+      to: "2026-08-15",
+      presetWindow: { preset: { kind: "portfolio", code: "1M" }, offset: -1 },
+    });
+    await user.click(screen.getByRole("button", { name: "Next period" }));
+    expect(sharedPick()).toEqual({ kind: "portfolio", code: "1M" });
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  });
+
+  it("keeps manual custom ranges fixed and accepts legacy Last month links", async () => {
+    const user = renderAt("?stage=where&period=LAST_MONTH");
+    expect(sharedPick()).toEqual({ kind: "spending", code: "LAST_MONTH" });
+    expect(screen.queryByRole("button", { name: /Last month/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next period" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+    await user.click(screen.getByRole("button", { name: "Select dates" }));
+    await user.click(screen.getByRole("button", { name: "Choose custom dates" }));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2025-03-08" } });
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2025-03-10" } });
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled();
+  });
+
+  it("clears an older month opened from a legacy Last month link to This month", async () => {
+    const user = renderAt("?stage=where&period=LAST_MONTH");
+    await user.click(screen.getByRole("button", { name: "Previous period" }));
+    expect(sharedPick()).toEqual({ kind: "month", monthKey: "2026-07" });
+    await user.click(screen.getByRole("button", { name: "Select dates" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+    expect(screen.getByRole("button", { name: /This month/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });
 
@@ -458,7 +761,7 @@ it.each(["ltr", "rtl"] as const)(
       </DirectionProvider>,
     );
     const notice = screen.getByText("Multi-currency:").parentElement!;
-    expect(stripBidiControls(notice.textContent ?? "")).toContain("12.346 USDT + 6789 MyCoin");
+    expect(stripBidiControls(notice.textContent ?? "")).toContain("12.346 USDT + 6.789 MyCoin");
   },
 );
 

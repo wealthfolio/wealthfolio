@@ -561,7 +561,7 @@ function SecurityRow({
         >
           <span className="font-mono tabular-nums">
             {t("allocation:worksheet.securityHeld", {
-              amount: formatAmount(holding.value, currency),
+              amount: holding.value == null ? "—" : formatAmount(holding.value, currency),
             })}
           </span>
           {alsoIn.length > 0 &&

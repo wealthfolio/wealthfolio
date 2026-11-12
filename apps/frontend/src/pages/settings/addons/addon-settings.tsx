@@ -439,7 +439,7 @@ export default function AddonSettingsPage() {
                             {/* Permissions button */}
                             <Button
                               variant="outline"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleViewPermissions(addon)}
                               className="text-muted-foreground hover:bg-accent hover:text-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
                             >
@@ -452,7 +452,7 @@ export default function AddonSettingsPage() {
                             {/* Rating button */}
                             <Button
                               variant="outline"
-                              size="sm"
+                              size="icon"
                               onClick={() =>
                                 handleRateAddon(addon.metadata.id, addon.metadata.name)
                               }
@@ -484,7 +484,7 @@ export default function AddonSettingsPage() {
                               button={
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
                                 >
                                   <Icons.Trash className="h-4 w-4" />
@@ -501,7 +501,7 @@ export default function AddonSettingsPage() {
                                   render={
                                     <Button
                                       variant={isPinned ? "default" : "outline"}
-                                      size="sm"
+                                      size="icon"
                                       onClick={() => setAddonPinned(addonNavItem, !isPinned)}
                                       className={
                                         isPinned
@@ -541,7 +541,6 @@ export default function AddonSettingsPage() {
                               onCheckedChange={(checked) =>
                                 handleToggleAddon(addon.metadata.id, !checked)
                               }
-                              className="data-checked:bg-success"
                               disabled={togglingAddonId === addon.metadata.id}
                             />
                           </div>

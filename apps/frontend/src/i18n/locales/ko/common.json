@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}} 수익률",
+  "currentValue": "현재 가치",
   "app_name": "Wealthfolio",
   "welcome": "환영합니다",
   "loading": "로딩 중...",
@@ -180,13 +182,13 @@
     "rebuild_full_history": "전체 기록 새로고침",
     "rebuild_full_history_label": "전체 기록 새로고침",
     "rebuilding_history": "전체 기록 새로고침…",
-    "record_buy": "매수 기록",
-    "record_sell": "매도 기록",
-    "record_dividend": "배당금 기록",
-    "record_deposit": "입금 기록",
-    "record_withdrawal": "출금 기록",
+    "record_buy": "매수 추가",
+    "record_sell": "매도 추가",
+    "record_dividend": "배당 추가",
+    "record_deposit": "입금 추가",
+    "record_withdrawal": "출금 추가",
     "add_holding": "보유 종목 추가",
-    "record_interest": "이자 기록",
+    "record_interest": "이자 추가",
     "add_transaction": "거래 추가",
     "import_activities": "활동 가져오기",
     "manage_securities": "증권 관리",
@@ -316,7 +318,10 @@
     "unable_to_open_changelog": "변경 내역을 열 수 없습니다",
     "try_open_changelog_manually": "브라우저에서 변경 내역을 직접 열어보세요.",
     "all_portfolio": "전체 포트폴리오",
-    "calculation_notes_other": "계산 참고사항 ({{count}}개)"
+    "calculation_notes_other": "계산 참고사항 ({{count}}개)",
+    "launcher_navigation": "이동",
+    "launcher_appearance": "모양",
+    "launcher_tools": "도구"
   },
   "globalEvents": {
     "syncingMarket": "시장 데이터 동기화 중...",
@@ -683,5 +688,24 @@
     "accountNumberMax": "계좌 번호는 64자를 초과할 수 없습니다.",
     "accountCurrency": "통화를 선택해 주세요.",
     "creditCardTracking": "신용카드 계좌는 보유 자산 추적 모드를 사용할 수 없습니다."
+  },
+  "backendErrors": {
+    "internal": "작업을 완료할 수 없습니다.",
+    "invalidInput": "입력 내용을 확인하고 다시 시도하세요.",
+    "conflict": "변경 내용이 기존 데이터와 충돌합니다.",
+    "notFound": "요청한 항목을 찾을 수 없습니다.",
+    "unauthorized": "계속하려면 로그인하세요.",
+    "forbidden": "허용되지 않는 작업입니다.",
+    "unavailable": "이 작업을 사용할 수 없습니다.",
+    "providerKeyMissing": "설정에서 이 제공업체의 API 키를 추가하세요.",
+    "providerUnknown": "지원되는 제공업체를 선택하세요.",
+    "providerUnavailable": "제공업체가 요청을 완료하지 못했습니다. 제공업체 설정을 확인하세요.",
+    "customProviderCodeReserved": "이 공급자 코드는 예약되어 있습니다. 다른 코드를 선택하세요.",
+    "customProviderInUse": "삭제하기 전에 해당 자산의 공급자를 변경하거나 심볼 매핑을 제거하세요.",
+    "addonManifestMissing": "애드온 ZIP 파일에 manifest.json이 없습니다.",
+    "addonMainFileMissing": "애드온 ZIP 파일에 매니페스트가 지정한 메인 파일이 없습니다.",
+    "addonNeedsNewerVersion": "이 애드온에는 최신 버전의 Wealthfolio가 필요합니다. Wealthfolio를 업데이트한 후 다시 시도하세요.",
+    "quoteCurrencyRequired": "호가 통화가 필요합니다. 검색 결과에서 심볼을 다시 선택하세요.",
+    "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요."
   }
 }

@@ -34,30 +34,27 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 reqwest = { workspace = true }
-# Stable openidconnect 4 uses reqwest 0.12 for its HTTP transport.
-reqwest-oidc = { package = "reqwest", version = "0.12.28", default-features = false, features = ["json", "rustls-tls"] }
 
 # Additional dependencies
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
 dotenvy = "0.15"
 utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
-serde_with = "3"
 serde_urlencoded = "0.7"
-base64 = "0.21"
-argon2 = { version = "0.5", features = ["std"] }
-jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
-chacha20poly1305 = { version = "0.10", features = ["std"] }
-hkdf = "0.12"
-sha2 = "0.10"
-rand = "0.8"
-urlencoding = "2"
+base64 = "0.22"
+argon2 = "0.6"
+jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
+chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
+hkdf = "0.13"
+sha2 = "0.11"
+hex = { workspace = true }
+rand = "0.10"
 tower_governor = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"
 futures-core = "0.3"
 semver = "1"
-openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
+openidconnect = { version = "4.1", default-features = false }
 rmcp = { workspace = true }
 subtle = "2"
 tempfile = "3"

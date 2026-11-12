@@ -116,6 +116,9 @@ pub struct ConsistencyIssueInfo {
     pub account_currency: Option<String>,
     /// Activity date for activity-specific issues
     pub activity_date: Option<NaiveDate>,
+    /// Last day of a gap that starts at `activity_date` (missing valuation
+    /// source only), so the diagnostic carries a date range.
+    pub end_date: Option<NaiveDate>,
     /// Asset display symbol for activity-specific issues
     pub asset_symbol: Option<String>,
     /// Asset display name for activity-specific issues
@@ -137,6 +140,8 @@ pub struct ConsistencyIssueInfo {
     pub snapshot_min_date: Option<NaiveDate>,
     /// Latest supported date for snapshot-specific consistency issues.
     pub snapshot_max_date: Option<NaiveDate>,
+    /// The engine decision, with its fallback message and optional typed reason.
+    pub engine_issue: Option<crate::portfolio::projection::ActivityIssue>,
 }
 
 /// Health check that detects data consistency problems.
@@ -922,8 +927,22 @@ fn build_engine_activity_issue(
             AffectedItem::activity(i.record_id.clone(), format!("{} — {}", i.description, date))
         })
         .collect();
+    // One block per activity: its label, what the engine said, and its ID.
+    let details = issues
+        .iter()
+        .zip(&affected_items)
+        .map(|(i, item)| {
+            let message = i
+                .engine_issue
+                .as_ref()
+                .map(|issue| issue.message.as_str())
+                .unwrap_or_default();
+            format!("{}\n{}\nActivity: {}", item.name, message, i.record_id)
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
     let count = issues.len();
-    HealthIssue::builder()
+    let mut issue = HealthIssue::builder()
         .id(format!("{}:{}", copy.id, data_hash))
         .severity(copy.severity)
         .category(HealthCategory::DataConsistency)
@@ -937,8 +956,21 @@ fn build_engine_activity_issue(
         .message(copy.message)
         .affected_count(count as u32)
         .affected_items(affected_items)
+        .details(details)
         .data_hash(data_hash)
-        .build()
+        .build();
+    // Add per-activity evidence to the existing fallback diagnostic. Its
+    // fingerprint continues to depend on activity IDs, not wording or reasons.
+    if let Some(diagnostic) = issue
+        .diagnostics
+        .as_mut()
+        .and_then(|items| items.first_mut())
+    {
+        for (evidence, info) in diagnostic.evidence.iter_mut().zip(issues) {
+            evidence.activity_issue = info.engine_issue.clone();
+        }
+    }
+    issue
 }
 
 /// Accounts whose recorded projection no longer matches their facts: the
@@ -1432,7 +1464,7 @@ fn build_valuation_quality_issue(
     let diagnostics: Vec<HealthDiagnostic> = issues
         .iter()
         .take(MAX_VALUATION_DIAGNOSTICS)
-        .filter_map(|i| valuation_diagnostic(i))
+        .filter_map(|i| valuation_diagnostic(i, severity))
         .collect();
 
     let mut builder = HealthIssue::builder()
@@ -1492,7 +1524,10 @@ fn asset_quote_navigate_action(asset_id: String, date: Option<&str>) -> Navigate
 /// Builds a structured diagnostic (root cause, evidence, ordered actions) for a
 /// classified valuation-quality issue. Returns `None` for issues without a
 /// classified `reason` so the UI falls back to the flat `details` rendering.
-fn valuation_diagnostic(issue: &ConsistencyIssueInfo) -> Option<HealthDiagnostic> {
+fn valuation_diagnostic(
+    issue: &ConsistencyIssueInfo,
+    severity: Severity,
+) -> Option<HealthDiagnostic> {
     let reason = issue.reason?;
 
     let (title, explanation) = match reason {
@@ -1690,6 +1725,18 @@ fn valuation_diagnostic(issue: &ConsistencyIssueInfo) -> Option<HealthDiagnostic
         }
     }
 
+    // The range is for readers, not identity: keep the fingerprint the
+    // diagnostic had without it (with the severity the issue would give it), so
+    // the issue id and any dismissal stay put as the gap grows by a day.
+    if let (Some(start), Some(end)) = (issue.activity_date, issue.end_date) {
+        diagnostic = diagnostic.severity(severity);
+        let fingerprint = diagnostic.computed_fingerprint();
+        diagnostic = diagnostic.fingerprint(fingerprint).date_range(
+            start.format("%Y-%m-%d").to_string(),
+            end.format("%Y-%m-%d").to_string(),
+        );
+    }
+
     Some(diagnostic)
 }
 
@@ -1733,7 +1780,7 @@ fn compute_data_hash(record_ids: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::model::HealthConfig;
+    use crate::health::model::{HealthConfig, HealthDateRange};
 
     fn engine_issue(issue_type: ConsistencyIssueType, activity: &str) -> ConsistencyIssueInfo {
         ConsistencyIssueInfo {
@@ -1757,6 +1804,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }
     }
 
@@ -1795,6 +1844,62 @@ mod tests {
         assert_eq!(by_code("data_missing_activity_amount").affected_count, 1);
     }
 
+    // #2533: the Health Center and get_health_status say why each activity
+    // was rejected and which activity it is.
+    #[test]
+    fn engine_activity_issue_details_carry_the_engine_issue_and_activity_id() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let mut rejected = engine_issue(ConsistencyIssueType::RejectedActivity, "buy-1");
+        rejected.engine_issue = Some(crate::portfolio::projection::ActivityIssue {
+            activity_id: "buy-1".to_string(),
+            kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+            message: "no USD/GBp rate on 2025-01-06".to_string(),
+            reason: Some(
+                wealthfolio_portfolio_engine::ActivityReason::MissingFxRate {
+                    from: "USD".to_string(),
+                    to: "GBp".to_string(),
+                    date: NaiveDate::from_ymd_opt(2025, 1, 6).expect("valid test date"),
+                },
+            ),
+        });
+        let issues = check.analyze(&[rejected], &ctx);
+        assert_eq!(
+            issues[0].details.as_deref(),
+            Some("Brokerage — 2025-01-06\nno USD/GBp rate on 2025-01-06\nActivity: buy-1")
+        );
+        // The issue sheet shows details only beside its single fallback
+        // diagnostic (`isFallbackDiagnosticIssue` in issue-detail-sheet.tsx).
+        let diagnostics = issues[0].diagnostics.as_deref().expect("diagnostics");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "REJECTED_ACTIVITY");
+        assert_eq!(diagnostics[0].title, issues[0].title);
+        assert_eq!(diagnostics[0].explanation, issues[0].message);
+        let activity = diagnostics[0].evidence[0]
+            .activity_issue
+            .as_ref()
+            .expect("activity evidence");
+        assert_eq!(activity.activity_id, "buy-1");
+        assert!(matches!(
+            activity.reason,
+            Some(wealthfolio_portfolio_engine::ActivityReason::MissingFxRate { .. })
+        ));
+
+        let mut changed = engine_issue(ConsistencyIssueType::RejectedActivity, "buy-1");
+        changed.engine_issue = Some(crate::portfolio::projection::ActivityIssue {
+            activity_id: "buy-1".to_string(),
+            kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+            message: "a different message".to_string(),
+            reason: None,
+        });
+        let changed = check.analyze(&[changed], &ctx);
+        assert_eq!(
+            issues[0].id, changed[0].id,
+            "reason and wording do not change dismissal identity"
+        );
+        assert_eq!(issues[0].data_hash, changed[0].data_hash);
+    }
+
     #[test]
     fn test_orphan_activity_account() {
         let check = DataConsistencyCheck::new();
@@ -1821,6 +1926,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1855,6 +1962,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -1889,6 +1998,8 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+                end_date: None,
+                engine_issue: None,
             }],
             &ctx,
         );
@@ -1938,6 +2049,8 @@ mod tests {
                 snapshot_source: Some("CSV_IMPORT".to_string()),
                 snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
                 snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+                end_date: None,
+                engine_issue: None,
             }],
             &ctx,
         );
@@ -1987,6 +2100,8 @@ mod tests {
             snapshot_source: Some("ACCOUNT_ACTIVITY".to_string()),
             snapshot_min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1),
             snapshot_max_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 6),
+            end_date: None,
+            engine_issue: None,
         };
         let mut second = first.clone();
         second.record_id = "activity-2".to_string();
@@ -2041,6 +2156,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2080,6 +2197,8 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
+                engine_issue: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::OrphanActivityAccount,
@@ -2102,6 +2221,8 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
+                engine_issue: None,
             },
             ConsistencyIssueInfo {
                 issue_type: ConsistencyIssueType::NegativePosition,
@@ -2124,6 +2245,8 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
+                engine_issue: None,
             },
         ];
 
@@ -2159,6 +2282,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }
     }
 
@@ -2336,6 +2461,8 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
+            end_date: None,
+            engine_issue: None,
         }];
 
         let issues = check.analyze(&issues_data, &ctx);
@@ -2396,6 +2523,8 @@ mod tests {
                 snapshot_source: None,
                 snapshot_min_date: None,
                 snapshot_max_date: None,
+                end_date: None,
+                engine_issue: None,
             }
         }
 
@@ -2532,6 +2661,37 @@ mod tests {
             .expect("basis issue");
         let diagnostic = &basis_issue.diagnostics.as_ref().expect("basis diagnostics")[0];
         assert_eq!(diagnostic.evidence[0].label, "Transaction");
+    }
+
+    #[test]
+    fn missing_valuation_source_range_keeps_the_issue_id() {
+        let gap = |end_date: Option<NaiveDate>| ConsistencyIssueInfo {
+            issue_type: ConsistencyIssueType::IncompleteValuationValue,
+            asset_id: Some("asset-xyz".to_string()),
+            asset_symbol: Some("XYZ".to_string()),
+            reason: Some(ValuationIssueReason::MissingMarketQuote),
+            activity_id: None,
+            end_date,
+            ..engine_issue(ConsistencyIssueType::IncompleteValuationValue, "gap")
+        };
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+
+        let without = check.analyze(&[gap(None)], &ctx);
+        let with = check.analyze(&[gap(NaiveDate::from_ymd_opt(2025, 1, 9))], &ctx);
+
+        let diagnostic = &with[0].diagnostics.as_ref().expect("diagnostics")[0];
+        assert_eq!(
+            diagnostic.date_range,
+            Some(HealthDateRange::new("2025-01-06", "2025-01-09"))
+        );
+        assert_eq!(with[0].id, without[0].id);
+        assert_eq!(with[0].data_hash, without[0].data_hash);
+        assert_eq!(
+            diagnostic.fingerprint,
+            without[0].diagnostics.as_ref().expect("diagnostics")[0].fingerprint
+        );
+        assert_eq!(diagnostic.severity, Severity::Warning);
     }
 
     #[test]

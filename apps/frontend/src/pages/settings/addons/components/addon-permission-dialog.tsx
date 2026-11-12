@@ -110,7 +110,7 @@ export function PermissionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden">
+      <DialogContent className="flex max-w-4xl flex-col overflow-hidden [--overlay-max-height:90vh]">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex flex-col gap-3 md:flex-row md:items-center">
             <Icons.Settings className="hidden h-5 w-5 md:block" />

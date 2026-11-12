@@ -4,11 +4,25 @@ import {
   canDistributeSplitUnits,
   distributeEvenlyUnits,
   distributeRemainingUnits,
+  significantDecimals,
   splitUnitsToAmount,
   toSplitUnits,
 } from "./split-utils";
 
 describe("split utils", () => {
+  it("counts the decimals an amount needs, without trailing zeros", () => {
+    expect(significantDecimals("12.345")).toBe(3);
+    expect(significantDecimals("-1.235")).toBe(3);
+    expect(significantDecimals("12.3400")).toBe(2);
+    expect(significantDecimals("1000")).toBe(0);
+    expect(significantDecimals(12.5)).toBe(1);
+    expect(significantDecimals(1e-7)).toBe(7);
+    expect(significantDecimals("1.5e2")).toBe(0);
+    expect(significantDecimals("0.123456789")).toBe(8);
+    expect(significantDecimals(undefined)).toBe(0);
+    expect(significantDecimals("abc")).toBe(0);
+  });
+
   it("counts amounts in units of the given decimals", () => {
     expect(toSplitUnits("12.34", 2)).toBe(1234);
     expect(toSplitUnits(1.235, 3)).toBe(1235);
@@ -16,6 +30,14 @@ describe("split utils", () => {
     expect(toSplitUnits(undefined, 3)).toBe(0);
     expect(splitUnitsToAmount(1235, 3)).toBe(1.235);
     expect(splitUnitsToAmount(1234, 2)).toBe(12.34);
+  });
+
+  it.each([1, -1])("keeps eight-decimal amounts exact with sign %s", (sign) => {
+    const amount = sign * 33554432.12345678;
+    const units = toSplitUnits(amount, 8);
+
+    expect(units).toBe(sign * 3355443212345678);
+    expect(splitUnitsToAmount(units, 8).toFixed(8)).toBe(amount.toFixed(8));
   });
 
   it("distributes remaining units evenly and keeps the exact total", () => {

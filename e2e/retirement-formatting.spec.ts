@@ -86,7 +86,8 @@ test("retirement respects Spain's formats and keeps chart labels visible in both
         )
         .toBe(true);
       await expect(ticks.last()).toContainText("US$");
-      await expect(page.getByText(/0,0\s%.*funded/)).toBeVisible();
+      // How funded the plan is depends on the accounts earlier specs left behind.
+      await expect(page.getByText(/\d,\d\s%.*funded/)).toBeVisible();
       await page.getByRole("button", { name: "Edit Projection Assumptions" }).click();
       const rateInput = page.getByRole("textbox", { name: "Return before retirement" });
       await expect(rateInput).toHaveValue(dir === "ltr" ? "5,8" : "5,9");

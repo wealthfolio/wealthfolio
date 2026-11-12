@@ -102,6 +102,7 @@ import {
 import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { isContributionLimitCurrent } from "@/pages/settings/contribution-limits/contribution-limit-dates";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
@@ -230,7 +231,6 @@ const AccountPage = () => {
     account,
     AccountPurpose.CONTRIBUTION_LIMITS,
   );
-  const currentContributionYear = today.getFullYear();
 
   const { data: contributionLimits, isLoading: isContributionLimitsLoading } = useQuery<
     ContributionLimit[],
@@ -241,8 +241,13 @@ const AccountPage = () => {
     enabled: supportsContributionLimits,
   });
 
+  // Match the deposit service's UTC fallback when the setting is unset.
+  const contributionTimezone = appTimezone ?? "UTC";
+  const contributionToday = formatZonedDateKey(new Date(), contributionTimezone);
   const currentContributionLimit = contributionLimits?.find(
-    (limit) => limit.accountIds?.includes(id) && limit.contributionYear === currentContributionYear,
+    (limit) =>
+      limit.accountIds?.includes(id) &&
+      isContributionLimitCurrent(limit, contributionToday, contributionTimezone),
   );
   const showContributionLimitCard =
     supportsContributionLimits && (isContributionLimitsLoading || !!currentContributionLimit);
@@ -1077,7 +1082,13 @@ const AccountPage = () => {
                             )}
                           </p>
                           {!hasPerformanceError && (
-                            <div className="flex items-center gap-2 text-sm">
+                            // One line tall in every state: the animated gain is taller than
+                            // a line of text, so loading it in place of N/A, or hiding
+                            // balances, would move the page below.
+                            <div
+                              data-testid="account-gain-row"
+                              className="flex h-5 items-center gap-2 text-sm"
+                            >
                               {gainLossAmountToDisplay == null ? (
                                 <span className="text-muted-foreground text-sm font-light">
                                   {t("account:not_available")}
@@ -1233,7 +1244,13 @@ const AccountPage = () => {
       {/* Holdings Edit Mode Sheet for manual HOLDINGS-mode accounts */}
       {account && canEditHoldingsDirectly && (
         <Sheet open={isEditingHoldings} onOpenChange={setIsEditingHoldings}>
-          <SheetContent side="inline-end" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
+          <SheetContent
+            side={isMobile ? "bottom" : "inline-end"}
+            className={cn(
+              "flex h-full flex-col p-0",
+              isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-2xl",
+            )}
+          >
             <SheetHeader className="border-b px-6 py-4">
               <SheetTitle>{t("account:update_holdings_title")}</SheetTitle>
               <SheetDescription>

@@ -407,20 +407,19 @@ export function applyTransactionUpdate(params: TransactionUpdateParams): LocalTr
         pendingProviderId: undefined,
         pendingProviderSymbol: undefined,
       };
-      // A new row also drops the picked id and instrument type; a type the user
-      // set stays. A saved row keeps both: the server prices an update with the
-      // asset id it gets before it resolves the new symbol, and the type decides
-      // whether it accepts that symbol.
-      if (transaction.isNew === true) {
-        updated = { ...updated, pendingAssetId: undefined };
-        if (transaction._instrumentTypeFromPick) {
-          updated = {
-            ...updated,
-            instrumentType: undefined,
-            pendingInstrumentType: undefined,
-            _instrumentTypeFromPick: undefined,
-          };
-        }
+      // Drop the picked id, and an instrument type the user did not set: one
+      // from a pick or from the saved asset belongs to the old symbol, and a
+      // crypto or FX type lets the server create the new one without a quote
+      // currency. A saved row still sends its stored id, which the server keeps
+      // only while the symbol names that asset.
+      updated = { ...updated, pendingAssetId: undefined };
+      if (!hasUserInstrumentType(transaction)) {
+        updated = {
+          ...updated,
+          instrumentType: undefined,
+          pendingInstrumentType: undefined,
+          _instrumentTypeFromPick: undefined,
+        };
       }
     }
 
@@ -825,6 +824,11 @@ export function buildSavePayload(
     updates,
     deleteIds,
   };
+}
+
+/** Whether the row's instrument type was set in the Instrument column, not by a pick or the saved asset. */
+export function hasUserInstrumentType(transaction: LocalTransaction): boolean {
+  return !!transaction.pendingInstrumentType && !transaction._instrumentTypeFromPick;
 }
 
 /**

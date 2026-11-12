@@ -30,9 +30,10 @@
       "unit_types": "類型",
       "unit_currencies": "幣別",
       "unit_groups": "群組",
-      "other_units": "其他{{unit}}",
+      "other_units_one": "其他 {{count}} 項",
+      "other_units_other": "其他 {{count}} 項",
       "breakdown": "明細",
-      "top_units": "主要{{unit}}",
+      "top_units": "前 {{count}} 項",
       "show_less": "顯示較少",
       "show_all": "顯示全部"
     },
@@ -79,7 +80,6 @@
       "link_explanation": "關聯現有房產不會改變您的淨資產。"
     },
     "failed_to_load": "載入淨資產失敗",
-    "stale_valuations_tooltip": "過期估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
     "no_history_data": "尚無可用的歷史資料",
     "breakdown": "明細",
@@ -105,7 +105,8 @@
     "category_sheet": {
       "over_period": "在 {{period}} 內",
       "trend_period": "趨勢 · {{period}}",
-      "items": "項目"
+      "items": "項目",
+      "view_details": "查看詳情"
     },
     "trend": {
       "not_enough_history": "歷史資料不足"
@@ -146,7 +147,13 @@
     "portfolio_share": "佔投資組合價值的比例（含現金）",
     "largest": "最大持有部位",
     "top_five": "前五大持有部位",
-    "concentration_unavailable": "集中度計算需要持有部位的價值為正，且投資組合中沒有放空部位。"
+    "concentration_unavailable": "集中度計算需要持有部位的價值為正，且投資組合中沒有放空部位。",
+    "holdings": "持倉",
+    "holdings_count_one": "{{count}} 個持倉",
+    "holdings_count_other": "{{count}} 個持倉",
+    "other_holdings_one": "其他 {{count}} 個持倉",
+    "other_holdings_other": "其他 {{count}} 個持倉",
+    "holdings_unavailable": "持倉圖表需要正的持倉價值，且投資組合中沒有空頭部位。"
   },
   "customize": {
     "edit": "自訂",

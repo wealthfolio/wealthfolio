@@ -169,7 +169,7 @@ const getInitialViewportBelow = (breakpoint: number) => {
   return window.innerWidth < breakpoint;
 };
 
-function useViewportBelow(breakpoint: number) {
+export function useViewportBelow(breakpoint: number) {
   const [matches, setMatches] = useState<boolean>(() => getInitialViewportBelow(breakpoint));
 
   useEffect(() => {

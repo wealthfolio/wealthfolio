@@ -81,15 +81,15 @@
         }
       ],
       "models": {
-        "groq/compound": {
-          "capabilities": { "tools": false, "thinking": false, "vision": false }
-        },
         "openai/gpt-oss-120b": {
+          "capabilities": { "tools": true, "thinking": true, "vision": false }
+        },
+        "openai/gpt-oss-20b": {
           "capabilities": { "tools": true, "thinking": true, "vision": false }
         }
       },
       "defaultModel": "openai/gpt-oss-120b",
-      "titleModelId": "groq/compound",
+      "titleModelId": "openai/gpt-oss-20b",
       "documentationUrl": "https://console.groq.com/docs",
       "tuning": {
         "temperature": 0.2,

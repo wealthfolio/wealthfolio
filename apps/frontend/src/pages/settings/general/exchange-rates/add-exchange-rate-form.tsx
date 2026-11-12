@@ -44,7 +44,23 @@ import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { invalidTypeError } from "@/lib/zod-errors";
-import { getCurrencyDisplayLabel, MoneyInput, worldCurrencies } from "@wealthfolio/ui";
+import {
+  canonicalCurrencyCode,
+  getCurrencyDisplayLabel,
+  getQuoteUnitCurrency,
+  MoneyInput,
+  worldCurrencies,
+} from "@wealthfolio/ui";
+
+/**
+ * A typed code as FX pairs store it: upper case, unless that names another
+ * currency. South African cents become ZAC, but pence (GBp) aren't pounds (GBP).
+ */
+function fxPairCode(text: string) {
+  const code = canonicalCurrencyCode(text);
+  const upper = code.toUpperCase();
+  return getQuoteUnitCurrency(upper)?.value === code ? upper : code;
+}
 
 interface ExchangeRateFormData {
   fromCurrency: string;
@@ -88,7 +104,24 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         message: t("settings:fx_err_rate_invalid"),
         path: ["rate"],
       },
-    );
+    )
+    .superRefine((data, ctx) => {
+      // Conversions look quote units up through their major currency's pair, so a
+      // rate saved in pence or cents would never be used directly (#2460).
+      for (const path of ["fromCurrency", "toCurrency"] as const) {
+        const quoteUnit = getQuoteUnitCurrency(data[path]);
+        if (quoteUnit) {
+          ctx.addIssue({
+            code: "custom",
+            message: t("settings:fx_err_quote_unit", {
+              code: data[path],
+              major: quoteUnit.major,
+            }),
+            path: [path],
+          });
+        }
+      }
+    });
 
   const { data: providers } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();
@@ -123,17 +156,21 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
 
   const renderCurrencyField = (fieldName: "fromCurrency" | "toCurrency") => {
     const [searchValue, setSearchValue] = useState("");
+    const customCode = fxPairCode(searchValue);
+    const showCustomCode =
+      customCode !== "" && !worldCurrencies.some((currency) => currency.value === customCode);
 
     const handleSearchChange = (value: string) => {
-      setSearchValue(value);
+      const query = value.trim();
+      setSearchValue(query);
       const matchingCurrency = worldCurrencies.find(
         (currency) =>
-          currency.label.toLowerCase().includes(value.toLowerCase()) ||
-          currencyLabel(currency.value).toLowerCase().includes(value.toLowerCase()) ||
-          currency.value.includes(value),
+          currency.label.toLowerCase().includes(query.toLowerCase()) ||
+          currencyLabel(currency.value).toLowerCase().includes(query.toLowerCase()) ||
+          currency.value.includes(query),
       );
-      if (!matchingCurrency && value) {
-        form.setValue(fieldName, value.toUpperCase());
+      if (!matchingCurrency && query) {
+        form.setValue(fieldName, fxPairCode(query));
       }
     };
 
@@ -171,23 +208,25 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                   />
                   <CommandList>
                     <CommandGroup>
-                      <ScrollArea className="max-h-96 overflow-y-auto">
-                        {searchValue && (
+                      {/* Fits inside CommandList's max-h-75 with the group's padding, so
+                          only this area scrolls. */}
+                      <ScrollArea className="max-h-72 overflow-y-auto">
+                        {showCustomCode && (
                           <CommandItem
-                            value={searchValue}
-                            key={searchValue}
+                            value={customCode}
+                            key={customCode}
                             onSelect={() => {
-                              form.setValue(fieldName, searchValue);
+                              form.setValue(fieldName, customCode);
                             }}
                           >
                             <Icons.Plus
                               className={cn(
                                 "me-2 h-4 w-4",
-                                searchValue === field.value ? "opacity-100" : "opacity-0",
+                                customCode === field.value ? "opacity-100" : "opacity-0",
                               )}
                             />
                             <span className="font-semibold italic">
-                              {t("settings:fx_custom_search", { value: searchValue })}
+                              {t("settings:fx_custom_search", { value: customCode })}
                             </span>
                           </CommandItem>
                         )}

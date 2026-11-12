@@ -47,7 +47,9 @@ test("mobile asset sections preserve the page scroll position", async ({ page })
         const response = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
-        const holdings = (await response.json()) as { instrument?: { id: string } }[];
+        const { holdings } = (await response.json()) as {
+          holdings: { instrument?: { id: string } }[];
+        };
         return holdings.some((h) => h.instrument?.id === assetId);
       },
       { timeout: 60_000 },

@@ -33,6 +33,7 @@ use super::loan::{
 use super::{Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
+use crate::fx::FxServiceTrait;
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_date_from_utc, user_today};
@@ -74,6 +75,15 @@ pub struct AlternativeAssetService {
     quote_service: Arc<dyn QuoteServiceTrait>,
     timezone: Arc<RwLock<String>>,
     event_sink: Arc<dyn DomainEventSink>,
+    /// Registers the currency pair of an asset valued in another currency
+    /// than the base one, so its values convert, as accounts do.
+    fx: Option<FxRegistration>,
+}
+
+/// What registering an asset's FX pair needs.
+struct FxRegistration {
+    fx_service: Arc<dyn FxServiceTrait>,
+    base_currency: Arc<RwLock<String>>,
 }
 
 impl AlternativeAssetService {
@@ -89,7 +99,23 @@ impl AlternativeAssetService {
             quote_service,
             event_sink: Arc::new(NoOpDomainEventSink),
             timezone: Arc::new(RwLock::new(String::new())),
+            fx: None,
         }
+    }
+
+    /// Registers the FX pair from an asset's currency to the base currency
+    /// when the asset is created. Without it, net worth history counts a
+    /// non-base value unconverted.
+    pub fn with_fx_registration(
+        mut self,
+        fx_service: Arc<dyn FxServiceTrait>,
+        base_currency: Arc<RwLock<String>>,
+    ) -> Self {
+        self.fx = Some(FxRegistration {
+            fx_service,
+            base_currency,
+        });
+        self
     }
 
     pub fn with_timezone(mut self, timezone: Arc<RwLock<String>>) -> Self {
@@ -357,6 +383,24 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             "Creating alternative asset: {} ({:?})",
             request.name, request.kind
         );
+
+        // Register the pair to the base currency first, as an account does, so
+        // a failure leaves no unconvertible asset behind.
+        if let Some(FxRegistration {
+            fx_service,
+            base_currency,
+        }) = &self.fx
+        {
+            let base_currency = base_currency
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
+            if !base_currency.trim().is_empty() && request.currency != base_currency {
+                fx_service
+                    .register_currency_pair(request.currency.as_str(), base_currency.as_str())
+                    .await?;
+            }
+        }
 
         // 1. Build asset metadata; a liability's loan fields come only from its setup.
         let is_liability = request.kind == AssetKind::Liability;

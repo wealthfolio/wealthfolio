@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDeleteAlternativeAsset } from "@/hooks/use-alternative-assets";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { BackendError } from "@/lib/backend-error";
 import { QueryKeys } from "@/lib/query-keys";
 
 import { useAssetManagement } from "./use-asset-management";
@@ -116,6 +117,7 @@ describe("asset profile identity conflicts", () => {
   it.each([
     new Error("Constraint violation: ASSET_IDENTITY_CONFLICT: Duplicate asset"),
     "Constraint violation: ASSET_IDENTITY_CONFLICT: Duplicate asset",
+    new BackendError("ASSET_IDENTITY_CONFLICT"),
   ])("explains the conflict for web and desktop errors", async (error) => {
     adapterMocks.updateAssetProfile.mockRejectedValueOnce(error);
     const { queryClient, wrapper } = createHarness();

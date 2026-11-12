@@ -363,22 +363,24 @@ impl AllocationWorksheetService {
     /// one is left out of the other. With a cash sleeve, only cash classified
     /// into it counts: cash tagged into another sleeve stays where the user put
     /// it. Without one, every cash balance the account records counts.
-    fn available_cash(taxonomy_id: &str, source: &AccountSource) -> Decimal {
-        deployable_cash_from_contributions(taxonomy_id, &source.contributions)
-            .unwrap_or_else(|| tracked_cash(&source.holdings))
+    fn available_cash(taxonomy_id: &str, source: &AccountSource) -> crate::Result<Decimal> {
+        match deployable_cash_from_contributions(taxonomy_id, &source.contributions) {
+            Some(value) => Ok(value),
+            None => tracked_cash(&source.holdings),
+        }
     }
 
     fn available_cash_by_account(
         taxonomy_id: &str,
         accounts: &[AccountSource],
-    ) -> HashMap<String, Decimal> {
+    ) -> crate::Result<HashMap<String, Decimal>> {
         accounts
             .iter()
             .map(|source| {
-                (
+                Ok((
                     source.account.id.clone(),
-                    Self::available_cash(taxonomy_id, source),
-                )
+                    Self::available_cash(taxonomy_id, source)?,
+                ))
             })
             .collect()
     }
@@ -1010,7 +1012,7 @@ impl AllocationWorksheetService {
         let account_ids = Self::account_ids(&sources.accounts);
         Self::validate_cash(&input.cash, &account_ids)?;
         let recorded_by_account =
-            Self::available_cash_by_account(&target.taxonomy_id, &sources.accounts);
+            Self::available_cash_by_account(&target.taxonomy_id, &sources.accounts)?;
         let (cash_by_account, tracked_cash_to_use) =
             Self::usable_cash(&input.cash, &recorded_by_account);
 
@@ -1231,7 +1233,7 @@ impl AllocationWorksheetService {
         }
 
         let recorded_by_account =
-            Self::available_cash_by_account(&target.taxonomy_id, &sources.accounts);
+            Self::available_cash_by_account(&target.taxonomy_id, &sources.accounts)?;
         let observed_tracked_cash = recorded_by_account.values().copied().sum::<Decimal>();
         let (cash_by_account, tracked_cash_to_use) =
             Self::usable_cash(&input.cash, &recorded_by_account);
@@ -1873,7 +1875,7 @@ impl AllocationWorksheetService {
                 id: holding.id.clone(),
                 version: holding.as_of_date.to_string(),
                 details: format!(
-                    "account={};asset={};quantity={};value={};price={:?}",
+                    "account={};asset={};quantity={};value={:?};price={:?}",
                     holding.account_id,
                     Self::asset_key(holding),
                     holding.quantity,
@@ -2306,11 +2308,9 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: "USD".to_string(),
             base_currency: "USD".to_string(),
+            translate_observed_basis: false,
             fx_rate: None,
-            market_value: MonetaryValue {
-                local: quantity,
-                base: quantity,
-            },
+            market_value: MonetaryValue::new(quantity, quantity),
             cost_basis: None,
             price: None,
             purchase_price: None,
@@ -2327,7 +2327,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: Decimal::ZERO,
+            weight: Some(Decimal::ZERO),
             as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
             metadata: None,
             source_account_ids: vec![],
@@ -2340,10 +2340,7 @@ mod tests {
             holding_type: HoldingType::Cash,
             instrument: None,
             quantity: amount,
-            market_value: MonetaryValue {
-                local: amount,
-                base: amount,
-            },
+            market_value: MonetaryValue::new(amount, amount),
             ..holding("cash", account_id, amount)
         }
     }

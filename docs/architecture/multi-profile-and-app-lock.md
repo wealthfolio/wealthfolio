@@ -390,26 +390,40 @@ parity.
 Each profile owns Connect credentials, verified issuer/user/team binding, broker
 mappings, enrollment nonce, device identity, sync keys, cursors, and outbox.
 Lock/switch retain credentials and enrollment rather than invoking Supabase
-sign-out. Local unlock works offline; an inability to verify a migrated binding
-pauses cloud work without blocking local access.
+sign-out. Local unlock works offline.
 
-Candidate credentials are verified before binding. Serialized identity
-reservation prevents the same issuer/user ID from attaching to multiple local
-profiles. Binding uses user ID rather than email and survives sign-out. A
-different account or team requires explicit confirmation. The cloud sync scope
-is `(teamId, userId)`; profiles are local and never sent as cloud identities.
+Candidate credentials are verified through `/user/me` before explicit login or
+account changes bind them to a profile. Serialized identity reservation prevents
+the same issuer/user ID from attaching to multiple local profiles. A different
+account or team presented during explicit login requires confirmation and the
+existing cleanup. A signed-in adopted legacy profile without a saved binding
+initializes that binding on its first cloud token acquisition. This one-time
+`/user/me` lookup saves the verified issuer/user/team in the existing registry
+without clearing broker links or device enrollment. Token acquisition, binding,
+login and logout share the existing token-lifecycle lock, so concurrent startup
+operations perform one successful initialization. A failed lookup leaves the
+session and local data intact and can be attempted again on the next cloud use.
+Signed-out legacy profiles establish their binding at explicit login.
 
-Automatic cloud admission re-fetches the verified user/team binding, even when
-its access token has not changed. This applies to foreground requests and queued
-broker sync. The adopted legacy profile establishes its initial binding from its
-server-verified existing session, or its first verified login if signed out,
-without clearing broker links or device enrollment. The legacy format did not
-record an owner, so that first identity becomes its baseline. Unbound nonlegacy
-profiles and changed membership still require explicit reconnection. A user/team
-preflight is not atomic with the subsequent cloud request. Preventing membership
-changes between those requests requires a cloud API contract that checks the
-expected user/team on the operation itself; the current API does not provide
-that guarantee.
+After binding, routine cloud operations use the selected profile's stored token,
+refreshing it through the existing token lifecycle when needed. They do not call
+`/user/me` to recheck identity, household membership or subscription. The cloud
+API's existing authentication, current membership, subscription and resource
+ownership checks are authoritative on the actual request. Profiles remain local:
+no expected profile/user/household headers or capability negotiation are added.
+This removes the previous guarantee that automatic work compares current
+household membership against a saved local binding; explicit login still
+validates binding changes.
+
+Profile UI refreshes share one in-flight request per session generation,
+including local session reconciliation. Automatic profile polling pauses while
+hidden; returning to the app refreshes immediately. Visible polling and sync
+cadence remain unchanged. Brokerage sync uses its protected connection listing
+before accepting background work, then passes that result to the orchestrator.
+Device sync uses its existing reconcile request, and snapshot export follows the
+protected device and cursor requests. Subscription denials preserve pending
+local changes and are handled before generic status/retry policy. No new cache,
+persisted pause state, lock or retry mechanism is introduced.
 
 Temporary Connect transition contention returns HTTP 503, not the HTTP 423 used
 for revoked profile authority. The frontend retains its valid local session and

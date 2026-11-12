@@ -2,6 +2,7 @@
 import type {
   AccountScope,
   Holding,
+  HoldingsListResponse,
   AllocationHoldings,
   IncomeSummary,
   AccountValuation,
@@ -36,8 +37,8 @@ export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
 export const getHoldingsList = async (
   filter: AccountScope,
   options: { includeClosed?: boolean } = {},
-): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_holdings_list", {
+): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_holdings_list", {
     filter,
     ...(options.includeClosed ? { includeClosed: true } : {}),
   });
@@ -193,7 +194,13 @@ export const getHolding = async (accountId: string, assetId: string): Promise<Ho
 };
 
 export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_asset_holdings", { assetId });
+  const scope = await getAssetHoldingsScope(assetId);
+  if (scope.incompleteAccounts.length > 0) throw new Error("Holdings scope is incomplete");
+  return scope.holdings;
+};
+
+export const getAssetHoldingsScope = async (assetId: string): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_asset_holdings", { assetId });
 };
 
 export const getAssetLots = async (

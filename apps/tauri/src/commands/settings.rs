@@ -33,7 +33,7 @@ pub async fn get_settings(state: ProfileAccess) -> Result<Settings, String> {
     context
         .settings_service()
         .get_settings()
-        .map_err(|e| format!("Failed to load settings: {}", e))
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -43,7 +43,7 @@ pub async fn is_auto_update_check_enabled(state: ProfileAccess) -> Result<bool, 
     context
         .settings_service()
         .is_auto_update_check_enabled()
-        .map_err(|e| format!("Failed to check auto-update setting: {}", e))
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -67,10 +67,10 @@ pub async fn update_settings(
     service
         .update_settings(&settings_update)
         .await
-        .map_err(|e| format!("Failed to update settings: {}", e))?;
+        .map_err(|e| e.public_error().error_code)?;
     let updated_settings = service
         .get_settings()
-        .map_err(|e| format!("Failed to load updated settings after change: {}", e))?;
+        .map_err(|e| e.public_error().error_code)?;
 
     let base_currency_changed = updated_settings.base_currency != previous_base_currency;
     let timezone_changed = updated_settings.timezone != previous_timezone;
@@ -134,7 +134,7 @@ pub async fn update_exchange_rate(
         .fx_service()
         .update_exchange_rate(&rate.from_currency, &rate.to_currency, rate.rate)
         .await
-        .map_err(|e| format!("Failed to update exchange rate: {}", e))?;
+        .map_err(|e| e.public_error().error_code)?;
 
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {
@@ -155,7 +155,7 @@ pub async fn get_latest_exchange_rates(state: ProfileAccess) -> Result<Vec<Excha
     context
         .fx_service()
         .get_latest_exchange_rates()
-        .map_err(|e| format!("Failed to load exchange rates: {}", e))
+        .map_err(|e| e.public_error().error_code)
 }
 
 #[tauri::command]
@@ -182,7 +182,7 @@ pub async fn add_exchange_rate(
         .fx_service()
         .add_exchange_rate(new_rate)
         .await
-        .map_err(|e| format!("Failed to add exchange rate: {}", e))?;
+        .map_err(|e| e.public_error().error_code)?;
 
     // Manual rates are saved as-is and need no market sync. Provider-backed
     // pairs store no quote on add (#1143); sync their real rate now so the pair
@@ -217,7 +217,7 @@ pub async fn delete_exchange_rate(
         .fx_service()
         .delete_exchange_rate(&rate_id)
         .await
-        .map_err(|e| format!("Failed to delete exchange rate: {}", e))?;
+        .map_err(|e| e.public_error().error_code)?;
 
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {

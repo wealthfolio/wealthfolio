@@ -1,4 +1,5 @@
 use crate::profiles::ProfileAccess;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use std::sync::Arc;
 use tauri::AppHandle;
 
@@ -8,6 +9,13 @@ use wealthfolio_core::addons::{
     self, AddonManifest, AddonService, AddonServiceTrait, AddonUpdateCheckResult, AddonUpdateInfo,
     ExtractedAddon, InstalledAddon,
 };
+use wealthfolio_core::errors::PublicError;
+
+/// Package refusals the add-on screens explain (no manifest, no main file, a
+/// newer Wealthfolio needed) are sent as their reviewed code alone.
+fn addon_error(error: String) -> String {
+    PublicError::from_control_message(&error).map_or(error, |public| public.error_code)
+}
 
 fn addon_service(
     _app_handle: &AppHandle,
@@ -16,15 +24,25 @@ fn addon_service(
     Ok(Arc::clone(&state.addon_service))
 }
 
+/// The frontend sends add-on zips as base64: a JSON array with one number per
+/// byte takes gigabytes of memory to send and parse for a zip of a few MiB.
+/// Takes the text by value so it is freed before the zip is processed.
+fn decode_zip_data(zip_data_b64: String) -> Result<Vec<u8>, String> {
+    BASE64
+        .decode(zip_data_b64)
+        .map_err(|error| format!("Invalid add-on zip data: {error}"))
+}
+
 #[tauri::command]
 pub async fn install_addon_zip(
     app_handle: AppHandle,
-    zip_data: Vec<u8>,
+    zip_data_b64: String,
     enable_after_install: Option<bool>,
     approved_network_hosts: Option<Vec<String>>,
     state: ProfileAccess,
 ) -> Result<AddonManifest, String> {
     let context = state.context()?;
+    let zip_data = decode_zip_data(zip_data_b64)?;
     addon_service(&app_handle, &context)?
         .install_addon_zip(
             zip_data,
@@ -32,6 +50,7 @@ pub async fn install_addon_zip(
             approved_network_hosts.unwrap_or_default(),
         )
         .await
+        .map_err(addon_error)
 }
 
 #[tauri::command]
@@ -51,7 +70,9 @@ pub async fn toggle_addon(
     state: ProfileAccess,
 ) -> Result<(), String> {
     let context = state.context()?;
-    addon_service(&app_handle, &context)?.toggle_addon(&addon_id, enabled)
+    addon_service(&app_handle, &context)?
+        .toggle_addon(&addon_id, enabled)
+        .map_err(addon_error)
 }
 
 #[tauri::command]
@@ -109,9 +130,9 @@ pub async fn get_enabled_addons_on_startup(
 #[tauri::command]
 pub async fn extract_addon_zip(
     _app_handle: AppHandle,
-    zip_data: Vec<u8>,
+    zip_data_b64: String,
 ) -> Result<ExtractedAddon, String> {
-    addons::extract_addon_zip_internal(zip_data)
+    addons::extract_addon_zip_internal(decode_zip_data(zip_data_b64)?).map_err(addon_error)
 }
 
 /// Check for updates for a specific addon from the addon store
@@ -209,6 +230,7 @@ pub async fn update_addon_from_store_by_id(
     addon_service(&app_handle, &context)?
         .update_addon_from_store(&addon_id)
         .await
+        .map_err(addon_error)
 }
 
 /// Fetch available addons from the store
@@ -230,6 +252,7 @@ pub async fn download_addon_to_staging(
     addon_service(&app_handle, &context)?
         .download_addon_to_staging(&addon_id)
         .await
+        .map_err(addon_error)
 }
 
 /// Install addon from staging directory after permission approval
@@ -249,6 +272,7 @@ pub async fn install_addon_from_staging(
             approved_network_hosts.unwrap_or_default(),
         )
         .await
+        .map_err(addon_error)
 }
 
 #[tauri::command]
@@ -328,4 +352,22 @@ pub async fn delete_addon_storage_item(
     addon_service(&app_handle, &context)?
         .delete_addon_storage_item(&addon_id, &key)
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_zip_data;
+
+    #[test]
+    fn decodes_base64_zip_data() {
+        assert_eq!(
+            decode_zip_data("UEsDBA==".to_string()).unwrap(),
+            b"PK\x03\x04"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_base64_zip_data() {
+        assert!(decode_zip_data("not base64!".to_string()).is_err());
+    }
 }

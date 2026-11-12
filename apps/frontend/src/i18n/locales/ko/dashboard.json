@@ -45,7 +45,6 @@
   "actions": {
     "add_asset": "자산 추가",
     "add_liability": "부채 추가",
-    "record_transaction": "거래 기록",
     "sync_broker_accounts": "증권사 계좌 동기화",
     "sync_devices": "기기 동기화",
     "update_prices": "가격 업데이트",

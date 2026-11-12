@@ -30,9 +30,10 @@
       "unit_types": "유형",
       "unit_currencies": "통화",
       "unit_groups": "그룹",
-      "other_units": "기타 {{unit}}",
+      "other_units_one": "기타 {{count}}개 항목",
+      "other_units_other": "기타 {{count}}개 항목",
       "breakdown": "세부 내역",
-      "top_units": "상위 {{unit}}",
+      "top_units": "상위 {{count}}개 항목",
       "show_less": "간략히 보기",
       "show_all": "전체 보기"
     },
@@ -78,7 +79,6 @@
       "link_explanation": "기존 부동산을 연결해도 순자산은 바뀌지 않습니다."
     },
     "failed_to_load": "순자산을 불러오지 못했습니다",
-    "stale_valuations_tooltip": "오래된 평가 (90일 이상):",
     "days_ago": "{{count}}일 전",
     "no_history_data": "사용 가능한 이력 데이터가 없습니다",
     "breakdown": "세부 내역",
@@ -104,7 +104,8 @@
     "category_sheet": {
       "over_period": "{{period}} 동안",
       "trend_period": "추세 · {{period}}",
-      "items": "항목"
+      "items": "항목",
+      "view_details": "세부 정보 보기"
     },
     "trend": {
       "not_enough_history": "이력이 충분하지 않습니다"
@@ -144,7 +145,13 @@
     "portfolio_share": "현금을 포함한 포트폴리오 가치 대비 비중",
     "largest": "최대 보유 종목",
     "top_five": "상위 5개 보유 종목",
-    "concentration_unavailable": "집중도를 표시하려면 보유 종목의 가치가 양수이고 공매도 포지션이 없어야 합니다."
+    "concentration_unavailable": "집중도를 표시하려면 보유 종목의 가치가 양수이고 공매도 포지션이 없어야 합니다.",
+    "holdings": "보유 종목",
+    "holdings_count_one": "{{count}}개 종목",
+    "holdings_count_other": "{{count}}개 종목",
+    "other_holdings_one": "기타 {{count}}개 종목",
+    "other_holdings_other": "기타 {{count}}개 종목",
+    "holdings_unavailable": "보유 종목 차트에는 양수 평가액과 공매도 포지션이 없는 포트폴리오가 필요합니다."
   },
   "customize": {
     "edit": "사용자 지정",

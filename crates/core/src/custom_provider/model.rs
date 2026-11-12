@@ -520,6 +520,9 @@ pub struct TestSourceResult {
     pub currency: Option<String>,
     pub date: Option<String>,
     pub error: Option<String>,
+    /// Safe public classification; translated by the client at display time.
+    #[serde(default)]
+    pub error_code: Option<String>,
     pub raw_response: Option<String>,
     /// Detected numeric elements (HTML only).
     pub detected_elements: Option<Vec<DetectedHtmlElement>>,
