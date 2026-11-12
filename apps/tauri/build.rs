@@ -114,6 +114,13 @@ fn main() {
         println!("cargo:warning=CONNECT_AUTH_PUBLISHABLE_KEY is NOT set");
     }
 
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        // The Apple Intelligence bridge is Swift. The toolchain's copy of the
+        // Swift concurrency library is found by run path, so the app needs the
+        // system's Swift runtime directory on its run path to start.
+        println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+    }
+
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
     {

@@ -680,11 +680,14 @@ async fn build_context(
 
     // AI provider service - catalog is embedded at compile time
     let ai_catalog_json = include_str!("../../../../crates/ai/src/ai_providers.json");
-    let ai_provider_service = Arc::new(AiProviderService::new(
-        settings_repository.clone() as Arc<dyn SettingsRepositoryTrait>,
-        secret_store.clone(),
-        ai_catalog_json,
-    )?);
+    let ai_provider_service = Arc::new(
+        AiProviderService::new(
+            settings_repository.clone() as Arc<dyn SettingsRepositoryTrait>,
+            secret_store.clone(),
+            ai_catalog_json,
+        )?
+        .with_on_device_model(super::ai_environment::on_device_model()),
+    );
 
     // AI chat repository for thread/message persistence
     let ai_chat_repository = Arc::new(AiChatRepository::new(pool.clone(), writer.clone()));

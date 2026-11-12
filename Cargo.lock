@@ -8657,6 +8657,7 @@ dependencies = [
  "uuid",
  "wealthfolio-agent-tools",
  "wealthfolio-ai",
+ "wealthfolio-apple-intelligence",
  "wealthfolio-connect",
  "wealthfolio-core",
  "wealthfolio-device-sync",
@@ -8670,6 +8671,27 @@ dependencies = [
  "zbus 5.19.0",
  "zbus-secret-service-keyring-store",
  "zeroize",
+]
+
+[[package]]
+name = "wealthfolio-apple-intelligence"
+version = "3.13.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "env_logger",
+ "futures",
+ "log",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "swift-rs",
+ "tokio",
+ "wealthfolio-ai",
+ "wealthfolio-core",
+ "wealthfolio-spending",
 ]
 
 [[package]]

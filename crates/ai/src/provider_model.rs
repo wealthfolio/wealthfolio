@@ -446,6 +446,13 @@ pub struct MergedProvider {
     pub tools_allowlist: Option<Vec<String>>,
 
     // Computed
+    /// The only tools this provider can use, whatever its allowlist says.
+    /// None = any tool. The device's model takes a short list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_tools: Option<Vec<String>>,
+    /// Whether the device's model can answer now. Only for that provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_status: Option<crate::on_device::OnDeviceModelStatus>,
     pub has_api_key: bool,
     pub is_default: bool,
     /// Whether this provider supports dynamic model listing via API.

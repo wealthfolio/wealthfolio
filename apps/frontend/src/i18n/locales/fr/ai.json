@@ -539,6 +539,7 @@
     "type": "Type",
     "date": "Date",
     "account": "Compte",
+    "symbol": "Symbole",
     "quantity": "Quantité",
     "unitPrice": "Prix unitaire",
     "amount": "Montant",
@@ -620,6 +621,14 @@
     "dataAccessSubtitle": "Les données auxquelles l'IA peut accéder",
     "aiDataSharing": "Partage de données avec l'IA",
     "aiDataSharingDescription": "Les outils IA activés peuvent partager les données de portefeuille pertinentes et les pièces jointes avec le fournisseur d'IA sélectionné lors de leur utilisation dans le chat.",
+    "onDeviceData": "Reste sur cet appareil",
+    "onDeviceDataDescription": "Ce modèle s'exécute sur votre appareil. Vos données de portefeuille et vos messages ne sont envoyés à aucun serveur.",
+    "deviceStatus": {
+      "notEnabled": "Désactivé",
+      "notEnabledDescription": "{{name}} est désactivé. Activez-le dans Réglages Système pour utiliser ce modèle.",
+      "modelNotReady": "Pas prêt",
+      "modelNotReadyDescription": "{{name}} est encore en préparation sur cet appareil, par exemple pendant le téléchargement de son modèle. Réessayez plus tard."
+    },
     "advancedOptions": "Options avancées",
     "customized": "Personnalisé",
     "resetToDefaults": "Réinitialiser aux valeurs par défaut",
@@ -678,6 +687,7 @@
     "authentication": "**Échec de l’authentification**\n\nVotre clé API semble absente ou invalide. Vérifiez les {{settingsLink}} et la configuration de votre clé API.",
     "rateLimit": "**Limite de requêtes dépassée**\n\nVous avez effectué trop de requêtes. Patientez un instant puis réessayez.",
     "contextOverflow": "**Conversation trop longue**\n\nCe chat ne tient plus dans la fenêtre de contexte du modèle. Commencez un nouveau chat ou choisissez un modèle avec une fenêtre de contexte plus grande dans les {{settingsLink}}.",
+    "attachmentUnsupported": "**Ce modèle ne peut pas lire cette pièce jointe**\n\nIl ne peut pas lire les images ou PDF de ce type. Choisissez un modèle avec vision dans le sélecteur de modèles, ou envoyez le message sans la pièce jointe.",
     "timeout": "**Délai de la requête dépassé**\n\nLe fournisseur IA met trop de temps à répondre. Cela peut venir d’une connexion lente, d’une surcharge ou d’une requête complexe.\n\nRéessayez ou choisissez un modèle plus rapide dans les {{settingsLink}}.",
     "provider": "**Erreur du fournisseur**\n\n{{error}}\n\nSi le problème persiste, vérifiez les {{settingsLink}}.",
     "unknown": "**Un problème est survenu**\n\n{{error}}\n\nSi le problème persiste, vérifiez les {{settingsLink}}."

@@ -341,12 +341,26 @@ export function ProviderSettingsCard({
     return toolIds.some((toolId) => allowlist.includes(toolId));
   };
 
+  // A provider that can use only some tools shows only the groups it can use.
+  const supportedTools = provider.supportedTools;
+  const dataAccessOptions = supportedTools
+    ? DATA_ACCESS_OPTIONS.filter((option) =>
+        option.toolIds.some((toolId) => supportedTools.includes(toolId)),
+      )
+    : DATA_ACCESS_OPTIONS;
+  const dataAccessToolIds = supportedTools
+    ? [...dataAccessOptions.flatMap((option) => option.toolIds), ...HIDDEN_DEFAULT_TOOL_IDS]
+    : ALL_DATA_ACCESS_TOOL_IDS;
+  const onDevice = provider.deviceStatus !== undefined;
+  const deviceUnavailable =
+    provider.deviceStatus === "notEnabled" || provider.deviceStatus === "modelNotReady";
+
   // Handle grouped tool allowlist toggle
   const handleToolToggle = (toolIds: string[], enabled: boolean) => {
     if (!onToolsAllowlistChange) return;
 
     const enabledToolIds = new Set<string>();
-    for (const option of DATA_ACCESS_OPTIONS) {
+    for (const option of dataAccessOptions) {
       const isTarget = option.toolIds.some((toolId) => toolIds.includes(toolId));
       const nextEnabled = isTarget ? enabled : isToolGroupEnabled(option.toolIds);
       if (nextEnabled) {
@@ -356,7 +370,7 @@ export function ProviderSettingsCard({
       }
     }
 
-    const hasVisibleAccess = DATA_ACCESS_OPTIONS.some((option) =>
+    const hasVisibleAccess = dataAccessOptions.some((option) =>
       option.toolIds.some((toolId) => enabledToolIds.has(toolId)),
     );
     if (hasVisibleAccess) {
@@ -365,13 +379,13 @@ export function ProviderSettingsCard({
       }
     }
 
-    const allEnabled = ALL_DATA_ACCESS_TOOL_IDS.every((toolId) => enabledToolIds.has(toolId));
+    const allEnabled = dataAccessToolIds.every((toolId) => enabledToolIds.has(toolId));
     if (allEnabled) {
       onToolsAllowlistChange(null);
       return;
     }
 
-    onToolsAllowlistChange(ALL_DATA_ACCESS_TOOL_IDS.filter((toolId) => enabledToolIds.has(toolId)));
+    onToolsAllowlistChange(dataAccessToolIds.filter((toolId) => enabledToolIds.has(toolId)));
   };
 
   return (
@@ -393,6 +407,16 @@ export function ProviderSettingsCard({
                 <Badge variant="warning-subtle" className="shrink-0">
                   <Icons.AlertTriangle className="me-1 h-3 w-3" />
                   {t("ai:providerSettings.apiKeyRequired")}
+                </Badge>
+              )}
+              {deviceUnavailable && (
+                <Badge variant="warning-subtle" className="shrink-0">
+                  <Icons.AlertTriangle className="me-1 h-3 w-3" />
+                  {t(
+                    provider.deviceStatus === "notEnabled"
+                      ? "ai:providerSettings.deviceStatus.notEnabled"
+                      : "ai:providerSettings.deviceStatus.modelNotReady",
+                  )}
                 </Badge>
               )}
             </>
@@ -426,6 +450,25 @@ export function ProviderSettingsCard({
         <CollapsibleContent>
           <div className="mt-3 border-t pt-5">
             <div className="space-y-5">
+              {deviceUnavailable && (
+                <div
+                  className={cn(
+                    statusSurfaceVariants({ status: "warning" }),
+                    "flex gap-2 rounded-lg p-3",
+                  )}
+                >
+                  <Icons.AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-sm">
+                    {t(
+                      provider.deviceStatus === "notEnabled"
+                        ? "ai:providerSettings.deviceStatus.notEnabledDescription"
+                        : "ai:providerSettings.deviceStatus.modelNotReadyDescription",
+                      { name: provider.name },
+                    )}
+                  </p>
+                </div>
+              )}
+
               {/* API Key Section (only for API providers) */}
               {provider.type === "api" && (
                 <div className="bg-muted/40 rounded-lg p-4">
@@ -814,18 +857,30 @@ export function ProviderSettingsCard({
                     </span>
                   </div>
                   <div className="border-border/70 bg-background/60 flex gap-2 rounded-md border px-3 py-2.5">
-                    <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                    {onDevice ? (
+                      <Icons.ShieldCheck className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                    ) : (
+                      <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                    )}
                     <div className="space-y-0.5">
                       <p className="text-sm font-medium">
-                        {t("ai:providerSettings.aiDataSharing")}
+                        {t(
+                          onDevice
+                            ? "ai:providerSettings.onDeviceData"
+                            : "ai:providerSettings.aiDataSharing",
+                        )}
                       </p>
                       <p className="text-muted-foreground text-xs leading-relaxed">
-                        {t("ai:providerSettings.aiDataSharingDescription")}
+                        {t(
+                          onDevice
+                            ? "ai:providerSettings.onDeviceDataDescription"
+                            : "ai:providerSettings.aiDataSharingDescription",
+                        )}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {DATA_ACCESS_OPTIONS.map((option) => {
+                    {dataAccessOptions.map((option) => {
                       const isEnabled = isToolGroupEnabled(option.toolIds);
                       return (
                         <button

@@ -539,6 +539,7 @@
     "type": "Tipo",
     "date": "Data",
     "account": "Conto",
+    "symbol": "Simbolo",
     "quantity": "Quantità",
     "unitPrice": "Prezzo unitario",
     "amount": "Importo",
@@ -620,6 +621,14 @@
     "dataAccessSubtitle": "A quali dati può accedere l'IA",
     "aiDataSharing": "Condivisione dati con l'IA",
     "aiDataSharingDescription": "Gli strumenti IA abilitati possono condividere dati rilevanti del portafoglio e allegati con il provider IA selezionato quando vengono usati in chat.",
+    "onDeviceData": "Resta su questo dispositivo",
+    "onDeviceDataDescription": "Questo modello funziona sul tuo dispositivo. I dati del tuo portafoglio e i tuoi messaggi non vengono inviati a nessun server.",
+    "deviceStatus": {
+      "notEnabled": "Disattivato",
+      "notEnabledDescription": "{{name}} è disattivato. Attivalo in Impostazioni di Sistema per usare questo modello.",
+      "modelNotReady": "Non pronto",
+      "modelNotReadyDescription": "{{name}} è ancora in preparazione su questo dispositivo, ad esempio sta scaricando il modello. Riprova più tardi."
+    },
     "advancedOptions": "Opzioni avanzate",
     "customized": "Personalizzato",
     "resetToDefaults": "Ripristina valori predefiniti",
@@ -678,6 +687,7 @@
     "authentication": "**Autenticazione non riuscita**\n\nLa chiave API sembra mancante o non valida. Controlla le {{settingsLink}} e la configurazione della chiave API.",
     "rateLimit": "**Limite di richieste superato**\n\nHai effettuato troppe richieste. Attendi un momento e riprova.",
     "contextOverflow": "**Conversazione troppo lunga**\n\nQuesta chat non rientra più nella finestra di contesto del modello. Avvia una nuova chat o scegli un modello con una finestra di contesto più ampia nelle {{settingsLink}}.",
+    "attachmentUnsupported": "**Questo modello non può leggere questo allegato**\n\nNon può leggere immagini o PDF di questo tipo. Scegli un modello con visione nel selettore dei modelli oppure invia il messaggio senza l'allegato.",
     "timeout": "**Tempo della richiesta scaduto**\n\nIl fornitore IA ha impiegato troppo tempo a rispondere. Le cause possono essere una connessione lenta, un sovraccarico o una richiesta complessa.\n\nRiprova o scegli un modello più veloce nelle {{settingsLink}}.",
     "provider": "**Errore del fornitore**\n\n{{error}}\n\nSe il problema persiste, controlla le {{settingsLink}}.",
     "unknown": "**Si è verificato un problema**\n\n{{error}}\n\nSe il problema persiste, controlla le {{settingsLink}}."

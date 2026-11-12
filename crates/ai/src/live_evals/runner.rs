@@ -32,6 +32,7 @@ use wealthfolio_core::{
     taxonomies::{AssetTaxonomyAssignment, Category, Taxonomy, TaxonomyWithCategories},
 };
 
+use crate::chat::on_device_client::create_on_device_model;
 use crate::chat::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
     create_openai_client, create_openrouter_client, redact_secret,
@@ -46,6 +47,7 @@ use crate::live_evals::schema::{
     ArgAssertion, ArgPredicate, Case, CsvImportExpectation, ResponseRubric, Severity,
 };
 use crate::live_evals::trace::ToolTrace;
+use crate::on_device::{OnDeviceModel, ON_DEVICE_PROVIDER_ID};
 use crate::provider_model::{
     ModelCapabilities, ModelCapabilityOverrides, AI_PROVIDER_SETTINGS_KEY,
     AI_PROVIDER_SETTINGS_SCHEMA_VERSION,
@@ -78,6 +80,9 @@ pub struct RunnerConfig {
     /// user adds the model from that list.
     pub listed_capabilities: Option<ModelCapabilityOverrides>,
     pub judge: JudgeConfig,
+    /// The device's built-in model, for a run against the on-device
+    /// provider. This crate cannot reach it itself; the caller supplies it.
+    pub on_device_model: Option<Arc<dyn OnDeviceModel>>,
 }
 
 /// Who grades `expected_response` rubrics.
@@ -148,6 +153,7 @@ impl RunnerConfig {
                 model: judge_model,
                 provider_url: judge_url,
             },
+            on_device_model: None,
         })
     }
 
@@ -370,6 +376,7 @@ fn is_transient_failure(result: &CaseResult) -> bool {
 
 async fn run_case_once(case: &Case, cfg: &RunnerConfig) -> CaseResult {
     let mut env = build_mock_environment(case);
+    env.on_device_model = cfg.on_device_model.clone();
     seed_provider_settings(&mut env, cfg);
     // Chat reads provider keys from the secret store, as the app does.
     if let Some(key) = eval_api_key_from_env(&cfg.provider) {
@@ -557,6 +564,12 @@ async fn judge_response(
         "openrouter" => create_openrouter_client(api_key, provider, provider_url)?
             .completion(model)
             .into(),
+        ON_DEVICE_PROVIDER_ID => {
+            let model = cfg.on_device_model.clone().ok_or_else(|| {
+                AiError::Provider("The run was given no on-device model.".to_string())
+            })?;
+            create_on_device_model(model).into()
+        }
         _ => create_openai_client(api_key, provider, provider_url)?
             .chat(model)
             .into(),

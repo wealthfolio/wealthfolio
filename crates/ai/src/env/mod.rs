@@ -11,6 +11,7 @@ use std::sync::Arc;
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
 
+use crate::on_device::OnDeviceModel;
 use crate::types::ChatRepositoryTrait;
 
 pub use wealthfolio_agent_tools::AgentEnvironment;
@@ -30,6 +31,11 @@ pub trait AiEnvironment: AgentEnvironment {
 
     /// Get the activity-taxonomy-assignment service for category writes.
     fn activity_taxonomy_assignment_service(&self) -> Arc<ActivityTaxonomyAssignmentService>;
+
+    /// The model built into this device, where the runtime has one.
+    fn on_device_model(&self) -> Option<Arc<dyn OnDeviceModel>> {
+        None
+    }
 }
 
 #[cfg(any(test, feature = "test-utils"))]

@@ -103,6 +103,8 @@ export function formatChatError(code: string, message: string, t: TFunction = i1
       return t("ai:runtimeErrors.authentication", { settingsLink });
     case "PROVIDER_TIMEOUT":
       return t("ai:runtimeErrors.timeout", { settingsLink });
+    case "ATTACHMENT_UNSUPPORTED":
+      return t("ai:runtimeErrors.attachmentUnsupported");
   }
   if (code === CONTEXT_OVERFLOW) {
     return t("ai:runtimeErrors.contextOverflow", { settingsLink });

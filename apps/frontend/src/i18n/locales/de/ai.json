@@ -501,6 +501,7 @@
     "type": "Typ",
     "date": "Datum",
     "account": "Konto",
+    "symbol": "Symbol",
     "quantity": "Menge",
     "unitPrice": "Stückpreis",
     "amount": "Betrag",
@@ -582,6 +583,14 @@
     "dataAccessSubtitle": "Auf welche Daten die KI zugreifen kann",
     "aiDataSharing": "KI-Datenfreigabe",
     "aiDataSharingDescription": "Aktivierte KI-Tools können relevante Portfoliodaten und Anhänge mit Ihrem ausgewählten KI-Anbieter teilen, wenn sie im Chat verwendet werden.",
+    "onDeviceData": "Bleibt auf diesem Gerät",
+    "onDeviceDataDescription": "Dieses Modell läuft auf Ihrem Gerät. Ihre Portfoliodaten und Nachrichten werden an keinen Server gesendet.",
+    "deviceStatus": {
+      "notEnabled": "Ausgeschaltet",
+      "notEnabledDescription": "{{name}} ist ausgeschaltet. Schalten Sie es in den Systemeinstellungen ein, um dieses Modell zu verwenden.",
+      "modelNotReady": "Nicht bereit",
+      "modelNotReadyDescription": "{{name}} wird auf diesem Gerät noch vorbereitet, zum Beispiel wird das Modell heruntergeladen. Versuchen Sie es später erneut."
+    },
     "advancedOptions": "Erweiterte Optionen",
     "customized": "Angepasst",
     "resetToDefaults": "Auf Standardwerte zurücksetzen",
@@ -640,6 +649,7 @@
     "authentication": "**Authentifizierung fehlgeschlagen**\n\nIhr API-Schlüssel fehlt oder ist ungültig. Prüfen Sie die {{settingsLink}} und die Konfiguration Ihres API-Schlüssels.",
     "rateLimit": "**Anfragelimit überschritten**\n\nSie haben zu viele Anfragen gestellt. Warten Sie einen Moment und versuchen Sie es erneut.",
     "contextOverflow": "**Unterhaltung zu lang**\n\nDieser Chat passt nicht mehr in das Kontextfenster des Modells. Starten Sie einen neuen Chat oder wählen Sie in den {{settingsLink}} ein Modell mit größerem Kontextfenster.",
+    "attachmentUnsupported": "**Dieses Modell kann den Anhang nicht lesen**\n\nEs kann Bilder oder PDFs dieser Art nicht lesen. Wählen Sie in der Modellauswahl ein Modell mit Bildverständnis oder senden Sie die Nachricht ohne Anhang.",
     "timeout": "**Zeitüberschreitung**\n\nDer KI-Anbieter antwortet zu langsam. Mögliche Ursachen sind eine langsame Verbindung, Überlastung oder eine komplexe Anfrage.\n\nVersuchen Sie es erneut oder wählen Sie in den {{settingsLink}} ein schnelleres Modell.",
     "provider": "**Anbieterfehler**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}.",
     "unknown": "**Ein Fehler ist aufgetreten**\n\n{{error}}\n\nPrüfen Sie bei anhaltenden Problemen die {{settingsLink}}."

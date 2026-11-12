@@ -7,12 +7,14 @@ use async_trait::async_trait;
 use log::{debug, warn};
 use rig::{operation::Completion, AgentBuilder, DynModel};
 
+use crate::chat::on_device_client::{available_on_device_model, create_on_device_model};
 use crate::chat::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
     create_openai_client, create_openrouter_client,
 };
 use crate::env::AiEnvironment;
 use crate::error::AiError;
+use crate::on_device::ON_DEVICE_PROVIDER_ID;
 use crate::providers::ProviderService;
 use std::sync::Arc;
 
@@ -122,6 +124,9 @@ Title:",
             "openrouter" => create_openrouter_client(api_key, provider_id, provider_url)?
                 .completion(model_id)
                 .into(),
+            ON_DEVICE_PROVIDER_ID => {
+                create_on_device_model(available_on_device_model(self.env.as_ref())?).into()
+            }
             // Default to OpenAI-compatible Chat Completions: titles call no tools.
             _ => create_openai_client(api_key, provider_id, provider_url)?
                 .chat(model_id)

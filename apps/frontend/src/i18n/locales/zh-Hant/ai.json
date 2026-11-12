@@ -501,6 +501,7 @@
     "type": "類型",
     "date": "日期",
     "account": "帳戶",
+    "symbol": "代碼",
     "quantity": "數量",
     "unitPrice": "單價",
     "amount": "金額",
@@ -582,6 +583,14 @@
     "dataAccessSubtitle": "AI 可以存取哪些資料",
     "aiDataSharing": "AI 資料共享",
     "aiDataSharingDescription": "在對話中使用已啟用的 AI 工具時，相關投資組合資料與附件可能會分享給你選取的 AI 供應商。",
+    "onDeviceData": "資料留在此裝置上",
+    "onDeviceDataDescription": "此模型在你的裝置上執行。你的投資組合資料與訊息不會傳送到任何伺服器。",
+    "deviceStatus": {
+      "notEnabled": "已關閉",
+      "notEnabledDescription": "{{name}} 已關閉。請在「系統設定」中開啟以使用此模型。",
+      "modelNotReady": "尚未就緒",
+      "modelNotReadyDescription": "{{name}} 仍在此裝置上準備中，例如正在下載模型。請稍後再試。"
+    },
     "advancedOptions": "進階選項",
     "customized": "已自訂",
     "resetToDefaults": "重設為預設值",
@@ -640,6 +649,7 @@
     "authentication": "**驗證失敗**\n\nAPI 金鑰可能無效或遺漏。請檢查{{settingsLink}}，確認 API 金鑰設定正確。",
     "rateLimit": "**請求過於頻繁**\n\n請求次數過多，請稍後重試。",
     "contextOverflow": "**對話過長**\n\n此對話已超出模型的上下文視窗。請新增對話，或在{{settingsLink}}中選擇上下文視窗更大的模型。",
+    "attachmentUnsupported": "**此模型無法讀取這個附件**\n\n它無法讀取此類圖片或 PDF。請在模型選擇器中選取支援視覺的模型，或不附加檔案傳送訊息。",
     "timeout": "**請求逾時**\n\nAI 提供者回應時間過長。可能是網路較慢、提供者負載過高或請求過於複雜。\n\n請重試，或在{{settingsLink}}中選擇更快的模型。",
     "provider": "**提供者錯誤**\n\n{{error}}\n\n若問題持續，請檢查{{settingsLink}}。",
     "unknown": "**發生問題**\n\n{{error}}\n\n若問題持續，請檢查{{settingsLink}}。"

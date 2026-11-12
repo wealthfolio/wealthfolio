@@ -33,6 +33,7 @@ use tokio::sync::mpsc;
 
 use crate::env::AiEnvironment;
 use crate::error::AiError;
+use crate::on_device::ON_DEVICE_PROVIDER_ID;
 use crate::provider_urls::is_openai_platform_url;
 use crate::providers::ProviderService;
 use crate::stream_hook::{WealthfolioStreamHook, MAX_MODEL_CALLS};
@@ -44,6 +45,7 @@ use crate::types::{
 };
 
 use super::history::build_user_prompt;
+use super::on_device_client::{available_on_device_model, create_on_device_model, on_device_tools};
 use super::provider_clients::{
     create_anthropic_client, create_gemini_client, create_groq_client, create_ollama_client,
     create_openai_client, create_openrouter_client, remap_provider_error,
@@ -134,6 +136,17 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     // goes at the end of the user's message instead.
     let mut preamble = crate::SYSTEM_PROMPT.trim().to_string();
 
+    // The device's own model has a small context window: it gets a short
+    // prompt and, unless the user chose the tools, a few read tools.
+    let on_device = provider_id == ON_DEVICE_PROVIDER_ID;
+    if on_device {
+        preamble = crate::SYSTEM_PROMPT_ON_DEVICE.trim().to_string();
+        // Whether it reads images depends on the system version, not the catalog.
+        capabilities.vision = env
+            .on_device_model()
+            .is_some_and(|model| model.supports_images());
+    }
+
     let base_currency = env.base_currency();
     let user_time = user_time_context(env.as_ref());
 
@@ -209,18 +222,11 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
         model_id: model_id.clone(),
     };
 
-    // Reject image/PDF attachments when the model doesn't support vision
-    if !capabilities.vision {
-        if let Some(att) = attachments
-            .iter()
-            .find(|a| a.content_type.starts_with("image/") || a.content_type == "application/pdf")
-        {
-            return Err(AiError::InvalidInput(format!(
-                "The current model does not support image/PDF attachments ({}). \
-                 Please switch to a vision-capable model.",
-                att.name
-            )));
-        }
+    if let Some(att) = unreadable_attachment(&attachments, capabilities.vision, on_device) {
+        return Err(AiError::UnsupportedAttachment(format!(
+            "The current model cannot read {} attachments.",
+            att.content_type
+        )));
     }
 
     // Build multimodal user content from text + attachments
@@ -249,10 +255,18 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     let repo = env.chat_repository();
 
     // Get the tools allowlist for this provider (None = all tools allowed)
+    // The device's model gets its own short list, within the user's.
     let tools_allowlist = provider_service.get_tools_allowlist(&provider_id);
+    let tools_allowlist = if on_device {
+        Some(on_device_tools(tools_allowlist.as_deref()))
+    } else {
+        tools_allowlist
+    };
 
     // If this provider has a restricted allowlist, clarify the limitation behavior.
-    if capabilities.tools {
+    // The device's model has its own short line for this: it repeats this
+    // notice's example sentence instead of answering.
+    if capabilities.tools && !on_device {
         if let Some(allowlist) = &tools_allowlist {
             let allowed = allowlist.join(", ");
             preamble.push_str(&format!(
@@ -554,6 +568,13 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                     ollama_thinking_params.clone()
                 )
             }
+            ON_DEVICE_PROVIDER_ID => {
+                let model = available_on_device_model(env.as_ref())?;
+                build_with_tools_and_stream!(
+                    create_on_device_model(model),
+                    None::<serde_json::Value>
+                )
+            }
             "openai" if uses_openai_platform => {
                 let client = create_openai_client(api_key, &provider_id, provider_url)?;
                 build_with_tools_and_stream!(
@@ -608,6 +629,13 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
                 build_without_tools_and_stream!(
                     client.native_completion(&model_id),
                     ollama_thinking_params.clone()
+                )
+            }
+            ON_DEVICE_PROVIDER_ID => {
+                let model = available_on_device_model(env.as_ref())?;
+                build_without_tools_and_stream!(
+                    create_on_device_model(model),
+                    None::<serde_json::Value>
                 )
             }
             "openai" if uses_openai_platform => {
@@ -1316,6 +1344,20 @@ const MAX_RETRY_WAIT: Duration = Duration::from_secs(10);
 /// model's context window.
 const CONTEXT_OVERFLOW: &str = "CONTEXT_OVERFLOW";
 
+/// The first attachment the model cannot read: an image or PDF for a model
+/// without vision, or a PDF for the device's model, which reads images only.
+fn unreadable_attachment(
+    attachments: &[MessageAttachment],
+    vision: bool,
+    on_device: bool,
+) -> Option<&MessageAttachment> {
+    attachments.iter().find(|attachment| {
+        let image = attachment.content_type.starts_with("image/");
+        let pdf = attachment.content_type == "application/pdf";
+        ((image || pdf) && !vision) || (pdf && on_device)
+    })
+}
+
 /// Rate limits, server errors, dropped connections and cut-off replies.
 fn is_transient(error: &PromptError) -> bool {
     match error {
@@ -1454,6 +1496,34 @@ fn update_native_reasoning(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attachments_a_model_cannot_read_are_refused_by_type() {
+        let file = |content_type: &str| MessageAttachment {
+            name: "file".into(),
+            content_type: content_type.into(),
+            data: String::new(),
+        };
+        let png = [file("image/png")];
+        let pdf = [file("application/pdf")];
+        let csv = [file("text/csv")];
+
+        // A model without vision reads neither.
+        assert!(unreadable_attachment(&png, false, false).is_some());
+        assert!(unreadable_attachment(&pdf, false, false).is_some());
+        assert!(unreadable_attachment(&csv, false, false).is_none());
+        // A model with vision reads both.
+        assert!(unreadable_attachment(&png, true, false).is_none());
+        assert!(unreadable_attachment(&pdf, true, false).is_none());
+        // The device's model reads images only, and only where it says so.
+        assert!(unreadable_attachment(&png, true, true).is_none());
+        assert!(unreadable_attachment(&pdf, true, true).is_some());
+        assert!(unreadable_attachment(&png, false, true).is_some());
+        assert_eq!(
+            AiError::UnsupportedAttachment("x".into()).code(),
+            "ATTACHMENT_UNSUPPORTED"
+        );
+    }
 
     #[test]
     fn provider_failures_keep_actionable_codes_without_message_matching() {

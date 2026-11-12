@@ -23,6 +23,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   useAmountFormatting,
   useDateFormatting,
@@ -618,6 +623,30 @@ function aiSpecificDefaultOverrides(
   return overrides;
 }
 
+/** The draft's field names, as the backend reports a missing one. */
+const MISSING_FIELD_KEYS: Record<string, string> = {
+  account_id: "ai:recordActivity.account",
+  symbol: "ai:recordActivity.symbol",
+  quantity: "ai:recordActivity.quantity",
+  unit_price: "ai:recordActivity.unitPrice",
+  amount: "ai:recordActivity.amount",
+};
+
+function missingFieldLabel(field: string, t: TFunction): string {
+  const key = MISSING_FIELD_KEYS[field];
+  return key ? t(key) : field;
+}
+
+/** The draft's validation once the user has picked the missing account. */
+function withAccountPicked(validation: ValidationResult): ValidationResult {
+  const missingFields = validation.missingFields.filter((field) => field !== "account_id");
+  return {
+    ...validation,
+    missingFields,
+    isValid: missingFields.length === 0 && validation.errors.length === 0,
+  };
+}
+
 interface ValidationHintsProps {
   validation: ValidationResult;
 }
@@ -640,7 +669,9 @@ function ValidationHints({ validation }: ValidationHintsProps) {
             </li>
           ))}
           {validation.missingFields.map((f) => (
-            <li key={`missing-${f}`}>{t("ai:recordActivity.missing", { field: f })}</li>
+            <li key={`missing-${f}`}>
+              {t("ai:recordActivity.missing", { field: missingFieldLabel(f, t) })}
+            </li>
           ))}
         </ul>
       </AlertDescription>
@@ -655,8 +686,54 @@ interface DraftReviewProps {
   activityTypeDisplay: string;
   isLoading: boolean;
   canConfirm: boolean;
+  /** Offered as a picker when the draft came without an account. */
+  accountChoices?: AccountOption[];
+  pickedAccountId?: string;
+  onPickAccount: (accountId: string) => void;
   onConfirm: () => void;
   onEdit: () => void;
+}
+
+interface AccountPickerProps {
+  accounts: AccountOption[];
+  value?: string;
+  onChange: (accountId: string) => void;
+  disabled: boolean;
+}
+
+/** The draft's account, chosen in place when the draft came without one. */
+function AccountPicker({ accounts, value, onChange, disabled }: AccountPickerProps) {
+  const { t } = useTranslation();
+  const label = t("ai:recordActivity.account");
+  const name = (account: AccountOption) => (
+    <>
+      {account.name} <span className="text-muted-foreground font-light">({account.currency})</span>
+    </>
+  );
+  return (
+    <div className="col-span-2">
+      <div className="text-muted-foreground text-xs font-medium">{label}</div>
+      <Select
+        items={accounts.map((account) => ({ value: account.id, label: name(account) }))}
+        value={value ?? ""}
+        onValueChange={(next) => {
+          if (typeof next === "string" && next) onChange(next);
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger aria-label={label} className="mt-1 h-8" data-testid="draft-account-select">
+          <SelectValue placeholder={t("activity:select_account_placeholder")} />
+        </SelectTrigger>
+        <SelectContent className="max-h-[min(31.25rem,var(--available-height))] overflow-y-auto">
+          {accounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {name(account)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
 
 interface ReviewFieldProps {
@@ -681,6 +758,9 @@ function DraftReview({
   activityTypeDisplay,
   isLoading,
   canConfirm,
+  accountChoices,
+  pickedAccountId,
+  onPickAccount,
   onConfirm,
   onEdit,
 }: DraftReviewProps) {
@@ -729,10 +809,19 @@ function DraftReview({
           label={t("ai:recordActivity.date")}
           value={formatActivityDate(draft.activityDate, t, dateFormatting)}
         />
-        <ReviewField
-          label={t("ai:recordActivity.account")}
-          value={draft.accountName ?? draft.accountId ?? "-"}
-        />
+        {accountChoices ? (
+          <AccountPicker
+            accounts={accountChoices}
+            value={pickedAccountId}
+            onChange={onPickAccount}
+            disabled={isLoading}
+          />
+        ) : (
+          <ReviewField
+            label={t("ai:recordActivity.account")}
+            value={draft.accountName ?? draft.accountId ?? "-"}
+          />
+        )}
         {draft.quantity !== undefined && (
           <ReviewField label={t("ai:recordActivity.quantity")} value={String(draft.quantity)} />
         )}
@@ -804,8 +893,8 @@ interface DraftFormProps {
 }
 
 function DraftForm({
-  draft,
-  validation,
+  draft: aiDraft,
+  validation: aiValidation,
   availableAccounts,
   resolvedAsset,
   toolCallId,
@@ -817,6 +906,24 @@ function DraftForm({
   const { isBalanceHidden } = useBalancePrivacy();
   const { formatAmount } = useAmountFormatting();
   const [isEditing, setIsEditing] = useState(false);
+
+  // A draft without an account offers the accounts in place; the one the user
+  // picks fills the draft that Confirm and Edit use.
+  const [pickedAccountId, setPickedAccountId] = useState<string>();
+  const accountChoices =
+    !aiDraft.accountId && availableAccounts.length > 0 ? availableAccounts : undefined;
+  const pickedAccount = accountChoices?.find((account) => account.id === pickedAccountId);
+  const draft = useMemo(
+    () =>
+      pickedAccount
+        ? { ...aiDraft, accountId: pickedAccount.id, accountName: pickedAccount.name }
+        : aiDraft,
+    [aiDraft, pickedAccount],
+  );
+  const validation = useMemo(
+    () => (pickedAccount ? withAccountPicked(aiValidation) : aiValidation),
+    [aiValidation, pickedAccount],
+  );
 
   const pickerType = useMemo(() => toPickerActivityType(draft.activityType), [draft.activityType]);
   const config = pickerType ? ACTIVITY_FORM_CONFIG[pickerType] : undefined;
@@ -979,6 +1086,9 @@ function DraftForm({
           activityTypeDisplay={activityTypeDisplay}
           isLoading={addActivityMutation.isPending}
           canConfirm={canConfirm}
+          accountChoices={accountChoices}
+          pickedAccountId={pickedAccountId}
+          onPickAccount={setPickedAccountId}
           onConfirm={handleConfirm}
           onEdit={() => setIsEditing(true)}
         />

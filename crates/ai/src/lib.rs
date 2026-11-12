@@ -67,6 +67,7 @@ pub mod eval;
 #[cfg(feature = "test-utils")]
 pub mod live_evals;
 mod model_families;
+pub mod on_device;
 pub mod provider_model;
 pub mod provider_service;
 mod provider_urls;
@@ -79,6 +80,11 @@ pub mod types;
 /// The chat agent's system prompt, baked at compile time. Exposed for
 /// integration tests in `tests/system_prompt.rs` to assert content invariants.
 pub const SYSTEM_PROMPT: &str = include_str!("system_prompt.txt");
+
+/// The short prompt for the device's built-in model, whose context window
+/// cannot hold [`SYSTEM_PROMPT`] beside its tools. It keeps the financial
+/// safety policy and covers reading the portfolio only.
+pub const SYSTEM_PROMPT_ON_DEVICE: &str = include_str!("system_prompt_on_device.txt");
 
 /// Version marker embedded in the one authoritative live system prompt.
 pub const FINANCIAL_SAFETY_POLICY_VERSION: &str = "2026-08-18.p0";

@@ -10,6 +10,11 @@ pub enum AiError {
     #[error("{0}")]
     InvalidInput(String),
 
+    /// An attachment the selected model cannot read, such as an image for a
+    /// model without vision. Its own code lets the chat say so.
+    #[error("Unsupported attachment: {0}")]
+    UnsupportedAttachment(String),
+
     /// Missing API key for a provider.
     #[error("Missing API key for provider {0}")]
     MissingApiKey(String),
@@ -69,7 +74,9 @@ impl AiError {
         use wealthfolio_core::errors::PublicError;
         match self {
             Self::Core(error) => error.public_error(),
-            Self::InvalidInput(_) | Self::InvalidCursor(_) => PublicError::invalid_input(),
+            Self::InvalidInput(_) | Self::InvalidCursor(_) | Self::UnsupportedAttachment(_) => {
+                PublicError::invalid_input()
+            }
             Self::MissingApiKey(_) => PublicError::new(
                 "provider_key_missing",
                 "Add an API key for this provider in Settings.",
@@ -106,6 +113,7 @@ impl AiError {
     pub fn code(&self) -> &'static str {
         match self {
             AiError::InvalidInput(_) => "INVALID_INPUT",
+            AiError::UnsupportedAttachment(_) => "ATTACHMENT_UNSUPPORTED",
             AiError::MissingApiKey(_) => "MISSING_API_KEY",
             AiError::Provider(_) => "PROVIDER_ERROR",
             AiError::ToolNotFound(_) => "TOOL_NOT_FOUND",

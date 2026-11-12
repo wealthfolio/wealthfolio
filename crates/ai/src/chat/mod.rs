@@ -13,6 +13,7 @@
 mod attachments;
 mod csv_preview;
 mod history;
+pub(crate) mod on_device_client;
 pub(crate) mod provider_clients;
 mod request_params;
 #[cfg(test)]

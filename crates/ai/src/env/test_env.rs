@@ -1751,13 +1751,20 @@ pub struct MockEnvironment {
     pub taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     pub cash_activity_service: Arc<dyn CashActivityServiceTrait>,
     pub categorization_rules_service: Arc<dyn CategorizationRulesServiceTrait>,
+    /// The device's built-in model; none unless a test supplies one.
+    pub on_device_model: Option<Arc<dyn crate::on_device::OnDeviceModel>>,
+    /// Spending insights; none unless a test supplies one.
+    pub spending_insight_service:
+        Option<Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>>,
 }
 
 /// Mock cash-activity service for testing. Seed `items` to control both
-/// `search` results and `get_by_activity_ids` lookups.
+/// `search` results and `get_by_activity_ids` lookups, and `context` for
+/// Spending's enrollment (disabled by default).
 #[derive(Default)]
 pub struct MockCashActivityService {
     pub items: Vec<wealthfolio_spending::cash_activities::CashActivity>,
+    pub context: wealthfolio_spending::cash_activities::SpendingContext,
 }
 
 #[async_trait]
@@ -1789,7 +1796,7 @@ impl CashActivityServiceTrait for MockCashActivityService {
     async fn context(
         &self,
     ) -> anyhow::Result<wealthfolio_spending::cash_activities::SpendingContext> {
-        Ok(wealthfolio_spending::cash_activities::SpendingContext::default())
+        Ok(self.context.clone())
     }
     async fn bulk_assign_categories(
         &self,
@@ -1920,6 +1927,8 @@ impl MockEnvironment {
             taxonomy_service: Arc::new(MockTaxonomyService::default()),
             cash_activity_service: Arc::new(MockCashActivityService::default()),
             categorization_rules_service: Arc::new(MockCategorizationRulesService::default()),
+            on_device_model: None,
+            spending_insight_service: None,
         }
     }
 
@@ -1945,7 +1954,9 @@ impl AgentEnvironment for MockEnvironment {
     fn spending_insight_service(
         &self,
     ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
-        unimplemented!("Spending service not mocked for assistant tests and evals")
+        self.spending_insight_service
+            .clone()
+            .unwrap_or_else(|| unimplemented!("Spending insight not mocked for this test"))
     }
     fn base_currency(&self) -> String {
         self.base_currency.clone()
@@ -2045,6 +2056,10 @@ impl AiEnvironment for MockEnvironment {
         &self,
     ) -> Arc<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService> {
         unimplemented!("activity_taxonomy_assignment_service not used in AI mock environment")
+    }
+
+    fn on_device_model(&self) -> Option<Arc<dyn crate::on_device::OnDeviceModel>> {
+        self.on_device_model.clone()
     }
 }
 

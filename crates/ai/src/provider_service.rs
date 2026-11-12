@@ -8,7 +8,9 @@ use wealthfolio_core::errors::{Result, ValidationError};
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_core::settings::SettingsRepositoryTrait;
 
+use crate::chat::on_device_client::on_device_tools;
 use crate::model_families::{former_catalog_capabilities, non_catalog_capabilities};
+use crate::on_device::{OnDeviceModel, OnDeviceModelStatus, ON_DEVICE_PROVIDER_ID};
 use crate::provider_model::{
     default_priority, AiProviderCatalog, AiProviderSettings, AiProvidersResponse, FetchedModel,
     ListModelsResponse, MergedModel, MergedProvider, ModelCapabilities, ModelCapabilityOverrides,
@@ -62,6 +64,8 @@ pub struct AiProviderService {
     settings_repo: Arc<dyn SettingsRepositoryTrait>,
     secret_store: Arc<dyn SecretStore>,
     catalog: AiProviderCatalog,
+    /// The device's built-in model, where the runtime has one.
+    on_device_model: Option<Arc<dyn OnDeviceModel>>,
 }
 
 impl AiProviderService {
@@ -77,7 +81,17 @@ impl AiProviderService {
             settings_repo,
             secret_store,
             catalog,
+            on_device_model: None,
         })
+    }
+
+    /// Offer the device's built-in model as a provider. Without one, the
+    /// on-device provider is left out of [`get_ai_providers`].
+    ///
+    /// [`get_ai_providers`]: AiProviderServiceTrait::get_ai_providers
+    pub fn with_on_device_model(mut self, model: Option<Arc<dyn OnDeviceModel>>) -> Self {
+        self.on_device_model = model;
+        self
     }
 
     /// Load user settings from app_settings, falling back to defaults if missing/corrupt.
@@ -184,8 +198,18 @@ impl AiProviderService {
     }
 
     /// Check if a provider supports dynamic model listing via API.
-    fn provider_supports_model_listing(_provider_id: &str) -> bool {
-        true
+    fn provider_supports_model_listing(provider_id: &str) -> bool {
+        provider_id != ON_DEVICE_PROVIDER_ID
+    }
+
+    /// Whether `provider_id` can be offered here. Every provider can, except
+    /// the device's own model on a device that has none or cannot run it.
+    fn provider_is_offered(&self, provider_id: &str) -> bool {
+        provider_id != ON_DEVICE_PROVIDER_ID
+            || self
+                .on_device_model
+                .as_ref()
+                .is_some_and(|model| model.status() != OnDeviceModelStatus::DeviceNotEligible)
     }
 
     /// Apply capability overrides to base capabilities.
@@ -211,6 +235,7 @@ impl AiProviderServiceTrait for AiProviderService {
             .catalog
             .providers
             .iter()
+            .filter(|(id, _)| self.provider_is_offered(id))
             .map(|(id, catalog_provider)| {
                 // Get user settings for this provider, or use defaults
                 let user = user_settings.providers.get(id).cloned().unwrap_or_else(|| {
@@ -231,13 +256,20 @@ impl AiProviderServiceTrait for AiProviderService {
                     .iter()
                     .map(|(model_id, model)| {
                         let has_overrides = user.model_capability_overrides.contains_key(model_id);
-                        let capabilities = if let Some(overrides) =
+                        let mut capabilities = if let Some(overrides) =
                             user.model_capability_overrides.get(model_id)
                         {
                             Self::apply_capability_overrides(&model.capabilities, overrides)
                         } else {
                             model.capabilities.clone()
                         };
+                        // The device's model reads images on newer systems only.
+                        if id == ON_DEVICE_PROVIDER_ID {
+                            capabilities.vision = self
+                                .on_device_model
+                                .as_ref()
+                                .is_some_and(|model| model.supports_images());
+                        }
                         MergedModel {
                             id: model_id.clone(),
                             name: None, // Catalog models don't have separate display names
@@ -332,6 +364,10 @@ impl AiProviderServiceTrait for AiProviderService {
                     favorite_models: user.favorite_models.clone(),
                     model_capability_overrides: user.model_capability_overrides.clone(),
                     tools_allowlist: normalize_tools_allowlist(user.tools_allowlist.clone()),
+                    supported_tools: (id == ON_DEVICE_PROVIDER_ID).then(|| on_device_tools(None)),
+                    device_status: (id == ON_DEVICE_PROVIDER_ID)
+                        .then(|| self.on_device_model.as_ref().map(|model| model.status()))
+                        .flatten(),
                     has_api_key: self.has_api_key(id),
                     is_default: user_settings.default_provider.as_ref() == Some(id),
                     supports_model_listing,
@@ -525,6 +561,30 @@ impl AiProviderServiceTrait for AiProviderService {
         &self,
         provider_id: &str,
     ) -> std::result::Result<ListModelsResponse, ProviderApiError> {
+        // The device's model has no server to ask: its models are the catalog's.
+        if provider_id == ON_DEVICE_PROVIDER_ID {
+            let models = self
+                .catalog
+                .providers
+                .get(provider_id)
+                .map(|provider| {
+                    provider
+                        .models
+                        .iter()
+                        .map(|(id, model)| FetchedModel {
+                            id: id.clone(),
+                            name: None,
+                            capabilities: Some(model.capabilities.clone()),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            return Ok(ListModelsResponse {
+                models,
+                supports_listing: false,
+            });
+        }
+
         // Get provider config (validates provider exists and has API key if needed)
         let config = self.get_provider_config(provider_id)?;
 
@@ -820,6 +880,134 @@ fn parse_fetched_models(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// A device model in a given state; the provider service never starts it.
+    #[derive(Debug)]
+    /// A device model in `status` that reads images when `.1` is true.
+    struct DeviceModel(OnDeviceModelStatus, bool);
+
+    impl OnDeviceModel for DeviceModel {
+        fn status(&self) -> OnDeviceModelStatus {
+            self.0
+        }
+
+        fn context_size(&self) -> usize {
+            8192
+        }
+
+        fn supports_images(&self) -> bool {
+            self.1
+        }
+
+        fn start(
+            &self,
+            _request: crate::on_device::OnDeviceRequest,
+        ) -> Box<dyn crate::on_device::OnDeviceSession> {
+            unimplemented!("the provider service does not start replies")
+        }
+    }
+
+    fn service_with_device_model(
+        status: Option<OnDeviceModelStatus>,
+        images: bool,
+    ) -> AiProviderService {
+        AiProviderService::new(
+            Arc::new(StoredSettings(json!({"schemaVersion": 2}).to_string())),
+            Arc::new(crate::env::test_env::MockSecretStore::default()),
+            include_str!("ai_providers.json"),
+        )
+        .unwrap()
+        .with_on_device_model(status.map(|status| Arc::new(DeviceModel(status, images)) as Arc<_>))
+    }
+
+    #[test]
+    fn on_device_provider_is_offered_only_where_the_device_can_run_it() {
+        let offered = |status| {
+            service_with_device_model(status, false)
+                .get_ai_providers()
+                .unwrap()
+                .providers
+                .iter()
+                .any(|provider| provider.id == ON_DEVICE_PROVIDER_ID)
+        };
+
+        assert!(!offered(None), "a runtime without the model");
+        assert!(!offered(Some(OnDeviceModelStatus::DeviceNotEligible)));
+        assert!(offered(Some(OnDeviceModelStatus::Available)));
+        // Listed while switched off or downloading, so settings can say so.
+        assert!(offered(Some(OnDeviceModelStatus::NotEnabled)));
+        assert!(offered(Some(OnDeviceModelStatus::ModelNotReady)));
+    }
+
+    #[test]
+    fn only_the_on_device_provider_reports_its_tools_and_status() {
+        let providers = service_with_device_model(Some(OnDeviceModelStatus::NotEnabled), false)
+            .get_ai_providers()
+            .unwrap()
+            .providers;
+        let device = providers
+            .iter()
+            .find(|provider| provider.id == ON_DEVICE_PROVIDER_ID)
+            .unwrap();
+        assert_eq!(device.device_status, Some(OnDeviceModelStatus::NotEnabled));
+        assert_eq!(device.supported_tools, Some(on_device_tools(None)));
+        let json = serde_json::to_value(device).unwrap();
+        assert_eq!(json["deviceStatus"], "notEnabled");
+        assert!(json["supportedTools"]
+            .as_array()
+            .is_some_and(|tools| tools.iter().any(|tool| tool == "get_spending_insight")));
+
+        let other = providers
+            .iter()
+            .find(|provider| provider.id != ON_DEVICE_PROVIDER_ID)
+            .unwrap();
+        assert!(other.supported_tools.is_none() && other.device_status.is_none());
+        let json = serde_json::to_value(other).unwrap();
+        assert!(json.get("supportedTools").is_none() && json.get("deviceStatus").is_none());
+    }
+
+    #[test]
+    fn the_device_model_reads_images_where_the_system_says_so() {
+        let vision = |images| {
+            service_with_device_model(Some(OnDeviceModelStatus::Available), images)
+                .get_ai_providers()
+                .unwrap()
+                .providers
+                .into_iter()
+                .find(|provider| provider.id == ON_DEVICE_PROVIDER_ID)
+                .unwrap()
+                .models[0]
+                .capabilities
+                .vision
+        };
+        assert!(vision(true));
+        assert!(!vision(false));
+    }
+
+    #[tokio::test]
+    async fn on_device_models_are_listed_without_a_request() {
+        // A saved URL must not turn the device's provider into a network one.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let service = AiProviderService::new(
+            Arc::new(StoredSettings(
+                json!({"schemaVersion": 2, "providers": {ON_DEVICE_PROVIDER_ID: {"customUrl": url}}})
+                    .to_string(),
+            )),
+            Arc::new(crate::env::test_env::MockSecretStore::default()),
+            include_str!("ai_providers.json"),
+        )
+        .unwrap();
+
+        let listed = service.list_models(ON_DEVICE_PROVIDER_ID).await.unwrap();
+        assert!(!listed.supports_listing);
+        assert_eq!(listed.models.len(), 1);
+        assert_eq!(listed.models[0].id, "on-device");
+
+        let contacted =
+            tokio::time::timeout(std::time::Duration::from_millis(100), listener.accept()).await;
+        assert!(contacted.is_err(), "no request may be sent");
+    }
 
     #[tokio::test]
     async fn model_listing_keeps_keys_out_of_urls_and_provider_bodies_out_of_errors() {

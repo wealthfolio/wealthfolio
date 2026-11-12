@@ -539,6 +539,7 @@
     "type": "Tipo",
     "date": "Data",
     "account": "Conta",
+    "symbol": "Símbolo",
     "quantity": "Quantidade",
     "unitPrice": "Preço unitário",
     "amount": "Valor",
@@ -620,6 +621,14 @@
     "dataAccessSubtitle": "Quais dados a IA pode acessar",
     "aiDataSharing": "Compartilhar dados com a IA",
     "aiDataSharingDescription": "As ferramentas de IA habilitadas podem compartilhar dados relevantes da carteira e anexos com o provedor de IA selecionado quando usadas no chat.",
+    "onDeviceData": "Fica neste dispositivo",
+    "onDeviceDataDescription": "Este modelo é executado no seu dispositivo. Os dados da sua carteira e as suas mensagens não são enviados a nenhum servidor.",
+    "deviceStatus": {
+      "notEnabled": "Desativado",
+      "notEnabledDescription": "{{name}} está desativado. Ative-o nos Ajustes do Sistema para usar este modelo.",
+      "modelNotReady": "Não está pronto",
+      "modelNotReadyDescription": "{{name}} ainda está sendo preparado neste dispositivo, por exemplo baixando o modelo. Tente novamente mais tarde."
+    },
     "advancedOptions": "Opções avançadas",
     "customized": "Personalizado",
     "resetToDefaults": "Restaurar padrões",
@@ -678,6 +687,7 @@
     "authentication": "**Falha na autenticação**\n\nSua chave API parece ausente ou inválida. Verifique as {{settingsLink}} e a configuração da chave API.",
     "rateLimit": "**Limite de solicitações excedido**\n\nVocê fez solicitações demais. Aguarde um momento e tente novamente.",
     "contextOverflow": "**Conversa longa demais**\n\nEste chat não cabe mais na janela de contexto do modelo. Inicie um novo chat ou escolha um modelo com uma janela de contexto maior nas {{settingsLink}}.",
+    "attachmentUnsupported": "**Este modelo não consegue ler este anexo**\n\nEle não consegue ler imagens ou PDFs deste tipo. Escolha um modelo com visão no seletor de modelos ou envie a mensagem sem o anexo.",
     "timeout": "**Tempo limite da solicitação excedido**\n\nO provedor de IA demorou demais para responder. Isso pode ocorrer por conexão lenta, sobrecarga ou uma solicitação complexa.\n\nTente novamente ou escolha um modelo mais rápido nas {{settingsLink}}.",
     "provider": "**Erro do provedor**\n\n{{error}}\n\nSe o problema persistir, verifique as {{settingsLink}}.",
     "unknown": "**Algo deu errado**\n\n{{error}}\n\nSe o problema persistir, verifique as {{settingsLink}}."

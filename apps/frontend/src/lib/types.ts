@@ -2325,6 +2325,13 @@ export interface ProviderTuningOverrides {
   extraOptionOverrides?: Record<string, number | boolean | string | null>;
 }
 
+/** Whether the device's own model can answer now. */
+export type OnDeviceModelStatus =
+  | "available"
+  | "deviceNotEligible"
+  | "notEnabled"
+  | "modelNotReady";
+
 /**
  * A provider in the merged view returned to the UI.
  * Combines catalog data with user settings and computed fields.
@@ -2356,6 +2363,10 @@ export interface MergedProvider {
   toolsAllowlist?: string[] | null;
 
   // Computed
+  /** The only tools this provider can use, whatever its allowlist says. Absent = any tool. */
+  supportedTools?: string[];
+  /** Whether the device's own model can answer now. Only for that provider. */
+  deviceStatus?: OnDeviceModelStatus;
   hasApiKey: boolean;
   isDefault: boolean;
   /** Whether this provider supports dynamic model listing via API. */

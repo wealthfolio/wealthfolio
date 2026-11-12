@@ -756,6 +756,7 @@ fn categorization_env() -> Arc<MockEnvironment> {
                 Some(("spending_categories", "cat-coffee")),
             ),
         ],
+        ..Default::default()
     });
     Arc::new(env)
 }
@@ -876,6 +877,7 @@ fn categorization_env_with(rows: &[(&str, Row)]) -> Arc<MockEnvironment> {
                 row
             })
             .collect(),
+        ..Default::default()
     });
     Arc::new(env)
 }
@@ -1015,7 +1017,7 @@ async fn full_batch_of_split_rows_is_not_called_empty() {
 #[tokio::test]
 async fn no_matching_rows_still_return_the_configured_categories() {
     let mut env = Arc::into_inner(categorization_env()).expect("only fixture owner");
-    env.cash_activity_service = Arc::new(MockCashActivityService { items: Vec::new() });
+    env.cash_activity_service = Arc::new(MockCashActivityService::default());
     let env = Arc::new(env);
     for result in [
         call_json_dyn(

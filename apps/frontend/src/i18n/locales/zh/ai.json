@@ -483,6 +483,7 @@
     "type": "类型",
     "date": "日期",
     "account": "账户",
+    "symbol": "代码",
     "quantity": "数量",
     "unitPrice": "单价",
     "amount": "金额",
@@ -564,6 +565,14 @@
     "dataAccessSubtitle": "AI 可访问哪些数据",
     "aiDataSharing": "AI 数据共享",
     "aiDataSharingDescription": "启用的 AI 工具在对话中使用时，可能会与您选择的 AI 提供商共享相关的投资组合数据和附件。",
+    "onDeviceData": "数据留在此设备上",
+    "onDeviceDataDescription": "此模型在您的设备上运行。您的投资组合数据和消息不会发送到任何服务器。",
+    "deviceStatus": {
+      "notEnabled": "已关闭",
+      "notEnabledDescription": "{{name}} 已关闭。请在“系统设置”中打开它以使用此模型。",
+      "modelNotReady": "尚未就绪",
+      "modelNotReadyDescription": "{{name}} 仍在此设备上准备中，例如正在下载模型。请稍后再试。"
+    },
     "advancedOptions": "高级选项",
     "customized": "已自定义",
     "resetToDefaults": "重置为默认值",
@@ -622,6 +631,7 @@
     "authentication": "**身份验证失败**\n\nAPI 密钥可能无效或缺失。请检查{{settingsLink}}，确保 API 密钥配置正确。",
     "rateLimit": "**请求过于频繁**\n\n请求次数过多，请稍候重试。",
     "contextOverflow": "**对话过长**\n\n此对话已超出模型的上下文窗口。请新建对话，或在{{settingsLink}}中选择上下文窗口更大的模型。",
+    "attachmentUnsupported": "**此模型无法读取该附件**\n\n它无法读取此类图片或 PDF。请在模型选择器中选择支持视觉的模型，或不带附件发送消息。",
     "timeout": "**请求超时**\n\nAI 提供方响应时间过长。可能是网络较慢、提供方负载过高或请求过于复杂。\n\n请重试，或在{{settingsLink}}中选择更快的模型。",
     "provider": "**提供方错误**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。",
     "unknown": "**出现问题**\n\n{{error}}\n\n如果问题持续，请检查{{settingsLink}}。"

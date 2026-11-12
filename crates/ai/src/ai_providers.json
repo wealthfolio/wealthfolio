@@ -293,6 +293,30 @@
         "temperature": 0.2,
         "maxTokens": 16384
       }
+    },
+    "apple-intelligence": {
+      "name": "Apple Intelligence",
+      "type": "local",
+      "icon": "LogoApple",
+      "description": "Apple's on-device model. Your data stays on this device.",
+      "envKey": "",
+      "defaultConfig": {
+        "enabled": false,
+        "priority": 5
+      },
+      "connectionFields": [],
+      "models": {
+        "on-device": {
+          "capabilities": { "tools": true, "thinking": false, "vision": false }
+        }
+      },
+      "defaultModel": "on-device",
+      "titleModelId": "on-device",
+      "documentationUrl": "https://www.apple.com/apple-intelligence/",
+      "tuning": {
+        "temperature": 0.2,
+        "maxTokens": 1024
+      }
     }
   },
   "capabilities": {

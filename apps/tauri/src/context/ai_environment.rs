@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock, RwLock, Weak};
 
 use tauri::AppHandle;
 
+use wealthfolio_ai::on_device::OnDeviceModel;
 use wealthfolio_ai::{AgentEnvironment, AiEnvironment, ChatRepositoryTrait};
 use wealthfolio_core::{
     accounts::AccountServiceTrait,
@@ -324,5 +325,22 @@ impl AiEnvironment for TauriAiEnvironment {
 
     fn activity_taxonomy_assignment_service(&self) -> Arc<ActivityTaxonomyAssignmentService> {
         self.activity_taxonomy_assignment_service.clone()
+    }
+
+    fn on_device_model(&self) -> Option<Arc<dyn OnDeviceModel>> {
+        on_device_model()
+    }
+}
+
+/// The model built into this device: Apple Intelligence on macOS, none
+/// elsewhere.
+pub fn on_device_model() -> Option<Arc<dyn OnDeviceModel>> {
+    #[cfg(target_os = "macos")]
+    {
+        wealthfolio_apple_intelligence::model()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
     }
 }

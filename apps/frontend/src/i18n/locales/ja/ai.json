@@ -483,6 +483,7 @@
     "type": "種類",
     "date": "日付",
     "account": "口座",
+    "symbol": "銘柄",
     "quantity": "数量",
     "unitPrice": "単価",
     "amount": "金額",
@@ -564,6 +565,14 @@
     "dataAccessSubtitle": "AIがアクセスできるデータ",
     "aiDataSharing": "AIへのデータ共有",
     "aiDataSharingDescription": "有効にしたAIツールは、チャットでの利用時に、関連するポートフォリオのデータや添付ファイルを、選択したAIプロバイダーと共有する場合があります。",
+    "onDeviceData": "このデバイス内で処理",
+    "onDeviceDataDescription": "このモデルはお使いのデバイス上で動作します。ポートフォリオのデータやメッセージがサーバーに送信されることはありません。",
+    "deviceStatus": {
+      "notEnabled": "オフ",
+      "notEnabledDescription": "{{name}}はオフになっています。このモデルを使うには、システム設定でオンにしてください。",
+      "modelNotReady": "準備中",
+      "modelNotReadyDescription": "{{name}}はこのデバイスでまだ準備中です（モデルのダウンロード中など）。しばらくしてからもう一度お試しください。"
+    },
     "advancedOptions": "詳細オプション",
     "customized": "カスタマイズ済み",
     "resetToDefaults": "デフォルトに戻す",
@@ -622,6 +631,7 @@
     "authentication": "**認証に失敗しました**\n\nAPI キーが無効か未設定のようです。{{settingsLink}}で API キーが正しく設定されているか確認してください。",
     "rateLimit": "**リクエスト制限を超えました**\n\nリクエストが多すぎます。しばらく待ってから再試行してください。",
     "contextOverflow": "**会話が長すぎます**\n\nこのチャットはモデルのコンテキストウィンドウに収まらなくなりました。新しいチャットを開始するか、{{settingsLink}}でコンテキストウィンドウの大きいモデルを選択してください。",
+    "attachmentUnsupported": "**このモデルは添付ファイルを読み取れません**\n\nこの種類の画像やPDFは読み取れません。モデル選択で画像に対応したモデルを選ぶか、添付ファイルなしでメッセージを送信してください。",
     "timeout": "**リクエストがタイムアウトしました**\n\nAI プロバイダーの応答が遅すぎます。低速な接続、過負荷、複雑なリクエストが原因の可能性があります。\n\n再試行するか、{{settingsLink}}で高速なモデルを選択してください。",
     "provider": "**プロバイダーエラー**\n\n{{error}}\n\n問題が続く場合は{{settingsLink}}を確認してください。",
     "unknown": "**問題が発生しました**\n\n{{error}}\n\n問題が続く場合は{{settingsLink}}を確認してください。"

@@ -483,6 +483,7 @@
     "type": "유형",
     "date": "날짜",
     "account": "계좌",
+    "symbol": "심볼",
     "quantity": "수량",
     "unitPrice": "단가",
     "amount": "금액",
@@ -564,6 +565,14 @@
     "dataAccessSubtitle": "AI가 접근할 수 있는 데이터",
     "aiDataSharing": "AI 데이터 공유",
     "aiDataSharingDescription": "활성화된 AI 도구는 채팅에서 사용될 때 관련 포트폴리오 데이터와 첨부파일을 선택한 AI 제공자와 공유할 수 있습니다.",
+    "onDeviceData": "이 기기에서 처리",
+    "onDeviceDataDescription": "이 모델은 사용자의 기기에서 실행됩니다. 포트폴리오 데이터와 메시지는 어떤 서버로도 전송되지 않습니다.",
+    "deviceStatus": {
+      "notEnabled": "꺼짐",
+      "notEnabledDescription": "{{name}}이(가) 꺼져 있습니다. 이 모델을 사용하려면 시스템 설정에서 켜세요.",
+      "modelNotReady": "준비 안 됨",
+      "modelNotReadyDescription": "{{name}}이(가) 이 기기에서 아직 준비 중입니다(예: 모델 다운로드 중). 나중에 다시 시도하세요."
+    },
     "advancedOptions": "고급 옵션",
     "customized": "사용자 지정됨",
     "resetToDefaults": "기본값으로 재설정",
@@ -622,6 +631,7 @@
     "authentication": "**인증 실패**\n\nAPI 키가 없거나 유효하지 않은 것 같습니다. {{settingsLink}}에서 API 키가 올바르게 설정되어 있는지 확인하세요.",
     "rateLimit": "**요청 한도 초과**\n\n요청이 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
     "contextOverflow": "**대화가 너무 깁니다**\n\n이 채팅은 더 이상 모델의 컨텍스트 창에 들어가지 않습니다. 새 채팅을 시작하거나 {{settingsLink}}에서 컨텍스트 창이 더 큰 모델을 선택하세요.",
+    "attachmentUnsupported": "**이 모델은 이 첨부파일을 읽을 수 없습니다**\n\n이 유형의 이미지나 PDF는 읽을 수 없습니다. 모델 선택에서 비전을 지원하는 모델을 고르거나 첨부파일 없이 메시지를 보내세요.",
     "timeout": "**요청 시간 초과**\n\nAI 제공자가 응답하는 데 너무 오래 걸렸습니다. 느린 연결, 과부하 또는 복잡한 요청이 원인일 수 있습니다.\n\n다시 시도하거나 {{settingsLink}}에서 더 빠른 모델을 선택하세요.",
     "provider": "**제공자 오류**\n\n{{error}}\n\n문제가 계속되면 {{settingsLink}}을 확인하세요.",
     "unknown": "**문제가 발생했습니다**\n\n{{error}}\n\n문제가 계속되면 {{settingsLink}}을 확인하세요."

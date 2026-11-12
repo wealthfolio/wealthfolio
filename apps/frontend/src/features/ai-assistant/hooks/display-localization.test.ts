@@ -121,6 +121,22 @@ describe("localized built-in guidance and safe backend failures", () => {
     );
   });
 
+  it("says when the model cannot read an attachment, from its error code", async () => {
+    const translator = createInstance();
+    await translator.init({
+      lng: "en",
+      resources: { en: { ai: enAi } },
+      interpolation: { escapeValue: false },
+    });
+    const text = formatChatError(
+      "ATTACHMENT_UNSUPPORTED",
+      "The request could not be processed.",
+      translator.t,
+    );
+    expect(text).toContain("**This model can't read this attachment**");
+    expect(text).not.toContain("could not be");
+  });
+
   it("uses the current language for sync messages and leaves logging details raw", async () => {
     const raw =
       'Portfolio "Family USD" contains a deleted account link. Open Settings > Portfolios.';

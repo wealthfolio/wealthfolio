@@ -304,6 +304,7 @@ impl IntoResponse for AiChatError {
             AiChatError::Ai(e) => {
                 let status = match &e {
                     AiError::InvalidInput(_) => StatusCode::BAD_REQUEST,
+                    AiError::UnsupportedAttachment(_) => StatusCode::BAD_REQUEST,
                     AiError::MissingApiKey(_) => StatusCode::BAD_REQUEST,
                     AiError::Provider(_) => StatusCode::BAD_GATEWAY,
                     AiError::ToolNotFound(_) => StatusCode::BAD_REQUEST,
