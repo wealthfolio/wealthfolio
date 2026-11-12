@@ -57,6 +57,25 @@ export function isFieldMapped(value: string | string[] | undefined, headers: str
   return headers.includes(value);
 }
 
+/**
+ * The fields that can read each CSV header, in `fields` order: every header a field lists,
+ * fallback headers included, since any of them can supply its value.
+ */
+export function getHeaderFields(
+  fieldMappings: Record<string, string | string[]>,
+  fields: readonly ImportFormat[],
+): Map<string, ImportFormat[]> {
+  const headerFields = new Map<string, ImportFormat[]>();
+  for (const field of fields) {
+    const value = fieldMappings[field];
+    if (!value) continue;
+    for (const header of new Set(Array.isArray(value) ? value : [value])) {
+      headerFields.set(header, [...(headerFields.get(header) ?? []), field]);
+    }
+  }
+  return headerFields;
+}
+
 export function mergeIssueMaps(
   current: Record<string, string[]>,
   incoming: Record<string, string[]>,

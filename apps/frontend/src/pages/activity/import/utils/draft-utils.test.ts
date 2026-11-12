@@ -3,6 +3,7 @@ import { ACTIVITY_SUBTYPES, AccountType, ActivityType, ImportFormat } from "@/li
 import {
   createDraftActivities,
   draftToActivityImport,
+  getHeaderFields,
   reconcileExpenseReversalBoundary,
 } from "./draft-utils";
 import { getActivityImportProfileForAccountType } from "./activity-import-profile";
@@ -1321,5 +1322,35 @@ describe("createDraftActivities ISIN fallback for a name in Symbol", () => {
     const invalid = draftFor(["2026-10-01", "buy", fund, "INF879O01028", "10", "90"]);
     expect(invalid.symbol).toBe(fund);
     expect(invalid.symbolName).toBeUndefined();
+  });
+});
+
+describe("getHeaderFields", () => {
+  it("lists every field reading a header, fallback headers included", () => {
+    const headerFields = getHeaderFields(
+      {
+        [ImportFormat.SYMBOL]: "symbol",
+        [ImportFormat.ISIN]: "symbol",
+        [ImportFormat.COMMENT]: ["trade_id", "order_id", "trade_id"],
+        [ImportFormat.FEE]: "",
+      },
+      [ImportFormat.SYMBOL, ImportFormat.ISIN, ImportFormat.COMMENT, ImportFormat.FEE],
+    );
+
+    expect(Object.fromEntries(headerFields)).toEqual({
+      symbol: [ImportFormat.SYMBOL, ImportFormat.ISIN],
+      trade_id: [ImportFormat.COMMENT],
+      order_id: [ImportFormat.COMMENT],
+    });
+  });
+
+  it("leaves out fields the import does not read", () => {
+    const headerFields = getHeaderFields(
+      { [ImportFormat.AMOUNT]: "amount", [ImportFormat.SYMBOL]: "symbol" },
+      [ImportFormat.AMOUNT],
+    );
+
+    expect(headerFields.has("symbol")).toBe(false);
+    expect(headerFields.get("amount")).toEqual([ImportFormat.AMOUNT]);
   });
 });

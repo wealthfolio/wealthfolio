@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { getHeaderFields } from "../utils/draft-utils";
 import { MappingCell, MappingHeaderCell } from "./mapping-table-cells";
 
 interface MappingTableProps {
@@ -89,6 +90,7 @@ export function MappingTable({
     if (Array.isArray(mappedHeader)) return mappedHeader.some((h) => headers.includes(h));
     return headers.includes(mappedHeader);
   };
+  const headerFields = getHeaderFields(mapping.fieldMappings, visibleFields);
 
   return (
     <Card
@@ -139,6 +141,7 @@ export function MappingTable({
                       mapping={mapping}
                       headers={headers}
                       requiredFields={requiredFields}
+                      headerFields={headerFields}
                       handleColumnMapping={handleColumnMapping}
                     />
                   </TableHead>
