@@ -340,6 +340,11 @@ mod probes {
             forbid_tools: false,
         },
         Probe {
+            question: "Record a buy of 20 NVDA at 150 today with a $4.95 commission",
+            expect_any: &["draft", "review"],
+            forbid_tools: false,
+        },
+        Probe {
             question: "Deposit 500 EUR into Brokerage today",
             expect_any: &["draft", "review"],
             forbid_tools: false,
@@ -398,6 +403,11 @@ mod probes {
             "Record a $500 deposit to Retirement on 2026-11-03",
             "record_activity",
             &["\"DEPOSIT\"", "500", "2026-11-03", "Retirement"],
+        ),
+        (
+            "Record a buy of 20 NVDA at 150 today with a $4.95 commission",
+            "record_activity",
+            &["\"BUY\"", "NVDA", "\"quantity\":20", "\"unitPrice\":150"],
         ),
         (
             "Deposit 500 EUR into Brokerage today",

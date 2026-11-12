@@ -38,9 +38,15 @@ public func wfAppleIntelligenceStatus() -> Int32 {
 /// The model's context window in tokens, or 0 where there is no model.
 @_cdecl("wf_apple_intelligence_context_size")
 public func wfAppleIntelligenceContextSize() -> Int64 {
-    #if canImport(FoundationModels)
+    // `contextSize` first shipped in the 26.4 SDK. With an older SDK, report
+    // macOS 26's window, which only makes the app keep less history.
+    #if canImport(FoundationModels, _version: 2.1.14)
     if #available(macOS 26.0, iOS 26.0, *) {
         return Int64(SystemLanguageModel.default.contextSize)
+    }
+    #elseif canImport(FoundationModels)
+    if #available(macOS 26.0, iOS 26.0, *) {
+        return 4096
     }
     #endif
     return 0

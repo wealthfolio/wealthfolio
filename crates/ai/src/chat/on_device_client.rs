@@ -702,10 +702,12 @@ fn tool_output_text(result: &ToolResult) -> String {
 }
 
 /// Tokens of the context window kept free for the outputs of the tools one
-/// message calls.
+/// message calls, at most: a smaller window keeps 3/8 of itself.
 const TOOL_OUTPUT_RESERVE: usize = 3000;
 
-/// Tokens kept free for the reply when the request sets no limit.
+/// Tokens kept free for the reply when the request sets no limit. A reply
+/// also takes at most 1/8 of the window, so macOS 26's 4,096 tokens still
+/// leave room for the conversation.
 const DEFAULT_REPLY_TOKENS: usize = 1024;
 
 /// Tokens counted for each image sent with the prompt. The model resizes
@@ -825,7 +827,8 @@ fn on_device_request(request: &CompletionRequest, context_size: usize) -> Option
     let reply_tokens = request
         .max_tokens
         .and_then(|tokens| usize::try_from(tokens).ok())
-        .unwrap_or(DEFAULT_REPLY_TOKENS);
+        .unwrap_or(DEFAULT_REPLY_TOKENS)
+        .min(context_size / 8);
     let tool_tokens: usize = tools
         .iter()
         .map(|tool| {
@@ -842,7 +845,7 @@ fn on_device_request(request: &CompletionRequest, context_size: usize) -> Option
         + if tools.is_empty() {
             0
         } else {
-            TOOL_OUTPUT_RESERVE
+            TOOL_OUTPUT_RESERVE.min(context_size * 3 / 8)
         };
     let history = newest_turns_that_fit(turns, context_size.saturating_sub(taken));
 
@@ -853,7 +856,8 @@ fn on_device_request(request: &CompletionRequest, context_size: usize) -> Option
         images,
         tools,
         temperature: request.temperature,
-        max_output_tokens: request.max_tokens,
+        // The reply may not outgrow the room kept for it.
+        max_output_tokens: u64::try_from(reply_tokens).ok(),
         choices: Vec::new(),
     })
 }
@@ -889,6 +893,9 @@ fn on_device_description(tool: &str) -> Option<&'static str> {
 /// write or skip each optional argument, and with all of `record_activity`'s
 /// fourteen it skipped the price in most drafts. The rest stay editable in the
 /// draft. `currency` comes last, so the model writes it after the figures.
+/// Adding `fee` too (2026-11-12, macOS 27.2) dropped a named account or put
+/// the account in `symbol` in most record probes, and the fee itself came
+/// through in 2 of 6. A fee, tax, rate or subtype is added with Edit.
 fn on_device_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "record_activity" => Some(&[
@@ -1878,7 +1885,8 @@ mod tests {
             role,
             text: text.to_string(),
         };
-        let old = "old ".repeat(300);
+        // About 8,000 tokens: more than an 8,192 window keeps beside the reply.
+        let old = "old ".repeat(6000);
         let recent = "recent ".repeat(20);
         let mut request = CompletionRequest::new("Latest question");
         request.chat_history = vec![
@@ -1898,7 +1906,7 @@ mod tests {
         assert_eq!(roomy.history.len(), 4);
 
         // Room for the reply, the prompt and the two newest turns only.
-        let tight = on_device_request(&request, DEFAULT_REPLY_TOKENS + 80).unwrap();
+        let tight = on_device_request(&request, 8192).unwrap();
         assert_eq!(tight.prompt, "Latest question");
         assert_eq!(
             tight.history,
@@ -2076,6 +2084,24 @@ mod tests {
         assert_eq!(sent.history.len(), 2, "earlier turns go as text");
     }
 
+    /// macOS 26's 4,096-token window keeps less for the reply and the tools'
+    /// outputs than 8,192 tokens do, and the reply is capped to match.
+    #[test]
+    fn the_reserves_shrink_with_a_small_window() {
+        let mut request = CompletionRequest::new("now");
+        request.max_tokens = Some(1024);
+        request.chat_history = vec![Arc::new(Message::user("now"))];
+
+        assert_eq!(
+            on_device_request(&request, 8192).unwrap().max_output_tokens,
+            Some(1024)
+        );
+        assert_eq!(
+            on_device_request(&request, 4096).unwrap().max_output_tokens,
+            Some(512)
+        );
+    }
+
     #[test]
     fn each_image_takes_room_from_the_history() {
         let turn = |text: &str| {
@@ -2084,10 +2110,11 @@ mod tests {
             })
         };
         let mut request = CompletionRequest::new("now");
-        let long = "x".repeat(600);
+        // 7,000 tokens: an 8,192 window keeps it beside the reply, but not
+        // beside an image too.
+        let long = "x".repeat(21_000);
         request.chat_history = vec![turn(&long), Arc::new(Message::assistant("ok")), turn("now")];
-        // Room for the long turn without an image, and not with one.
-        let room = estimated_tokens("now") + DEFAULT_REPLY_TOKENS + estimated_tokens(&long) + 10;
+        let room = 8192;
         assert_eq!(on_device_request(&request, room).unwrap().history.len(), 2);
 
         request.chat_history[2] = Arc::new(Message::User {
