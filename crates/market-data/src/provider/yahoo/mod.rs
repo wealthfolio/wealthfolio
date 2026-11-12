@@ -736,12 +736,12 @@ impl YahooProvider {
 
         Ok(AssetProfile {
             source: Some("YAHOO".to_string()),
-            name: Some(format_name(
+            name: format_name(
                 Some(&item.long_name),
                 &item.quote_type,
                 Some(&item.short_name),
                 symbol,
-            )),
+            ),
             quote_type: Some(item.quote_type.to_uppercase()),
             // Search carries no currency, but it does name the exchange.
             exchange: Some(item.exchange.clone()),
@@ -820,7 +820,7 @@ impl YahooProvider {
 
         let profile = AssetProfile {
             source: Some("YAHOO".to_string()),
-            name: Some(name),
+            name,
             quote_type: price
                 .and_then(|p| p.quote_type.clone())
                 .map(|t| t.to_uppercase()),
@@ -1175,12 +1175,15 @@ impl MarketDataProvider for YahooProvider {
 // ============================================================================
 
 /// Clean up fund names by removing common prefixes.
+///
+/// `None` when Yahoo has no name beyond the symbol itself, so that enrichment
+/// keeps the asset's stored name instead of replacing it with the ticker.
 fn format_name(
     long_name: Option<&str>,
     quote_type: &str,
     short_name: Option<&str>,
     symbol: &str,
-) -> String {
+) -> Option<String> {
     let mut name = long_name.unwrap_or("").to_string();
 
     if !name.is_empty() {
@@ -1209,16 +1212,20 @@ fn format_name(
     if quote_type.to_uppercase() == "FUTURE" {
         if let Some(sn) = short_name {
             if let Some(base) = sn.len().checked_sub(7).and_then(|end| sn.get(..end)) {
-                return base.to_string();
+                return Some(base.to_string());
             }
         }
     }
 
-    if name.is_empty() {
-        short_name.unwrap_or(symbol).to_string()
-    } else {
-        name
+    // A blank or symbol-only candidate is no name; try the short name next.
+    let is_name = |candidate: &str| {
+        let trimmed = candidate.trim();
+        !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case(symbol.trim())
+    };
+    if is_name(&name) {
+        return Some(name);
     }
+    short_name.filter(|sn| is_name(sn)).map(str::to_string)
 }
 
 /// Convert snake_case sector to Title Case.
@@ -1312,32 +1319,73 @@ mod tests {
                 "ETF",
                 None,
                 "IVV"
-            ),
-            "iShares Core S&P 500"
+            )
+            .as_deref(),
+            Some("iShares Core S&P 500")
         );
 
         // Test HTML entity replacement
         assert_eq!(
-            format_name(Some("Apple Inc &amp; Co"), "EQUITY", None, "AAPL"),
-            "Apple Inc & Co"
+            format_name(Some("Apple Inc &amp; Co"), "EQUITY", None, "AAPL").as_deref(),
+            Some("Apple Inc & Co")
         );
 
         // Test fallback to short_name
         assert_eq!(
-            format_name(None, "EQUITY", Some("AAPL Inc"), "AAPL"),
-            "AAPL Inc"
+            format_name(None, "EQUITY", Some("AAPL Inc"), "AAPL").as_deref(),
+            Some("AAPL Inc")
         );
 
-        // Test fallback to symbol
-        assert_eq!(format_name(None, "EQUITY", None, "AAPL"), "AAPL");
+        // No name beyond the symbol: none, so enrichment keeps the stored name
+        assert_eq!(format_name(None, "MUTUALFUND", None, "0P00036T6I.BO"), None);
+        assert_eq!(
+            format_name(Some(""), "MUTUALFUND", Some(""), "0P00036T6I.BO"),
+            None
+        );
+        assert_eq!(
+            format_name(None, "MUTUALFUND", Some("0P00036T6I.BO"), "0P00036T6I.BO"),
+            None
+        );
+        assert_eq!(
+            format_name(Some("0p00036t6i.bo "), "MUTUALFUND", None, "0P00036T6I.BO"),
+            None
+        );
+
+        // An unusable long name falls back to a usable short name
+        assert_eq!(
+            format_name(Some("ACME"), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
+        );
+        assert_eq!(
+            format_name(Some("  "), "EQUITY", Some("Acme Inc"), "ACME").as_deref(),
+            Some("Acme Inc")
+        );
+    }
+
+    /// Yahoo's quoteSummary for 0P00036T6I.BO (a WhiteOak Capital fund) has
+    /// null names. Reporting the symbol as the name would let enrichment
+    /// replace the name the user gave the asset.
+    #[tokio::test]
+    async fn profile_without_a_yahoo_name_has_no_name() {
+        let provider = YahooProvider::new().await.unwrap();
+        let json = r#"{"price": {"quoteType": "MUTUALFUND", "longName": null,
+            "shortName": null, "currency": "INR", "exchange": "BSE"}}"#;
+        let result: YahooQuoteSummaryResult = serde_json::from_str(json).unwrap();
+
+        let profile = provider
+            .map_quote_summary_to_profile("0P00036T6I.BO", &result)
+            .unwrap();
+
+        assert_eq!(profile.name, None);
+        assert_eq!(profile.quote_type.as_deref(), Some("MUTUALFUND"));
     }
 
     #[test]
     fn test_format_name_future_non_ascii_short_name() {
         // 15 bytes, with byte 8 (seven from the end) inside the second 'é'
         assert_eq!(
-            format_name(None, "FUTURE", Some("Café Déc 2024"), "KC=F"),
-            "Café Déc 2024"
+            format_name(None, "FUTURE", Some("Café Déc 2024"), "KC=F").as_deref(),
+            Some("Café Déc 2024")
         );
     }
 

@@ -552,6 +552,7 @@ fn manual_snapshot(account_id: &str, date: NaiveDate, cash: i64) -> AccountState
     let cash = Decimal::from(cash);
     AccountStateSnapshot {
         id: AccountStateSnapshot::stable_id(account_id, date),
+        base_currency: None,
         account_id: account_id.to_string(),
         snapshot_date: date,
         currency: "USD".to_string(),

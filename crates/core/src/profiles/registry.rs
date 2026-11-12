@@ -1,10 +1,10 @@
 use super::*;
 use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{phc::PasswordHash, PasswordHasher, PasswordVerifier},
     Algorithm, Argon2, Params, Version,
 };
 use fs2::FileExt;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rand_core::UnwrapErr, rngs::SysRng, Rng};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -882,13 +882,12 @@ fn new_lock_record(password: Option<&str>) -> ProfileResult<(LockRecord, Option<
     }
     let (record, recovery) = if let Some(password) = password {
         let params = Params::new(19 * 1024, 2, 1, Some(32)).map_err(storage_error)?;
-        let salt = SaltString::generate(&mut OsRng);
         let verifier = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map_err(storage_error)?
             .to_string();
         let mut bytes = [0u8; 16];
-        OsRng.fill_bytes(&mut bytes);
+        UnwrapErr(SysRng).fill_bytes(&mut bytes);
         let code = hex::encode_upper(bytes);
         let formatted = code
             .as_bytes()
@@ -1699,7 +1698,7 @@ mod tests {
         let mut record = registry.read_lock(&profile).unwrap();
         record.verifier = Some(
             Argon2::default()
-                .hash_password(b"123456", &SaltString::generate(&mut OsRng))
+                .hash_password(b"123456")
                 .unwrap()
                 .to_string(),
         );
@@ -1711,6 +1710,46 @@ mod tests {
         assert!(registry.verify(id, Some(password)).unwrap());
         registry.set_password(id, Some(password), None).unwrap();
         assert!(!registry.verify(id, None).unwrap());
+    }
+
+    #[test]
+    fn golden_profile_verifier_and_recovery_hash_still_unlock() {
+        // Produced today for fixed synthetic inputs. Stored verifiers must keep unlocking after
+        // an argon2 or sha2 upgrade; never regenerate these to make an upgrade pass.
+        const PASSWORD: &str = " é🔒golden ";
+        const VERIFIER: &str = "$argon2id$v=19$m=19456,t=2,p=1$Z29sZGVuLXByb2ZpbGUtMQ$sZ3/MEsCyA4dP6inM0bFcCsEwaHkAyGczT9k1KqoI2c";
+        const RECOVERY_HASH: &str =
+            "fe7c9cc087eaf842e2eb186a6baebcfc4fc8cd2fd84e14e990182633fa05df08";
+        assert_eq!(
+            recovery_hash("0123456789ABCDEF0123456789ABCDEF"),
+            RECOVERY_HASH
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::open(
+            dir.path().into(),
+            dir.path().join("db"),
+            Arc::new(Secrets::default()),
+        )
+        .unwrap();
+        let id = registry.default_id().unwrap();
+        registry
+            .set_password(id, None, Some("placeholder"))
+            .unwrap();
+        let profile = registry.profile(id).unwrap();
+        let mut record = registry.read_lock(&profile).unwrap();
+        record.verifier = Some(VERIFIER.into());
+        record.recovery_hash = Some(RECOVERY_HASH.into());
+        registry.write_lock(&profile, &record).unwrap();
+
+        assert!(matches!(
+            registry.verify(id, Some(PASSWORD.trim())),
+            Err(ProfileError::IncorrectPassword)
+        ));
+        assert!(registry.verify(id, Some(PASSWORD)).unwrap());
+        assert!(registry
+            .verify(id, Some("0123-4567-89ab-cdef-0123-4567-89ab-cdef"))
+            .unwrap());
     }
 
     #[test]

@@ -4,6 +4,7 @@ import {
 } from "./alternative-assets/hooks/use-loan-actions";
 import HistoryChart from "@/components/history-chart-symbol";
 import { useLoanCalculation } from "./alternative-assets/hooks/use-loan-calculation";
+import { useLoanScheduleExport } from "./alternative-assets/hooks/use-loan-schedule-export";
 import { useAlternativeHoldings, useLinkedLiabilities } from "@/hooks/use-alternative-assets";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { AlternativeAssetHolding, Asset, DateRange, Quote, TimePeriod } from "@/lib/types";
@@ -716,6 +717,7 @@ export function useAlternativeAssetActions({
 }: AlternativeAssetActionsProps) {
   const { t } = useTranslation();
   const loan = useLoanActions(holding, quoteHistory);
+  const exportLoanSchedule = useLoanScheduleExport(holding, loan.calculation);
   // Modal state
   const [updateValuationOpen, setUpdateValuationOpen] = useState(false);
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
@@ -884,6 +886,7 @@ export function useAlternativeAssetActions({
   return {
     loanActions: loan.actions,
     loanAvailability: loan.availability,
+    exportLoanSchedule,
     openUpdateValuation: () =>
       holding?.kind.toLowerCase() === "liability"
         ? loan.actions.confirmBalance()

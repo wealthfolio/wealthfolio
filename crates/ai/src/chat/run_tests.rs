@@ -20,6 +20,7 @@ use crate::types::{
 /// Answers chat requests with `replies` in order, as `(status, body)`, until
 /// none arrives for three seconds (longer than the retry delay), and returns
 /// the chat request bodies. Title requests get a 500 so the title falls back.
+/// An error reply's body may start with header lines and a blank line.
 fn serve(replies: Vec<(u16, String)>) -> (String, JoinHandle<Vec<Value>>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -53,10 +54,16 @@ fn serve(replies: Vec<(u16, String)>) -> (String, JoinHandle<Vec<Value>>) {
                     "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 ),
-                Some((status, body)) => format!(
-                    "HTTP/1.1 {status} Error\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                    body.len()
-                ),
+                Some((status, reply)) => {
+                    let (headers, body) = match reply.split_once("\r\n\r\n") {
+                        Some((headers, body)) => (format!("{headers}\r\n"), body.to_string()),
+                        None => (String::new(), reply),
+                    };
+                    format!(
+                        "HTTP/1.1 {status} Error\r\nContent-Type: application/json\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                }
                 None => "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
             };
             socket.write_all(response.as_bytes()).await.unwrap();
@@ -859,6 +866,97 @@ async fn a_transient_error_before_any_output_is_retried_once() {
     assert_eq!(saved_answer(&env, &events), "Retried.");
 }
 
+/// A 429 whose `retry-after` header asks for `seconds`.
+fn anthropic_rate_limited(seconds: u64) -> (u16, String) {
+    let body = json!({"type":"error","error":{"type":"rate_limit_error","message":"Rate limited: fixture-key /private/portfolio.db"}});
+    (429, format!("retry-after: {seconds}\r\n\r\n{body}"))
+}
+
+#[tokio::test]
+async fn a_rate_limit_retry_waits_as_long_as_the_provider_asks() {
+    let (url, server) = serve(vec![
+        anthropic_rate_limited(2),
+        anthropic_answer("Retried."),
+    ]);
+    let env = environment("anthropic", &url);
+    let service = ChatService::new(env.clone(), ChatConfig::default());
+
+    let started = std::time::Instant::now();
+    let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
+    let waited = started.elapsed();
+    done_usage(&events);
+
+    assert!(waited >= Duration::from_secs(2), "retried after {waited:?}");
+    assert_eq!(server.await.unwrap().len(), 2);
+    assert_eq!(saved_answer(&env, &events), "Retried.");
+}
+
+#[tokio::test]
+async fn a_rate_limit_with_a_long_wait_is_not_retried() {
+    let (url, server) = serve(vec![anthropic_rate_limited(60), anthropic_answer("Never.")]);
+    let env = environment("anthropic", &url);
+    let service = ChatService::new(env, ChatConfig::default());
+
+    let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
+
+    assert!(stream_error(&events).is_some(), "the turn fails");
+    assert!(events.iter().any(|event| matches!(event, AiStreamEvent::Error { code, message, .. } if code == "PROVIDER_RATE_LIMITED" && !message.contains("fixture-key") && !message.contains("/private"))));
+    assert_eq!(
+        server.await.unwrap().len(),
+        1,
+        "no retry before the wait ends"
+    );
+}
+
+#[tokio::test]
+async fn provider_authentication_failure_keeps_its_code_without_private_text() {
+    let body = json!({"type":"error","error":{"type":"authentication_error","message":"fixture-key /private/portfolio.db"}});
+    let (url, server) = serve(vec![(401, body.to_string())]);
+    let env = environment("anthropic", &url);
+    let service = ChatService::new(env, ChatConfig::default());
+    let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
+    assert!(events.iter().any(|event| matches!(event, AiStreamEvent::Error { code, message, .. } if code == "PROVIDER_AUTH" && !message.contains("fixture-key") && !message.contains("/private"))));
+    assert_eq!(
+        server.await.unwrap().len(),
+        1,
+        "authentication failures are not retried"
+    );
+}
+
+#[tokio::test]
+async fn a_chat_too_long_for_the_model_fails_with_its_own_code() {
+    let mut replies = anthropic_tool_turns(1);
+    let body = json!({"type":"error","error":{"type":"invalid_request_error",
+        "message":"prompt is too long: 210000 tokens > 200000 maximum"}});
+    replies.push((400, body.to_string()));
+    let (url, server) = serve(replies);
+    let env = environment("anthropic", &url);
+    let service = ChatService::new(env.clone(), ChatConfig::default());
+
+    let events = send(&service, "anthropic", "claude-sonnet-5-5", "Hello", None).await;
+    server.await.unwrap();
+
+    let code = events.iter().find_map(|event| match event {
+        AiStreamEvent::Error { code, .. } => Some(code.as_str()),
+        _ => None,
+    });
+    assert_eq!(code, Some("CONTEXT_OVERFLOW"));
+    let saved = env
+        .chat_repository()
+        .get_messages_by_thread(&thread_id(&events))
+        .unwrap()
+        .into_iter()
+        .find(|message| message.role == ChatMessageRole::Assistant)
+        .expect("the tool call was shown, so the turn is saved");
+    assert!(
+        matches!(
+            saved.content.parts.last(),
+            Some(crate::types::ChatMessagePart::Error { code, .. }) if code == "CONTEXT_OVERFLOW"
+        ),
+        "the saved turn ends with the overflow, so a reload shows the same message"
+    );
+}
+
 #[tokio::test]
 async fn a_transient_error_after_output_is_not_retried() {
     let mut replies = anthropic_tool_turns(1);
@@ -955,7 +1053,7 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
         failed += &event(block.clone());
     }
     failed += &event(json!({"type":"error","error":{"type":"overloaded_error",
-        "message":"Overloaded for fixture-key"}}));
+        "message":"Overloaded for fixture-key: /private/portfolio.db account_balance"}}));
     let (url, server) = serve(vec![
         (200, anthropic_reply("tool_use", first, usage.clone(), 1)),
         (200, failed),
@@ -974,6 +1072,8 @@ async fn a_provider_error_mid_reply_saves_what_was_streamed() {
     .await;
     let shown = stream_error(&events).expect("the turn fails");
     assert!(!shown.contains("fixture-key"), "{shown}");
+    assert!(!shown.contains("/private"), "{shown}");
+    assert!(!shown.contains("account_balance"), "{shown}");
 
     let thread = thread_id(&events);
     let saved = env

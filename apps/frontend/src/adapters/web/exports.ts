@@ -1,11 +1,15 @@
 import { profileFetch } from "@/features/profiles/session";
-import type { ExportDataType, ExportedFileFormat } from "@/lib/types";
+import type { ExportedFileFormat, ExportOptions, ExportTarget } from "@/lib/types";
+import { exportOptionsQuery } from "./export-options";
 import { notifyUnauthorized } from "@/lib/auth-token";
 import type { DataExportResult } from "../types";
 import { API_PREFIX } from "./core";
 
-const fallbackFileName = (data: ExportDataType, format: ExportedFileFormat): string => {
+const fallbackFileName = (data: ExportTarget, format: ExportedFileFormat): string => {
   const currentDate = new Date().toISOString().split("T")[0];
+  if (data === "all") {
+    return `wealthfolio-export_${currentDate}.${format === "CSV" ? "zip" : "json"}`;
+  }
   return `${data}_${currentDate}.${format.toLowerCase()}`;
 };
 
@@ -39,11 +43,12 @@ const downloadBlob = (blob: Blob, fileName: string) => {
 
 export const exportDataFile = async (
   format: ExportedFileFormat,
-  data: ExportDataType,
+  data: ExportTarget,
+  options?: ExportOptions,
 ): Promise<DataExportResult> => {
   const url = `${API_PREFIX}/utilities/export/${encodeURIComponent(data)}/${encodeURIComponent(
     format.toLowerCase(),
-  )}`;
+  )}${exportOptionsQuery(options)}`;
 
   const response = await profileFetch(url, {
     method: "GET",

@@ -86,14 +86,10 @@ fn main() {
         .filter(|v| !v.is_empty())
         .or_else(read_connect_api_url_from_dotenv);
 
-    match connect_api_url {
-        Some(val) => {
-            println!("cargo:rustc-env=CONNECT_API_URL={}", val);
-            println!("cargo:warning=CONNECT_API_URL is set: {}", val);
-        }
-        None => {
-            println!("cargo:warning=CONNECT_API_URL is NOT set");
-        }
+    // Unset is the normal case: the app falls back to the production API.
+    if let Some(val) = connect_api_url {
+        println!("cargo:rustc-env=CONNECT_API_URL={}", val);
+        println!("cargo:warning=CONNECT_API_URL is set: {}", val);
     }
 
     let connect_auth_url = env::var("CONNECT_AUTH_URL")

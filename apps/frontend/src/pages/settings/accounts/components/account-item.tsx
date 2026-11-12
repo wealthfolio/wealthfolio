@@ -1,22 +1,15 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/ui/avatar";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
 import { maskAccountNumber } from "@/lib/account-number";
-import type { Account, AccountType, Platform } from "@/lib/types";
+import type { Account, Platform } from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { SettingsListMedia, SettingsListRow } from "@/components/settings-list";
+import { getAccountTypeIcon } from "@/lib/account-type-icons";
 import { AccountOperations } from "./account-operations";
-
-// Each account type's icon, shown when the account has no platform logo.
-const accountTypeIcon: Record<AccountType, Icon> = {
-  SECURITIES: Icons.Briefcase,
-  CASH: Icons.DollarSign,
-  CREDIT_CARD: Icons.CreditCard,
-  CRYPTOCURRENCY: Icons.Bitcoin,
-};
 
 export interface AccountItemProps {
   account: Account;
@@ -38,7 +31,7 @@ export function AccountItem({
   const { t } = useTranslation();
   // Check if account is synced from broker (has provider_account_id set)
   const isSynced = !!account.providerAccountId;
-  const IconComponent = accountTypeIcon[account.accountType] ?? Icons.Wallet;
+  const IconComponent = getAccountTypeIcon(account.accountType);
   const maskedNumber = maskAccountNumber(account.accountNumber);
 
   return (

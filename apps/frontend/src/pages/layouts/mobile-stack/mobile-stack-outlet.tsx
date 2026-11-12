@@ -26,6 +26,7 @@ import { getPageScrollKey } from "../page-scroll-key";
 import { StackScreenContext } from "./mobile-stack-contexts";
 import { describeTransition, topScreen, type StackScreen } from "./stack-model";
 import { useEdgeSwipeBack } from "./use-edge-swipe-back";
+import { useKeptScrollPositions } from "./use-kept-scroll-positions";
 import { useRequiredMobileStack } from "./use-mobile-stack";
 
 /** iOS navigation curve and timing. */
@@ -112,24 +113,42 @@ function focusScreen(
   container: HTMLElement | null,
   screenId: string,
   restore: Element | undefined,
-) {
+): (() => void) | undefined {
   const layer = container?.querySelector<HTMLElement>(`[data-stack-screen="${screenId}"]`);
   if (!layer) return;
   if (restore instanceof HTMLElement && restore.isConnected && layer.contains(restore)) {
     restore.focus({ preventScroll: true });
     return;
   }
-  // The page already focused something itself, such as a form's first field.
+  // The page already focused something itself, such as a form's first field, in
+  // the screen or in one of its popups (a sheet renders outside the screen).
+  const active = document.activeElement;
   if (
-    document.activeElement &&
-    document.activeElement !== layer &&
-    layer.contains(document.activeElement)
+    active &&
+    active !== layer &&
+    (layer.contains(active) ||
+      active.closest(`[data-portal-scope=${JSON.stringify(screenId)}]`) !== null)
   ) {
     return;
   }
-  const heading = layer.querySelector<HTMLElement>("h1") ?? layer;
-  if (heading.tabIndex < 0 && !heading.hasAttribute("tabindex")) heading.tabIndex = -1;
-  heading.focus({ preventScroll: true });
+  const focus = (element: HTMLElement) => {
+    if (element.tabIndex < 0 && !element.hasAttribute("tabindex")) element.tabIndex = -1;
+    element.focus({ preventScroll: true });
+  };
+  const heading = layer.querySelector<HTMLElement>("h1");
+  focus(heading ?? layer);
+  if (heading) return;
+  // A page still loading has no heading yet: move focus to it once it renders,
+  // unless focus has moved on in the meantime.
+  const observer = new MutationObserver(() => {
+    if (document.activeElement !== layer) return observer.disconnect();
+    const late = layer.querySelector<HTMLElement>("h1");
+    if (!late) return;
+    observer.disconnect();
+    focus(late);
+  });
+  observer.observe(layer, { childList: true, subtree: true });
+  return () => observer.disconnect();
 }
 
 interface StackLayerProps {
@@ -142,9 +161,12 @@ interface StackLayerProps {
 }
 
 function StackLayer({ screen, role, visible, x, dim, scrollProps }: StackLayerProps) {
+  const layerRef = useRef<HTMLDivElement>(null);
+  useKeptScrollPositions(layerRef, visible);
   return (
     <Activity mode={visible ? "visible" : "hidden"}>
       <motion.div
+        ref={layerRef}
         data-stack-screen={screen.id}
         data-stack-role={role}
         className="bg-background absolute inset-0 flex flex-col"
@@ -287,7 +309,7 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
     if (transition || !target) return;
     pendingFocus.current = null;
     const restore = target.restore ? focusOrigins.current.get(target.screenId) : undefined;
-    focusScreen(containerRef.current, target.screenId, restore);
+    return focusScreen(containerRef.current, target.screenId, restore);
   }, [transition]);
 
   const onStart = useCallback(

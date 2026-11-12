@@ -18,6 +18,26 @@ async function createPortfolio(page: Page) {
   });
   expect(accountResponse.ok(), await accountResponse.text()).toBeTruthy();
   const accountId = ((await accountResponse.json()) as { id: string }).id;
+  // With only the BUY, the account's Activities tab is about as tall as its
+  // Holdings tab, so a small layout change can make it too short for the
+  // offset the test scrolls to and the browser clamps it. The deposits come
+  // the day before the BUY, so the BUY stays the first row and the portfolio's
+  // first activity doesn't move out of January 2024.
+  for (let i = 0; i < 5; i++) {
+    const deposit = await page.request.post(`${api}/activities`, {
+      data: {
+        accountId,
+        activityType: "DEPOSIT",
+        activityDate: "2024-01-01T15:00:00Z",
+        // Identical deposits would be rejected as duplicates.
+        amount: 100 + i,
+        currency: "USD",
+        fee: 0,
+        needsReview: false,
+      },
+    });
+    expect(deposit.ok(), await deposit.text()).toBeTruthy();
+  }
   const response = await page.request.post(`${api}/activities`, {
     data: {
       accountId,
@@ -46,7 +66,9 @@ async function createPortfolio(page: Page) {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
         expect(holdingsResponse.ok()).toBeTruthy();
-        const holdings = (await holdingsResponse.json()) as { instrument?: { id: string } }[];
+        const { holdings } = (await holdingsResponse.json()) as {
+          holdings: { instrument?: { id: string } }[];
+        };
         return holdings.some((holding) => holding.instrument?.id === assetId);
       },
       { timeout: 60_000 },

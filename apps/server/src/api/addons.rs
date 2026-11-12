@@ -17,6 +17,18 @@ use wealthfolio_core::addons::{
     AddonManifest, AddonUpdateCheckResult, ExtractedAddon, InstalledAddon,
     MAX_ADDON_ARCHIVE_COMPRESSED_SIZE,
 };
+use wealthfolio_core::errors::PublicError;
+
+/// Package refusals the add-on screens explain (no manifest, no main file, a
+/// newer Wealthfolio needed) keep their reviewed code as a client error; any
+/// other add-on failure stays internal.
+fn addon_error(error: String) -> ApiError {
+    if PublicError::from_control_message(&error).is_some() {
+        ApiError::BadRequest(error)
+    } else {
+        anyhow::anyhow!(error).into()
+    }
+}
 
 #[derive(serde::Deserialize)]
 struct InstallZipBody {
@@ -49,7 +61,7 @@ async fn install_addon_zip_web(
             body.approved_network_hosts.unwrap_or_default(),
         )
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(Json(metadata))
 }
 
@@ -100,7 +112,7 @@ async fn toggle_addon_web(
     state
         .addon_service
         .toggle_addon(&body.addon_id, body.enabled)
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -173,7 +185,7 @@ async fn extract_addon_zip_web(
     let extracted = state
         .addon_service
         .extract_addon_zip(zip_bytes)
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(Json(extracted))
 }
 
@@ -235,7 +247,7 @@ async fn download_addon_to_staging_web(
         .addon_service
         .download_addon_to_staging(&body.addon_id)
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(Json(extracted))
 }
 
@@ -265,7 +277,7 @@ async fn update_addon_from_store_by_id_web(
         .addon_service
         .update_addon_from_store(&body.addon_id)
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(Json(metadata))
 }
 
@@ -292,7 +304,7 @@ async fn install_addon_from_staging_web(
             body.approved_network_hosts.unwrap_or_default(),
         )
         .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        .map_err(addon_error)?;
     Ok(Json(metadata))
 }
 

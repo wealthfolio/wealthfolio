@@ -279,7 +279,7 @@ describe("ActivityDataGrid symbol pick", () => {
         return SAVED_MSFT.id;
       },
     ],
-  ])("keeps the type a duplicate copies from a picked %s row", async (_, renderSource) => {
+  ])("drops the type a duplicate copies from a picked %s row", async (_, renderSource) => {
     const sourceId = renderSource();
     deferQuote();
     pick(sourceId, AAPL_OPTION);
@@ -288,17 +288,46 @@ describe("ActivityDataGrid symbol pick", () => {
     const duplicateId = rows()[0].id;
     expect(duplicateId).not.toBe(sourceId);
     pasteOnto(duplicateId, { assetSymbol: "AAPL260619C00160000" });
-    expect(row(duplicateId)).toMatchObject({
-      instrumentType: "OPTION",
-      pendingInstrumentType: "OPTION",
-    });
-
-    // A pick on the duplicate is its own and drops as usual.
-    deferQuote();
-    pick(duplicateId, AAPL);
-    pasteOnto(duplicateId, { assetSymbol: "MSFT" });
     expect(row(duplicateId)?.instrumentType).toBeUndefined();
+    expect(row(duplicateId)?.pendingInstrumentType).toBeUndefined();
   });
+
+  it("drops a saved row's stored instrument type when only the symbol is pasted", () => {
+    renderGrid([
+      { ...SAVED_MSFT, assetSymbol: "BTC", exchangeMic: undefined, instrumentType: "CRYPTO" },
+    ]);
+
+    pasteOnto(SAVED_MSFT.id, { assetSymbol: "KO" });
+
+    expect(row(SAVED_MSFT.id)).toMatchObject({ assetSymbol: "KO" });
+    expect(row(SAVED_MSFT.id)?.instrumentType).toBeUndefined();
+  });
+
+  it("keeps a saved row's stored instrument type pasted together with the symbol", () => {
+    renderGrid([
+      { ...SAVED_MSFT, assetSymbol: "BTC", exchangeMic: undefined, instrumentType: "CRYPTO" },
+    ]);
+
+    pasteOnto(SAVED_MSFT.id, { assetSymbol: "ETH", instrumentType: "CRYPTO" });
+
+    expect(row(SAVED_MSFT.id)).toMatchObject({
+      assetSymbol: "ETH",
+      instrumentType: "CRYPTO",
+      pendingInstrumentType: "CRYPTO",
+    });
+  });
+
+  it.each(["BUY", "DEPOSIT"] as const)(
+    "keeps an unchanged Auto instrument clean on a saved %s row",
+    (activityType) => {
+      renderGrid([{ ...SAVED_MSFT, activityType, instrumentType: undefined }]);
+      const previous = row(SAVED_MSFT.id);
+
+      pasteOnto(SAVED_MSFT.id, { instrumentType: undefined });
+
+      expect(row(SAVED_MSFT.id)).toBe(previous);
+    },
+  );
 });
 
 describe("ActivityDataGrid conversion duplicate", () => {

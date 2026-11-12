@@ -25,6 +25,10 @@ pub enum ResolutionSource {
     Override,
     /// From deterministic MIC->suffix rules.
     Rules,
+    /// From the provider's own identifier for the instrument, such as a fund's
+    /// scheme code or ISIN. It names the instrument without a venue, so the
+    /// instrument needs no exchange.
+    Identifier,
     /// A venue was requested but the registry has no suffix for it on this
     /// provider, so the bare ticker was used.
     ///

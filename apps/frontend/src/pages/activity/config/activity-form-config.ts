@@ -67,6 +67,7 @@ export interface ActivityFormComponentProps<T> {
   onCancel?: () => void;
   isLoading?: boolean;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
 }
 
 // Config for each activity type
@@ -141,8 +142,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
         quantity: absNum(activity?.quantity),
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
-        fee: absNum(activity?.fee) ?? 0,
-        tax: absNum(activity?.tax) ?? 0,
+        fee: absNum(activity?.fee) || undefined,
+        tax: absNum(activity?.tax) || undefined,
         subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
@@ -231,13 +232,18 @@ export const ACTIVITY_FORM_CONFIG: Record<
       const base = {
         ...getBaseDefaults(activity, accounts),
         assetId: activity?.assetSymbol ?? activity?.assetId ?? "",
+        ...selectedExistingAsset(
+          activity?.assetSymbol,
+          activity?.assetId,
+          activity?.instrumentType,
+        ),
         symbolInstrumentType: activity?.instrumentType ?? undefined,
         symbolQuoteCcy: activity?.assetQuoteCcy ?? activity?.currency ?? undefined,
         quantity: absNum(activity?.quantity),
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
-        fee: absNum(activity?.fee) ?? 0,
-        tax: absNum(activity?.tax) ?? 0,
+        fee: absNum(activity?.fee) || undefined,
+        tax: absNum(activity?.tax) || undefined,
         subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
@@ -372,7 +378,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? "",
       amount: absNum(activity?.amount),
-      tax: absNum(activity?.tax) ?? 0,
+      tax: absNum(activity?.tax) || undefined,
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options
@@ -599,7 +605,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? null,
       amount: absNum(activity?.amount),
-      tax: absNum(activity?.tax) ?? 0,
+      tax: absNum(activity?.tax) || undefined,
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options

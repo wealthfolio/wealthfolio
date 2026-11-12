@@ -1,5 +1,7 @@
+import type { TFunction } from "i18next";
+
 import { ActivityType } from "@/lib/constants";
-import { getEffectiveType } from "@/lib/types";
+import { getEffectiveType, type TransferMatchCandidate } from "@/lib/types";
 import { normalizeCurrency } from "@/lib/utils";
 
 export interface TransferLinkActivityLike {
@@ -69,4 +71,24 @@ export function canConvertToTransfer(activity: TransferLinkActivityLike): boolea
     (type === ActivityType.DEPOSIT || type === ActivityType.WITHDRAWAL) &&
     !nonCashTransferAssetKey(activity)
   );
+}
+
+/** The matcher's warnings, translated; its English text when it sent no codes. */
+export function candidateWarnings(t: TFunction, candidate: TransferMatchCandidate): string[] {
+  if (!candidate.warningCodes) return candidate.warnings;
+  return candidate.warningCodes.map((warning) => {
+    switch (warning.code) {
+      case "dates_differ":
+        return t("activity:transfer_match.warning_dates_differ", { count: warning.days });
+      case "currencies_differ":
+        return t("activity:transfer_match.warning_currencies_differ", {
+          source: warning.source,
+          candidate: warning.candidate,
+        });
+      case "prices_differ":
+        return t("activity:transfer_match.warning_prices_differ");
+      case "another_match":
+        return t("activity:transfer_review.warning_another_match");
+    }
+  });
 }

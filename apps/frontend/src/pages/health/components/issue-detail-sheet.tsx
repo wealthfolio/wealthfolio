@@ -1,5 +1,7 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import type {
   DiagnosticAction,
+  EngineActivityIssue,
   FixAction,
   HealthCategory,
   HealthDiagnostic,
@@ -28,7 +30,11 @@ import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { translateHealthAction, translateIssueText } from "../translate-issue";
+import {
+  translateActivityReason,
+  translateHealthAction,
+  translateIssueText,
+} from "../translate-issue";
 
 interface IssueDetailSheetProps {
   issue: HealthIssue | null;
@@ -165,6 +171,7 @@ interface DiagnosticGroup {
 }
 
 interface DiagnosticEvidenceRow {
+  activityIssue?: EngineActivityIssue;
   key: string;
   label: string;
   value: string;
@@ -259,8 +266,12 @@ function isPriceDateDiagnostic(diagnostic: HealthDiagnostic): boolean {
   );
 }
 
+// The date labels the backend sends. Other labels can be user-entered asset names,
+// which may contain the word "date", so match exactly.
+const DATE_EVIDENCE_LABELS = new Set(["Date", "Trade date"]);
+
 function isDateEvidence(label: string): boolean {
-  return /date/i.test(label);
+  return DATE_EVIDENCE_LABELS.has(label);
 }
 
 function getEvidenceDisplay(row: HealthDiagnostic["evidence"][number]): {
@@ -299,6 +310,7 @@ function buildDiagnosticRows(diagnostic: HealthDiagnostic): DiagnosticEvidenceRo
       value: display.value,
       detail: dateRow && dateRow !== row ? dateRow.value : undefined,
       route: row.route,
+      activityIssue: row.activityIssue,
     };
   });
 }
@@ -471,6 +483,7 @@ export function IssueDetailSheet({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const numbers = useNumberFormatting();
 
   if (!issue) return null;
@@ -483,7 +496,54 @@ export function IssueDetailSheet({
   const diagnosticGroups = groupDiagnostics(diagnostics);
   const isGroupedPrice = isGroupedPriceIssue(diagnosticGroups);
   const hasDiagnosticActions = diagnostics.some((diagnostic) => diagnostic.actions.length > 0);
-  const shouldRenderDetails = !hasDiagnostics || isFallbackDiagnosticIssue(issue, diagnostics);
+  const hasActivityEvidence = diagnostics.some((diagnostic) =>
+    diagnostic.evidence.some((evidence) => evidence.activityIssue),
+  );
+  const hasFallbackDiagnostic = isFallbackDiagnosticIssue(issue, diagnostics);
+  const shouldRenderDetails = !hasActivityEvidence && (!hasDiagnostics || hasFallbackDiagnostic);
+  // With one section, its actions sit in the footer, where a long list of
+  // affected items cannot push them out of view.
+  const footerActionEntries =
+    diagnosticGroups.length === 1 && !isGroupedPrice
+      ? getDiagnosticActionEntries(
+          diagnosticGroups[0].diagnostics,
+          diagnosticGroups[0].diagnostics.length === 1,
+        )
+      : [];
+  const renderDiagnosticAction = ({ key, action }: DiagnosticActionEntry, inFooter: boolean) =>
+    action.kind === "navigate" ? (
+      <Link
+        to={buildDiagnosticRoute(action)}
+        key={key}
+        className={cn(
+          buttonVariants({ variant: "outline", size: inFooter ? "default" : "sm" }),
+          inFooter && "w-full",
+        )}
+      >
+        <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
+        {translateHealthAction(t, action)}
+      </Link>
+    ) : (
+      <FixActionButton
+        key={key}
+        action={action}
+        variant={action.primary ? "default" : "outline"}
+        size={inFooter ? "default" : "sm"}
+        className={inFooter ? "w-full" : undefined}
+        isFixing={isFixing}
+        onRun={() =>
+          onRunFixAction({
+            id: action.id,
+            label: action.label,
+            payload: action.payload,
+            confirm: action.confirm,
+          })
+        }
+      >
+        {isFixing ? <Spinner className="me-2 h-4 w-4" /> : <Icons.Wand2 className="me-2 h-4 w-4" />}
+        {translateHealthAction(t, action)}
+      </FixActionButton>
+    );
   const detailItems =
     issue.details
       ?.split(/\n\s*\n/)
@@ -492,7 +552,15 @@ export function IssueDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex w-full flex-col sm:max-w-xl lg:max-w-2xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex flex-col",
+          isMobile
+            ? "mx-1 h-full rounded-t-4xl [--overlay-max-height:90dvh]"
+            : "w-full sm:max-w-xl lg:max-w-2xl",
+        )}
+      >
         <SheetHeader className="shrink-0 space-y-3 pb-6">
           <div className="flex items-center gap-2 text-xs">
             <span className={cn("font-medium", severityConfig.color)}>
@@ -514,7 +582,7 @@ export function IssueDetailSheet({
         </SheetHeader>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-6 pe-4">
+          <div className={cn("space-y-6", !isMobile && "pe-4")}>
             {!hasDiagnostics && issue.affectedItems && issue.affectedItems.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -593,9 +661,13 @@ export function IssueDetailSheet({
                   const priceAssetGroups = shouldGroupByAsset
                     ? buildPriceAssetGroups(group.diagnostics)
                     : [];
-                  const actionEntries = shouldGroupByAsset
-                    ? []
-                    : getDiagnosticActionEntries(group.diagnostics, group.diagnostics.length === 1);
+                  const actionEntries =
+                    shouldGroupByAsset || footerActionEntries.length > 0
+                      ? []
+                      : getDiagnosticActionEntries(
+                          group.diagnostics,
+                          group.diagnostics.length === 1,
+                        );
 
                   return (
                     <div key={group.key} className="space-y-3">
@@ -604,7 +676,9 @@ export function IssueDetailSheet({
                           <p className="text-sm font-medium">
                             {shouldGroupByAsset
                               ? t("health:sheet.pricesByInvestment")
-                              : group.title}
+                              : hasActivityEvidence && hasFallbackDiagnostic
+                                ? translateIssueText(t, issue, "title")
+                                : group.title}
                           </p>
                           {shouldGroupByAsset && (
                             <p className="text-muted-foreground text-xs">
@@ -618,7 +692,9 @@ export function IssueDetailSheet({
                         </div>
                         {!shouldGroupByAsset && (
                           <p className="text-muted-foreground text-xs leading-relaxed">
-                            {group.explanation}
+                            {hasActivityEvidence && hasFallbackDiagnostic
+                              ? translateIssueText(t, issue, "message")
+                              : group.explanation}
                           </p>
                         )}
                         {shouldGroupByAsset && (
@@ -670,13 +746,29 @@ export function IssueDetailSheet({
                                     <div className="min-w-0">
                                       <p className="truncate text-sm">{evidenceRow.label}</p>
                                       <div className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                        {evidenceRow.value && <span>{evidenceRow.value}</span>}
+                                        {evidenceRow.activityIssue ? (
+                                          <span className="break-all">
+                                            {t("health:activityReasons.activity_id", {
+                                              id: evidenceRow.activityIssue.activityId,
+                                            })}
+                                          </span>
+                                        ) : (
+                                          evidenceRow.value && <span>{evidenceRow.value}</span>
+                                        )}
                                         {evidenceRow.detail && (
                                           <span className="font-mono tabular-nums">
                                             {evidenceRow.detail}
                                           </span>
                                         )}
                                       </div>
+                                      {evidenceRow.activityIssue && (
+                                        <p className="text-muted-foreground mt-1 text-sm break-words whitespace-normal">
+                                          {translateActivityReason(t, evidenceRow.activityIssue, {
+                                            ...dateFormatting,
+                                            ...numbers,
+                                          })}
+                                        </p>
+                                      )}
                                     </div>
                                     {rowRoute && (
                                       <Icons.ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 rtl:rotate-180" />
@@ -701,41 +793,7 @@ export function IssueDetailSheet({
 
                       {actionEntries.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {actionEntries.map(({ key, action }) =>
-                            action.kind === "navigate" ? (
-                              <Link
-                                to={buildDiagnosticRoute(action)}
-                                key={key}
-                                className={buttonVariants({ variant: "outline", size: "sm" })}
-                              >
-                                <Icons.ArrowRight className="me-2 h-4 w-4 rtl:rotate-180" />
-                                {translateHealthAction(t, action)}
-                              </Link>
-                            ) : (
-                              <FixActionButton
-                                key={key}
-                                action={action}
-                                variant={action.primary ? "default" : "outline"}
-                                size="sm"
-                                isFixing={isFixing}
-                                onRun={() =>
-                                  onRunFixAction({
-                                    id: action.id,
-                                    label: action.label,
-                                    payload: action.payload,
-                                    confirm: action.confirm,
-                                  })
-                                }
-                              >
-                                {isFixing ? (
-                                  <Spinner className="me-2 h-4 w-4" />
-                                ) : (
-                                  <Icons.Wand2 className="me-2 h-4 w-4" />
-                                )}
-                                {translateHealthAction(t, action)}
-                              </FixActionButton>
-                            ),
-                          )}
+                          {actionEntries.map((entry) => renderDiagnosticAction(entry, false))}
                         </div>
                       )}
                     </div>
@@ -820,6 +878,8 @@ export function IssueDetailSheet({
         </ScrollArea>
 
         <div className="shrink-0 space-y-2 border-t pt-4">
+          {footerActionEntries.map((entry) => renderDiagnosticAction(entry, true))}
+
           {issue.fixAction && !hasDiagnosticActions && (
             <FixActionButton
               action={issue.fixAction}

@@ -41,14 +41,19 @@ import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-acti
 import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { comparisonBuckets, type ComparisonChartRow } from "../lib/chart-comparison";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
   DASHBOARD_INTERVAL_STORAGE_KEY,
   DASHBOARD_PERIOD_STORAGE_KEY,
   portfolioPresetForSpendingPeriod,
   rangePick,
+  spendingPeriodRange,
   spendingViewForPick,
+  stepDashboardPeriod,
   type DashboardPeriodPick,
+  type DashboardPresetPick,
+  type PresetWindow,
   type SpendingPeriodView,
 } from "../lib/dashboard-period-sync";
 import {
@@ -90,17 +95,27 @@ import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
 import { SpendingDeltaLine } from "./spending-delta-line";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
+import { PeriodNavigation } from "./period-navigation";
+import { parseCalendarYear, SPENDING_YEAR_PARAM, yearLabel, yearRange } from "../lib/year-period";
 
 const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
-type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
+type SpendingDashboardPeriod = "1W" | "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
 type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
+  | { kind: "year"; year: number; restoreCode: SpendingDashboardPeriod }
   | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod }
-  | { kind: "range"; range: SpendingDateRange; restoreCode: SpendingDashboardPeriod };
+  | {
+      kind: "range";
+      range: SpendingDateRange;
+      restoreCode: SpendingDashboardPeriod;
+      preset?: DashboardPresetPick;
+      presetWindow?: PresetWindow;
+    };
 
 const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
+  "1W",
   "MTD",
   "LAST_MONTH",
   "3M",
@@ -111,6 +126,7 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
 
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
 const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
+  "1W": "spending:tabContent.interval1W",
   MTD: "spending:tabContent.intervalMtd",
   LAST_MONTH: "spending:tabContent.intervalLastMonth",
   "3M": "spending:tabContent.interval3M",
@@ -175,40 +191,10 @@ function normalizeSpendingDashboardPeriod(
 }
 
 function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string | null) {
-  const today = getZonedDateParts(new Date(), timezone);
-  const { start, end } = (() => {
-    switch (code) {
-      case "MTD":
-        return { start: { year: today.year, month: today.month, day: 1 }, end: today };
-      case "LAST_MONTH": {
-        const lastMonth = addCalendarMonths({ year: today.year, month: today.month, day: 1 }, -1);
-        return {
-          start: { year: lastMonth.year, month: lastMonth.month, day: 1 },
-          end: {
-            year: lastMonth.year,
-            month: lastMonth.month,
-            day: daysInCalendarMonth(lastMonth.year, lastMonth.month),
-          },
-        };
-      }
-      case "3M":
-        return { start: addCalendarMonths(today, -3), end: today };
-      case "6M":
-        return { start: addCalendarMonths(today, -6), end: today };
-      case "YTD":
-        return { start: { year: today.year, month: 1, day: 1 }, end: today };
-      case "1Y":
-        return { start: { ...today, year: today.year - 1 }, end: today };
-    }
-  })();
-
   return {
     code,
     description: INTERVAL_DESCRIPTIONS[code],
-    range: {
-      from: localDateFromParts(start),
-      to: localDateFromParts(end),
-    },
+    range: spendingPeriodRange(code, formatZonedDateKey(new Date(), timezone)),
   };
 }
 
@@ -217,18 +203,28 @@ function selectionFromParams(
   persistedInterval: string,
   persistedMonth: string | null,
   shared: SpendingPeriodView | null,
+  todayISO: string,
 ): SpendingSelection {
   const intervalParam = params.get("spendingInterval");
   const monthParam = params.get(SPENDING_MONTH_PARAM);
   const restoreCode = normalizeSpendingDashboardPeriod(intervalParam ?? persistedInterval);
   const customRange = spendingRangeFromParams(params);
   if (customRange) return { kind: "range", range: customRange, restoreCode };
+  const year = parseCalendarYear(params.get(SPENDING_YEAR_PARAM), todayISO);
+  if (year !== null) return { kind: "year", year, restoreCode };
   // Without URL params (a link's are applied once and then removed), follow the
   // period last picked on any dashboard tab or the insights page.
   if (intervalParam === null && monthParam === null && shared) {
     if (shared.kind === "period") return { kind: "period", code: shared.code };
     if (shared.kind === "month") return { kind: "month", monthKey: shared.monthKey, restoreCode };
-    return { kind: "range", range: shared.range, restoreCode };
+    if (shared.kind === "year") return { kind: "year", year: shared.year, restoreCode };
+    return {
+      kind: "range",
+      range: shared.range,
+      restoreCode,
+      ...(shared.preset ? { preset: shared.preset } : {}),
+      ...(shared.presetWindow ? { presetWindow: shared.presetWindow } : {}),
+    };
   }
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
@@ -249,6 +245,7 @@ function budgetMonthStateForSelection(
 }
 
 function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: string): string {
+  if (selection.kind === "year") return `year:${selection.year}`;
   if (selection.kind === "month") return `month:${selection.monthKey}`;
   if (selection.kind === "range") {
     return `range:${formatDateISO(selection.range.from)}:${formatDateISO(selection.range.to)}`;
@@ -259,9 +256,12 @@ function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: s
 
 function selectionData(
   selection: SpendingSelection,
-  formatting: Pick<FormattingApi, "formatCalendarDate">,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatCalendarDateRange">,
   timezone?: string | null,
 ) {
+  if (selection.kind === "year") {
+    return { range: yearRange(selection.year), description: yearLabel(selection.year, formatting) };
+  }
   if (selection.kind === "month") {
     return {
       range: monthRange(selection.monthKey),
@@ -271,6 +271,15 @@ function selectionData(
 
   if (selection.kind === "range") {
     const { from, to } = selection.range;
+    if (selection.presetWindow)
+      return {
+        range: selection.range,
+        description: formatting.formatCalendarDateRange(localDateParts(from), localDateParts(to), {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      };
     const format = (date: Date) =>
       formatting.formatCalendarDate(localDateParts(date), {
         month: "short",
@@ -306,8 +315,19 @@ function usesCalendarMonthComparison(selection: SpendingSelection) {
 function priorRange(
   range: DateRange | undefined,
   selection?: SpendingSelection,
+  todayISO?: string,
 ): DateRange | undefined {
   if (!range?.from || !range?.to) return undefined;
+  if (selection?.kind === "range" && selection.presetWindow?.alignment === "calendar" && todayISO) {
+    const prior = stepDashboardPeriod(
+      { ...rangePick(selection.range), presetWindow: selection.presetWindow },
+      -1,
+      todayISO,
+    );
+    const view = prior ? spendingViewForPick(prior, todayISO) : null;
+    if (view?.kind === "range") return view.range;
+  }
+  if (selection?.kind === "year") return yearRange(selection.year - 1);
   if (selection && usesCalendarMonthComparison(selection)) {
     return previousFullMonthRange(range);
   }
@@ -344,7 +364,11 @@ function barKeyToRange(
   return { from: `${key}-01`, to: `${key}-${String(lastDay).padStart(2, "0")}` };
 }
 
-export default function SpendingTabContent() {
+interface SpendingTabContentProps {
+  compareEnabled?: boolean;
+}
+
+export default function SpendingTabContent({ compareEnabled = false }: SpendingTabContentProps) {
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -390,17 +414,25 @@ export default function SpendingTabContent() {
     [sharedPick, todayISO],
   );
   const selection = useMemo(
-    () => selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView),
-    [searchParams, persistedInterval, persistedMonth, sharedView],
+    () =>
+      selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView, todayISO),
+    [searchParams, persistedInterval, persistedMonth, sharedView, todayISO],
   );
   const shareSpendingPeriod = (code: SpendingDashboardPeriod) => {
     setSharedPick({ kind: "spending", code });
     setPortfolioPreset(portfolioPresetForSpendingPeriod(code));
   };
-  const selectedPeriod = selection.kind === "period" ? selection.code : null;
+  const selectedPeriod =
+    selection.kind === "period"
+      ? selection.code
+      : selection.kind === "range" && isSpendingDashboardPeriod(selection.preset?.code)
+        ? selection.preset.code
+        : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
   const customRange = selection.kind === "range" ? selection.range : undefined;
-  const restoreCode = selection.kind === "period" ? selection.code : selection.restoreCode;
+  const customYear = selection.kind === "year" ? selection.year : null;
+  const restoreCode =
+    selectedPeriod ?? (selection.kind === "period" ? selection.code : selection.restoreCode);
   const { range: dateRange, description: selectedIntervalDescription } = useMemo(
     () => selectionData(selection, dateFormatting, appTimezone),
     [selection, dateFormatting, appTimezone],
@@ -423,14 +455,17 @@ export default function SpendingTabContent() {
   // "About the same as prior period" delta line. Track whether we actually
   // have a prior window and gate the query on it.
   const priorRangeForReport = useMemo(
-    () => priorRange(dateRange, selection),
-    [dateRange, selection],
+    () => priorRange(dateRange, selection, todayISO),
+    [dateRange, selection, todayISO],
   );
   const priorReportReq = useMemo(
     () =>
       priorRangeForReport ? rangeToReportRequest(priorRangeForReport, appTimezone) : reportReq,
     [priorRangeForReport, reportReq, appTimezone],
   );
+  const comparisonAvailable =
+    !!dateRange?.from && !!dateRange.to && !!priorRangeForReport?.from && !!priorRangeForReport.to;
+  const showComparison = compareEnabled && comparisonAvailable;
 
   const {
     data: report,
@@ -438,10 +473,12 @@ export default function SpendingTabContent() {
     isError: reportErrored,
     refetch: refetchReport,
   } = useSpendingReport(reportReq);
-  const { data: priorReport, isLoading: isPriorLoading } = useSpendingReport(
-    priorReportReq,
-    /* enabled */ priorRangeForReport !== undefined,
-  );
+  const {
+    data: priorReport,
+    isLoading: isPriorLoading,
+    isError: priorReportErrored,
+    refetch: refetchPriorReport,
+  } = useSpendingReport(priorReportReq, /* enabled */ priorRangeForReport !== undefined);
   const { data: activities = [], isError: activitiesErrored } = useCashActivities({
     startDate: reportReq.startDate,
     endDate: reportReq.endDate,
@@ -623,9 +660,58 @@ export default function SpendingTabContent() {
     if (range && (!range.from || !range.to)) return;
     setPersistedMonth(null);
     if (range?.from && range.to) setSharedPick(rangePick({ from: range.from, to: range.to }));
+    else if (selection.kind === "range" && selection.presetWindow)
+      setSharedPick(selection.presetWindow.preset);
     else shareSpendingPeriod(restoreCode);
     setBudgetMonthKey(currentBudgetMonthKey);
     setBudgetMonthTouched(false);
+  };
+
+  const handleCustomYearSelect = (year: number | null) => {
+    if (year !== null && parseCalendarYear(year, todayISO) === null) return;
+    setPersistedMonth(null);
+    if (year !== null) {
+      setPersistedInterval(restoreCode);
+      setPersistedInsightPeriod(restoreCode);
+      setSharedPick({ kind: "year", year });
+    } else shareSpendingPeriod(restoreCode);
+    setBudgetMonthKey(currentBudgetMonthKey);
+    setBudgetMonthTouched(false);
+  };
+  const navigationPick: DashboardPeriodPick =
+    customYear !== null
+      ? { kind: "year", year: customYear }
+      : customMonth
+        ? { kind: "month", monthKey: customMonth }
+        : selection.kind === "range"
+          ? selection.presetWindow
+            ? { ...rangePick(selection.range), presetWindow: selection.presetWindow }
+            : (selection.preset ?? rangePick(selection.range))
+          : { kind: "spending", code: selection.kind === "period" ? selection.code : restoreCode };
+  const periodNavigation = {
+    label: selectedIntervalDescription.startsWith("spending:")
+      ? t(selectedIntervalDescription)
+      : selectedIntervalDescription,
+    previousDisabled: !stepDashboardPeriod(navigationPick, -1, todayISO),
+    nextDisabled: !stepDashboardPeriod(navigationPick, 1, todayISO),
+    onStep: (direction: -1 | 1) => {
+      const next = stepDashboardPeriod(navigationPick, direction, todayISO);
+      if (!next) return;
+      if (next?.kind === "year") handleCustomYearSelect(next.year);
+      else if (next.kind === "month") handleCustomMonthSelect(next.monthKey);
+      else if (next.kind === "spending") handleIntervalSelect(next.code);
+      else {
+        if (selection.kind === "period") {
+          setPersistedInterval(selection.code);
+          setPersistedInsightPeriod(selection.code);
+          setPortfolioPreset(portfolioPresetForSpendingPeriod(selection.code));
+        }
+        setPersistedMonth(null);
+        setSharedPick(next);
+        setBudgetMonthKey(currentBudgetMonthKey);
+        setBudgetMonthTouched(false);
+      }
+    },
   };
 
   // Apply a period named in the URL once, then drop it from the URL.
@@ -633,16 +719,24 @@ export default function SpendingTabContent() {
     const linked = [
       "spendingInterval",
       SPENDING_MONTH_PARAM,
+      SPENDING_YEAR_PARAM,
       SPENDING_RANGE_FROM_PARAM,
       SPENDING_RANGE_TO_PARAM,
     ].filter((param) => searchParams.has(param));
     if (linked.length === 0) return;
-    if (selection.kind === "period") handleIntervalSelect(selection.code);
-    else {
-      setPersistedInterval(selection.restoreCode);
-      setPersistedInsightPeriod(selection.restoreCode);
-      if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
-      else handleCustomRangeSelect(selection.range);
+    const invalidYearOnly =
+      linked.length === 1 &&
+      linked[0] === SPENDING_YEAR_PARAM &&
+      parseCalendarYear(searchParams.get(SPENDING_YEAR_PARAM), todayISO) === null;
+    if (!invalidYearOnly) {
+      if (selection.kind === "period") handleIntervalSelect(selection.code);
+      else {
+        setPersistedInterval(selection.restoreCode);
+        setPersistedInsightPeriod(selection.restoreCode);
+        if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
+        else if (selection.kind === "year") handleCustomYearSelect(selection.year);
+        else handleCustomRangeSelect(selection.range);
+      }
     }
     setSearchParams(
       (prev) => {
@@ -657,8 +751,16 @@ export default function SpendingTabContent() {
   }, [searchParams]);
 
   const granularity: "day" | "week" | "month" = useMemo(() => {
+    if (selection.kind === "year") return "month";
     if (selection.kind === "month") return "day";
     if (selection.kind === "range") {
+      const code = selection.preset?.code;
+      if (code)
+        return code === "3M" || code === "6M"
+          ? "week"
+          : code === "1Y" || code === "5Y" || code === "YTD"
+            ? "month"
+            : "day";
       const days = calendarDaysBetweenInclusive(
         localDateParts(selection.range.from),
         localDateParts(selection.range.to),
@@ -666,6 +768,7 @@ export default function SpendingTabContent() {
       return days <= 45 ? "day" : days <= 180 ? "week" : "month";
     }
     switch (selection.code) {
+      case "1W":
       case "MTD":
       case "LAST_MONTH":
         return "day";
@@ -790,6 +893,59 @@ export default function SpendingTabContent() {
           : t("spending:tabContent.monthlyAvg");
     return { barData: data, avgValue: avg, avgLabel: labelByGranularity };
   }, [report?.byDay, granularity, dateRange, appTimezone, t]);
+
+  const chartData = useMemo<ComparisonChartRow[]>(() => {
+    if (!showComparison) return barData.map((entry) => ({ ...entry, priorValue: null }));
+    const current = comparisonBuckets(report?.byDay ?? [], dateRange, granularity, todayISO);
+    const prior = comparisonBuckets(
+      priorReport?.byDay ?? [],
+      priorRangeForReport,
+      granularity,
+      todayISO,
+    );
+    return Array.from({ length: Math.max(current.length, prior.length) }, (_, index) => ({
+      key: current[index]?.key ?? prior[index]?.key ?? String(index),
+      label: numberFormatting.formatDecimal(index + 1),
+      value: current[index] && !current[index].future ? current[index].value : null,
+      future: current[index]?.future ?? true,
+      from: current[index]?.from,
+      to: current[index]?.to,
+      priorValue: prior[index] && !prior[index].future ? prior[index].value : null,
+      priorFrom: prior[index]?.from,
+      priorTo: prior[index]?.to,
+    }));
+  }, [
+    showComparison,
+    barData,
+    report?.byDay,
+    priorReport?.byDay,
+    dateRange,
+    priorRangeForReport,
+    granularity,
+    todayISO,
+    numberFormatting,
+  ]);
+
+  const comparisonLabels = useMemo(() => {
+    const label = (range: DateRange | undefined) =>
+      range?.from && range.to
+        ? dateFormatting.formatCalendarDateRange(
+            localDateParts(range.from),
+            localDateParts(range.to),
+            { month: "short", day: "numeric", year: "numeric" },
+          )
+        : "";
+    return { current: label(dateRange), prior: label(priorRangeForReport) };
+  }, [dateFormatting, dateRange, priorRangeForReport]);
+
+  const comparisonBucketLabel = (from?: string, to?: string) => {
+    if (!from || !to) return "—";
+    return dateFormatting.formatCalendarDateRange(from, to, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   const categoriesMeta = useMemo(() => {
     const meta = new Map<
@@ -933,24 +1089,33 @@ export default function SpendingTabContent() {
       <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
-              {t("spending:tabContent.spentLabel")}
-              {selectedIntervalDescription
-                ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
-                : ""}
-              {excludedCategoryCount > 0 && (
-                <>
-                  {" · "}
-                  <Link
-                    to="/settings/spending/categories"
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {t("spending:tabContent.excludedCategoriesHint", {
-                      count: excludedCategoryCount,
-                    })}
-                  </Link>
-                </>
-              )}
+            <div
+              className="flex max-w-full flex-wrap items-center gap-x-1"
+              data-testid="dashboard-period-header"
+            >
+              <div
+                className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase"
+                data-testid="dashboard-period-caption"
+              >
+                {t("spending:tabContent.spentLabel")}
+                {selectedIntervalDescription
+                  ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
+                  : ""}
+                {excludedCategoryCount > 0 && (
+                  <>
+                    {" · "}
+                    <Link
+                      to="/settings/spending/categories"
+                      className="hover:text-foreground hover:underline"
+                    >
+                      {t("spending:tabContent.excludedCategoriesHint", {
+                        count: excludedCategoryCount,
+                      })}
+                    </Link>
+                  </>
+                )}
+              </div>
+              <PeriodNavigation navigation={periodNavigation} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Balance
@@ -997,12 +1162,52 @@ export default function SpendingTabContent() {
           backgroundImage: `linear-gradient(to top, ${themeBg(theme, 0.3)}, ${themeBg(theme, 0.15)} 50%, transparent 100%)`,
         }}
       >
+        {showComparison && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pb-2 md:px-6 lg:px-8">
+            <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-sm"
+                  style={{ backgroundColor: theme.deep }}
+                />
+                {comparisonLabels.current}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="bg-muted-foreground size-2 shrink-0 rounded-sm opacity-40"
+                />
+                {comparisonLabels.prior}
+              </span>
+              <span>
+                {t(
+                  `spending:tabContent.${granularity === "day" ? "comparisonDays" : granularity === "week" ? "comparisonWeeks" : "comparisonMonths"}`,
+                )}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="h-70 [&_.recharts-layer]:outline-none [&_.recharts-rectangle]:outline-none [&_.recharts-surface]:outline-none">
-          {isLoading ? (
+          {isLoading || (showComparison && isPriorLoading) ? (
             <div className="flex h-full items-center justify-center">
               <Skeleton className="h-full w-full" />
             </div>
-          ) : barData.length === 0 ? (
+          ) : showComparison && priorReportErrored ? (
+            <div
+              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-sm"
+              role="alert"
+            >
+              <p>{t("spending:tabContent.loadError")}</p>
+              <button
+                type="button"
+                className="text-foreground underline underline-offset-4"
+                onClick={() => void refetchPriorReport()}
+              >
+                {t("common:retry")}
+              </button>
+            </div>
+          ) : chartData.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.CreditCard className="text-muted-foreground/30 mb-3 h-12 w-12" />
               <p className="text-muted-foreground text-sm">
@@ -1011,7 +1216,11 @@ export default function SpendingTabContent() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+              <BarChart
+                data={chartData}
+                barGap={showComparison ? 2 : undefined}
+                margin={{ top: 8, right: 24, left: 16, bottom: 8 }}
+              >
                 <defs>
                   <linearGradient id="spending-bar" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={theme.deep} stopOpacity={0.95} />
@@ -1030,19 +1239,81 @@ export default function SpendingTabContent() {
                   cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
-                    const p = payload[0].payload as {
-                      key: string;
-                      label: string;
-                      value: number;
-                      future: boolean;
-                    };
+                    const p = payload[0].payload as ComparisonChartRow;
                     return (
-                      <div className="bg-background rounded-md border px-3 py-2 text-xs shadow-sm">
-                        <div className="text-muted-foreground">{p.key}</div>
-                        <div className="text-foreground font-semibold tabular-nums">
-                          {p.future ? "—" : <PrivacyAmount value={p.value} currency={currency} />}
-                        </div>
-                        {avgValue > 0 && (
+                      <div className="bg-background max-w-[calc(100vw-2rem)] rounded-md border px-3 py-2 text-xs shadow-sm">
+                        {showComparison ? (
+                          <div className="space-y-2">
+                            <div className="text-muted-foreground">
+                              {t(
+                                `spending:tabContent.${granularity === "day" ? "comparisonDays" : granularity === "week" ? "comparisonWeeks" : "comparisonMonths"}`,
+                              )}{" "}
+                              · {p.label}
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  aria-hidden
+                                  className="size-2 shrink-0 rounded-sm"
+                                  style={{ backgroundColor: theme.deep }}
+                                />
+                                {p.from
+                                  ? comparisonBucketLabel(p.from, p.to)
+                                  : comparisonLabels.current}
+                              </span>
+                              <span className="shrink-0 font-medium tabular-nums">
+                                {p.value === null || p.future ? (
+                                  "—"
+                                ) : (
+                                  <PrivacyAmount value={p.value} currency={currency} />
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  aria-hidden
+                                  className="bg-muted-foreground size-2 shrink-0 rounded-sm opacity-40"
+                                />
+                                {p.priorFrom
+                                  ? comparisonBucketLabel(p.priorFrom, p.priorTo)
+                                  : comparisonLabels.prior}
+                              </span>
+                              <span className="shrink-0 font-medium tabular-nums">
+                                {p.priorValue === null ? (
+                                  "—"
+                                ) : (
+                                  <PrivacyAmount value={p.priorValue} currency={currency} />
+                                )}
+                              </span>
+                            </div>
+                            {p.value !== null && p.priorValue !== null && !p.future && (
+                              <div className="border-border flex items-center justify-between gap-4 border-t pt-2">
+                                <span className="text-muted-foreground">
+                                  {t("spending:tabContent.comparisonDifference")}
+                                </span>
+                                <span className="font-medium tabular-nums">
+                                  <PrivacyAmount
+                                    value={p.value - p.priorValue}
+                                    currency={currency}
+                                  />
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="text-muted-foreground">{p.key}</div>
+                            <div className="text-foreground font-semibold tabular-nums">
+                              {p.future || p.value === null ? (
+                                "—"
+                              ) : (
+                                <PrivacyAmount value={p.value} currency={currency} />
+                              )}
+                            </div>
+                          </>
+                        )}
+                        {!showComparison && avgValue > 0 && (
                           <div className="text-muted-foreground/70 mt-1 flex items-center gap-1.5 tabular-nums">
                             <span
                               aria-hidden
@@ -1060,7 +1331,7 @@ export default function SpendingTabContent() {
                     );
                   }}
                 />
-                {avgValue > 0 && (
+                {!showComparison && avgValue > 0 && (
                   <ReferenceLine
                     y={avgValue}
                     stroke="var(--muted-foreground)"
@@ -1070,14 +1341,18 @@ export default function SpendingTabContent() {
                 )}
                 <Bar
                   dataKey="value"
+                  name={comparisonLabels.current}
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={28}
+                  maxBarSize={showComparison ? 20 : 28}
                   isAnimationActive={false}
                   onClick={(data: unknown) => {
-                    const entry = ((data as { payload?: (typeof barData)[number] })?.payload ??
-                      data) as (typeof barData)[number];
-                    if (!entry || entry.future || entry.value <= 0) return;
-                    const bucket = barKeyToRange(entry.key, granularity);
+                    const entry = ((data as { payload?: ComparisonChartRow })?.payload ??
+                      data) as ComparisonChartRow;
+                    if (!entry || entry.future || entry.value === null || entry.value <= 0) return;
+                    const bucket =
+                      entry.from && entry.to
+                        ? { from: entry.from, to: entry.to }
+                        : barKeyToRange(entry.key, granularity);
                     const rangeStart = dateRange?.from
                       ? formatDateISO(dateRange.from)
                       : bucket.from;
@@ -1087,15 +1362,57 @@ export default function SpendingTabContent() {
                     navigate(`/activities?tab=spending&from=${from}&to=${to}`);
                   }}
                 >
-                  {barData.map((entry, i) => (
+                  {chartData.map((entry, i) => (
                     <Cell
                       key={`cell-${i}`}
                       fill={entry.future ? FUTURE_BAR : "url(#spending-bar)"}
                       opacity={entry.future ? 0.7 : 1}
-                      style={{ cursor: entry.future || entry.value <= 0 ? "default" : "pointer" }}
+                      style={{
+                        cursor:
+                          entry.future || entry.value === null || entry.value <= 0
+                            ? "default"
+                            : "pointer",
+                      }}
                     />
                   ))}
                 </Bar>
+                {showComparison && (
+                  <Bar
+                    dataKey="priorValue"
+                    name={comparisonLabels.prior}
+                    fill="var(--muted-foreground)"
+                    fillOpacity={0.4}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={20}
+                    isAnimationActive={false}
+                    onClick={(data: unknown) => {
+                      const entry = ((data as { payload?: ComparisonChartRow })?.payload ??
+                        data) as ComparisonChartRow;
+                      if (
+                        !entry?.priorFrom ||
+                        !entry.priorTo ||
+                        entry.priorValue === null ||
+                        entry.priorValue <= 0
+                      )
+                        return;
+                      navigate(
+                        `/activities?tab=spending&from=${entry.priorFrom}&to=${entry.priorTo}`,
+                      );
+                    }}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={`prior-${index}`}
+                        style={{
+                          cursor:
+                            entry.priorValue !== null && entry.priorValue > 0
+                              ? "pointer"
+                              : "default",
+                        }}
+                      />
+                    ))}
+                  </Bar>
+                )}
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -1106,6 +1423,12 @@ export default function SpendingTabContent() {
               onValueChange={handleIntervalSelect}
               customMonth={customMonth}
               customRange={customRange}
+              customYear={customYear}
+              maxYear={Number(todayISO.slice(0, 4)) - 1}
+              onCustomYearChange={handleCustomYearSelect}
+              selectionLabel={
+                customMonth || customYear !== null ? selectedIntervalDescription : undefined
+              }
               maxMonth={maxPickerMonth}
               onCustomMonthChange={handleCustomMonthSelect}
               onCustomRangeChange={handleCustomRangeSelect}
@@ -1644,7 +1967,8 @@ function CategoryRankedBar({
   const derived = useMemo(() => {
     const categoryGroup = new Map<string, { id: string; name: string; color: string | null }>();
     for (const g of groupRows) {
-      for (const cat of g.categories) {
+      // Rows here are spending categories; a savings one may share an id.
+      for (const cat of g.categories.filter((c) => c.taxonomyId === SPENDING_TAXONOMY)) {
         categoryGroup.set(cat.categoryId, {
           id: g.group.id,
           name: g.group.name,

@@ -220,9 +220,6 @@ export function AllocationDetailSheet({
       <SheetContent
         className="flex w-full flex-col overflow-hidden sm:max-w-xl"
         initialFocus={titleRef}
-        style={{
-          paddingTop: "max(env(safe-area-inset-top, 0px), 1.5rem)",
-        }}
       >
         <SheetHeader className="mt-4">
           <SheetTitle ref={titleRef} tabIndex={-1} className="outline-none">
@@ -304,7 +301,7 @@ export function AllocationDetailSheet({
                     {/* Children rows */}
                     {hasChildren && (
                       <div
-                        className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+                        className={`grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none ${
                           isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                         }`}
                       >

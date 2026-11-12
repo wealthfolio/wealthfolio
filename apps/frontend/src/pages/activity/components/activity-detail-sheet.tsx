@@ -1,7 +1,10 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionExpiration, formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
-import type { ActivityDetails } from "@/lib/types";
+import { getActivityChargeLines } from "@/lib/activity-charges";
+import type { ActivityCharge, ActivityDetails } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -18,6 +21,7 @@ import {
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { AmountDisplay } from "@wealthfolio/ui/components/financial/amount-display";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { getProviderMappingReasons } from "./activity-data-grid/types";
@@ -72,6 +76,27 @@ function DetailRow({ label, value, icon }: DetailRowProps) {
   );
 }
 
+/** A fee or tax total's lines, labelled as the statement listed them. */
+function ChargeLineRows({
+  lines,
+  currency,
+  isHidden,
+}: {
+  lines: ActivityCharge[];
+  currency: string;
+  isHidden: boolean;
+}) {
+  return lines.map((line, index) => (
+    <div
+      key={`${line.category}-${index}`}
+      className="text-muted-foreground flex items-start justify-between gap-4 ps-4 pb-1 text-xs"
+    >
+      <span>{line.label}</span>
+      <AmountDisplay value={Number(line.amount)} currency={currency} isHidden={isHidden} />
+    </div>
+  ));
+}
+
 interface DetailSectionProps {
   title: string;
   icon?: React.ReactNode;
@@ -118,6 +143,10 @@ export function ActivityReviewReasons({
 
 export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDetailSheetProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
+  // The footer Close button is the first control; focusing it would open a tall sheet
+  // scrolled to the bottom.
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const numberFormatting = useNumberFormatting();
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
@@ -135,6 +164,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
     : null;
 
   const subtypeDisplay = activity.subtype ? localizeActivitySubtypeName(t, activity.subtype) : null;
+  const chargeLines = getActivityChargeLines(activity);
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "—";
@@ -161,9 +191,16 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        initialFocus={titleRef}
+        className={cn(
+          "overflow-y-auto",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-lg",
+        )}
+      >
         <SheetHeader className="pb-4">
-          <SheetTitle className="flex items-center gap-3">
+          <SheetTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-3 outline-none">
             <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
               <Icons.Receipt className="text-primary h-5 w-5" />
             </div>
@@ -181,8 +218,8 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
         <div className="space-y-6 pb-6 md:pb-8">
           {/* Header Summary */}
           <div className="from-primary/5 to-primary/10 rounded-xl border bg-gradient-to-br p-4">
-            <div className="flex items-start justify-between">
-              <div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <div className="text-muted-foreground mb-1 text-xs tracking-wide uppercase">
                   {localizeActivityTypeName(t, activity.activityType)}
                 </div>
@@ -207,7 +244,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
                   </>
                 )}
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex shrink-0 flex-col items-end gap-2">
                 {statusConfig && <Badge variant={statusConfig.variant}>{statusLabel}</Badge>}
                 {activity.needsReview && (
                   <Badge variant="outline" className="border-warning text-warning">
@@ -305,33 +342,51 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               label={isOption ? t("activity:detail.total_premium") : t("activity:field_amount")}
               value={<StoredAmount activity={activity} isHidden={isBalanceHidden} />}
             />
-            {Number(activity.fee) !== 0 && (
-              <DetailRow
-                label={t("activity:field_fee")}
-                value={
-                  <AmountDisplay
-                    value={Number(activity.fee)}
+            {(Number(activity.fee ?? 0) !== 0 || !!chargeLines?.fee.length) && (
+              <>
+                <DetailRow
+                  label={t("activity:field_fee")}
+                  value={
+                    <AmountDisplay
+                      value={Number(activity.fee ?? 0)}
+                      currency={activity.currency}
+                      isHidden={isBalanceHidden}
+                    />
+                  }
+                />
+                {chargeLines && (
+                  <ChargeLineRows
+                    lines={chargeLines.fee}
                     currency={activity.currency}
                     isHidden={isBalanceHidden}
                   />
-                }
-              />
+                )}
+              </>
             )}
-            {Number(activity.tax ?? 0) !== 0 && (
-              <DetailRow
-                label={
-                  activity.activityType === ActivityType.DIVIDEND
-                    ? t("activity:detail.withholding_tax")
-                    : t("activity:type_tax")
-                }
-                value={
-                  <AmountDisplay
-                    value={Number(activity.tax ?? 0)}
+            {(Number(activity.tax ?? 0) !== 0 || !!chargeLines?.tax.length) && (
+              <>
+                <DetailRow
+                  label={
+                    activity.activityType === ActivityType.DIVIDEND
+                      ? t("activity:detail.withholding_tax")
+                      : t("activity:type_tax")
+                  }
+                  value={
+                    <AmountDisplay
+                      value={Number(activity.tax ?? 0)}
+                      currency={activity.currency}
+                      isHidden={isBalanceHidden}
+                    />
+                  }
+                />
+                {chargeLines && (
+                  <ChargeLineRows
+                    lines={chargeLines.tax}
                     currency={activity.currency}
                     isHidden={isBalanceHidden}
                   />
-                }
-              />
+                )}
+              </>
             )}
             {activity.fxRate && (
               <DetailRow

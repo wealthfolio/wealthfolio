@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { Icons, useAmountFormatting, buttonVariants } from "@wealthfolio/ui";
 
 import { useBudget } from "@/features/spending/hooks/use-budget";
+import { groupAllocation, totalAllocation } from "@/features/spending/lib/budget-allocation";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
@@ -21,7 +22,8 @@ export function BudgetOverviewCard() {
   const fmt = (amount: number, currency: string) =>
     isBalanceHidden ? "••••" : formatAmountWhole(amount, currency, formatting);
 
-  const spendingPlanned = budget?.computed.totals.spendingPlanned ?? 0;
+  // The plan's share of income: spending budgets and savings goals.
+  const spendingPlanned = budget ? totalAllocation(budget.computed.totals) : 0;
   const incomePlanned = budget?.computed.totals.incomePlanned ?? 0;
   const currency = budget?.computed.currency ?? "USD";
 
@@ -30,7 +32,7 @@ export function BudgetOverviewCard() {
       id: row.group.id,
       name: row.group.name,
       color: row.group.color,
-      planned: row.plannedTotal,
+      planned: groupAllocation(row),
     }));
   }, [budget?.computed.groupRows]);
 

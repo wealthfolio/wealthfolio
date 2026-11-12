@@ -467,12 +467,11 @@
   /* Field height; a container can set it for compact fields */
   --input-height: var(--control-size);
 
-  --inset-top: env(safe-area-inset-top, 0px);
-  --inset-right: env(safe-area-inset-right, 0px);
-  /* The Android app's WebView reports no bottom safe area, so the app sends the
-     navigation bar's height (use-android-system-bars.ts). Use this, not env(). */
-  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-navigation-bar-inset, 0px));
-  --inset-left: env(safe-area-inset-left, 0px);
+  /* The native bridge supplies edges that older Android WebViews omit from env(). */
+  --inset-top: max(env(safe-area-inset-top, 0px), var(--android-inset-top, 0px));
+  --inset-right: max(env(safe-area-inset-right, 0px), var(--android-inset-right, 0px));
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-inset-bottom, 0px));
+  --inset-left: max(env(safe-area-inset-left, 0px), var(--android-inset-left, 0px));
 
   --mobile-nav-ui-height: 4rem; /* nav bar height */
   --mobile-nav-gap: 0.75rem; /* space between nav and bottom */
@@ -539,17 +538,23 @@
   --heatmap-loss-high: var(--heatmap-blue-high);
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (width < 64rem) {
   :root {
     --control-size: max(var(--control-height), 2.75rem);
   }
 }
 
-/* The display step below md: 1.875rem, and never wider than 10.5vw (34px at 320px),
-   so a hero figure and the privacy toggle beside it stay on one line at every Text
-   size. */
+/* The display step below md: 1.875rem, and never wider than 8.25vw (26.4px at 320px),
+   so a hero figure such as CA$1,000,000.00 and the privacy toggle beside it stay on
+   one line. The large Text sizes allow 10.5vw (39.4px at 375px) so the figure still
+   grows with the setting; there a seven-figure CA$ total puts the toggle under it
+   below 375px at Large and up to 414px at Extra large (wider in Arabic). */
 @media (width < 48rem) {
   :root {
+    --text-display: min(1.875rem, 8.25vw);
+  }
+  :root[data-text-size="large"],
+  :root[data-text-size="extra-large"] {
     --text-display: min(1.875rem, 10.5vw);
   }
 }
@@ -798,8 +803,8 @@ body.qr-scan-active > .qr-overlay {
 
   /* Safe area left/right to pair with your existing top/bottom classes */
   .safe-area-inset-x {
-    padding-left: env(safe-area-inset-left, 0);
-    padding-right: env(safe-area-inset-right, 0);
+    padding-left: var(--inset-left);
+    padding-right: var(--inset-right);
   }
 
   /*
@@ -932,6 +937,19 @@ body.qr-scan-active > .qr-overlay {
   /* Settings lists and the feature banner put a switch or button at the very edge of
      an unpadded row, so clipping that row would cut off the control's focus ring and
      its enlarged touch area. Their rows wrap their text instead of overflowing. */
+  /* A form field's wrapper is a .grid. Clipping it would cut the input's focus outline,
+     which sits outside the field, down to its top edge. Its single column already
+     shrinks to the field's width. */
+  [data-slot="form-item"] {
+    overflow-x: visible;
+  }
+
+  /* Below sm an alert dialog's buttons fill its footer, so clipping the footer would
+     cut their focus outline at both sides. They wrap their labels instead. */
+  [data-slot="alert-dialog-footer"] {
+    overflow-x: visible;
+  }
+
   .settings-list .flex,
   .settings-list .grid,
   .feature-status-banner .flex,
@@ -987,6 +1005,17 @@ number-flow-react.muted-fraction::part(fraction) {
   }
 }
 
+/* A text caret's blink, for an input shown empty before it has focus. */
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes subtle-pulse {
   0%,
   100% {
@@ -1005,18 +1034,34 @@ number-flow-react.muted-fraction::part(fraction) {
   animation: subtle-pulse 1.2s ease-in-out infinite;
 }
 
-/* Reduced motion: animations and transitions still run, so code waiting for
-   them (Base UI's exit animations) completes, but they take no time and
-   repeat once. Motion components follow the same setting through
-   MotionConfig in App.tsx. */
+/* Reduced motion: nothing slides, zooms or spins into place. Fades, colour
+   changes and activity indicators (spinners, skeleton pulses, progress bars)
+   still run. Popups and dialogs enter and leave through tw-animate-css, whose
+   movement comes from these variables, so they fade in place; this rule is
+   unlayered, so it wins over the zoom-in-* and slide-in-* utilities.
+   Transform transitions (chevrons that turn, switch thumbs, hover scales)
+   take their end state at once; a component that wants another transition
+   there sets it with an important motion-reduce: class, as the sheet's fade
+   does. Components that move by other transitions (sidebar width, accordion
+   and tree-view panels) handle it with motion-reduce:, Motion components
+   follow MotionConfig in App.tsx, and Recharts stops animating on its own. */
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
   ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
     scroll-behavior: auto !important;
+  }
+
+  .transition-transform {
+    transition-property: none;
   }
 }
 

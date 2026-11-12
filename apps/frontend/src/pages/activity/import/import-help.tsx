@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/components/external-link";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useTranslation } from "react-i18next";
 
@@ -103,14 +104,14 @@ function ActivitiesHelpContent({ transactionImport }: { transactionImport: boole
 
         <p className="text-xs">
           {t("activity:import.help.activitiesDocsPrefix")}
-          <a
+          <ExternalLink
             href="https://wealthfolio.app/docs/concepts/activity-types"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
           >
             {t("activity:import.help.activitiesDocsLink")}
-          </a>
+          </ExternalLink>
           .
         </p>
       </div>

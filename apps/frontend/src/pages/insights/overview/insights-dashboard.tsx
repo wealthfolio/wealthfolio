@@ -160,6 +160,7 @@ export function InsightsDashboard({
     movers: t("insights:highlights.movers"),
     concentration: t("insights:highlights.concentration"),
     breakdown: t("insights:customize.breakdown"),
+    holdings: t("insights:highlights.holdings"),
   };
   const visibleLayouts = useMemo(
     () =>
@@ -360,7 +361,7 @@ export function InsightsDashboard({
           side={isMobile ? "bottom" : "inline-end"}
           className={
             isMobile
-              ? "max-h-[85dvh] overflow-y-auto rounded-t-3xl pb-[calc(var(--inset-bottom)+1.5rem)]"
+              ? "mx-1 overflow-y-auto rounded-t-4xl pb-6 [--overlay-max-height:85dvh]"
               : "overflow-y-auto"
           }
         >

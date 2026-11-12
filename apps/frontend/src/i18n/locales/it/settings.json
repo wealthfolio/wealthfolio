@@ -99,8 +99,16 @@
   "limits_add_button": "Aggiungi limite",
   "limits_add_aria": "Aggiungi limite di contributo",
   "limits_current_year": "Anno corrente ({{year}})",
+  "limits_future_years": "Anni futuri",
   "limits_previous_years": "Anni precedenti",
   "limits_show_previous": "Mostra",
+  "limits_projected_badge": "Proiettato",
+  "limits_projected_description": "Generato automaticamente dal tuo limite ricorrente del {{year}}. Aggiungilo per personalizzare l'importo di quest'anno.",
+  "limits_projected_add_button": "Aggiungi quest'anno",
+  "limits_projected_add_aria": "Aggiungi {{group}} per il {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "Nessun conto selezionato",
+  "limits_choose_accounts": "Scegli conti",
+  "limits_accounts_more": "+{{number}} altri",
   "limits_empty_title": "Nessun limite di contributo per il {{year}}!",
   "limits_empty_description": "Non hai limiti di contributo per l'anno corrente. Inizia ad aggiungere i tuoi limiti di contributo.",
   "limits_add_first": "Aggiungi un limite di contributo",
@@ -114,15 +122,12 @@
   "limits_delete_description": "Questa azione non può essere annullata.",
   "limits_form_update_title": "Aggiorna limite di contributo",
   "limits_form_add_title": "Aggiungi limite di contributo",
-  "limits_form_update_description": "Aggiorna le informazioni del limite di contributo",
   "limits_form_add_description": "Aggiungi un nuovo limite di contributo.",
   "limits_form_group_name_label": "Nome gruppo",
   "limits_form_group_name_placeholder": "es. TFSA, 401(k), RRSP",
-  "limits_form_group_name_description": "Nome del gruppo di limite di contributo",
   "limits_form_group_name_required": "Il nome del gruppo è obbligatorio",
   "limits_form_limit_amount_label": "Importo del limite",
   "limits_form_limit_amount_placeholder": "es. 6.000,00",
-  "limits_form_limit_amount_description": "Importo massimo di contributo consentito",
   "limits_form_limit_amount_number": "L'importo del limite deve essere un numero positivo.",
   "limits_form_limit_amount_non_negative": "L'importo del limite non può essere negativo.",
   "limits_form_year_label": "Anno",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "Data di inizio",
   "limits_form_end_date_label": "Data di fine",
   "limits_form_date_description": "Le date predefinite vanno dal 1° gennaio al 31 dicembre dell'anno selezionato",
+  "limits_form_recurring_label": "Si ripete ogni anno",
+  "limits_form_recurring_description": "Mostra automaticamente un limite proiettato per gli anni futuri con lo stesso importo, finché non aggiungi o modifichi quell'anno.",
+  "limits_form_accounts_label": "Conti conteggiati",
+  "limits_form_accounts_description": "I contributi su questi conti vengono conteggiati in questo limite.",
+  "limits_form_accounts_selected": "{{selected}} di {{total}} selezionati",
+  "limits_form_accounts_search": "Cerca conti",
+  "limits_form_accounts_no_match": "Nessun conto corrisponde alla ricerca.",
+  "limits_form_accounts_empty": "Nessun conto può ancora ricevere contributi.",
   "limits_form_updating": "Aggiornamento...",
   "limits_form_saving": "Salvataggio...",
   "limits_form_update_button": "Aggiorna",
-  "limits_select_accounts": "Seleziona conti",
-  "limits_loading": "Caricamento...",
-  "limits_contributed": "Contribuito",
-  "limits_saving": "Salvataggio...",
-  "limits_save_selected_accounts": "Salva conti selezionati",
   "addons_info_title": "🔌 Add-on ed estensioni",
   "addons_info_description": "Gli add-on ti permettono di estendere Wealthfolio con nuove funzionalità, analisi personalizzate e funzioni aggiuntive per migliorare la tua gestione finanziaria.",
   "addons_security_notice": "Avviso di sicurezza:",
@@ -176,17 +184,140 @@
   "export_title": "Esportazione dati",
   "export_description": "Conserva un backup del portafoglio o esporta i dati per usarli altrove.",
   "export_tab_backup": "Backup",
-  "export_section_description": "Esporta tipi di dati specifici in vari formati per l'analisi o l'uso esterno.",
-  "export_format_title": "Scegli il formato preferito",
-  "export_format_csv_description": "Formato foglio di calcolo semplice e ampiamente compatibile",
-  "export_format_json_description": "Dati strutturati per un facile accesso programmatico",
-  "export_customize_title": "Personalizza l'esportazione",
-  "export_type_accounts_description": "I tuoi conti finanziari",
-  "export_type_activities": "Movimenti",
-  "export_type_activities_description": "Cronologia dettagliata delle transazioni e registri",
-  "export_type_goals_description": "Obiettivi finanziari e monitoraggio dei progressi",
-  "export_type_portfolio_history": "Cronologia del portafoglio",
-  "export_type_portfolio_history_description": "La performance del tuo portafoglio nel tempo, incluse valutazioni, guadagni e movimenti di liquidità.",
+  "data_export": {
+    "intro": "File leggibili da fogli di calcolo e altre app. Non possono essere ripristinati in Wealthfolio: per passare a un altro dispositivo, usa un backup.",
+    "all_title": "Esporta tutti i tuoi dati",
+    "all_description_csv": "Un unico ZIP con un file CSV per ogni set di dati e un README che li descrive.",
+    "all_description_json": "Un unico file JSON con ogni set di dati in una sezione.",
+    "all_info": "Le proiezioni degli obiettivi e i piani di ammortamento dei prestiti non sono inclusi, perché cambiano ogni giorno. Esportali dall’obiettivo o dal prestito.",
+    "all_info_label": "Informazioni sulle esportazioni dei dati",
+    "all_button": "Esporta tutto",
+    "all_pending": "Esportazione…",
+    "format_label": "Formato del file",
+    "include_archived": "Includi conti archiviati",
+    "include_archived_help": "Aggiunge i conti archiviati con i relativi movimenti, lotti e pagamenti dei prestiti.",
+    "dates_title": "Date",
+    "start_date": "Da",
+    "end_date": "A",
+    "dates_help": "Limita movimenti, vendite, prezzi, valutazioni e cronologie. Lascia vuoto per includere tutte le date.",
+    "date_order_error": "La data di inizio è successiva alla data di fine.",
+    "clear_dates": "Cancella date",
+    "datasets_title": "Scegli cosa esportare",
+    "datasets_description": "Scarica un set di dati alla volta.",
+    "groups": {
+      "accounts": "Conti e movimenti",
+      "investments": "Investimenti",
+      "net-worth": "Patrimonio netto",
+      "spending": "Spese e budget",
+      "planning": "Pianificazione",
+      "organization": "Organizzazione"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Conti",
+        "description": "I tuoi conti con l’ultimo saldo, con quelli archiviati contrassegnati"
+      },
+      "activities": {
+        "name": "Movimenti",
+        "description": "Ogni transazione, con saldo disponibile e categoria di spesa"
+      },
+      "holdings": {
+        "name": "Posizioni",
+        "description": "Valore, costo e guadagni di ogni posizione"
+      },
+      "lots": {
+        "name": "Lotti",
+        "description": "Lotti aperti e chiusi con il relativo costo di carico"
+      },
+      "realized-gains": {
+        "name": "Guadagni realizzati",
+        "description": "Ogni vendita abbinata ai lotti che ha chiuso"
+      },
+      "manual-prices": {
+        "name": "Prezzi manuali",
+        "description": "Prezzi che hai inserito per gli asset di cui stabilisci tu il prezzo"
+      },
+      "income": {
+        "name": "Reddito",
+        "description": "Dividendi e interessi per mese, per ogni conto"
+      },
+      "income-by-source": {
+        "name": "Reddito per fonte",
+        "description": "Reddito da ogni posizione, in totale e per anno"
+      },
+      "assets-and-liabilities": {
+        "name": "Asset e passività",
+        "description": "Immobili, veicoli, beni di valore e prestiti, con le condizioni dei prestiti"
+      },
+      "asset-valuations": {
+        "name": "Valutazioni degli asset",
+        "description": "Ogni valore che hai registrato per questi asset e passività"
+      },
+      "loan-payments": {
+        "name": "Pagamenti dei prestiti",
+        "description": "Pagamenti collegati a ogni prestito"
+      },
+      "net-worth-history": {
+        "name": "Cronologia del patrimonio netto",
+        "description": "Patrimonio netto giornaliero: investimenti, altri asset e passività"
+      },
+      "portfolio-history": {
+        "name": "Cronologia del portafoglio",
+        "description": "Valore giornaliero di ogni conto"
+      },
+      "budgets": {
+        "name": "Budget",
+        "description": "Importi per ogni periodo, con le impostazioni di riporto"
+      },
+      "budget-actuals": {
+        "name": "Budget vs effettivo",
+        "description": "A budget, speso e rimanente per categoria, mese per mese"
+      },
+      "budget-groups": {
+        "name": "Gruppi di budget",
+        "description": "Gruppi e le categorie di ciascuno"
+      },
+      "spending-rules": {
+        "name": "Regole di categorizzazione",
+        "description": "Regole che categorizzano automaticamente le transazioni"
+      },
+      "spending-events": {
+        "name": "Eventi",
+        "description": "Viaggi e altri eventi, con quanto è stato speso per ciascuno"
+      },
+      "goals": {
+        "name": "Obiettivi",
+        "description": "Impostazioni del piano, conti collegati e avanzamento"
+      },
+      "contribution-limits": {
+        "name": "Limiti di contributo",
+        "description": "Limiti e conti a cui si applicano"
+      },
+      "portfolios": {
+        "name": "Portafogli",
+        "description": "Gruppi di conti"
+      },
+      "categories": {
+        "name": "Categorie",
+        "description": "Tutte le categorie di ogni classificazione, comprese le spese"
+      },
+      "classifications": {
+        "name": "Classificazioni degli asset",
+        "description": "La categoria a cui appartiene ogni asset"
+      }
+    },
+    "rows_one": "{{count}} riga",
+    "rows_other": "{{count}} righe",
+    "rows_many": "{{count}} righe",
+    "daily": "Valori giornalieri",
+    "holdings_today": "Posizioni attuali",
+    "none_yet": "Ancora nessun dato",
+    "download": "Scarica {{name}}",
+    "downloading": "Download di {{name}}…",
+    "summary_error": "Impossibile contare i tuoi dati. Puoi comunque esportarli.",
+    "empty": "In questo set di dati non c’è ancora nulla da esportare.",
+    "empty_all": "Non c’è ancora nulla da esportare."
+  },
   "backup_title": "Backup locali",
   "backup_export_dialog_title": "Esporta backup",
   "backup_export_protected": "Con password (consigliato)",
@@ -367,9 +498,6 @@
   "about_db_path": "Percorso del database",
   "about_copy_db_path": "Copia il percorso del database",
   "about_copy_logs_dir": "Copia la directory dei log",
-  "export_type_holdings_description": "Posizioni attuali con dati di valutazione, performance, allocazione e strumento",
-  "export_exporting_item": "Esportazione di {{name}}...",
-  "export_export_item": "Esporta {{name}}",
   "backup_unknown_date": "Data sconosciuta",
   "backup_creating_short": "Salvataggio del backup…",
   "backup_empty_title": "Ancora nessun backup",
@@ -1073,7 +1201,33 @@
       "tab_income_other": "Reddito ({{count}})",
       "tab_savings_one": "Risparmio ({{count}})",
       "tab_savings_many": "Risparmio ({{count}})",
-      "tab_savings_other": "Risparmio ({{count}})"
+      "tab_savings_other": "Risparmio ({{count}})",
+      "merge": {
+        "description": "Sposta tutte le transazioni, le regole e i budget da {{name}}.",
+        "history": "I report passati useranno la nuova categoria. Questa azione è irreversibile.",
+        "destination": "Sposta in…",
+        "choose": "Scegli una categoria",
+        "budgets": "Budget · {{name}}",
+        "confirm": "Sposta ed elimina",
+        "error": "L’unione non è riuscita o i dati sono cambiati. Aggiorna l’anteprima, controlla la destinazione e riprova.",
+        "refresh": "Aggiorna anteprima",
+        "none": "Nessuna destinazione idonea. Risolvi le restrizioni seguenti o crea una categoria adatta.",
+        "blocked": {
+          "invalid_destination": "Scegli un’altra categoria nello stesso elenco di spese, entrate o risparmi.",
+          "children": "Sposta o unisci prima le sottocategorie. Le categorie con sottocategorie non possono essere unite.",
+          "asset_references": "Rimuovi prima le classificazioni degli asset e i riferimenti agli obiettivi di allocazione.",
+          "category_rollover": "Rimuovi prima le impostazioni di riporto salvate di entrambe le categorie, anche quelle disattivate.",
+          "group_rollover": "Disattiva il riporto dei gruppi di spesa interessati prima di cambiare gruppo. È consentito unire all’interno dello stesso gruppo.",
+          "exclusions": "Origine e destinazione devono avere la stessa impostazione effettiva «Escludi dalle spese», comprese le esclusioni ereditate.",
+          "budget_destination": "Questa categoria ha obiettivi di budget. Entrambe le categorie devono essere di primo livello affinché restino efficaci."
+        },
+        "period": "Mese",
+        "current": "Attuale",
+        "added": "Aggiunto",
+        "after": "Nuovo totale",
+        "monthlyDefault": "Mensile base",
+        "budgetHint": "Gli altri mesi usano l’importo mensile predefinito."
+      }
     },
     "events": {
       "heading": "Eventi di spesa",
@@ -1152,6 +1306,7 @@
   "fx_err_rate_negative": "Il tasso deve essere un numero non negativo.",
   "fx_err_source_required": "La fonte dei dati è obbligatoria",
   "fx_err_rate_invalid": "Inserisci un tasso di cambio valido.",
+  "fx_err_quote_unit": "{{code}} è una sottounità di {{major}}. Inserisci invece il tasso in {{major}}.",
   "fx_from_currency": "Valuta di origine",
   "fx_to_currency": "Valuta di destinazione",
   "fx_select_currency": "Seleziona valuta",
@@ -1294,6 +1449,8 @@
     "scope_locked_title": "Richiesto da Movimenti — conferma/scrittura",
     "scope_locked_market_data_title": "Richiesto da Dati di mercato — scrittura",
     "scope_locked_classification_title": "Richiesto da Classificazione degli asset — applica/scrittura",
+    "scope_locked_accounts_title": "Richiesto da Conti — scrittura",
+    "scope_locked_holdings_title": "Richiesto da Posizioni — scrittura",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1343,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Dati di mercato — scrittura",
-        "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
+        "description": "Salva prezzi (quotazioni) revisionati, aggiorna o sostituisce lo storico prezzi di un asset e cambia come viene quotato: simbolo, borsa, valuta di quotazione, modalità di quotazione o provider di dati. Richiede l'ambito posizioni (lettura)."
       },
       "spending_read": {
         "label": "Visualizza spese",
@@ -1356,6 +1513,14 @@
       "budget_write": {
         "label": "Gestisci budget",
         "description": "Modifica budget predefiniti e mensili, gruppi, riserve e riporti. Richiede Visualizza spese."
+      },
+      "accounts_write": {
+        "label": "Conti — scrittura",
+        "description": "Crea conti e modificane nome, tipo, gruppo, numero, modalità di monitoraggio e stato nascosto o archiviato. Richiede l'ambito conti (lettura)."
+      },
+      "holdings_write": {
+        "label": "Posizioni — scrittura",
+        "description": "Salva istantanee delle posizioni (posizioni e liquidità a una data) per i conti che monitorano le posizioni, e aggiungi asset alternativi e passività. Richiede l'ambito posizioni (lettura)."
       }
     },
     "preset": {
@@ -1611,15 +1776,6 @@
       "addingFailed": "Problema durante l’aggiunta del tasso di cambio: {{error}}",
       "deletingFailed": "Problema durante l’eliminazione del tasso di cambio: {{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "Nessun conto disponibile per l’esportazione.",
-        "activities": "Nessuna transazione disponibile per l’esportazione.",
-        "holdings": "Nessuna posizione disponibile per l’esportazione.",
-        "goals": "Nessun obiettivo disponibile per l’esportazione.",
-        "portfolio-history": "Nessuno storico del portafoglio disponibile per l’esportazione."
-      }
-    },
     "providerUpdateFailed": "Impossibile aggiornare le impostazioni del fornitore {{provider}}",
     "httpFailed": "Richiesta HTTP non riuscita.",
     "addonDownloadFailed": "Impossibile scaricare il componente aggiuntivo.",
@@ -1691,6 +1847,8 @@
       "performance_calculateHistory": "Calcolare lo storico della performance",
       "performance_calculateSummary": "Calcolare il riepilogo della performance",
       "performance_calculateAccountsSimple": "Calcolare la performance di base dei conti",
+      "allocation-targets_getAll": "Visualizzare gli obiettivi di allocazione",
+      "allocation-targets_getDrift": "Confrontare le posizioni con un obiettivo di allocazione",
       "currency_getAll": "Visualizzare i tassi di cambio",
       "currency_update": "Aggiornare i tassi di cambio",
       "currency_add": "Aggiungere nuovi tassi di cambio",
@@ -1746,6 +1904,10 @@
       "accounts": {
         "name": "Gestione dei conti",
         "description": "Accesso alle informazioni e alle impostazioni dei conti"
+      },
+      "allocation-targets": {
+        "name": "Obiettivi di allocazione",
+        "description": "Accesso in sola lettura agli obiettivi di allocazione e al confronto delle posizioni con tali obiettivi"
       },
       "alternative-assets": {
         "name": "Attività alternative",
@@ -1819,6 +1981,34 @@
         "name": "Accesso alla rete",
         "description": "Accesso agli host HTTPS esterni dichiarati tramite il broker di rete dell’host"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "Limiti di contribuzione",
+    "counted": "Contributi conteggiati",
+    "annual_limit": "Importo del limite",
+    "remaining": "Margine rimanente",
+    "used_percent": "{{percent}} utilizzato",
+    "period_ends": "Fine del periodo",
+    "over": "Limite superato",
+    "activities": "Movimenti contributivi",
+    "group_counted": "Contributi",
+    "group_not_counted": "Non conteggiato automaticamente",
+    "group_not_counted_hint": "I trasferimenti interni non vengono mai conteggiati. Se il denaro proviene dall’esterno dei tuoi conti, modifica l’attività e contrassegnala come esterna.",
+    "edit_activity": "Modifica attività",
+    "edit_activity_aria": "Modifica {{activity}}",
+    "edit_activity_error": "Impossibile aprire questa attività. Riprova.",
+    "count_activity": "Conteggia {{activity}} in questo limite",
+    "activity_unchanged": "Cambia solo l’utilizzo di questo limite. I movimenti del conto restano invariati.",
+    "save_success": "Trattamento del contributo salvato.",
+    "save_error": "Impossibile salvare il trattamento del contributo.",
+    "load_error": "Impossibile caricare questo limite di contribuzione.",
+    "no_activities": "Nessun movimento contributivo in questo periodo.",
+    "treatments": {
+      "counted": "Conteggiato",
+      "excludedByUser": "Escluso da te",
+      "internalTransfer": "Trasferimento interno",
+      "notExternal": "Non contrassegnato come esterno"
     }
   }
 }

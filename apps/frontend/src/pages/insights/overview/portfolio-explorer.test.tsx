@@ -8,8 +8,11 @@ import zhCommon from "@/i18n/locales/zh/common.json";
 import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enInsights from "@/i18n/locales/en/insights.json";
 import zhInsights from "@/i18n/locales/zh/insights.json";
+import zhHantInsights from "@/i18n/locales/zh-Hant/insights.json";
+import arInsights from "@/i18n/locales/ar/insights.json";
 import type {
   Account,
+  AccountValueSource,
   CategoryAllocation,
   PortfolioAllocations,
   TaxonomyAllocation,
@@ -40,15 +43,30 @@ function allocations(): PortfolioAllocations {
   };
 }
 
-async function setup(data = allocations()) {
+interface SetupOptions {
+  language?: string;
+  accounts?: Account[];
+  accountValuations?: AccountValueSource[];
+}
+
+async function setup(
+  data = allocations(),
+  {
+    language = "zh",
+    accounts = [{ id: "account-1", name: "Equity" } as Account],
+    accountValuations = [{ accountId: "account-1", totalValueBase: 100 }],
+  }: SetupOptions = {},
+) {
   const i18n = createInstance();
   await i18n.use(initReactI18next).init({
-    lng: "zh",
+    lng: language,
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
       en: { common: enCommon, taxonomies: enTaxonomies, insights: enInsights },
       zh: { common: zhCommon, taxonomies: zhTaxonomies, insights: zhInsights },
+      "zh-Hant": { insights: zhHantInsights },
+      ar: { insights: arInsights },
     },
   });
   const onOpenAllocation = vi.fn();
@@ -57,8 +75,8 @@ async function setup(data = allocations()) {
       <PortfolioExplorer
         allocations={data}
         holdings={[]}
-        accounts={[{ id: "account-1", name: "Equity" } as Account]}
-        accountValuations={[{ accountId: "account-1", totalValueBase: 100 }]}
+        accounts={accounts}
+        accountValuations={accountValuations}
         currency="USD"
         onOpenAllocation={onOpenAllocation}
       />
@@ -164,4 +182,87 @@ describe("PortfolioExplorer taxonomy labels", () => {
     expect(screen.getAllByText("Equity")).toHaveLength(2);
     expect(data).toEqual(original);
   });
+});
+
+describe("PortfolioExplorer collapsed row counts", () => {
+  function withRows(count: number) {
+    const data = allocations();
+    data.assetClasses.categories = Array.from({ length: count }, (_, i) =>
+      category(`category-${i}`, `Category ${i + 1}`),
+    );
+    return data;
+  }
+
+  it.each([
+    { language: "en", top: "Top 5 items", other: "Other 2 items" },
+    { language: "zh", top: "前 5 项", other: "其他 2 项" },
+    { language: "zh-Hant", top: "前 5 項", other: "其他 2 項" },
+    { language: "ar", top: "أبرز 5 عناصر", other: "عنصران آخران" },
+  ])("renders complete $language labels for seven rows", async ({ language, top, other }) => {
+    await setup(withRows(7), { language });
+    expect(screen.getByText(top)).toBeInTheDocument();
+    expect(screen.getAllByText(other)).toHaveLength(2);
+    expect(screen.getByTitle(`${other} · 28.6%`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Category 5/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Category 6/ })).not.toBeInTheDocument();
+  });
+
+  it.each([0, 5, 6])("does not collapse %i rows", async (count) => {
+    await setup(withRows(count), { language: "en" });
+    expect(screen.queryByText("Top 5 items")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Other \d+ items$/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the bar aggregated while expanding the list and refreshes counts on language change", async () => {
+    const { i18n } = await setup(withRows(9), { language: "en" });
+    expect(screen.getByText("Top 5 items")).toBeInTheDocument();
+    expect(screen.getAllByText("Other 4 items")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(screen.queryByText("Top 5 items")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Category 9/ })).toBeInTheDocument();
+    expect(screen.getAllByText("Other 4 items")).toHaveLength(1);
+    await act(() => i18n.changeLanguage("zh"));
+    expect(screen.getByTitle("其他 4 项 · 44.4%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "收起" }));
+    expect(screen.getByText("前 5 项")).toBeInTheDocument();
+    expect(screen.getAllByText("其他 4 项")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /^Category 9/ })).not.toBeInTheDocument();
+  });
+
+  it.each(["ltr", "rtl"])(
+    "counts grouped rows rather than child accounts in %s",
+    async (direction) => {
+      const previousDirection = document.documentElement.dir;
+      document.documentElement.dir = direction;
+      try {
+        const accounts = Array.from(
+          { length: 14 },
+          (_, i) =>
+            ({
+              id: `account-${i}`,
+              name: `Account ${i}`,
+              group: `Group ${Math.floor(i / 2)}`,
+            }) as Account,
+        );
+        await setup(allocations(), {
+          language: "en",
+          accounts,
+          accountValuations: accounts.map((account) => ({
+            accountId: account.id,
+            totalValueBase: 100,
+          })),
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Accounts" }));
+        expect(screen.getByText("Top 5 items")).toBeInTheDocument();
+        expect(screen.getAllByText("Other 2 items")).toHaveLength(2);
+        fireEvent.click(screen.getByRole("button", { name: /^Group 0/ }));
+        expect(screen.getByText("Account 0")).toBeInTheDocument();
+        expect(screen.getByText("Account 1")).toBeInTheDocument();
+        expect(screen.getAllByText("Other 2 items")).toHaveLength(2);
+      } finally {
+        document.documentElement.dir = previousDirection;
+      }
+    },
+  );
 });

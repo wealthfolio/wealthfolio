@@ -11,11 +11,23 @@ import { act, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateActivity } from "@/adapters";
+import { createActivity, updateActivity } from "@/adapters";
 import type { Activity } from "@/lib/types";
 import { CashActivityForm } from "./cash-activity-form";
+
+// jsdom has neither; the phone layout's lists use both.
+if (typeof ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+}
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => undefined;
+}
 
 async function chooseAccount(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await user.click(screen.getByRole("combobox", { name: "Account" }));
@@ -49,7 +61,11 @@ vi.mock("@/hooks/use-settings", () => {
   const data = { baseCurrency: "CAD" };
   return { useSettings: () => ({ data }) };
 });
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
+const platform = vi.hoisted(() => ({ isMobile: false, isIOS: false }));
+vi.mock("@/hooks/use-platform", () => ({
+  useIsMobileViewport: () => platform.isMobile,
+  usePlatform: () => ({ isIOS: platform.isIOS }),
+}));
 vi.mock("@/hooks/use-taxonomies", () => {
   const result = { data: null };
   return { useTaxonomy: vi.fn(() => result) };
@@ -363,3 +379,177 @@ vi.mock("@/features/spending/components/activity-split-review-provider", () => (
   useActivitySplitReview: () => async (updates: unknown[]) => updates,
   isActivityEditCancelled: () => false,
 }));
+
+describe("CashActivityForm direct entry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createActivity).mockResolvedValue({ id: "quick-created" } as Activity);
+  });
+
+  it("requires an explicit expense account and places the amount first", async () => {
+    const user = userEvent.setup();
+    render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+    const account = screen.getByRole("combobox", { name: "Account" });
+    expect(account).toHaveTextContent("Select an account");
+    expect(screen.queryByRole("combobox", { name: "Type" })).not.toBeInTheDocument();
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+    expect(amount.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByText("Please select an account.")).toBeVisible();
+    expect(createActivity).not.toHaveBeenCalled();
+    await chooseAccount(user, /WS Visa Infinite/);
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(createActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: "card",
+          activityType: "WITHDRAWAL",
+          amount: 12.5,
+          currency: "CAD",
+        }),
+      ),
+    );
+  });
+
+  it("asks before discarding a changed type on an existing transaction", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<CashActivityForm open onOpenChange={onOpenChange} activity={foreignCharge} />, {
+      wrapper,
+    });
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    const options = await screen.findAllByRole("option");
+    const other = options.find((option) => option.getAttribute("aria-selected") !== "true");
+    await user.click(other!);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("reopens on the form, not on the screen it was closed on", async () => {
+    const user = userEvent.setup();
+    platform.isMobile = true;
+    const innerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+    try {
+      const { rerender } = render(
+        <CashActivityForm open onOpenChange={vi.fn()} activity={foreignCharge} />,
+        { wrapper },
+      );
+      // Matched loosely: the label may still be its key while translations load.
+      await user.click(await screen.findByRole("button", { name: /advanced/i }));
+      expect(await screen.findByRole("dialog", { name: /advanced/i })).toBeInTheDocument();
+
+      rerender(<CashActivityForm open={false} onOpenChange={vi.fn()} activity={foreignCharge} />);
+      rerender(<CashActivityForm open onOpenChange={vi.fn()} activity={foreignCharge} />);
+      await screen.findByRole("dialog", { name: /edit/i });
+      expect(screen.queryByRole("dialog", { name: /advanced/i })).not.toBeInTheDocument();
+    } finally {
+      platform.isMobile = false;
+      Object.defineProperty(window, "innerWidth", { value: innerWidth, configurable: true });
+    }
+  });
+
+  describe("amount caret on a phone", () => {
+    const innerWidth = window.innerWidth;
+    beforeEach(() => {
+      platform.isMobile = true;
+      Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+    });
+    afterEach(() => {
+      platform.isMobile = false;
+      platform.isIOS = false;
+      Object.defineProperty(window, "innerWidth", { value: innerWidth, configurable: true });
+    });
+
+    it("opens a new entry on the amount, using the real caret", async () => {
+      const { container } = render(
+        <CashActivityForm open onOpenChange={vi.fn()} intent="expense" />,
+        { wrapper },
+      );
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(amount).toHaveFocus());
+      expect(amount).toHaveAttribute("placeholder", "");
+      expect(container.ownerDocument.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("draws a caret on iOS until the amount is tapped", async () => {
+      platform.isIOS = true;
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(document.querySelector("[data-amount-caret]")).not.toBeNull());
+      await user.click(amount);
+      expect(document.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("drops the iOS caret once another field takes focus", async () => {
+      platform.isIOS = true;
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} intent="expense" />, { wrapper });
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await user.click(amount);
+      await user.click(screen.getByRole("textbox", { name: /notes/i }));
+      expect(amount).not.toHaveFocus();
+      expect(document.querySelector("[data-amount-caret]")).toBeNull();
+    });
+
+    it("focuses the amount on moving on from the type step", async () => {
+      const user = userEvent.setup();
+      render(<CashActivityForm open onOpenChange={vi.fn()} />, { wrapper });
+      expect(screen.queryByRole("textbox", { name: "Amount" })).not.toBeInTheDocument();
+      await chooseAccount(user, /WS Visa Infinite/);
+      await user.click(screen.getAllByRole("radio")[0]);
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      const amount = await screen.findByRole("textbox", { name: "Amount" });
+      await waitFor(() => expect(amount).toHaveFocus());
+    });
+  });
+
+  it("still asks before discarding after a save fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createActivity).mockRejectedValue(new Error("offline"));
+    const onOpenChange = vi.fn();
+    render(<CashActivityForm open onOpenChange={onOpenChange} intent="expense" />, { wrapper });
+    await chooseAccount(user, /WS Visa Infinite/);
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(createActivity).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("records income only in an eligible bank account", async () => {
+    const user = userEvent.setup();
+    render(<CashActivityForm open onOpenChange={vi.fn()} intent="income" />, { wrapper });
+    await user.click(screen.getByRole("combobox", { name: "Account" }));
+    expect(screen.queryByRole("option", { name: /WS Visa/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: /WS Chequing/ }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(createActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: "chequing",
+          activityType: "DEPOSIT",
+          currency: "CAD",
+        }),
+      ),
+    );
+  });
+
+  it("keeps an existing transaction's type when an intent is also supplied", () => {
+    render(
+      <CashActivityForm open onOpenChange={vi.fn()} intent="income" activity={foreignCharge} />,
+      { wrapper },
+    );
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Charge");
+    expect(screen.getByRole("combobox", { name: "Account" })).toHaveTextContent("WS Visa Infinite");
+  });
+});

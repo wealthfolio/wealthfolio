@@ -22,7 +22,7 @@ use crate::activity_allocations::{
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
-    within_spending_transfer_groups, SpendingClassification,
+    neutral_transfer_groups, SpendingClassification,
 };
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::budget::service::category_meta;
@@ -204,7 +204,12 @@ impl AnalyticsService {
             .get_activities_by_account_ids(&all_spending_accounts)
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let transfer_context_acts: Vec<&Activity> = activities.iter().collect();
-        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let transfer_groups = neutral_transfer_groups(
+            &transfer_context_acts,
+            &account_types,
+            self.activity_repo.as_ref(),
+            self.account_repo.as_ref(),
+        )?;
 
         let in_window = |a: &Activity, lo: DateTime<Utc>, hi: DateTime<Utc>| {
             a.activity_date >= lo && a.activity_date <= hi
@@ -904,17 +909,23 @@ fn event_overlaps_window(
     event_end: &str,
     window_start: Option<&DateTime<Utc>>,
     window_end: Option<&DateTime<Utc>>,
+    timezone: &str,
 ) -> bool {
     // Events have YYYY-MM-DD date strings; compare date keys lexicographically.
+    // Window bounds are instants, so read them as days in the user's timezone:
+    // the app sends local-day bounds, which fall on other UTC days.
+    let day_key = |instant: &DateTime<Utc>| {
+        wealthfolio_core::utils::time_utils::activity_date_in_user_timezone(*instant, timezone)
+            .format("%Y-%m-%d")
+            .to_string()
+    };
     if let Some(ws) = window_start {
-        let window_start_key = format!("{}-{:02}-{:02}", ws.year(), ws.month(), ws.day());
-        if event_end < window_start_key.as_str() {
+        if event_end < day_key(ws).as_str() {
             return false;
         }
     }
     if let Some(we) = window_end {
-        let window_end_key = format!("{}-{:02}-{:02}", we.year(), we.month(), we.day());
-        if event_start > window_end_key.as_str() {
+        if event_start > day_key(we).as_str() {
             return false;
         }
     }
@@ -1366,6 +1377,7 @@ impl AnalyticsService {
                     &ev.event.end_date,
                     window_start.as_ref(),
                     window_end.as_ref(),
+                    timezone,
                 )
             })
             .collect();
@@ -1598,6 +1610,7 @@ impl AnalyticsService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activity_classification::within_spending_transfer_groups;
     use async_trait::async_trait;
     use chrono::TimeZone;
     use rust_decimal::Decimal;
@@ -2216,26 +2229,59 @@ mod tests {
             "2024-01-30",
             "2024-02-02",
             Some(&start),
-            Some(&end)
+            Some(&end),
+            "UTC"
         ));
         assert!(event_overlaps_window(
             "2024-02-10",
             "2024-02-12",
             Some(&start),
-            Some(&end)
+            Some(&end),
+            "UTC"
         ));
         assert!(!event_overlaps_window(
             "2024-01-01",
             "2024-01-31",
             Some(&start),
-            Some(&end)
+            Some(&end),
+            "UTC"
         ));
         assert!(!event_overlaps_window(
             "2024-03-01",
             "2024-03-03",
             Some(&start),
-            Some(&end)
+            Some(&end),
+            "UTC"
         ));
+    }
+
+    /// A local-day window (as the app and the assistant tools send) selects
+    /// events on that day only, west and east of UTC.
+    #[test]
+    fn event_window_reads_bounds_as_local_days() {
+        let instant = |s: &str| DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
+        let cases = [
+            // Jan 1 in Toronto ends at 04:59Z on Jan 2.
+            (
+                "America/Toronto",
+                "2026-01-01T05:00:00Z",
+                "2026-01-02T04:59:59.999Z",
+            ),
+            // Jan 1 in Madrid starts at 23:00Z on Dec 31.
+            (
+                "Europe/Madrid",
+                "2025-12-31T23:00:00Z",
+                "2026-01-01T22:59:59.999Z",
+            ),
+        ];
+        for (timezone, start, end) in cases {
+            let (start, end) = (instant(start), instant(end));
+            let overlaps =
+                |day: &str| event_overlaps_window(day, day, Some(&start), Some(&end), timezone);
+            assert!(overlaps("2026-01-01"), "{timezone}");
+            assert!(!overlaps("2025-12-31"), "{timezone}");
+            assert!(!overlaps("2026-01-02"), "{timezone}");
+        }
     }
 
     #[test]

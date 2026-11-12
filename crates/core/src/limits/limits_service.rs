@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use chrono::{DateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 
+use crate::accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait};
 use crate::activities::ActivityRepositoryTrait;
 use crate::errors::{Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
@@ -13,8 +14,9 @@ use crate::utils::time_utils::{
 };
 
 use super::limits_model::{
-    AccountDeposit, ContributionActivity, ContributionLimit, DepositsCalculation,
-    NewContributionLimit,
+    AccountDeposit, ContributionActivity, ContributionActivityDetail, ContributionLimit,
+    ContributionLimitDetails, ContributionTreatment, DepositsCalculation, NewContributionLimit,
+    MAX_CONTRIBUTION_YEAR, MIN_CONTRIBUTION_YEAR,
 };
 use super::limits_traits::{ContributionLimitRepositoryTrait, ContributionLimitServiceTrait};
 use async_trait::async_trait;
@@ -27,6 +29,15 @@ pub struct ContributionLimitService {
 }
 
 impl ContributionLimitService {
+    fn validate_year(year: i32) -> Result<()> {
+        if !(MIN_CONTRIBUTION_YEAR..=MAX_CONTRIBUTION_YEAR).contains(&year) {
+            return Err(Error::Validation(ValidationError::InvalidInput(format!(
+                "Contribution year must be between {MIN_CONTRIBUTION_YEAR} and {MAX_CONTRIBUTION_YEAR}"
+            ))));
+        }
+        Ok(())
+    }
+
     pub fn new(
         fx_service: Arc<dyn FxServiceTrait>,
         limit_repository: Arc<dyn ContributionLimitRepositoryTrait>,
@@ -88,6 +99,157 @@ impl ContributionLimitService {
             .unwrap_or(false)
     }
 
+    fn account_ids(limit: &ContributionLimit) -> Vec<String> {
+        limit
+            .account_ids
+            .as_deref()
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+            .collect()
+    }
+
+    fn period(&self, limit: &ContributionLimit) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+        let year = limit.contribution_year;
+        if let (Some(start), Some(end)) = (&limit.start_date, &limit.end_date) {
+            if !Self::has_former_default_dates(year, start, end) {
+                let tz = self.user_timezone();
+                let day = |date: &str| {
+                    DateTime::parse_from_rfc3339(date)
+                        .map(|dt| user_date_from_utc(dt.with_timezone(&Utc), tz))
+                        .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))
+                };
+                let start = local_date_start_utc(day(start)?, tz)?;
+                let day_after_end = day(end)?
+                    .succ_opt()
+                    .expect("an RFC 3339 year ends far before chrono's last date");
+                return Ok((start, local_date_start_utc(day_after_end, tz)?));
+            }
+        }
+        local_year_utc_bounds(year, self.user_timezone())
+    }
+
+    fn classified_activities<'a>(
+        activities: &'a [ContributionActivity],
+        account_ids: &[String],
+    ) -> Vec<(&'a ContributionActivity, ContributionTreatment)> {
+        let limit_accounts: HashSet<&str> = account_ids.iter().map(String::as_str).collect();
+        let transfer_out_accounts: HashMap<&str, &str> = activities
+            .iter()
+            .filter(|a| a.activity_type == "TRANSFER_OUT")
+            .filter_map(|a| {
+                a.source_group_id
+                    .as_deref()
+                    .map(|group| (group, a.account_id.as_str()))
+            })
+            .collect();
+        activities
+            .iter()
+            .filter(|a| a.activity_type != "TRANSFER_OUT")
+            .map(|activity| {
+                let treatment = match activity.activity_type.as_str() {
+                    "DEPOSIT" => ContributionTreatment::Counted,
+                    "TRANSFER_IN" => match &activity.source_group_id {
+                        Some(group)
+                            if transfer_out_accounts
+                                .get(group.as_str())
+                                .is_some_and(|account| limit_accounts.contains(account)) =>
+                        {
+                            ContributionTreatment::InternalTransfer
+                        }
+                        Some(_) => ContributionTreatment::Counted,
+                        None if Self::is_external(activity) => ContributionTreatment::Counted,
+                        None => ContributionTreatment::NotExternal,
+                    },
+                    "CREDIT" if Self::is_external(activity) => ContributionTreatment::Counted,
+                    _ => ContributionTreatment::NotExternal,
+                };
+                (activity, treatment)
+            })
+            .collect()
+    }
+
+    fn evaluate_contributions_by_period(
+        &self,
+        account_ids: &[String],
+        start_utc: DateTime<Utc>,
+        end_exclusive_utc: DateTime<Utc>,
+        base_currency: &str,
+        excluded_ids: &HashSet<String>,
+    ) -> Result<(DepositsCalculation, Vec<ContributionActivityDetail>)> {
+        let mut calculation = DepositsCalculation {
+            total: Decimal::ZERO,
+            base_currency: base_currency.to_string(),
+            by_account: HashMap::new(),
+        };
+        if account_ids.is_empty() {
+            return Ok((calculation, Vec::new()));
+        }
+        let activities = self.activity_repository.get_contribution_activities(
+            account_ids,
+            start_utc,
+            end_exclusive_utc,
+        )?;
+        let mut details = Vec::new();
+        let tz = self.user_timezone();
+        for (activity, automatic_treatment) in Self::classified_activities(&activities, account_ids)
+        {
+            let can_exclude = automatic_treatment == ContributionTreatment::Counted;
+            let treatment = if can_exclude && excluded_ids.contains(&activity.id) {
+                ContributionTreatment::ExcludedByUser
+            } else {
+                automatic_treatment
+            };
+            let mut counted_amount = Decimal::ZERO;
+            if treatment == ContributionTreatment::Counted {
+                let amount = activity.amount.ok_or_else(|| {
+                    Error::Validation(ValidationError::MissingField(format!(
+                        "Final amount missing in {} activity for account {}",
+                        activity.activity_type, activity.account_id
+                    )))
+                })?;
+                counted_amount = self.fx_service.convert_currency_for_date(
+                    amount,
+                    &activity.currency,
+                    base_currency,
+                    activity_date_in_tz(activity.activity_instant, tz),
+                )?;
+                calculation.total += counted_amount;
+                let entry = calculation
+                    .by_account
+                    .entry(activity.account_id.clone())
+                    .or_insert_with(|| AccountDeposit {
+                        amount: Decimal::ZERO,
+                        currency: activity.currency.clone(),
+                        converted_amount: Decimal::ZERO,
+                    });
+                entry.amount += amount;
+                entry.converted_amount += counted_amount;
+                entry.currency = activity.currency.clone();
+            }
+            details.push(ContributionActivityDetail {
+                id: activity.id.clone(),
+                account_id: activity.account_id.clone(),
+                activity_type: activity.activity_type.clone(),
+                activity_instant: activity.activity_instant,
+                amount: activity.amount,
+                currency: activity.currency.clone(),
+                counted_amount,
+                treatment,
+                can_exclude,
+            });
+        }
+        details.sort_by(|a, b| {
+            b.activity_instant
+                .cmp(&a.activity_instant)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok((calculation, details))
+    }
+
+    #[cfg(test)]
     fn calculate_contributions_by_period(
         &self,
         account_ids: &[String],
@@ -95,103 +257,63 @@ impl ContributionLimitService {
         end_exclusive_utc: DateTime<Utc>,
         base_currency: &str,
     ) -> Result<DepositsCalculation> {
-        if account_ids.is_empty() {
-            return Ok(DepositsCalculation {
-                total: Decimal::ZERO,
-                base_currency: base_currency.to_string(),
-                by_account: HashMap::new(),
-            });
-        }
-
-        let activities = self.activity_repository.get_contribution_activities(
+        self.evaluate_contributions_by_period(
             account_ids,
             start_utc,
             end_exclusive_utc,
-        )?;
-        let tz = self.user_timezone();
-
-        // Build set of limit account_ids for O(1) lookup
-        let limit_accounts: HashSet<&str> = account_ids.iter().map(|s| s.as_str()).collect();
-
-        // Build map: source_group_id → account_id for TRANSFER_OUT activities
-        // Used to detect internal transfers (both IN and OUT in same limit)
-        let transfer_out_accounts: HashMap<&str, &str> = activities
-            .iter()
-            .filter(|a| a.activity_type == "TRANSFER_OUT")
-            .filter_map(|a| {
-                a.source_group_id
-                    .as_deref()
-                    .map(|gid| (gid, a.account_id.as_str()))
-            })
-            .collect();
-
-        let mut total = Decimal::ZERO;
-        let mut by_account: HashMap<String, AccountDeposit> = HashMap::new();
-
-        for activity in &activities {
-            // Determine if this activity counts as a contribution
-            let should_count = match activity.activity_type.as_str() {
-                "DEPOSIT" => true,
-                "TRANSFER_IN" => {
-                    if let Some(group_id) = &activity.source_group_id {
-                        // Linked transfer pair: count only if the source account
-                        // is outside this limit (new money entering the limit).
-                        !transfer_out_accounts
-                            .get(group_id.as_str())
-                            .map(|out_account| limit_accounts.contains(out_account))
-                            .unwrap_or(false)
-                    } else {
-                        // Unlinked transfer: count only if explicitly marked external
-                        // (e.g. from outside the portfolio entirely).
-                        Self::is_external(activity)
-                    }
-                }
-                "CREDIT" => Self::is_external(activity),
-                _ => false, // TRANSFER_OUT and others don't count
-            };
-
-            if !should_count {
-                continue;
-            }
-
-            let amount = activity.amount.ok_or_else(|| {
-                Error::Validation(ValidationError::MissingField(format!(
-                    "Final amount missing in {} activity for account {}",
-                    activity.activity_type, activity.account_id
-                )))
-            })?;
-
-            let activity_date = activity_date_in_tz(activity.activity_instant, tz);
-
-            // Convert using the exchange rate on the activity date
-            let converted_amount = self.fx_service.convert_currency_for_date(
-                amount,
-                &activity.currency,
-                base_currency,
-                activity_date,
-            )?;
-
-            total += converted_amount;
-
-            let entry = by_account
-                .entry(activity.account_id.clone())
-                .or_insert_with(|| AccountDeposit {
-                    amount: Decimal::ZERO,
-                    currency: activity.currency.clone(),
-                    converted_amount: Decimal::ZERO,
-                });
-
-            entry.amount += amount;
-            entry.converted_amount += converted_amount;
-            entry.currency = activity.currency.clone();
-        }
-
-        Ok(DepositsCalculation {
-            total,
-            base_currency: base_currency.to_string(),
-            by_account,
-        })
+            base_currency,
+            &HashSet::new(),
+        )
+        .map(|(calculation, _)| calculation)
     }
+}
+
+/// Checks the accounts a limit lists before it is saved. Ids of deleted
+/// accounts are dropped: limits saved before deletes cleaned them up can still
+/// list one, and nothing is counted for it. An account of a type contribution
+/// limits don't count is refused.
+pub fn check_contribution_limit_accounts(
+    accounts: &dyn AccountServiceTrait,
+    limit: &mut NewContributionLimit,
+) -> Result<()> {
+    let Some(account_ids) = limit.account_ids.as_deref() else {
+        return Ok(());
+    };
+    let ids: Vec<String> = account_ids
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+
+    let found = accounts.get_accounts_by_ids(&ids)?;
+    let unsupported: Vec<&str> = found
+        .iter()
+        .filter(|account| {
+            !account_supports_purpose(&account.account_type, AccountPurpose::ContributionLimits)
+        })
+        .map(|account| account.id.as_str())
+        .collect();
+    if !unsupported.is_empty() {
+        return Err(Error::Validation(ValidationError::InvalidInput(format!(
+            "Contribution limits do not support account(s): {}",
+            unsupported.join(", ")
+        ))));
+    }
+
+    let existing: HashSet<&str> = found.iter().map(|account| account.id.as_str()).collect();
+    if ids.iter().any(|id| !existing.contains(id.as_str())) {
+        let kept: Vec<&str> = ids
+            .iter()
+            .map(String::as_str)
+            .filter(|id| existing.contains(id))
+            .collect();
+        limit.account_ids = Some(kept.join(","));
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -204,6 +326,7 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
         &self,
         new_limit: NewContributionLimit,
     ) -> Result<ContributionLimit> {
+        Self::validate_year(new_limit.contribution_year)?;
         self.limit_repository
             .create_contribution_limit(new_limit)
             .await
@@ -214,6 +337,7 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
         id: &str,
         updated_limit: NewContributionLimit,
     ) -> Result<ContributionLimit> {
+        Self::validate_year(updated_limit.contribution_year)?;
         self.limit_repository
             .update_contribution_limit(id, updated_limit)
             .await
@@ -223,64 +347,76 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
         self.limit_repository.delete_contribution_limit(id).await
     }
 
+    fn get_contribution_limit_details(
+        &self,
+        limit_id: &str,
+        base_currency: &str,
+    ) -> Result<ContributionLimitDetails> {
+        let limit = self.limit_repository.get_contribution_limit(limit_id)?;
+        let excluded = self.limit_repository.get_excluded_activity_ids(limit_id)?;
+        let account_ids = Self::account_ids(&limit);
+        if account_ids.is_empty() {
+            return Ok(ContributionLimitDetails {
+                limit,
+                calculation: DepositsCalculation {
+                    total: Decimal::ZERO,
+                    base_currency: base_currency.to_string(),
+                    by_account: HashMap::new(),
+                },
+                activities: Vec::new(),
+            });
+        }
+        let (start, end) = self.period(&limit)?;
+        let (calculation, activities) = self.evaluate_contributions_by_period(
+            &account_ids,
+            start,
+            end,
+            base_currency,
+            &excluded,
+        )?;
+        Ok(ContributionLimitDetails {
+            limit,
+            calculation,
+            activities,
+        })
+    }
+
+    async fn set_contribution_activity_excluded(
+        &self,
+        limit_id: &str,
+        activity_id: &str,
+        excluded: bool,
+    ) -> Result<()> {
+        let limit = self.limit_repository.get_contribution_limit(limit_id)?;
+        let account_ids = Self::account_ids(&limit);
+        let (start, end) = self.period(&limit)?;
+        let activities =
+            self.activity_repository
+                .get_contribution_activities(&account_ids, start, end)?;
+        let can_exclude = Self::classified_activities(&activities, &account_ids)
+            .iter()
+            .any(|(activity, treatment)| {
+                activity.id == activity_id && *treatment == ContributionTreatment::Counted
+            });
+        if !can_exclude {
+            return Err(ValidationError::InvalidInput(
+                "Only contribution-eligible activities in this limit can be excluded or restored"
+                    .to_string(),
+            )
+            .into());
+        }
+        self.limit_repository
+            .set_activity_excluded(limit_id, activity_id, excluded)
+            .await
+    }
+
     fn calculate_deposits_for_contribution_limit(
         &self,
         limit_id: &str,
         base_currency: &str,
     ) -> Result<DepositsCalculation> {
-        let limit = self.limit_repository.get_contribution_limit(limit_id)?;
-
-        let account_ids = match limit.account_ids {
-            Some(ids_str) if !ids_str.trim().is_empty() => ids_str
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect::<Vec<String>>(),
-            _ => {
-                return Ok(DepositsCalculation {
-                    total: Decimal::ZERO,
-                    base_currency: base_currency.to_string(),
-                    by_account: HashMap::new(),
-                });
-            }
-        };
-
-        let year = limit.contribution_year;
-        let dated_range = match (limit.start_date, limit.end_date) {
-            (Some(start), Some(end)) if !Self::has_former_default_dates(year, &start, &end) => {
-                Some((start, end))
-            }
-            _ => None,
-        };
-        if let Some((start_str, end_str)) = dated_range {
-            // The stored dates are instants on the chosen days; the range covers
-            // those days whole, in the user's timezone.
-            let tz = self.user_timezone();
-            let day = |date: &str| {
-                DateTime::parse_from_rfc3339(date)
-                    .map(|dt| user_date_from_utc(dt.with_timezone(&Utc), tz))
-                    .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))
-            };
-            let start = local_date_start_utc(day(&start_str)?, tz)?;
-            let day_after_end = day(&end_str)?
-                .succ_opt()
-                .expect("an RFC 3339 year ends far before chrono's last date");
-            let end_exclusive = local_date_start_utc(day_after_end, tz)?;
-            self.calculate_contributions_by_period(
-                &account_ids,
-                start,
-                end_exclusive,
-                base_currency,
-            )
-        } else {
-            let tz = self.user_timezone();
-            let (start_utc, end_exclusive_utc) = local_year_utc_bounds(year, tz)?;
-            self.calculate_contributions_by_period(
-                &account_ids,
-                start_utc,
-                end_exclusive_utc,
-                base_currency,
-            )
-        }
+        self.get_contribution_limit_details(limit_id, base_currency)
+            .map(|details| details.calculation)
     }
 }
 
@@ -616,6 +752,13 @@ mod tests {
 
     #[async_trait]
     impl ContributionLimitRepositoryTrait for MockLimitRepository {
+        fn get_excluded_activity_ids(&self, _: &str) -> Result<HashSet<String>> {
+            Ok(HashSet::new())
+        }
+        async fn set_activity_excluded(&self, _: &str, _: &str, _: bool) -> Result<()> {
+            unimplemented!()
+        }
+
         fn get_contribution_limits(&self) -> Result<Vec<ContributionLimit>> {
             unimplemented!()
         }
@@ -661,6 +804,38 @@ mod tests {
             Arc::new(MockLimitRepository::default()),
             Arc::new(MockActivityRepository::new(activities)),
         )
+    }
+
+    #[tokio::test]
+    async fn unsupported_contribution_years_are_rejected_before_persistence() {
+        let service = make_service(Vec::new());
+        for year in [
+            MIN_CONTRIBUTION_YEAR - 1,
+            MAX_CONTRIBUTION_YEAR + 1,
+            i32::MAX,
+        ] {
+            let limit = NewContributionLimit {
+                id: None,
+                group_name: "TFSA".to_string(),
+                contribution_year: year,
+                limit_amount: 7000.0,
+                account_ids: None,
+                start_date: None,
+                end_date: None,
+                is_recurring: false,
+            };
+            assert!(matches!(
+                service.create_contribution_limit(limit.clone()).await,
+                Err(Error::Validation(ValidationError::InvalidInput(_)))
+            ));
+            assert!(matches!(
+                service.update_contribution_limit("limit", limit).await,
+                Err(Error::Validation(ValidationError::InvalidInput(_)))
+            ));
+        }
+        for year in [MIN_CONTRIBUTION_YEAR, MAX_CONTRIBUTION_YEAR] {
+            assert!(ContributionLimitService::validate_year(year).is_ok());
+        }
     }
 
     fn make_service_with_timezone(
@@ -712,6 +887,7 @@ mod tests {
     #[test]
     fn test_deposit_always_counts() {
         let activities = vec![ContributionActivity {
+            id: "activity-1".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "DEPOSIT".to_string(),
             activity_instant: default_instant(),
@@ -735,6 +911,7 @@ mod tests {
     fn test_multiple_deposits_sum_correctly() {
         let activities = vec![
             ContributionActivity {
+                id: "activity-2".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -744,6 +921,7 @@ mod tests {
                 source_group_id: None,
             },
             ContributionActivity {
+                id: "activity-3".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -766,6 +944,7 @@ mod tests {
     #[test]
     fn test_transfer_in_without_external_flag_not_counted() {
         let activities = vec![ContributionActivity {
+            id: "activity-4".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -787,6 +966,7 @@ mod tests {
     #[test]
     fn test_transfer_in_with_external_false_not_counted() {
         let activities = vec![ContributionActivity {
+            id: "activity-5".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -808,6 +988,7 @@ mod tests {
     #[test]
     fn test_transfer_in_external_no_link_counts() {
         let activities = vec![ContributionActivity {
+            id: "activity-6".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -831,6 +1012,7 @@ mod tests {
         // Both accounts in same limit - internal transfer within the limit
         let activities = vec![
             ContributionActivity {
+                id: "activity-7".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -840,6 +1022,7 @@ mod tests {
                 source_group_id: Some("group1".to_string()),
             },
             ContributionActivity {
+                id: "activity-8".to_string(),
                 account_id: "acc2".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -871,6 +1054,7 @@ mod tests {
         // TRANSFER_OUT from account outside the limit
         let activities = vec![
             ContributionActivity {
+                id: "activity-9".to_string(),
                 account_id: "acc_outside".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -880,6 +1064,7 @@ mod tests {
                 source_group_id: Some("group1".to_string()),
             },
             ContributionActivity {
+                id: "activity-10".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -904,6 +1089,7 @@ mod tests {
     #[test]
     fn test_credit_without_external_flag_not_counted() {
         let activities = vec![ContributionActivity {
+            id: "activity-11".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "CREDIT".to_string(),
             activity_instant: default_instant(),
@@ -925,6 +1111,7 @@ mod tests {
     #[test]
     fn test_credit_with_external_true_counts() {
         let activities = vec![ContributionActivity {
+            id: "activity-12".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "CREDIT".to_string(),
             activity_instant: default_instant(),
@@ -946,6 +1133,7 @@ mod tests {
     #[test]
     fn test_credit_with_external_false_not_counted() {
         let activities = vec![ContributionActivity {
+            id: "activity-13".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "CREDIT".to_string(),
             activity_instant: default_instant(),
@@ -967,6 +1155,7 @@ mod tests {
     #[test]
     fn test_transfer_out_never_counts() {
         let activities = vec![ContributionActivity {
+            id: "activity-14".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_OUT".to_string(),
             activity_instant: default_instant(),
@@ -988,6 +1177,7 @@ mod tests {
     #[test]
     fn test_currency_conversion() {
         let activities = vec![ContributionActivity {
+            id: "activity-15".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "DEPOSIT".to_string(),
             activity_instant: default_instant(),
@@ -1016,6 +1206,7 @@ mod tests {
     fn test_multiple_accounts_tracked_separately() {
         let activities = vec![
             ContributionActivity {
+                id: "activity-16".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -1025,6 +1216,7 @@ mod tests {
                 source_group_id: None,
             },
             ContributionActivity {
+                id: "activity-17".to_string(),
                 account_id: "acc2".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -1056,6 +1248,7 @@ mod tests {
         let activities = vec![
             // Counts: deposit
             ContributionActivity {
+                id: "activity-18".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -1066,6 +1259,7 @@ mod tests {
             },
             // Counts: external transfer in
             ContributionActivity {
+                id: "activity-19".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1076,6 +1270,7 @@ mod tests {
             },
             // Counts: external credit
             ContributionActivity {
+                id: "activity-20".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "CREDIT".to_string(),
                 activity_instant: default_instant(),
@@ -1086,6 +1281,7 @@ mod tests {
             },
             // Does NOT count: internal transfer in
             ContributionActivity {
+                id: "activity-21".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1096,6 +1292,7 @@ mod tests {
             },
             // Does NOT count: internal credit
             ContributionActivity {
+                id: "activity-22".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "CREDIT".to_string(),
                 activity_instant: default_instant(),
@@ -1106,6 +1303,7 @@ mod tests {
             },
             // Does NOT count: transfer out
             ContributionActivity {
+                id: "activity-23".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -1129,6 +1327,7 @@ mod tests {
     #[test]
     fn test_missing_final_amount_is_an_error() {
         let activities = vec![ContributionActivity {
+            id: "activity-24".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "DEPOSIT".to_string(),
             activity_instant: default_instant(),
@@ -1152,6 +1351,7 @@ mod tests {
     #[test]
     fn test_malformed_metadata_treated_as_internal() {
         let activities = vec![ContributionActivity {
+            id: "activity-25".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -1175,6 +1375,7 @@ mod tests {
     fn test_is_external_helper() {
         // Test the is_external helper directly
         let external = ContributionActivity {
+            id: "activity-26".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -1186,6 +1387,7 @@ mod tests {
         assert!(ContributionLimitService::is_external(&external));
 
         let internal = ContributionActivity {
+            id: "activity-27".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -1197,6 +1399,7 @@ mod tests {
         assert!(!ContributionLimitService::is_external(&internal));
 
         let no_metadata = ContributionActivity {
+            id: "activity-28".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "TRANSFER_IN".to_string(),
             activity_instant: default_instant(),
@@ -1223,6 +1426,7 @@ mod tests {
         let activities = vec![
             // 1. Deposit
             ContributionActivity {
+                id: "activity-29".to_string(),
                 account_id: "tfsa_savings".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 activity_instant: default_instant(),
@@ -1233,6 +1437,7 @@ mod tests {
             },
             // 2. Internal transfer OUT
             ContributionActivity {
+                id: "activity-30".to_string(),
                 account_id: "tfsa_savings".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -1243,6 +1448,7 @@ mod tests {
             },
             // 2. Internal transfer IN
             ContributionActivity {
+                id: "activity-31".to_string(),
                 account_id: "tfsa_invest".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1253,6 +1459,7 @@ mod tests {
             },
             // 3. External transfer from non-TFSA (not in limit accounts)
             ContributionActivity {
+                id: "activity-32".to_string(),
                 account_id: "tfsa_invest".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1265,6 +1472,7 @@ mod tests {
             // This won't be fetched because non_tfsa is not in account_ids
             // 4. Internal credit/rebate
             ContributionActivity {
+                id: "activity-33".to_string(),
                 account_id: "tfsa_savings".to_string(),
                 activity_type: "CREDIT".to_string(),
                 activity_instant: default_instant(),
@@ -1275,6 +1483,7 @@ mod tests {
             },
             // 5. External bonus
             ContributionActivity {
+                id: "activity-34".to_string(),
                 account_id: "tfsa_savings".to_string(),
                 activity_type: "CREDIT".to_string(),
                 activity_instant: default_instant(),
@@ -1317,6 +1526,7 @@ mod tests {
         let activities = vec![
             // TRANSFER_OUT from Cash account (not in the limit)
             ContributionActivity {
+                id: "activity-35".to_string(),
                 account_id: "cash_account".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -1327,6 +1537,7 @@ mod tests {
             },
             // TRANSFER_IN to Registered account (in the limit)
             ContributionActivity {
+                id: "activity-36".to_string(),
                 account_id: "registered".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1353,6 +1564,7 @@ mod tests {
         // Internal transfer between two accounts both in the limit — should NOT count.
         let activities = vec![
             ContributionActivity {
+                id: "activity-37".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "TRANSFER_OUT".to_string(),
                 activity_instant: default_instant(),
@@ -1362,6 +1574,7 @@ mod tests {
                 source_group_id: Some("pair1".to_string()),
             },
             ContributionActivity {
+                id: "activity-38".to_string(),
                 account_id: "acc2".to_string(),
                 activity_type: "TRANSFER_IN".to_string(),
                 activity_instant: default_instant(),
@@ -1390,6 +1603,7 @@ mod tests {
     fn test_contribution_year_boundary_utc_minus_3() {
         let activities = vec![
             ContributionActivity {
+                id: "activity-39".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 // 2025-12-31 23:30 local for UTC-3
@@ -1400,6 +1614,7 @@ mod tests {
                 source_group_id: None,
             },
             ContributionActivity {
+                id: "activity-40".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 // 2026-01-01 00:30 local for UTC-3 (excluded from 2025)
@@ -1430,6 +1645,7 @@ mod tests {
     fn test_contribution_year_boundary_utc_plus_14() {
         let activities = vec![
             ContributionActivity {
+                id: "activity-41".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 // 2025-01-01 01:00 local for UTC+14
@@ -1440,6 +1656,7 @@ mod tests {
                 source_group_id: None,
             },
             ContributionActivity {
+                id: "activity-42".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 // 2025-12-31 23:30 local for UTC+14
@@ -1450,6 +1667,7 @@ mod tests {
                 source_group_id: None,
             },
             ContributionActivity {
+                id: "activity-43".to_string(),
                 account_id: "acc1".to_string(),
                 activity_type: "DEPOSIT".to_string(),
                 // 2026-01-01 00:30 local for UTC+14 (excluded from 2025)
@@ -1478,6 +1696,7 @@ mod tests {
 
     fn deposit_at(instant: &str, amount: Decimal) -> ContributionActivity {
         ContributionActivity {
+            id: "activity-44".to_string(),
             account_id: "acc1".to_string(),
             activity_type: "DEPOSIT".to_string(),
             activity_instant: DateTime::parse_from_rfc3339(instant)
@@ -1514,6 +1733,7 @@ mod tests {
                     updated_at: now,
                     start_date: Some(start.to_string()),
                     end_date: Some(end.to_string()),
+                    is_recurring: false,
                 }),
             }),
             Arc::new(MockActivityRepository::new(activities)),

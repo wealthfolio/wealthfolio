@@ -138,6 +138,81 @@ export function settle(page: Page) {
   );
 }
 
+export interface Motion {
+  /** The animated element's role, or its tag when it has none. */
+  element: string;
+  /** The keyframes' name, or the transitioned property. */
+  name: string;
+  /**
+   * How far, in px, the element's box shifts or grows at any measured frame
+   * compared with its last. A square that turns half a circle ends where it
+   * started, so it shows only part-way, as a wider box.
+   */
+  moved: number;
+  /** Whether the element is see-through at its first or last frame. */
+  faded: boolean;
+}
+
+/**
+ * Records every animation and transition that starts from now on: each is
+ * caught as it starts, measured at its first frame, three frames between and
+ * its last, then finished. Returns a function that reads what was recorded
+ * since.
+ */
+export async function recordMotion(page: Page) {
+  await page.evaluate(() => {
+    const records: Motion[] = [];
+    (window as unknown as { motionRecords: Motion[] }).motionRecords = records;
+    const probe = (event: Event) => {
+      const element = event.target;
+      if (!(element instanceof Element)) return;
+      for (const animation of element.getAnimations()) {
+        const timing = animation.effect?.getComputedTiming();
+        if (animation.playState === "finished" || !timing || timing.iterations === Infinity)
+          continue;
+        animation.pause();
+        const end = Math.max(0, Number(timing.endTime) - 1);
+        const frames = [0, 0.25, 0.5, 0.75, 1].map((at) => {
+          animation.currentTime = end * at;
+          return {
+            box: element.getBoundingClientRect(),
+            opacity: Number(getComputedStyle(element).opacity),
+          };
+        });
+        animation.finish();
+        const last = frames[frames.length - 1];
+        records.push({
+          element: element.getAttribute("role") ?? element.tagName.toLowerCase(),
+          name:
+            animation instanceof CSSTransition
+              ? animation.transitionProperty
+              : animation instanceof CSSAnimation
+                ? animation.animationName
+                : "animation",
+          moved: Math.max(
+            ...frames.map(({ box }) =>
+              Math.max(
+                Math.abs(box.left - last.box.left),
+                Math.abs(box.top - last.box.top),
+                Math.abs(box.width - last.box.width),
+                Math.abs(box.height - last.box.height),
+              ),
+            ),
+          ),
+          faded: Math.min(frames[0].opacity, last.opacity) < 1,
+        });
+      }
+    };
+    document.addEventListener("animationstart", probe, true);
+    document.addEventListener("transitionrun", probe, true);
+  });
+  return () =>
+    page.evaluate(() => {
+      const records = (window as unknown as { motionRecords: Motion[] }).motionRecords;
+      return records.splice(0, records.length);
+    });
+}
+
 /** Lets the browser deliver pending events, such as a scroll, over two frames. */
 export function nextFrames(page: Page) {
   return page.evaluate(

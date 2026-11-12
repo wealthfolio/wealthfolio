@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
+import { Command, CommandGroup, CommandItem, CommandList } from "./command";
 import { Icons } from "./icons";
 import { ScrollArea } from "./scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./sheet";
+import { SheetScreen, useInSheetNavigation } from "./sheet-navigation";
 
 export interface ResponsiveSelectOption {
   value: string;
@@ -49,7 +51,8 @@ export function ResponsiveSelect({
 }: ResponsiveSelectProps) {
   const { t } = useTranslation();
   const useIsMobileHook = useIsMobile ?? defaultUseIsMobile;
-  const isMobile = displayMode === "mobile" || (displayMode === "auto" && useIsMobileHook());
+  const inSheetNavigation = useInSheetNavigation();
+  const isMobile = inSheetNavigation || displayMode === "mobile" || (displayMode === "auto" && useIsMobileHook());
   const [open, setOpen] = React.useState(false);
 
   const selectedOption = React.useMemo(() => options.find((option) => option.value === value), [options, value]);
@@ -83,55 +86,89 @@ export function ResponsiveSelect({
           onClick={() => setOpen(true)}
         >
           <span className="truncate">{displayText}</span>
-          <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+          {inSheetNavigation ? (
+            <Icons.ChevronRight className="ms-2 h-4 w-4 shrink-0 opacity-50 rtl:rotate-180" />
+          ) : (
+            <Icons.ChevronDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+          )}
         </Button>
 
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side={mobileSide} className="mx-1 h-[80vh] rounded-t-4xl p-0">
-            <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
-              <SheetTitle>{sheetTitle}</SheetTitle>
-              {sheetDescription ? <SheetDescription>{sheetDescription}</SheetDescription> : null}
-            </SheetHeader>
+        {inSheetNavigation ? (
+          <SheetScreen open={open} onOpenChange={setOpen} title={sheetTitle}>
+            <Command className="h-auto min-h-0 flex-1 rounded-none bg-transparent">
+              <CommandList className="max-h-none min-h-0 flex-1">
+                <CommandGroup>
+                  {options.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      keywords={[option.label]}
+                      onSelect={() => handleSelect(option.value)}
+                      className="flex items-center gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">{option.label}</div>
+                        {option.description ? (
+                          <div className="text-muted-foreground truncate text-xs">{option.description}</div>
+                        ) : null}
+                      </div>
+                      {option.value === value ? (
+                        <Icons.Check className="text-muted-foreground h-4 w-4 shrink-0" />
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </SheetScreen>
+        ) : (
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent side={mobileSide} className="mx-1 h-[80vh] rounded-t-4xl p-0">
+              <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
+                <SheetTitle>{sheetTitle}</SheetTitle>
+                {sheetDescription ? <SheetDescription>{sheetDescription}</SheetDescription> : null}
+              </SheetHeader>
 
-            <div className="flex h-[calc(80vh-6.5rem)] flex-col">
-              <ScrollArea className="flex-1 px-2">
-                <div className="space-y-2 py-4">
-                  {options.map((option) => {
-                    const isSelected = option.value === value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => handleSelect(option.value)}
-                        className={cn(
-                          "card-mobile flex w-full items-center justify-between gap-3 border border-transparent px-4 py-3 text-start transition-colors",
-                          isSelected
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "hover:bg-accent active:bg-accent/80 focus:border-primary focus:outline-none",
-                        )}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold">{option.label}</div>
-                          {option.description ? (
-                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{option.description}</div>
-                          ) : null}
-                        </div>
-                        {isSelected ? <Icons.Check className="h-5 w-5 shrink-0" /> : null}
-                      </button>
-                    );
-                  })}
+              <div className="flex h-[calc(80vh-6.5rem)] flex-col">
+                <ScrollArea className="flex-1 px-2">
+                  <div className="space-y-2 py-4">
+                    {options.map((option) => {
+                      const isSelected = option.value === value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleSelect(option.value)}
+                          className={cn(
+                            "card-mobile flex w-full items-center justify-between gap-3 border border-transparent px-4 py-3 text-start transition-colors",
+                            isSelected
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "hover:bg-accent active:bg-accent/80 focus:border-primary focus:outline-none",
+                          )}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-semibold">{option.label}</div>
+                            {option.description ? (
+                              <div className="text-muted-foreground mt-0.5 truncate text-sm">{option.description}</div>
+                            ) : null}
+                          </div>
+                          {isSelected ? <Icons.Check className="h-5 w-5 shrink-0" /> : null}
+                        </button>
+                      );
+                    })}
 
-                  {options.length === 0 ? (
-                    <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-12 text-sm">
-                      <Icons.Search className="h-10 w-10 opacity-20" />
-                      <span>{t("ui:search.noOptions", "No options available.")}</span>
-                    </div>
-                  ) : null}
-                </div>
-              </ScrollArea>
-            </div>
-          </SheetContent>
-        </Sheet>
+                    {options.length === 0 ? (
+                      <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-12 text-sm">
+                        <Icons.Search className="h-10 w-10 opacity-20" />
+                        <span>{t("ui:search.noOptions", "No options available.")}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
       </>
     );
   }

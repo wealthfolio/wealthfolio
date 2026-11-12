@@ -4,9 +4,10 @@ import type { AddonStoreListing } from "@/lib/types";
 import type { ExtractedAddon, InstalledAddon, AddonManifest } from "../types";
 
 import { tauriInvoke } from "./core";
+import { toBase64 } from "./files";
 
 export const extractAddonZip = async (zipData: Uint8Array): Promise<ExtractedAddon> => {
-  return await tauriInvoke<ExtractedAddon>("extract_addon_zip", { zipData: Array.from(zipData) });
+  return await tauriInvoke<ExtractedAddon>("extract_addon_zip", { zipDataB64: toBase64(zipData) });
 };
 
 export const installAddonZip = async (
@@ -15,7 +16,7 @@ export const installAddonZip = async (
   approvedNetworkHosts?: string[],
 ): Promise<AddonManifest> => {
   return await tauriInvoke<AddonManifest>("install_addon_zip", {
-    zipData: Array.from(zipData),
+    zipDataB64: toBase64(zipData),
     enableAfterInstall,
     approvedNetworkHosts,
   });

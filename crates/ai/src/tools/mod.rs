@@ -90,7 +90,7 @@ impl<E: AiEnvironment> ToolSet<E> {
 mod tests {
     use super::*;
     use crate::env::test_env::MockEnvironment;
-    use rig::tool::PortableTool as Tool;
+    use rig::tool::Tool;
 
     #[test]
     fn test_tool_set_creation() {

@@ -14,6 +14,7 @@ import { useAuth } from "@/context/auth-context";
 import { getPlatform } from "@/hooks/use-platform";
 import { CONNECT_ENABLED, CONNECT_OAUTH_CALLBACK_URL } from "@/lib/connect-config";
 import { QueryKeys } from "@/lib/query-keys";
+import { backendError, CONNECT_REBIND_REQUIRED } from "@/lib/backend-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient, Session, SupabaseClient, User } from "@supabase/supabase-js";
 import {
@@ -189,6 +190,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const sessionGenerationRef = useRef(0);
   const syncAccessRef = useRef<string | null>(null);
   const userInfoRequestRef = useRef(0);
+  const userInfoInFlightRef = useRef<{ generation: number; promise: Promise<void> } | null>(null);
   const userInfoRetryAtRef = useRef(0);
   const userInfoRateLimitMessageRef = useRef<string | null>(null);
   const [userInfoRetryAt, setUserInfoRetryAt] = useState(0);
@@ -307,8 +309,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         try {
           await storeSyncSession(next.refresh_token);
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause);
-          if (!message.includes("CONNECT_REBIND_REQUIRED")) throw cause;
+          if (backendError(cause)?.errorCode !== CONNECT_REBIND_REQUIRED) throw cause;
           const accepted = await new Promise<boolean>((resolve) => {
             rebindDecisionRef.current = resolve;
             setConfirmingRebind(true);
@@ -429,8 +430,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
             setUser(data.session.user);
           } catch (cause) {
             if (!current()) return;
-            const message = cause instanceof Error ? cause.message : String(cause);
-            if (message.includes("CONNECT_REBIND_REQUIRED")) {
+            if (backendError(cause)?.errorCode === CONNECT_REBIND_REQUIRED) {
               // Explicit login presents the account-change confirmation; retain saved credentials.
               setIsSessionUnavailable(false);
               return;
@@ -830,62 +830,78 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const clearError = useCallback(() => setError(null), []);
 
   // Fetch user info from the cloud API
-  const refetchUserInfo = useCallback(async () => {
+  const refetchUserInfo = useCallback(() => {
     const generation = sessionGenerationRef.current;
-    const request = ++userInfoRequestRef.current;
-    const isCurrent = () =>
-      generation === sessionGenerationRef.current && request === userInfoRequestRef.current;
-    if (!sessionRef.current) return;
-    setIsLoadingUserInfo(true);
-    let requestedUserInfo = false;
-    try {
-      await reconcileSession();
-      if (!isCurrent()) return;
-      // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
-      if (performance.now() < userInfoRetryAtRef.current) {
-        setError(userInfoRateLimitMessageRef.current);
-        return;
-      }
-      userInfoRetryAtRef.current = 0;
-      userInfoRateLimitMessageRef.current = null;
-      setUserInfoRetryAt(0);
-      setError(null);
-      requestedUserInfo = true;
-      const info = await getUserInfo();
-      if (!isCurrent()) return;
-      userInfoRetryAtRef.current = 0;
-      const access = hasBrokerSync(info)
-        ? "broker"
-        : isSubscriptionStatusActive(info.team?.subscription_status)
-          ? "device"
-          : "none";
-      if (syncAccessRef.current !== access && access !== "none" && sessionRef.current) {
-        requestPostLoginSync("subscription-activated", sessionRef.current);
-      }
-      syncAccessRef.current = access;
-      setUserInfo(info);
-    } catch (err) {
-      if (!isCurrent()) return;
-      logger.error("Failed to fetch user info from API.");
-      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-      const rateLimited = requestedUserInfo && /\bAPI error (\d{3})\b/.exec(message)?.[1] === "429";
-      if (rateLimited) {
-        const retryAt = performance.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
-        userInfoRetryAtRef.current = retryAt;
-        userInfoRateLimitMessageRef.current = message;
-        setUserInfoRetryAt(retryAt);
-      } else if (requestedUserInfo || performance.now() >= userInfoRetryAtRef.current) {
+    const pending = userInfoInFlightRef.current;
+    if (pending?.generation === generation) return pending.promise;
+    const promise = (async () => {
+      const request = ++userInfoRequestRef.current;
+      const isCurrent = () =>
+        generation === sessionGenerationRef.current && request === userInfoRequestRef.current;
+      if (!sessionRef.current) return;
+      setIsLoadingUserInfo(true);
+      let requestedUserInfo = false;
+      try {
+        await reconcileSession();
+        if (!isCurrent()) return;
+        // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
+        if (performance.now() < userInfoRetryAtRef.current) {
+          setError(userInfoRateLimitMessageRef.current);
+          return;
+        }
         userInfoRetryAtRef.current = 0;
         userInfoRateLimitMessageRef.current = null;
         setUserInfoRetryAt(0);
-        setUserInfo(null);
+        setError(null);
+        requestedUserInfo = true;
+        const info = await getUserInfo();
+        if (!isCurrent()) return;
+        userInfoRetryAtRef.current = 0;
+        const access = hasBrokerSync(info)
+          ? "broker"
+          : isSubscriptionStatusActive(info.team?.subscription_status)
+            ? "device"
+            : "none";
+        if (syncAccessRef.current !== access && access !== "none" && sessionRef.current) {
+          requestPostLoginSync("subscription-activated", sessionRef.current);
+        }
+        syncAccessRef.current = access;
+        setUserInfo(info);
+      } catch (err) {
+        if (!isCurrent()) return;
+        logger.error("Failed to fetch user info from API.");
+        const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+        const rateLimited =
+          requestedUserInfo &&
+          (backendError(err)?.errorCode === "RATE_LIMITED" ||
+            /\bAPI error (\d{3})\b/.exec(message)?.[1] === "429");
+        if (rateLimited) {
+          const retryAt = performance.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
+          userInfoRetryAtRef.current = retryAt;
+          userInfoRateLimitMessageRef.current = message;
+          setUserInfoRetryAt(retryAt);
+        } else if (requestedUserInfo || performance.now() >= userInfoRetryAtRef.current) {
+          userInfoRetryAtRef.current = 0;
+          userInfoRateLimitMessageRef.current = null;
+          setUserInfoRetryAt(0);
+          setUserInfo(null);
+        }
+        setError(
+          err instanceof Error || rateLimited
+            ? message
+            : t("connect:authErrors.fetchUserInfoFailed"),
+        );
+      } finally {
+        if (isCurrent()) setIsLoadingUserInfo(false);
       }
-      setError(
-        err instanceof Error || rateLimited ? message : t("connect:authErrors.fetchUserInfoFailed"),
-      );
-    } finally {
-      if (isCurrent()) setIsLoadingUserInfo(false);
-    }
+    })();
+    const active = { generation, promise };
+    userInfoInFlightRef.current = active;
+    const clear = () => {
+      if (userInfoInFlightRef.current === active) userInfoInFlightRef.current = null;
+    };
+    void promise.then(clear, clear);
+    return promise;
   }, [reconcileSession, requestPostLoginSync, t]);
 
   // The regular poll can run just before the cooldown expires. Retry at its own deadline.
@@ -912,12 +928,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     else setUserInfo(null);
     return () => {
       userInfoRequestRef.current += 1;
+      userInfoInFlightRef.current = null;
     };
   }, [session, refetchUserInfo]);
 
   useEffect(() => {
     if (!session) return;
-    const handleFocus = () => void refetchUserInfo();
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void refetchUserInfo();
+    };
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void refetchUserInfo();
     };

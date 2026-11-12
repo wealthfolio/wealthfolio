@@ -30,9 +30,11 @@
       "unit_types": "tipos",
       "unit_currencies": "divisas",
       "unit_groups": "grupos",
-      "other_units": "Otros {{unit}}",
+      "other_units_one": "{{count}} elemento más",
+      "other_units_other": "{{count}} elementos más",
+      "other_units_many": "{{count}} elementos más",
       "breakdown": "Desglose",
-      "top_units": "Principales {{unit}}",
+      "top_units": "Los {{count}} elementos principales",
       "show_less": "Mostrar menos",
       "show_all": "Mostrar todo"
     },
@@ -82,7 +84,6 @@
       "link_explanation": "Vincular una propiedad existente no cambia tu patrimonio neto."
     },
     "failed_to_load": "No se pudo cargar el patrimonio neto",
-    "stale_valuations_tooltip": "Valoraciones desactualizadas (más de 90 días):",
     "days_ago": "hace {{count}} d",
     "no_history_data": "No hay datos de historial disponibles",
     "breakdown": "Desglose",
@@ -108,7 +109,8 @@
     "category_sheet": {
       "over_period": "en {{period}}",
       "trend_period": "Tendencia · {{period}}",
-      "items": "Elementos"
+      "items": "Elementos",
+      "view_details": "Ver detalles"
     },
     "trend": {
       "not_enough_history": "Historial insuficiente"
@@ -150,7 +152,15 @@
     "portfolio_share": "Proporción del valor de la cartera, incluido el efectivo",
     "largest": "Mayor posición",
     "top_five": "Cinco mayores posiciones",
-    "concentration_unavailable": "La concentración requiere posiciones con valor positivo y una cartera sin posiciones cortas."
+    "concentration_unavailable": "La concentración requiere posiciones con valor positivo y una cartera sin posiciones cortas.",
+    "holdings": "Posiciones",
+    "holdings_count_one": "{{count}} posición",
+    "holdings_count_many": "{{count}} posiciones",
+    "holdings_count_other": "{{count}} posiciones",
+    "other_holdings_one": "{{count}} otra posición",
+    "other_holdings_many": "{{count}} otras posiciones",
+    "other_holdings_other": "{{count}} otras posiciones",
+    "holdings_unavailable": "El gráfico de posiciones requiere valores positivos y una cartera sin posiciones cortas."
   },
   "customize": {
     "edit": "Personalizar",

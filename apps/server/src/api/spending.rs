@@ -32,6 +32,37 @@ use wealthfolio_spending::settings::{SpendingSettings, SpendingSettingsUpdate};
 
 const MAX_BULK_CATEGORY_ASSIGNMENTS: usize = 1_000;
 
+async fn review_category_merge(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<wealthfolio_spending::category_merge::CategoryMergeRequest>,
+) -> ApiResult<Json<wealthfolio_spending::category_merge::CategoryMergeReview>> {
+    Ok(Json(
+        state
+            .category_merge_service
+            .review(request)
+            .await
+            .map_err(|error| match error.downcast::<wealthfolio_core::Error>() {
+                Ok(error) => ApiError::Core(error),
+                Err(error) => ApiError::Anyhow(error),
+            })?,
+    ))
+}
+
+async fn merge_category(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<wealthfolio_spending::category_merge::CategoryMergeCommit>,
+) -> ApiResult<Json<()>> {
+    state
+        .category_merge_service
+        .commit(request)
+        .await
+        .map_err(|error| match error.downcast::<wealthfolio_core::Error>() {
+            Ok(error) => ApiError::Core(error),
+            Err(error) => ApiError::Anyhow(error),
+        })?;
+    Ok(Json(()))
+}
+
 async fn get_spending_settings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<SpendingSettings>> {
@@ -660,6 +691,7 @@ async fn delete_budget_group(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AssignCategoryToGroupBody {
+    taxonomy_id: Option<String>,
     category_id: String,
     group_id: String,
 }
@@ -675,6 +707,7 @@ async fn assign_category_to_group(
         state
             .budget_service
             .assign_category_to_group(
+                payload.taxonomy_id,
                 payload.category_id,
                 payload.group_id,
                 query.period_key,
@@ -842,6 +875,11 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             put(update_event).delete(delete_event),
         )
         .route("/spending/budget", get(get_budget))
+        .route(
+            "/spending/categories/merge/review",
+            post(review_category_merge),
+        )
+        .route("/spending/categories/merge", post(merge_category))
         .route("/spending/budget/snapshot", get(get_budget_readonly))
         .route("/spending/context", get(get_spending_context))
         .route("/spending/budget/targets", post(upsert_budget_target))

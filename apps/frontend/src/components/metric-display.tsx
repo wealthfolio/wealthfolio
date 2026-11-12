@@ -197,17 +197,6 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
   );
 };
 
-// Simple component for displaying only the label with info popover
-// This can be used by performance-page.tsx
-export interface MetricLabelWithInfoProps {
-  label: string;
-  infoText: string;
-  warningText?: string | string[];
-  /** Substrings (e.g. account names) to render in bold within each warning. */
-  boldTerms?: string[];
-  className?: string;
-}
-
 /** Render a warning string, bolding any occurrences of the provided terms. */
 function renderWarningText(text: string, boldTerms: string[]): React.ReactNode {
   const terms = boldTerms.filter(Boolean).sort((a, b) => b.length - a.length);
@@ -267,60 +256,6 @@ export const MetricInfoPopoverBody: React.FC<{
           </ul>
         </div>
       )}
-    </div>
-  );
-};
-
-export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
-  label,
-  infoText,
-  warningText,
-  boldTerms = [],
-  className,
-}) => {
-  const { t } = useTranslation();
-  const warningItems = metricWarningItems(warningText);
-  const hasWarnings = warningItems.length > 0;
-
-  return (
-    <div className={cn("text-muted-foreground flex items-center text-xs font-light", className)}>
-      <span>{label}</span>
-      <Popover>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "ms-1 h-4 w-4 rounded-full p-0",
-                hasWarnings && "text-warning hover:text-warning",
-              )}
-            />
-          }
-        >
-          {hasWarnings ? (
-            <Icons.AlertTriangle className="h-3 w-3" />
-          ) : (
-            <Icons.Info className="h-3 w-3" />
-          )}
-          <span className="sr-only">
-            {hasWarnings
-              ? t("common:component.calculation_note_for", { label })
-              : t("common:component.more_info_about", { label })}
-          </span>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-[40rem] max-w-[calc(100vw-2rem)] p-0 text-sm"
-          side="top"
-          align="center"
-        >
-          <MetricInfoPopoverBody
-            infoText={infoText}
-            warningItems={warningItems}
-            boldTerms={boldTerms}
-          />
-        </PopoverContent>
-      </Popover>
     </div>
   );
 };

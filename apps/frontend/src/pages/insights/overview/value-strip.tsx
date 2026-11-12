@@ -1,3 +1,4 @@
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { AmountDisplay, Card, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
@@ -102,8 +103,17 @@ export function ValueWidget({ metric, data, currency, isLoading }: ValueWidgetPr
           className={cn(gap, pad, "from-muted/60 bg-gradient-to-b to-transparent to-[60%]")}
         >
           <Eyebrow>{t("insights:insights.value_strip.portfolio_value")}</Eyebrow>
-          <div className={cn("text-foreground font-bold tabular-nums tracking-tight", totalSize)}>
-            <AmountDisplay value={data.total} currency={currency} isHidden={isBalanceHidden} />
+          {/* The amount gives way (ending in "…") so a narrow widget never pushes the toggle out. */}
+          <div className="flex min-w-0 items-center gap-1">
+            <div
+              className={cn(
+                "text-foreground min-w-0 truncate font-bold tabular-nums tracking-tight",
+                totalSize,
+              )}
+            >
+              <AmountDisplay value={data.total} currency={currency} isHidden={isBalanceHidden} />
+            </div>
+            <PrivacyToggle variant="ghost" />
           </div>
           <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", subSize)}>
             <span className="text-muted-foreground tabular-nums">{holdingsAccountsLabel}</span>

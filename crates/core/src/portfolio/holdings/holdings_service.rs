@@ -1,37 +1,104 @@
 use crate::activities::{
-    Activity, ActivityRepositoryTrait, NewActivity, ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION,
-    ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL, ACTIVITY_TYPE_ADJUSTMENT,
-    ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_DIVIDEND, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
+    Activity, NewActivity, ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION,
+    ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_DIVIDEND,
+    ACTIVITY_TYPE_INTEREST,
+};
+#[cfg(test)]
+use crate::activities::{
+    ActivityRepositoryTrait, ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
     ACTIVITY_TYPE_TRANSFER_IN,
 };
 use crate::assets::{
     Asset, AssetClassificationService, AssetKind, AssetServiceTrait, InstrumentType,
 };
 use crate::constants::DECIMAL_PRECISION;
-use crate::errors::{CalculatorError, Error as CoreError, Result};
+#[cfg(test)]
+use crate::errors::CalculatorError;
+use crate::errors::{Error as CoreError, Result};
 use crate::fx::currency::{get_normalization_rule, normalize_currency_code};
+use crate::fx::currency_converter::CurrencyConverter;
+#[cfg(test)]
 use crate::fx::FxServiceTrait;
-use crate::lots::{AssetLotView, LotRecord, LotRepositoryTrait};
+use crate::lots::{AssetLotView, LotRepositoryTrait};
 use crate::portfolio::coordinator::blocking;
 use crate::portfolio::economic_events::ActivityEconomicsResolver;
 use crate::portfolio::holdings::holdings_model::{Holding, HoldingType, Instrument, MonetaryValue};
-use crate::portfolio::projection::{ActivityIssueKind, ProjectionStoreTrait};
+use crate::portfolio::projection::ProjectionStoreTrait;
 use crate::portfolio::snapshot::{self, SnapshotServiceTrait};
-use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default, user_today};
+use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use log::{debug, error, warn};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::Value;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use super::HoldingsValuationServiceTrait;
+use super::holdings_accounting::{apply_history, snapshot_cost, translate};
+use super::{
+    HoldingsRead, HoldingsScope, HoldingsValuationServiceTrait, IncompleteHoldingsAccount,
+};
 
 #[async_trait]
 pub trait HoldingsServiceTrait: Send + Sync {
+    async fn get_holdings_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        scope_id: &str,
+        include_closed: bool,
+    ) -> Result<HoldingsScope> {
+        let holdings = if account_ids.len() == 1 {
+            self.get_holdings_with_options(&account_ids[0], base_currency, include_closed)
+                .await?
+        } else {
+            self.get_holdings_for_accounts_with_options(
+                account_ids,
+                base_currency,
+                scope_id,
+                include_closed,
+            )
+            .await?
+        };
+        Ok(HoldingsScope {
+            holdings,
+            incomplete_accounts: Vec::new(),
+        })
+    }
+
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
+
+    /// Account rows and availability together, without merging accounts.
+    async fn get_holdings_by_account_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        let mut scope = HoldingsScope::default();
+        for id in account_ids {
+            let account = self
+                .get_holdings_scope(std::slice::from_ref(id), base_currency, id, false)
+                .await?;
+            scope.holdings.extend(account.holdings);
+            scope
+                .incomplete_accounts
+                .extend(account.incomplete_accounts);
+        }
+        Ok(scope)
+    }
+
+    /// Per-account rows for an asset, captured together without aggregating accounts.
+    async fn get_asset_holdings_scope(
+        &self,
+        _account_ids: &[String],
+        _asset_id: &str,
+        _base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        Err(CoreError::Unexpected(
+            "asset holdings scope is not configured".into(),
+        ))
+    }
 
     /// An asset's lot view: its transaction lots and, when asked, each
     /// holdings account's latest snapshot position, read today (carried
@@ -91,6 +158,7 @@ pub trait HoldingsServiceTrait: Send + Sync {
     ) -> Result<Vec<Holding>>;
 }
 
+#[derive(Clone)]
 pub struct HoldingsService {
     asset_service: Arc<dyn AssetServiceTrait>,
     snapshot_service: Arc<dyn SnapshotServiceTrait>,
@@ -98,76 +166,23 @@ pub struct HoldingsService {
     classification_service: Arc<AssetClassificationService>,
     timezone: Arc<RwLock<String>>,
     lot_repository: Option<Arc<dyn LotRepositoryTrait>>,
-    activity_repository: Option<Arc<dyn ActivityRepositoryTrait>>,
-    income_service: Option<Arc<dyn HoldingIncomeServiceTrait>>,
+    projection_store: Option<Arc<dyn ProjectionStoreTrait>>,
 }
 
-pub trait HoldingIncomeServiceTrait: Send + Sync {
+enum ReadView {
+    Aggregate,
+    Accounts,
+    Asset(String),
+}
+
+#[cfg(test)]
+trait HoldingIncomeServiceTrait: Send + Sync {
     fn get_asset_income(
         &self,
         account_ids: &[String],
         asset_currencies: &HashMap<String, String>,
         base_currency: &str,
     ) -> Result<HashMap<String, MonetaryValue>>;
-}
-
-pub struct HoldingIncomeService {
-    activity_repository: Arc<dyn ActivityRepositoryTrait>,
-    fx_service: Arc<dyn FxServiceTrait>,
-    projections: Arc<dyn ProjectionStoreTrait>,
-    timezone: Arc<RwLock<String>>,
-}
-
-impl HoldingIncomeService {
-    pub fn new(
-        activity_repository: Arc<dyn ActivityRepositoryTrait>,
-        fx_service: Arc<dyn FxServiceTrait>,
-        projections: Arc<dyn ProjectionStoreTrait>,
-        timezone: Arc<RwLock<String>>,
-    ) -> Self {
-        Self {
-            activity_repository,
-            fx_service,
-            projections,
-            timezone,
-        }
-    }
-}
-
-impl HoldingIncomeServiceTrait for HoldingIncomeService {
-    fn get_asset_income(
-        &self,
-        account_ids: &[String],
-        asset_currencies: &HashMap<String, String>,
-        base_currency: &str,
-    ) -> Result<HashMap<String, MonetaryValue>> {
-        let activities = self
-            .activity_repository
-            .get_activities_by_account_ids(account_ids)?;
-        // What the engine rejected contributed nothing, so it is no income
-        // either, as the performance read path leaves it out.
-        let rejected: HashSet<String> = self
-            .projections
-            .activity_issues(account_ids)?
-            .into_iter()
-            .filter(|issue| issue.kind == ActivityIssueKind::Rejected)
-            .map(|issue| issue.activity_id)
-            .collect();
-        let timezone = parse_user_timezone_or_default(
-            &self
-                .timezone
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        );
-        Ok(calculate_asset_income(
-            &activities,
-            &rejected,
-            asset_currencies,
-            base_currency,
-            self.fx_service.as_ref(),
-            timezone,
-        ))
-    }
 }
 
 struct AssetInfo {
@@ -204,18 +219,6 @@ fn is_expired_option(
     matches!(expiration, Some(exp) if exp < today)
 }
 
-fn is_expired_option_asset(asset: &Asset, today: NaiveDate) -> bool {
-    is_expired_option(
-        asset.instrument_type.as_ref() == Some(&InstrumentType::Option),
-        asset.metadata.as_ref(),
-        &[
-            asset.instrument_symbol.as_deref().unwrap_or_default(),
-            asset.display_code.as_deref().unwrap_or_default(),
-        ],
-        today,
-    )
-}
-
 impl HoldingsService {
     pub fn new(
         asset_service: Arc<dyn AssetServiceTrait>,
@@ -246,38 +249,18 @@ impl HoldingsService {
             classification_service,
             timezone,
             lot_repository: None,
-            activity_repository: None,
-            income_service: None,
+            projection_store: None,
         }
+    }
+
+    pub fn with_projection_store(mut self, store: Arc<dyn ProjectionStoreTrait>) -> Self {
+        self.projection_store = Some(store);
+        self
     }
 
     pub fn with_lot_repository(mut self, lot_repository: Arc<dyn LotRepositoryTrait>) -> Self {
         self.lot_repository = Some(lot_repository);
         self
-    }
-
-    pub fn with_income_service(
-        mut self,
-        income_service: Arc<dyn HoldingIncomeServiceTrait>,
-    ) -> Self {
-        self.income_service = Some(income_service);
-        self
-    }
-
-    pub fn with_income_dependencies(
-        mut self,
-        activity_repository: Arc<dyn ActivityRepositoryTrait>,
-        fx_service: Arc<dyn FxServiceTrait>,
-        projections: Arc<dyn ProjectionStoreTrait>,
-    ) -> Self {
-        let timezone = self.timezone.clone();
-        self.activity_repository = Some(activity_repository.clone());
-        self.with_income_service(Arc::new(HoldingIncomeService::new(
-            activity_repository,
-            fx_service,
-            projections,
-            timezone,
-        )))
     }
 
     fn today_in_user_timezone(&self) -> chrono::NaiveDate {
@@ -290,16 +273,221 @@ impl HoldingsService {
         user_today(tz)
     }
 
-    async fn build_live_holdings_from_snapshot(
+    async fn read_scope(
         &self,
+        account_ids: &[String],
+        base_currency: &str,
+        scope_id: &str,
+        include_closed: bool,
+        detail_asset: Option<&str>,
+        view: ReadView,
+    ) -> Result<HoldingsScope> {
+        let store = self
+            .projection_store
+            .clone()
+            .ok_or_else(|| CoreError::Repository("holdings read store is not configured".into()))?;
+        let mut ids = account_ids.to_vec();
+        let aggregate = matches!(&view, ReadView::Aggregate);
+        let live_accounts_only = matches!(&view, ReadView::Asset(_));
+        let asset_id = match view {
+            ReadView::Asset(id) => Some(id),
+            _ => None,
+        };
+        let day = self.today_in_user_timezone();
+        let detail_asset = detail_asset.map(str::to_owned);
+        let base = base_currency.to_string();
+        let scoped_asset = asset_id.clone();
+        let (read, converter, mut scope) = blocking(move || {
+            let mut read = store.holdings_read(&ids, day, detail_asset.as_deref())?;
+            if live_accounts_only {
+                ids.retain(|id| {
+                    read.accounts.iter().any(|account| {
+                        account.id == *id
+                            && crate::accounts::account_supports_portfolio_scope(
+                                account,
+                                crate::accounts::AccountPurpose::Holdings,
+                            )
+                    })
+                });
+            }
+            if let Some(asset_id) = scoped_asset {
+                ids.retain(|id| read.could_hold_asset(id, &asset_id));
+            }
+            read.carry_observed_splits()?;
+            let converter = Arc::new(CurrencyConverter::new(read.fx_rates.clone())?);
+            let mut scope = HoldingsScope::default();
+            for id in &ids {
+                if let Some(reason_code) = read.unavailable_reason(id) {
+                    scope.incomplete_accounts.push(IncompleteHoldingsAccount {
+                        account_id: id.clone(),
+                        status: "unavailable",
+                        reason_code,
+                    });
+                    continue;
+                }
+                match Self::prepare_read(
+                    &read,
+                    &converter,
+                    id,
+                    &base,
+                    include_closed,
+                    detail_asset.as_deref(),
+                    aggregate,
+                ) {
+                    Ok(holdings) => scope.holdings.extend(holdings),
+                    Err(CoreError::HoldingsPending(_)) => {
+                        scope.incomplete_accounts.push(IncompleteHoldingsAccount {
+                            account_id: id.clone(),
+                            status: "pending",
+                            reason_code: if read.day_advance_pending(id, read.day) {
+                                "DAY_ADVANCE_PENDING"
+                            } else {
+                                "PROJECTION_PENDING"
+                            },
+                        })
+                    }
+                    Err(_) => scope.incomplete_accounts.push(IncompleteHoldingsAccount {
+                        account_id: id.clone(),
+                        status: "unavailable",
+                        reason_code: "ACCOUNTING_UNAVAILABLE",
+                    }),
+                }
+            }
+            Ok((Arc::new(read), converter, scope))
+        })
+        .await?;
+        self.value_holdings_best_effort(scope_id, &mut scope.holdings, converter.clone(), read.day)
+            .await;
+        let service = self.clone();
+        let ids = account_ids.to_vec();
+        let scope_id = scope_id.to_string();
+        blocking(move || {
+            let mut holdings = Vec::new();
+            for id in &ids {
+                let rows = scope
+                    .holdings
+                    .extract_if(.., |holding| holding.account_id == *id)
+                    .collect();
+                match service.finish_read(&read, &converter, id, rows) {
+                    Ok(rows) => holdings.extend(rows),
+                    Err(_) => scope.incomplete_accounts.push(IncompleteHoldingsAccount {
+                        account_id: id.clone(),
+                        status: "unavailable",
+                        reason_code: "ACCOUNTING_UNAVAILABLE",
+                    }),
+                }
+            }
+            scope.holdings = if aggregate {
+                merge_holdings(holdings, &scope_id)?
+            } else {
+                holdings
+            };
+            if !scope.incomplete_accounts.is_empty() {
+                for holding in &mut scope.holdings {
+                    holding.weight = None;
+                }
+            }
+            if let Some(asset_id) = asset_id {
+                scope.holdings.retain(|holding| {
+                    holding
+                        .instrument
+                        .as_ref()
+                        .is_some_and(|instrument| instrument.id == asset_id)
+                });
+            }
+            Ok(scope)
+        })
+        .await
+    }
+
+    fn prepare_read(
+        read: &HoldingsRead,
+        converter: &CurrencyConverter,
         account_id: &str,
+        base_currency: &str,
+        include_closed: bool,
+        lots_asset: Option<&str>,
+        aggregate: bool,
+    ) -> Result<Vec<Holding>> {
+        if read.position_pending(account_id, read.day) {
+            return Err(CoreError::HoldingsPending(vec![account_id.to_string()]));
+        }
+        if read.unavailable_accounts.contains(account_id) {
+            return Err(CoreError::HoldingsUnavailable(
+                "snapshot data is invalid".into(),
+            ));
+        }
+        let Some(snapshot) = read.snapshots.get(account_id) else {
+            if read.accounts.iter().any(|account| {
+                account.id == account_id
+                    && account.tracking_mode == crate::accounts::TrackingMode::Holdings
+            }) {
+                return Ok(Vec::new());
+            }
+            if read.has_effective_activities(account_id, read.day)
+                || read.accounts_with_open_lots.contains(account_id)
+            {
+                return Err(CoreError::HoldingsUnavailable(
+                    "snapshot data is missing".into(),
+                ));
+            }
+            return Ok(Vec::new());
+        };
+        if snapshot.positions.values().any(|position| {
+            (include_closed || !position.quantity.is_zero())
+                && !read.assets.contains_key(&position.asset_id)
+        }) {
+            return Err(CoreError::HoldingsUnavailable(
+                "asset metadata is missing".into(),
+            ));
+        }
+        Ok(Self::build_live_holdings_from_snapshot(
+            snapshot,
+            base_currency,
+            lots_asset,
+            include_closed,
+            read,
+            aggregate,
+            converter,
+        ))
+    }
+
+    fn finish_read(
+        &self,
+        read: &HoldingsRead,
+        converter: &CurrencyConverter,
+        account_id: &str,
+        mut holdings: Vec<Holding>,
+    ) -> Result<Vec<Holding>> {
+        apply_history(read, converter, account_id, &mut holdings)?;
+        for holding in &mut holdings {
+            normalize_holding_currency(holding);
+        }
+        apply_portfolio_weights(account_id, &mut holdings);
+        let ids: Vec<String> = holdings
+            .iter()
+            .filter_map(|h| h.instrument.as_ref().map(|i| i.id.clone()))
+            .collect();
+        let classifications = self.classification_service.get_classifications_batch(&ids);
+        for holding in &mut holdings {
+            if let Some(instrument) = &mut holding.instrument {
+                instrument.classifications = classifications.get(&instrument.id).cloned();
+            }
+        }
+        Ok(holdings)
+    }
+
+    fn build_live_holdings_from_snapshot(
         latest_snapshot: &snapshot::AccountStateSnapshot,
         base_currency: &str,
         lots_asset_id: Option<&str>,
         include_closed: bool,
-        skip_expired_options: bool,
+        captured: &HoldingsRead,
+        aggregate: bool,
+        converter: &CurrencyConverter,
     ) -> Vec<Holding> {
-        let today = self.today_in_user_timezone();
+        let account_id = latest_snapshot.account_id.as_str();
+        let today = captured.day;
         let snapshot_positions: Vec<snapshot::Position> = latest_snapshot
             .positions
             .values()
@@ -315,50 +503,38 @@ impl HoldingsService {
             .into_iter()
             .collect();
 
-        let assets_info_map: HashMap<String, AssetInfo> = if !asset_ids.is_empty() {
-            match self.asset_service.get_assets_by_asset_ids(&asset_ids).await {
-                Ok(assets) => assets
-                    .into_iter()
-                    .map(|asset: Asset| {
-                        let metadata: Option<Value> = asset.metadata.clone();
-                        let purchase_price: Option<Decimal> =
-                            metadata.as_ref().and_then(extract_purchase_price);
+        let assets_info_map: HashMap<String, AssetInfo> = asset_ids
+            .iter()
+            .filter_map(|id| captured.assets.get(id).cloned())
+            .map(|asset: Asset| {
+                let metadata: Option<Value> = asset.metadata.clone();
+                let purchase_price: Option<Decimal> =
+                    metadata.as_ref().and_then(extract_purchase_price);
 
-                        let instrument = Instrument {
-                            id: asset.id.clone(),
-                            symbol: asset.display_code.clone().unwrap_or_default(),
-                            name: asset.name.clone(),
-                            currency: asset.quote_ccy.clone(),
-                            notes: asset.notes.clone(),
-                            pricing_mode: asset.quote_mode.as_db_str().to_string(),
-                            preferred_provider: asset.preferred_provider(),
-                            exchange_mic: asset.instrument_exchange_mic.clone(),
-                            instrument_type: asset.instrument_type.clone(),
-                            classifications: None,
-                        };
+                let instrument = Instrument {
+                    id: asset.id.clone(),
+                    symbol: asset.display_code.clone().unwrap_or_default(),
+                    name: asset.name.clone(),
+                    currency: asset.quote_ccy.clone(),
+                    notes: asset.notes.clone(),
+                    pricing_mode: asset.quote_mode.as_db_str().to_string(),
+                    preferred_provider: asset.preferred_provider(),
+                    exchange_mic: asset.instrument_exchange_mic.clone(),
+                    instrument_type: asset.instrument_type.clone(),
+                    classifications: None,
+                };
 
-                        let asset_info = AssetInfo {
-                            instrument,
-                            instrument_symbol: asset.instrument_symbol.clone(),
-                            is_option: asset.instrument_type == Some(InstrumentType::Option),
-                            kind: asset.kind,
-                            metadata,
-                            purchase_price,
-                        };
-                        (asset.id, asset_info)
-                    })
-                    .collect(),
-                Err(e) => {
-                    error!(
-                        "Failed to get asset details for account {}: {}. Asset info will be missing.",
-                        account_id, e
-                    );
-                    HashMap::new()
-                }
-            }
-        } else {
-            HashMap::new()
-        };
+                let asset_info = AssetInfo {
+                    instrument,
+                    instrument_symbol: asset.instrument_symbol.clone(),
+                    is_option: asset.instrument_type == Some(InstrumentType::Option),
+                    kind: asset.kind,
+                    metadata,
+                    purchase_price,
+                };
+                (asset.id, asset_info)
+            })
+            .collect();
 
         let mut holdings: Vec<Holding> = Vec::new();
 
@@ -371,8 +547,7 @@ impl HoldingsService {
                 continue;
             };
 
-            if skip_expired_options
-                && snapshot_pos.quantity != Decimal::ZERO
+            if snapshot_pos.quantity != Decimal::ZERO
                 && is_expired_option(
                     asset_info.is_option,
                     asset_info.metadata.as_ref(),
@@ -403,17 +578,42 @@ impl HoldingsService {
             // STEP 2: newly written snapshots no longer embed lots, so source
             // the current open lots from the normalized `lots` table. Only
             // fetch when this holding's lots were requested.
-            let lots = if include_lots {
-                self.open_display_lots(
-                    account_id,
-                    &snapshot_pos.asset_id,
-                    &snapshot_pos.id,
-                    &snapshot_pos.lots,
-                )
-                .await
+            let lots =
+                if include_lots && latest_snapshot.source == snapshot::SnapshotSource::Calculated {
+                    super::holdings_accounting::display_lots(captured, account_id, snapshot_pos)
+                } else {
+                    None
+                };
+
+            let display_currency = if aggregate {
+                asset_info.instrument.currency.as_str()
             } else {
-                None
+                &snapshot_pos.currency
             };
+            let local_cost = if latest_snapshot.source == snapshot::SnapshotSource::Calculated {
+                snapshot_cost(snapshot_pos, latest_snapshot, display_currency)
+            } else {
+                translate(
+                    converter,
+                    snapshot_pos.total_cost_basis,
+                    &snapshot_pos.currency,
+                    display_currency,
+                    captured.day,
+                )
+            };
+            let base_cost = if latest_snapshot.source != snapshot::SnapshotSource::Calculated {
+                translate(
+                    converter,
+                    snapshot_pos.total_cost_basis,
+                    &snapshot_pos.currency,
+                    base_currency,
+                    captured.day,
+                )
+                .or_else(|| snapshot_cost(snapshot_pos, latest_snapshot, base_currency))
+            } else {
+                snapshot_cost(snapshot_pos, latest_snapshot, base_currency)
+            };
+            let basis = MonetaryValue::new(local_cost, base_cost);
 
             let holding_view = Holding {
                 id: format!("{}-{}-{}", id_prefix, account_id, snapshot_pos.asset_id),
@@ -426,14 +626,13 @@ impl HoldingsService {
                 open_date: Some(snapshot_pos.inception_date),
                 lots,
                 contract_multiplier: snapshot_pos.contract_multiplier,
-                local_currency: snapshot_pos.currency.clone(),
+                local_currency: display_currency.to_string(),
                 base_currency: base_currency.to_string(),
+                translate_observed_basis: latest_snapshot.source
+                    != snapshot::SnapshotSource::Calculated,
                 fx_rate: None,
-                market_value: MonetaryValue::zero(),
-                cost_basis: Some(MonetaryValue {
-                    local: snapshot_pos.total_cost_basis,
-                    base: Decimal::ZERO,
-                }),
+                market_value: MonetaryValue::unavailable(),
+                cost_basis: Some(basis),
                 price: None,
                 purchase_price: asset_info.purchase_price,
                 unrealized_gain: None,
@@ -449,7 +648,7 @@ impl HoldingsService {
                 day_change: None,
                 day_change_pct: None,
                 prev_close_value: None,
-                weight: Decimal::ZERO,
+                weight: Some(Decimal::ZERO),
                 as_of_date: today,
                 metadata: asset_info.metadata.clone(),
                 source_account_ids: Vec::new(),
@@ -488,15 +687,16 @@ impl HoldingsService {
                 contract_multiplier: Decimal::ONE,
                 local_currency: currency.clone(),
                 base_currency: base_currency.to_string(),
+                translate_observed_basis: false,
                 fx_rate: None,
-                market_value: MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                },
-                cost_basis: Some(MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                }),
+                market_value: MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                ),
+                cost_basis: Some(MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                )),
                 price: Some(dec!(1.0)),
                 purchase_price: None,
                 unrealized_gain: Some(MonetaryValue::zero()),
@@ -508,17 +708,17 @@ impl HoldingsService {
                 income: Some(MonetaryValue::zero()),
                 total_return: Some(MonetaryValue::zero()),
                 total_return_pct: Some(Decimal::ZERO),
-                return_basis: Some(MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                }),
+                return_basis: Some(MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                )),
                 day_change: Some(MonetaryValue::zero()),
                 day_change_pct: Some(Decimal::ZERO),
-                prev_close_value: Some(MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                }),
-                weight: Decimal::ZERO,
+                prev_close_value: Some(MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                )),
+                weight: Some(Decimal::ZERO),
                 as_of_date: today,
                 metadata: None,
                 source_account_ids: Vec::new(),
@@ -529,204 +729,13 @@ impl HoldingsService {
         holdings
     }
 
-    /// Sources the current open lots for display from the normalized `lots`
-    /// table (STEP 2 of the holdings_snapshots bloat fix).
-    ///
-    /// Newly written snapshots no longer embed lots in their positions JSON, so
-    /// the lot detail shown on a holding must come from the `lots` table. When
-    /// the repository is wired and returns open lots, they are converted into
-    /// the display `Lot` shape the frontend expects. If the repository is
-    /// absent, errors, or returns no rows, this falls back to the snapshot's
-    /// embedded lots — non-empty only for snapshots serialized before STEP 2 —
-    /// preserving the prior behavior for not-yet-recalculated data.
-    async fn open_display_lots(
+    async fn value_holdings_best_effort(
         &self,
         account_id: &str,
-        asset_id: &str,
-        position_id: &str,
-        embedded_lots: &VecDeque<snapshot::Lot>,
-    ) -> Option<VecDeque<snapshot::Lot>> {
-        if let Some(lot_repository) = &self.lot_repository {
-            let lot_repository = lot_repository.clone();
-            let account = account_id.to_string();
-            let asset = asset_id.to_string();
-            let position = position_id.to_string();
-            let handle = tokio::runtime::Handle::current();
-            let read_lots = async move {
-                let records = lot_repository
-                    .get_open_lots_for_account_asset(&account, &asset)
-                    .await?;
-                Ok(records
-                    .into_iter()
-                    .map(|record| lot_record_to_display_lot(&position, record))
-                    .collect::<VecDeque<_>>())
-            };
-            match blocking(move || handle.block_on(read_lots)).await {
-                Ok(lots) if !lots.is_empty() => {
-                    return Some(lots);
-                }
-                Ok(_) => {
-                    // No open lots in the table: fall back to embedded lots
-                    // (present only on pre-STEP-2 snapshots; empty otherwise).
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to load open lots from lots table for account {} asset {}: {}. \
-                         Falling back to embedded snapshot lots.",
-                        account_id, asset_id, e
-                    );
-                }
-            }
-        }
-
-        Some(embedded_lots.clone())
-    }
-
-    async fn apply_historical_cost_basis_best_effort(
-        &self,
-        account_id: &str,
-        base_currency: &str,
         holdings: &mut [Holding],
-        asset_id_filter: Option<&str>,
+        converter: Arc<CurrencyConverter>,
+        day: NaiveDate,
     ) {
-        if holdings.is_empty() {
-            return;
-        }
-
-        let Some(lot_repository) = &self.lot_repository else {
-            return;
-        };
-
-        let security_asset_ids: HashSet<String> = holdings
-            .iter()
-            .filter(|holding| holding.holding_type == HoldingType::Security)
-            .filter_map(|holding| holding.instrument.as_ref().map(|instrument| &instrument.id))
-            .filter(|asset_id| asset_id_filter.is_none_or(|filter| asset_id.as_str() == filter))
-            .cloned()
-            .collect();
-
-        if security_asset_ids.is_empty() {
-            return;
-        }
-
-        let lot_repository = lot_repository.clone();
-        let account = account_id.to_string();
-        let base = base_currency.to_string();
-        let asset_id_filter = asset_id_filter.map(str::to_owned);
-        let handle = tokio::runtime::Handle::current();
-        let read_totals = async move {
-            let account_id = account.as_str();
-            let base_currency = base.as_str();
-            let asset_id_filter = asset_id_filter.as_deref();
-            let open_lots_result = if let Some(asset_id) = asset_id_filter {
-                lot_repository
-                    .get_open_lots_for_account_asset(account_id, asset_id)
-                    .await
-            } else {
-                lot_repository.get_open_lots_for_account(account_id).await
-            };
-
-            let open_lots = match open_lots_result {
-                Ok(lots) => lots,
-                Err(e) => {
-                    warn!(
-                        "Failed to load open lots for account {} while applying historical cost basis: {}",
-                        account_id, e
-                    );
-                    return Ok(HashMap::new());
-                }
-            };
-            if open_lots.is_empty() {
-                return Ok(HashMap::new());
-            }
-
-            let requested_base_currency = normalize_currency_code(base_currency);
-            let mut cost_basis_base_by_asset: HashMap<String, Decimal> = HashMap::new();
-            let mut mismatched_base_assets: HashSet<String> = HashSet::new();
-            let mut invalid_base_cost_assets: HashSet<String> = HashSet::new();
-
-            for lot in open_lots {
-                if !security_asset_ids.contains(&lot.asset_id) {
-                    continue;
-                }
-
-                let lot_base_currency = normalize_currency_code(&lot.base_currency);
-                if lot_base_currency != requested_base_currency {
-                    mismatched_base_assets.insert(lot.asset_id.clone());
-                    continue;
-                }
-
-                let remaining_cost_basis_base = match lot
-                    .remaining_cost_basis_base
-                    .parse::<Decimal>()
-                {
-                    Ok(value) => value,
-                    Err(e) => {
-                        invalid_base_cost_assets.insert(lot.asset_id.clone());
-                        warn!(
-                            "Skipping historical cost basis seeding for asset {} in account {} because an open lot has invalid base cost basis: {}",
-                            lot.asset_id, account_id, e
-                        );
-                        continue;
-                    }
-                };
-                cost_basis_base_by_asset
-                    .entry(lot.asset_id)
-                    .and_modify(|total| *total += remaining_cost_basis_base)
-                    .or_insert(remaining_cost_basis_base);
-            }
-
-            for asset_id in invalid_base_cost_assets {
-                cost_basis_base_by_asset.remove(&asset_id);
-            }
-
-            for asset_id in mismatched_base_assets {
-                cost_basis_base_by_asset.remove(&asset_id);
-                warn!(
-                    "Skipping historical cost basis seeding for asset {} in account {} because lot base currency does not match requested base currency {}.",
-                    asset_id, account_id, base_currency
-                );
-            }
-
-            if cost_basis_base_by_asset.is_empty() {
-                return Ok(HashMap::new());
-            }
-
-            Ok(cost_basis_base_by_asset)
-        };
-        let cost_basis_base_by_asset_result = blocking(move || handle.block_on(read_totals)).await;
-        let cost_basis_base_by_asset = match cost_basis_base_by_asset_result {
-            Ok(totals) => totals,
-            Err(error) => {
-                warn!(
-                    "Failed to calculate historical cost basis for account {}: {}",
-                    account_id, error
-                );
-                return;
-            }
-        };
-
-        for holding in holdings {
-            if holding.holding_type != HoldingType::Security {
-                continue;
-            }
-
-            let Some(asset_id) = holding.instrument.as_ref().map(|instrument| &instrument.id)
-            else {
-                continue;
-            };
-            let Some(cost_basis_base) = cost_basis_base_by_asset.get(asset_id) else {
-                continue;
-            };
-            let Some(cost_basis) = &mut holding.cost_basis else {
-                continue;
-            };
-
-            cost_basis.base = *cost_basis_base;
-        }
-    }
-
-    async fn value_holdings_best_effort(&self, account_id: &str, holdings: &mut [Holding]) {
         if holdings.is_empty() {
             debug!(
                 "No holdings found for account {}. Skipping valuation.",
@@ -737,263 +746,13 @@ impl HoldingsService {
 
         if let Err(e) = self
             .valuation_service
-            .calculate_holdings_live_valuation(holdings)
+            .calculate_with_captured_fx(holdings, converter, day)
             .await
         {
             error!(
                 "Live valuation calculation failed for account {}: {}. Returning partially valued holdings.",
                 account_id, e
             );
-        }
-    }
-
-    async fn apply_realized_gains_best_effort(&self, account_id: &str, holdings: &mut [Holding]) {
-        let Some(lot_repository) = &self.lot_repository else {
-            return;
-        };
-        #[derive(Default)]
-        struct Totals {
-            realized_local: Decimal,
-            realized_base: Decimal,
-            disposed_cost_local: Decimal,
-            disposed_cost_base: Decimal,
-        }
-
-        let lot_repository = lot_repository.clone();
-        let activity_repository = self.activity_repository.clone();
-        let account = account_id.to_string();
-        let handle = tokio::runtime::Handle::current();
-        let read_totals = async move {
-            let account_id = account.as_str();
-            let disposals = match lot_repository
-                .get_lot_disposals_for_account(account_id)
-                .await
-            {
-                Ok(disposals) => disposals,
-                Err(e) => {
-                    warn!(
-                        "Failed to load lot disposals for account {} while calculating realized gains: {}",
-                        account_id, e
-                    );
-                    return Ok(HashMap::new());
-                }
-            };
-            if disposals.is_empty() {
-                return Ok(HashMap::new());
-            }
-            let disposal_trade_activity_ids = Self::disposal_trade_activity_ids_for_account(
-                activity_repository.as_deref(),
-                account_id,
-            );
-
-            let mut totals_by_asset: HashMap<String, Totals> = HashMap::new();
-            for disposal in disposals {
-                if let Some(disposal_trade_activity_ids) = &disposal_trade_activity_ids {
-                    if !disposal_trade_activity_ids.contains(&disposal.disposal_activity_id) {
-                        continue;
-                    }
-                }
-                let totals = totals_by_asset.entry(disposal.asset_id).or_default();
-                totals.realized_local += parse_decimal_lossy(&disposal.realized_pnl);
-                totals.realized_base += parse_decimal_lossy(&disposal.realized_pnl_base);
-                totals.disposed_cost_local += parse_decimal_lossy(&disposal.cost_basis);
-                totals.disposed_cost_base += parse_decimal_lossy(&disposal.cost_basis_base);
-            }
-
-            Ok(totals_by_asset)
-        };
-        let totals_by_asset_result = blocking(move || handle.block_on(read_totals)).await;
-        let totals_by_asset = match totals_by_asset_result {
-            Ok(totals) => totals,
-            Err(error) => {
-                warn!(
-                    "Failed to calculate realized gains for account {}: {}",
-                    account_id, error
-                );
-                return;
-            }
-        };
-
-        for holding in holdings {
-            if !matches!(
-                holding.holding_type,
-                HoldingType::Security | HoldingType::AlternativeAsset
-            ) {
-                continue;
-            }
-            let Some(asset_id) = holding
-                .instrument
-                .as_ref()
-                .map(|instrument| instrument.id.clone())
-            else {
-                continue;
-            };
-            let Some(totals) = totals_by_asset.get(&asset_id) else {
-                continue;
-            };
-
-            let realized = MonetaryValue {
-                local: totals.realized_local,
-                base: totals.realized_base,
-            };
-            holding.realized_gain = Some(realized.clone());
-            holding.realized_gain_pct = gain_pct(realized.local, totals.disposed_cost_local);
-
-            let mut total_gain = realized;
-            if let Some(unrealized) = &holding.unrealized_gain {
-                total_gain.local += unrealized.local;
-                total_gain.base += unrealized.base;
-            }
-            holding.total_gain = Some(total_gain.clone());
-
-            let open_cost_base = holding
-                .cost_basis
-                .as_ref()
-                .map(|cost_basis| cost_basis.base)
-                .unwrap_or(Decimal::ZERO);
-            let open_cost_local = holding
-                .cost_basis
-                .as_ref()
-                .map(|cost_basis| cost_basis.local)
-                .unwrap_or(Decimal::ZERO);
-            let return_basis = MonetaryValue {
-                local: open_cost_local + totals.disposed_cost_local,
-                base: open_cost_base + totals.disposed_cost_base,
-            };
-            holding.return_basis = Some(return_basis.clone());
-            holding.total_gain_pct = gain_pct(total_gain.local, return_basis.local);
-        }
-    }
-
-    fn disposal_trade_activity_ids_for_account(
-        activity_repository: Option<&dyn ActivityRepositoryTrait>,
-        account_id: &str,
-    ) -> Option<HashSet<String>> {
-        let activity_repository = activity_repository?;
-        match activity_repository.get_activities_by_account_id(account_id) {
-            Ok(activities) => Some(
-                activities
-                    .into_iter()
-                    .filter(|activity| activity.is_posted())
-                    .filter(|activity| {
-                        let activity_type = activity.effective_type();
-                        let is_trade = activity_type == ACTIVITY_TYPE_SELL
-                            || activity_type == ACTIVITY_TYPE_BUY;
-                        let is_option_expiry = activity_type == ACTIVITY_TYPE_ADJUSTMENT
-                            && activity.subtype.as_deref().is_some_and(|subtype| {
-                                subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY)
-                            });
-                        // Units a transfer delivers into a short cover it and realize; a
-                        // transfer out moves lots at their cost and realizes nothing
-                        // (engine rules R2.4).
-                        let is_transfer_in = activity_type == ACTIVITY_TYPE_TRANSFER_IN;
-                        // A return of capital realizes what exceeds the cost basis as
-                        // a capital gain, and in base its currency move (engine rules R7.4).
-                        let is_return_of_capital = (activity_type == ACTIVITY_TYPE_ADJUSTMENT
-                            || activity_type == ACTIVITY_TYPE_DIVIDEND)
-                            && activity.subtype.as_deref().is_some_and(|subtype| {
-                                NewActivity::canonicalize_subtype(Some(subtype)).as_deref()
-                                    == Some(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL)
-                            });
-                        is_trade || is_option_expiry || is_transfer_in || is_return_of_capital
-                    })
-                    .map(|activity| activity.id)
-                    .collect(),
-            ),
-            Err(e) => {
-                warn!(
-                    "Failed to load activities for holdings realized-gain disposal filtering on account {}: {}. Disposals will be ignored.",
-                    account_id, e
-                );
-                Some(HashSet::new())
-            }
-        }
-    }
-
-    fn apply_return_basis_defaults(&self, holdings: &mut [Holding]) {
-        for holding in holdings {
-            if holding.return_basis.is_none() {
-                holding.return_basis = holding.cost_basis.clone();
-            }
-
-            let Some(total_gain) = holding.total_gain.clone() else {
-                continue;
-            };
-            let basis_local = holding
-                .return_basis
-                .as_ref()
-                .map(|basis| basis.local)
-                .unwrap_or(Decimal::ZERO);
-            holding.total_gain_pct = gain_pct(total_gain.local, basis_local);
-        }
-    }
-
-    async fn apply_income_and_total_return_best_effort(
-        &self,
-        account_ids: &[String],
-        base_currency: &str,
-        holdings: &mut [Holding],
-    ) {
-        let mut asset_currencies: HashMap<String, String> = HashMap::new();
-        for holding in holdings.iter() {
-            if matches!(
-                holding.holding_type,
-                HoldingType::Security | HoldingType::AlternativeAsset
-            ) {
-                if let Some(instrument) = &holding.instrument {
-                    asset_currencies.insert(instrument.id.clone(), holding.local_currency.clone());
-                }
-            }
-        }
-
-        let income_by_asset = if asset_currencies.is_empty() {
-            HashMap::new()
-        } else {
-            match &self.income_service {
-                Some(income_service) => {
-                    let income_service = income_service.clone();
-                    let scope = account_ids.to_vec();
-                    let base_currency = base_currency.to_string();
-                    match blocking(move || {
-                        income_service.get_asset_income(&scope, &asset_currencies, &base_currency)
-                    })
-                    .await
-                    {
-                        Ok(income) => income,
-                        Err(e) => {
-                            warn!(
-                                "Failed to load asset-linked income for holdings scope {:?}: {}",
-                                account_ids, e
-                            );
-                            HashMap::new()
-                        }
-                    }
-                }
-                None => HashMap::new(),
-            }
-        };
-
-        for holding in holdings {
-            if !matches!(
-                holding.holding_type,
-                HoldingType::Security | HoldingType::AlternativeAsset
-            ) {
-                holding.income = holding
-                    .income
-                    .clone()
-                    .or_else(|| Some(MonetaryValue::zero()));
-                refresh_total_return(holding);
-                continue;
-            }
-
-            let income = holding
-                .instrument
-                .as_ref()
-                .and_then(|instrument| income_by_asset.get(&instrument.id))
-                .cloned()
-                .unwrap_or_else(MonetaryValue::zero);
-            holding.income = Some(income);
-            refresh_total_return(holding);
         }
     }
 }
@@ -1010,7 +769,121 @@ fn is_cash_dust(amount: Decimal) -> bool {
     amount.round_dp(DECIMAL_PRECISION).is_zero()
 }
 
-fn gain_pct(amount: Decimal, basis: Decimal) -> Option<Decimal> {
+impl HoldingsService {}
+
+fn merge_holdings(all_holdings: Vec<Holding>, aggregated_account_id: &str) -> Result<Vec<Holding>> {
+    // Merge by key: securities/alternatives → lifecycle + asset id; cash → local_currency.
+    // Open and closed positions for the same asset must remain distinct, and
+    // open long/short positions across accounts may legitimately net to zero.
+    let mut merged: HashMap<String, Holding> = HashMap::new();
+    for holding in all_holdings {
+        let key = match &holding.holding_type {
+            HoldingType::Cash => format!("CASH-{}", holding.local_currency),
+            _ => {
+                let asset_id = holding
+                    .instrument
+                    .as_ref()
+                    .map(|i| i.id.clone())
+                    .unwrap_or_else(|| holding.id.clone());
+                if holding.is_closed {
+                    format!("CLOSED-{}", asset_id)
+                } else {
+                    asset_id
+                }
+            }
+        };
+
+        match merged.entry(key.clone()) {
+            std::collections::hash_map::Entry::Occupied(mut occ) => {
+                let acc = occ.get_mut();
+                if !acc.source_account_ids.contains(&holding.account_id) {
+                    acc.source_account_ids.push(holding.account_id.clone());
+                }
+                acc.quantity += holding.quantity;
+                add_monetary(&mut acc.market_value, &holding.market_value);
+                add_optional_monetary(&mut acc.cost_basis, &holding.cost_basis);
+                add_optional_monetary(&mut acc.unrealized_gain, &holding.unrealized_gain);
+                add_optional_monetary(&mut acc.realized_gain, &holding.realized_gain);
+                add_optional_monetary(&mut acc.total_gain, &holding.total_gain);
+                add_optional_monetary(&mut acc.income, &holding.income);
+                add_optional_monetary(&mut acc.total_return, &holding.total_return);
+                add_optional_monetary(&mut acc.return_basis, &holding.return_basis);
+                add_optional_monetary(&mut acc.day_change, &holding.day_change);
+                add_optional_monetary(&mut acc.prev_close_value, &holding.prev_close_value);
+                if let Some(date) = holding.open_date {
+                    acc.open_date = Some(match acc.open_date {
+                        Some(existing) => existing.min(date),
+                        None => date,
+                    });
+                }
+                if let Some(lots) = holding.lots {
+                    acc.lots
+                        .get_or_insert_with(std::collections::VecDeque::new)
+                        .extend(lots);
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(vac) => {
+                let original_account_id = holding.account_id.clone();
+                let mut h = holding;
+                h.id = format!("AGG-{}", key);
+                h.account_id = aggregated_account_id.to_string();
+                h.source_account_ids = vec![original_account_id];
+                vac.insert(h);
+            }
+        }
+    }
+
+    let mut result: Vec<Holding> = merged.into_values().collect();
+    // Sort for deterministic output: cash last, then by id.
+    result.sort_by(|a, b| {
+        let a_cash = matches!(a.holding_type, HoldingType::Cash);
+        let b_cash = matches!(b.holding_type, HoldingType::Cash);
+        a_cash.cmp(&b_cash).then_with(|| a.id.cmp(&b.id))
+    });
+
+    // Recompute percentage fields from the summed local values.
+    // The merge loop accumulates monetary values but percentages from the first
+    // account seen are no longer correct for the aggregated position.
+    for h in result.iter_mut() {
+        let basis_local = h.return_basis.as_ref().and_then(|basis| basis.local);
+        let open_cost_local = h
+            .cost_basis
+            .as_ref()
+            .and_then(|cost_basis| cost_basis.local);
+        h.unrealized_gain_pct = h
+            .unrealized_gain
+            .as_ref()
+            .and_then(|value| gain_pct(value.local, open_cost_local));
+        let disposed_cost_local = basis_local
+            .zip(open_cost_local)
+            .map(|(basis, cost)| basis - cost);
+        h.realized_gain_pct = h
+            .realized_gain
+            .as_ref()
+            .and_then(|value| gain_pct(value.local, disposed_cost_local));
+        refresh_total_return(h);
+        let prev_close_base = h.prev_close_value.as_ref().and_then(|p| p.base);
+        let prev_close_exposure_base = prev_close_base.map(|amount| amount.abs());
+        if let Some(exposure) = prev_close_exposure_base.filter(|amount| *amount > Decimal::ZERO) {
+            h.day_change_pct = h
+                .day_change
+                .as_ref()
+                .and_then(|v| v.base.map(|amount| amount / exposure));
+        } else {
+            h.day_change_pct = None;
+        }
+    }
+
+    apply_portfolio_weights(aggregated_account_id, &mut result);
+    Ok(result)
+}
+
+pub(super) fn gain_pct(
+    amount: impl Into<Option<Decimal>>,
+    basis: impl Into<Option<Decimal>>,
+) -> Option<Decimal> {
+    let amount = amount.into()?;
+    let basis = basis.into()?;
     let exposure = basis.abs();
     if exposure > Decimal::ZERO {
         Some((amount / exposure).round_dp(DECIMAL_PRECISION))
@@ -1021,7 +894,7 @@ fn gain_pct(amount: Decimal, basis: Decimal) -> Option<Decimal> {
     }
 }
 
-fn refresh_total_return(holding: &mut Holding) {
+pub(super) fn refresh_total_return(holding: &mut Holding) {
     if holding.total_gain.is_none() {
         let mut total_gain = MonetaryValue::zero();
         let mut has_gain = false;
@@ -1038,11 +911,7 @@ fn refresh_total_return(holding: &mut Holding) {
         }
     }
 
-    let basis_local = holding
-        .return_basis
-        .as_ref()
-        .map(|basis| basis.local)
-        .unwrap_or(Decimal::ZERO);
+    let basis_local = holding.return_basis.as_ref().and_then(|basis| basis.local);
     if let Some(total_gain) = &holding.total_gain {
         holding.total_gain_pct = gain_pct(total_gain.local, basis_local);
     }
@@ -1058,6 +927,7 @@ fn refresh_total_return(holding: &mut Holding) {
     holding.total_return_pct = gain_pct(total_return.local, basis_local);
 }
 
+#[cfg(test)]
 fn calculate_asset_income(
     activities: &[Activity],
     rejected: &HashSet<String>,
@@ -1066,61 +936,19 @@ fn calculate_asset_income(
     fx_service: &dyn FxServiceTrait,
     timezone: chrono_tz::Tz,
 ) -> HashMap<String, MonetaryValue> {
-    let mut income_by_asset: HashMap<String, MonetaryValue> = HashMap::new();
-
-    for activity in activities {
-        if !activity.is_posted() || rejected.contains(&activity.id) {
-            continue;
-        }
-
-        let Some(amount) = asset_income_amount(activity) else {
-            continue;
-        };
-
-        let Some(asset_id) = activity.asset_id.as_ref() else {
-            continue;
-        };
-        let Some(local_currency) = asset_currencies.get(asset_id) else {
-            continue;
-        };
-
-        if amount.is_zero() {
-            continue;
-        }
-
-        let activity_date = activity_date_in_tz(activity.activity_date, timezone);
-        let Some(local_income) = convert_income_amount(
-            fx_service,
-            amount,
-            &activity.currency,
-            local_currency,
-            activity_date,
-            &activity.id,
-        ) else {
-            continue;
-        };
-        let Some(base_income) = convert_income_amount(
-            fx_service,
-            amount,
-            &activity.currency,
-            base_currency,
-            activity_date,
-            &activity.id,
-        ) else {
-            continue;
-        };
-
-        let income = MonetaryValue {
-            local: local_income,
-            base: base_income,
-        };
-        income_by_asset
-            .entry(asset_id.clone())
-            .and_modify(|existing| add_monetary(existing, &income))
-            .or_insert(income);
-    }
-
-    income_by_asset
+    super::holdings_accounting::income_from_activities(
+        activities,
+        rejected,
+        asset_currencies,
+        base_currency,
+        |amount, from, to, day| {
+            fx_service
+                .convert_currency_for_date(amount, from, to, day)
+                .ok()
+        },
+        timezone,
+        user_today(timezone),
+    )
 }
 
 /// What an activity adds to its asset's income, as the portfolio engine counts
@@ -1129,7 +957,7 @@ fn calculate_asset_income(
 /// amount back out of dividends already counted; a notional distribution adds
 /// it. Their cost basis changes are in the holding's gains, so the total return
 /// counts each once.
-fn asset_income_amount(activity: &Activity) -> Option<Decimal> {
+pub(super) fn asset_income_amount(activity: &Activity) -> Option<Decimal> {
     let activity_type = activity.effective_type();
     let subtype = NewActivity::canonicalize_subtype(activity.subtype.as_deref());
     let return_of_capital = subtype.as_deref() == Some(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL);
@@ -1154,62 +982,19 @@ fn activity_income_amount(activity: &Activity) -> Decimal {
         .unwrap_or(Decimal::ZERO)
 }
 
-fn convert_income_amount(
-    fx_service: &dyn FxServiceTrait,
-    amount: Decimal,
-    from_currency: &str,
-    to_currency: &str,
-    date: NaiveDate,
-    activity_id: &str,
-) -> Option<Decimal> {
-    if from_currency == to_currency {
-        return Some(amount);
-    }
-
-    match fx_service.convert_currency_for_date(amount, from_currency, to_currency, date) {
-        Ok(converted) => Some(converted),
-        Err(e) => {
-            warn!(
-                "Skipping income conversion for activity {}: {} {} -> {} on {} failed: {}",
-                activity_id, amount, from_currency, to_currency, date, e
-            );
-            None
-        }
-    }
-}
-
-fn parse_decimal_lossy(value: &str) -> Decimal {
-    value.parse::<Decimal>().unwrap_or(Decimal::ZERO)
-}
-
-/// Converts a persisted [`LotRecord`] (normalized `lots` table row) into the
-/// in-memory display [`snapshot::Lot`] shape a `Holding` carries.
-///
-/// Only display-relevant fields are mapped: quantities and cost basis use the
-/// lot's *remaining* values (matching the open position), immutable
-/// acquisition-side values come from the record's allocated fee/tax, and the
-/// FX/audit fields that the table doesn't retain in the per-lot form are left
-/// `None`. `position_id` is stamped from the owning position so the shape
-/// matches lots that were previously read from the embedded snapshot.
-fn lot_record_to_display_lot(position_id: &str, record: LotRecord) -> snapshot::Lot {
-    crate::lots::lot_record_to_snapshot_lot(position_id, record)
-}
-
 fn add_monetary(acc: &mut MonetaryValue, other: &MonetaryValue) {
-    acc.local += other.local;
-    acc.base += other.base;
+    *acc = acc.add(other);
 }
 
 fn add_optional_monetary(acc: &mut Option<MonetaryValue>, other: &Option<MonetaryValue>) {
     match (acc.as_mut(), other) {
         (Some(a), Some(b)) => add_monetary(a, b),
-        (None, Some(b)) => *acc = Some(b.clone()),
-        _ => {}
+        _ => *acc = Some(MonetaryValue::unavailable()),
     }
 }
 
 fn apply_factor_to_monetary_value(value: &mut MonetaryValue, factor: Decimal) {
-    value.local *= factor;
+    value.local = value.local.map(|amount| amount * factor);
 }
 
 fn apply_factor_to_optional_monetary_value(value: &mut Option<MonetaryValue>, factor: Decimal) {
@@ -1256,12 +1041,9 @@ fn normalize_holding_currency(holding: &mut Holding) {
         apply_factor_to_optional_monetary_value(&mut holding.return_basis, factor);
         apply_factor_to_optional_monetary_value(&mut holding.day_change, factor);
         apply_factor_to_optional_monetary_value(&mut holding.prev_close_value, factor);
-
         if let Some(lots) = holding.lots.as_mut() {
             for lot in lots {
-                lot.cost_basis *= factor;
-                lot.acquisition_price *= factor;
-                lot.acquisition_fees *= factor;
+                super::holdings_accounting::scale_lot(lot, factor);
             }
         }
     }
@@ -1279,25 +1061,19 @@ fn extract_purchase_price(metadata: &Value) -> Option<Decimal> {
     })
 }
 
-fn apply_portfolio_weights(account_id: &str, holdings: &mut [Holding]) {
-    let total_portfolio_exposure_base: Decimal = holdings
+fn apply_portfolio_weights(_account_id: &str, holdings: &mut [Holding]) {
+    let total: Option<Decimal> = holdings
         .iter()
-        .map(|holding| holding.market_value.base.abs())
+        .map(|h| h.market_value.base.map(|value| value.abs()))
         .sum();
-
-    if total_portfolio_exposure_base > dec!(0) {
-        for holding in holdings {
-            holding.weight = (holding.market_value.base / total_portfolio_exposure_base)
-                .round_dp(DECIMAL_PRECISION);
-        }
-    } else {
-        debug!(
-            "Total portfolio base exposure is zero for account {}. Allocations set to 0.",
-            account_id
-        );
-        for holding in holdings {
-            holding.weight = Decimal::ZERO;
-        }
+    for holding in holdings {
+        holding.weight = holding.market_value.base.zip(total).map(|(value, total)| {
+            if total.is_zero() {
+                Decimal::ZERO
+            } else {
+                (value / total).round_dp(DECIMAL_PRECISION)
+            }
+        });
     }
 }
 
@@ -1408,6 +1184,61 @@ mod expired_option_metadata_tests {
 
 #[async_trait]
 impl HoldingsServiceTrait for HoldingsService {
+    async fn get_holdings_by_account_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        self.read_scope(
+            account_ids,
+            base_currency,
+            "accounts",
+            false,
+            None,
+            ReadView::Accounts,
+        )
+        .await
+    }
+
+    async fn get_holdings_scope(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        scope_id: &str,
+        include_closed: bool,
+    ) -> Result<HoldingsScope> {
+        self.read_scope(
+            account_ids,
+            base_currency,
+            scope_id,
+            include_closed,
+            None,
+            if account_ids.len() > 1 {
+                ReadView::Aggregate
+            } else {
+                ReadView::Accounts
+            },
+        )
+        .await
+    }
+
+    async fn get_asset_holdings_scope(
+        &self,
+        account_ids: &[String],
+        asset_id: &str,
+        base_currency: &str,
+    ) -> Result<HoldingsScope> {
+        self.read_scope(
+            account_ids,
+            base_currency,
+            asset_id,
+            false,
+            None,
+            ReadView::Asset(asset_id.into()),
+        )
+        .await
+    }
+
     async fn get_asset_lot_view(
         &self,
         asset_id: &str,
@@ -1437,85 +1268,14 @@ impl HoldingsServiceTrait for HoldingsService {
         base_currency: &str,
         include_closed: bool,
     ) -> Result<Vec<Holding>> {
-        debug!(
-            "Getting holdings for account {} in base currency {}",
-            account_id, base_currency
-        );
-
-        let latest_snapshot = match self
-            .snapshot_service
-            .get_latest_holdings_snapshot(account_id)
-        {
-            Ok(Some(snap)) => snap,
-            Ok(None) => {
-                debug!(
-                    "No calculated holdings found for account {}. Returning empty holdings list.",
-                    account_id
-                );
-                return Ok(Vec::new());
-            }
-            Err(core_error) => {
-                error!(
-                    "Failed to get latest snapshot for account {}: {}",
-                    account_id, core_error
-                );
-                return Err(core_error);
-            }
-        };
-
-        let mut holdings = self
-            .build_live_holdings_from_snapshot(
-                account_id,
-                &latest_snapshot,
-                base_currency,
-                None,
-                include_closed,
-                true,
-            )
-            .await;
-        self.apply_historical_cost_basis_best_effort(
-            account_id,
-            base_currency,
-            &mut holdings,
-            None,
-        )
-        .await;
-        self.value_holdings_best_effort(account_id, &mut holdings)
-            .await;
-        self.apply_realized_gains_best_effort(account_id, &mut holdings)
-            .await;
-        self.apply_return_basis_defaults(&mut holdings);
-        self.apply_income_and_total_return_best_effort(
+        self.get_holdings_scope(
             &[account_id.to_string()],
             base_currency,
-            &mut holdings,
+            account_id,
+            include_closed,
         )
-        .await;
-        apply_portfolio_weights(account_id, &mut holdings);
-
-        // Load taxonomy classifications for all holdings
-        let asset_ids: Vec<String> = holdings
-            .iter()
-            .filter_map(|h| h.instrument.as_ref().map(|i| i.id.clone()))
-            .collect();
-        if !asset_ids.is_empty() {
-            let classifications_map = self
-                .classification_service
-                .get_classifications_batch(&asset_ids);
-            for holding in &mut holdings {
-                if let Some(ref mut instrument) = holding.instrument {
-                    if let Some(classifications) = classifications_map.get(&instrument.id) {
-                        instrument.classifications = Some(classifications.clone());
-                    }
-                }
-            }
-        }
-
-        for holding_view in &mut holdings {
-            normalize_holding_currency(holding_view);
-        }
-
-        Ok(holdings)
+        .await?
+        .require_complete()
     }
 
     async fn get_holdings_for_accounts(
@@ -1540,130 +1300,14 @@ impl HoldingsServiceTrait for HoldingsService {
         aggregated_account_id: &str,
         include_closed: bool,
     ) -> Result<Vec<Holding>> {
-        if account_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Collect all holdings from each member account.
-        let mut all_holdings: Vec<Holding> = Vec::new();
-        for account_id in account_ids {
-            let holdings = self
-                .get_holdings_with_options(account_id, base_currency, include_closed)
-                .await?;
-            all_holdings.extend(holdings);
-        }
-
-        // Merge by key: securities/alternatives → lifecycle + asset id; cash → local_currency.
-        // Open and closed positions for the same asset must remain distinct, and
-        // open long/short positions across accounts may legitimately net to zero.
-        let mut merged: HashMap<String, Holding> = HashMap::new();
-        for holding in all_holdings {
-            let key = match &holding.holding_type {
-                HoldingType::Cash => format!("CASH-{}", holding.local_currency),
-                _ => {
-                    let asset_id = holding
-                        .instrument
-                        .as_ref()
-                        .map(|i| i.id.clone())
-                        .unwrap_or_else(|| holding.id.clone());
-                    if holding.is_closed {
-                        format!("CLOSED-{}", asset_id)
-                    } else {
-                        asset_id
-                    }
-                }
-            };
-
-            match merged.entry(key.clone()) {
-                std::collections::hash_map::Entry::Occupied(mut occ) => {
-                    let acc = occ.get_mut();
-                    if !acc.source_account_ids.contains(&holding.account_id) {
-                        acc.source_account_ids.push(holding.account_id.clone());
-                    }
-                    acc.quantity += holding.quantity;
-                    add_monetary(&mut acc.market_value, &holding.market_value);
-                    add_optional_monetary(&mut acc.cost_basis, &holding.cost_basis);
-                    add_optional_monetary(&mut acc.unrealized_gain, &holding.unrealized_gain);
-                    add_optional_monetary(&mut acc.realized_gain, &holding.realized_gain);
-                    add_optional_monetary(&mut acc.total_gain, &holding.total_gain);
-                    add_optional_monetary(&mut acc.income, &holding.income);
-                    add_optional_monetary(&mut acc.total_return, &holding.total_return);
-                    add_optional_monetary(&mut acc.return_basis, &holding.return_basis);
-                    add_optional_monetary(&mut acc.day_change, &holding.day_change);
-                    add_optional_monetary(&mut acc.prev_close_value, &holding.prev_close_value);
-                    if let Some(date) = holding.open_date {
-                        acc.open_date = Some(match acc.open_date {
-                            Some(existing) => existing.min(date),
-                            None => date,
-                        });
-                    }
-                    if let Some(lots) = holding.lots {
-                        acc.lots
-                            .get_or_insert_with(std::collections::VecDeque::new)
-                            .extend(lots);
-                    }
-                }
-                std::collections::hash_map::Entry::Vacant(vac) => {
-                    let original_account_id = holding.account_id.clone();
-                    let mut h = holding;
-                    h.id = format!("AGG-{}", key);
-                    h.account_id = aggregated_account_id.to_string();
-                    h.source_account_ids = vec![original_account_id];
-                    vac.insert(h);
-                }
-            }
-        }
-
-        let mut result: Vec<Holding> = merged.into_values().collect();
-        // Sort for deterministic output: cash last, then by id.
-        result.sort_by(|a, b| {
-            let a_cash = matches!(a.holding_type, HoldingType::Cash);
-            let b_cash = matches!(b.holding_type, HoldingType::Cash);
-            a_cash.cmp(&b_cash).then_with(|| a.id.cmp(&b.id))
-        });
-
-        // Recompute percentage fields from the summed local values.
-        // The merge loop accumulates monetary values but percentages from the first
-        // account seen are no longer correct for the aggregated position.
-        for h in result.iter_mut() {
-            let basis_local = h
-                .return_basis
-                .as_ref()
-                .map(|basis| basis.local)
-                .unwrap_or(Decimal::ZERO);
-            let open_cost_local = h
-                .cost_basis
-                .as_ref()
-                .map(|cost_basis| cost_basis.local)
-                .unwrap_or(Decimal::ZERO);
-            h.unrealized_gain_pct = h
-                .unrealized_gain
-                .as_ref()
-                .and_then(|value| gain_pct(value.local, open_cost_local));
-            let disposed_cost_local = basis_local - open_cost_local;
-            h.realized_gain_pct = h
-                .realized_gain
-                .as_ref()
-                .and_then(|value| gain_pct(value.local, disposed_cost_local));
-            refresh_total_return(h);
-            let prev_close_base = h
-                .prev_close_value
-                .as_ref()
-                .map(|p| p.base)
-                .unwrap_or(Decimal::ZERO);
-            let prev_close_exposure_base = prev_close_base.abs();
-            if prev_close_exposure_base > Decimal::ZERO {
-                h.day_change_pct = h
-                    .day_change
-                    .as_ref()
-                    .map(|v| v.base / prev_close_exposure_base);
-            } else {
-                h.day_change_pct = None;
-            }
-        }
-
-        apply_portfolio_weights(aggregated_account_id, &mut result);
-        Ok(result)
+        self.get_holdings_scope(
+            account_ids,
+            base_currency,
+            aggregated_account_id,
+            include_closed,
+        )
+        .await?
+        .require_complete()
     }
 
     async fn get_holding(
@@ -1672,120 +1316,20 @@ impl HoldingsServiceTrait for HoldingsService {
         asset_id: &str,
         base_currency: &str,
     ) -> Result<Option<Holding>> {
-        debug!(
-            "Getting specific holding for asset {} in account {} (base currency: {})",
-            asset_id, account_id, base_currency
-        );
-
-        let latest_snapshot = match self
-            .snapshot_service
-            .get_latest_holdings_snapshot(account_id)
-        {
-            Ok(Some(snap)) => snap,
-            Ok(None) => {
-                debug!(
-                    "No snapshot found for account {}. Cannot get holding for asset {}.",
-                    account_id, asset_id
-                );
-                return Ok(None);
-            }
-            Err(e) => {
-                error!(
-                    "Failed to get latest snapshot for account {} while getting holding {}: {}",
-                    account_id, asset_id, e
-                );
-                return Err(e);
-            }
-        };
-
-        let Some(position) = latest_snapshot.positions.get(asset_id).cloned() else {
-            debug!(
-                "Asset {} not found in holdings snapshot for account {}.",
-                asset_id, account_id
-            );
-            return Ok(None);
-        };
-
-        if position.quantity == Decimal::ZERO {
-            debug!(
-                "Asset {} found but quantity is zero in snapshot for account {}.",
-                asset_id, account_id
-            );
-            return Ok(None);
-        }
-
-        let mut holdings = self
-            .build_live_holdings_from_snapshot(
-                account_id,
-                &latest_snapshot,
+        let holdings = self
+            .read_scope(
+                &[account_id.to_string()],
                 base_currency,
-                Some(asset_id),
+                account_id,
                 false,
-                true,
+                Some(asset_id),
+                ReadView::Accounts,
             )
-            .await;
-        self.apply_historical_cost_basis_best_effort(
-            account_id,
-            base_currency,
-            &mut holdings,
-            Some(asset_id),
-        )
-        .await;
-        self.value_holdings_best_effort(account_id, &mut holdings)
-            .await;
-        self.apply_realized_gains_best_effort(account_id, &mut holdings)
-            .await;
-        self.apply_return_basis_defaults(&mut holdings);
-        self.apply_income_and_total_return_best_effort(
-            &[account_id.to_string()],
-            base_currency,
-            &mut holdings,
-        )
-        .await;
-        apply_portfolio_weights(account_id, &mut holdings);
-        for holding in &mut holdings {
-            normalize_holding_currency(holding);
-        }
-
-        let holding_index = holdings.iter().position(|h| {
-            h.instrument
-                .as_ref()
-                .map(|i| i.id == asset_id)
-                .unwrap_or(false)
-        });
-
-        let Some(index) = holding_index else {
-            if let Ok(asset) = self.asset_service.get_asset_by_id(asset_id) {
-                if is_expired_option_asset(&asset, self.today_in_user_timezone()) {
-                    debug!(
-                        "Asset {} exists in snapshot for account {} but is an expired option hidden from live holdings.",
-                        asset_id, account_id
-                    );
-                    return Ok(None);
-                }
-            }
-
-            error!(
-                "Asset {} exists in snapshot for account {} but holding view could not be built.",
-                asset_id, account_id
-            );
-            return Err(CoreError::Calculation(CalculatorError::Calculation(
-                format!("Failed to build holding view for {}", asset_id),
-            )));
-        };
-
-        let mut valued_holding = holdings.swap_remove(index);
-
-        if let Some(ref mut instrument) = valued_holding.instrument {
-            if let Ok(classifications) = self
-                .classification_service
-                .get_classifications(&instrument.id)
-            {
-                instrument.classifications = Some(classifications);
-            }
-        }
-
-        Ok(Some(valued_holding))
+            .await?
+            .require_complete()?;
+        Ok(holdings
+            .into_iter()
+            .find(|h| h.instrument.as_ref().is_some_and(|i| i.id == asset_id)))
     }
 
     async fn holdings_from_snapshot(
@@ -1867,12 +1411,13 @@ impl HoldingsServiceTrait for HoldingsService {
                 contract_multiplier: position.contract_multiplier,
                 local_currency: position.currency.clone(),
                 base_currency: base_currency.to_string(),
+                translate_observed_basis: false,
                 fx_rate: None,
-                market_value: MonetaryValue::zero(),
-                cost_basis: Some(MonetaryValue {
-                    local: position.total_cost_basis,
-                    base: Decimal::ZERO,
-                }),
+                market_value: MonetaryValue::unavailable(),
+                cost_basis: Some(MonetaryValue::new(
+                    Some(position.total_cost_basis),
+                    snapshot_cost(position, snapshot, base_currency),
+                )),
                 price: None,
                 purchase_price,
                 unrealized_gain: None,
@@ -1888,7 +1433,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 day_change: None,
                 day_change_pct: None,
                 prev_close_value: None,
-                weight: Decimal::ZERO,
+                weight: Some(Decimal::ZERO),
                 as_of_date: snapshot.snapshot_date,
                 metadata: asset.metadata.clone(),
                 source_account_ids: Vec::new(),
@@ -1915,15 +1460,16 @@ impl HoldingsServiceTrait for HoldingsService {
                 contract_multiplier: Decimal::ONE,
                 local_currency: currency.clone(),
                 base_currency: base_currency.to_string(),
+                translate_observed_basis: false,
                 fx_rate: None,
-                market_value: MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                },
-                cost_basis: Some(MonetaryValue {
-                    local: amount,
-                    base: Decimal::ZERO,
-                }),
+                market_value: MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                ),
+                cost_basis: Some(MonetaryValue::new(
+                    Some(amount),
+                    super::holdings_accounting::recorded(Some(amount), currency, base_currency),
+                )),
                 price: Some(Decimal::ONE),
                 purchase_price: None,
                 unrealized_gain: None,
@@ -1939,7 +1485,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 day_change: None,
                 day_change_pct: None,
                 prev_close_value: None,
-                weight: Decimal::ZERO,
+                weight: Some(Decimal::ZERO),
                 as_of_date: snapshot.snapshot_date,
                 metadata: None,
                 source_account_ids: Vec::new(),
@@ -2170,18 +1716,15 @@ mod tests {
                 if let Some(asset_id) = holding.instrument.as_ref().map(|instrument| &instrument.id)
                 {
                     if let Some(value) = self.values.get(asset_id) {
-                        holding.market_value = MonetaryValue {
-                            local: *value,
-                            base: *value,
-                        };
+                        holding.market_value = MonetaryValue::new(*value, *value);
                         if let Some(cost_basis) = &holding.cost_basis {
-                            let unrealized = MonetaryValue {
-                                local: *value - cost_basis.local,
-                                base: *value - cost_basis.base,
-                            };
+                            let unrealized = MonetaryValue::new(
+                                cost_basis.local.map(|cost| *value - cost),
+                                cost_basis.base.map(|cost| *value - cost),
+                            );
                             holding.unrealized_gain = Some(unrealized.clone());
                             holding.unrealized_gain_pct =
-                                gain_pct(unrealized.local, cost_basis.local);
+                                gain_pct(unrealized.local.unwrap(), cost_basis.local.unwrap());
                             holding.total_gain = Some(unrealized.clone());
                             holding.total_gain_pct = holding.unrealized_gain_pct;
                         }
@@ -2379,6 +1922,7 @@ mod tests {
 
     struct MockLotRepository {
         async_worker_thread: Option<std::thread::ThreadId>,
+        fail_open_lot_reads: bool,
         open_lots: Vec<LotRecord>,
         disposals: Vec<crate::lots::LotDisposal>,
         open_lots_calls: Arc<AtomicUsize>,
@@ -2389,6 +1933,7 @@ mod tests {
         fn new(open_lots: Vec<LotRecord>) -> Self {
             Self {
                 async_worker_thread: None,
+                fail_open_lot_reads: false,
                 open_lots,
                 disposals: Vec::new(),
                 open_lots_calls: Arc::new(AtomicUsize::new(0)),
@@ -2711,6 +2256,9 @@ mod tests {
         }
 
         async fn get_open_lots_for_account(&self, _account_id: &str) -> Result<Vec<LotRecord>> {
+            if self.fail_open_lot_reads {
+                return Err(Error::Unexpected("injected lot read failure".into()));
+            }
             if let Some(worker) = self.async_worker_thread {
                 assert_ne!(
                     std::thread::current().id(),
@@ -2732,6 +2280,9 @@ mod tests {
             _account_id: &str,
             asset_id: &str,
         ) -> Result<Vec<LotRecord>> {
+            if self.fail_open_lot_reads {
+                return Err(Error::Unexpected("injected lot read failure".into()));
+            }
             if let Some(worker) = self.async_worker_thread {
                 assert_ne!(
                     std::thread::current().id(),
@@ -3031,6 +2582,8 @@ mod tests {
             realized_pnl: realized_pnl.to_string(),
             proceeds_base: (cost_basis_base + realized_pnl_base).to_string(),
             cost_basis_base: cost_basis_base.to_string(),
+            proceeds_base_known: Some(true),
+            cost_basis_base_known: Some(true),
             realized_pnl_base: realized_pnl_base.to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
@@ -3082,22 +2635,1813 @@ mod tests {
         }
     }
 
+    include!("holdings_test_support.rs");
+
     fn test_service(
         snapshot: AccountStateSnapshot,
         assets: Vec<Asset>,
         values: HashMap<String, Decimal>,
-    ) -> HoldingsService {
-        HoldingsService::new(
-            Arc::new(MockAssetService::new(assets)),
+    ) -> TestHoldingsService {
+        test_service_with_snapshots(
             Arc::new(MockSnapshotService {
                 snapshot,
                 snapshots_by_account: HashMap::new(),
             }),
-            Arc::new(MockValuationService { values }),
-            Arc::new(AssetClassificationService::new(Arc::new(
-                EmptyTaxonomyService,
-            ))),
+            assets,
+            values,
         )
+    }
+
+    mod issue_2487 {
+        // End-to-end regressions over the real coordinator, manual snapshot
+        // writer, captured holdings read and live valuation services.
+        use super::*;
+        use crate::accounts::{Account, TrackingMode};
+        use crate::assets::AssetService;
+        use crate::fx::FxService;
+        use crate::portfolio::coordinator::{
+            CoordinatorDeps, FactSources, PortfolioCoordinator, PortfolioJobRequest,
+            SilentObserver, WindowCadence,
+        };
+        use crate::portfolio::holdings::HoldingsValuationService;
+        use crate::portfolio::projection::{MarkerScope, ProjectionStoreTrait, GENESIS};
+        use crate::portfolio::snapshot::{
+            ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotService,
+            SnapshotSource,
+        };
+        use crate::test_support::in_memory::*;
+
+        const ASSET_ID: &str = "cad-stock";
+
+        include!("holdings_health_tests.rs");
+
+        struct Fixture {
+            now: chrono::DateTime<Utc>,
+            base_currency: Arc<RwLock<String>>,
+            activities: Arc<InMemoryActivityRepository>,
+            assets: Arc<InMemoryAssetRepository>,
+            quotes: Arc<InMemoryQuoteService>,
+            fx_repo: Arc<InMemoryFxRepository>,
+            fx: Arc<FxService>,
+            snapshots: Arc<InMemorySnapshotRepository>,
+            lots: Arc<InMemoryLotRepository>,
+            store: Arc<InMemoryProjectionStore>,
+        }
+
+        impl Fixture {
+            fn new(activities: Vec<Activity>, rates: Vec<ExchangeRate>) -> Self {
+                Self::with_quote(activities, rates, "CAD", dec!(110))
+            }
+
+            fn with_quote(
+                activities: Vec<Activity>,
+                rates: Vec<ExchangeRate>,
+                currency: &str,
+                price: Decimal,
+            ) -> Self {
+                let now = "2025-01-15T12:00:00Z".parse().unwrap();
+                let mut asset = test_asset(ASSET_ID, "CAD", InstrumentType::Equity);
+                asset.quote_ccy = currency.into();
+                asset.is_active = true;
+                let activity_ids = activities
+                    .iter()
+                    .map(|activity| activity.id.clone())
+                    .collect();
+                let activities =
+                    Arc::new(InMemoryActivityRepository::new(activities, HashSet::new()));
+                let assets = Arc::new(InMemoryAssetRepository::new(vec![asset.clone()]));
+                let quotes = Arc::new(InMemoryQuoteService::new(
+                    vec![crate::quotes::Quote {
+                        id: "cad-close".into(),
+                        asset_id: ASSET_ID.into(),
+                        timestamp: now,
+                        close: price,
+                        currency: currency.into(),
+                        ..Default::default()
+                    }],
+                    vec![asset],
+                ));
+                let fx_repo = Arc::new(InMemoryFxRepository::new(rates));
+                let fx = Arc::new(FxService::new(fx_repo.clone()));
+                fx.initialize().unwrap();
+                let snapshots = Arc::new(InMemorySnapshotRepository::new(HashSet::new()));
+                let lots = Arc::new(InMemoryLotRepository::new(
+                    activity_ids,
+                    HashSet::from([ASSET_ID.into()]),
+                ));
+                let store = Arc::new(InMemoryProjectionStore::new(
+                    snapshots.clone(),
+                    lots.clone(),
+                    Arc::new(InMemoryValuationRepository::default()),
+                ));
+                Self {
+                    now,
+                    base_currency: Arc::new(RwLock::new("CAD".into())),
+                    activities,
+                    assets,
+                    quotes,
+                    fx_repo,
+                    fx,
+                    snapshots,
+                    lots,
+                    store,
+                }
+            }
+
+            fn services(
+                &self,
+                accounts: Vec<Account>,
+            ) -> (PortfolioCoordinator, HoldingsService, Arc<SnapshotService>) {
+                let timezone = Arc::new(RwLock::new("UTC".into()));
+                let accounts = Arc::new(InMemoryAccountRepository::new(accounts));
+                self.store.set_holdings_sources(InMemoryHoldingsSources {
+                    accounts: accounts.clone(),
+                    activities: self.activities.clone(),
+                    assets: self.assets.clone(),
+                    fx: self.fx_repo.clone(),
+                    base_currency: self.base_currency.clone(),
+                    timezone: timezone.clone(),
+                });
+                let snapshots = Arc::new(SnapshotService::new(
+                    timezone.clone(),
+                    accounts.clone(),
+                    self.snapshots.clone(),
+                    self.activities.clone(),
+                ));
+                let coordinator = PortfolioCoordinator::new(CoordinatorDeps {
+                    base_currency: self.base_currency.clone(),
+                    timezone: timezone.clone(),
+                    sources: FactSources {
+                        accounts,
+                        activities: self.activities.clone(),
+                        assets: self.assets.clone(),
+                        quotes: self.quotes.clone(),
+                        fx_rates: self.fx_repo.clone(),
+                        snapshots: self.snapshots.clone(),
+                        projections: self.store.clone(),
+                    },
+                    fx_service: self.fx.clone(),
+                    snapshot_service: snapshots.clone(),
+                    projections: self.store.clone(),
+                    lots: self.lots.clone(),
+                    window_cadence: WindowCadence::Year,
+                });
+                let holdings = HoldingsService::new_with_timezone(
+                    Arc::new(AssetService::new(self.assets.clone(), self.quotes.clone()).unwrap()),
+                    snapshots.clone(),
+                    Arc::new(HoldingsValuationService::new_with_timezone(
+                        self.fx.clone(),
+                        self.quotes.clone(),
+                        timezone.clone(),
+                    )),
+                    Arc::new(AssetClassificationService::new(Arc::new(
+                        EmptyTaxonomyService,
+                    ))),
+                    timezone,
+                )
+                .with_lot_repository(self.lots.clone())
+                .with_projection_store(self.store.clone());
+                (coordinator, holdings, snapshots)
+            }
+
+            async fn save_holding(
+                &self,
+                snapshots: &Arc<SnapshotService>,
+                account: &Account,
+                cost: Decimal,
+            ) {
+                ManualSnapshotService::new(
+                    Arc::new(AssetService::new(self.assets.clone(), self.quotes.clone()).unwrap()),
+                    self.fx.clone(),
+                    snapshots.clone(),
+                    self.quotes.clone(),
+                )
+                .with_timezone("UTC".into())
+                .save_manual_snapshot(ManualSnapshotRequest {
+                    account_id: account.id.clone(),
+                    account_currency: account.currency.clone(),
+                    snapshot_date: self.now.date_naive(),
+                    positions: vec![ManualHoldingInput {
+                        asset_id: Some(ASSET_ID.into()),
+                        symbol: "CAD".into(),
+                        exchange_mic: None,
+                        quantity: dec!(1),
+                        currency: account.currency.clone(),
+                        average_cost: cost,
+                        name: None,
+                        data_source: None,
+                        asset_kind: None,
+                        quote_ccy: Some("CAD".into()),
+                        instrument_type: Some("EQUITY".into()),
+                        provider_id: None,
+                        provider_symbol: None,
+                    }],
+                    cash_balances: Vec::new(),
+                    base_currency: Some("CAD".into()),
+                    source: SnapshotSource::ManualEntry,
+                })
+                .await
+                .unwrap();
+            }
+
+            async fn lot_cost(&self, account: &str) -> Decimal {
+                let lots = self.lots.get_open_lots_for_account(account).await.unwrap();
+                assert_eq!(lots.len(), 1);
+                lots[0].remaining_cost_basis_base.parse().unwrap()
+            }
+        }
+
+        fn account(id: &str, currency: &str, mode: TrackingMode) -> Account {
+            Account {
+                id: id.into(),
+                account_type: "SECURITIES".into(),
+                currency: currency.into(),
+                is_active: true,
+                tracking_mode: mode,
+                ..Default::default()
+            }
+        }
+
+        fn buy(account: &str, currency: &str, cost: Decimal) -> Activity {
+            let mut activity = test_income_activity(
+                &format!("buy-{account}"),
+                account,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_BUY,
+                cost,
+                currency,
+                NaiveDate::from_ymd_opt(2025, 1, 2).unwrap(),
+            );
+            activity.quantity = Some(dec!(1));
+            activity.unit_price = Some(cost);
+            activity
+        }
+
+        fn usd_cad_rate() -> ExchangeRate {
+            ExchangeRate {
+                id: "USD-CAD".into(),
+                from_currency: "USD".into(),
+                to_currency: "CAD".into(),
+                rate: dec!(2),
+                source: "MANUAL".into(),
+                timestamp: "2025-01-02T00:00:00Z".parse().unwrap(),
+            }
+        }
+
+        async fn run(coordinator: &PortfolioCoordinator) {
+            let report = coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            assert!(report.failures.is_empty(), "{:?}", report.failures);
+        }
+
+        async fn holding(holdings: &HoldingsService, account: &str) -> Holding {
+            holdings
+                .get_holdings(account, "CAD")
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|holding| {
+                    holding
+                        .instrument
+                        .as_ref()
+                        .is_some_and(|instrument| instrument.id == ASSET_ID)
+                })
+                .unwrap()
+        }
+
+        fn money(local: Decimal, base: Decimal) -> MonetaryValue {
+            MonetaryValue::new(local, base)
+        }
+
+        async fn assert_pending(holdings: &HoldingsService, account: &str, base: &str) {
+            assert!(matches!(
+                holdings.get_holdings(account, base).await,
+                Err(CoreError::HoldingsPending(_))
+            ));
+            assert!(matches!(
+                holdings.get_holding(account, ASSET_ID, base).await,
+                Err(CoreError::HoldingsPending(_))
+            ));
+            let scope = holdings
+                .get_holdings_scope(&[account.to_string()], base, account, false)
+                .await
+                .unwrap();
+            assert!(scope.holdings.is_empty());
+            assert_eq!(scope.incomplete_accounts.len(), 1);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+        }
+
+        #[tokio::test]
+        async fn issue_2487_cad_holdings_use_the_manual_basis_after_switching_tracking_mode() {
+            let mut account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            // Generate matching snapshot and lot costs through the projection.
+            run(&coordinator).await;
+            let before = holding(&holdings, &account.id).await;
+            assert_eq!(before.cost_basis, Some(money(dec!(100), dec!(100))));
+            assert_eq!(before.unrealized_gain, Some(money(dec!(10), dec!(10))));
+
+            account.tracking_mode = TrackingMode::Holdings;
+            let (coordinator, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(120)).await;
+            fixture
+                .store
+                .mark(MarkerScope::Account(account.id.clone()), GENESIS);
+            run(&coordinator).await;
+            assert_eq!(fixture.lot_cost(&account.id).await, dec!(100));
+
+            let after = holding(&holdings, &account.id).await;
+            assert_eq!(
+                (&*after.local_currency, &*after.base_currency),
+                ("CAD", "CAD")
+            );
+            assert_eq!(after.market_value, money(dec!(110), dec!(110)));
+            assert_eq!(
+                after.unrealized_gain,
+                Some(money(dec!(-10), dec!(-10))),
+                "the currency toggle must preserve the loss on this CAD holding"
+            );
+        }
+
+        #[tokio::test]
+        async fn issue_2487_transaction_edit_keeps_cad_values_consistent_until_commit() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut edited = buy(&account.id, "CAD", dec!(100));
+            let fixture = Fixture::new(vec![edited.clone()], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(
+                holding(&holdings, &account.id).await.unrealized_gain,
+                Some(money(dec!(10), dec!(10)))
+            );
+
+            edited.unit_price = Some(dec!(120));
+            edited.amount = Some(dec!(120));
+            fixture.activities.apply(Vec::new(), vec![edited], &[]);
+            fixture
+                .store
+                .mark(MarkerScope::Account(account.id.clone()), GENESIS);
+            assert_pending(&holdings, &account.id, "CAD").await;
+
+            // Save the real new snapshot, then fail before the real lot-book commit.
+            fixture.store.fail_next_completion();
+            let failed = coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            assert!(failed.failures.iter().any(|failure| failure
+                .message
+                .contains("injected projection completion failure")));
+            let snapshot = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            assert_eq!(snapshot.source, SnapshotSource::Calculated);
+            assert_eq!(snapshot.positions[ASSET_ID].total_cost_basis, dec!(120));
+            assert_eq!(fixture.lot_cost(&account.id).await, dec!(100));
+            assert!(!fixture.store.pending_markers().unwrap().is_empty());
+            let failed_scope = holdings
+                .get_holdings_scope(std::slice::from_ref(&account.id), "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert_eq!(failed_scope.incomplete_accounts[0].status, "unavailable");
+            assert_eq!(
+                failed_scope.incomplete_accounts[0].reason_code,
+                "PROJECTION_FAILED"
+            );
+            assert!(matches!(
+                failed_scope.require_complete(),
+                Err(CoreError::HoldingsUnavailable(_))
+            ));
+
+            // A successful retry repairs the mismatch; tracking mode never changed.
+            run(&coordinator).await;
+            assert!(fixture.store.pending_markers().unwrap().is_empty());
+            assert_eq!(fixture.lot_cost(&account.id).await, dec!(120));
+            assert_eq!(
+                holding(&holdings, &account.id).await.unrealized_gain,
+                Some(money(dec!(-10), dec!(-10)))
+            );
+        }
+
+        #[tokio::test]
+        async fn issue_2487_mixed_currency_holdings_aggregate_in_the_displayed_currency() {
+            let cad = account("cad-account", "CAD", TrackingMode::Holdings);
+            let usd = account("usd-account", "USD", TrackingMode::Holdings);
+            let fixture = Fixture::new(Vec::new(), vec![usd_cad_rate()]);
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) =
+                fixture.services(vec![cad.clone(), usd.clone()]);
+            fixture.save_holding(&snapshots, &cad, dec!(130)).await;
+            fixture.save_holding(&snapshots, &usd, dec!(40)).await;
+            run(&coordinator).await;
+
+            // Both accounts have always tracked holdings and are correct alone.
+            let cad_holding = holding(&holdings, &cad.id).await;
+            assert_eq!(cad_holding.local_currency, "CAD");
+            assert_eq!(
+                cad_holding.unrealized_gain,
+                Some(money(dec!(-20), dec!(-20)))
+            );
+            let usd_holding = holding(&holdings, &usd.id).await;
+            assert_eq!(usd_holding.local_currency, "USD");
+            assert_eq!(usd_holding.unrealized_gain, Some(money(dec!(15), dec!(30))));
+
+            let mut converted_local_gains = Vec::new();
+            let mut labelled_gains = Vec::new();
+            for ids in [
+                vec![cad.id.clone(), usd.id.clone()],
+                vec![usd.id.clone(), cad.id.clone()],
+            ] {
+                let merged = holdings
+                    .get_holdings_for_accounts(&ids, "CAD", "all")
+                    .await
+                    .unwrap();
+                let merged = merged
+                    .iter()
+                    .find(|holding| {
+                        holding
+                            .instrument
+                            .as_ref()
+                            .is_some_and(|instrument| instrument.id == ASSET_ID)
+                    })
+                    .unwrap();
+                assert_eq!(merged.base_currency, "CAD");
+                let gain = merged.unrealized_gain.as_ref().unwrap();
+                assert_eq!(gain.base.unwrap(), dec!(10));
+                labelled_gains.push((merged.local_currency.clone(), gain.clone()));
+                // Constant FX: a correctly labelled local sum must equal the
+                // base total after conversion, regardless of account order.
+                converted_local_gains.push(
+                    fixture
+                        .fx
+                        .convert_currency(
+                            gain.local.unwrap(),
+                            &merged.local_currency,
+                            &merged.base_currency,
+                        )
+                        .unwrap(),
+                );
+            }
+            assert_eq!(
+                converted_local_gains,
+                vec![dec!(10), dec!(10)],
+                "the combined local gain must use its displayed currency, not add CAD to USD: {labelled_gains:?}"
+            );
+        }
+
+        #[tokio::test]
+        async fn issue_2487_transaction_accounts_use_the_same_asset_currency_when_aggregated() {
+            let cad = account("cad-account", "CAD", TrackingMode::Transactions);
+            let usd = account("usd-account", "USD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&cad.id, "CAD", dec!(130)),
+                    buy(&usd.id, "USD", dec!(40)),
+                ],
+                vec![usd_cad_rate()],
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![cad.clone(), usd.clone()]);
+            run(&coordinator).await;
+            for account in [&cad, &usd] {
+                let holding = holding(&holdings, &account.id).await;
+                assert_eq!(
+                    holding.local_currency, "CAD",
+                    "the asset currency, not the account currency"
+                );
+            }
+            for ids in [
+                vec![cad.id.clone(), usd.id.clone()],
+                vec![usd.id.clone(), cad.id.clone()],
+            ] {
+                let merged = holdings
+                    .get_holdings_for_accounts(&ids, "CAD", "all")
+                    .await
+                    .unwrap();
+                let merged = merged
+                    .iter()
+                    .find(|holding| {
+                        holding
+                            .instrument
+                            .as_ref()
+                            .is_some_and(|instrument| instrument.id == ASSET_ID)
+                    })
+                    .unwrap();
+                assert_eq!(
+                    (&*merged.local_currency, &*merged.base_currency),
+                    ("CAD", "CAD")
+                );
+                assert_eq!(merged.unrealized_gain, Some(money(dec!(10), dec!(10))));
+            }
+        }
+
+        fn rate(from: &str, to: &str, day: &str, value: Decimal) -> ExchangeRate {
+            ExchangeRate {
+                id: format!("{from}-{to}-{day}"),
+                from_currency: from.into(),
+                to_currency: to.into(),
+                rate: value,
+                source: "MANUAL".into(),
+                timestamp: format!("{day}T00:00:00Z").parse().unwrap(),
+            }
+        }
+
+        async fn both_reads(holdings: &HoldingsService, account: &str, base: &str) -> Vec<Holding> {
+            vec![
+                holdings
+                    .get_holdings(account, base)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .find(|holding| {
+                        holding
+                            .instrument
+                            .as_ref()
+                            .is_some_and(|instrument| instrument.id == ASSET_ID)
+                    })
+                    .unwrap(),
+                holdings
+                    .get_holding(account, ASSET_ID, base)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            ]
+        }
+
+        #[tokio::test]
+        async fn issue_2487_base_currency_changes_do_not_relabel_snapshot_costs() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![buy(&account.id, "CAD", dec!(100))],
+                vec![usd_cad_rate()],
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            let old = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            assert_eq!(old.positions[ASSET_ID].cost_basis_base, Some(dec!(100)));
+            // The runtime setting changes before its background rebuild.
+            *fixture.base_currency.write().unwrap() = "USD".into();
+            for holding in both_reads(&holdings, &account.id, "USD").await {
+                assert_eq!(
+                    holding.cost_basis,
+                    Some(MonetaryValue::new(dec!(100), None))
+                );
+                assert_eq!(
+                    holding.unrealized_gain,
+                    Some(MonetaryValue::new(dec!(10), None))
+                );
+            }
+            fixture.store.mark(MarkerScope::All, GENESIS);
+            run(&coordinator).await;
+            let rebuilt = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            assert_eq!(rebuilt.positions[ASSET_ID].cost_basis_base, Some(dec!(50)));
+            for holding in both_reads(&holdings, &account.id, "USD").await {
+                assert_eq!(holding.cost_basis, Some(money(dec!(100), dec!(50))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_base_currency_change_keeps_realized_gain_currency() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut purchase = buy(&account.id, "CAD", dec!(100));
+            purchase.quantity = Some(dec!(2));
+            purchase.amount = Some(dec!(200));
+            let mut sale = test_income_activity(
+                "sale",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_SELL,
+                dec!(110),
+                "CAD",
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            );
+            sale.quantity = Some(dec!(1));
+            sale.unit_price = Some(dec!(110));
+            let fixture = Fixture::new(vec![purchase, sale], vec![usd_cad_rate()]);
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(
+                holding(&holdings, &account.id).await.realized_gain,
+                Some(money(dec!(10), dec!(10)))
+            );
+            *fixture.base_currency.write().unwrap() = "USD".into();
+            let before = both_reads(&holdings, &account.id, "USD").await;
+            let disposals = fixture
+                .lots
+                .get_lot_disposals_for_account(&account.id)
+                .await
+                .unwrap();
+            assert_eq!(disposals[0].base_currency, "CAD");
+            fixture.store.mark(MarkerScope::All, GENESIS);
+            run(&coordinator).await;
+            for holding in both_reads(&holdings, &account.id, "USD").await {
+                assert_eq!(holding.realized_gain, Some(money(dec!(10), dec!(5))));
+            }
+            for holding in before {
+                assert_eq!(
+                    holding.realized_gain,
+                    Some(MonetaryValue::new(dec!(10), None)),
+                    "old CAD realized gains must not be labelled USD"
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_zero_historical_base_cost_survives_return_of_capital() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut roc = test_income_activity(
+                "roc",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_ADJUSTMENT,
+                dec!(50),
+                "USD",
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            );
+            roc.subtype = Some(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL.into());
+            let fixture = Fixture::with_quote(
+                vec![buy(&account.id, "USD", dec!(100)), roc],
+                vec![
+                    rate("USD", "CAD", "2025-01-02", dec!(1)),
+                    rate("USD", "CAD", "2025-01-03", dec!(2)),
+                ],
+                "USD",
+                dec!(40),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            let snapshot = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            assert_eq!(snapshot.positions[ASSET_ID].total_cost_basis, dec!(50));
+            assert_eq!(snapshot.positions[ASSET_ID].cost_basis_base, Some(dec!(0)));
+            assert_eq!(fixture.lot_cost(&account.id).await, dec!(0));
+            for holding in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(holding.cost_basis, Some(money(dec!(50), dec!(0))));
+                assert_eq!(holding.unrealized_gain, Some(money(dec!(-10), dec!(80))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_manual_zero_cost_is_not_missing_cost() {
+            let mut account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, _, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            account.tracking_mode = TrackingMode::Holdings;
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(0)).await;
+            for holding in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(holding.cost_basis, Some(money(dec!(0), dec!(0))));
+                assert_eq!(holding.unrealized_gain, Some(money(dec!(110), dec!(110))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_legacy_snapshot_and_historical_fx_remain_supported() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::with_quote(
+                vec![buy(&account.id, "USD", dec!(100))],
+                vec![
+                    rate("USD", "CAD", "2025-01-02", dec!(2)),
+                    rate("USD", "CAD", "2025-01-03", dec!(1)),
+                ],
+                "USD",
+                dec!(110),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            let mut legacy = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            legacy.base_currency = None;
+            for position in legacy.positions.values_mut() {
+                position.cost_basis_base = None;
+                position.cost_basis_account = None;
+            }
+            use crate::portfolio::snapshot::SnapshotRepositoryTrait;
+            fixture.snapshots.save_snapshots(&[legacy]).await.unwrap();
+            fixture.store.mark(MarkerScope::All, GENESIS);
+            assert_pending(&holdings, &account.id, "CAD").await;
+            run(&coordinator).await;
+            for holding in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(holding.cost_basis, Some(money(dec!(100), dec!(200))));
+                // A legitimate local gain and base loss must remain possible.
+                assert_eq!(holding.unrealized_gain, Some(money(dec!(10), dec!(-90))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_minor_units_are_scaled_before_display() {
+            let account = account("gbp-account", "GBP", TrackingMode::Transactions);
+            let fixture = Fixture::with_quote(
+                vec![buy(&account.id, "GBP", dec!(10))],
+                vec![rate("GBP", "CAD", "2025-01-02", dec!(2))],
+                "GBp",
+                dec!(1100),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            for holding in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(holding.local_currency, "GBP");
+                assert_eq!(holding.cost_basis, Some(money(dec!(10), dec!(20))));
+                assert_eq!(holding.market_value, money(dec!(11), dec!(22)));
+                assert_eq!(holding.unrealized_gain, Some(money(dec!(1), dec!(2))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_missing_fx_does_not_fabricate_a_base_return() {
+            let account = account("usd-account", "USD", TrackingMode::Holdings);
+            let fixture = Fixture::new(Vec::new(), vec![usd_cad_rate()]);
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(40)).await;
+            // Remove the persisted FX observations without changing the holding.
+            // A fresh service has no converter or rates to satisfy the request.
+            fixture.fx_repo.clear_rates();
+            let missing_fx = Arc::new(FxService::new(Arc::new(InMemoryFxRepository::new(
+                Vec::new(),
+            ))));
+            missing_fx.initialize().unwrap();
+            let holdings = HoldingsService {
+                valuation_service: Arc::new(HoldingsValuationService::new(
+                    missing_fx,
+                    fixture.quotes.clone(),
+                )),
+                ..holdings
+            };
+            for holding in [
+                holdings
+                    .get_holdings(&account.id, "CAD")
+                    .await
+                    .map(|mut rows| rows.remove(0)),
+                holdings
+                    .get_holding(&account.id, ASSET_ID, "CAD")
+                    .await
+                    .map(|holding| holding.unwrap()),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                assert!(
+                    holding.fx_rate.is_none()
+                        && holding
+                            .unrealized_gain
+                            .as_ref()
+                            .is_some_and(|gain| gain.base.is_none() && gain.local.is_none()),
+                    "missing FX must be explicit, got rate {:?} and gain {:?}",
+                    holding.fx_rate,
+                    holding.unrealized_gain
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_successful_recalculation_publishes_coherent_positions() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut edited = buy(&account.id, "CAD", dec!(100));
+            let fixture = Fixture::new(vec![edited.clone()], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            edited.unit_price = Some(dec!(120));
+            edited.quantity = Some(dec!(2));
+            edited.amount = Some(dec!(240));
+            fixture.activities.apply(Vec::new(), vec![edited], &[]);
+            fixture
+                .store
+                .mark(MarkerScope::Account(account.id.clone()), GENESIS);
+            let pause = fixture.store.pause_next_completion();
+            let writer = tokio::spawn(async move {
+                coordinator
+                    .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                    .await
+                    .unwrap()
+            });
+            pause.wait_until_entered().await;
+            assert_pending(&holdings, &account.id, "CAD").await;
+            pause.resume();
+            let report = writer.await.unwrap();
+            assert!(report.failures.is_empty(), "{:?}", report.failures);
+            for after in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(after.quantity, dec!(2));
+                assert_eq!(after.cost_basis, Some(money(dec!(240), dec!(240))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_lot_read_failures_do_not_invent_historical_returns() {
+            let mut violations = Vec::new();
+            for fault in [
+                "missing",
+                "invalid",
+                "mismatched currency",
+                "mismatched quantity",
+            ] {
+                let account = account("cad-account", "CAD", TrackingMode::Transactions);
+                let fixture = Fixture::with_quote(
+                    vec![buy(&account.id, "USD", dec!(100))],
+                    vec![
+                        rate("USD", "CAD", "2025-01-02", dec!(2)),
+                        rate("USD", "CAD", "2025-01-03", dec!(1)),
+                    ],
+                    "USD",
+                    dec!(110),
+                );
+                let _clock = crate::utils::clock::freeze(fixture.now);
+                let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+                run(&coordinator).await;
+                let mut lots = fixture
+                    .lots
+                    .get_open_lots_for_account(&account.id)
+                    .await
+                    .unwrap();
+                if fault == "invalid" {
+                    lots[0].remaining_cost_basis_base = "not-a-decimal".into();
+                } else if fault == "mismatched currency" {
+                    lots[0].base_currency = "EUR".into();
+                } else if fault == "mismatched quantity" {
+                    lots[0].remaining_quantity = "2".into();
+                } else {
+                    lots.clear();
+                }
+                fixture
+                    .lots
+                    .replace_lots_for_account(&account.id, &lots)
+                    .await
+                    .unwrap();
+                let detail = holdings
+                    .get_holding(&account.id, ASSET_ID, "CAD")
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    detail.lots.is_none(),
+                    "{fault}: invalid detail cannot override the snapshot summary"
+                );
+                for holding in [
+                    holdings
+                        .get_holdings(&account.id, "CAD")
+                        .await
+                        .map(|mut rows| rows.remove(0)),
+                    holdings
+                        .get_holding(&account.id, ASSET_ID, "CAD")
+                        .await
+                        .map(|holding| holding.unwrap()),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    if let Some(gain) = holding.unrealized_gain {
+                        if gain.base.unwrap() != dec!(-90) {
+                            violations.push(format!(
+                                "{fault}: reported {} instead of historical CAD -90 or unavailable",
+                                gain.base.unwrap()
+                            ));
+                        }
+                    }
+                }
+            }
+            assert!(violations.is_empty(), "{violations:#?}");
+        }
+
+        #[tokio::test]
+        async fn issue_2487_mixed_tracking_accounts_aggregate_in_one_currency() {
+            let cad = account("cad-account", "CAD", TrackingMode::Transactions);
+            let usd = account("usd-account", "USD", TrackingMode::Holdings);
+            let fixture = Fixture::new(vec![buy(&cad.id, "CAD", dec!(130))], vec![usd_cad_rate()]);
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, snapshots) =
+                fixture.services(vec![cad.clone(), usd.clone()]);
+            fixture.save_holding(&snapshots, &usd, dec!(40)).await;
+            run(&coordinator).await;
+            assert_eq!(
+                holding(&holdings, &cad.id).await.unrealized_gain,
+                Some(money(dec!(-20), dec!(-20)))
+            );
+            assert_eq!(
+                holding(&holdings, &usd.id).await.unrealized_gain,
+                Some(money(dec!(15), dec!(30)))
+            );
+            let mut converted_gains = Vec::new();
+            for ids in [
+                vec![cad.id.clone(), usd.id.clone()],
+                vec![usd.id.clone(), cad.id.clone()],
+            ] {
+                let combined = holdings
+                    .get_holdings_for_accounts(&ids, "CAD", "all")
+                    .await
+                    .unwrap();
+                let combined = combined
+                    .iter()
+                    .find(|holding| {
+                        holding
+                            .instrument
+                            .as_ref()
+                            .is_some_and(|instrument| instrument.id == ASSET_ID)
+                    })
+                    .unwrap();
+                let gain = combined.unrealized_gain.as_ref().unwrap();
+                assert_eq!(gain.base.unwrap(), dec!(10));
+                converted_gains.push(
+                    fixture
+                        .fx
+                        .convert_currency(gain.local.unwrap(), &combined.local_currency, "CAD")
+                        .unwrap(),
+                );
+            }
+            assert_eq!(converted_gains, vec![dec!(10), dec!(10)]);
+        }
+
+        #[tokio::test]
+        async fn issue_2487_manual_position_does_not_claim_old_transaction_lots() {
+            let mut account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, _, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            account.tracking_mode = TrackingMode::Holdings;
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(120)).await;
+            let mut snapshot = snapshots
+                .get_latest_holdings_snapshot(&account.id)
+                .unwrap()
+                .unwrap();
+            snapshot.positions.get_mut(ASSET_ID).unwrap().quantity = dec!(3);
+            snapshot
+                .positions
+                .get_mut(ASSET_ID)
+                .unwrap()
+                .total_cost_basis = dec!(360);
+            snapshots
+                .save_manual_snapshot(&account.id, snapshot)
+                .await
+                .unwrap();
+            let detail = holdings
+                .get_holding(&account.id, ASSET_ID, "CAD")
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(detail.quantity, dec!(3));
+            assert!(detail.lots.as_ref().is_none_or(|lots| lots.is_empty()),
+                "the retained one-share transaction lot is not the lot book for this manually entered three-share position");
+        }
+
+        #[tokio::test]
+        async fn issue_2487_changing_historical_fx_is_not_a_spot_conversion() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut purchase = buy(&account.id, "EUR", dec!(100));
+            purchase.quantity = Some(dec!(2));
+            purchase.amount = Some(dec!(200));
+            let mut sale = test_income_activity(
+                "sale",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_SELL,
+                dec!(110),
+                "EUR",
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            );
+            sale.quantity = Some(dec!(1));
+            sale.unit_price = Some(dec!(110));
+            let fixture = Fixture::with_quote(
+                vec![purchase, sale],
+                vec![
+                    rate("EUR", "CAD", "2025-01-02", dec!(2)),
+                    rate("EUR", "CAD", "2025-01-03", dec!(3)),
+                    rate("EUR", "USD", "2025-01-02", dec!(1)),
+                    rate("EUR", "USD", "2025-01-03", dec!(2)),
+                    rate("USD", "CAD", "2025-01-02", dec!(2)),
+                    rate("USD", "CAD", "2025-01-03", dec!(1.5)),
+                ],
+                "EUR",
+                dec!(110),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            let old = holding(&holdings, &account.id).await;
+            assert_eq!(old.realized_gain, Some(money(dec!(10), dec!(130))));
+            *fixture.base_currency.write().unwrap() = "USD".into();
+            let before = both_reads(&holdings, &account.id, "USD").await;
+            let spot_converted = fixture
+                .fx
+                .convert_currency(dec!(130), "CAD", "USD")
+                .unwrap();
+            fixture.store.mark(MarkerScope::All, GENESIS);
+            run(&coordinator).await;
+            for rebuilt in both_reads(&holdings, &account.id, "USD").await {
+                assert_eq!(rebuilt.realized_gain, Some(money(dec!(10), dec!(120))));
+                assert_eq!(rebuilt.unrealized_gain, Some(money(dec!(10), dec!(120))));
+                assert_eq!(rebuilt.cost_basis, Some(money(dec!(100), dec!(100))));
+            }
+            assert!((spot_converted - dec!(120)).abs() > dec!(1),
+                "historical proceeds minus historical cost differs from spot-converting a realized gain");
+            for before in before {
+                assert!(
+                    before
+                        .realized_gain
+                        .is_none_or(|gain| gain.base.is_none_or(|value| value == dec!(120)))
+                        && before
+                            .unrealized_gain
+                            .is_none_or(|gain| gain.base.is_none_or(|value| value == dec!(120))),
+                    "incompatible historical base amounts must be unavailable until recalculated"
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_removing_all_activities_clears_current_positions() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let purchase = buy(&account.id, "CAD", dec!(100));
+            let fixture = Fixture::new(vec![purchase.clone()], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+            fixture
+                .activities
+                .apply(Vec::new(), Vec::new(), &[purchase.id]);
+            fixture
+                .store
+                .mark(MarkerScope::Account(account.id.clone()), GENESIS);
+            run(&coordinator).await;
+            assert!(holdings
+                .get_holdings(&account.id, "CAD")
+                .await
+                .unwrap()
+                .is_empty());
+            assert!(holdings
+                .get_holding(&account.id, ASSET_ID, "CAD")
+                .await
+                .unwrap()
+                .is_none());
+            assert!(fixture
+                .lots
+                .get_open_lots_for_account(&account.id)
+                .await
+                .unwrap()
+                .is_empty());
+        }
+
+        #[tokio::test]
+        async fn issue_2487_missing_disposal_fx_provenance_is_not_zero_profit() {
+            let mut violations = Vec::new();
+            for missing in ["acquisition", "disposal"] {
+                let account = account("cad-account", "CAD", TrackingMode::Transactions);
+                let mut purchase = buy(&account.id, "USD", dec!(100));
+                purchase.quantity = Some(dec!(2));
+                purchase.amount = Some(dec!(200));
+                if missing != "acquisition" {
+                    purchase.fx_rate = Some(dec!(2));
+                }
+                let mut sale = test_income_activity(
+                    "sale",
+                    &account.id,
+                    Some(ASSET_ID),
+                    ACTIVITY_TYPE_SELL,
+                    dec!(110),
+                    "USD",
+                    NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+                );
+                sale.quantity = Some(dec!(1));
+                sale.unit_price = Some(dec!(110));
+                if missing != "disposal" {
+                    sale.fx_rate = Some(dec!(2));
+                }
+                let fixture =
+                    Fixture::with_quote(vec![purchase, sale], Vec::new(), "USD", dec!(110));
+                let _clock = crate::utils::clock::freeze(fixture.now);
+                let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+                run(&coordinator).await;
+                let disposals = fixture
+                    .lots
+                    .get_lot_disposals_for_account(&account.id)
+                    .await
+                    .unwrap();
+                assert_eq!(disposals.len(), 1);
+                assert_eq!(
+                    disposals[0].realized_pnl.parse::<Decimal>().unwrap(),
+                    dec!(10)
+                );
+                // Current FX can become available after the captured calculation;
+                // it does not turn its unknown historical basis/proceeds into 0.
+                fixture.fx_repo.add_rates(vec![usd_cad_rate()]);
+                fixture.fx.initialize().unwrap();
+                for holding in both_reads(&holdings, &account.id, "CAD").await {
+                    let realized = holding
+                        .realized_gain
+                        .expect("local realized gain remains available");
+                    assert_eq!(realized.local, Some(dec!(10)));
+                    if let Some(base) = realized.base {
+                        violations.push(format!(
+                            "missing {missing} FX was shown as known base profit {}",
+                            base
+                        ));
+                    }
+                }
+            }
+            assert!(violations.is_empty(), "{violations:#?}");
+        }
+
+        #[tokio::test]
+        async fn issue_2487_genuine_zero_realized_gain_is_available() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut purchase = buy(&account.id, "USD", dec!(100));
+            purchase.quantity = Some(dec!(2));
+            purchase.amount = Some(dec!(200));
+            let mut sale = test_income_activity(
+                "sale",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_SELL,
+                dec!(100),
+                "USD",
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            );
+            sale.quantity = Some(dec!(1));
+            sale.unit_price = Some(dec!(100));
+            let fixture =
+                Fixture::with_quote(vec![purchase, sale], vec![usd_cad_rate()], "USD", dec!(110));
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            for holding in both_reads(&holdings, &account.id, "CAD").await {
+                assert_eq!(holding.realized_gain, Some(money(dec!(0), dec!(0))));
+            }
+        }
+
+        #[tokio::test]
+        async fn issue_2487_quote_currency_edit_preserves_accounting_basis() {
+            let cad = account("cad-account", "CAD", TrackingMode::Transactions);
+            let manual = account("manual-account", "CAD", TrackingMode::Holdings);
+            let mut fixture = Fixture::with_quote(
+                vec![buy(&cad.id, "USD", dec!(100))],
+                vec![
+                    rate("USD", "CAD", "2025-01-02", dec!(2)),
+                    rate("USD", "CAD", "2025-01-03", dec!(1)),
+                ],
+                "USD",
+                dec!(110),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, _, snapshots) = fixture.services(vec![cad.clone(), manual.clone()]);
+            fixture.save_holding(&snapshots, &manual, dec!(130)).await;
+            run(&coordinator).await;
+
+            let mut updated_asset = test_asset(ASSET_ID, "CAD", InstrumentType::Equity);
+            updated_asset.quote_ccy = "CAD".into();
+            updated_asset.is_active = true;
+            fixture.assets = Arc::new(InMemoryAssetRepository::new(vec![updated_asset.clone()]));
+            fixture.quotes = Arc::new(InMemoryQuoteService::new(
+                vec![crate::quotes::Quote {
+                    id: "cad-close".into(),
+                    asset_id: ASSET_ID.into(),
+                    timestamp: fixture.now,
+                    close: dec!(110),
+                    currency: "CAD".into(),
+                    ..Default::default()
+                }],
+                vec![updated_asset],
+            ));
+            let (coordinator, holdings, _) = fixture.services(vec![cad.clone(), manual.clone()]);
+            let before = holdings
+                .get_holdings_for_accounts(&[manual.id.clone(), cad.id.clone()], "CAD", "all")
+                .await
+                .unwrap();
+            fixture
+                .store
+                .mark(MarkerScope::Asset(ASSET_ID.into()), GENESIS);
+            run(&coordinator).await;
+            let after = holdings
+                .get_holdings_for_accounts(&[manual.id.clone(), cad.id.clone()], "CAD", "all")
+                .await
+                .unwrap();
+            let security = |rows: Vec<Holding>| {
+                rows.into_iter()
+                    .find(|holding| {
+                        holding
+                            .instrument
+                            .as_ref()
+                            .is_some_and(|instrument| instrument.id == ASSET_ID)
+                    })
+                    .unwrap()
+            };
+            assert_eq!(
+                security(after).unrealized_gain,
+                Some(money(dec!(-110), dec!(-110)))
+            );
+            let before = security(before);
+            assert_eq!(before.local_currency, "CAD");
+            assert_eq!(before.unrealized_gain, Some(money(dec!(-110), dec!(-110))),
+                "CAD history is recorded: 200 CAD transaction cost plus 130 CAD manual cost, against 220 CAD market value");
+        }
+
+        #[tokio::test]
+        async fn issue_2487_pending_account_keeps_healthy_peers_without_complete_weights() {
+            let first = account("first", "CAD", TrackingMode::Transactions);
+            let second = account("second", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&first.id, "CAD", dec!(100)),
+                    buy(&second.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![first.clone(), second.clone()]);
+            run(&coordinator).await;
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(first.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_holdings_scope(&[first.id.clone(), second.id.clone()], "CAD", "all", false)
+                .await
+                .unwrap();
+            assert_eq!(scope.incomplete_accounts.len(), 1);
+            assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
+            let security = scope
+                .holdings
+                .iter()
+                .find(|holding| holding.holding_type == HoldingType::Security)
+                .unwrap();
+            assert_eq!(security.quantity, dec!(1));
+            assert_eq!(security.cost_basis, Some(money(dec!(80), dec!(80))));
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.weight.is_none()));
+            assert!(matches!(
+                scope.require_complete(),
+                Err(CoreError::HoldingsPending(_))
+            ));
+        }
+
+        #[tokio::test]
+        async fn failed_calculation_is_unavailable_until_retry_or_new_inputs() {
+            let account = account("account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            fixture.store.fail_next_persists(1);
+            let report = coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            assert!(!report.failures.is_empty());
+            let scope = holdings
+                .get_holdings_scope(std::slice::from_ref(&account.id), "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert_eq!(
+                scope.incomplete_accounts[0].reason_code,
+                "PROJECTION_FAILED"
+            );
+            assert_eq!(scope.incomplete_accounts[0].status, "unavailable");
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(account.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            assert_pending(&holdings, &account.id, "CAD").await;
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn unsupported_account_is_unavailable_across_runs_and_recovers_after_edit() {
+            let mut account = account("unsupported", "CAD", TrackingMode::Transactions);
+            account.meta = Some(
+                r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#
+                    .into(),
+            );
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            for _ in 0..2 {
+                let report = coordinator
+                    .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                    .await
+                    .unwrap();
+                assert!(report
+                    .failures
+                    .iter()
+                    .any(|failure| failure.code == "UNSUPPORTED_COST_BASIS"));
+                let scope = holdings
+                    .get_holdings_scope(
+                        std::slice::from_ref(&account.id),
+                        "CAD",
+                        &account.id,
+                        false,
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(scope.incomplete_accounts[0].status, "unavailable");
+                assert_eq!(
+                    scope.incomplete_accounts[0].reason_code,
+                    "UNSUPPORTED_COST_BASIS"
+                );
+            }
+            account.meta = None;
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn asset_scope_keeps_per_account_rows_and_reports_pending_peer() {
+            let first = account("first", "CAD", TrackingMode::Transactions);
+            let second = account("second", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&first.id, "CAD", dec!(100)),
+                    buy(&second.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![first.clone(), second.clone()]);
+            run(&coordinator).await;
+            let ids = [first.id.clone(), second.id.clone()];
+            let scope = holdings
+                .get_asset_holdings_scope(&ids, ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(
+                fixture.store.holdings_read_count(),
+                1,
+                "the asset scope captures every account in one read"
+            );
+            assert_eq!(scope.holdings.len(), 2);
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.quantity == dec!(1) && ids.contains(&holding.account_id)));
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(first.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(&ids, ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(scope.holdings.len(), 1);
+            assert_eq!(scope.holdings[0].account_id, second.id);
+            assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+        }
+
+        #[tokio::test]
+        async fn asset_scope_excludes_archived_active_accounts_inside_the_capture() {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let mut archived = account("archived", "CAD", TrackingMode::Transactions);
+            archived.is_archived = true;
+            let fixture = Fixture::new(
+                vec![
+                    buy(&healthy.id, "CAD", dec!(100)),
+                    buy(&archived.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) =
+                fixture.services(vec![healthy.clone(), archived.clone()]);
+            run(&coordinator).await;
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(archived.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(
+                    &[healthy.id.clone(), archived.id.clone()],
+                    ASSET_ID,
+                    "CAD",
+                )
+                .await
+                .unwrap();
+            assert!(scope.incomplete_accounts.is_empty());
+            assert_eq!(scope.holdings.len(), 1);
+            assert_eq!(scope.holdings[0].account_id, healthy.id);
+        }
+
+        #[tokio::test]
+        async fn asset_scope_ignores_unrelated_unsupported_accounts() {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let mut unrelated = account("unrelated", "CAD", TrackingMode::Transactions);
+            unrelated.meta = Some(
+                r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#
+                    .into(),
+            );
+            let mut other_buy = buy(&unrelated.id, "CAD", dec!(80));
+            other_buy.asset_id = Some("another-asset".into());
+            let fixture = Fixture::new(
+                vec![buy(&healthy.id, "CAD", dec!(100)), other_buy],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) =
+                fixture.services(vec![healthy.clone(), unrelated.clone()]);
+            coordinator
+                .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_asset_holdings_scope(
+                    &[healthy.id.clone(), unrelated.id.clone()],
+                    ASSET_ID,
+                    "CAD",
+                )
+                .await
+                .unwrap();
+            assert!(scope.incomplete_accounts.is_empty());
+            assert_eq!(scope.require_complete().unwrap()[0].account_id, healthy.id);
+        }
+
+        #[tokio::test]
+        async fn asset_scope_includes_snapshot_only_positions_without_activities() {
+            let account = account("observed", "CAD", TrackingMode::Holdings);
+            let fixture = Fixture::new(Vec::new(), Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            fixture.save_holding(&snapshots, &account, dec!(100)).await;
+            let scope = holdings
+                .get_asset_holdings_scope(std::slice::from_ref(&account.id), ASSET_ID, "CAD")
+                .await
+                .unwrap();
+            assert_eq!(scope.require_complete().unwrap()[0].quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn quote_updates_and_failed_revaluation_preserve_current_accounting() {
+            let account = account("transaction", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            fixture.quotes.add_quotes(vec![crate::quotes::Quote {
+                id: "updated-close".into(),
+                asset_id: ASSET_ID.into(),
+                timestamp: fixture.now,
+                close: dec!(120),
+                currency: "CAD".into(),
+                ..Default::default()
+            }]);
+            fixture
+                .store
+                .invalidate(
+                    MarkerScope::Prices(ASSET_ID.into()),
+                    fixture.now.date_naive(),
+                )
+                .await
+                .unwrap();
+            for failed in [false, true] {
+                if failed {
+                    fixture.store.fail_next_completion();
+                    coordinator
+                        .run_job(PortfolioJobRequest::default(), &SilentObserver)
+                        .await
+                        .unwrap();
+                }
+                let scope = holdings
+                    .get_holdings_scope(
+                        std::slice::from_ref(&account.id),
+                        "CAD",
+                        &account.id,
+                        false,
+                    )
+                    .await
+                    .unwrap();
+                assert!(
+                    scope.incomplete_accounts.is_empty(),
+                    "quote-only changes do not invalidate accounting: {failed}"
+                );
+                let row = scope
+                    .require_complete()
+                    .unwrap()
+                    .into_iter()
+                    .find(|row| row.instrument.is_some())
+                    .unwrap();
+                assert_eq!(row.quantity, dec!(1));
+                assert_eq!(row.cost_basis, Some(money(dec!(100), dec!(100))));
+                assert_eq!(row.market_value, money(dec!(120), dec!(120)));
+                assert!(fixture
+                    .store
+                    .pending_markers()
+                    .unwrap()
+                    .iter()
+                    .all(|marker| !matches!(marker.scope, MarkerScope::Account(_))));
+            }
+        }
+
+        #[test]
+        fn asset_scope_does_not_certify_unknown_positions_as_unrelated() {
+            let read = HoldingsRead {
+                unavailable_accounts: HashSet::from(["corrupt".into()]),
+                accounts_with_open_lots: HashSet::from(["missing-snapshot".into()]),
+                ..Default::default()
+            };
+            assert!(read.could_hold_asset("corrupt", ASSET_ID));
+            assert!(read.could_hold_asset("missing-snapshot", ASSET_ID));
+            assert!(!read.could_hold_asset("unrelated", ASSET_ID));
+        }
+
+        #[test]
+        fn issue_2487_readiness_tracks_transfers_closed_assets_and_global_dependencies() {
+            let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+            let mut rows = Vec::new();
+            for (account, group) in [
+                ("first", "transfer-1"),
+                ("second", "transfer-1"),
+                ("second", "transfer-2"),
+                ("third", "transfer-2"),
+            ] {
+                let mut activity = buy(account, "CAD", dec!(1));
+                activity.source_group_id = Some(group.into());
+                rows.push(activity);
+            }
+            let mut read = HoldingsRead {
+                day,
+                activities: rows,
+                ..Default::default()
+            };
+            assert!(read.could_hold_asset("third", ASSET_ID));
+            assert!(!read.could_hold_asset("third", "unrelated"));
+            for scope in [
+                MarkerScope::All,
+                MarkerScope::Fx("USD/CAD".into()),
+                MarkerScope::Account("third".into()),
+                MarkerScope::Asset(ASSET_ID.into()),
+            ] {
+                read.markers = vec![crate::portfolio::projection::ProjectionMarker {
+                    scope,
+                    dirty_from: day,
+                    version: 1,
+                }];
+                assert!(read.history_pending("first", day));
+            }
+            read.markers = vec![crate::portfolio::projection::ProjectionMarker {
+                scope: MarkerScope::Prices(ASSET_ID.into()),
+                dirty_from: day,
+                version: 1,
+            }];
+            assert!(!read.history_pending("first", day));
+            read.markers = vec![crate::portfolio::projection::ProjectionMarker {
+                scope: MarkerScope::Account("unrelated".into()),
+                dirty_from: day,
+                version: 1,
+            }];
+            assert!(!read.history_pending("first", day));
+            read.accounts
+                .push(account("first", "CAD", TrackingMode::Holdings));
+            read.markers[0].scope = MarkerScope::All;
+            assert!(
+                !read.position_pending("first", day),
+                "observed positions remain immediately readable"
+            );
+            assert!(
+                read.history_pending("first", day),
+                "realized history must wait for the same dependencies"
+            );
+        }
+
+        #[tokio::test]
+        async fn issue_2487_day_advance_without_markers_refolds_future_buy_and_income() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut future_buy = buy(&account.id, "CAD", dec!(40));
+            future_buy.id = "future-buy".into();
+            future_buy.activity_date = "2025-01-16T12:00:00Z".parse().unwrap();
+            let future_income = test_income_activity(
+                "future-income",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_DIVIDEND,
+                dec!(7),
+                "CAD",
+                future_buy.activity_date.date_naive(),
+            );
+            let fixture = Fixture::new(
+                vec![
+                    buy(&account.id, "CAD", dec!(100)),
+                    future_buy,
+                    future_income,
+                ],
+                Vec::new(),
+            );
+            let clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+            assert!(fixture.store.pending_markers().unwrap().is_empty());
+            drop(clock);
+            let _clock = crate::utils::clock::freeze(fixture.now + chrono::Duration::days(1));
+            assert!(matches!(
+                holdings.get_holdings(&account.id, "CAD").await,
+                Err(CoreError::HoldingsPending(_))
+            ));
+            run(&coordinator).await;
+            let result = holding(&holdings, &account.id).await;
+            assert_eq!(result.quantity, dec!(2));
+            assert_eq!(result.cost_basis, Some(money(dec!(140), dec!(140))));
+            assert_eq!(result.income, Some(money(dec!(7), dec!(7))));
+            assert!(fixture.store.pending_markers().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn unchanged_transaction_accounts_remain_readable_across_midnight() {
+            let account = account("unchanged", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            drop(clock);
+            let _clock = crate::utils::clock::freeze(fixture.now + chrono::Duration::days(1));
+            let rows = holdings.get_holdings(&account.id, "CAD").await.unwrap();
+            let row = rows.iter().find(|row| row.instrument.is_some()).unwrap();
+            assert_eq!(row.quantity, dec!(1));
+            assert_eq!(row.cost_basis, Some(money(dec!(100), dec!(100))));
+            assert!(fixture.store.pending_markers().unwrap().is_empty());
+        }
+
+        async fn assert_non_effective_account_does_not_block_holdings(future: bool) {
+            let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+            let empty = account("not-effective", "CAD", TrackingMode::Transactions);
+            let mut activity = buy(&empty.id, "CAD", dec!(100));
+            if future {
+                activity.activity_date = "2025-01-16T12:00:00Z".parse().unwrap();
+            } else {
+                activity.status = crate::activities::ActivityStatus::Draft;
+            }
+            let fixture = Fixture::new(
+                vec![buy(&healthy.id, "CAD", dec!(100)), activity],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![healthy.clone(), empty.clone()]);
+            run(&coordinator).await;
+            let scope = holdings
+                .get_holdings_scope(&[healthy.id.clone(), empty.id.clone()], "CAD", "all", false)
+                .await
+                .unwrap();
+            assert!(
+                scope.incomplete_accounts.is_empty(),
+                "non-effective activity is not pending accounting"
+            );
+            assert!(!scope.holdings.is_empty());
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.weight.is_some()));
+            assert!(holdings
+                .get_holdings(&empty.id, "CAD")
+                .await
+                .unwrap()
+                .iter()
+                .all(|holding| holding.quantity.is_zero()));
+        }
+
+        #[tokio::test]
+        async fn draft_only_transaction_account_does_not_block_healthy_holdings() {
+            assert_non_effective_account_does_not_block_holdings(false).await;
+        }
+
+        #[tokio::test]
+        async fn future_only_transaction_account_does_not_block_healthy_holdings() {
+            assert_non_effective_account_does_not_block_holdings(true).await;
+        }
+
+        #[test]
+        fn never_valued_read_requires_effective_accounting_inputs_to_be_pending() {
+            let day = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+            let account = account("never-valued", "CAD", TrackingMode::Transactions);
+            let mut activity = buy(&account.id, "CAD", dec!(100));
+            activity.status = crate::activities::ActivityStatus::Draft;
+            let mut read = HoldingsRead {
+                day,
+                timezone: "UTC".into(),
+                accounts: vec![account.clone()],
+                activities: vec![activity],
+                ..Default::default()
+            };
+            assert!(!read.position_pending(&account.id, day));
+            read.activities[0].status = crate::activities::ActivityStatus::Posted;
+            read.activities[0].activity_date = "2025-01-16T12:00:00Z".parse().unwrap();
+            assert!(!read.position_pending(&account.id, day));
+            read.activities[0].activity_date = "2025-01-15T12:00:00Z".parse().unwrap();
+            assert!(read.position_pending(&account.id, day));
+            read.issues
+                .push(crate::portfolio::projection::ActivityIssue {
+                    activity_id: read.activities[0].id.clone(),
+                    kind: crate::portfolio::projection::ActivityIssueKind::Rejected,
+                    message: "Rejected input".into(),
+                    reason: None,
+                });
+            assert!(!read.position_pending(&account.id, day));
+        }
+
+        #[test]
+        fn day_readiness_uses_posted_local_dates_and_shared_splits() {
+            let day = NaiveDate::from_ymd_opt(2025, 1, 16).unwrap();
+            let mut due = buy("first", "CAD", dec!(100));
+            due.activity_date = "2025-01-17T00:30:00Z".parse().unwrap();
+            let mut read = HoldingsRead {
+                timezone: "America/New_York".into(),
+                last_valued: HashMap::from([("first".into(), day.pred_opt().unwrap())]),
+                activities: vec![buy("first", "CAD", dec!(100)), due],
+                ..Default::default()
+            };
+            assert!(read.day_advance_pending("first", day));
+            read.activities[1].status = crate::activities::ActivityStatus::Draft;
+            assert!(!read.day_advance_pending("first", day));
+            read.activities[1].status = crate::activities::ActivityStatus::Posted;
+            read.activities[1].account_id = "another-account".into();
+            assert!(!read.day_advance_pending("first", day));
+            read.activities[1].activity_type = crate::activities::ACTIVITY_TYPE_SPLIT.into();
+            assert!(read.day_advance_pending("first", day));
+            read.activities[1].asset_id = Some("unrelated".into());
+            assert!(!read.day_advance_pending("first", day));
+        }
+
+        #[tokio::test]
+        async fn issue_2487_observed_account_without_observation_ignores_retained_lots() {
+            let mut account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(vec![buy(&account.id, "CAD", dec!(100))], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, _, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            assert!(!fixture
+                .lots
+                .get_open_lots_for_account(&account.id)
+                .await
+                .unwrap()
+                .is_empty());
+            account.tracking_mode = TrackingMode::Holdings;
+            let (_, holdings, _) = fixture.services(vec![account.clone()]);
+            let scope = holdings
+                .get_holdings_scope(&[account.id.clone()], "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert!(scope.incomplete_accounts.is_empty());
+            assert!(scope.holdings.is_empty());
+        }
+
+        #[tokio::test]
+        async fn issue_2487_live_fx_keeps_direct_observation_precedence() {
+            let mut outcomes = Vec::new();
+            for reverse in [false, true] {
+                let account = account("cad-account", "CAD", TrackingMode::Transactions);
+                let mut rates = vec![
+                    rate("USD", "CAD", "2025-01-02", dec!(2)),
+                    rate("CAD", "USD", "2025-01-02", dec!(0.4)),
+                ];
+                if reverse {
+                    rates.reverse();
+                }
+                let fixture = Fixture::with_quote(
+                    vec![buy(&account.id, "USD", dec!(100))],
+                    rates,
+                    "USD",
+                    dec!(110),
+                );
+                let _clock = crate::utils::clock::freeze(fixture.now);
+                let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+                run(&coordinator).await;
+                assert_eq!(
+                    fixture.lot_cost(&account.id).await,
+                    dec!(200),
+                    "the captured fold prefers the direct USD/CAD row"
+                );
+                for holding in both_reads(&holdings, &account.id, "CAD").await {
+                    outcomes.push(holding.unrealized_gain.unwrap().base.unwrap());
+                }
+            }
+            assert_eq!(outcomes, vec![dec!(20); 4],
+                "live valuation must apply the same direct-over-derived rate rule as its historical calculation");
+        }
     }
 
     #[tokio::test]
@@ -3136,13 +4480,7 @@ mod tests {
         lots.async_worker_thread = Some(worker);
         let mut income = MockHoldingIncomeService::new(HashMap::from([(
             account_id.to_string(),
-            HashMap::from([(
-                asset_id.to_string(),
-                MonetaryValue {
-                    local: dec!(5),
-                    base: dec!(5),
-                },
-            )]),
+            HashMap::from([(asset_id.to_string(), MonetaryValue::new(dec!(5), dec!(5)))]),
         )]));
         income.async_worker_thread = Some(worker);
         let scopes = income.scopes();
@@ -3159,10 +4497,8 @@ mod tests {
         .with_lot_repository(Arc::new(lots))
         .with_income_service(Arc::new(income));
         // The production wiring installs this alongside the income service.
-        let service = HoldingsService {
-            activity_repository: Some(Arc::new(activities)),
-            ..service
-        };
+        let mut service = service;
+        service.activity_repository = Some(Arc::new(activities));
         let holdings = service.get_holdings(account_id, "USD").await.unwrap();
         let holding = service
             .get_holding(account_id, asset_id, "USD")
@@ -3171,9 +4507,15 @@ mod tests {
             .unwrap();
         for holding in [&holdings[0], &holding] {
             assert_eq!(holding.as_of_date, frozen.date_naive());
-            assert_eq!(holding.income.as_ref().unwrap().base, dec!(5));
-            assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(20));
-            assert_eq!(holding.cost_basis.as_ref().unwrap().base, dec!(100));
+            assert_eq!(holding.income.as_ref().unwrap().base.unwrap(), dec!(5));
+            assert_eq!(
+                holding.realized_gain.as_ref().unwrap().base.unwrap(),
+                dec!(20)
+            );
+            assert_eq!(
+                holding.cost_basis.as_ref().unwrap().base.unwrap(),
+                dec!(100)
+            );
         }
         assert_eq!(scopes.lock().unwrap().len(), 2);
     }
@@ -3220,14 +4562,14 @@ mod tests {
 
         let holdings = service.get_holdings(account_id, "USD").await.unwrap();
         assert_eq!(holdings.len(), 1);
-        assert_eq!(holdings[0].weight, dec!(1));
+        assert_eq!(holdings[0].weight, Some(dec!(1)));
 
         let holding = service
             .get_holding(account_id, active_asset_id, "USD")
             .await
             .unwrap()
             .expect("active holding should exist");
-        assert_eq!(holding.weight, dec!(1));
+        assert_eq!(holding.weight, Some(dec!(1)));
     }
 
     #[tokio::test]
@@ -3292,15 +4634,21 @@ mod tests {
             .expect("closed holding should be included");
         assert!(closed_holding.is_closed);
         assert_eq!(closed_holding.quantity, Decimal::ZERO);
-        assert_eq!(closed_holding.market_value.base, Decimal::ZERO);
-        assert_eq!(closed_holding.weight, Decimal::ZERO);
+        assert_eq!(closed_holding.market_value.base.unwrap(), Decimal::ZERO);
+        assert_eq!(closed_holding.weight, Some(Decimal::ZERO));
         assert_eq!(
-            closed_holding.realized_gain.as_ref().unwrap().base,
+            closed_holding.realized_gain.as_ref().unwrap().base.unwrap(),
             dec!(25)
         );
-        assert_eq!(closed_holding.total_gain.as_ref().unwrap().base, dec!(25));
+        assert_eq!(
+            closed_holding.total_gain.as_ref().unwrap().base.unwrap(),
+            dec!(25)
+        );
         assert_eq!(closed_holding.total_gain_pct, Some(dec!(0.25)));
-        assert_eq!(closed_holding.total_return.as_ref().unwrap().base, dec!(25));
+        assert_eq!(
+            closed_holding.total_return.as_ref().unwrap().base.unwrap(),
+            dec!(25)
+        );
     }
 
     #[tokio::test]
@@ -3347,8 +4695,8 @@ mod tests {
             .find(|holding| holding.instrument.as_ref().unwrap().id == short_asset_id)
             .expect("short holding");
 
-        assert_eq!(long.weight, dec!(0.5));
-        assert_eq!(short.weight, dec!(-0.5));
+        assert_eq!(long.weight, Some(dec!(0.5)));
+        assert_eq!(short.weight, Some(dec!(-0.5)));
     }
 
     #[tokio::test]
@@ -3387,16 +4735,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_holdings_seeds_historical_base_cost_basis_from_open_lots_once() {
+    async fn get_holdings_uses_snapshot_base_cost_without_loading_lots() {
         let account_id = "acc-1";
         let asset_id = "AAPL";
         let mut position = test_position(account_id, asset_id);
         position.average_cost = dec!(1000);
         position.total_cost_basis = dec!(1000);
+        position.cost_basis_base = Some(dec!(900));
 
         let snapshot = AccountStateSnapshot {
             account_id: account_id.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions: HashMap::from([(asset_id.to_string(), position)]),
             ..Default::default()
         };
@@ -3414,22 +4764,27 @@ mod tests {
 
         let holdings = service.get_holdings(account_id, "EUR").await.unwrap();
 
-        assert_eq!(open_lots_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(open_lots_calls.load(Ordering::SeqCst), 0);
         assert_eq!(holdings.len(), 1);
-        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, dec!(1000));
+        assert_eq!(
+            holdings[0].cost_basis.as_ref().unwrap().base.unwrap(),
+            dec!(900)
+        );
     }
 
     #[tokio::test]
-    async fn get_holdings_skips_historical_base_cost_basis_on_lot_base_currency_mismatch() {
+    async fn get_holdings_keeps_snapshot_basis_when_lot_currencies_disagree() {
         let account_id = "acc-1";
         let asset_id = "AAPL";
         let mut position = test_position(account_id, asset_id);
         position.average_cost = dec!(1000);
         position.total_cost_basis = dec!(1000);
+        position.cost_basis_base = Some(dec!(900));
 
         let snapshot = AccountStateSnapshot {
             account_id: account_id.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions: HashMap::from([(asset_id.to_string(), position)]),
             ..Default::default()
         };
@@ -3447,20 +4802,25 @@ mod tests {
         let holdings = service.get_holdings(account_id, "EUR").await.unwrap();
 
         assert_eq!(holdings.len(), 1);
-        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, Decimal::ZERO);
+        assert_eq!(
+            holdings[0].cost_basis.as_ref().unwrap().base.unwrap(),
+            dec!(900)
+        );
     }
 
     #[tokio::test]
-    async fn get_holdings_skips_historical_base_cost_basis_on_invalid_lot_basis() {
+    async fn get_holdings_keeps_snapshot_basis_when_lot_cost_is_invalid() {
         let account_id = "acc-1";
         let asset_id = "AAPL";
         let mut position = test_position(account_id, asset_id);
         position.average_cost = dec!(1000);
         position.total_cost_basis = dec!(1000);
+        position.cost_basis_base = Some(dec!(900));
 
         let snapshot = AccountStateSnapshot {
             account_id: account_id.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions: HashMap::from([(asset_id.to_string(), position)]),
             ..Default::default()
         };
@@ -3480,7 +4840,10 @@ mod tests {
         let holdings = service.get_holdings(account_id, "EUR").await.unwrap();
 
         assert_eq!(holdings.len(), 1);
-        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, Decimal::ZERO);
+        assert_eq!(
+            holdings[0].cost_basis.as_ref().unwrap().base.unwrap(),
+            dec!(900)
+        );
     }
 
     #[tokio::test]
@@ -3495,9 +4858,12 @@ mod tests {
             test_position(account_id, other_asset_id),
         );
 
+        positions.get_mut(asset_id).unwrap().cost_basis_base = Some(dec!(1000));
+        positions.get_mut(other_asset_id).unwrap().cost_basis_base = Some(dec!(2000));
         let snapshot = AccountStateSnapshot {
             account_id: account_id.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions,
             ..Default::default()
         };
@@ -3527,11 +4893,12 @@ mod tests {
             .expect("holding should exist");
 
         assert_eq!(open_lots_calls.load(Ordering::SeqCst), 0);
-        // Two asset-scoped fetches: one seeds historical base cost basis, and
-        // (STEP 2) one sources the display lots from the lots table. The
-        // account-wide accessor is never used for a single-asset holding view.
-        assert_eq!(open_lots_for_asset_calls.load(Ordering::SeqCst), 2);
-        assert_eq!(holding.cost_basis.as_ref().unwrap().base, dec!(1000));
+        // Only requested detail reads lots. Summary basis comes from its snapshot.
+        assert_eq!(open_lots_for_asset_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            holding.cost_basis.as_ref().unwrap().base.unwrap(),
+            dec!(1000)
+        );
     }
 
     #[tokio::test]
@@ -3570,7 +4937,11 @@ mod tests {
 
         assert_eq!(holdings.len(), 1);
         assert_eq!(holdings[0].holding_type, HoldingType::AlternativeAsset);
-        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, Decimal::ZERO);
+        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, None);
+        assert_eq!(
+            holdings[0].cost_basis.as_ref().unwrap().local,
+            Some(dec!(1000))
+        );
         assert_eq!(open_lots_calls.load(Ordering::SeqCst), 0);
         assert_eq!(open_lots_for_asset_calls.load(Ordering::SeqCst), 0);
     }
@@ -3687,8 +5058,8 @@ mod tests {
 
         assert_eq!(income_by_asset.len(), 1);
         let income = income_by_asset.get("AAPL").unwrap();
-        assert_eq!(income.local, dec!(15));
-        assert_eq!(income.base, dec!(11));
+        assert_eq!(income.local.unwrap(), dec!(15));
+        assert_eq!(income.base.unwrap(), dec!(11));
     }
 
     #[test]
@@ -3750,8 +5121,8 @@ mod tests {
         );
 
         let income = income_by_asset.get("XEQT").unwrap();
-        assert_eq!(income.local, dec!(85));
-        assert_eq!(income.base, dec!(85));
+        assert_eq!(income.local.unwrap(), dec!(85));
+        assert_eq!(income.base.unwrap(), dec!(85));
     }
 
     #[test]
@@ -3794,8 +5165,8 @@ mod tests {
         );
 
         let income = income_by_asset.get("XEQT").unwrap();
-        assert_eq!(income.local, dec!(100));
-        assert_eq!(income.base, dec!(100));
+        assert_eq!(income.local.unwrap(), dec!(100));
+        assert_eq!(income.base.unwrap(), dec!(100));
     }
 
     #[test]
@@ -3830,8 +5201,8 @@ mod tests {
         );
 
         let income = income_by_asset.get("AAPL").unwrap();
-        assert_eq!(income.local, dec!(15));
-        assert_eq!(income.base, dec!(11));
+        assert_eq!(income.local.unwrap(), dec!(15));
+        assert_eq!(income.base.unwrap(), dec!(11));
     }
 
     #[test]
@@ -3859,8 +5230,8 @@ mod tests {
         );
 
         let income = income_by_asset.get("LSE").unwrap();
-        assert_eq!(income.local, dec!(1000));
-        assert_eq!(income.base, dec!(10));
+        assert_eq!(income.local.unwrap(), dec!(1000));
+        assert_eq!(income.base.unwrap(), dec!(10));
     }
 
     #[tokio::test]
@@ -3869,14 +5240,16 @@ mod tests {
         let asset_id = "AAPL";
         let mut position = test_position(account_id, asset_id);
         position.total_cost_basis = dec!(100);
+        position.cost_basis_base = Some(dec!(50));
 
         let snapshot = AccountStateSnapshot {
             account_id: account_id.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions: HashMap::from([(asset_id.to_string(), position)]),
             ..Default::default()
         };
-        let lot_repository =
+        let mut lot_repository =
             MockLotRepository::new(vec![test_lot_record(account_id, asset_id, "USD", dec!(50))])
                 .with_disposals(vec![test_lot_disposal(
                     account_id,
@@ -3886,15 +5259,12 @@ mod tests {
                     dec!(20),
                     dec!(10),
                 )]);
+        for disposal in &mut lot_repository.disposals {
+            disposal.base_currency = "EUR".into();
+        }
         let income_service = MockHoldingIncomeService::new(HashMap::from([(
             account_id.to_string(),
-            HashMap::from([(
-                asset_id.to_string(),
-                MonetaryValue {
-                    local: dec!(5),
-                    base: dec!(2),
-                },
-            )]),
+            HashMap::from([(asset_id.to_string(), MonetaryValue::new(dec!(5), dec!(2)))]),
         )]));
         let scopes = income_service.scopes();
         let service = test_service(
@@ -3905,25 +5275,52 @@ mod tests {
         .with_lot_repository(Arc::new(lot_repository))
         .with_income_service(Arc::new(income_service));
 
-        let holdings = service.get_holdings(account_id, "USD").await.unwrap();
+        let holdings = service.get_holdings(account_id, "EUR").await.unwrap();
 
         assert_eq!(*scopes.lock().unwrap(), vec![vec![account_id.to_string()]]);
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
-        assert_eq!(holding.unrealized_gain.as_ref().unwrap().local, dec!(30));
-        assert_eq!(holding.unrealized_gain.as_ref().unwrap().base, dec!(80));
+        assert_eq!(
+            holding.unrealized_gain.as_ref().unwrap().local.unwrap(),
+            dec!(30)
+        );
+        assert_eq!(
+            holding.unrealized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(80)
+        );
         assert_eq!(holding.unrealized_gain_pct, Some(dec!(0.3)));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().local, dec!(20));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(10));
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().local.unwrap(),
+            dec!(20)
+        );
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(10)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(0.4)));
-        assert_eq!(holding.total_gain.as_ref().unwrap().local, dec!(50));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(90));
-        assert_eq!(holding.income.as_ref().unwrap().local, dec!(5));
-        assert_eq!(holding.income.as_ref().unwrap().base, dec!(2));
-        assert_eq!(holding.total_return.as_ref().unwrap().local, dec!(55));
-        assert_eq!(holding.total_return.as_ref().unwrap().base, dec!(92));
-        assert_eq!(holding.return_basis.as_ref().unwrap().local, dec!(150));
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(70));
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().local.unwrap(),
+            dec!(50)
+        );
+        assert_eq!(holding.total_gain.as_ref().unwrap().base.unwrap(), dec!(90));
+        assert_eq!(holding.income.as_ref().unwrap().local.unwrap(), dec!(5));
+        assert_eq!(holding.income.as_ref().unwrap().base.unwrap(), dec!(2));
+        assert_eq!(
+            holding.total_return.as_ref().unwrap().local.unwrap(),
+            dec!(55)
+        );
+        assert_eq!(
+            holding.total_return.as_ref().unwrap().base.unwrap(),
+            dec!(92)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().local.unwrap(),
+            dec!(150)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().base.unwrap(),
+            dec!(70)
+        );
         assert_eq!(holding.total_gain_pct, Some(dec!(0.33333333)));
         assert_eq!(holding.total_return_pct, Some(dec!(0.36666667)));
     }
@@ -4006,10 +5403,16 @@ mod tests {
 
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(30));
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(30)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(0.4)));
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(175));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(60));
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().base.unwrap(),
+            dec!(175)
+        );
+        assert_eq!(holding.total_gain.as_ref().unwrap().base.unwrap(), dec!(60));
         assert_eq!(holding.total_gain_pct, Some(dec!(0.34285714)));
     }
 
@@ -4071,9 +5474,15 @@ mod tests {
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
         assert!(holding.is_closed);
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(-100));
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(-100)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(-1)));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(-100));
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().base.unwrap(),
+            dec!(-100)
+        );
     }
 
     #[tokio::test]
@@ -4135,11 +5544,23 @@ mod tests {
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
         assert!(holding.is_closed);
-        assert_eq!(holding.realized_gain.as_ref().unwrap().local, dec!(500));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(500));
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().local.unwrap(),
+            dec!(500)
+        );
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(500)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(0.33333333)));
-        assert_eq!(holding.return_basis.as_ref().unwrap().local, dec!(-1500));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(500));
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().local.unwrap(),
+            dec!(-1500)
+        );
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().base.unwrap(),
+            dec!(500)
+        );
         assert_eq!(holding.total_gain_pct, Some(dec!(0.33333333)));
     }
 
@@ -4199,13 +5620,28 @@ mod tests {
 
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
-        assert_eq!(holding.cost_basis.as_ref().unwrap().base, dec!(-500));
-        assert_eq!(holding.unrealized_gain.as_ref().unwrap().base, dec!(50));
+        assert_eq!(
+            holding.cost_basis.as_ref().unwrap().base.unwrap(),
+            dec!(-500)
+        );
+        assert_eq!(
+            holding.unrealized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(50)
+        );
         assert_eq!(holding.unrealized_gain_pct, Some(dec!(0.1)));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(100));
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(100)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(0.2)));
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(-1000));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(150));
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().base.unwrap(),
+            dec!(-1000)
+        );
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().base.unwrap(),
+            dec!(150)
+        );
         assert_eq!(holding.total_gain_pct, Some(dec!(0.15)));
     }
 
@@ -4249,14 +5685,10 @@ mod tests {
             MockActivityRepository::failing_get_activities_by_account_id(),
         ));
 
-        let holdings = service.get_holdings(account_id, "USD").await.unwrap();
-
-        assert_eq!(holdings.len(), 1);
-        let holding = &holdings[0];
-        assert!(holding.realized_gain.is_none());
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(100));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(30));
-        assert_eq!(holding.total_gain_pct, Some(dec!(0.3)));
+        assert!(
+            service.get_holdings(account_id, "USD").await.is_err(),
+            "unreadable history must not become a successful zero-gain response"
+        );
     }
 
     #[tokio::test]
@@ -4266,14 +5698,16 @@ mod tests {
         let account_two = "acc-2";
         let mut position = test_position(account_one, asset_id);
         position.total_cost_basis = dec!(100);
+        position.cost_basis_base = Some(dec!(50));
 
         let snapshot = AccountStateSnapshot {
             account_id: account_one.to_string(),
             currency: "USD".to_string(),
+            base_currency: Some("EUR".into()),
             positions: HashMap::from([(asset_id.to_string(), position)]),
             ..Default::default()
         };
-        let lot_repository = MockLotRepository::new(vec![
+        let mut lot_repository = MockLotRepository::new(vec![
             test_lot_record(account_one, asset_id, "USD", dec!(50)),
             test_lot_record(account_two, asset_id, "USD", dec!(50)),
         ])
@@ -4281,26 +5715,17 @@ mod tests {
             test_lot_disposal(account_one, asset_id, dec!(40), dec!(20), dec!(4), dec!(2)),
             test_lot_disposal(account_two, asset_id, dec!(60), dec!(30), dec!(18), dec!(9)),
         ]);
+        for disposal in &mut lot_repository.disposals {
+            disposal.base_currency = "EUR".into();
+        }
         let income_service = MockHoldingIncomeService::new(HashMap::from([
             (
                 account_one.to_string(),
-                HashMap::from([(
-                    asset_id.to_string(),
-                    MonetaryValue {
-                        local: dec!(5),
-                        base: dec!(2),
-                    },
-                )]),
+                HashMap::from([(asset_id.to_string(), MonetaryValue::new(dec!(5), dec!(2)))]),
             ),
             (
                 account_two.to_string(),
-                HashMap::from([(
-                    asset_id.to_string(),
-                    MonetaryValue {
-                        local: dec!(7),
-                        base: dec!(3),
-                    },
-                )]),
+                HashMap::from([(asset_id.to_string(), MonetaryValue::new(dec!(7), dec!(3)))]),
             ),
         ]));
         let scopes = income_service.scopes();
@@ -4315,7 +5740,7 @@ mod tests {
         let holdings = service
             .get_holdings_for_accounts(
                 &[account_one.to_string(), account_two.to_string()],
-                "USD",
+                "EUR",
                 "portfolio",
             )
             .await
@@ -4327,17 +5752,43 @@ mod tests {
         );
         assert_eq!(holdings.len(), 1);
         let holding = &holdings[0];
-        assert_eq!(holding.income.as_ref().unwrap().local, dec!(12));
-        assert_eq!(holding.income.as_ref().unwrap().base, dec!(5));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().local, dec!(22));
-        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(11));
+        assert_eq!(holding.income.as_ref().unwrap().local.unwrap(), dec!(12));
+        assert!(
+            (holding.income.as_ref().unwrap().base.unwrap() - dec!(5)).abs() < dec!(0.00000001)
+        );
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().local.unwrap(),
+            dec!(22)
+        );
+        assert_eq!(
+            holding.realized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(11)
+        );
         assert_eq!(holding.realized_gain_pct, Some(dec!(0.22)));
-        assert_eq!(holding.total_gain.as_ref().unwrap().local, dec!(42));
-        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(131));
-        assert_eq!(holding.total_return.as_ref().unwrap().local, dec!(54));
-        assert_eq!(holding.total_return.as_ref().unwrap().base, dec!(136));
-        assert_eq!(holding.return_basis.as_ref().unwrap().local, dec!(300));
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(150));
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().local.unwrap(),
+            dec!(42)
+        );
+        assert_eq!(
+            holding.total_gain.as_ref().unwrap().base.unwrap(),
+            dec!(131)
+        );
+        assert_eq!(
+            holding.total_return.as_ref().unwrap().local.unwrap(),
+            dec!(54)
+        );
+        assert!(
+            (holding.total_return.as_ref().unwrap().base.unwrap() - dec!(136)).abs()
+                < dec!(0.00000001)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().local.unwrap(),
+            dec!(300)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().base.unwrap(),
+            dec!(150)
+        );
         assert_eq!(holding.total_gain_pct, Some(dec!(0.14)));
         assert_eq!(holding.total_return_pct, Some(dec!(0.18)));
     }
@@ -4387,22 +5838,13 @@ mod tests {
                 },
             ),
         ]);
-        let service = HoldingsService::new(
-            Arc::new(MockAssetService::new(vec![test_asset(
-                asset_id,
-                asset_id,
-                InstrumentType::Equity,
-            )])),
+        let service = test_service_with_snapshots(
             Arc::new(MockSnapshotService {
                 snapshot: snapshots_by_account[long_account].clone(),
                 snapshots_by_account,
             }),
-            Arc::new(MockValuationService {
-                values: HashMap::new(),
-            }),
-            Arc::new(AssetClassificationService::new(Arc::new(
-                EmptyTaxonomyService,
-            ))),
+            vec![test_asset(asset_id, asset_id, InstrumentType::Equity)],
+            HashMap::new(),
         );
 
         let holdings = service
@@ -4516,52 +5958,26 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: "GBp".to_string(),
             base_currency: "GBP".to_string(),
+            translate_observed_basis: false,
             fx_rate: Some(dec!(0.01)),
-            market_value: MonetaryValue {
-                local: dec!(3090),
-                base: dec!(30.9),
-            },
-            cost_basis: Some(MonetaryValue {
-                local: dec!(3000),
-                base: dec!(30),
-            }),
+            market_value: MonetaryValue::new(dec!(3090), dec!(30.9)),
+            cost_basis: Some(MonetaryValue::new(dec!(3000), dec!(30))),
             price: Some(dec!(3090)),
             purchase_price: None,
-            unrealized_gain: Some(MonetaryValue {
-                local: dec!(90),
-                base: dec!(0.9),
-            }),
+            unrealized_gain: Some(MonetaryValue::new(dec!(90), dec!(0.9))),
             unrealized_gain_pct: Some(dec!(0.03)),
             realized_gain: None,
             realized_gain_pct: None,
-            total_gain: Some(MonetaryValue {
-                local: dec!(90),
-                base: dec!(0.9),
-            }),
+            total_gain: Some(MonetaryValue::new(dec!(90), dec!(0.9))),
             total_gain_pct: Some(dec!(0.03)),
-            income: Some(MonetaryValue {
-                local: dec!(10),
-                base: dec!(0.1),
-            }),
-            total_return: Some(MonetaryValue {
-                local: dec!(100),
-                base: dec!(1),
-            }),
+            income: Some(MonetaryValue::new(dec!(10), dec!(0.1))),
+            total_return: Some(MonetaryValue::new(dec!(100), dec!(1))),
             total_return_pct: Some(dec!(0.033333333333333333)),
-            return_basis: Some(MonetaryValue {
-                local: dec!(3000),
-                base: dec!(30),
-            }),
-            day_change: Some(MonetaryValue {
-                local: dec!(-44),
-                base: dec!(-0.44),
-            }),
+            return_basis: Some(MonetaryValue::new(dec!(3000), dec!(30))),
+            day_change: Some(MonetaryValue::new(dec!(-44), dec!(-0.44))),
             day_change_pct: Some(dec!(-0.014)),
-            prev_close_value: Some(MonetaryValue {
-                local: dec!(3134),
-                base: dec!(31.34),
-            }),
-            weight: dec!(0.1),
+            prev_close_value: Some(MonetaryValue::new(dec!(3134), dec!(31.34))),
+            weight: Some(dec!(0.1)),
             as_of_date: as_of,
             source_account_ids: vec![],
             metadata: None,
@@ -4573,25 +5989,55 @@ mod tests {
         assert_eq!(holding.instrument.as_ref().unwrap().currency, "GBP");
         assert_eq!(holding.fx_rate, Some(dec!(1)));
         assert_eq!(holding.price, Some(dec!(30.9)));
-        assert_eq!(holding.market_value.local, dec!(30.9));
-        assert_eq!(holding.market_value.base, dec!(30.9));
-        assert_eq!(holding.cost_basis.as_ref().unwrap().local, dec!(30));
-        assert_eq!(holding.cost_basis.as_ref().unwrap().base, dec!(30));
-        assert_eq!(holding.unrealized_gain.as_ref().unwrap().local, dec!(0.9));
-        assert_eq!(holding.unrealized_gain.as_ref().unwrap().base, dec!(0.9));
-        assert_eq!(holding.income.as_ref().unwrap().local, dec!(0.1));
-        assert_eq!(holding.income.as_ref().unwrap().base, dec!(0.1));
-        assert_eq!(holding.total_return.as_ref().unwrap().local, dec!(1));
-        assert_eq!(holding.total_return.as_ref().unwrap().base, dec!(1));
-        assert_eq!(holding.return_basis.as_ref().unwrap().local, dec!(30));
-        assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(30));
-        assert_eq!(holding.day_change.as_ref().unwrap().local, dec!(-0.44));
-        assert_eq!(holding.day_change.as_ref().unwrap().base, dec!(-0.44));
+        assert_eq!(holding.market_value.local.unwrap(), dec!(30.9));
+        assert_eq!(holding.market_value.base.unwrap(), dec!(30.9));
         assert_eq!(
-            holding.prev_close_value.as_ref().unwrap().local,
+            holding.cost_basis.as_ref().unwrap().local.unwrap(),
+            dec!(30)
+        );
+        assert_eq!(holding.cost_basis.as_ref().unwrap().base.unwrap(), dec!(30));
+        assert_eq!(
+            holding.unrealized_gain.as_ref().unwrap().local.unwrap(),
+            dec!(0.9)
+        );
+        assert_eq!(
+            holding.unrealized_gain.as_ref().unwrap().base.unwrap(),
+            dec!(0.9)
+        );
+        assert_eq!(holding.income.as_ref().unwrap().local.unwrap(), dec!(0.1));
+        assert_eq!(holding.income.as_ref().unwrap().base.unwrap(), dec!(0.1));
+        assert_eq!(
+            holding.total_return.as_ref().unwrap().local.unwrap(),
+            dec!(1)
+        );
+        assert_eq!(
+            holding.total_return.as_ref().unwrap().base.unwrap(),
+            dec!(1)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().local.unwrap(),
+            dec!(30)
+        );
+        assert_eq!(
+            holding.return_basis.as_ref().unwrap().base.unwrap(),
+            dec!(30)
+        );
+        assert_eq!(
+            holding.day_change.as_ref().unwrap().local.unwrap(),
+            dec!(-0.44)
+        );
+        assert_eq!(
+            holding.day_change.as_ref().unwrap().base.unwrap(),
+            dec!(-0.44)
+        );
+        assert_eq!(
+            holding.prev_close_value.as_ref().unwrap().local.unwrap(),
             dec!(31.34)
         );
-        assert_eq!(holding.prev_close_value.as_ref().unwrap().base, dec!(31.34));
+        assert_eq!(
+            holding.prev_close_value.as_ref().unwrap().base.unwrap(),
+            dec!(31.34)
+        );
         let lot = holding.lots.as_ref().unwrap().front().unwrap();
         assert_eq!(lot.cost_basis, dec!(30));
         assert_eq!(lot.acquisition_price, dec!(30));
@@ -4612,15 +6058,10 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: "GBp".to_string(),
             base_currency: "GBP".to_string(),
+            translate_observed_basis: false,
             fx_rate: Some(dec!(0.01)),
-            market_value: MonetaryValue {
-                local: dec!(1000),
-                base: dec!(10),
-            },
-            cost_basis: Some(MonetaryValue {
-                local: dec!(1000),
-                base: dec!(10),
-            }),
+            market_value: MonetaryValue::new(dec!(1000), dec!(10)),
+            cost_basis: Some(MonetaryValue::new(dec!(1000), dec!(10))),
             price: Some(dec!(1)),
             purchase_price: None,
             unrealized_gain: Some(MonetaryValue::zero()),
@@ -4632,20 +6073,11 @@ mod tests {
             income: Some(MonetaryValue::zero()),
             total_return: Some(MonetaryValue::zero()),
             total_return_pct: Some(Decimal::ZERO),
-            return_basis: Some(MonetaryValue {
-                local: dec!(1000),
-                base: dec!(10),
-            }),
-            day_change: Some(MonetaryValue {
-                local: dec!(0),
-                base: dec!(0),
-            }),
+            return_basis: Some(MonetaryValue::new(dec!(1000), dec!(10))),
+            day_change: Some(MonetaryValue::new(dec!(0), dec!(0))),
             day_change_pct: Some(Decimal::ZERO),
-            prev_close_value: Some(MonetaryValue {
-                local: dec!(1000),
-                base: dec!(10),
-            }),
-            weight: dec!(1),
+            prev_close_value: Some(MonetaryValue::new(dec!(1000), dec!(10))),
+            weight: Some(dec!(1)),
             as_of_date: valuation_date_today(),
             source_account_ids: vec![],
             metadata: None,
@@ -4655,12 +6087,21 @@ mod tests {
 
         assert_eq!(holding.local_currency, "GBP");
         assert_eq!(holding.fx_rate, Some(dec!(1)));
-        assert_eq!(holding.market_value.local, dec!(10));
-        assert_eq!(holding.market_value.base, dec!(10));
-        assert_eq!(holding.cost_basis.as_ref().unwrap().local, dec!(10));
+        assert_eq!(holding.market_value.local.unwrap(), dec!(10));
+        assert_eq!(holding.market_value.base.unwrap(), dec!(10));
+        assert_eq!(
+            holding.cost_basis.as_ref().unwrap().local.unwrap(),
+            dec!(10)
+        );
         assert_eq!(holding.price, Some(Decimal::ONE));
-        assert_eq!(holding.prev_close_value.as_ref().unwrap().local, dec!(10));
-        assert_eq!(holding.prev_close_value.as_ref().unwrap().base, dec!(10));
+        assert_eq!(
+            holding.prev_close_value.as_ref().unwrap().local.unwrap(),
+            dec!(10)
+        );
+        assert_eq!(
+            holding.prev_close_value.as_ref().unwrap().base.unwrap(),
+            dec!(10)
+        );
     }
 
     // Snapshot cash balances round-trip through f64, so long-settled accounts keep
@@ -4690,6 +6131,71 @@ mod tests {
         assert!(!is_cash_dust(dec!(0.00000001)));
     }
 
+    #[tokio::test]
+    async fn failed_live_valuation_does_not_publish_foreign_cash_as_zero_base_value() {
+        struct FailedValuation;
+        #[async_trait]
+        impl HoldingsValuationServiceTrait for FailedValuation {
+            async fn calculate_holdings_live_valuation(&self, _: &mut [Holding]) -> Result<()> {
+                Err(CoreError::Unexpected("injected quote read failure".into()))
+            }
+        }
+        let mut service = test_service(
+            cash_snapshot("account", vec![("USD", dec!(100))]),
+            Vec::new(),
+            HashMap::new(),
+        );
+        service.inner.valuation_service = Arc::new(FailedValuation);
+        let holdings = service.get_holdings("account", "CAD").await.unwrap();
+        assert_eq!(holdings.len(), 1);
+        assert_eq!(holdings[0].market_value.local, Some(dec!(100)));
+        assert_eq!(holdings[0].market_value.base, None);
+        assert_eq!(holdings[0].cost_basis.as_ref().unwrap().base, None);
+        assert_eq!(holdings[0].weight, None);
+    }
+
+    #[tokio::test]
+    async fn unpriced_security_stays_visible_without_fabricating_portfolio_weights() {
+        let snapshot = AccountStateSnapshot {
+            account_id: "account".into(),
+            currency: "USD".into(),
+            positions: HashMap::from([
+                ("priced".into(), test_position("account", "priced")),
+                ("unpriced".into(), test_position("account", "unpriced")),
+            ]),
+            ..Default::default()
+        };
+        let service = test_service(
+            snapshot,
+            vec![
+                test_asset("priced", "USD", InstrumentType::Equity),
+                test_asset("unpriced", "USD", InstrumentType::Equity),
+            ],
+            HashMap::from([("priced".into(), dec!(110))]),
+        );
+        let holdings = service.get_holdings("account", "USD").await.unwrap();
+        assert_eq!(holdings.len(), 2);
+        assert_eq!(
+            holdings
+                .iter()
+                .find(|holding| holding.instrument.as_ref().unwrap().id == "priced")
+                .unwrap()
+                .market_value
+                .base,
+            Some(dec!(110))
+        );
+        assert_eq!(
+            holdings
+                .iter()
+                .find(|holding| holding.instrument.as_ref().unwrap().id == "unpriced")
+                .unwrap()
+                .market_value
+                .base,
+            None
+        );
+        assert!(holdings.iter().all(|holding| holding.weight.is_none()));
+    }
+
     #[test]
     fn cash_dust_boundary_sits_just_above_half_of_decimal_precision() {
         // `round_dp` uses banker's rounding, so the exact midpoint goes to even (zero)
@@ -4716,8 +6222,8 @@ mod tests {
             .find(|holding| holding.holding_type == HoldingType::Cash)
             .expect("real balance should survive");
         assert_eq!(cash.quantity, precise);
-        assert_eq!(cash.market_value.local, precise);
-        assert_eq!(cash.cost_basis.as_ref().unwrap().local, precise);
+        assert_eq!(cash.market_value.local.unwrap(), precise);
+        assert_eq!(cash.cost_basis.as_ref().unwrap().local.unwrap(), precise);
     }
 
     #[tokio::test]

@@ -99,8 +99,16 @@
   "limits_add_button": "Ajouter une limite",
   "limits_add_aria": "Ajouter une limite de cotisation",
   "limits_current_year": "Année en cours ({{year}})",
+  "limits_future_years": "Années à venir",
   "limits_previous_years": "Années précédentes",
   "limits_show_previous": "Afficher",
+  "limits_projected_badge": "Projeté",
+  "limits_projected_description": "Généré automatiquement à partir de votre limite récurrente de {{year}}. Ajoutez-la pour personnaliser le montant de cette année.",
+  "limits_projected_add_button": "Ajouter cette année",
+  "limits_projected_add_aria": "Ajouter {{group}} pour {{year}} ({{accounts}})",
+  "limits_no_accounts_selected": "Aucun compte sélectionné",
+  "limits_choose_accounts": "Choisir les comptes",
+  "limits_accounts_more": "+{{number}} de plus",
   "limits_empty_title": "Aucune limite de cotisation pour {{year}} !",
   "limits_empty_description": "Vous n'avez aucune limite de cotisation pour l'année en cours. Commencez par ajouter vos limites de cotisation.",
   "limits_add_first": "Ajouter une limite de cotisation",
@@ -114,15 +122,12 @@
   "limits_delete_description": "Cette action est irréversible.",
   "limits_form_update_title": "Mettre à jour la limite de cotisation",
   "limits_form_add_title": "Ajouter une limite de cotisation",
-  "limits_form_update_description": "Mettre à jour les informations de la limite de cotisation",
   "limits_form_add_description": "Ajouter une nouvelle limite de cotisation.",
   "limits_form_group_name_label": "Nom du groupe",
   "limits_form_group_name_placeholder": "ex. CELI, 401(k), REER",
-  "limits_form_group_name_description": "Nom du groupe de limite de cotisation",
   "limits_form_group_name_required": "Le nom du groupe est requis",
   "limits_form_limit_amount_label": "Montant limite",
   "limits_form_limit_amount_placeholder": "ex. 6 000,00",
-  "limits_form_limit_amount_description": "Montant maximum de cotisation autorisé",
   "limits_form_limit_amount_number": "Le montant limite doit être un nombre positif.",
   "limits_form_limit_amount_non_negative": "Le montant limite ne peut pas être négatif.",
   "limits_form_year_label": "Année",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "Date de début",
   "limits_form_end_date_label": "Date de fin",
   "limits_form_date_description": "Les dates sont par défaut du 1er janvier au 31 décembre de l'année sélectionnée",
+  "limits_form_recurring_label": "Se répète chaque année",
+  "limits_form_recurring_description": "Affiche automatiquement une limite projetée pour les années futures avec le même montant, jusqu'à ce que vous ajoutiez ou modifiiez cette année.",
+  "limits_form_accounts_label": "Comptes pris en compte",
+  "limits_form_accounts_description": "Les cotisations versées sur ces comptes sont comptabilisées dans ce plafond.",
+  "limits_form_accounts_selected": "{{selected}} sur {{total}} sélectionnés",
+  "limits_form_accounts_search": "Rechercher des comptes",
+  "limits_form_accounts_no_match": "Aucun compte ne correspond à votre recherche.",
+  "limits_form_accounts_empty": "Aucun compte ne peut encore recevoir de cotisations.",
   "limits_form_updating": "Mise à jour...",
   "limits_form_saving": "Enregistrement...",
   "limits_form_update_button": "Mettre à jour",
-  "limits_select_accounts": "Sélectionner les comptes",
-  "limits_loading": "Chargement...",
-  "limits_contributed": "Cotisé",
-  "limits_saving": "Enregistrement...",
-  "limits_save_selected_accounts": "Enregistrer les comptes sélectionnés",
   "addons_info_title": "🔌 Extensions et modules complémentaires",
   "addons_info_description": "Les extensions vous permettent d'étendre Wealthfolio avec de nouvelles fonctionnalités, des analyses personnalisées et des fonctionnalités supplémentaires pour améliorer votre expérience de gestion financière.",
   "addons_security_notice": "Avis de sécurité :",
@@ -178,17 +186,140 @@
   "export_title": "Exportation des données",
   "export_description": "Conservez une sauvegarde de votre portefeuille ou exportez vos données pour les utiliser ailleurs.",
   "export_tab_backup": "Sauvegardes",
-  "export_section_description": "Exporter des types de données spécifiques dans différents formats pour l'analyse ou l'utilisation externe.",
-  "export_format_title": "Choisissez votre format préféré",
-  "export_format_csv_description": "Format de tableur simple et largement compatible",
-  "export_format_json_description": "Données structurées pour un accès programmatique facile",
-  "export_customize_title": "Personnalisez votre exportation",
-  "export_type_accounts_description": "Vos comptes financiers",
-  "export_type_activities": "Activités",
-  "export_type_activities_description": "Historique détaillé des transactions et journaux",
-  "export_type_goals_description": "Objectifs financiers et suivi des progrès",
-  "export_type_portfolio_history": "Historique du portefeuille",
-  "export_type_portfolio_history_description": "La performance de votre portefeuille au fil du temps, y compris les valorisations, les gains et les activités de flux de trésorerie.",
+  "data_export": {
+    "intro": "Des fichiers lisibles par les tableurs et d’autres applications. Ils ne peuvent pas être restaurés dans Wealthfolio : pour passer à un autre appareil, utilisez une sauvegarde.",
+    "all_title": "Exporter toutes vos données",
+    "all_description_csv": "Un ZIP contenant un fichier CSV par jeu de données et un README qui les explique.",
+    "all_description_json": "Un fichier JSON avec chaque jeu de données dans sa propre section.",
+    "all_info": "Les projections des objectifs et les échéanciers de prêt ne sont pas inclus, car ils changent chaque jour. Exportez-les depuis l’objectif ou le prêt.",
+    "all_info_label": "À propos des exports de données",
+    "all_button": "Tout exporter",
+    "all_pending": "Export en cours…",
+    "format_label": "Format de fichier",
+    "include_archived": "Inclure les comptes archivés",
+    "include_archived_help": "Ajoute les comptes archivés avec leurs activités, leurs lots et leurs paiements de prêt.",
+    "dates_title": "Dates",
+    "start_date": "Du",
+    "end_date": "Au",
+    "dates_help": "Limite les activités, ventes, prix, évaluations et historiques. Laissez vide pour inclure toutes les dates.",
+    "date_order_error": "La date de début est postérieure à la date de fin.",
+    "clear_dates": "Effacer les dates",
+    "datasets_title": "Choisissez quoi exporter",
+    "datasets_description": "Téléchargez un jeu de données à la fois.",
+    "groups": {
+      "accounts": "Comptes et activité",
+      "investments": "Investissements",
+      "net-worth": "Valeur nette",
+      "spending": "Dépenses et budgets",
+      "planning": "Planification",
+      "organization": "Organisation"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "Comptes",
+        "description": "Vos comptes et leur dernier solde, avec les comptes archivés signalés"
+      },
+      "activities": {
+        "name": "Activités",
+        "description": "Chaque transaction, avec le solde de liquidités et la catégorie de dépense"
+      },
+      "holdings": {
+        "name": "Positions",
+        "description": "Valeur, coût et gains de chaque position"
+      },
+      "lots": {
+        "name": "Lots",
+        "description": "Lots ouverts et clôturés avec leur coût d’acquisition"
+      },
+      "realized-gains": {
+        "name": "Gains réalisés",
+        "description": "Chaque vente rapprochée des lots qu’elle a clôturés"
+      },
+      "manual-prices": {
+        "name": "Prix manuels",
+        "description": "Prix que vous avez saisis pour les actifs que vous évaluez vous-même"
+      },
+      "income": {
+        "name": "Revenus",
+        "description": "Dividendes et intérêts par mois, pour chaque compte"
+      },
+      "income-by-source": {
+        "name": "Revenus par source",
+        "description": "Revenus de chaque position, au total et par année"
+      },
+      "assets-and-liabilities": {
+        "name": "Actifs et passifs",
+        "description": "Biens immobiliers, véhicules, objets de valeur et prêts, avec leurs conditions"
+      },
+      "asset-valuations": {
+        "name": "Évaluations d’actifs",
+        "description": "Chaque valeur que vous avez enregistrée pour ces actifs et passifs"
+      },
+      "loan-payments": {
+        "name": "Paiements de prêt",
+        "description": "Paiements liés à chaque prêt"
+      },
+      "net-worth-history": {
+        "name": "Historique de la valeur nette",
+        "description": "Valeur nette quotidienne : investissements, autres actifs et passifs"
+      },
+      "portfolio-history": {
+        "name": "Historique du portefeuille",
+        "description": "Valeur quotidienne de chaque compte"
+      },
+      "budgets": {
+        "name": "Budgets",
+        "description": "Montants par période, avec les paramètres de report"
+      },
+      "budget-actuals": {
+        "name": "Budget vs réel",
+        "description": "Budgété, dépensé et restant par catégorie, mois par mois"
+      },
+      "budget-groups": {
+        "name": "Groupes de budget",
+        "description": "Groupes et leurs catégories"
+      },
+      "spending-rules": {
+        "name": "Règles de catégorisation",
+        "description": "Règles qui catégorisent automatiquement les transactions"
+      },
+      "spending-events": {
+        "name": "Événements",
+        "description": "Voyages et autres événements, avec ce qui a été dépensé pour chacun"
+      },
+      "goals": {
+        "name": "Objectifs",
+        "description": "Paramètres du plan, comptes liés et progression"
+      },
+      "contribution-limits": {
+        "name": "Limites de cotisation",
+        "description": "Limites et comptes concernés"
+      },
+      "portfolios": {
+        "name": "Portefeuilles",
+        "description": "Groupes de comptes"
+      },
+      "categories": {
+        "name": "Catégories",
+        "description": "Toutes les catégories de chaque classification, dépenses comprises"
+      },
+      "classifications": {
+        "name": "Classifications d’actifs",
+        "description": "Catégorie à laquelle appartient chaque actif"
+      }
+    },
+    "rows_one": "{{count}} ligne",
+    "rows_other": "{{count}} lignes",
+    "rows_many": "{{count}} lignes",
+    "daily": "Valeurs quotidiennes",
+    "holdings_today": "Positions actuelles",
+    "none_yet": "Rien pour l’instant",
+    "download": "Télécharger {{name}}",
+    "downloading": "Téléchargement de {{name}}…",
+    "summary_error": "Impossible de compter vos données. Vous pouvez quand même les exporter.",
+    "empty": "Ce jeu de données ne contient encore rien à exporter.",
+    "empty_all": "Il n’y a encore rien à exporter."
+  },
   "backup_title": "Sauvegardes locales",
   "backup_export_dialog_title": "Exporter une sauvegarde",
   "backup_export_protected": "Avec un mot de passe (recommandé)",
@@ -369,9 +500,6 @@
   "about_db_path": "Chemin de la base de données",
   "about_copy_db_path": "Copier le chemin de la base de données",
   "about_copy_logs_dir": "Copier le répertoire des journaux",
-  "export_type_holdings_description": "Positions actuelles avec valorisation, performance, allocation et données d'instrument",
-  "export_exporting_item": "Exportation de {{name}}...",
-  "export_export_item": "Exporter {{name}}",
   "backup_unknown_date": "Date inconnue",
   "backup_creating_short": "Enregistrement de la sauvegarde…",
   "backup_empty_title": "Aucune sauvegarde pour le moment",
@@ -1076,7 +1204,33 @@
       "tab_income_many": "Revenus ({{count}})",
       "tab_savings_one": "Épargne ({{count}})",
       "tab_savings_other": "Épargne ({{count}})",
-      "tab_savings_many": "Épargne ({{count}})"
+      "tab_savings_many": "Épargne ({{count}})",
+      "merge": {
+        "description": "Déplacez toutes les transactions, règles et budgets de {{name}}.",
+        "history": "Les anciens rapports utiliseront la nouvelle catégorie. Cette action est irréversible.",
+        "destination": "Déplacer vers…",
+        "choose": "Choisir une catégorie",
+        "budgets": "Budgets · {{name}}",
+        "confirm": "Déplacer et supprimer",
+        "error": "La fusion a échoué ou les données ont changé. Actualisez l’aperçu, vérifiez la destination et réessayez.",
+        "refresh": "Actualiser l’aperçu",
+        "none": "Aucune destination admissible. Corrigez les restrictions ci-dessous ou créez une catégorie adaptée.",
+        "blocked": {
+          "invalid_destination": "Choisissez une autre catégorie dans la même liste de dépenses, de revenus ou d’épargne.",
+          "children": "Déplacez ou fusionnez d’abord les sous-catégories. Une catégorie avec des enfants ne peut pas être fusionnée.",
+          "asset_references": "Supprimez d’abord les classifications d’actifs et les références aux objectifs d’allocation.",
+          "category_rollover": "Supprimez d’abord les paramètres de report enregistrés des deux catégories, même désactivés.",
+          "group_rollover": "Désactivez le report des groupes de dépenses concernés avant de changer de groupe. La fusion au sein d’un même groupe est autorisée.",
+          "exclusions": "La source et la destination doivent avoir le même réglage effectif « Exclure des dépenses », y compris les exclusions héritées.",
+          "budget_destination": "Cette catégorie a des objectifs budgétaires. Les deux catégories doivent être de premier niveau pour qu’ils restent effectifs."
+        },
+        "period": "Mois",
+        "current": "Actuel",
+        "added": "Ajout",
+        "after": "Nouveau total",
+        "monthlyDefault": "Par défaut",
+        "budgetHint": "Les autres mois utilisent le montant mensuel par défaut."
+      }
     },
     "events": {
       "heading": "Événements de dépenses",
@@ -1152,6 +1306,7 @@
   "fx_err_rate_negative": "Le taux doit être un nombre non négatif.",
   "fx_err_source_required": "La source de données est requise",
   "fx_err_rate_invalid": "Veuillez saisir un taux de change valide.",
+  "fx_err_quote_unit": "{{code}} est une subdivision de {{major}}. Saisissez plutôt le taux en {{major}}.",
   "fx_from_currency": "Devise source",
   "fx_to_currency": "Devise cible",
   "fx_select_currency": "Sélectionner une devise",
@@ -1294,6 +1449,8 @@
     "scope_locked_title": "Requis par Activités — valider/écrire",
     "scope_locked_market_data_title": "Requis par Données de marché — écrire",
     "scope_locked_classification_title": "Requis par Classification des actifs — appliquer/écrire",
+    "scope_locked_accounts_title": "Requis par Comptes — écrire",
+    "scope_locked_holdings_title": "Requis par Positions — écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {
@@ -1343,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Données de marché — écrire",
-        "description": "Enregistrer des cours révisés pour des actifs existants. Nécessite la portée positions (lecture)."
+        "description": "Enregistrer des cours révisés, actualiser ou remplacer l'historique des cours d'un actif et modifier sa cotation : symbole, bourse, devise de cotation, mode de cotation ou fournisseur de données. Nécessite la portée positions (lecture)."
       },
       "spending_read": {
         "label": "Consulter les dépenses",
@@ -1356,6 +1513,14 @@
       "budget_write": {
         "label": "Gérer les budgets",
         "description": "Modifier les budgets par défaut et mensuels, groupes, réserves et reports. Nécessite la consultation des dépenses."
+      },
+      "accounts_write": {
+        "label": "Comptes — écrire",
+        "description": "Créer des comptes et modifier leur nom, type, groupe, numéro, mode de suivi et leur état masqué ou archivé. Nécessite la portée comptes (lecture)."
+      },
+      "holdings_write": {
+        "label": "Positions — écrire",
+        "description": "Enregistrer des instantanés de positions (positions et liquidités à une date) pour les comptes qui suivent des positions, et ajouter des actifs alternatifs et des passifs. Nécessite la portée positions (lecture)."
       }
     },
     "preset": {
@@ -1611,15 +1776,6 @@
       "addingFailed": "Problème lors de l’ajout du taux de change : {{error}}",
       "deletingFailed": "Problème lors de la suppression du taux de change : {{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "Aucun compte à exporter pour le moment.",
-        "activities": "Aucune transaction à exporter pour le moment.",
-        "holdings": "Aucune position à exporter pour le moment.",
-        "goals": "Aucun objectif à exporter pour le moment.",
-        "portfolio-history": "Aucun historique de portefeuille à exporter pour le moment."
-      }
-    },
     "providerUpdateFailed": "Impossible de mettre à jour les paramètres du fournisseur {{provider}}",
     "httpFailed": "La requête HTTP a échoué.",
     "addonDownloadFailed": "Impossible de télécharger l’extension.",
@@ -1691,6 +1847,8 @@
       "performance_calculateHistory": "Calculer l’historique des performances",
       "performance_calculateSummary": "Calculer le résumé des performances",
       "performance_calculateAccountsSimple": "Calculer les performances de base des comptes",
+      "allocation-targets_getAll": "Consulter vos objectifs d’allocation",
+      "allocation-targets_getDrift": "Comparer vos positions à un objectif d’allocation",
       "currency_getAll": "Consulter les taux de change",
       "currency_update": "Mettre à jour les taux de change",
       "currency_add": "Ajouter des taux de change",
@@ -1746,6 +1904,10 @@
       "accounts": {
         "name": "Gestion des comptes",
         "description": "Accès aux informations et aux paramètres des comptes"
+      },
+      "allocation-targets": {
+        "name": "Objectifs d’allocation",
+        "description": "Accès en lecture seule à vos objectifs d’allocation et à la comparaison de vos positions avec ces objectifs"
       },
       "alternative-assets": {
         "name": "Actifs alternatifs",
@@ -1819,6 +1981,34 @@
         "name": "Accès réseau",
         "description": "Accès aux hôtes HTTPS externes déclarés via le relais réseau de l’application hôte"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "Plafonds de cotisation",
+    "counted": "Cotisations comptabilisées",
+    "annual_limit": "Montant du plafond",
+    "remaining": "Marge restante",
+    "used_percent": "{{percent}} utilisé",
+    "period_ends": "Fin de la période",
+    "over": "Plafond dépassé",
+    "activities": "Opérations de cotisation",
+    "group_counted": "Cotisations",
+    "group_not_counted": "Non comptabilisé automatiquement",
+    "group_not_counted_hint": "Les virements internes ne sont jamais comptabilisés. Si l’argent vient de l’extérieur de vos comptes, modifiez l’opération et marquez-la comme externe.",
+    "edit_activity": "Modifier l’opération",
+    "edit_activity_aria": "Modifier {{activity}}",
+    "edit_activity_error": "Impossible d’ouvrir cette opération. Réessayez.",
+    "count_activity": "Comptabiliser {{activity}} dans ce plafond",
+    "activity_unchanged": "Seule l’utilisation de ce plafond change. Les opérations du compte restent inchangées.",
+    "save_success": "Traitement de la cotisation enregistré.",
+    "save_error": "Impossible d’enregistrer le traitement de la cotisation.",
+    "load_error": "Impossible de charger ce plafond de cotisation.",
+    "no_activities": "Aucune opération de cotisation sur cette période.",
+    "treatments": {
+      "counted": "Comptabilisé",
+      "excludedByUser": "Exclu par vous",
+      "internalTransfer": "Virement interne",
+      "notExternal": "Non marqué comme externe"
     }
   }
 }

@@ -48,7 +48,6 @@ function account(id: string, name: string, group?: string): Account {
     name,
     group,
     accountType: "SECURITIES",
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,
