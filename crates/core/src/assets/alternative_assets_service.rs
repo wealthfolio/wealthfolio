@@ -907,7 +907,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         // Build AlternativeHolding for each asset
         let holdings: Vec<AlternativeHolding> = alternative_assets
             .into_iter()
-            .filter_map(|asset| {
+            .map(|asset| {
                 let quote = quotes.get(&asset.id);
                 let principal = (asset.kind == AssetKind::Liability
                     && !recorded_loan_dates.contains_key(&asset.id))
@@ -924,13 +924,9 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     .copied()
                     .or_else(|| quote.map(|q| q.close))
                     .or_else(|| principal.map(|(_, value)| value));
-                // A liability is still editable when its last balance is deleted,
-                // even if it has no usable original principal.
-                let market_value = match value {
-                    Some(value) => value,
-                    None if asset.kind == AssetKind::Liability => Decimal::ZERO,
-                    None => return None,
-                };
+                // An asset stays listed and editable when its last value is
+                // deleted, as does a liability with no usable original principal.
+                let market_value = value.unwrap_or(Decimal::ZERO);
                 let valuation_date = quote.map(|q| q.timestamp).unwrap_or_else(|| {
                     principal
                         .map_or(as_of, |(date, _)| date)
@@ -989,7 +985,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                         (None, None)
                     };
 
-                Some(AlternativeHolding {
+                AlternativeHolding {
                     id: asset.id.clone(),
                     kind: asset.kind.clone(),
                     name: asset
@@ -1008,7 +1004,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     linked_asset_id,
                     notes: asset.notes,
                     loan,
-                })
+                }
             })
             .collect();
 
@@ -1897,6 +1893,42 @@ mod tests {
             if source.is_none() {
                 assert!(holding.unrealized_gain.is_none());
             }
+        }
+    }
+
+    #[test]
+    fn assets_remain_listed_after_their_last_value_is_deleted() {
+        for kind in [
+            AssetKind::Property,
+            AssetKind::Vehicle,
+            AssetKind::Collectible,
+            AssetKind::PreciousMetal,
+            AssetKind::Other,
+        ] {
+            let asset = Asset {
+                id: "home".into(),
+                kind: kind.clone(),
+                quote_ccy: "USD".into(),
+                metadata: Some(json!({"purchase_price":"400000"})),
+                ..Default::default()
+            };
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository::default()),
+                Arc::new(MockAssetRepository {
+                    assets: vec![asset],
+                }),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            )
+            .with_timezone(Arc::new(RwLock::new("UTC".into())));
+            let holdings = service.get_alternative_holdings().unwrap();
+            assert_eq!(holdings.len(), 1, "{kind:?} must stay listed");
+            assert_eq!(holdings[0].kind, kind);
+            assert_eq!(holdings[0].market_value, Decimal::ZERO);
+            assert!(holdings[0].unrealized_gain.is_none());
         }
     }
 
