@@ -42,6 +42,32 @@ async function createAccountWithActivities(page: Page, accountType = "SECURITIES
     });
     expect(response.ok(), await response.text()).toBeTruthy();
   }
+  // The deposits recalculate the account in the background. Until that ends,
+  // rows load without their day's cash balance, and its arrival re-renders the
+  // table and closes any menu open on it. The newest row's balance is the
+  // total of all 30 deposits once the last one is counted.
+  await expect
+    .poll(
+      async () => {
+        const search = await page.request.post(`${api}/activities/search`, {
+          data: {
+            page: 0,
+            pageSize: 1,
+            accountIdFilter: [accountId],
+            sort: { id: "date", desc: true },
+            includeCashBalances: true,
+          },
+        });
+        expect(search.ok(), await search.text()).toBeTruthy();
+        const { data } = (await search.json()) as {
+          data: { cashBalance?: number | string | null }[];
+        };
+        const balance = data[0]?.cashBalance;
+        return balance == null ? null : Number(balance);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(3465);
   return accountId;
 }
 

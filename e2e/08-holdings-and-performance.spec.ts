@@ -241,12 +241,15 @@ test.describe("Holdings and Performance Pages", () => {
       ?.instrument?.id;
     expect(assetId).toBeTruthy();
     for (const query of ["", "?dir=rtl"]) {
+      // Listen only once the new document has committed: the previous page can
+      // still refetch by-asset (the start-up portfolio update invalidates every
+      // query when it completes), and that response dies with its page.
+      await page.goto(`${BASE_URL}/holdings/${encodeURIComponent(assetId!)}${query}`, {
+        waitUntil: "commit",
+      });
       const response = page.waitForResponse(
         (response) => response.url().includes("/holdings/by-asset?") && response.status() === 200,
       );
-      await page.goto(`${BASE_URL}/holdings/${encodeURIComponent(assetId!)}${query}`, {
-        waitUntil: "domcontentloaded",
-      });
       const body = (await (await response).json()) as {
         holdings: { accountId: string; quantity: number | string }[];
         incompleteAccounts: unknown[];
