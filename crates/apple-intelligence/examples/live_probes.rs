@@ -340,6 +340,11 @@ mod probes {
             forbid_tools: false,
         },
         Probe {
+            question: "Deposit 500 EUR into Brokerage today",
+            expect_any: &["draft", "review"],
+            forbid_tools: false,
+        },
+        Probe {
             question: "record this activity",
             expect_any: &["draft", "review"],
             forbid_tools: false,
@@ -393,6 +398,11 @@ mod probes {
             "Record a $500 deposit to Retirement on 2026-11-03",
             "record_activity",
             &["\"DEPOSIT\"", "500", "2026-11-03", "Retirement"],
+        ),
+        (
+            "Deposit 500 EUR into Brokerage today",
+            "record_activity",
+            &["\"DEPOSIT\"", "500", "\"currency\":\"EUR\""],
         ),
         (
             "record this activity",

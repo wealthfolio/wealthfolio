@@ -58,6 +58,8 @@ interface RecordActivityArgs {
   fee?: number;
   tax?: number;
   account?: string;
+  /** Set when the AI stated the activity's currency. */
+  currency?: string;
   subtype?: string;
   notes?: string;
 }
@@ -888,6 +890,8 @@ interface DraftFormProps {
   validation: ValidationResult;
   availableAccounts: AccountOption[];
   resolvedAsset?: ResolvedAsset;
+  /** Whether the AI passed a currency, rather than the draft taking a default. */
+  currencyStated: boolean;
   toolCallId?: string;
   onSuccess: (createdActivityId: string) => void;
 }
@@ -897,6 +901,7 @@ function DraftForm({
   validation: aiValidation,
   availableAccounts,
   resolvedAsset,
+  currencyStated,
   toolCallId,
   onSuccess,
 }: DraftFormProps) {
@@ -913,12 +918,22 @@ function DraftForm({
   const accountChoices =
     !aiDraft.accountId && availableAccounts.length > 0 ? availableAccounts : undefined;
   const pickedAccount = accountChoices?.find((account) => account.id === pickedAccountId);
+  // Without an account, a cash draft took the base currency. It follows the
+  // picked account unless the AI stated a currency; trades keep the asset's.
+  const currencyFollowsAccount = !currencyStated && !aiDraft.symbol && !resolvedAsset;
   const draft = useMemo(
     () =>
       pickedAccount
-        ? { ...aiDraft, accountId: pickedAccount.id, accountName: pickedAccount.name }
+        ? {
+            ...aiDraft,
+            accountId: pickedAccount.id,
+            accountName: pickedAccount.name,
+            ...(currencyFollowsAccount && pickedAccount.currency !== aiDraft.currency
+              ? { currency: pickedAccount.currency, fxRate: undefined }
+              : {}),
+          }
         : aiDraft,
-    [aiDraft, pickedAccount],
+    [aiDraft, pickedAccount, currencyFollowsAccount],
   );
   const validation = useMemo(
     () => (pickedAccount ? withAccountPicked(aiValidation) : aiValidation),
@@ -1119,6 +1134,7 @@ type RecordActivityToolUIContentProps = ToolCallMessagePartProps<
 >;
 
 function RecordActivityToolUIContentImpl({
+  args,
   result,
   status,
   toolCallId,
@@ -1178,6 +1194,7 @@ function RecordActivityToolUIContentImpl({
       validation={parsed.validation}
       availableAccounts={parsed.availableAccounts}
       resolvedAsset={parsed.resolvedAsset}
+      currencyStated={Boolean(args?.currency?.trim())}
       toolCallId={toolCallId}
       onSuccess={(createdActivityId) => {
         setSuccessState({ submitted: true, createdActivityId });

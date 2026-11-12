@@ -13,7 +13,7 @@ const adapter = vi.hoisted(() => ({
   logger: { error: vi.fn() },
 }));
 const toolUi = vi.hoisted(() => ({
-  render: undefined as ((props: { result: unknown }) => ReactNode) | undefined,
+  render: undefined as ((props: { result: unknown; args?: unknown }) => ReactNode) | undefined,
 }));
 vi.mock("@/adapters", () => adapter);
 vi.mock("@assistant-ui/react", () => ({
@@ -37,6 +37,7 @@ import "./record-activity-tool-ui";
 const ACCOUNTS = [
   { id: "acc-brokerage", name: "Brokerage", currency: "USD" },
   { id: "acc-retirement", name: "Retirement", currency: "USD" },
+  { id: "acc-tfsa", name: "TFSA", currency: "CAD" },
 ];
 
 /** A deposit draft, which needs no asset lookup, with or without an account. */
@@ -61,14 +62,25 @@ function draftResult(accountId?: string) {
   };
 }
 
-function renderCard(result: unknown) {
+function renderCard(result: unknown, args: unknown = {}) {
   render(
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient()}>
-        <ActivitySplitReviewProvider>{toolUi.render?.({ result })}</ActivitySplitReviewProvider>
+        <ActivitySplitReviewProvider>
+          {toolUi.render?.({ result, args })}
+        </ActivitySplitReviewProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
+}
+
+async function pickAndConfirm(account: RegExp) {
+  const user = userEvent.setup();
+  await user.click(screen.getByTestId("draft-account-select"));
+  await user.click(await screen.findByRole("option", { name: account }));
+  await user.click(screen.getByRole("button", { name: "Confirm" }));
+  await waitFor(() => expect(adapter.createActivity).toHaveBeenCalledTimes(1));
+  return adapter.createActivity.mock.calls[0][0];
 }
 
 describe("an AI draft without an account", () => {
@@ -96,6 +108,24 @@ describe("an AI draft without an account", () => {
     expect(adapter.createActivity.mock.calls[0][0]).toMatchObject({
       accountId: "acc-retirement",
       activityType: "DEPOSIT",
+    });
+  });
+
+  it("moves a cash draft to the picked account's currency", async () => {
+    renderCard(draftResult());
+
+    expect(await pickAndConfirm(/TFSA/)).toMatchObject({
+      accountId: "acc-tfsa",
+      currency: "CAD",
+    });
+  });
+
+  it("keeps a currency the AI stated", async () => {
+    renderCard(draftResult(), { currency: "USD" });
+
+    expect(await pickAndConfirm(/TFSA/)).toMatchObject({
+      accountId: "acc-tfsa",
+      currency: "USD",
     });
   });
 

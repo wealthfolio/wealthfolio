@@ -366,7 +366,14 @@ struct ParkedReply {
     waiting: Vec<(String, String)>,
     /// Tool calls passed on to the app so far for this message.
     calls: usize,
+    /// An event read while waiting for more tool calls that was not one,
+    /// handled before reading the session again. `Some(None)` is the end of
+    /// the session.
+    pending: Option<SessionEvent>,
 }
+
+/// One read from a session: an event, or `None` once it has ended.
+type SessionEvent = Option<Result<OnDeviceEvent, OnDeviceError>>;
 
 impl Transport<OnDeviceWire> for OnDeviceRuntime {
     fn send(&self, request: CompletionRequest, _exchange: Exchange) -> Opening<OnDeviceFrame> {
@@ -470,6 +477,7 @@ impl OnDeviceRuntime {
             session: self.model.start(request),
             waiting: Vec::new(),
             calls: 0,
+            pending: None,
         })
     }
 
@@ -572,7 +580,11 @@ async fn next_frames(state: ReplyState) -> Option<(Frames, ReplyState)> {
     };
 
     loop {
-        match reply.session.next().await {
+        let event = match reply.pending.take() {
+            Some(event) => event,
+            None => reply.session.next().await,
+        };
+        match event {
             Some(Ok(OnDeviceEvent::Text(delta))) => {
                 return Some((
                     vec![Ok(OnDeviceFrame::Text(delta))],
@@ -605,18 +617,25 @@ async fn next_frames(state: ReplyState) -> Option<(Frames, ReplyState)> {
                 };
                 push(id, name, arguments, &mut reply);
                 // Calls the model made at the same instant join this turn.
-                // Anything else cannot arrive while the model waits on a tool.
-                while let Ok(Some(Ok(OnDeviceEvent::ToolCall {
-                    id,
-                    name,
-                    arguments,
-                }))) =
+                // Anything else, such as a failure, waits for the next read.
+                while let Ok(event) =
                     tokio::time::timeout(TOOL_CALL_BATCH_WINDOW, reply.session.next()).await
                 {
-                    if reply.calls >= MAX_TOOL_CALLS_PER_MESSAGE {
-                        reply.session.send_tool_output(&id, TOOLS_OFF_OUTPUT);
-                    } else {
-                        push(id, name, arguments, &mut reply);
+                    match event {
+                        Some(Ok(OnDeviceEvent::ToolCall { id, .. }))
+                            if reply.calls >= MAX_TOOL_CALLS_PER_MESSAGE =>
+                        {
+                            reply.session.send_tool_output(&id, TOOLS_OFF_OUTPUT);
+                        }
+                        Some(Ok(OnDeviceEvent::ToolCall {
+                            id,
+                            name,
+                            arguments,
+                        })) => push(id, name, arguments, &mut reply),
+                        other => {
+                            reply.pending = Some(other);
+                            break;
+                        }
                     }
                 }
                 frames.push(Ok(OnDeviceFrame::End));
@@ -853,7 +872,8 @@ fn on_device_description(tool: &str) -> Option<&'static str> {
             \"Apple\" or \"MSFT\"; quantity, the number of shares or units; unitPrice, the price \
             of one share; activityDate as YYYY-MM-DD; account only if the user named one, as they \
             wrote it; amount only for cash activities such as a deposit, withdrawal, dividend or \
-            fee. Call it directly; do not look up accounts first.",
+            fee; currency only if the user stated one, as an ISO code such as EUR. Call it \
+            directly; do not look up accounts first.",
         ),
         SPENDING_TOOL => Some(
             "Read the user's spending for a period: total spent, income, budget left, the change \
@@ -868,7 +888,7 @@ fn on_device_description(tool: &str) -> Option<&'static str> {
 /// The only arguments of `tool` the device's model is offered. It decides to
 /// write or skip each optional argument, and with all of `record_activity`'s
 /// fourteen it skipped the price in most drafts. The rest stay editable in the
-/// draft.
+/// draft. `currency` comes last, so the model writes it after the figures.
 fn on_device_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "record_activity" => Some(&[
@@ -879,6 +899,7 @@ fn on_device_fields(tool: &str) -> Option<&'static [&'static str]> {
             "unitPrice",
             "amount",
             "account",
+            "currency",
         ]),
         SPENDING_TOOL => Some(&["startDate", "endDate"]),
         _ => None,
@@ -1903,6 +1924,39 @@ mod tests {
         assert_eq!(log.outputs.len(), 1);
         assert_eq!(log.outputs[0].0, "c1");
         assert!(log.outputs[0].1.contains("ping"), "{:?}", log.outputs);
+    }
+
+    #[tokio::test]
+    async fn text_right_after_a_tool_call_is_kept_for_the_next_turn() {
+        let (model, _log) =
+            FakeModel::new(vec![vec![call("c1", "echo", "{}"), text("Answer"), done()]]);
+        let runtime = runtime(model);
+
+        assert_eq!(
+            frames(&runtime, CompletionRequest::new("Go")).await,
+            ["call:c1:echo", "end"]
+        );
+        assert_eq!(
+            frames(&runtime, tool_results(&[("c1", "out")])).await,
+            ["text:Answer", "end"]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failure_right_after_a_tool_call_is_reported_not_lost() {
+        let (model, _log) = FakeModel::new(vec![vec![
+            call("c1", "echo", "{}"),
+            Step::Fail(OnDeviceError {
+                kind: OnDeviceErrorKind::Refused,
+                message: "Declined.".into(),
+            }),
+        ]]);
+        let runtime = runtime(model);
+
+        frames(&runtime, CompletionRequest::new("Go")).await;
+        let resumed = frames(&runtime, tool_results(&[("c1", "out")])).await;
+        assert_eq!(resumed.len(), 1);
+        assert!(resumed[0].contains("Declined."), "{resumed:?}");
     }
 
     #[test]
