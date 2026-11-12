@@ -106,34 +106,6 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
 
   const { t } = useTranslation();
   const resolvedBalanceLabel = balanceLabel ?? t("account:cash_balance");
-  // Full skeleton only when valuation data itself is loading
-  if (isLoading || !valuation)
-    return (
-      <Card className={className}>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-7 w-24" />
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Separator className="mb-4" />
-          <div className="space-y-4 text-sm">
-            {Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className="flex justify-between">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ))}
-          </div>
-
-          <PerformanceGrid isLoading={true} />
-        </CardContent>
-        <CardFooter className="flex justify-end px-3 pb-0">
-          <Skeleton className="h-3 w-48" />
-        </CardFooter>
-      </Card>
-    );
-
-  const displayCurrency = valuation?.accountCurrency || valuation?.baseCurrency;
   // Never substitute FX-converted totals for missing native balances.
   const cashBalances = cashCurrencySplit?.flatMap(({ currency, valueLocal }) =>
     currency.trim() && typeof valueLocal === "number" && Number.isFinite(valueLocal)
@@ -142,10 +114,54 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   );
   const canEditBalance =
     !balanceEditDisabled &&
-    Boolean(valuation.accountId.trim()) &&
-    Boolean(valuation.accountCurrency.trim()) &&
+    Boolean(valuation?.accountId.trim()) &&
+    Boolean(valuation?.accountCurrency.trim()) &&
     cashBalances !== undefined &&
     cashBalances.length === cashCurrencySplit?.length;
+  // Beside the card in both branches below, so a background refetch that shows
+  // the skeleton keeps the open dialog and the user's draft.
+  const balanceDialog = isEditingBalance && !hideBalanceEdit && valuation && (
+    <CashBalanceDialog
+      key={valuation.accountId}
+      accountId={valuation.accountId}
+      accountCurrency={valuation.accountCurrency}
+      cashBalances={cashBalances ?? []}
+      disabled={!canEditBalance}
+      onClose={() => setIsEditingBalance(false)}
+    />
+  );
+
+  // Full skeleton only when valuation data itself is loading
+  if (isLoading || !valuation)
+    return (
+      <>
+        <Card className={className}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-7 w-24" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Separator className="mb-4" />
+            <div className="space-y-4 text-sm">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="flex justify-between">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ))}
+            </div>
+
+            <PerformanceGrid isLoading={true} />
+          </CardContent>
+          <CardFooter className="flex justify-end px-3 pb-0">
+            <Skeleton className="h-3 w-48" />
+          </CardFooter>
+        </Card>
+        {balanceDialog}
+      </>
+    );
+
+  const displayCurrency = valuation?.accountCurrency || valuation?.baseCurrency;
   const performanceCurrency = performance?.scope.currency || displayCurrency;
   const performancePnl = performancePeriodPnl(performance);
   const performanceReturn = performanceSummaryReturn(performance);
@@ -245,134 +261,127 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
     : null;
 
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-x-3 pb-2">
-        <CardTitle className="text-lg font-bold">{resolvedBalanceLabel}</CardTitle>
-        <div className="ms-auto flex items-center gap-2">
-          {balanceWarning ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="bg-warning-subtle text-warning-subtle-foreground hover:bg-warning-subtle/70 size-8 rounded-full"
-                      onClick={balanceWarning.onClick}
-                      disabled={balanceWarning.disabled || balanceWarning.isLoading}
-                      aria-label={balanceWarning.label}
-                    />
-                  }
-                >
-                  {balanceWarning.isLoading ? (
-                    <Spinner className="size-4" />
-                  ) : (
-                    <Icons.AlertCircle className="size-4" />
-                  )}
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{balanceWarning.label}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null}
-          <div data-testid="account-cash-balance-value" className="text-lg font-extrabold">
-            <PrivacyAmount value={valuation.cashBalance || 0} currency={displayCurrency} />
-          </div>
-          {!hideBalanceEdit && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      aria-label={t("account:balance_edit.title")}
-                      disabled={!canEditBalance}
-                      onClick={() => setIsEditingBalance(true)}
-                    />
-                  }
-                >
-                  <Icons.Pencil className="text-muted-foreground size-4" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {t(
-                      canEditBalance
-                        ? "account:balance_edit.title"
-                        : "account:balance_edit.unavailable",
+    <>
+      <Card className={cn("flex flex-col", className)}>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-x-3 pb-2">
+          <CardTitle className="text-lg font-bold">{resolvedBalanceLabel}</CardTitle>
+          <div className="ms-auto flex items-center gap-2">
+            {balanceWarning ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="bg-warning-subtle text-warning-subtle-foreground hover:bg-warning-subtle/70 size-8 rounded-full"
+                        onClick={balanceWarning.onClick}
+                        disabled={balanceWarning.disabled || balanceWarning.isLoading}
+                        aria-label={balanceWarning.label}
+                      />
+                    }
+                  >
+                    {balanceWarning.isLoading ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <Icons.AlertCircle className="size-4" />
                     )}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className={cn(compact ? "space-y-4 pb-2" : "space-y-6 pb-4")}>
-        <div className="space-y-4">
-          <CashCurrencyBreakdown
-            cashCurrencySplit={cashCurrencySplit}
-            displayCurrency={displayCurrency}
-          />
-          <Separator />
-          <div className={cn(compact ? "space-y-2.5" : "space-y-4", "text-sm")}>
-            {rows.map(({ label, value }, idx) => (
-              <div key={idx} className="flex flex-wrap justify-between gap-x-3">
-                <span className="text-muted-foreground">{label}</span>
-                <span className="ms-auto font-medium">{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <PerformanceGrid
-          performance={performance}
-          isLoading={isPerformanceLoading}
-          performanceError={performanceError}
-          isHoldingsMode={isHoldingsMode}
-        />
-      </CardContent>
-      <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
-        {performanceError ? (
-          <p className="text-muted-foreground m-0 p-0 text-xs">
-            {lastUpdated && <>{t("account:last_updated", { date: lastUpdated })}</>}
-          </p>
-        ) : isHoldingsMode ? (
-          <>
-            <p className="text-muted-foreground m-0 p-0 text-xs">
-              {t("account:twr_irr_require_transactions")}
-            </p>
-            {lastUpdated && (
-              <p className="text-muted-foreground m-0 p-0 text-xs">
-                {t("account:last_updated", { date: lastUpdated })}
-              </p>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{balanceWarning.label}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+            <div data-testid="account-cash-balance-value" className="text-lg font-extrabold">
+              <PrivacyAmount value={valuation.cashBalance || 0} currency={displayCurrency} />
+            </div>
+            {!hideBalanceEdit && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        aria-label={t("account:balance_edit.title")}
+                        disabled={!canEditBalance}
+                        onClick={() => setIsEditingBalance(true)}
+                      />
+                    }
+                  >
+                    <Icons.Pencil className="text-muted-foreground size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {t(
+                        canEditBalance
+                          ? "account:balance_edit.title"
+                          : "account:balance_edit.unavailable",
+                      )}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
-          </>
-        ) : (
-          <p className="text-muted-foreground m-0 p-0 text-xs">
-            {hasPerformancePeriod
-              ? t("account:from_to", { start: formattedStartDate, end: formattedEndDate })
-              : lastUpdated
-                ? t("account:last_updated", { date: lastUpdated })
-                : ""}
-          </p>
-        )}
-      </CardFooter>
-      {isEditingBalance && !hideBalanceEdit && (
-        <CashBalanceDialog
-          key={valuation.accountId}
-          accountId={valuation.accountId}
-          accountCurrency={valuation.accountCurrency}
-          cashBalances={cashBalances ?? []}
-          disabled={!canEditBalance}
-          onClose={() => setIsEditingBalance(false)}
-        />
-      )}
-    </Card>
+          </div>
+        </CardHeader>
+        <CardContent className={cn(compact ? "space-y-4 pb-2" : "space-y-6 pb-4")}>
+          <div className="space-y-4">
+            <CashCurrencyBreakdown
+              cashCurrencySplit={cashCurrencySplit}
+              displayCurrency={displayCurrency}
+            />
+            <Separator />
+            <div className={cn(compact ? "space-y-2.5" : "space-y-4", "text-sm")}>
+              {rows.map(({ label, value }, idx) => (
+                <div key={idx} className="flex flex-wrap justify-between gap-x-3">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="ms-auto font-medium">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <PerformanceGrid
+            performance={performance}
+            isLoading={isPerformanceLoading}
+            performanceError={performanceError}
+            isHoldingsMode={isHoldingsMode}
+          />
+        </CardContent>
+        <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
+          {performanceError ? (
+            <p className="text-muted-foreground m-0 p-0 text-xs">
+              {lastUpdated && <>{t("account:last_updated", { date: lastUpdated })}</>}
+            </p>
+          ) : isHoldingsMode ? (
+            <>
+              <p className="text-muted-foreground m-0 p-0 text-xs">
+                {t("account:twr_irr_require_transactions")}
+              </p>
+              {lastUpdated && (
+                <p className="text-muted-foreground m-0 p-0 text-xs">
+                  {t("account:last_updated", { date: lastUpdated })}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-muted-foreground m-0 p-0 text-xs">
+              {hasPerformancePeriod
+                ? t("account:from_to", { start: formattedStartDate, end: formattedEndDate })
+                : lastUpdated
+                  ? t("account:last_updated", { date: lastUpdated })
+                  : ""}
+            </p>
+          )}
+        </CardFooter>
+      </Card>
+      {balanceDialog}
+    </>
   );
 };
 

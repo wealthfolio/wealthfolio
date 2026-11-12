@@ -68,6 +68,25 @@ describe("cash balance editing", () => {
     mocks.createActivity.mockResolvedValue({ id: "adjustment-1" });
   });
 
+  it("keeps the open dialog and its draft while a refetch shows the skeleton", async () => {
+    const user = userEvent.setup();
+    const { rerenderMetrics } = renderMetrics();
+
+    await user.click(screen.getByRole("button", { name: "Adjust cash balance" }));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(await screen.findByRole("option", { name: "USD" }));
+    await user.clear(screen.getByLabelText("New balance"));
+    await user.type(screen.getByLabelText("New balance"), "150");
+
+    // A portfolio update refetches valuations, which the page reports as loading.
+    rerenderMetrics({ isLoading: true });
+    rerenderMetrics({ isLoading: false });
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("combobox", { name: "Currency" })).toHaveTextContent("USD");
+    expect(within(dialog).getByLabelText("New balance")).toHaveValue("150");
+  });
+
   it("adjusts USD from its native balance, not the converted HKD total", async () => {
     const user = userEvent.setup();
     renderMetrics();
