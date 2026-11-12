@@ -1074,15 +1074,29 @@ fn spending_summary(output: &str) -> Option<String> {
                 .collect::<Vec<_>>()),
         );
     }
-    if insight
-        .pointer("/calculationQuality/missingFxTransactions")
-        .and_then(Value::as_u64)
-        .is_some_and(|missing| missing > 0)
-    {
-        summary.insert(
-            "note".into(),
-            json!("Some transactions in other currencies could not be converted and are left out."),
+    // Totals leave out transactions whose currency could not be converted.
+    // The prior period's own gaps make the comparison with it incomplete.
+    let missing_fx = |quality: &str| {
+        insight
+            .pointer(&format!("/{quality}/missingFxTransactions"))
+            .and_then(Value::as_u64)
+            .is_some_and(|missing| missing > 0)
+    };
+    let mut notes = Vec::new();
+    if missing_fx("calculationQuality") {
+        notes.push(
+            "Some transactions in other currencies could not be converted and are left out of \
+             this period's figures.",
         );
+    }
+    if missing_fx("priorCalculationQuality") {
+        notes.push(
+            "Some transactions in the prior period could not be converted, so the change from \
+             the prior period is incomplete.",
+        );
+    }
+    if !notes.is_empty() {
+        summary.insert("note".into(), json!(notes.join(" ")));
     }
     Some(Value::Object(summary).to_string())
 }
@@ -1600,6 +1614,29 @@ mod tests {
                 ]
             })
         );
+    }
+
+    #[test]
+    fn missing_conversions_in_either_period_reach_the_device() {
+        let with_quality = |current: u64, prior: u64| {
+            let mut output: serde_json::Value =
+                serde_json::from_str(&insight_output("available")).unwrap();
+            output["insight"]["calculationQuality"] =
+                serde_json::json!({ "missingFxTransactions": current });
+            output["insight"]["priorCalculationQuality"] =
+                serde_json::json!({ "missingFxTransactions": prior });
+            let summary: serde_json::Value =
+                serde_json::from_str(&on_device_output(SPENDING_TOOL, &output.to_string()))
+                    .unwrap();
+            summary["note"].as_str().map(str::to_string)
+        };
+
+        assert_eq!(with_quality(0, 0), None);
+        let prior_only = with_quality(0, 2).unwrap();
+        assert!(prior_only.contains("change from the prior period is incomplete"));
+        assert!(!prior_only.contains("this period's figures"));
+        let both = with_quality(1, 2).unwrap();
+        assert!(both.contains("this period's figures") && both.contains("prior period"));
     }
 
     #[test]

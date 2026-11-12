@@ -49,7 +49,9 @@ public func wfAppleIntelligenceContextSize() -> Int64 {
 /// Whether the model reads images sent with a prompt (macOS 27 and later).
 @_cdecl("wf_apple_intelligence_supports_images")
 public func wfAppleIntelligenceSupportsImages() -> Bool {
-    #if canImport(FoundationModels)
+    // Built only with an SDK that has macOS 27's capabilities; see
+    // `BridgeSession.streamResponse`.
+    #if canImport(FoundationModels, _version: 2.1.14)
     if #available(macOS 27.0, iOS 27.0, *) {
         return SystemLanguageModel.default.capabilities.contains(.vision)
     }
@@ -251,21 +253,9 @@ private final class BridgeSession: @unchecked Sendable {
             let stream: LanguageModelSession.ResponseStream<String>
             if request.images.isEmpty {
                 stream = session.streamResponse(to: request.prompt, options: options)
-            } else if #available(macOS 27.0, iOS 27.0, *) {
-                let attachments = try request.images.map { data in
-                    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-                    else {
-                        throw BridgeError(kind: "invalidRequest", message: "An attached image could not be read.")
-                    }
-                    return Attachment(image)
-                }
-                stream = session.streamResponse(options: options) {
-                    attachments
-                    request.prompt
-                }
             } else {
-                throw BridgeError(kind: "invalidRequest", message: "Images need a newer system.")
+                stream = try Self.streamResponse(
+                    session: session, prompt: request.prompt, images: request.images, options: options)
             }
             for try await snapshot in stream {
                 try Task.checkCancellation()
@@ -343,6 +333,31 @@ private final class BridgeSession: @unchecked Sendable {
         Self.registryLock.unlock()
     }
 
+    /// The reply to `prompt` with `images` attached. Image input needs the
+    /// macOS 27 SDK at build time (FoundationModels 2.1.14 is the version this
+    /// was built against) and macOS 27 at run time; otherwise it fails.
+    private static func streamResponse(
+        session: LanguageModelSession, prompt: String, images: [Data], options: GenerationOptions
+    ) throws -> LanguageModelSession.ResponseStream<String> {
+        #if canImport(FoundationModels, _version: 2.1.14)
+        if #available(macOS 27.0, iOS 27.0, *) {
+            let attachments = try images.map { data in
+                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                    let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+                else {
+                    throw BridgeError(kind: "invalidRequest", message: "An attached image could not be read.")
+                }
+                return Attachment(image)
+            }
+            return session.streamResponse(options: options) {
+                attachments
+                prompt
+            }
+        }
+        #endif
+        throw BridgeError(kind: "invalidRequest", message: "Images need a newer system.")
+    }
+
     /// The app shows `message` as is, so it is a plain sentence; `kind` is
     /// what the app branches on.
     private static func event(for error: any Error) -> [String: Any] {
@@ -361,6 +376,8 @@ private final class BridgeSession: @unchecked Sendable {
             }
             return failure("other", "The tool \(error.tool.name) could not be run.")
         }
+        // macOS 27's error type; built only with an SDK that has it.
+        #if canImport(FoundationModels, _version: 2.1.14)
         if #available(macOS 27.0, iOS 27.0, *), let error = error as? LanguageModelError {
             switch error {
             case .contextSizeExceeded:
@@ -377,6 +394,7 @@ private final class BridgeSession: @unchecked Sendable {
                 break
             }
         }
+        #endif
         if let error = error as? LanguageModelSession.GenerationError {
             switch error {
             case .exceededContextWindowSize:
