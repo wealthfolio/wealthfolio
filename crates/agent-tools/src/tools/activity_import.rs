@@ -77,6 +77,9 @@ pub struct ActivityImportRow {
     pub account_id: Option<String>,
     #[serde(default)]
     pub comment: Option<String>,
+    /// Whether a transfer or credit crosses the portfolio boundary.
+    #[serde(default)]
+    pub is_external: Option<bool>,
     /// 1-based source line, surfaced in previews and duplicate messages.
     #[serde(default)]
     pub line_number: Option<i32>,
@@ -681,6 +684,7 @@ fn activity_row_schema() -> serde_json::Value {
             "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP for DIVIDEND or STAKING_REWARD for INTEREST." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
+            "isExternal": { "type": "boolean", "description": "Whether a transfer or credit crosses the portfolio boundary. Omit if unknown." },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
             "forceImport": { "type": "boolean", "description": "Import despite a detected duplicate." }
         },
@@ -716,6 +720,7 @@ mod tests {
             subtype: None,
             account_id: Some("acct-1".to_string()),
             comment: None,
+            is_external: None,
             line_number: None,
             force_import: force,
         }
@@ -732,6 +737,27 @@ mod tests {
         assert_eq!(r.line_number, Some(1)); // defaulted from index
         assert!(r.force_import); // "import anyway" preserved
         assert!(!r.is_draft);
+    }
+
+    #[test]
+    fn external_flag_survives_mcp_import_mapping() {
+        for flag in [None, Some(true), Some(false)] {
+            let mut input = serde_json::to_value(row(false)).unwrap();
+            input["activityType"] = json!("TRANSFER_IN");
+            if let Some(flag) = flag {
+                input["isExternal"] = json!(flag);
+            }
+            let parsed: ActivityImportRow = serde_json::from_value(input).unwrap();
+            let mapped = to_import_rows(&[parsed]).unwrap();
+            assert_eq!(mapped[0].is_external, flag);
+        }
+        let properties = &PrepareActivityImport.input_schema()["properties"]["activities"]["items"]
+            ["properties"];
+        assert_eq!(properties["isExternal"]["type"], "boolean");
+        assert_eq!(
+            PrepareActivityImport.input_schema(),
+            CommitActivityImport.input_schema()
+        );
     }
 
     #[test]
