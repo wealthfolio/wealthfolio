@@ -13,6 +13,7 @@ import {
 import type { UpdateProviderSettingsRequest, SetDefaultProviderRequest } from "@/lib/types";
 import { QueryKeys } from "@/lib/query-keys";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { backendErrorText } from "@/lib/backend-error";
 
 const AI_PROVIDERS_KEY = [QueryKeys.AI_PROVIDERS] as const;
 
@@ -75,10 +76,10 @@ export function useAiProviderApiKey(providerId: string) {
       });
     },
     onError: (error) => {
-      logger.error(`Failed to save API key for ${providerId}: ${error}`);
+      logger.error("Failed to save AI provider API key");
       toast({
         title: i18n.t("common:notifications.failed_to_save_api_key"),
-        description: error instanceof Error ? error.message : String(error),
+        description: backendErrorText(error, i18n.t),
         variant: "destructive",
       });
     },
@@ -97,10 +98,10 @@ export function useAiProviderApiKey(providerId: string) {
       });
     },
     onError: (error) => {
-      logger.error(`Failed to delete API key for ${providerId}: ${error}`);
+      logger.error("Failed to delete AI provider API key");
       toast({
         title: i18n.t("common:notifications.failed_to_delete_api_key"),
-        description: error instanceof Error ? error.message : String(error),
+        description: backendErrorText(error, i18n.t),
         variant: "destructive",
       });
     },

@@ -107,12 +107,14 @@ export const deleteBudgetGroup = async (
 };
 
 export const assignCategoryToGroup = async (
+  taxonomyId: string,
   categoryId: string,
   groupId: string,
   periodKey?: string,
 ): Promise<BudgetSnapshot> => {
   try {
     return await invoke<BudgetSnapshot>("assign_category_to_group", {
+      taxonomyId,
       categoryId,
       groupId,
       periodKey,

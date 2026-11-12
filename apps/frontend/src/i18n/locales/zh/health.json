@@ -5,6 +5,11 @@
       "title_other": "{{count}} 项持仓缺少手动估值",
       "message": "手动/自定义持仓需要先提供手动估值，才能作为已估值的业绩持仓纳入统计。"
     },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}} 的估值未更新",
+      "title_other": "{{count}} 项资产的估值未更新",
+      "message": "部分手动估值的资产已超过 {{days}} 天未更新，净资产可能不是最新的。"
+    },
     "price_no_market_data": {
       "title_one": "{{symbol}} 没有市场数据",
       "title_other": "{{count}} 项持仓没有市场数据",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "重建历史",
     "add_price": "添加价格",
     "update_cost_basis": "更新成本基础",
+    "update_value": "更新估值",
     "review_transaction": "检查交易",
     "review_entry": "查看记录"
   },
@@ -274,5 +280,17 @@
       "pendingText": "正在忽略……"
     },
     "affectedItems_other": "受影响的项目（{{count}}）"
+  },
+  "activityReasons": {
+    "activity_id": "交易：{{id}}",
+    "missing_fx_rate": "{{date}}没有从{{from}}兑换为{{to}}的汇率。",
+    "close_buy_without_short_position": "此买入被标记为平仓{{asset}}，但没有可平仓的空头头寸。",
+    "sell_short_intent_required": "此卖出会增加{{asset}}的空头头寸。请将其标记为卖空。",
+    "conversion_insufficient_holdings": "此转换需要{{requested}}单位的{{asset}}，但账户仅持有{{held}}单位。",
+    "conversion_currency_mismatch": "{{fromAsset}}以{{fromCurrency}}计价持有，{{toAsset}}以{{toCurrency}}计价持有。转换必须保持相同币种。",
+    "return_of_capital_amount_required": "请输入此资本返还的金额。",
+    "sell_without_position": "没有可卖出的{{asset}}头寸。仅计入了现金影响。",
+    "insufficient_quantity": "此交易减少{{requested}}单位的{{asset}}，但仅持有{{held}}单位。剩余{{excess}}单位没有成本基础。",
+    "missing_final_cash": "此已入账交易没有最终现金金额，因此未改变现金余额。"
   }
 }

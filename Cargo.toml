@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.12.0"
+version = "3.13.0"
 edition = "2021"
 license = "AGPL-3.0"
 
@@ -61,7 +61,7 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "form", "stream", "charset", "http2", "system-proxy"] }
 
 # Error handling
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 
 # IDs
@@ -77,19 +77,16 @@ async-trait = "0.1"
 futures = "0.3"
 
 # MCP (Model Context Protocol)
-rmcp = { version = "2.1", default-features = false, features = ["server", "transport-streamable-http-server"] }
+rmcp = { version = "3.9", default-features = false, features = ["server", "transport-streamable-http-server"] }
 
 # Logging
 log = "0.4"
 
 # Crypto
-chacha20poly1305 = { version = "0.10", features = ["std"] }
-x25519-dalek = { version = "2", features = ["static_secrets"] }
-hkdf = "0.12"
 zeroize = "1"
 hex = "0.4"
-sha2 = "0.10"
-rand = "0.8"
+sha2 = "0.11"
+rand = "0.10"
 
 # Internal crates
 wealthfolio-http = { path = "crates/http" }

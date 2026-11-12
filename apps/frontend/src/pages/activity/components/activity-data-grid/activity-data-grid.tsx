@@ -26,6 +26,7 @@ import {
   applyTransactionUpdate,
   createCurrencyResolver,
   createDraftTransaction,
+  hasUserInstrumentType,
   isPairedInternalCashTransfer,
   partitionReviewRowsForApproval,
   requiresTransferPairEditor,
@@ -229,8 +230,6 @@ export function ActivityDataGrid({
       }
       const duplicated: LocalTransaction = {
         ...source,
-        // The copied instrument type is the duplicate's own, not a pick on it.
-        _instrumentTypeFromPick: undefined,
         id: generateTempActivityId(),
         date: now,
         createdAt: now,
@@ -559,10 +558,11 @@ export function ActivityDataGrid({
 
           let updated = previous;
           let changed = false;
-          // A new row drops a picked instrument type when its symbol changes. A
-          // type the edit writes over it is the user's, even when it matches.
-          const rewritesPickedType =
-            previous._instrumentTypeFromPick &&
+          // A row drops an instrument type the user did not set when its symbol
+          // changes. A type the edit writes over it is the user's, even when it matches.
+          const writesInstrumentType =
+            !!nextRow.instrumentType &&
+            !hasUserInstrumentType(previous) &&
             writtenCells?.get(rowIndex)?.some((cell) => cell.columnId === "instrumentType");
 
           for (const field of TRACKED_FIELDS) {
@@ -570,7 +570,7 @@ export function ActivityDataGrid({
             const nextValue = nextRow[field];
             if (
               !valuesAreEqual(field, prevValue, nextValue) ||
-              (field === "instrumentType" && rewritesPickedType)
+              (field === "instrumentType" && writesInstrumentType)
             ) {
               updated = applyTransactionUpdate({
                 transaction: updated,

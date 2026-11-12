@@ -22,7 +22,7 @@ use wealthfolio_core::{
     },
     allocation::{AllocationHoldings, PortfolioAllocations},
     health::HealthServiceTrait,
-    holdings::{Holding, HoldingListItem},
+    holdings::{Holding, HoldingsListResponse, HoldingsScope},
     income::IncomeSummary,
     lots::AssetLotView,
     performance::{
@@ -37,7 +37,8 @@ use wealthfolio_core::{
         check_holdings_import as validate_holdings_import, holdings_import_data_source,
         snapshot_date_requires_remediation, validate_holdings_import_snapshot, CashBalanceInput,
         HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-        ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
+        ManualHoldingEntry, ManualHoldingInput, ManualHoldingsEntry, ManualSnapshotRequest,
+        ManualSnapshotService, SnapshotSource,
     },
     portfolios::{AccountScope, ResolvedAccountScope},
     quotes::MarketSyncMode,
@@ -247,13 +248,15 @@ pub async fn get_holdings_list(
     state: ProfileAccess,
     filter: AccountScopeInput,
     include_closed: Option<bool>,
-) -> Result<Vec<HoldingListItem>, String> {
+) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
     debug!("Get holdings list...");
     let filter = filter.into_account_filter()?;
-    let holdings =
-        get_holdings_for_filter(context.as_ref(), filter, include_closed.unwrap_or(false)).await?;
-    Ok(holdings.into_iter().map(HoldingListItem::from).collect())
+    Ok(
+        get_holdings_scope_for_filter(context.as_ref(), filter, include_closed.unwrap_or(false))
+            .await?
+            .into(),
+    )
 }
 
 async fn get_holdings_for_filter(
@@ -261,30 +264,33 @@ async fn get_holdings_for_filter(
     filter: AccountScope,
     include_closed: bool,
 ) -> Result<Vec<Holding>, String> {
+    get_holdings_scope_for_filter(state, filter, include_closed)
+        .await?
+        .require_complete()
+        .map_err(|e| e.to_string())
+}
+
+async fn get_holdings_scope_for_filter(
+    state: &ServiceContext,
+    filter: AccountScope,
+    include_closed: bool,
+) -> Result<HoldingsScope, String> {
     let base_currency = state.get_base_currency();
     let resolved = resolve_scope(&filter, state).await?;
     let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
     if account_ids.is_empty() {
-        return Ok(Vec::new());
+        return Ok(HoldingsScope::default());
     }
-    if account_ids.len() == 1 {
-        state
-            .holdings_service()
-            .get_holdings_with_options(&account_ids[0], &base_currency, include_closed)
-            .await
-            .map_err(|e| e.to_string())
-    } else {
-        state
-            .holdings_service()
-            .get_holdings_for_accounts_with_options(
-                &account_ids,
-                &base_currency,
-                &resolved.scope_id,
-                include_closed,
-            )
-            .await
-            .map_err(|e| e.to_string())
-    }
+    state
+        .holdings_service()
+        .get_holdings_scope(
+            &account_ids,
+            &base_currency,
+            &resolved.scope_id,
+            include_closed,
+        )
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -310,7 +316,7 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     state: ProfileAccess,
     asset_id: String,
-) -> Result<Vec<Holding>, String> {
+) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
     debug!("Get holdings for asset {} across all accounts", asset_id);
     let base_currency = context.get_base_currency();
@@ -319,20 +325,17 @@ pub async fn get_asset_holdings(
         .get_active_accounts()
         .map_err(|e| format!("Failed to get accounts: {}", e))?;
 
-    let mut result = Vec::new();
-    for account in accounts {
-        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
-            continue;
-        }
-        if let Ok(Some(holding)) = context
-            .holdings_service()
-            .get_holding(&account.id, &asset_id, &base_currency)
-            .await
-        {
-            result.push(holding);
-        }
-    }
-    Ok(result)
+    let ids = accounts
+        .into_iter()
+        .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
+        .map(|account| account.id)
+        .collect::<Vec<_>>();
+    context
+        .holdings_service()
+        .get_asset_holdings_scope(&ids, &asset_id, &base_currency)
+        .await
+        .map(Into::into)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1037,35 +1040,6 @@ pub async fn get_performance_summaries(
     Ok(batch.results)
 }
 
-/// Input for a single holding when saving manual holdings
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HoldingInput {
-    /// For existing holdings, pass the known asset ID directly (preferred)
-    pub asset_id: Option<String>,
-    /// Symbol (e.g., "AAPL", "META.TO") - used when asset_id is not provided
-    pub symbol: String,
-    pub quantity: String,
-    pub currency: String,
-    pub average_cost: Option<String>,
-    /// Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Used when asset_id is not provided.
-    pub exchange_mic: Option<String>,
-    /// Quote currency resolved during search/review (e.g., GBp)
-    pub quote_ccy: Option<String>,
-    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
-    pub instrument_type: Option<String>,
-    /// Market data provider that resolved this holding, if selected.
-    pub provider_id: Option<String>,
-    /// Provider-native symbol/code selected by search/import.
-    pub provider_symbol: Option<String>,
-    /// Asset name for new custom assets
-    pub name: Option<String>,
-    /// Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual
-    pub data_source: Option<String>,
-    /// Asset kind (e.g., "INVESTMENT", "OTHER")
-    pub asset_kind: Option<String>,
-}
-
 /// Saves manual holdings for a HOLDINGS-mode account.
 /// Creates or updates a snapshot for the specified date with the given holdings and cash balances.
 /// Ensures assets and FX pairs are created before saving, following the same pattern as activities.
@@ -1074,7 +1048,7 @@ pub async fn save_manual_holdings(
     state: ProfileAccess,
     _handle: AppHandle,
     account_id: String,
-    holdings: Vec<HoldingInput>,
+    holdings: Vec<ManualHoldingEntry>,
     cash_balances: HashMap<String, String>,
     snapshot_date: Option<String>,
 ) -> Result<(), String> {
@@ -1092,83 +1066,30 @@ pub async fn save_manual_holdings(
         .get_account(&account_id)
         .map_err(|e| format!("Failed to get account: {}", e))?;
 
-    // Get base currency for FX pair registration
-    let base_currency = context.get_base_currency();
-
-    // Parse the snapshot date or use today in the configured user timezone.
-    let timezone = context.get_timezone();
-    let date = match snapshot_date {
-        Some(date_str) => chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .map_err(|e| format!("Invalid date format: {}", e))?,
-        None => user_today(parse_user_timezone_or_default(&timezone)),
-    };
-
-    let mut positions: Vec<ManualHoldingInput> = Vec::new();
-    for holding in holdings {
-        let quantity = holding
-            .quantity
-            .parse::<Decimal>()
-            .map_err(|e| format!("Invalid quantity for {}: {}", holding.symbol, e))?;
-
-        // Parse average cost if provided
-        let average_cost = match &holding.average_cost {
-            Some(cost_str) if !cost_str.is_empty() => cost_str
-                .parse::<Decimal>()
-                .map_err(|e| format!("Invalid average cost for {}: {}", holding.symbol, e))?,
-            _ => Decimal::ZERO,
-        };
-
-        positions.push(ManualHoldingInput {
-            asset_id: holding.asset_id,
-            symbol: holding.symbol,
-            exchange_mic: holding.exchange_mic,
-            quantity,
-            currency: holding.currency,
-            average_cost,
-            name: holding.name,
-            data_source: holding.data_source,
-            asset_kind: holding.asset_kind,
-            quote_ccy: holding.quote_ccy,
-            instrument_type: holding.instrument_type,
-            provider_id: holding.provider_id,
-            provider_symbol: holding.provider_symbol,
-        });
-    }
-
-    let mut cash_balances_input: Vec<CashBalanceInput> = Vec::new();
-    for (currency, amount_str) in cash_balances {
-        let amount = amount_str
-            .parse::<Decimal>()
-            .map_err(|e| format!("Invalid cash amount for {}: {}", currency, e))?;
-        cash_balances_input.push(CashBalanceInput { currency, amount });
-    }
-
-    let manual_snapshot_service = ManualSnapshotService::new(
+    let saved = ManualSnapshotService::new(
         context.asset_service(),
         context.fx_service(),
         context.snapshot_service(),
         context.quote_service(),
     )
-    .with_timezone(timezone);
-
-    let asset_ids = manual_snapshot_service
-        .save_manual_snapshot(ManualSnapshotRequest {
-            account_id: account_id.clone(),
-            account_currency: account.currency.clone(),
-            snapshot_date: date,
-            positions,
-            cash_balances: cash_balances_input,
-            base_currency: Some(base_currency.clone()),
-            source: SnapshotSource::ManualEntry,
-        })
-        .await
-        .map_err(|e| format!("Failed to save manual snapshot: {}", e))?;
+    .with_timezone(context.get_timezone())
+    .save_manual_holdings(
+        &account,
+        &context.get_base_currency(),
+        ManualHoldingsEntry {
+            holdings,
+            cash_balances,
+            snapshot_date,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     info!(
         "Saved manual holdings for account {} on date {} with {} assets",
         account_id,
-        date,
-        asset_ids.len()
+        saved.snapshot_date,
+        saved.asset_ids.len()
     );
 
     Ok(())
@@ -1655,7 +1576,10 @@ pub async fn delete_snapshot(
             snapshot_id
                 .as_deref()
                 .map(|id| snapshot.id == id)
-                .unwrap_or(snapshot.snapshot_date == date)
+                .unwrap_or(
+                    snapshot.snapshot_date == date
+                        && snapshot.source != SnapshotSource::Calculated.as_str(),
+                )
         })
         .ok_or_else(|| format!("No snapshot found for date {}", date))?;
 
@@ -1681,21 +1605,11 @@ pub async fn delete_snapshot(
     }
 
     // Delete via the service so snapshot deletion stays behind one entry point.
-    if let Some(snapshot_id) = snapshot_id.as_deref() {
-        context
-            .snapshot_service()
-            .delete_snapshot_for_account_by_id(&account_id, snapshot_id)
-            .await
-            .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
-    } else if let Some(target_date) = target_date {
-        context
-            .snapshot_service()
-            .delete_snapshot_for_account(&account_id, &[target_date])
-            .await
-            .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
-    } else {
-        return Err("snapshotId is required to delete a malformed snapshot".to_string());
-    }
+    context
+        .snapshot_service()
+        .delete_snapshot_for_account_by_id(&account_id, &snapshot.id)
+        .await
+        .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
 
     info!(
         "Deleted {:?} snapshot for account {} on date {}",

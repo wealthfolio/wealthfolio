@@ -30,9 +30,10 @@
       "unit_types": "Arten",
       "unit_currencies": "Währungen",
       "unit_groups": "Gruppen",
-      "other_units": "Weitere {{unit}}",
+      "other_units_one": "{{count}} weiteres Element",
+      "other_units_other": "{{count}} weitere Elemente",
       "breakdown": "Aufschlüsselung",
-      "top_units": "Top {{unit}}",
+      "top_units": "Top {{count}} Elemente",
       "show_less": "Weniger anzeigen",
       "show_all": "Alle anzeigen"
     },
@@ -79,7 +80,6 @@
       "link_explanation": "Das Verknüpfen einer vorhandenen Immobilie ändert dein Nettovermögen nicht."
     },
     "failed_to_load": "Nettovermögen konnte nicht geladen werden",
-    "stale_valuations_tooltip": "Veraltete Bewertungen (90+ Tage):",
     "days_ago": "vor {{count}} T",
     "no_history_data": "Keine Verlaufsdaten verfügbar",
     "breakdown": "Aufschlüsselung",
@@ -105,7 +105,8 @@
     "category_sheet": {
       "over_period": "über {{period}}",
       "trend_period": "Trend · {{period}}",
-      "items": "Positionen"
+      "items": "Positionen",
+      "view_details": "Details anzeigen"
     },
     "trend": {
       "not_enough_history": "Nicht genügend Verlauf"
@@ -146,7 +147,13 @@
     "portfolio_share": "Anteil am Portfoliowert einschließlich Barbestand",
     "largest": "Größte Position",
     "top_five": "Die fünf größten Positionen",
-    "concentration_unavailable": "Die Konzentration erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen."
+    "concentration_unavailable": "Die Konzentration erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen.",
+    "holdings": "Positionen",
+    "holdings_count_one": "{{count}} Position",
+    "holdings_count_other": "{{count}} Positionen",
+    "other_holdings_one": "{{count}} weitere Position",
+    "other_holdings_other": "{{count}} weitere Positionen",
+    "holdings_unavailable": "Das Positionsdiagramm erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen."
   },
   "customize": {
     "edit": "Anpassen",

@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { Icons, useAmountFormatting } from "@wealthfolio/ui";
 
 import { useBudget } from "@/features/spending/hooks/use-budget";
+import { groupAllocation, totalAllocation } from "@/features/spending/lib/budget-allocation";
 import {
   useCategorizationRules,
   useRulePresets,
@@ -77,7 +78,8 @@ export function ModuleCard() {
   const regionCount = useMemo(() => (presets ?? []).filter((p) => p.installed).length, [presets]);
 
   // Budget totals
-  const spendingPlanned = budget?.computed.totals.spendingPlanned ?? 0;
+  // The plan's share of income: spending budgets and savings goals.
+  const spendingPlanned = budget ? totalAllocation(budget.computed.totals) : 0;
   const incomePlanned = budget?.computed.totals.incomePlanned ?? 0;
   const currency = budget?.computed.currency ?? "USD";
   const plannedPct = incomePlanned > 0 ? Math.round((spendingPlanned / incomePlanned) * 100) : null;
@@ -85,7 +87,9 @@ export function ModuleCard() {
 
   const activeGroups = useMemo(
     () =>
-      (budget?.computed.groupRows ?? []).filter((row) => row.plannedTotal > 0 || row.actual > 0),
+      (budget?.computed.groupRows ?? []).filter(
+        (row) => groupAllocation(row) > 0 || row.actual > 0 || row.savingsActual > 0,
+      ),
     [budget?.computed.groupRows],
   );
 

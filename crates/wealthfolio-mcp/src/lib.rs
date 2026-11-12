@@ -24,5 +24,5 @@ pub use service::McpServerBuilder;
 pub fn token_fingerprint(token: &str) -> String {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(token.as_bytes());
-    format!("sha256:{digest:x}")
+    format!("sha256:{}", hex::encode(digest))
 }

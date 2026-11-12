@@ -9,12 +9,14 @@ import type { Holding } from "@/lib/types";
 interface UseHoldingsResult {
   holdings: Holding[];
   isLoading: boolean;
+  isComplete: boolean;
 }
 
 const holdingsHook = vi.hoisted(() => ({
   useHoldings: vi.fn<() => UseHoldingsResult>(() => ({
     holdings: [],
     isLoading: false,
+    isComplete: true,
   })),
 }));
 
@@ -35,6 +37,8 @@ vi.mock("@/hooks/use-holdings", () => ({
 vi.mock("../fields", async () => {
   const { useFormContext } =
     await vi.importActual<typeof import("react-hook-form")>("react-hook-form");
+  // Like MoneyInput, an empty amount is undefined rather than NaN.
+  const emptyAsUndefined = (value: string) => (value === "" ? undefined : Number(value));
 
   return {
     AccountSelect: ({ name, accounts }: { name: string; accounts: AccountSelectOption[] }) => {
@@ -75,7 +79,7 @@ vi.mock("../fields", async () => {
             data-max-decimal-places={maxDecimalPlaces}
             type="number"
             id={name}
-            {...register(name, { valueAsNumber: true })}
+            {...register(name, { setValueAs: emptyAsUndefined })}
           />
         </div>
       );
@@ -240,6 +244,7 @@ describe("BuyForm", () => {
     holdingsHook.useHoldings.mockReturnValue({
       holdings: [],
       isLoading: false,
+      isComplete: true,
     });
   });
 
@@ -607,6 +612,7 @@ describe("BuyForm", () => {
           } as Holding,
         ],
         isLoading: false,
+        isComplete: true,
       });
 
       render(
@@ -651,6 +657,7 @@ describe("BuyForm", () => {
           } as Holding,
         ],
         isLoading: false,
+        isComplete: true,
       });
 
       render(

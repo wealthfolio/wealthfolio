@@ -9,13 +9,18 @@ import { PrivacyAmount } from "@wealthfolio/ui";
 import { Trans, useTranslation } from "react-i18next";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import { cn } from "@/lib/utils";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { isContributionLimitCurrent } from "@/pages/settings/contribution-limits/contribution-limit-dates";
 
 interface AccountContributionLimitProps {
   accountId: string;
 }
 
 export function AccountContributionLimit({ accountId }: AccountContributionLimitProps) {
-  const currentYear = new Date().getFullYear();
+  const { settings } = useSettingsContext();
+  const appTimezone = settings?.timezone?.trim() || "UTC";
+  const todayKey = formatZonedDateKey(new Date(), appTimezone);
 
   const { data: allLimits, isLoading: isLimitsLoading } = useQuery<ContributionLimit[], Error>({
     queryKey: [QueryKeys.CONTRIBUTION_LIMITS],
@@ -23,12 +28,19 @@ export function AccountContributionLimit({ accountId }: AccountContributionLimit
   });
 
   const limitForAccount = allLimits?.find(
-    (limit) => limit.accountIds?.includes(accountId) && limit.contributionYear === currentYear,
+    (limit) =>
+      limit.accountIds?.includes(accountId) &&
+      isContributionLimitCurrent(limit, todayKey, appTimezone),
   );
   const limitForAccountId = limitForAccount?.id;
 
   const { data: deposits, isLoading: isDepositsLoading } = useQuery<DepositsCalculation, Error>({
-    queryKey: [QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, accountId, currentYear, limitForAccountId],
+    queryKey: [
+      QueryKeys.CONTRIBUTION_LIMIT_PROGRESS,
+      accountId,
+      limitForAccount?.contributionYear,
+      limitForAccountId,
+    ],
     queryFn: () => calculateDepositsForLimit(limitForAccountId!),
     enabled: !isLimitsLoading && !!limitForAccountId,
   });

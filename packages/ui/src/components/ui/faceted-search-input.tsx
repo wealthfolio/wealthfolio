@@ -34,7 +34,7 @@ export function FacetedSearchInput({
         className={cn(
           "shadow-inner-xs bg-muted/90 hover:bg-muted/80 h-8 w-full rounded-md pe-8 ps-8 text-sm outline-none transition-colors",
           "placeholder:text-muted-foreground",
-          "focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2",
+          "focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2 pointer-coarse:focus-visible:-outline-offset-2",
         )}
         {...props}
       />

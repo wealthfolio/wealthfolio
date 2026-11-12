@@ -436,7 +436,7 @@ export function SingleSelectTaxonomy({
             <label
               key={category.id}
               className={cn(
-                "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-all",
+                "relative flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-all",
                 isSelected
                   ? "border-transparent font-medium shadow-sm"
                   : "border-border bg-background hover:bg-muted/50",
@@ -455,7 +455,10 @@ export function SingleSelectTaxonomy({
               <RadioGroupItem
                 value={category.id}
                 id={`${taxonomyId}-${category.id}`}
-                className="sr-only"
+                // RadioGroupItem's own `relative h-4 w-4` outrank sr-only, so the
+                // hidden radio kept a 16px slot (plus the gap) before the dot.
+                // `absolute` replaces `relative` and takes it out of the flow.
+                className="sr-only absolute"
               />
               <span
                 className="h-2 w-2 shrink-0 rounded-full"

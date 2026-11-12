@@ -52,7 +52,7 @@ pub struct HoldingDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub open_date: Option<String>,
     pub quantity: f64,
-    pub market_value_base: f64,
+    pub market_value_base: Option<f64>,
     pub cost_basis_base: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unrealized_gain_base: Option<f64>,
@@ -71,7 +71,7 @@ pub struct HoldingDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub day_change_base: Option<f64>,
     pub day_change_pct: Option<f64>,
-    pub weight: f64,
+    pub weight: Option<f64>,
     /// Portfolio base currency used by the monetary fields above.
     pub currency: String,
     /// The holding's own currency, used by the fields below.
@@ -79,7 +79,7 @@ pub struct HoldingDto {
     /// Latest unit price.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price: Option<f64>,
-    pub market_value_local: f64,
+    pub market_value_local: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_basis_local: Option<f64>,
     /// Rate converting `local_currency` into `currency`.
@@ -92,7 +92,7 @@ pub struct HoldingDto {
 #[serde(rename_all = "camelCase")]
 pub struct GetHoldingsOutput {
     pub holdings: Vec<HoldingDto>,
-    pub total_value: f64,
+    pub total_value: Option<f64>,
     pub currency: String,
     pub account_scope: String,
     /// View mode requested: "table", "treemap", or "both"
@@ -138,11 +138,11 @@ fn holding_to_dto(h: Holding, account: String) -> HoldingDto {
         wealthfolio_core::holdings::HoldingType::AlternativeAsset => "AlternativeAsset",
     };
 
-    let cost_basis_base = h.cost_basis.as_ref().map(|value| value.base);
-    let return_basis_base = h.return_basis.as_ref().map(|value| value.base);
-    let unrealized_gain_base = h.unrealized_gain.as_ref().map(|value| value.base);
-    let total_gain_base = h.total_gain.as_ref().map(|value| value.base);
-    let total_return_base = h.total_return.as_ref().map(|value| value.base);
+    let cost_basis_base = h.cost_basis.as_ref().and_then(|value| value.base);
+    let return_basis_base = h.return_basis.as_ref().and_then(|value| value.base);
+    let unrealized_gain_base = h.unrealized_gain.as_ref().and_then(|value| value.base);
+    let total_gain_base = h.total_gain.as_ref().and_then(|value| value.base);
+    let total_return_base = h.total_return.as_ref().and_then(|value| value.base);
 
     HoldingDto {
         account,
@@ -154,25 +154,37 @@ fn holding_to_dto(h: Holding, account: String) -> HoldingDto {
         holding_type: holding_type.to_string(),
         open_date: h.open_date.map(|d| d.date_naive().to_string()),
         quantity: h.quantity.to_f64().unwrap_or(0.0),
-        market_value_base: h.market_value.base.to_f64().unwrap_or(0.0),
+        market_value_base: h.market_value.base.and_then(|value| value.to_f64()),
         cost_basis_base: cost_basis_base.and_then(|value| value.to_f64()),
         unrealized_gain_base: unrealized_gain_base.and_then(|value| value.to_f64()),
         unrealized_gain_pct: base_percentage(unrealized_gain_base, cost_basis_base),
-        realized_gain_base: h.realized_gain.as_ref().and_then(|v| v.base.to_f64()),
+        realized_gain_base: h
+            .realized_gain
+            .as_ref()
+            .and_then(|v| v.base.and_then(|value| value.to_f64())),
         total_gain_base: total_gain_base.and_then(|value| value.to_f64()),
         total_gain_pct: base_percentage(total_gain_base, return_basis_base),
-        income_base: h.income.as_ref().and_then(|v| v.base.to_f64()),
+        income_base: h
+            .income
+            .as_ref()
+            .and_then(|v| v.base.and_then(|value| value.to_f64())),
         total_return_base: total_return_base.and_then(|value| value.to_f64()),
         total_return_pct: base_percentage(total_return_base, return_basis_base),
         return_basis_base: return_basis_base.and_then(|value| value.to_f64()),
-        day_change_base: h.day_change.as_ref().and_then(|v| v.base.to_f64()),
+        day_change_base: h
+            .day_change
+            .as_ref()
+            .and_then(|v| v.base.and_then(|value| value.to_f64())),
         day_change_pct: h.day_change_pct.and_then(|d| d.to_f64()),
-        weight: h.weight.to_f64().unwrap_or(0.0),
+        weight: h.weight.and_then(|value| value.to_f64()),
         currency: h.base_currency,
         local_currency: h.local_currency,
         price: h.price.and_then(|p| p.to_f64()),
-        market_value_local: h.market_value.local.to_f64().unwrap_or(0.0),
-        cost_basis_local: h.cost_basis.as_ref().and_then(|v| v.local.to_f64()),
+        market_value_local: h.market_value.local.and_then(|value| value.to_f64()),
+        cost_basis_local: h
+            .cost_basis
+            .as_ref()
+            .and_then(|v| v.local.and_then(|value| value.to_f64())),
         fx_rate: h.fx_rate.and_then(|r| r.to_f64()),
     }
 }
@@ -281,7 +293,7 @@ impl AgentTool for GetHoldings {
             .collect();
 
         let returned_count = holdings_dto.len();
-        let total_value: f64 = holdings_dto.iter().map(|h| h.market_value_base).sum();
+        let total_value: Option<f64> = holdings_dto.iter().map(|h| h.market_value_base).sum();
         let truncated = original_count > returned_count;
 
         let output = GetHoldingsOutput {
@@ -350,11 +362,9 @@ mod tests {
             contract_multiplier: Decimal::ONE,
             local_currency: "USD".to_string(),
             base_currency: "CAD".to_string(),
+            translate_observed_basis: false,
             fx_rate: None,
-            market_value: MonetaryValue {
-                local: Decimal::from(80),
-                base: Decimal::from(100),
-            },
+            market_value: MonetaryValue::new(Decimal::from(80), Decimal::from(100)),
             cost_basis: None,
             price: None,
             purchase_price: None,
@@ -371,7 +381,7 @@ mod tests {
             day_change: None,
             day_change_pct: None,
             prev_close_value: None,
-            weight: Decimal::ZERO,
+            weight: Some(Decimal::ZERO),
             as_of_date: NaiveDate::from_ymd_opt(2026, 7, 13).unwrap(),
             metadata: None,
             source_account_ids: Vec::new(),
@@ -384,7 +394,7 @@ mod tests {
 
         let dto = holding_to_dto(holding, "Account".to_string());
 
-        assert_eq!(dto.market_value_base, 100.0);
+        assert_eq!(dto.market_value_base, Some(100.0));
         assert_eq!(dto.currency, "CAD");
     }
 
@@ -412,22 +422,10 @@ mod tests {
                 .unwrap()
                 .and_utc(),
         );
-        holding.cost_basis = Some(MonetaryValue {
-            local: Decimal::from(60),
-            base: Decimal::from(75),
-        });
-        holding.unrealized_gain = Some(MonetaryValue {
-            local: Decimal::from(20),
-            base: Decimal::from(25),
-        });
-        holding.realized_gain = Some(MonetaryValue {
-            local: Decimal::from(4),
-            base: Decimal::from(5),
-        });
-        holding.day_change = Some(MonetaryValue {
-            local: Decimal::from(-1),
-            base: Decimal::new(-125, 2),
-        });
+        holding.cost_basis = Some(MonetaryValue::new(Decimal::from(60), Decimal::from(75)));
+        holding.unrealized_gain = Some(MonetaryValue::new(Decimal::from(20), Decimal::from(25)));
+        holding.realized_gain = Some(MonetaryValue::new(Decimal::from(4), Decimal::from(5)));
+        holding.day_change = Some(MonetaryValue::new(Decimal::from(-1), Decimal::new(-125, 2)));
 
         let dto = holding_to_dto(holding, "Account".to_string());
 
@@ -436,7 +434,7 @@ mod tests {
         assert_eq!(dto.exchange_mic.as_deref(), Some("XNAS"));
         assert_eq!(dto.local_currency, "USD");
         assert_eq!(dto.price, Some(80.0));
-        assert_eq!(dto.market_value_local, 80.0);
+        assert_eq!(dto.market_value_local, Some(80.0));
         assert_eq!(dto.cost_basis_local, Some(60.0));
         assert_eq!(dto.fx_rate, Some(1.25));
         assert_eq!(dto.unrealized_gain_base, Some(25.0));

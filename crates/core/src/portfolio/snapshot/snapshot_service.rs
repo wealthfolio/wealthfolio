@@ -34,6 +34,30 @@ pub trait SnapshotServiceTrait: Send + Sync {
         end_date: Option<NaiveDate>,
     ) -> Result<Vec<AccountStateSnapshot>>;
 
+    /// The latest saved keyframe of an account on or before `day` that reads
+    /// use, as stored (quantities are not carried across later splits).
+    fn get_latest_holdings_keyframe(
+        &self,
+        account_id: &str,
+        day: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        Ok(self
+            .get_holdings_keyframes(account_id, None, Some(day))?
+            .into_iter()
+            .filter(|snapshot| snapshot.snapshot_date <= day)
+            .max_by_key(|snapshot| snapshot.snapshot_date))
+    }
+
+    /// The date of an account's first snapshot. The default reads its
+    /// metadata; the service asks the repository for the one date.
+    fn get_earliest_snapshot_date(&self, account_id: &str) -> Result<Option<NaiveDate>> {
+        Ok(self
+            .get_snapshot_metadata(account_id, None, None)?
+            .into_iter()
+            .filter_map(|meta| NaiveDate::parse_from_str(&meta.snapshot_date, "%Y-%m-%d").ok())
+            .min())
+    }
+
     /// Retrieves lightweight snapshot metadata, including malformed stored
     /// dates that cannot be represented by `AccountStateSnapshot`.
     fn get_snapshot_metadata(
@@ -117,6 +141,15 @@ pub trait SnapshotServiceTrait: Send + Sync {
             })?;
         let date = NaiveDate::parse_from_str(&metadata.snapshot_date, "%Y-%m-%d")
             .map_err(|error| Error::Repository(error.to_string()))?;
+        if self
+            .get_snapshot_metadata(account_id, Some(date), Some(date))?
+            .len()
+            != 1
+        {
+            return Err(Error::Repository(
+                "Deleting a snapshot with same-date siblings requires row-ID support".into(),
+            ));
+        }
         self.delete_snapshot_for_account(account_id, &[date]).await
     }
 }
@@ -168,6 +201,28 @@ impl SplitCarry {
 /// stored, for a switch back, but is not read.
 fn is_read(mode: TrackingMode, snapshot: &AccountStateSnapshot) -> bool {
     (mode == TrackingMode::Holdings) != (snapshot.source == SnapshotSource::Calculated)
+}
+
+/// The captured holdings read uses the same recorded split rule as ordinary
+/// snapshot reads, without opening repositories after its read transaction.
+pub(crate) fn carry_snapshot_splits(
+    snapshot: &mut AccountStateSnapshot,
+    splits: &[engine::SplitEvent],
+    day: NaiveDate,
+) -> Result<()> {
+    for position in snapshot.positions.values_mut() {
+        let factor = engine::split_quantity_factor(
+            splits,
+            &engine::model::AssetId::new(&position.asset_id),
+            snapshot.snapshot_date,
+            day,
+        );
+        let (quantity, average_cost) = carried(position.quantity, position.average_cost, factor)
+            .ok_or_else(|| Error::Repository("snapshot split factor is out of range".into()))?;
+        position.quantity = quantity;
+        position.average_cost = average_cost;
+    }
+    Ok(())
 }
 
 /// A quantity and its unit cost carried by `factor`: units multiply, unit
@@ -362,7 +417,7 @@ impl SnapshotService {
 
     fn create_initial_snapshot(account: &Account, date: NaiveDate) -> AccountStateSnapshot {
         AccountStateSnapshot {
-            id: AccountStateSnapshot::stable_id(&account.id, date),
+            id: AccountStateSnapshot::calculated_id(&account.id, date),
             account_id: account.id.clone(),
             snapshot_date: date,
             currency: account.currency.clone(),
@@ -373,6 +428,7 @@ impl SnapshotService {
             net_contribution_base: Decimal::ZERO,
             cash_total_account_currency: Decimal::ZERO,
             cash_total_base_currency: Decimal::ZERO,
+            base_currency: None,
             calculated_at: crate::utils::clock::now().naive_utc(),
             source: SnapshotSource::Calculated,
         }
@@ -419,6 +475,26 @@ impl SnapshotServiceTrait for SnapshotService {
         );
         // Directly fetch from the repository without reconstruction
         self.read_snapshots(account_id, start_date_opt, end_date_opt)
+    }
+
+    fn get_latest_holdings_keyframe(
+        &self,
+        account_id: &str,
+        day: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        // One row of the source reads use for the account's mode (see
+        // [`is_read`]), never a scan of its history.
+        let repository = &self.snapshot_repository;
+        match self
+            .tracking_modes(&[account_id.to_string()])?
+            .remove(account_id)
+        {
+            Some(TrackingMode::Holdings) => {
+                repository.get_latest_saved_snapshot_on_or_before(account_id, day)
+            }
+            Some(_) => repository.get_latest_calculated_snapshot_on_or_before(account_id, day),
+            None => repository.get_latest_snapshot_before_date(account_id, day),
+        }
     }
 
     fn get_holdings_timeline(
@@ -698,7 +774,9 @@ impl SnapshotServiceTrait for SnapshotService {
             Some(snapshot.snapshot_date),
         )?;
 
-        if let Some(existing) = same_date_snapshots.into_iter().next() {
+        if let Some(existing) = same_date_snapshots.into_iter().find(|existing| {
+            existing.id == snapshot.id && existing.source != SnapshotSource::Calculated
+        }) {
             if existing.is_content_equal(&snapshot) {
                 debug!(
                     "Snapshot content unchanged for account {} on {}, skipping save",
@@ -761,6 +839,11 @@ impl SnapshotServiceTrait for SnapshotService {
     ) -> Result<Vec<SnapshotMetadata>> {
         self.snapshot_repository
             .get_snapshot_metadata_by_account(account_id, start_date, end_date)
+    }
+
+    fn get_earliest_snapshot_date(&self, account_id: &str) -> Result<Option<NaiveDate>> {
+        self.snapshot_repository
+            .get_earliest_snapshot_date(account_id)
     }
 
     async fn delete_snapshot_for_account_by_id(

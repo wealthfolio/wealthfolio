@@ -32,9 +32,10 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         activities.retain(|activity| requested.contains(activity.id.as_str()));
         Ok(activities)
     }
+    /// Reads an opaque persisted group ID verbatim; whitespace is not canonicalized.
     fn get_activities_by_source_group_id(&self, source_group_id: &str) -> Result<Vec<Activity>> {
-        let group_id = source_group_id.trim();
-        if group_id.is_empty() {
+        let group_id = source_group_id;
+        if group_id.trim().is_empty() {
             return Ok(Vec::new());
         }
 
@@ -215,6 +216,19 @@ pub trait ActivityRepositoryTrait: Send + Sync {
             instrument_type_filter,
             activity_id_filter,
         )
+    }
+    /// Every activity for a data export, newest first, within an exact UTC
+    /// window. Unlike `search_activities`, rows of archived accounts are
+    /// included when `include_archived` is set.
+    fn export_activities(
+        &self,
+        _include_archived: bool,
+        _date_from_utc: Option<DateTime<Utc>>,
+        _date_to_utc_exclusive: Option<DateTime<Utc>>,
+    ) -> Result<ActivitySearchResponse> {
+        Err(crate::Error::Unexpected(
+            "This activity repository does not support data exports".to_string(),
+        ))
     }
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
@@ -459,6 +473,18 @@ pub trait ActivityServiceTrait: Send + Sync {
             activity_id_filter,
         )
     }
+    /// Every activity for a data export, newest first, within an exact UTC
+    /// window, optionally including the rows of archived accounts.
+    fn export_activities(
+        &self,
+        _include_archived: bool,
+        _date_from_utc: Option<DateTime<Utc>>,
+        _date_to_utc_exclusive: Option<DateTime<Utc>>,
+    ) -> Result<ActivitySearchResponse> {
+        Err(crate::Error::Unexpected(
+            "This activity service does not support data exports".to_string(),
+        ))
+    }
     /// Fills each row's cash balance: the cash after the row for cash or
     /// credit-card accounts that hold no securities, the cash at the end of
     /// the row's day for other accounts whose holdings come from activities.
@@ -543,6 +569,10 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         request: UnlinkedTransfersRequest,
     ) -> Result<UnlinkedTransfers>;
+    /// The Match transfers review over the transfers the Health Center
+    /// reports: pairs certain enough to link together, and the rest with
+    /// their candidates. Runs off the async workers.
+    async fn review_transfer_matches(&self) -> Result<TransferMatchReview>;
     async fn save_internal_transfer_pair(
         &self,
         request: InternalTransferPairRequest,
@@ -556,6 +586,13 @@ pub trait ActivityServiceTrait: Send + Sync {
         activity_a_id: String,
         activity_b_id: String,
     ) -> Result<(Activity, Activity)>;
+    /// Links each posted pair as `link_transfer_activities` does, on its own:
+    /// a failing pair is reported and the others still go through. One
+    /// activities-changed event covers every linked pair.
+    async fn link_transfer_pairs(
+        &self,
+        pairs: Vec<TransferPairLinkRequest>,
+    ) -> Result<LinkTransferPairsResult>;
     async fn unlink_transfer_activities(
         &self,
         activity_a_id: String,

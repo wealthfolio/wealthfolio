@@ -33,6 +33,7 @@ import {
   useRetirementOverview,
   useSaveUpOverview,
 } from "../hooks/use-goal-detail";
+import { useGoalProjectionExport, type GoalProjection } from "../hooks/use-goal-projection-export";
 import { useGoalMutations, useGoals } from "../hooks/use-goals";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { PlannerMode, RetirementOverview } from "@/lib/types";
@@ -142,6 +143,20 @@ export default function GoalDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [actionPaletteOpen, setActionPaletteOpen] = useState(false);
 
+  // The deterministic projection the screen shows: the year-by-year retirement
+  // trajectory, or the save-up plan as saved.
+  const projection: GoalProjection | null =
+    isRetirement && plan && retirementOverview
+      ? { kind: "retirement", trajectory: retirementOverview.trajectory }
+      : isSaveUp && saveUpOverview
+        ? { kind: "save_up", trajectory: saveUpOverview.trajectory }
+        : null;
+  const exportProjection = useGoalProjectionExport(projection, {
+    goalName: goal?.title ?? "",
+    currency: baseCurrency,
+    exportedOn: todayISO,
+  });
+
   const handleDelete = () => {
     if (!goalId) return;
     deleteMutation.mutate(goalId);
@@ -182,6 +197,15 @@ export default function GoalDetailPage() {
           label: t("goals:detail.edit_goal"),
           onClick: () => setEditOpen(true),
         },
+        ...(exportProjection
+          ? [
+              {
+                icon: Icons.Download,
+                label: t("goals:export.action"),
+                onClick: () => void exportProjection(),
+              },
+            ]
+          : []),
         {
           icon: Icons.Trash,
           label: t("goals:detail.delete_goal"),

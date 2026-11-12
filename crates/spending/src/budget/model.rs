@@ -228,6 +228,11 @@ pub struct BudgetCategoryRow {
     pub rollover_enabled: bool,
 }
 
+/// A group is where categories are listed, not how their money counts. Its
+/// planned, actual, remaining, overspent and rollover figures cover expense
+/// categories and the buffer only (consumption, a limit); savings categories
+/// listed in it add to `savings_target_total` and `savings_actual` instead
+/// (a goal).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BudgetGroupRow {
@@ -241,15 +246,22 @@ pub struct BudgetGroupRow {
     pub remaining: f64,
     pub overspent: bool,
     pub rollover_enabled: bool,
+    pub savings_target_total: f64,
+    pub savings_actual: f64,
     pub categories: Vec<BudgetCategoryRow>,
 }
 
+/// `spending_*` is consumption: expense categories plus group buffers.
+/// `savings_*` is the savings goal and the money moved to savings. The plan's total
+/// allocation, to compare with income, is `spending_planned + savings_planned`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BudgetTotals {
     pub spending_planned: f64,
     pub spending_actual: f64,
     pub spending_remaining: f64,
+    pub savings_planned: f64,
+    pub savings_actual: f64,
     pub income_planned: f64,
     pub income_actual: f64,
     pub group_buffer: f64,
@@ -361,6 +373,10 @@ pub enum BudgetOperation {
         reassign_to_group_id: String,
     },
     AssignCategory {
+        /// Absent in callers older than savings support, which only moved
+        /// expense categories.
+        #[serde(default = "default_spending_taxonomy")]
+        taxonomy_id: String,
         category_id: String,
         group_id: String,
     },

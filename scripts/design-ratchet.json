@@ -77,6 +77,7 @@
   "pxSizes": {},
   "signColors": {
     "apps/frontend/src/features/ai-assistant/components/tool-uis/goals-tool-ui.tsx": 2,
+    "apps/frontend/src/features/ai-assistant/components/tool-uis/spending-summary-tool-uis.tsx": 6,
     "apps/frontend/src/features/goals/components/goal-card.tsx": 4,
     "apps/frontend/src/features/goals/retirement-planner/pages/risk-lab-page.tsx": 2,
     "apps/frontend/src/features/goals/save-up/components/save-up-detail.tsx": 2,

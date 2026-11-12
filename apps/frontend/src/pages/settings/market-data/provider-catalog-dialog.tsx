@@ -79,7 +79,7 @@ export function ProviderCatalogDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="overflow-y-auto [--overlay-max-height:90vh] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("settings:market_data_page.catalog_title")}</DialogTitle>
           <DialogDescription>

@@ -451,7 +451,10 @@ export function MoneyFlowChart({
           height="100%"
           onResize={(nextWidth) => setWidth(nextWidth)}
         >
+          {/* The nodes are the chart's one Tab stop (renderNode); Recharts'
+              layer would add the whole SVG as another. */}
           <Sankey
+            accessibilityLayer={false}
             data={data}
             nodeWidth={NODE_WIDTH}
             nodePadding={ROW_PITCH}

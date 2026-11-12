@@ -18,7 +18,10 @@ use crate::{config::Config, main_lib::AppState};
 const INSTRUCTIONS: &str = "Read and write access to the user's Wealthfolio portfolio: accounts, \
 holdings, valuations, performance, activities, income, goals, health, classifications, spending, and \
 budgets. Write capabilities (drafting and committing activities, classification suggestions and commits, \
-organizing spending, and managing budgets) depend on the scopes granted to the access token in use.";
+organizing spending, and managing budgets) depend on the scopes granted to the access token in use. \
+For wrong or missing prices, get_asset shows an asset's listing, quote currency, provider and stored quotes, \
+prepare_asset_update fixes its listing, currency or provider, and refresh_market_data refetches prices. \
+Creating and updating accounts needs accounts:write; saving holdings snapshots and adding alternative assets and liabilities needs holdings:write.";
 
 /// Builds the `/mcp` router: the Streamable HTTP MCP service behind PAT
 /// bearer authentication.

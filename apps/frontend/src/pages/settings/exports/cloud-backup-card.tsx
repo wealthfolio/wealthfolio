@@ -1,4 +1,9 @@
 import { cn } from "@/lib/utils";
+import {
+  backendError,
+  BACKUP_REAUTHENTICATION_REQUIRED,
+  BACKUP_MANUAL_LIMIT,
+} from "@/lib/backend-error";
 import { Fragment, useState } from "react";
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/csr/ShieldCheck";
 import type { TFunction } from "i18next";
@@ -462,14 +467,15 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
     setReauth(false);
   }
   function failed(cause: unknown) {
-    const recentLogin = String(cause).includes("BACKUP_REAUTHENTICATION_REQUIRED");
+    const error = backendError(cause);
+    const recentLogin = error?.errorCode === BACKUP_REAUTHENTICATION_REQUIRED;
     setReauth(recentLogin);
     setError({
-      cause,
+      cause: error,
       message: t(
         recentLogin
           ? "settings:cloud_backup_reauth"
-          : String(cause).includes("BACKUP_MANUAL_LIMIT")
+          : error?.errorCode === BACKUP_MANUAL_LIMIT
             ? "settings:cloud_backup_manual_limit"
             : "settings:cloud_backup_failed",
       ),
@@ -889,7 +895,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       >
         <DialogContent
           className="sm:max-w-md"
-          mobileClassName="h-auto max-h-[85dvh] overflow-y-auto"
+          mobileClassName="h-auto [--overlay-max-height:85dvh] overflow-y-auto"
           showCloseButton={!busy && !recoveryCode}
         >
           <DialogHeader className="pe-6 text-start">

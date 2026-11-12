@@ -105,6 +105,7 @@ fn snapshot(
         calculated_at: DateTime::<Utc>::from_timestamp(1_776_476_400, 0)
             .unwrap()
             .naive_utc(),
+        base_currency: None,
         source: SnapshotSource::Calculated,
     }
 }

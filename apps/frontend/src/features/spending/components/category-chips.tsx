@@ -40,6 +40,7 @@ export function CategoryIconTile({
 }) {
   return (
     <span
+      data-slot="icon-tile"
       className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", className)}
       style={{
         backgroundColor: color ? `${color}1F` : "var(--muted)",

@@ -47,7 +47,6 @@ import { Card } from "@wealthfolio/ui/components/ui/card";
 const CARD_CLASS =
   "bg-linear-to-br from-white/[0.07] via-transparent to-black/[0.04] p-5 dark:from-white/[0.025] dark:to-black/[0.06]";
 const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-semibold uppercase tracking-[0.12em]";
-const SAVINGS_GROUP_KEY = "savings";
 const SPENDING_TAXONOMY = "spending_categories";
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -909,10 +908,8 @@ function BreakdownCanvas({
 
   // Memoize these so downstream `counts`/`filteredBreakdown` memos stay valid
   // — otherwise a fresh array on every render busts memoization.
-  const groupRows = useMemo(
-    () => budget?.computed.groupRows.filter((row) => row.group.key !== SAVINGS_GROUP_KEY) ?? [],
-    [budget],
-  );
+  // The insight lists only groups that hold spending, whatever their name.
+  const groupRows = useMemo(() => budget?.computed.groupRows ?? [], [budget]);
   const budgetRows = useMemo(() => groupRows.flatMap((row) => row.categories), [groupRows]);
   const breakdown = useMemo(
     () =>
@@ -1120,8 +1117,8 @@ function BreakdownCanvas({
  * toward the subcategory above it, since the table has two levels.
  *
  * Only categories the top-level rows list are kept: those leave out one whose
- * spending netted to exactly zero (a float sum here can miss that) and any in
- * the savings group.
+ * spending netted to exactly zero (a float sum here can miss that) and any
+ * excluded one.
  *
  * `null` while a category isn't in the taxonomy yet (still loading): its row
  * couldn't be placed under its parent, so the top-level rows stand in.

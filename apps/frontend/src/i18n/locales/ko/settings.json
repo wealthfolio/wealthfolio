@@ -99,8 +99,16 @@
   "limits_add_button": "한도 추가",
   "limits_add_aria": "납입 한도 추가",
   "limits_current_year": "올해 ({{year}})",
+  "limits_future_years": "다가오는 연도",
   "limits_previous_years": "이전 연도",
   "limits_show_previous": "표시",
+  "limits_projected_badge": "예상",
+  "limits_projected_description": "{{year}}년 반복 한도에서 자동 생성되었습니다. 이 연도의 금액을 변경하려면 추가하세요.",
+  "limits_projected_add_button": "이 연도 추가",
+  "limits_projected_add_aria": "{{year}}년 {{group}} 추가 ({{accounts}})",
+  "limits_no_accounts_selected": "선택한 계좌 없음",
+  "limits_choose_accounts": "계좌 선택",
+  "limits_accounts_more": "+{{number}}개 더",
   "limits_empty_title": "{{year}}년 납입 한도가 없습니다!",
   "limits_empty_description": "올해에 대한 납입 한도가 없습니다. 납입 한도를 추가해 보세요.",
   "limits_add_first": "납입 한도 추가",
@@ -114,15 +122,12 @@
   "limits_delete_description": "이 작업은 되돌릴 수 없습니다.",
   "limits_form_update_title": "납입 한도 수정",
   "limits_form_add_title": "납입 한도 추가",
-  "limits_form_update_description": "납입 한도 정보를 수정합니다",
   "limits_form_add_description": "새 납입 한도를 추가합니다.",
   "limits_form_group_name_label": "그룹 이름",
   "limits_form_group_name_placeholder": "예: TFSA, 401(k), RRSP",
-  "limits_form_group_name_description": "납입 한도 그룹의 이름",
   "limits_form_group_name_required": "그룹 이름은 필수입니다",
   "limits_form_limit_amount_label": "한도 금액",
   "limits_form_limit_amount_placeholder": "예: 6,000.00",
-  "limits_form_limit_amount_description": "허용되는 최대 납입 금액",
   "limits_form_limit_amount_number": "한도 금액은 양수여야 합니다.",
   "limits_form_limit_amount_non_negative": "한도 금액은 음수가 될 수 없습니다.",
   "limits_form_year_label": "연도",
@@ -131,14 +136,17 @@
   "limits_form_start_date_label": "시작일",
   "limits_form_end_date_label": "종료일",
   "limits_form_date_description": "기본값은 선택한 연도의 1월 1일부터 12월 31일까지입니다",
+  "limits_form_recurring_label": "매년 반복",
+  "limits_form_recurring_description": "해당 연도를 추가하거나 수정할 때까지 동일한 금액으로 향후 연도의 예상 한도를 자동으로 표시합니다.",
+  "limits_form_accounts_label": "포함할 계좌",
+  "limits_form_accounts_description": "이 계좌에 대한 납입액이 이 한도에 계산됩니다.",
+  "limits_form_accounts_selected": "{{total}}개 중 {{selected}}개 선택",
+  "limits_form_accounts_search": "계좌 검색",
+  "limits_form_accounts_no_match": "검색과 일치하는 계좌가 없습니다.",
+  "limits_form_accounts_empty": "아직 납입을 받을 수 있는 계좌가 없습니다.",
   "limits_form_updating": "수정 중...",
   "limits_form_saving": "저장 중...",
   "limits_form_update_button": "수정",
-  "limits_select_accounts": "계좌 선택",
-  "limits_loading": "불러오는 중...",
-  "limits_contributed": "납입액",
-  "limits_saving": "저장 중...",
-  "limits_save_selected_accounts": "선택한 계좌 저장",
   "addons_info_title": "🔌 애드온 및 확장 기능",
   "addons_info_description": "애드온을 사용하면 새로운 기능, 맞춤형 분석, 추가 기능으로 Wealthfolio를 확장하여 자산 관리 경험을 향상시킬 수 있습니다.",
   "addons_security_notice": "보안 안내:",
@@ -174,17 +182,139 @@
   "export_title": "데이터 내보내기",
   "export_description": "포트폴리오를 백업하거나 데이터를 내보내 다른 곳에서 사용하세요.",
   "export_tab_backup": "백업",
-  "export_section_description": "분석이나 외부 사용을 위해 특정 데이터 유형을 다양한 형식으로 내보냅니다.",
-  "export_format_title": "원하는 형식을 선택하세요",
-  "export_format_csv_description": "단순하고 호환성이 뛰어난 스프레드시트 형식",
-  "export_format_json_description": "프로그래밍 방식으로 쉽게 접근할 수 있는 구조화된 데이터",
-  "export_customize_title": "내보내기 사용자 지정",
-  "export_type_accounts_description": "금융 계좌 정보",
-  "export_type_activities": "거래 내역",
-  "export_type_activities_description": "상세 거래 내역 및 로그",
-  "export_type_goals_description": "재무 목표 및 진행 상황 추적",
-  "export_type_portfolio_history": "포트폴리오 기록",
-  "export_type_portfolio_history_description": "평가액, 손익, 현금흐름 활동을 포함한 포트폴리오의 시간별 성과.",
+  "data_export": {
+    "intro": "스프레드시트와 다른 앱에서 읽을 수 있는 파일입니다. Wealthfolio로 복원할 수는 없으니, 다른 기기로 옮기려면 백업을 사용하세요.",
+    "all_title": "모든 데이터 내보내기",
+    "all_description_csv": "데이터 세트별 CSV 파일과 이를 설명하는 README가 담긴 ZIP 파일 하나입니다.",
+    "all_description_json": "각 데이터 세트가 섹션으로 들어 있는 JSON 파일 하나입니다.",
+    "all_info": "목표 예측과 대출 상환 일정은 매일 바뀌므로 포함되지 않습니다. 해당 목표나 대출에서 내보내세요.",
+    "all_info_label": "데이터 내보내기 정보",
+    "all_button": "모두 내보내기",
+    "all_pending": "내보내는 중…",
+    "format_label": "파일 형식",
+    "include_archived": "보관된 계좌 포함",
+    "include_archived_help": "보관된 계좌를 해당 활동, 로트, 대출 상환 내역과 함께 추가합니다.",
+    "dates_title": "기간",
+    "start_date": "시작일",
+    "end_date": "종료일",
+    "dates_help": "활동, 매도, 가격, 평가, 기록의 기간을 제한합니다. 모든 날짜를 포함하려면 비워 두세요.",
+    "date_order_error": "시작일이 종료일보다 늦습니다.",
+    "clear_dates": "날짜 지우기",
+    "datasets_title": "내보낼 항목 선택",
+    "datasets_description": "데이터 세트를 하나씩 다운로드합니다.",
+    "groups": {
+      "accounts": "계좌 및 활동",
+      "investments": "투자",
+      "net-worth": "순자산",
+      "spending": "지출 및 예산",
+      "planning": "계획",
+      "organization": "정리"
+    },
+    "datasets": {
+      "accounts": {
+        "name": "계좌",
+        "description": "최신 잔액이 포함되고 보관된 계좌가 표시된 계좌 목록"
+      },
+      "activities": {
+        "name": "활동",
+        "description": "현금 잔액과 지출 카테고리가 포함된 모든 거래"
+      },
+      "holdings": {
+        "name": "보유 종목",
+        "description": "가치, 원가, 손익이 포함된 포지션"
+      },
+      "lots": {
+        "name": "로트",
+        "description": "취득원가가 포함된 미청산 및 청산 로트"
+      },
+      "realized-gains": {
+        "name": "실현 이익",
+        "description": "각 매도와 그 매도로 청산된 로트"
+      },
+      "manual-prices": {
+        "name": "수동 가격",
+        "description": "직접 가격을 매기는 자산에 입력한 가격"
+      },
+      "income": {
+        "name": "소득",
+        "description": "계좌별 월간 배당금 및 이자"
+      },
+      "income-by-source": {
+        "name": "출처별 소득",
+        "description": "보유 종목별 소득(전체 기간 및 연도별)"
+      },
+      "assets-and-liabilities": {
+        "name": "자산 및 부채",
+        "description": "부동산, 차량, 귀중품, 대출 및 대출 조건"
+      },
+      "asset-valuations": {
+        "name": "자산 평가",
+        "description": "해당 자산과 부채에 기록한 모든 가치"
+      },
+      "loan-payments": {
+        "name": "대출 상환",
+        "description": "각 대출에 연결된 상환 내역"
+      },
+      "net-worth-history": {
+        "name": "순자산 기록",
+        "description": "일별 순자산: 투자, 기타 자산, 부채"
+      },
+      "portfolio-history": {
+        "name": "포트폴리오 기록",
+        "description": "각 계좌의 일별 가치"
+      },
+      "budgets": {
+        "name": "예산",
+        "description": "기간별 금액과 이월 설정"
+      },
+      "budget-actuals": {
+        "name": "예산 대비 실적",
+        "description": "카테고리별 예산, 지출액, 남은 금액(월별)"
+      },
+      "budget-groups": {
+        "name": "예산 그룹",
+        "description": "그룹과 각 그룹의 카테고리"
+      },
+      "spending-rules": {
+        "name": "분류 규칙",
+        "description": "거래를 자동으로 분류하는 규칙"
+      },
+      "spending-events": {
+        "name": "이벤트",
+        "description": "여행 등의 이벤트와 각 이벤트의 지출액"
+      },
+      "goals": {
+        "name": "목표",
+        "description": "계획 설정, 연결된 계좌, 진행률"
+      },
+      "contribution-limits": {
+        "name": "납입 한도",
+        "description": "한도와 적용되는 계좌"
+      },
+      "portfolios": {
+        "name": "포트폴리오",
+        "description": "계좌 그룹"
+      },
+      "categories": {
+        "name": "카테고리",
+        "description": "지출을 포함한 모든 분류의 모든 카테고리"
+      },
+      "classifications": {
+        "name": "자산 분류",
+        "description": "각 자산이 속한 카테고리"
+      }
+    },
+    "rows_one": "{{count}}행",
+    "rows_other": "{{count}}행",
+    "daily": "일별 값",
+    "holdings_today": "현재 보유 종목",
+    "none_yet": "아직 없음",
+    "download": "{{name}} 다운로드",
+    "downloading": "{{name}} 다운로드 중…",
+    "summary_error": "데이터 개수를 확인하지 못했습니다. 그래도 내보낼 수는 있습니다.",
+    "empty": "이 데이터 세트에는 아직 내보낼 항목이 없습니다.",
+    "empty_all": "아직 내보낼 항목이 없습니다."
+  },
   "backup_title": "로컬 백업",
   "backup_export_dialog_title": "백업 내보내기",
   "backup_export_protected": "비밀번호 사용(권장)",
@@ -365,9 +495,6 @@
   "about_db_path": "데이터베이스 경로",
   "about_copy_db_path": "데이터베이스 경로 복사",
   "about_copy_logs_dir": "로그 디렉터리 복사",
-  "export_type_holdings_description": "평가액, 성과, 배분, 상품 데이터를 포함한 현재 보유 종목",
-  "export_exporting_item": "{{name}} 내보내는 중...",
-  "export_export_item": "{{name}} 내보내기",
   "backup_unknown_date": "알 수 없는 날짜",
   "backup_creating_short": "백업 저장 중…",
   "backup_empty_title": "아직 백업이 없습니다",
@@ -1020,7 +1147,33 @@
       "duplicate_error": "다른 카테고리에서 이미 사용 중인 키입니다. 다른 이름을 입력해 주세요.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
-      "tab_savings_other": "저축 ({{count}})"
+      "tab_savings_other": "저축 ({{count}})",
+      "merge": {
+        "description": "{{name}}의 모든 거래, 규칙 및 예산을 옮깁니다.",
+        "history": "이전 보고서에도 새 카테고리가 적용됩니다. 이 작업은 되돌릴 수 없습니다.",
+        "destination": "이동 대상…",
+        "choose": "카테고리 선택",
+        "budgets": "예산 · {{name}}",
+        "confirm": "이동 후 삭제",
+        "error": "병합에 실패했거나 데이터가 변경되었습니다. 미리보기를 새로 고치고 대상을 확인한 후 다시 시도하세요.",
+        "refresh": "미리보기 새로 고침",
+        "none": "사용 가능한 대상이 없습니다. 아래 제한을 해결하거나 적절한 카테고리를 만드세요.",
+        "blocked": {
+          "invalid_destination": "동일한 지출, 수입 또는 저축 목록에서 다른 카테고리를 선택하세요.",
+          "children": "하위 카테고리를 먼저 이동하거나 병합하세요. 하위 카테고리가 있는 카테고리는 병합할 수 없습니다.",
+          "asset_references": "자산 분류와 배분 목표 참조를 먼저 제거하세요.",
+          "category_rollover": "꺼진 설정을 포함하여 두 카테고리의 저장된 이월 설정을 먼저 제거하세요.",
+          "group_rollover": "그룹 간에 이동하기 전에 영향을 받는 지출 그룹의 이월을 끄세요. 같은 그룹 내 병합은 허용됩니다.",
+          "exclusions": "상속된 제외를 포함하여 원본과 대상의 실제 «지출에서 제외» 설정이 같아야 합니다.",
+          "budget_destination": "이 카테고리에는 예산 목표가 있습니다. 목표가 유효하게 유지되려면 두 카테고리 모두 최상위에 있어야 합니다."
+        },
+        "period": "월",
+        "current": "현재",
+        "added": "추가",
+        "after": "새 합계",
+        "monthlyDefault": "월 기본값",
+        "budgetHint": "다른 월에는 월 기본값이 적용됩니다."
+      }
     },
     "events": {
       "heading": "지출 이벤트",
@@ -1097,6 +1250,7 @@
   "fx_err_rate_negative": "환율은 음수가 아니어야 합니다.",
   "fx_err_source_required": "데이터 소스는 필수입니다",
   "fx_err_rate_invalid": "유효한 환율을 입력하세요.",
+  "fx_err_quote_unit": "{{code}}는 {{major}}의 보조 단위입니다. 대신 {{major}} 환율을 입력하세요.",
   "fx_from_currency": "출발 통화",
   "fx_to_currency": "도착 통화",
   "fx_select_currency": "통화 선택",
@@ -1238,6 +1392,8 @@
     "scope_locked_title": "활동에 필요 — 확정/쓰기",
     "scope_locked_market_data_title": "시장 데이터 — 쓰기에 필요",
     "scope_locked_classification_title": "자산 분류 — 적용/쓰기에 필요",
+    "scope_locked_accounts_title": "계좌 — 쓰기에 필요",
+    "scope_locked_holdings_title": "보유 종목 — 쓰기에 필요",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "토큰",
     "scope": {
@@ -1287,7 +1443,7 @@
       },
       "market_data_write": {
         "label": "시장 데이터 — 쓰기",
-        "description": "기존 자산의 검토된 가격(시세)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
+        "description": "검토된 가격(시세)을 저장하고, 자산의 가격 이력을 새로 고치거나 교체하며, 자산의 가격 산정 방식(심볼, 거래소, 호가 통화, 시세 모드, 데이터 제공업체)을 변경합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
       },
       "spending_read": {
         "label": "지출 보기",
@@ -1300,6 +1456,14 @@
       "budget_write": {
         "label": "예산 관리",
         "description": "기본 및 월별 예산, 그룹, 여유 자금 및 이월을 변경합니다. 지출 보기가 필요합니다."
+      },
+      "accounts_write": {
+        "label": "계좌 — 쓰기",
+        "description": "계좌를 만들고 이름, 유형, 그룹, 번호, 추적 모드, 숨김 또는 보관 상태를 변경합니다. 계좌 (읽기) 범위가 필요합니다."
+      },
+      "holdings_write": {
+        "label": "보유 종목 — 쓰기",
+        "description": "보유 종목을 추적하는 계좌의 보유 스냅샷(특정 날짜의 포지션과 현금)을 저장하고, 대체 자산과 부채를 추가합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
       }
     },
     "preset": {
@@ -1539,15 +1703,6 @@
       "addingFailed": "환율 추가 중 문제가 발생했습니다: {{error}}",
       "deletingFailed": "환율 삭제 중 문제가 발생했습니다: {{error}}"
     },
-    "export": {
-      "empty": {
-        "accounts": "현재 내보낼 계좌가 없습니다.",
-        "activities": "현재 내보낼 거래가 없습니다.",
-        "holdings": "현재 내보낼 보유 자산이 없습니다.",
-        "goals": "현재 내보낼 목표가 없습니다.",
-        "portfolio-history": "현재 내보낼 포트폴리오 기록이 없습니다."
-      }
-    },
     "providerUpdateFailed": "제공자 {{provider}}의 설정을 업데이트하지 못했습니다",
     "httpFailed": "HTTP 요청에 실패했습니다.",
     "addonDownloadFailed": "애드온을 다운로드하지 못했습니다.",
@@ -1613,6 +1768,8 @@
       "performance_calculateHistory": "성과 기록 계산",
       "performance_calculateSummary": "성과 요약 계산",
       "performance_calculateAccountsSimple": "기본 계좌 성과 계산",
+      "allocation-targets_getAll": "자산 배분 목표 보기",
+      "allocation-targets_getDrift": "보유 자산을 배분 목표와 비교",
       "currency_getAll": "환율 보기",
       "currency_update": "환율 업데이트",
       "currency_add": "새 환율 추가",
@@ -1668,6 +1825,10 @@
       "accounts": {
         "name": "계좌 관리",
         "description": "계좌 정보 및 설정에 접근"
+      },
+      "allocation-targets": {
+        "name": "자산 배분 목표",
+        "description": "자산 배분 목표 및 목표 대비 보유 자산 비교에 읽기 전용으로 접근"
       },
       "alternative-assets": {
         "name": "대체 자산",
@@ -1741,6 +1902,34 @@
         "name": "네트워크 접근",
         "description": "호스트 네트워크 중개자를 통해 선언된 외부 HTTPS 호스트에 접근"
       }
+    }
+  },
+  "limits_detail": {
+    "back": "납입 한도",
+    "counted": "계산된 납입액",
+    "annual_limit": "한도 금액",
+    "remaining": "남은 한도",
+    "used_percent": "{{percent}} 사용",
+    "period_ends": "기간 종료",
+    "over": "한도 초과",
+    "activities": "납입 거래",
+    "group_counted": "납입",
+    "group_not_counted": "자동으로 계산되지 않음",
+    "group_not_counted_hint": "내부 이체는 계산되지 않습니다. 계좌 외부에서 들어온 돈이라면 활동을 편집하여 외부로 표시하세요.",
+    "edit_activity": "활동 편집",
+    "edit_activity_aria": "{{activity}} 편집",
+    "edit_activity_error": "이 활동을 열 수 없습니다. 다시 시도하세요.",
+    "count_activity": "{{activity}}을(를) 이 한도에 계산",
+    "activity_unchanged": "이 한도의 사용액만 변경됩니다. 계좌 거래는 변경되지 않습니다.",
+    "save_success": "납입 처리를 저장했습니다.",
+    "save_error": "납입 처리를 저장할 수 없습니다.",
+    "load_error": "이 납입 한도를 불러올 수 없습니다.",
+    "no_activities": "이 기간에 납입 거래가 없습니다.",
+    "treatments": {
+      "counted": "계산됨",
+      "excludedByUser": "직접 제외함",
+      "internalTransfer": "내부 이체",
+      "notExternal": "외부로 표시되지 않음"
     }
   }
 }

@@ -4,6 +4,106 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.0] - 2026-11-11
+
+### Added
+
+- `IncomeByAsset.dividendIncome`: the part of the asset's `income` that is
+  dividends. `income` still counts every income type. Absent on older hosts.
+- `ActivityImport.charges` and the `ActivityCharge` type: labelled lines that
+  break an imported row's `fee` and `tax` down as the statement listed them
+  (commission, stamp duty, ...). Each line is `fee` or `tax`, a free-text label
+  and an amount in the row's currency. The lines must add up to both totals or
+  the row is rejected, and `checkImport` flags it. They are stored in the
+  activity's `metadata.charges` and change no calculation. Older hosts ignore
+  the field.
+- `ActivityImport.sourceRecordId`: your own ID for the transaction a row
+  records. A row with one is a duplicate of the activity your add-on imported
+  with the same ID into the same account, whatever its values or comment, so
+  identical transactions with different IDs import separately. A row with an ID
+  also matches an activity imported before you sent IDs, by its values. The
+  activity stores the trimmed ID as `addon:<your add-on id>:<ID>`; blank IDs are
+  treated as absent. ID matching is scoped to the add-on; the values fallback
+  can match any import without an ID in the account.
+- `ActivityImport.metadata`: details to keep with the imported activity, stored
+  in its metadata under `addons[<your add-on id>]`. Older hosts ignore this
+  field and `sourceRecordId`. (#2621)
+- `allocationTargets`, read-only, in the new Allocation Targets category (high
+  risk), each function behind its own grant:
+  - `getAll()`: the user's targets, archived ones excluded, each with its scope,
+    range settings and weights. A weight carries its category's id, `key` and
+    name, so an addon can tell categories apart across installs
+    (`allocation-targets.getAll`).
+  - `getDrift(targetId)`: current against target by category over the target's
+    own scope, in the base currency, or `null` when no live target has that id
+    (`allocation-targets.getDrift`). It values holdings live, so call it on
+    demand.
+- `BudgetTotals.savingsPlanned` and `savingsActual`, and
+  `BudgetGroupRow.savingsTargetTotal` and `savingsActual`: the savings
+  categories' goal and the money moved to savings, apart from the spending
+  figures. The plan's total allocation is `spendingPlanned + savingsPlanned`.
+  Older hosts don't return them. (#2249)
+- `ContributionLimit.isRecurring`: the limit repeats every year. Set on the
+  latest limit of a group, the host shows the later years with the same amount
+  until the user saves or edits one. (#1841)
+- `@wealthfolio/ui`:
+  - `ExternalLink` and `ExternalLinkProvider`: a link that opens through the
+    `openUrl` it is given, or its provider's, and as a normal link without
+    either. (#2490)
+  - `useNumericDraft`: localized editing of a number field in the user's region
+    format; the caller decides when to commit. (#2456)
+  - `canonicalCurrencyCode(code)`: a typed code spelled as stored, trimmed and
+    upper-cased, except quote units such as `GBp` and `ZAc`. (#2453)
+  - Phone form rows (`FormRowGroup`, `FormRowLabel`, `FormRowValue`,
+    `formRowClassName`, `formRowValueClassName`) and sheet screens
+    (`SheetNavigation`, `SheetScreen`, `SheetScreenTrigger`,
+    `useInSheetNavigation`), so a picker opens as a screen of the current sheet
+    with a back button. (#2485)
+  - New props: `safeArea` on `DialogContent` and `SheetContent`, `fillSafeArea`
+    on `SheetContent`, `floating` on `SheetHeader`, `sheetTitle` on
+    `SearchableSelect`, `appearance` (`field` or `row`) on `DatePickerInput` and
+    `size` (`default` or `large`) on `Calendar` and `RangeCalendar`. (#2485)
+
+### Changed
+
+- The host shares `lucide-react` 1.x with addons (was 0.561). Lucide 1.0 removed
+  the brand icons (`Chrome`, `Facebook`, `Github`, `Gitlab`, `Instagram`,
+  `Linkedin`, `Slack`, `Twitter`, `Youtube` and others, with their `*Icon` and
+  `Lucide*` names). An addon that imports one of them from the host's
+  `lucide-react` fails to load; bundle your own icon instead. Other icon names,
+  including the deprecated aliases such as `Trash2` and `Loader2`, still work.
+  Some icons are redrawn: `Trash` now has the two inner lines, like `Trash2`.
+  New addons from the templates declare `minWealthfolioVersion` 3.13.0, the
+  first release with Lucide 1.x, so an addon that uses a Lucide 1.x icon cannot
+  be installed on a host that only has 0.561.
+- `spending.getBudget()` counts spending only (expense categories and group
+  buffers) in `BudgetTotals.spending*` and in a group's `planned`, `actual`,
+  `remaining` and `overspent`. Savings categories report in the new savings
+  fields, and a savings category is never overspent. (#2249)
+- `Holding.weight` and `MonetaryValue.local` and `base` can be `null` when the
+  host can't value them; check for `null` before doing arithmetic.
+  `AmountDisplay` and `GainAmount` accept `null` or `undefined` and show "—".
+  (#2542)
+- `DialogContent`, `AlertDialogContent` and `SheetContent` render inside a
+  viewport that excludes system bars, display cutouts and the on-screen
+  keyboard. Mobile dialogs fit their content, up to `90dvh`; set a maximum with
+  `--overlay-max-height`. `Button` sizes keep a 44px minimum target on touch
+  screens and below 1024px. The migration notes are in the `@wealthfolio/ui`
+  README. (#2485)
+- Financial displays and the formatters group four-digit numbers in every
+  locale: Spanish and Polish, which group only from five digits by default, now
+  show `1234` as `1.234` and `1 234`. (#2603)
+
+### Fixed
+
+- `GainAmount` keeps the sign in front of the number on right-to-left pages.
+  (#2601)
+- `CurrencyInput` selects the listed currency for a code typed in lower case
+  (`eur` selects EUR) instead of offering it as a custom currency. (#2453)
+- Removed `Account.balance` from the SDK type to match the account metadata
+  returned by `accounts.getAll()` and `accounts.create()`. For account values,
+  use `portfolio.getLatestValuations()` with the required portfolio permission.
+
 ## [3.12.0] - 2026-11-01
 
 ### Added

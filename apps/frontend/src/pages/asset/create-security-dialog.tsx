@@ -291,6 +291,16 @@ export function CreateSecurityDialog({
       (!initialInstrumentType || initialInstrumentType === values.instrumentType)
         ? initialAsset.providerConfig
         : undefined;
+    // The quote type stays only while the symbol, exchange and type still match it.
+    const instrumentTypeLabel =
+      selectedProviderRef && selectedInstrumentType === values.instrumentType
+        ? selectedResult?.quoteType
+        : !selectedResult &&
+            initialSymbol === values.symbol &&
+            initialMic === normalizeMic(values.instrumentExchangeMic) &&
+            initialInstrumentType === values.instrumentType
+          ? initialAsset?.instrumentTypeLabel
+          : undefined;
     let resolvedQuoteCcy = values.quoteCcy;
 
     if (selectedResult && selectedProviderRef && values.quoteMode === "MARKET") {
@@ -324,6 +334,7 @@ export function CreateSecurityDialog({
       quoteMode: values.quoteMode,
       quoteCcy: resolvedQuoteCcy,
       instrumentType: values.instrumentType,
+      instrumentTypeLabel: instrumentTypeLabel || undefined,
       instrumentSymbol: values.symbol,
       instrumentExchangeMic: values.instrumentExchangeMic || undefined,
       providerId: selectedProviderRef?.providerId,
@@ -524,6 +535,7 @@ export function CreateSecurityDialog({
                       onValueChange={field.onChange}
                       placeholder={t("asset:createSecurity.select_exchange")}
                       searchPlaceholder={t("asset:createSecurity.search_exchanges")}
+                      sheetTitle={t("asset:createSecurity.exchange")}
                     />
                   </FormControl>
                   <FormMessage />

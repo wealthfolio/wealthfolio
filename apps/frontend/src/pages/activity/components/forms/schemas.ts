@@ -139,6 +139,8 @@ export const createActivitySchemas = (t?: TFunction) => {
       .nullable(),
     sourceCurrency: z.string().optional(),
     destinationCurrency: z.string().optional(),
+    // No default: a phone edit sends one fee to both legs of an internal
+    // transfer, so an empty fee must leave both stored fees as they are.
     fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
     assetId: z.string().optional().nullable(),
     quantity: z.coerce
@@ -305,7 +307,7 @@ export const createActivitySchemas = (t?: TFunction) => {
     activityType: z.enum([ActivityType.DEPOSIT, ActivityType.WITHDRAWAL]),
     assetId: z.string().optional(),
     amount: z.coerce.number({ error: amountPositiveNumber }).min(0, { message: amountNonNegative }),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
     quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MANUAL),
   });
 
@@ -318,8 +320,8 @@ export const createActivitySchemas = (t?: TFunction) => {
     quantity: z.coerce.number().default(0),
     unitPrice: z.coerce.number().optional(),
     amount: z.coerce.number({ error: amountPositiveNumber }).min(0, { message: amountNonNegative }),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
-    tax: z.coerce.number({ error: taxNumber }).min(0, { message: taxNonNegative }).optional(),
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
+    tax: z.coerce.number({ error: taxNumber }).min(0, { message: taxNonNegative }).default(0),
   });
 
   const other = base.extend({
@@ -327,13 +329,13 @@ export const createActivitySchemas = (t?: TFunction) => {
     assetId: z.string().min(1, { message: selectSecurity }).optional(),
     amount: z.coerce.number().min(0, { message: amountNonNegative }).optional(),
     quantity: z.coerce.number().nonnegative().optional(),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
   });
 
   const credit = base.extend({
     activityType: z.enum([ActivityType.CREDIT]),
     amount: z.coerce.number({ error: amountPositiveNumber }).min(0, { message: amountNonNegative }),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
     quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MANUAL),
   });
 
@@ -343,7 +345,7 @@ export const createActivitySchemas = (t?: TFunction) => {
     quantity: z.coerce.number().nonnegative().optional().nullable(),
     unitPrice: z.coerce.number().nonnegative().optional().nullable(),
     amount: z.coerce.number().optional().nullable(),
-    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).optional(),
+    fee: z.coerce.number({ error: feeNumber }).min(0, { message: feeNonNegative }).default(0),
     quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
   });
 

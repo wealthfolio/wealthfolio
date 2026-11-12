@@ -1,3 +1,5 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import type { ActivityDetails } from "@/lib/types";
 import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
 import {
@@ -41,10 +43,17 @@ export function ActivityDateSheet({
   isCreditCardAccount = false,
 }: ActivityDateSheetProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const formatting = useDateFormatting();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex h-full w-full flex-col p-0 sm:max-w-xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex h-full flex-col p-0",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-xl",
+        )}
+      >
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>
             {t("activity:date_sheet.title", {

@@ -4,7 +4,7 @@
 
 use crate::transfer::{ConnectTransferTransport, TransferDescriptor};
 use log::debug;
-use rand::Rng;
+use rand::RngExt;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Method, RequestBuilder, StatusCode};
 use serde::de::DeserializeOwned;
@@ -78,7 +78,7 @@ pub(crate) fn snapshot_backoff_with_jitter(attempt: usize) -> Duration {
     let exp = (attempt.saturating_sub(1) as u32).min(8);
     let backoff = (SNAPSHOT_UPLOAD_BASE_BACKOFF_MS.saturating_mul(1_u64 << exp))
         .min(SNAPSHOT_UPLOAD_MAX_BACKOFF_MS);
-    let jitter = rand::thread_rng().gen_range(0..=(backoff / 5).max(1));
+    let jitter = rand::rng().random_range(0..=(backoff / 5).max(1));
     Duration::from_millis(backoff.saturating_add(jitter))
 }
 

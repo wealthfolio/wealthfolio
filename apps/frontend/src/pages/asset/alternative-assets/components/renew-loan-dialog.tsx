@@ -1,4 +1,4 @@
-import { addYears } from "date-fns";
+import { addYears, parseISO } from "date-fns";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { LoanFieldInfo } from "./loan-field-info";
 import { loanErrorText } from "./loan-error-text";
@@ -58,6 +58,8 @@ interface RenewLoanDialogProps {
   /** Maturity of the current term; a passed maturity is the default renewal date. */
   maturity: Date | null;
   mortgage: boolean;
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
   onSubmit: (renewal: LoanRenewalInput) => Promise<void>;
 }
 
@@ -65,11 +67,12 @@ interface RenewLoanDialogProps {
 const RENEWAL_TERM_YEARS = [3, 5];
 
 /** A renewal usually starts when the current term matures; never in the future. */
-function defaultRenewalDate(maturityTime: number | undefined) {
-  const today = new Date();
-  return maturityTime !== undefined && maturityTime <= today.getTime()
+function defaultRenewalDate(maturityTime: number | undefined, today: string) {
+  return maturityTime !== undefined &&
+    Number.isFinite(maturityTime) &&
+    formatDateISO(new Date(maturityTime)) <= today
     ? new Date(maturityTime)
-    : today;
+    : parseISO(today);
 }
 
 /** Record a dated renewal without rewriting any historical quote. */
@@ -83,6 +86,7 @@ export function RenewLoanDialog({
   quoteHistory,
   maturity,
   mortgage,
+  today,
   onSubmit,
 }: RenewLoanDialogProps) {
   const { t } = useTranslation();
@@ -92,7 +96,9 @@ export function RenewLoanDialog({
   const paymentInputId = useId();
   const balanceInputId = useId();
   const maturityTime = maturity?.getTime();
-  const [effectiveDate, setEffectiveDate] = useState<Date>(() => defaultRenewalDate(maturityTime));
+  const [effectiveDate, setEffectiveDate] = useState<Date>(() =>
+    defaultRenewalDate(maturityTime, today),
+  );
   const [newRate, setNewRate] = useState(String(interestRate));
   const [method, setMethod] = useState<LoanInterestMethod | undefined>();
   const [frequency, setFrequency] = useState<LoanPaymentFrequency | undefined>();
@@ -107,7 +113,7 @@ export function RenewLoanDialog({
 
   useEffectOnChange(() => {
     if (!open) return;
-    setEffectiveDate(defaultRenewalDate(maturityTime));
+    setEffectiveDate(defaultRenewalDate(maturityTime, today));
     setNewRate(String(interestRate));
     setMethod(undefined);
     setFrequency(undefined);
@@ -117,6 +123,8 @@ export function RenewLoanDialog({
     setPickedTermEnd(undefined);
     setBalance(undefined);
     setSubmitError(null);
+    // Today as of opening: a new day while the sheet is open keeps the draft.
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [interestRate, maturityTime, open]);
 
   const day = Number.isFinite(effectiveDate.getTime()) ? formatDateISO(effectiveDate) : "";
@@ -127,7 +135,7 @@ export function RenewLoanDialog({
   const paymentMissing = changedFrequency !== undefined && payment === undefined;
   const parsedRate = newRate === "" ? Number.NaN : Number(newRate);
   const rateInvalid = !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100;
-  const dateInvalid = !day || effectiveDate > new Date();
+  const dateInvalid = !day || day > today;
   const termEndDate =
     termYears !== undefined && !dateInvalid ? addYears(effectiveDate, termYears) : pickedTermEnd;
   const isInvalid =

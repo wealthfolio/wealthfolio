@@ -65,7 +65,6 @@ function account(id: string, name: string): Account {
     id,
     name,
     accountType: AccountType.SECURITIES,
-    balance: 0,
     currency: "USD",
     isDefault: false,
     isActive: true,

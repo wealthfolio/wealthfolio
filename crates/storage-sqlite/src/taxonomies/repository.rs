@@ -55,7 +55,7 @@ struct CategoryReferencesDB {
     automatic_budget_links: i64,
 }
 
-fn category_references(
+pub(crate) fn category_references(
     conn: &mut SqliteConnection,
     taxonomy_id: &str,
     category_id: &str,
@@ -84,6 +84,14 @@ fn category_references(
         budget_group_assignments: row.budget_group_assignments.max(0) as usize,
         allocation_targets: row.allocation_targets.max(0) as usize,
         automatic_budget_links: row.automatic_budget_links.max(0) as usize,
+        merged_categories: if TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy_id) {
+            super::sync::category_merge_redirects(conn)?
+                .iter()
+                .filter(|r| r.taxonomy_id == taxonomy_id && r.destination_id == category_id)
+                .count()
+        } else {
+            0
+        },
     })
 }
 
@@ -120,6 +128,15 @@ fn validate_transaction_category_tree(
 ) -> Result<()> {
     if !TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy_id) {
         return Ok(());
+    }
+    if super::sync::category_merge_redirects(conn)?
+        .iter()
+        .any(|r| r.taxonomy_id == taxonomy_id && r.source_id == category_id)
+    {
+        return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+            "A merged category identity cannot be restored; create a new category instead".into(),
+        )
+        .into());
     }
     // Legacy imports may contain duplicate keys. Cosmetic edits must not force
     // an unrelated cleanup; only creation or a changed key can add a collision.
@@ -442,7 +459,8 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
             + refs.rules
             + refs.budget_targets
             + refs.budget_rollovers
-            + refs.budget_group_assignments)
+            + refs.budget_group_assignments
+            + refs.merged_categories)
     }
 
     fn get_category_allocation_target_weight_count(
@@ -526,6 +544,12 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
                     }
                     let mut db: NewCategoryDB = cat.into();
                     db.id = Some(db.id.unwrap_or_else(|| Uuid::new_v4().to_string()));
+                    if TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&db.taxonomy_id.as_str()) && sync::category_merge_redirects(conn)?.iter().any(|r|
+                        r.taxonomy_id == db.taxonomy_id && Some(&r.source_id) == db.id.as_ref()) {
+                        return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                            "A merged category identity cannot be restored; create a new category instead".into(),
+                        ).into());
+                    }
 
                     diesel::insert_into(taxonomy_categories::table)
                         .values(&db)

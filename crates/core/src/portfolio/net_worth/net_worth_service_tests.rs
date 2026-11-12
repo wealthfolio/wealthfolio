@@ -707,7 +707,7 @@ impl FxServiceTrait for MockFxService {
 
 struct MockValuationRepository {
     valuations: Vec<DailyAccountValuation>,
-    /// Threads that read an account's history.
+    /// Threads that read stored valuations.
     readers: std::sync::Mutex<Vec<std::thread::ThreadId>>,
 }
 
@@ -797,6 +797,10 @@ impl ValuationRepositoryTrait for MockValuationRepository {
         account_ids: &[String],
         date: NaiveDate,
     ) -> Result<Vec<DailyAccountValuation>> {
+        self.readers
+            .lock()
+            .unwrap()
+            .push(std::thread::current().id());
         let filtered: Vec<_> = self
             .valuations
             .iter()
@@ -933,6 +937,7 @@ fn create_test_snapshot(
         cash_total_account_currency: Decimal::ZERO,
         cash_total_base_currency: Decimal::ZERO,
         calculated_at: Utc::now().naive_utc(),
+        base_currency: None,
         source: SnapshotSource::Calculated,
     }
 }
@@ -2543,6 +2548,47 @@ async fn test_history_reads_valuations_off_the_async_worker() {
     );
 }
 
+/// Net worth on a date reads stored valuations and every asset's quote
+/// history, so like the history it must not run on the async worker (Health
+/// Center's full check calls it too).
+#[tokio::test]
+async fn test_net_worth_reads_valuations_off_the_async_worker() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let account_repo = Arc::new(MockAccountRepository::new(vec![create_test_account(
+        "account-1",
+        account_types::SECURITIES,
+        "USD",
+    )]));
+    let valuations = Arc::new(MockValuationRepository::new(vec![create_total_valuation(
+        d1,
+        dec!(100),
+        dec!(100),
+    )]));
+    let service = NetWorthService::new(
+        Arc::new(RwLock::new("USD".to_string())),
+        account_repo.clone(),
+        Arc::new(MockAssetRepository::new(vec![])),
+        Arc::new(SnapshotService::new(
+            Arc::new(RwLock::new("UTC".to_string())),
+            account_repo,
+            Arc::new(MockSnapshotRepository::new(vec![])),
+            Arc::new(InMemoryActivityRepository::new(Vec::new(), HashSet::new())),
+        )),
+        Arc::new(MockMarketDataRepository::new(vec![])),
+        valuations.clone(),
+        Arc::new(MockFxService::new("USD")),
+    );
+
+    service.get_net_worth(d1).await.unwrap();
+
+    let readers = valuations.readers.lock().unwrap();
+    assert!(!readers.is_empty(), "net worth must read valuations");
+    assert!(
+        !readers.contains(&std::thread::current().id()),
+        "net worth read valuations on the async worker"
+    );
+}
+
 // ============================================================================
 // Archive Behavior Tests
 // ============================================================================
@@ -2826,6 +2872,37 @@ async fn automated_loan_net_worth_and_history_use_the_same_as_of_balance() {
             .total_liabilities,
         dec!(1000)
     );
+}
+
+/// An automatic loan is valued on the as-of date, so only a manual one goes stale.
+#[tokio::test]
+async fn automated_loan_is_never_stale_but_a_manual_one_is() {
+    let recorded = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let as_of = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+    let mut automatic = create_test_asset("LIAB-automatic", AssetKind::Liability, "USD");
+    automatic.metadata = Some(serde_json::json!({
+        "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"}
+    }));
+    let manual = create_test_asset("LIAB-manual", AssetKind::Liability, "USD");
+    let service = create_net_worth_service(
+        vec![],
+        vec![automatic, manual],
+        vec![],
+        vec![
+            create_test_quote("LIAB-automatic", dec!(1200), recorded, "USD"),
+            create_test_quote("LIAB-manual", dec!(5000), recorded, "USD"),
+        ],
+    );
+
+    let result = service.get_net_worth(as_of).await.unwrap();
+
+    assert_eq!(result.liabilities.total, dec!(5700));
+    let stale: Vec<_> = result
+        .stale_assets
+        .iter()
+        .map(|asset| asset.asset_id.as_str())
+        .collect();
+    assert_eq!(stale, vec!["LIAB-manual"]);
 }
 
 #[tokio::test]

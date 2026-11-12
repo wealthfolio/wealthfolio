@@ -177,6 +177,8 @@ function projectBudget(insight: SpendingInsight): BudgetSnapshot {
       remaining: g.remaining,
       overspent: g.overspent,
       rolloverEnabled: false,
+      savingsTargetTotal: 0,
+      savingsActual: 0,
       categories,
     };
   });
@@ -199,6 +201,9 @@ function projectBudget(insight: SpendingInsight): BudgetSnapshot {
         spendingPlanned: insight.headline.budget,
         spendingActual: insight.headline.spent,
         spendingRemaining: insight.headline.remaining,
+        // The projection carries spending only, as its groups do.
+        savingsPlanned: 0,
+        savingsActual: 0,
         incomePlanned: 0,
         incomeActual: insight.headline.income,
         groupBuffer: insight.groups.reduce((sum, g) => sum + g.buffer.total, 0),

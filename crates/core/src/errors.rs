@@ -11,6 +11,215 @@ use crate::activities::ActivityError;
 use crate::fx::FxError;
 use crate::quotes::MarketDataError;
 
+/// Reviewed client-facing error content. Arbitrary Display/Debug output can
+/// contain credentials or portfolio data and must never become a public message.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicError {
+    pub error_code: String,
+    pub message: String,
+}
+
+impl PublicError {
+    pub fn new(code: &'static str, message: &'static str) -> Self {
+        Self {
+            error_code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn internal() -> Self {
+        Self::new("internal_error", "The operation could not be completed.")
+    }
+
+    pub fn invalid_input() -> Self {
+        Self::new("invalid_input", "Check your input and try again.")
+    }
+
+    pub fn provider_unavailable() -> Self {
+        Self::new(
+            "provider_unavailable",
+            "The provider could not complete the request. Check your provider settings.",
+        )
+    }
+
+    /// Recover only reviewed control outcomes and refusals from legacy string
+    /// boundaries. The cloud API wrappers are accepted: device sync's
+    /// "API error (403): CODE: …" and Connect's "API error 403: CODE: …" or,
+    /// without a code, "API error 429 (…)". Diagnostic suffixes are discarded.
+    pub fn from_control_message(message: &str) -> Option<Self> {
+        let (status, message) = if let Some(api) = message.strip_prefix("API error (") {
+            let (status, message) = api.split_once("): ")?;
+            (Some(status), message)
+        } else if let Some(api) = message.strip_prefix("API error ") {
+            let (status, rest) = (api.get(..3)?, api.get(3..)?);
+            if !(rest.is_empty() || rest.starts_with([':', ' '])) {
+                return None;
+            }
+            (Some(status), rest.strip_prefix(": ").unwrap_or_default())
+        } else {
+            (None, message)
+        };
+        if status.is_some_and(|status| {
+            status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit())
+        }) {
+            return None;
+        }
+        let code = message.split(':').next()?;
+        // Connect and sync answer every subscription denial with its own
+        // SUBSCRIPTION_* code; the app treats them alike.
+        if code == "BACKUP_SUBSCRIPTION_REQUIRED"
+            || code.strip_prefix("SUBSCRIPTION_").is_some_and(|reason| {
+                !reason.is_empty()
+                    && reason
+                        .bytes()
+                        .all(|byte| byte.is_ascii_uppercase() || byte == b'_')
+            })
+        {
+            return Some(Self::new(
+                "SUBSCRIPTION_REQUIRED",
+                "An active subscription is required.",
+            ));
+        }
+        match code {
+            "PROFILE_BUSY"
+            | "Profile operations are running. Wait for them to finish and try again."
+            | "Connect account change is in progress. Try again." => Some(Self::new(
+                "PROFILE_BUSY", "PROFILE_BUSY: Profile operations are running. Wait for them to finish and try again.",
+            )),
+            "CONNECT_REBIND_REQUIRED" => Some(Self::new(
+                "CONNECT_REBIND_REQUIRED",
+                "CONNECT_REBIND_REQUIRED: Confirm changing this profile's Connect account or team.",
+            )),
+            "PROFILE_LOCKED" => Some(Self::new(
+                "PROFILE_LOCKED",
+                "PROFILE_LOCKED: Unlock this profile to continue.",
+            )),
+            "PROFILE_STALE" => Some(Self::new(
+                "PROFILE_STALE",
+                "PROFILE_STALE: This profile session has ended.",
+            )),
+            "BACKUP_REAUTHENTICATION_REQUIRED" => Some(Self::new(
+                "BACKUP_REAUTHENTICATION_REQUIRED",
+                "Sign in again to continue this backup operation.",
+            )),
+            "BACKUP_MANUAL_LIMIT" => Some(Self::new(
+                "BACKUP_MANUAL_LIMIT",
+                "The daily manual backup limit has been reached.",
+            )),
+            ADDON_MANIFEST_MISSING => Some(Self::new(
+                ADDON_MANIFEST_MISSING,
+                "The add-on ZIP file has no manifest.json.",
+            )),
+            ADDON_MAIN_FILE_MISSING => Some(Self::new(
+                ADDON_MAIN_FILE_MISSING,
+                "The add-on ZIP file doesn't contain the main file its manifest names.",
+            )),
+            ADDON_NEEDS_NEWER_VERSION => Some(Self::new(
+                ADDON_NEEDS_NEWER_VERSION,
+                "This add-on needs a newer version of Wealthfolio.",
+            )),
+            AGENT_SCOPE_UNKNOWN => Some(Self::new(
+                AGENT_SCOPE_UNKNOWN,
+                "A requested scope is not recognized.",
+            )),
+            AGENT_SCOPE_DEPENDENCY => Some(Self::new(
+                AGENT_SCOPE_DEPENDENCY,
+                "A write scope needs its matching read, draft or suggest scope.",
+            )),
+            "PLAN_UPGRADE_REQUIRED" => Some(Self::new(
+                "PLAN_UPGRADE_REQUIRED",
+                "Upgrade your plan to use this feature.",
+            )),
+            _ if status == Some("429") => Some(Self::new(
+                "RATE_LIMITED",
+                "Too many requests. Wait a minute and try again.",
+            )),
+            _ => None,
+        }
+    }
+
+    /// Preserve typed core classifications through wrapping errors, without
+    /// exposing arbitrary sources or context strings.
+    pub fn from_error(error: &(dyn std::error::Error + 'static)) -> Self {
+        let mut source = Some(error);
+        while let Some(error) = source {
+            if let Some(error) = error.downcast_ref::<Error>() {
+                return error.public_error();
+            }
+            source = error.source();
+        }
+        Self::internal()
+    }
+}
+
+impl Error {
+    pub fn public_error(&self) -> PublicError {
+        match self {
+            // LoanError is a closed enum of stable codes, with no user data.
+            Self::Validation(ValidationError::Loan(error)) => PublicError {
+                error_code: error.to_string(),
+                message: error.to_string(),
+            },
+            Self::Validation(ValidationError::InvalidSnapshotDate { .. }) => PublicError::new(
+                "INVALID_SNAPSHOT_DATE",
+                "This date is outside the supported snapshot range.",
+            ),
+            Self::Validation(ValidationError::CustomProviderCodeReserved) => PublicError::new(
+                "custom_provider_code_reserved", "This provider code is reserved. Choose a different code.",
+            ),
+            Self::Validation(ValidationError::CustomProviderInUse) => PublicError::new(
+                "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
+            ),
+            Self::Validation(_) => PublicError::invalid_input(),
+            // The activity form names this refusal; only the static text is compared.
+            Self::Activity(ActivityError::InvalidData(message))
+                if message == QUOTE_CURRENCY_REQUIRED_MESSAGE =>
+            {
+                PublicError::new(
+                    "QUOTE_CURRENCY_REQUIRED",
+                    "Quote currency is required. Select the symbol again from the search results.",
+                )
+            }
+            // The asset editor names this refusal; the code is fixed by core,
+            // so only the static message below leaves the process.
+            Self::ConstraintViolation(message)
+                if message.starts_with(ASSET_IDENTITY_CONFLICT_PREFIX) =>
+            {
+                PublicError::new(
+                    "ASSET_IDENTITY_CONFLICT",
+                    "An asset with this identity already exists. Your changes were not saved.",
+                )
+            }
+            Self::ConstraintViolation(_)
+            | Self::Database(
+                DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
+            ) => PublicError::new("conflict", "The change conflicts with existing data."),
+            Self::Database(DatabaseError::NotFound(_)) => {
+                PublicError::new("not_found", "The requested item was not found.")
+            }
+            _ => PublicError::internal(),
+        }
+    }
+}
+
+/// Prefix of the core refusal raised when an asset profile edit would collide
+/// with another asset's identity (symbol, exchange, instrument type).
+pub const ASSET_IDENTITY_CONFLICT_PREFIX: &str = "ASSET_IDENTITY_CONFLICT:";
+
+/// The activity refusal for a security saved without a quote currency.
+pub const QUOTE_CURRENCY_REQUIRED_MESSAGE: &str =
+    "Quote currency is required. Please re-select the symbol.";
+
+// Refusals that add-on packages and agent token scopes raise as text start
+// with one of these codes and a colon. `PublicError::from_control_message`
+// gives each a fixed public message.
+pub const ADDON_MANIFEST_MISSING: &str = "ADDON_MANIFEST_MISSING";
+pub const ADDON_MAIN_FILE_MISSING: &str = "ADDON_MAIN_FILE_MISSING";
+pub const ADDON_NEEDS_NEWER_VERSION: &str = "ADDON_NEEDS_NEWER_VERSION";
+pub const AGENT_SCOPE_UNKNOWN: &str = "AGENT_SCOPE_UNKNOWN";
+pub const AGENT_SCOPE_DEPENDENCY: &str = "AGENT_SCOPE_DEPENDENCY";
+
 /// Type alias for Result using our Error type.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -59,6 +268,12 @@ pub enum Error {
 
     #[error("Repository error: {0}")]
     Repository(String),
+
+    #[error("Holdings values are unavailable: {0}")]
+    HoldingsUnavailable(String),
+
+    #[error("Holdings are updating for accounts {0:?}")]
+    HoldingsPending(Vec<String>),
 
     #[error("Holdings calculation failed: {0}")]
     Calculation(#[from] CalculatorError),
@@ -183,6 +398,14 @@ pub enum ValidationError {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
+    /// A built-in provider owns this code; no user-supplied code is public.
+    #[error("This provider code is reserved. Choose a different code.")]
+    CustomProviderCodeReserved,
+
+    /// Provider deletion is blocked by existing asset references.
+    #[error("Change the provider for affected assets or remove their symbol mappings before deleting it.")]
+    CustomProviderInUse,
+
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]
     Loan(#[from] crate::assets::loan::LoanError),
@@ -248,6 +471,172 @@ impl From<ChronoParseError> for Error {
 
 impl From<Error> for String {
     fn from(err: Error) -> Self {
-        err.to_string()
+        // Legacy desktop commands use String errors. Keep their transport shape,
+        // but pass a stable identifier rather than internal diagnostic text.
+        err.public_error().error_code
+    }
+}
+
+#[cfg(test)]
+mod public_error_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_control_codes_discard_private_suffixes_and_reject_unknown_codes() {
+        let private = "FAKE-KEY-2531 /private/portfolio.db account_balance";
+        for code in [
+            "BACKUP_REAUTHENTICATION_REQUIRED",
+            "BACKUP_MANUAL_LIMIT",
+            "PROFILE_LOCKED",
+            "PROFILE_STALE",
+            "PROFILE_BUSY",
+            "CONNECT_REBIND_REQUIRED",
+            ADDON_MANIFEST_MISSING,
+            ADDON_MAIN_FILE_MISSING,
+            ADDON_NEEDS_NEWER_VERSION,
+            AGENT_SCOPE_UNKNOWN,
+            AGENT_SCOPE_DEPENDENCY,
+        ] {
+            for message in [
+                format!("{code}: {private}"),
+                format!("API error (409): {code}: {private}"),
+            ] {
+                let public = PublicError::from_control_message(&message).unwrap();
+                assert_eq!(public.error_code, code);
+                assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+            }
+            assert!(
+                PublicError::from_control_message(&format!("{code}_OTHER: {private}")).is_none()
+            );
+            assert!(PublicError::from_control_message(&format!("{private}: {code}")).is_none());
+        }
+    }
+
+    #[test]
+    fn actionable_custom_provider_refusals_have_public_codes() {
+        for (error, code) in [
+            (
+                ValidationError::CustomProviderCodeReserved,
+                "custom_provider_code_reserved",
+            ),
+            (
+                ValidationError::CustomProviderInUse,
+                "custom_provider_in_use",
+            ),
+        ] {
+            assert_eq!(Error::from(error).public_error().error_code, code);
+        }
+    }
+
+    #[test]
+    fn public_errors_exclude_secrets_paths_and_database_details() {
+        const PRIVATE: &str = "FAKE-KEY-2531 /private/portfolio.db SELECT account_balance";
+        for error in [
+            Error::Database(DatabaseError::QueryFailed(PRIVATE.into())),
+            Error::Secret(PRIVATE.into()),
+            Error::Unexpected(PRIVATE.into()),
+            Error::Validation(ValidationError::InvalidInput(PRIVATE.into())),
+            Error::Validation(ValidationError::MissingField(PRIVATE.into())),
+            Error::ConstraintViolation(PRIVATE.into()),
+        ] {
+            let json = serde_json::to_string(&error.public_error()).unwrap();
+            for private in PRIVATE.split_whitespace() {
+                assert!(!json.contains(private), "{json}");
+            }
+            let legacy: String = error.into();
+            assert!(!legacy.contains("FAKE-KEY"));
+            assert!(!legacy.contains("/private"));
+        }
+        let wrapped = anyhow::Error::new(Error::Validation(ValidationError::InvalidInput(
+            PRIVATE.into(),
+        )))
+        .context(PRIVATE);
+        assert_eq!(
+            PublicError::from_error(wrapped.as_ref()).error_code,
+            "invalid_input"
+        );
+    }
+
+    #[test]
+    fn connect_api_errors_keep_subscription_plan_and_rate_limit_codes() {
+        let private = "request_id=FAKE-KEY-2531 /private/portfolio.db";
+        for (message, code) in [
+            (
+                format!("API error 403: SUBSCRIPTION_CANCELED: Subscription required ({private})"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error (403): BACKUP_SUBSCRIPTION_REQUIRED: {private}"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error 403: PLAN_UPGRADE_REQUIRED: Upgrade ({private})"),
+                Some("PLAN_UPGRADE_REQUIRED"),
+            ),
+            (format!("API error 429 ({private})"), Some("RATE_LIMITED")),
+            (
+                format!("API error 429: RATE_LIMITED: Too many requests ({private})"),
+                Some("RATE_LIMITED"),
+            ),
+            (format!("API error (429): {private}"), Some("RATE_LIMITED")),
+            (format!("API error 403: SUBSCRIPTION_: {private}"), None),
+            (
+                format!("API error 403: SUBSCRIPTION_canceled: {private}"),
+                None,
+            ),
+            (format!("API error 401: UNAUTHORIZED: {private}"), None),
+            (format!("API error 4290: {private}"), None),
+            (format!("{private}: API error 429"), None),
+        ] {
+            let public = PublicError::from_control_message(&message);
+            assert_eq!(
+                public.as_ref().map(|public| public.error_code.as_str()),
+                code,
+                "{message}"
+            );
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
+    }
+
+    #[test]
+    fn a_missing_quote_currency_keeps_its_public_code() {
+        let public = Error::Activity(ActivityError::InvalidData(
+            QUOTE_CURRENCY_REQUIRED_MESSAGE.to_string(),
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "QUOTE_CURRENCY_REQUIRED");
+
+        // Other invalid activity data stays generic.
+        let other = Error::Activity(ActivityError::InvalidData(format!(
+            "{QUOTE_CURRENCY_REQUIRED_MESSAGE} FAKE-KEY-2531"
+        )))
+        .public_error();
+        assert_eq!(other.error_code, "internal_error");
+        assert!(!serde_json::to_string(&other).unwrap().contains("FAKE-KEY"));
+    }
+
+    #[test]
+    fn asset_identity_conflict_keeps_its_public_code_without_details() {
+        let public = Error::ConstraintViolation(format!(
+            "{ASSET_IDENTITY_CONFLICT_PREFIX} FAKE-KEY-2531 /private/portfolio.db"
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "ASSET_IDENTITY_CONFLICT");
+        let json = serde_json::to_string(&public).unwrap();
+        assert!(
+            !json.contains("FAKE-KEY") && !json.contains("/private"),
+            "{json}"
+        );
+
+        // Only the leading code counts; other constraint failures stay generic.
+        let other = Error::ConstraintViolation("UNIQUE failed: ASSET_IDENTITY_CONFLICT:".into());
+        assert_eq!(other.public_error().error_code, "conflict");
+    }
+
+    #[test]
+    fn public_errors_preserve_typed_loan_refusals() {
+        let error = Error::from(crate::assets::loan::LoanError::EventChanged).public_error();
+        assert_eq!(error.error_code, "LOAN_EVENT_CHANGED");
+        assert_eq!(error.message, "LOAN_EVENT_CHANGED");
     }
 }

@@ -45,12 +45,13 @@ pub(super) fn deployable_cash_from_contributions(
     )
 }
 
-pub(super) fn tracked_cash(holdings: &[Holding]) -> Decimal {
+pub(super) fn tracked_cash(holdings: &[Holding]) -> crate::Result<Decimal> {
     holdings
         .iter()
         .filter(|h| h.holding_type == HoldingType::Cash)
         .map(|h| h.market_value.base)
-        .sum()
+        .sum::<Option<Decimal>>()
+        .ok_or_else(|| crate::Error::HoldingsUnavailable("cash valuation is incomplete".into()))
 }
 
 #[cfg(test)]

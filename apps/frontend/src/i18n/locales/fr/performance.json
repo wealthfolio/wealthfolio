@@ -73,9 +73,6 @@
     "return": "Rendement",
     "time_weighted_return": "Rendement pondéré dans le temps",
     "time_weighted_short": "Pondéré dans le temps",
-    "twr_short": "TWR",
-    "annualized_twr": "TWR annualisé",
-    "ann_twr_short": "TWR ann.",
     "money_weighted_return": "Rendement pondéré par l'argent",
     "money_weighted_short": "Pondéré par l'argent",
     "mwr_short": "MWR",
@@ -83,12 +80,9 @@
     "ann_mwr_short": "MWR ann.",
     "value_return": "Rendement en valeur",
     "value_return_short": "Rendement en valeur",
-    "value_short": "Valeur",
     "price_return": "Rendement du prix",
     "price_return_short": "Rendement du prix",
-    "price_short": "Prix",
     "volatility": "Volatilité",
-    "vol_short": "Vol",
     "max_drawdown": "Perte maximale",
     "max_drawdown_short": "Perte max.",
     "drawdown_short": "Perte max.",
@@ -96,11 +90,6 @@
     "annualized_short": "Annualisé",
     "gain_loss": "Gain / perte",
     "gain_loss_info": "Profit ou perte total sur la période sélectionnée. Ouvrez la métrique pour les détails d'attribution."
-  },
-  "section": {
-    "returns": "Rendements",
-    "risk": "Risque",
-    "total": "Total"
   },
   "help": {
     "aria_label": "Explications des métriques de performance",
@@ -150,5 +139,13 @@
     "holdings_volatility": "Volatilité des variations de valeur du compte. Calculée à partir des valorisations quotidiennes, sans ajustement pour les dépôts ou retraits. Elle reflète l’ampleur des fluctuations de la valeur de marché.",
     "holdings_max_drawdown": "Plus forte baisse de la valeur du compte entre un sommet et un creux. Calculée à partir des valorisations quotidiennes, sans ajustement pour les dépôts ou retraits."
   },
-  "compare_over_time": "Comparer l’évolution des performances des comptes"
+  "compare_over_time": "Comparer l’évolution des performances des comptes",
+  "series_table": {
+    "label": "Séries comparées",
+    "name": "Nom",
+    "show_all": "Tout afficher ({{count}})",
+    "show_less": "Afficher moins",
+    "hide_on_chart": "Masquer {{name}} sur le graphique",
+    "show_on_chart": "Afficher {{name}} sur le graphique"
+  }
 }

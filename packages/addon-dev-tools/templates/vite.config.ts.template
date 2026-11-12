@@ -43,10 +43,5 @@ export default defineConfig({
     rollupOptions: {
       external: hostProvidedDependencies,
     },
-    watch: {
-      // Watch mode options for better hot reloading
-      include: ["src/**"],
-      exclude: ["node_modules/**", "dist/**"],
-    },
   },
 });
