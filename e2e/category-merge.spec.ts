@@ -200,16 +200,26 @@ for (const direction of ["ltr", "rtl"]) {
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     // A real intervening write invalidates the review without partial merging.
-    await api(
-      "spending/budget/targets",
-      {
-        taxonomyId: "spending_categories",
-        categoryId: source.id,
-        periodKey: "2026-03",
-        targetType: "category",
-        amount: "60",
+    // It lands after the dialog sent its reviewed revision: written any earlier,
+    // a background refetch of the review (a portfolio update completing
+    // invalidates every query) can pick it up first and merge it legitimately.
+    await page.route(
+      "**/api/v1/spending/categories/merge",
+      async (route) => {
+        await api(
+          "spending/budget/targets",
+          {
+            taxonomyId: "spending_categories",
+            categoryId: source.id,
+            periodKey: "2026-03",
+            targetType: "category",
+            amount: "60",
+          },
+          "POST",
+        );
+        await route.continue();
       },
-      "POST",
+      { times: 1 },
     );
     const staleResponse = page.waitForResponse((response) =>
       response.url().endsWith("/spending/categories/merge"),

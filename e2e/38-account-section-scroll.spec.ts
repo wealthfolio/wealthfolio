@@ -74,6 +74,10 @@ test("switching an account's sections keeps the page where it was", async ({ pag
   const activities = page.getByRole("button", { name: "Activities", exact: true });
   await expect(activities).toBeVisible({ timeout: 15_000 });
   await expect(container.getByText(`SEC${runId}9`, { exact: true })).toBeVisible();
+  // The performance grid above the switch replaces a skeleton of another
+  // height when it loads, and the browser's scroll anchoring then moves the
+  // page; let it load before recording where the page is.
+  await expect(container.getByText("Time Weighted Return", { exact: true })).toBeVisible();
 
   // Bring the section switch near the top, with the holdings filling the screen.
   const before = await container.evaluate((element) => {

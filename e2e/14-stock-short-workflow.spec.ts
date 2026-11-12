@@ -98,7 +98,8 @@ test.describe("Stock short workflow", () => {
       holding: {
         quantity: -10,
         costBasis: -1000,
-        realizedGain: null,
+        // Nothing covered yet: realized gain is zero, as for a new long (722a745ff).
+        realizedGain: 0,
         lots: [{ quantity: -10, costBasis: -1000, acquisitionPrice: 100 }],
       },
       assetLots: [
