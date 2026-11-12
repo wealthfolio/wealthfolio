@@ -30,9 +30,10 @@
       "unit_types": "種別",
       "unit_currencies": "通貨",
       "unit_groups": "グループ",
-      "other_units": "その他の{{unit}}",
+      "other_units_one": "その他 {{count}} 項目",
+      "other_units_other": "その他 {{count}} 項目",
       "breakdown": "内訳",
-      "top_units": "上位の{{unit}}",
+      "top_units": "上位 {{count}} 項目",
       "show_less": "折りたたむ",
       "show_all": "すべて表示"
     },
@@ -78,7 +79,6 @@
       "link_explanation": "既存の不動産への関連付けでは純資産額は変わりません。"
     },
     "failed_to_load": "純資産の読み込みに失敗しました",
-    "stale_valuations_tooltip": "評価額が古い資産(90日以上):",
     "days_ago": "{{count}}日前",
     "no_history_data": "履歴データがありません",
     "breakdown": "内訳",
@@ -104,7 +104,8 @@
     "category_sheet": {
       "over_period": "{{period}}の推移",
       "trend_period": "推移 · {{period}}",
-      "items": "項目"
+      "items": "項目",
+      "view_details": "詳細を表示"
     },
     "trend": {
       "not_enough_history": "履歴が不足しています"
@@ -144,7 +145,13 @@
     "portfolio_share": "現金を含むポートフォリオ評価額に占める割合",
     "largest": "最大の保有銘柄",
     "top_five": "上位5銘柄",
-    "concentration_unavailable": "集中度を表示するには、保有銘柄の評価額が正で、空売りポジションがない必要があります。"
+    "concentration_unavailable": "集中度を表示するには、保有銘柄の評価額が正で、空売りポジションがない必要があります。",
+    "holdings": "保有銘柄",
+    "holdings_count_one": "{{count}} 銘柄",
+    "holdings_count_other": "{{count}} 銘柄",
+    "other_holdings_one": "その他 {{count}} 銘柄",
+    "other_holdings_other": "その他 {{count}} 銘柄",
+    "holdings_unavailable": "保有銘柄チャートには、正の評価額と空売りポジションのないポートフォリオが必要です。"
   },
   "customize": {
     "edit": "カスタマイズ",

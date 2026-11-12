@@ -184,7 +184,15 @@ export function PageHeader({
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               {onBack && (
-                <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("ui:page.back", "Back")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  // On phones the arrow lines up with the content edge; the 44px target
+                  // reaches into the page padding instead of pushing the title in.
+                  className="max-md:-ms-3"
+                  onClick={onBack}
+                  aria-label={t("ui:page.back", "Back")}
+                >
                   <Icons.ArrowLeft className="size-5 rtl:rotate-180" />
                 </Button>
               )}

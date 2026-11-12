@@ -1,8 +1,8 @@
 {
   "name": "wealthfolio-app",
   "private": true,
-  "version": "3.12.0",
-  "packageManager": "pnpm@10.33.4",
+  "version": "3.13.0",
+  "packageManager": "pnpm@10.34.9",
   "type": "module",
   "workspaces": [
     "apps/frontend",
@@ -21,7 +21,7 @@
     "preview": "pnpm --filter frontend preview",
     "tauri": "node scripts/tauri.mjs",
     "test": "pnpm test:scripts && pnpm --filter frontend test",
-    "test:scripts": "node --test scripts/tauri.test.mjs scripts/design-ratchet-direction.test.mjs scripts/design-ratchet-sign.test.mjs apps/frontend/scripts/theme-generate.test.mjs scripts/frontend-tooling.test.mjs",
+    "test:scripts": "node --test scripts/tauri.test.mjs scripts/design-ratchet-direction.test.mjs scripts/design-ratchet-sign.test.mjs apps/frontend/scripts/theme-generate.test.mjs scripts/frontend-tooling.test.mjs scripts/run-e2e.test.mjs scripts/prep-e2e.test.mjs",
     "test:watch": "pnpm --filter frontend test:watch",
     "test:ui": "pnpm --filter frontend test:ui",
     "test:coverage": "pnpm --filter frontend test:coverage",
@@ -51,17 +51,17 @@
     "addon:dev": "cd packages/addon-dev-tools && node dev-server.js"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.58.2",
-    "@tanstack/eslint-plugin-query": "^5.105.0",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.0",
+    "@tanstack/eslint-plugin-query": "^5.106.1",
     "@tauri-apps/cli": "^2.12.4",
     "@typescript/native": "npm:typescript@^7.0.2",
     "eslint": "^10.14.0",
     "eslint-plugin-react": "^7.37.5",
-    "oxfmt": "^0.74.0",
-    "oxlint": "^1.89.0",
-    "oxlint-tsgolint": "^7.0.2005",
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
+    "oxlint-tsgolint": "^7.0.2006",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.72.0"
+    "typescript-eslint": "^8.72.1"
   }
 }

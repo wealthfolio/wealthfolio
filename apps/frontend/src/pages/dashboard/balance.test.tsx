@@ -88,8 +88,17 @@ describe("Balance", () => {
     expect(screen.getByTestId("portfolio-balance-value")).toHaveTextContent("KWD 1.235");
   });
 
+  it("marks a foreign dollar the way the region does, as every other amount does", () => {
+    render(
+      <FormattingProvider locale="CA">
+        <Balance targetValue={1234.56} currency="USD" displayCurrency />
+      </FormattingProvider>,
+    );
+    expect(screen.getByTestId("portfolio-balance-value")).toHaveTextContent("US$1,234.56");
+  });
+
   it.each([
-    { locale: "GB", currency: "USD", expected: "$•••••••" },
+    { locale: "GB", currency: "USD", expected: "US$•••••••" },
     { locale: "DE", currency: "EUR", expected: "••••••• €" },
   ])(
     "hides a $currency balance in $locale with the symbol it shows",

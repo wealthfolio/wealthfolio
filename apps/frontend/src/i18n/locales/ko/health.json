@@ -5,6 +5,11 @@
       "title_other": "보유 종목 {{count}}개의 수동 평가액 누락",
       "message": "수동/커스텀 보유 종목은 평가된 성과 포지션으로 포함되려면 수동 평가액이 필요합니다."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "{{name}}의 평가액이 업데이트되지 않음",
+      "title_other": "자산 {{count}}개의 평가액이 업데이트되지 않음",
+      "message": "수동으로 평가하는 일부 자산이 {{days}}일 넘게 업데이트되지 않아 순자산이 최신이 아닐 수 있습니다."
+    },
     "price_no_market_data": {
       "title_one": "{{symbol}}의 시세 데이터 없음",
       "title_other": "보유 종목 {{count}}개의 시세 데이터 없음",
@@ -196,6 +201,7 @@
     "rebuild_account_history": "내역 재구축",
     "add_price": "가격 추가",
     "update_cost_basis": "취득 원가 업데이트",
+    "update_value": "평가액 업데이트",
     "review_transaction": "거래 검토",
     "review_entry": "항목 검토"
   },
@@ -274,5 +280,17 @@
       "pendingText": "무시하는 중..."
     },
     "affectedItems_other": "영향받은 항목 ({{count}}개)"
+  },
+  "activityReasons": {
+    "activity_id": "거래: {{id}}",
+    "missing_fx_rate": "{{date}}에 {{from}}에서 {{to}}로의 환율이 없습니다.",
+    "close_buy_without_short_position": "이 매수는 {{asset}} 포지션을 청산하도록 지정되어 있지만, 청산할 숏 포지션이 없습니다.",
+    "sell_short_intent_required": "이 매도는 {{asset}}의 숏 포지션을 늘립니다. 공매도로 지정하세요.",
+    "conversion_insufficient_holdings": "이 전환에는 {{asset}} {{requested}}단위가 필요하지만 계좌에는 {{held}}단위만 있습니다.",
+    "conversion_currency_mismatch": "{{fromAsset}}은(는) {{fromCurrency}}, {{toAsset}}은(는) {{toCurrency}} 통화로 보유하고 있습니다. 전환 시 같은 통화를 유지해야 합니다.",
+    "return_of_capital_amount_required": "이 자본 환급의 금액을 입력하세요.",
+    "sell_without_position": "매도할 {{asset}} 포지션이 없습니다. 현금에 미치는 영향만 반영되었습니다.",
+    "insufficient_quantity": "이 거래는 {{asset}} {{requested}}단위를 차감하지만 보유 수량은 {{held}}단위뿐이었습니다. 나머지 {{excess}}단위에는 취득 원가가 없습니다.",
+    "missing_final_cash": "이 기장된 거래에는 최종 현금 금액이 없어 현금 잔액이 변경되지 않았습니다."
   }
 }

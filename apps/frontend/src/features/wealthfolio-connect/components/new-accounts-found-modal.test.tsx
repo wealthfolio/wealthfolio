@@ -6,7 +6,10 @@ import type { Account } from "@/lib/types";
 import { NewAccountsFoundModal } from "./new-accounts-found-modal";
 
 const mocks = vi.hoisted(() => ({ updateAccount: vi.fn() }));
-vi.mock("@/adapters", () => ({ updateAccount: mocks.updateAccount }));
+vi.mock("@/adapters", () => ({
+  updateAccount: mocks.updateAccount,
+  openUrlInBrowser: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../services/broker-service", () => ({ syncBrokerData: vi.fn() }));
 
 const account = {

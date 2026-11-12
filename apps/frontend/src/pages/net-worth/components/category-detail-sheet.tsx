@@ -1,7 +1,8 @@
-import { useNumberFormatting } from "@wealthfolio/ui";
+import { buttonVariants, useNumberFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { CategoryTrendChart } from "./category-trend-chart";
 import { CompactAmount } from "./compact-amount";
 import {
@@ -10,6 +11,7 @@ import {
   deriveChange,
   formatChangePercent,
   hadBalanceBefore,
+  liabilityDetailPath,
   toneClass,
   toneColor,
   type ParsedHistoryPoint,
@@ -140,6 +142,22 @@ export function CategoryDetailSheet({
                 <CategoryTrendChart data={trend} color={toneColor(change.amount)} />
               </div>
 
+              {/* A liability is one item with a page of its own. */}
+              {selected.isLiability && (
+                <Link
+                  to={liabilityDetailPath(selected.key)}
+                  onClick={() => onOpenChange(false)}
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full pointer-coarse:h-11",
+                  })}
+                >
+                  {t("insights:networth.category_sheet.view_details")}
+                  <Icons.ArrowRight className="size-4 rtl:rotate-180" aria-hidden />
+                </Link>
+              )}
+
               {/* Items rolled into this category */}
               {selected.children.length > 0 && (
                 <div>
@@ -147,31 +165,52 @@ export function CategoryDetailSheet({
                     {t("insights:networth.category_sheet.items")}
                   </p>
                   <div className="divide-border/40 divide-y">
-                    {selected.children.map((child, index) => (
-                      <div
-                        key={child.assetId ?? `${child.name}-${index}`}
-                        className="flex items-center justify-between gap-3 py-2"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <CategoryAvatar selected={selected} />
-                          <span className="text-foreground/90 min-w-0 truncate text-sm">
-                            {child.name}
-                          </span>
-                        </div>
-                        <div className="flex items-baseline gap-2.5">
-                          {selected.value > 0 && (
-                            <span className="text-muted-foreground/60 text-xs tabular-nums">
-                              {formatting.formatPercent(child.value / selected.value, {
-                                digits: 1,
-                              })}
+                    {selected.children.map((child, index) => {
+                      const content = (
+                        <>
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <CategoryAvatar selected={selected} />
+                            <span className="text-foreground/90 min-w-0 truncate text-sm">
+                              {child.name}
                             </span>
-                          )}
-                          <span className="text-foreground/90 text-sm tabular-nums">
-                            <CompactAmount value={child.value} currency={currency} />
-                          </span>
+                          </div>
+                          <div className="flex items-baseline gap-2.5">
+                            {selected.value > 0 && (
+                              <span className="text-muted-foreground/60 text-xs tabular-nums">
+                                {formatting.formatPercent(child.value / selected.value, {
+                                  digits: 1,
+                                })}
+                              </span>
+                            )}
+                            <span className="text-foreground/90 text-sm tabular-nums">
+                              <CompactAmount value={child.value} currency={currency} />
+                            </span>
+                            {child.assetId && (
+                              <Icons.ChevronRight
+                                className="text-muted-foreground size-4 rtl:rotate-180"
+                                aria-hidden
+                              />
+                            )}
+                          </div>
+                        </>
+                      );
+                      const rowClass = "flex items-center justify-between gap-3 py-2";
+                      // Each item opens its own asset page.
+                      return child.assetId ? (
+                        <Link
+                          key={child.assetId}
+                          to={`/holdings/${encodeURIComponent(child.assetId)}`}
+                          onClick={() => onOpenChange(false)}
+                          className={`${rowClass} hover:bg-muted/50 -mx-2 rounded-md px-2 pointer-coarse:min-h-11`}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <div key={`${child.name}-${index}`} className={rowClass}>
+                          {content}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

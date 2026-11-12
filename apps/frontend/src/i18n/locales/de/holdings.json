@@ -1,4 +1,6 @@
 {
+  "scope_updating": "Die Berechnungen einiger Konten sind unvollständig. Die Summen sind nach Abschluss verfügbar.",
+  "scope_unavailable": "Die Bestände einiger Konten sind nicht verfügbar. Die Summen sind unvollständig.",
   "holdings": "Bestände",
   "insights": "Einblicke",
   "my_holdings": "Meine Bestände",

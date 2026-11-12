@@ -932,23 +932,19 @@ impl DeviceSyncRuntimeState {
 
 async fn open_session<P: RestorePorts>(ports: &P) -> Result<Session, Failure> {
     let not_ready = |message: String| {
+        if message.contains("SUBSCRIPTION_") || message.contains("PLAN_UPGRADE_REQUIRED") {
+            return failure(
+                RestoreErrorCode::SubscriptionRequired,
+                RestoreRetry::Transfer,
+                message,
+            );
+        }
         failure(
             RestoreErrorCode::DeviceNotReady,
             RestoreRetry::Transfer,
             message,
         )
     };
-    match ports.is_sync_allowed().await {
-        Ok(true) => {}
-        Ok(false) => {
-            return Err(failure(
-                RestoreErrorCode::SubscriptionRequired,
-                RestoreRetry::Transfer,
-                "Device sync requires an active subscription.",
-            ))
-        }
-        Err(error) => return Err(not_ready(error)),
-    }
     let identity = ports
         .get_sync_identity()
         .ok_or_else(|| not_ready("No sync identity configured.".to_string()))?;
@@ -977,6 +973,13 @@ async fn open_session<P: RestorePorts>(ports: &P) -> Result<Session, Failure> {
 }
 
 fn transfer_failed(error: TransportError) -> Failure {
+    if error.is_subscription_blocked() {
+        return failure(
+            RestoreErrorCode::SubscriptionRequired,
+            RestoreRetry::Transfer,
+            error.message,
+        );
+    }
     failure(
         RestoreErrorCode::TransferFailed,
         RestoreRetry::Transfer,
@@ -1000,11 +1003,16 @@ async fn find_snapshot<P: RestorePorts>(
         },
         None => None,
     };
-    let action = ports
+    let action = match ports
         .get_reconcile_ready_state(&session.token, device_id)
         .await
-        .ok()
-        .map(|reconcile| reconcile.action);
+    {
+        Ok(reconcile) => Some(reconcile.action),
+        Err(error) if error.is_subscription_blocked() => {
+            return Err(transfer_failed(error));
+        }
+        Err(_) => None,
+    };
     let reconcile_requires_snapshot = matches!(
         action.as_deref(),
         Some("WAIT_SNAPSHOT") | Some("BOOTSTRAP_SNAPSHOT")

@@ -294,8 +294,8 @@ export function BuyForm({
       quantity: undefined,
       unitPrice: undefined,
       amount: undefined,
-      fee: 0,
-      tax: 0,
+      fee: undefined,
+      tax: undefined,
       comment: null,
       subtype: null,
       fxRate: undefined,
@@ -416,7 +416,7 @@ export function BuyForm({
   const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
 
-  const { holdings } = useHoldings({ type: "account", accountId });
+  const { holdings, isComplete: holdingsComplete } = useHoldings({ type: "account", accountId });
   const currentHoldingQuantity = useMemo(() => {
     if (!assetId || !holdings) return 0;
     const holding = holdings.find(
@@ -431,10 +431,17 @@ export function BuyForm({
     defaultValues?.subtype === ACTIVITY_SUBTYPES.POSITION_CLOSE;
   const showBuyToCover =
     isStock && (currentShortQuantity > 0 || isStockCover || isEditingCoverActivity);
-  const isCoverWithoutShort = !isEditing && isStockCover && !!assetId && currentShortQuantity === 0;
+  const isCoverWithoutShort =
+    holdingsComplete && !isEditing && isStockCover && !!assetId && currentShortQuantity === 0;
   const isBuyWhileShortWithoutCover =
-    !isEditing && isStock && !!assetId && currentShortQuantity > 0 && !isStockCover;
+    holdingsComplete &&
+    !isEditing &&
+    isStock &&
+    !!assetId &&
+    currentShortQuantity > 0 &&
+    !isStockCover;
   const isCoverQuantityExcess =
+    holdingsComplete &&
     !isEditing &&
     isStockCover &&
     !!assetId &&

@@ -146,7 +146,7 @@ export const ChatReviewGrid = memo(function ChatReviewGrid({
   return (
     <div className="space-y-2">
       <FilterPills filter={filter} onFilterChange={onFilterChange} stats={stats} />
-      <div className="[&_*]:scrollbar-thin flex min-w-0 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-col overflow-hidden [&_*]:scrollbar-thin">
         <ImportReviewGrid
           drafts={filteredDrafts}
           selectedRows={selectedRows}

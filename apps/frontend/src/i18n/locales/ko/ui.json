@@ -109,6 +109,9 @@
     "search": "검색 ...",
     "reset": "초기화",
     "columns": "열",
+    "moveColumnUp": "{{column}} 위로 이동",
+    "moveColumnDown": "{{column}} 아래로 이동",
+    "resetColumnOrder": "열 순서 초기화",
     "sortAsc": "오름차순",
     "sortDesc": "내림차순",
     "hide": "숨기기"
@@ -116,6 +119,8 @@
   "datePicker": {
     "dateLabel": "날짜",
     "pick": "날짜 선택",
+    "time": "시간",
+    "done": "완료",
     "previousMonth": "이전 달",
     "nextMonth": "다음 달",
     "chooseMonth": "월 선택",
@@ -206,6 +211,7 @@
     "typeToSearch": "검색하려면 입력하세요"
   },
   "sheet": {
+    "back": "뒤로",
     "close": "닫기"
   },
   "page": {

@@ -53,7 +53,15 @@ impl SpendingSettingsRepositoryTrait for SpendingSettingsRepository {
             .collect();
         self.writer
             .exec_tx(move |tx| {
-                for row in rows {
+                for mut row in rows {
+                    if row.setting_key
+                        == wealthfolio_spending::settings::SETTING_KEY_EXCLUDED_CATEGORY_IDS
+                    {
+                        row.setting_value = super::category_merge::normalize_exclusions(
+                            tx.conn(),
+                            &row.setting_value,
+                        )?;
+                    }
                     diesel::replace_into(app_settings)
                         .values(&row)
                         .execute(tx.conn())

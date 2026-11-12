@@ -60,7 +60,7 @@ function HoldingRow({ holding, children }: { holding: Holding; children: ReactNo
   );
 }
 
-function HighlightTitle({ title, description }: { title: string; description: string }) {
+export function HighlightTitle({ title, description }: { title: string; description: string }) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1.5">

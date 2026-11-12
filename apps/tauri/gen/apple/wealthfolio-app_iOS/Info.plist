@@ -15,7 +15,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.12.0</string>
+	<string>3.13.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -24,7 +24,7 @@
 				<string>wealthfolio</string>
 			</array>
 			<key>CFBundleURLName</key>
-			<string>wealthfolio</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).wealthfolio</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>

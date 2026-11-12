@@ -9,46 +9,10 @@ use axum::{
     routing::{get, put},
     Json, Router,
 };
-use wealthfolio_core::{
-    accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait},
-    limits::{ContributionLimit, DepositsCalculation, NewContributionLimit},
+use wealthfolio_core::limits::{
+    check_contribution_limit_accounts, ContributionLimit, ContributionLimitDetails,
+    DepositsCalculation, NewContributionLimit,
 };
-
-fn validate_contribution_limit_accounts(
-    state: &AppState,
-    limit: &NewContributionLimit,
-) -> ApiResult<()> {
-    let Some(account_ids) = limit.account_ids.as_deref() else {
-        return Ok(());
-    };
-    let ids: Vec<String> = account_ids
-        .split(',')
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .map(str::to_string)
-        .collect();
-    if ids.is_empty() {
-        return Ok(());
-    }
-
-    let accounts = state.account_service.get_accounts_by_ids(&ids)?;
-    let allowed: std::collections::HashSet<String> = accounts
-        .into_iter()
-        .filter(|account| {
-            account_supports_purpose(&account.account_type, AccountPurpose::ContributionLimits)
-        })
-        .map(|account| account.id)
-        .collect();
-    let invalid: Vec<String> = ids.into_iter().filter(|id| !allowed.contains(id)).collect();
-    if invalid.is_empty() {
-        Ok(())
-    } else {
-        Err(crate::error::ApiError::BadRequest(format!(
-            "Contribution limits do not support account(s): {}",
-            invalid.join(", ")
-        )))
-    }
-}
 
 async fn get_contribution_limits(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
@@ -59,9 +23,9 @@ async fn get_contribution_limits(
 
 async fn create_contribution_limit(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(new_limit): Json<NewContributionLimit>,
+    Json(mut new_limit): Json<NewContributionLimit>,
 ) -> ApiResult<Json<ContributionLimit>> {
-    validate_contribution_limit_accounts(&state, &new_limit)?;
+    check_contribution_limit_accounts(state.account_service.as_ref(), &mut new_limit)?;
     let created = state
         .limits_service
         .create_contribution_limit(new_limit)
@@ -73,9 +37,9 @@ async fn create_contribution_limit(
 async fn update_contribution_limit(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(updated): Json<NewContributionLimit>,
+    Json(mut updated): Json<NewContributionLimit>,
 ) -> ApiResult<Json<ContributionLimit>> {
-    validate_contribution_limit_accounts(&state, &updated)?;
+    check_contribution_limit_accounts(state.account_service.as_ref(), &mut updated)?;
     let updated = state
         .limits_service
         .update_contribution_limit(&id, updated)
@@ -108,6 +72,39 @@ async fn calculate_deposits_for_contribution_limit(
     Ok(Json(calc))
 }
 
+async fn get_contribution_limit_details(
+    Path(id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<ContributionLimitDetails>> {
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+    Ok(Json(
+        state
+            .limits_service
+            .get_contribution_limit_details(&id, &base)?,
+    ))
+}
+
+#[derive(serde::Deserialize)]
+struct ContributionActivityExclusion {
+    excluded: bool,
+}
+
+async fn set_contribution_activity_excluded(
+    Path((id, activity_id)): Path<(String, String)>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<ContributionActivityExclusion>,
+) -> ApiResult<StatusCode> {
+    state
+        .limits_service
+        .set_contribution_activity_excluded(&id, &activity_id, request.excluded)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route(
@@ -121,5 +118,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/limits/{id}/deposits",
             get(calculate_deposits_for_contribution_limit),
+        )
+        .route("/limits/{id}/details", get(get_contribution_limit_details))
+        .route(
+            "/limits/{id}/activities/{activity_id}",
+            put(set_contribution_activity_excluded),
         )
 }

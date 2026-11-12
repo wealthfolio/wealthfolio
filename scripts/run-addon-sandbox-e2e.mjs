@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
+import { stopServer } from "./e2e-server.mjs";
 
 const BASE_URL = process.env.WF_ADDON_SANDBOX_BASE_URL || "http://127.0.0.1:4174";
 
@@ -50,12 +51,7 @@ const preview = spawnCommand("pnpm", [
   "--strictPort",
 ]);
 
-const stopPreview = async () => {
-  if (preview.exitCode === null) {
-    preview.kill("SIGTERM");
-    await once(preview, "exit");
-  }
-};
+const stopPreview = () => stopServer(preview, "SIGTERM");
 
 try {
   await waitForPreview(preview);

@@ -40,6 +40,7 @@ struct FakePorts {
     root_key: String,
     device_id: StdMutex<String>,
     reconcile_action: StdMutex<String>,
+    reconcile_error: StdMutex<Option<TransportError>>,
     last_cycle_status: StdMutex<Option<String>>,
     sync_state: StdMutex<SyncState>,
     snapshots: StdMutex<Vec<FakeSnapshot>>,
@@ -77,6 +78,7 @@ impl FakePorts {
             root_key,
             device_id: StdMutex::new(DEVICE_ID.to_string()),
             reconcile_action: StdMutex::new("BOOTSTRAP_SNAPSHOT".to_string()),
+            reconcile_error: StdMutex::new(None),
             last_cycle_status: StdMutex::new(None),
             sync_state: StdMutex::new(SyncState::Ready),
             snapshots: StdMutex::new(vec![snapshot]),
@@ -196,6 +198,9 @@ impl SyncTransport for FakePorts {
         _token: &str,
         _device_id: &str,
     ) -> Result<ReconcileReadyStateResponse, TransportError> {
+        if let Some(error) = self.reconcile_error.lock().unwrap().clone() {
+            return Err(error);
+        }
         Ok(ReconcileReadyStateResponse {
             action: self.reconcile_action.lock().unwrap().clone(),
             cursor: Some(42),
@@ -207,10 +212,6 @@ impl SyncTransport for FakePorts {
 #[async_trait]
 impl CredentialStore for FakePorts {
     fn has_cloud_session(&self) -> Result<bool, String> {
-        Ok(true)
-    }
-
-    async fn is_sync_allowed(&self) -> Result<bool, String> {
         Ok(true)
     }
 
@@ -281,7 +282,7 @@ impl RestorePorts for FakePorts {
         self.downloads.lock().unwrap().push(snapshot_id.to_string());
         if self
             .download_failures
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
             .is_ok()
         {
             return Err(TransportError {
@@ -1092,4 +1093,27 @@ async fn optional_empty_snapshot_inspection_failure_still_requires_replacement_c
     assert_eq!(operation.snapshot.unwrap().is_empty, None);
     assert!(ports.replacements().is_empty());
     assert_eq!(ports.backups.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn restore_domain_denials_stop_before_download_or_replacement() {
+    for (code, expected) in [(
+        "SUBSCRIPTION_CANCELED",
+        RestoreErrorCode::SubscriptionRequired,
+    )] {
+        let ports = Arc::new(FakePorts::new(5));
+        *ports.reconcile_error.lock().unwrap() = Some(TransportError {
+            message: "Request denied".into(),
+            retry_class: ApiRetryClass::Permanent,
+            error_code: Some(code.into()),
+            details: None,
+        });
+        let runtime = runtime();
+        start(&runtime, &ports, StartRestore::Recurring).await;
+        let failed = wait_for_phase(&runtime, RestorePhase::Failed).await;
+        assert_eq!(failed.error.unwrap().code, expected);
+        assert!(ports.downloads().is_empty());
+        assert_eq!(ports.backups.load(Ordering::SeqCst), 0);
+        assert!(ports.replacements.lock().unwrap().is_empty());
+    }
 }

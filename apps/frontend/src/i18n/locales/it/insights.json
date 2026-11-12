@@ -30,9 +30,11 @@
       "unit_types": "tipi",
       "unit_currencies": "valute",
       "unit_groups": "gruppi",
-      "other_units": "Altri {{unit}}",
+      "other_units_one": "{{count}} altro elemento",
+      "other_units_other": "{{count}} altri elementi",
+      "other_units_many": "{{count}} altri elementi",
       "breakdown": "Ripartizione",
-      "top_units": "Principali {{unit}}",
+      "top_units": "Primi {{count}} elementi",
       "show_less": "Mostra meno",
       "show_all": "Mostra tutto"
     },
@@ -82,7 +84,6 @@
       "link_explanation": "Collegare un immobile esistente non modifica il patrimonio netto."
     },
     "failed_to_load": "Impossibile caricare il patrimonio netto",
-    "stale_valuations_tooltip": "Valutazioni obsolete (oltre 90 giorni):",
     "days_ago": "{{count}}g fa",
     "no_history_data": "Nessun dato storico disponibile",
     "breakdown": "Ripartizione",
@@ -108,7 +109,8 @@
     "category_sheet": {
       "over_period": "su {{period}}",
       "trend_period": "Andamento · {{period}}",
-      "items": "Voci"
+      "items": "Voci",
+      "view_details": "Vedi dettagli"
     },
     "trend": {
       "not_enough_history": "Storico insufficiente"
@@ -150,7 +152,15 @@
     "portfolio_share": "Quota del valore del portafoglio, liquidità inclusa",
     "largest": "Posizione più grande",
     "top_five": "Le cinque posizioni principali",
-    "concentration_unavailable": "La concentrazione richiede valori delle posizioni positivi e un portafoglio senza posizioni corte."
+    "concentration_unavailable": "La concentrazione richiede valori delle posizioni positivi e un portafoglio senza posizioni corte.",
+    "holdings": "Posizioni",
+    "holdings_count_one": "{{count}} posizione",
+    "holdings_count_many": "{{count}} posizioni",
+    "holdings_count_other": "{{count}} posizioni",
+    "other_holdings_one": "{{count}} altra posizione",
+    "other_holdings_many": "{{count}} altre posizioni",
+    "other_holdings_other": "{{count}} altre posizioni",
+    "holdings_unavailable": "Il grafico delle posizioni richiede valori positivi e un portafoglio senza posizioni corte."
   },
   "customize": {
     "edit": "Personalizza",

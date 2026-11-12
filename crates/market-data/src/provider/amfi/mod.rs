@@ -45,6 +45,10 @@ const PROVIDER_ID: &str = "AMFI";
 const CURRENCY: &str = "INR";
 /// Quote type of AMFI's schemes, as other providers report mutual funds.
 const QUOTE_TYPE: &str = "MUTUALFUND";
+/// Asset allocation reported for a scheme listed under a debt category. AMFI
+/// publishes categories, not holdings; debt categories invest in bonds and
+/// money market instruments.
+const DEBT_ALLOCATION: &str = r#"[{"name":"bond","weight":1}]"#;
 const NAV_ALL_URL: &str = "https://portal.amfiindia.com/spages/NAVAll.txt";
 const HISTORY_URL: &str = "https://www.amfiindia.com/api/nav-history";
 const REPORT_URL: &str = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
@@ -130,6 +134,8 @@ struct NavRow {
     name: String,
     /// The row's NAV and its own date, when both are usable.
     latest: Option<(NaiveDate, Decimal)>,
+    /// Whether the scheme is listed under a debt category heading.
+    debt: bool,
 }
 
 /// `NAVAll.txt` indexed by scheme code and ISIN.
@@ -145,13 +151,21 @@ impl NavIndex {
     /// Parse the semicolon-separated file. Scheme rows have eight fields: scheme
     /// code, ISIN (payout or growth), ISIN (reinvestment), scheme name, plan,
     /// option, NAV and date. Headings, fund-house names and blank lines don't.
+    /// A category heading applies to the scheme rows after it.
     fn parse(text: &str) -> Self {
         let mut index = Self::default();
+        let mut debt = false;
         for line in text.lines() {
             let fields: Vec<&str> = line.split(';').map(str::trim).collect();
             let &[code, payout_isin, reinvestment_isin, name, plan, option, nav, date] =
                 fields.as_slice()
             else {
+                // Category headings name schemes; fund-house names don't. A
+                // heading in a shape `heading_category` doesn't read ends the
+                // previous category instead of inheriting it.
+                if line.contains("Scheme") {
+                    debt = heading_category(line).is_some_and(is_debt_category);
+                }
                 continue;
             };
             if !is_scheme_code(code) || index.by_code.contains_key(code) {
@@ -171,6 +185,7 @@ impl NavIndex {
                     .collect::<Vec<_>>()
                     .join(" - "),
                 latest: date.zip(nav),
+                debt,
             });
             index.by_code.insert(code.to_string(), row);
             // Missing ISINs are written as "-", and a few cells hold other text.
@@ -426,6 +441,24 @@ impl AmfiProvider {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// The category in a heading such as "Open Ended Schemes(Debt Scheme - Liquid
+/// Fund)". Fund-house names, such as "IL&FS Mutual Fund (IDF)", aren't headings.
+fn heading_category(line: &str) -> Option<&str> {
+    let (kind, rest) = line.trim().split_once('(')?;
+    let category = rest.strip_suffix(')')?;
+    kind.trim_end()
+        .ends_with("Schemes")
+        .then(|| category.trim())
+}
+
+/// Debt categories name debt ("Debt Scheme - Liquid Fund", "Income/Debt
+/// Oriented Schemes - Fixed Term Plan", "Index Funds - Debt Funds") or are the
+/// older "Gilt". The older "Income" category also lists hybrid and capital
+/// protection funds, so it isn't one.
+fn is_debt_category(category: &str) -> bool {
+    category.to_ascii_lowercase().contains("debt") || category.eq_ignore_ascii_case("gilt")
+}
+
 /// AMFI scheme codes are plain numbers, such as 122639.
 fn is_scheme_code(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
@@ -656,19 +689,19 @@ impl MarketDataProvider for AmfiProvider {
         Ok(index.find(&scheme).map(search_result).into_iter().collect())
     }
 
-    /// The fund's type and currency, without a name: enrichment would replace
-    /// the fund's stored name with it. A picked search result names the fund.
+    /// The fund's type and currency, and a bond allocation for a debt scheme,
+    /// without a name: enrichment would replace the fund's stored name with it.
+    /// A picked search result names the fund.
     async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         let not_found = || MarketDataError::SymbolNotFound(symbol.to_string());
         let scheme = SchemeRef::parse(symbol).ok_or_else(not_found)?;
-        self.nav_index()
-            .await?
-            .find(&scheme)
-            .ok_or_else(not_found)?;
+        let index = self.nav_index().await?;
+        let row = index.find(&scheme).ok_or_else(not_found)?;
         Ok(AssetProfile {
             source: Some(PROVIDER_ID.to_string()),
             quote_type: Some(QUOTE_TYPE.to_string()),
             currency: Some(CURRENCY.to_string()),
+            asset_allocation: row.debt.then(|| DEBT_ALLOCATION.to_string()),
             ..Default::default()
         })
     }
@@ -732,9 +765,10 @@ mod tests {
         NaiveDate::parse_from_str(value, "%Y-%m-%d").expect("valid test date")
     }
 
-    /// Lines from `NAVAll.txt` (29 and 30 October 2026), including its
-    /// headings, placeholder ISIN cells, an old NAV, an ISIN listed under two
-    /// codes and two schemes with the same name, plan and option.
+    /// Lines from `NAVAll.txt` (29 and 30 October, 10 November 2026), including
+    /// its headings, placeholder ISIN cells, an old NAV, an ISIN listed under
+    /// two codes, two schemes with the same name, plan and option, and a
+    /// fund-house name in parentheses.
     const NAV_ALL: &str = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date\r
  \r
 Open Ended Schemes(Equity Scheme - Flexi Cap Fund)\r
@@ -750,6 +784,26 @@ PPFAS Mutual Fund\r
 142916;INF204KB1XN0;-;Nippon India Fixed Horizon Fund XXXVI- Series 9;;;10.0000;10-May-2021\r
 143451;INF204KB1XN0;-;Nippon India Fixed Horizon Fund XXXVII- Series 9;;;13.5859;26-May-2022\r
 100001;-;-;Scheme without a NAV;;;N.A.;28-Oct-2026\r
+ \r
+Open Ended Schemes(Debt Scheme - Liquid Fund)\r
+ \r
+IL&FS Mutual Fund (IDF)\r
+ \r
+PPFAS Mutual Fund\r
+ \r
+143263;-;INF879O01118;Parag Parikh Liquid Fund;Direct Plan;Daily Reinvestment of IDCW;1000.5405;09-Nov-2026\r
+ \r
+Open Ended Schemes(Hybrid Scheme - Conservative Hybrid Fund)\r
+ \r
+Sundaram Mutual Fund\r
+ \r
+119635;INF903J01OP6;-;Sundaram Conservative Hybrid Fund (Formerly Known as Sundaram Debt Oriented Hybrid Fund);Direct Plan;GROWTH;33.0005;09-Nov-2026\r
+ \r
+Open Ended Schemes(Income)\r
+ \r
+ICICI Prudential Mutual Fund\r
+ \r
+120669;INF109K01T79;INF109K01T87;ICICI Prudential MIP;;;13.6318;25-May-2018\r
 ";
 
     #[test]
@@ -802,7 +856,7 @@ PPFAS Mutual Fund\r
         assert!(index.find(&SchemeRef::Code("100001".to_string())).is_some());
         assert_eq!(latest("100001"), None);
         // Headings and fund-house names aren't schemes.
-        assert_eq!(index.rows.len(), 9);
+        assert_eq!(index.rows.len(), 12);
     }
 
     #[test]
@@ -1463,5 +1517,85 @@ Tata Mutual Fund\r
             );
         }
         assert_eq!(*requests.lock().expect("request log"), ["/NAVAll.txt"]);
+    }
+
+    #[tokio::test]
+    async fn profile_gives_a_debt_scheme_a_bond_allocation() {
+        let (provider, _requests) = nav_all_provider().await;
+        let allocation = |symbol: &'static str| {
+            let provider = &provider;
+            async move {
+                provider
+                    .get_profile(symbol)
+                    .await
+                    .expect("a listed scheme has a profile")
+                    .asset_allocation
+            }
+        };
+
+        // Under a debt heading, past a fund-house name in parentheses.
+        assert_eq!(
+            allocation("143263").await.as_deref(),
+            Some(r#"[{"name":"bond","weight":1}]"#)
+        );
+        assert_eq!(
+            allocation("INF879O01118").await.as_deref(),
+            Some(r#"[{"name":"bond","weight":1}]"#)
+        );
+        // Equity, hybrid with "Debt" in its name, and the older "Income" category.
+        for symbol in ["122639", "119635", "120669"] {
+            assert_eq!(allocation(symbol).await, None, "{symbol}");
+        }
+    }
+
+    #[test]
+    fn nav_all_heading_in_another_shape_ends_a_debt_category() {
+        let index = NavIndex::parse(
+            "Open Ended Schemes(Debt Scheme - Liquid Fund)\r
+PPFAS Mutual Fund\r
+143263;-;INF879O01118;Parag Parikh Liquid Fund;Direct Plan;Daily Reinvestment of IDCW;1000.5405;09-Nov-2026\r
+Open Ended Schemes - Equity Scheme - Flexi Cap Fund\r
+PPFAS Mutual Fund\r
+122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth;88.8018;28-Oct-2026\r
+",
+        );
+        let debt = |code: &str| {
+            index
+                .find(&SchemeRef::Code(code.to_string()))
+                .map(|row| row.debt)
+        };
+
+        assert_eq!(debt("143263"), Some(true));
+        assert_eq!(debt("122639"), Some(false));
+    }
+
+    #[test]
+    fn debt_categories_come_from_scheme_headings() {
+        for (line, debt) in [
+            ("Open Ended Schemes(Debt Scheme - Liquid Fund)", Some(true)),
+            (
+                "Close Ended Schemes(Income/Debt Oriented Schemes - Fixed Term Plan)",
+                Some(true),
+            ),
+            ("Open Ended Schemes(Index Funds - Debt Funds)", Some(true)),
+            (
+                "Open Ended Schemes(Exchange Traded Funds (ETFs) - Debt ETF)",
+                Some(true),
+            ),
+            ("Open Ended Schemes(Gilt)", Some(true)),
+            ("Open Ended Schemes(Income)", Some(false)),
+            (
+                "Open Ended Schemes(Hybrid Scheme - Conservative Hybrid Fund)",
+                Some(false),
+            ),
+            (
+                "Open Ended Schemes(Exchange Traded Funds (ETFs) - Gold ETF)",
+                Some(false),
+            ),
+            ("IL&FS Mutual Fund (IDF)", None),
+            ("PPFAS Mutual Fund", None),
+        ] {
+            assert_eq!(heading_category(line).map(is_debt_category), debt, "{line}");
+        }
     }
 }

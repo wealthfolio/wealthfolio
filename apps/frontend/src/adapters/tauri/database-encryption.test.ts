@@ -60,7 +60,10 @@ it.each([true, false])(
   },
 );
 
-it("propagates a native conversion failure", async () => {
-  native.invoke.mockRejectedValue(new Error("Database maintenance failed"));
-  await expect(setDatabaseEncryptionEnabled(true)).rejects.toThrow("Database maintenance failed");
+it("propagates a sanitized native conversion failure", async () => {
+  native.invoke.mockRejectedValue(new Error("FAKE-KEY-2531 /private/portfolio.db"));
+  const error = await setDatabaseEncryptionEnabled(true).catch((cause: unknown) => cause);
+  expect(error).toHaveProperty("errorCode", "internal_error");
+  expect(String(error)).not.toContain("FAKE-KEY");
+  expect(String(error)).not.toContain("/private");
 });

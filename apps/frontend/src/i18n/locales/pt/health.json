@@ -6,6 +6,12 @@
       "title_many": "Valorações manuais ausentes em {{count}} posições",
       "message": "Posições manuais ou personalizadas precisam de uma valoração manual antes de serem incluídas como posições de desempenho valorizadas."
     },
+    "price_manual_valuation_stale": {
+      "title_one": "Valoração de {{name}} desatualizada",
+      "title_other": "Valorações de {{count}} ativos desatualizadas",
+      "title_many": "Valorações de {{count}} ativos desatualizadas",
+      "message": "Alguns ativos avaliados manualmente não são atualizados há mais de {{days}} dias, por isso seu patrimônio líquido pode estar desatualizado."
+    },
     "price_no_market_data": {
       "title_one": "Sem dados de mercado para {{symbol}}",
       "title_other": "Sem dados de mercado para {{count}} posições",
@@ -226,6 +232,7 @@
     "rebuild_account_history": "Reconstruir histórico",
     "add_price": "Adicionar preço",
     "update_cost_basis": "Atualizar base de custo",
+    "update_value": "Atualizar valor",
     "review_transaction": "Revisar transação",
     "review_entry": "Rever registo"
   },
@@ -309,5 +316,17 @@
     "affectedItems_one": "Item afetado ({{count}})",
     "affectedItems_other": "Itens afetados ({{count}})",
     "affectedItems_many": "Itens afetados ({{count}})"
+  },
+  "activityReasons": {
+    "activity_id": "Atividade: {{id}}",
+    "missing_fx_rate": "Não há taxa de câmbio de {{from}} para {{to}} disponível para {{date}}.",
+    "close_buy_without_short_position": "Esta compra está marcada para encerrar uma posição em {{asset}}, mas não há posição vendida para encerrar.",
+    "sell_short_intent_required": "Esta venda aumentaria a posição vendida em {{asset}}. Marque-a como venda a descoberto.",
+    "conversion_insufficient_holdings": "Esta conversão exige {{requested}} unidades de {{asset}}, mas a conta possui apenas {{held}}.",
+    "conversion_currency_mismatch": "{{fromAsset}} é mantido em {{fromCurrency}} e {{toAsset}} em {{toCurrency}}. Uma conversão deve manter a mesma moeda.",
+    "return_of_capital_amount_required": "Insira um valor para esta devolução de capital.",
+    "sell_without_position": "Não há posição em {{asset}} para vender. Apenas o efeito no caixa foi aplicado.",
+    "insufficient_quantity": "Esta transação retira {{requested}} unidades de {{asset}}, mas havia apenas {{held}}. As {{excess}} unidades restantes não têm base de custo.",
+    "missing_final_cash": "Esta transação contabilizada não tem um valor final em dinheiro, por isso não alterou o saldo de caixa."
   }
 }

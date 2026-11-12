@@ -1,4 +1,3 @@
-import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -19,14 +18,10 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@wealthfolio/ui";
-import {
-  useCreateCategory,
-  useDeleteCategory,
-  useTaxonomy,
-  useUpdateCategory,
-} from "@/hooks/use-taxonomies";
+import { useCreateCategory, useTaxonomy, useUpdateCategory } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
 
+import { CategoryDeleteDialog } from "@/features/spending/components/category-delete-dialog";
 import { CategoryEditModal } from "@/features/spending/components/category-edit-modal";
 import { CategoryItem, type CategoryNode } from "@/features/spending/components/category-item";
 import type { CategoryFormValues } from "@/features/spending/components/category-form";
@@ -75,7 +70,7 @@ export default function SpendingCategoriesPage() {
   const budget = useBudget();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
-  const deleteCategory = useDeleteCategory();
+  const [deletingCategory, setDeletingCategory] = useState<CategoryNode>();
 
   const excludedIds = useMemo(() => new Set(excludedCategoryIds), [excludedCategoryIds]);
 
@@ -172,22 +167,6 @@ export default function SpendingCategoriesPage() {
     setSelectedParentExcluded(parentExcluded);
     setParentCategory(undefined);
     setVisibleModal(true);
-  };
-
-  const handleDeleteCategory = async (category: CategoryNode) => {
-    try {
-      await deleteCategory.mutateAsync({
-        taxonomyId: category.taxonomyId,
-        categoryId: category.id,
-      });
-      toast.success(
-        t("settings:spending.categories.deleted", {
-          name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
-        }),
-      );
-    } catch {
-      toast.error(t("settings:spending.categories.delete_error"));
-    }
   };
 
   const slugify = (s: string) =>
@@ -289,7 +268,7 @@ export default function SpendingCategoriesPage() {
             // oxlint-disable-next-line react/no-children-prop
             children={category.children}
             onEdit={handleEditCategory}
-            onDelete={handleDeleteCategory}
+            onDelete={setDeletingCategory}
             onAddSubcategory={handleAddSubcategory}
             excludedIds={isExpenseList ? excludedIds : undefined}
           />
@@ -371,6 +350,14 @@ export default function SpendingCategoriesPage() {
           </Tabs>
         )}
       </div>
+
+      {deletingCategory && (
+        <CategoryDeleteDialog
+          key={deletingCategory.id}
+          category={deletingCategory}
+          onClose={() => setDeletingCategory(undefined)}
+        />
+      )}
 
       <CategoryEditModal
         open={visibleModal}

@@ -20,6 +20,7 @@ export const QueryKeys = {
   ACTIVITY_DATA: "activity-data",
   ACTIVITIES: "activities",
   SUPPRESSED_ACTIVITIES: "suppressed-activities",
+  TRANSFER_REVIEW: "transfer_review",
 
   // Portfolio related keys
   HOLDINGS: "holdings",
@@ -50,6 +51,7 @@ export const QueryKeys = {
   SETTINGS: "settings",
   DATABASE_ENCRYPTION: "databaseEncryption",
   DATABASE_BACKUPS: "databaseBackups",
+  DATA_EXPORT_SUMMARY: "dataExportSummary",
   EXCHANGE_RATES: "exchangeRates",
 
   // New keys for exchange rates
@@ -58,6 +60,7 @@ export const QueryKeys = {
 
   CONTRIBUTION_LIMITS: "contributionLimits",
   CONTRIBUTION_LIMIT_PROGRESS: "contributionLimitProgress",
+  CONTRIBUTION_LIMIT_DETAILS: "contributionLimitDetails",
 
   ASSET_DATA: "asset_data",
   ASSETS: "assets",

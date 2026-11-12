@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalLink } from "../ui/external-link";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Calendar } from "../ui/calendar";
@@ -749,7 +750,7 @@ export function UrlCell<TData>({
     >
       {!isEditing && displayValue ? (
         <div data-slot="grid-cell-content" className="size-full overflow-hidden">
-          <a
+          <ExternalLink
             data-focused={isFocused && !isDangerousUrl ? "" : undefined}
             data-invalid={isDangerousUrl ? "" : undefined}
             href={urlHref}
@@ -759,7 +760,7 @@ export function UrlCell<TData>({
             onClick={onLinkClick}
           >
             {displayValue}
-          </a>
+          </ExternalLink>
         </div>
       ) : (
         <div

@@ -976,10 +976,79 @@ pub struct ConvertToTransferRequest {
 pub struct TransferMatchCandidate {
     pub activity: Activity,
     pub match_kind: String,
+    /// "high" only for a certain match: two transfers that match each other
+    /// and nothing else, at the same instant or on the same day, with no
+    /// warnings and neither marked external. Otherwise "medium" within three
+    /// days, else "low".
     pub confidence: String,
     pub score: i32,
     pub reasons: Vec<String>,
     pub warnings: Vec<String>,
+    /// `reasons` as codes the app translates, in the same order.
+    #[serde(default)]
+    pub reason_codes: Vec<TransferMatchReason>,
+    /// `warnings` as codes the app translates, in the same order.
+    #[serde(default)]
+    pub warning_codes: Vec<TransferMatchWarning>,
+}
+
+/// Why a candidate matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferMatchReason {
+    SameAsset,
+    SameQuantity,
+    SameAmount,
+    SameCurrency,
+    SameDate,
+    /// Booked at the same instant, to the sub-second.
+    SameTime,
+    SameAccount,
+    CashFxConversion,
+}
+
+impl TransferMatchReason {
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::SameAsset => "Same asset",
+            Self::SameQuantity => "Same quantity",
+            Self::SameAmount => "Same amount",
+            Self::SameCurrency => "Same currency",
+            Self::SameDate => "Same date",
+            Self::SameTime => "Same time",
+            Self::SameAccount => "Same account",
+            Self::CashFxConversion => "Cash FX conversion",
+        }
+    }
+}
+
+/// What makes a candidate less certain.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "code", rename_all = "snake_case")]
+pub enum TransferMatchWarning {
+    DatesDiffer {
+        days: i64,
+    },
+    CurrenciesDiffer {
+        source: String,
+        candidate: String,
+    },
+    PricesDiffer,
+    /// Another transfer matches either side as well as this one.
+    AnotherMatch,
+}
+
+impl TransferMatchWarning {
+    pub fn text(&self) -> String {
+        match self {
+            Self::DatesDiffer { days } => format!("Dates differ by {days} day(s)."),
+            Self::CurrenciesDiffer { source, candidate } => {
+                format!("Currencies differ ({source} vs {candidate}).")
+            }
+            Self::PricesDiffer => "Prices differ by more than 1%.".to_string(),
+            Self::AnotherMatch => "Another transfer matches as well.".to_string(),
+        }
+    }
 }
 
 /// Scope of a scan for posted transfers with no linked other side.
@@ -1040,6 +1109,51 @@ pub struct UnlinkedTransfers {
 pub struct LinkedTransfer {
     pub counterpart_id: String,
     pub link_state: TransferLinkState,
+}
+
+/// The Match transfers review: every unlinked transfer the Health Center
+/// reports, sorted into pairs certain enough to link together and rows that
+/// need a look. Each transfer appears once, newest first.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferMatchReview {
+    /// One row per certain pair, its only candidate the other side.
+    pub certain: Vec<UnlinkedTransfer>,
+    /// The rest, each with its best candidates (possibly none). Candidates
+    /// include deposits and withdrawals that would become the other side,
+    /// never a leg of a certain pair. Two transfers that are each other's
+    /// best candidate share one row.
+    pub needs_review: Vec<UnlinkedTransfer>,
+}
+
+/// One pair to link; the two sides may come in either order.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferPairLinkRequest {
+    pub activity_a_id: String,
+    pub activity_b_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedTransferPair {
+    pub transfer_in_id: String,
+    pub transfer_out_id: String,
+}
+
+/// A pair that could not be linked, by its index in the request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferPairLinkError {
+    pub index: usize,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkTransferPairsResult {
+    pub linked: Vec<LinkedTransferPair>,
+    pub errors: Vec<TransferPairLinkError>,
 }
 
 /// Structured error reported for a single bulk mutation entry.
@@ -1285,6 +1399,39 @@ pub struct ActivityImport {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_group_id: Option<String>,
+    /// Labelled lines that make up `fee` and `tax`, such as commission and
+    /// stamp duty. They must add up to both totals; stored in the
+    /// activity's metadata.
+    #[serde(
+        default,
+        deserialize_with = "super::charges::deserialize_import_charges"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charges: Option<Vec<super::ActivityCharge>>,
+    /// The source's own ID for this row, such as a statement's transaction
+    /// reference. A row with one matches an activity imported with the same
+    /// ID into the same account, whatever its values or comment; the source
+    /// keeps it stable across imports and gives every transaction its own.
+    /// Stored as the activity's `source_record_id`.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_record_id: Option<String>,
+    /// Details the source keeps with the row, stored in the activity's
+    /// metadata. `flow` and `charges` come from `is_external` and `charges`
+    /// only, so a row's own keys of those names are dropped.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, Value>>,
+}
+
+impl ActivityImport {
+    /// The row's source record ID, trimmed; none when blank.
+    pub fn source_record_id(&self) -> Option<&str> {
+        self.source_record_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+    }
 }
 
 /// Model for sorting activities
@@ -2156,6 +2303,7 @@ pub struct PrepareActivitiesResult {
 
 impl From<ActivityImport> for NewActivity {
     fn from(import: ActivityImport) -> Self {
+        let source_record_id = import.source_record_id().map(str::to_string);
         let asset = if import.symbol.is_empty() {
             import
                 .asset_id
@@ -2213,15 +2361,27 @@ impl From<ActivityImport> for NewActivity {
         // have the same net-contribution and flow-classification semantics.
         let is_transfer = import.activity_type == ACTIVITY_TYPE_TRANSFER_IN
             || import.activity_type == ACTIVITY_TYPE_TRANSFER_OUT;
-        let metadata = match (import.activity_type.as_str(), import.is_external) {
+        let mut metadata = import.metadata.unwrap_or_default();
+        metadata.remove("flow");
+        metadata.remove(super::charges::CHARGES_METADATA_KEY);
+        match (import.activity_type.as_str(), import.is_external) {
             (ACTIVITY_TYPE_CREDIT, Some(is_external)) => {
-                Some(serde_json::json!({ "flow": { "is_external": is_external } }).to_string())
+                metadata.insert(
+                    "flow".to_string(),
+                    serde_json::json!({ "is_external": is_external }),
+                );
             }
             (_, Some(true)) if is_transfer => {
-                Some(serde_json::json!({ "flow": { "is_external": true } }).to_string())
+                metadata.insert(
+                    "flow".to_string(),
+                    serde_json::json!({ "is_external": true }),
+                );
             }
-            _ => None,
-        };
+            _ => {}
+        }
+        let metadata = (!metadata.is_empty()).then_some(Value::Object(metadata));
+        let metadata = super::charges::metadata_with_charges(metadata, import.charges)
+            .map(|metadata| metadata.to_string());
 
         NewActivity {
             id: import.id,
@@ -2242,7 +2402,7 @@ impl From<ActivityImport> for NewActivity {
             metadata,
             needs_review: None,
             source_system: Some("CSV".to_string()),
-            source_record_id: None,
+            source_record_id,
             source_group_id,
             idempotency_key: None,
             import_run_id: None,

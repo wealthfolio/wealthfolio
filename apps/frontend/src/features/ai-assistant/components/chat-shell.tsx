@@ -44,6 +44,13 @@ import {
   RecordActivityToolUI,
   RecordActivitiesToolUI,
   ValuationToolUI,
+  ListSpendingEventsToolUI,
+  SpendingBudgetToolUI,
+  SpendingContextToolUI,
+  SpendingEventsToolUI,
+  SpendingInsightToolUI,
+  SpendingReportToolUI,
+  SpendingTransactionsToolUI,
 } from "./tool-uis";
 import { ChatModelProvider, useChatModelContext } from "../hooks/use-chat-model-context";
 import { useChatRuntime } from "../hooks/use-chat-runtime";
@@ -83,7 +90,7 @@ function Sidebar({ collapsed }: { collapsed?: boolean }) {
   return (
     <aside
       className={cn(
-        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200",
+        "bg-muted/30 flex h-full flex-col border-e transition-all duration-200 motion-reduce:transition-opacity",
         collapsed ? "w-0 overflow-hidden opacity-0" : "w-65 opacity-100",
       )}
     >
@@ -107,10 +114,7 @@ function MobileSidebar() {
         <Icons.PanelLeft className="size-4" />
         <span className="sr-only">{t("ai:shell.toggleMenu")}</span>
       </SheetTrigger>
-      <SheetContent
-        side="inline-start"
-        className="flex w-70 flex-col gap-0 px-0 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(var(--inset-bottom),0.75rem)]"
-      >
+      <SheetContent side="inline-start" className="flex w-70 flex-col gap-0 px-0 py-3">
         <SheetHeader className="sr-only">
           <SheetTitle>{t("ai:shell.conversations")}</SheetTitle>
         </SheetHeader>
@@ -264,6 +268,13 @@ function ChatShellInner({ className }: ChatShellProps) {
         <AssetClassificationToolUI />
         <ListCategorizationContextToolUI />
         <CategorizationProposalsToolUI />
+        <SpendingContextToolUI />
+        <ListSpendingEventsToolUI />
+        <SpendingInsightToolUI />
+        <SpendingReportToolUI />
+        <SpendingTransactionsToolUI />
+        <SpendingBudgetToolUI />
+        <SpendingEventsToolUI />
 
         <InitialPromptSender />
 

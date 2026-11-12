@@ -9,13 +9,16 @@ const mocks = vi.hoisted(() => ({
   rebuild: vi.fn(),
   verify: vi.fn(),
 }));
-vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => mocks.navigate,
+  useLocation: () => ({ pathname: "/", search: "?tab=spending", key: "origin" }),
+}));
 vi.mock("@/components/action-palette", () => ({
   ActionPalette: ({ groups }: { groups: ActionPaletteGroup[] }) => (
     <div>
       {groups.flatMap((group) =>
         group.items.map((item) => (
-          <button key={item.label} onClick={item.onClick}>
+          <button key={item.label} onClick={item.onClick} aria-pressed={item.checked}>
             {item.label}
           </button>
         )),
@@ -42,6 +45,20 @@ vi.mock("@/features/wealthfolio-connect/providers/wealthfolio-connect-provider",
 
 beforeEach(() => vi.clearAllMocks());
 
+it("exposes comparison as a checked Spending action without navigating", () => {
+  const toggle = vi.fn();
+  const { rerender } = render(<DashboardActions view="spending" onCompareToggle={toggle} />);
+  const action = screen.getByRole("button", { name: "Compare to prior period" });
+  expect(action).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(action);
+  expect(toggle).toHaveBeenCalledOnce();
+  expect(mocks.navigate).not.toHaveBeenCalled();
+  rerender(<DashboardActions view="spending" compareEnabled onCompareToggle={toggle} />);
+  expect(action).toHaveAttribute("aria-pressed", "true");
+  rerender(<DashboardActions view="investments" compareEnabled onCompareToggle={toggle} />);
+  expect(screen.queryByRole("button", { name: "Compare to prior period" })).not.toBeInTheDocument();
+});
+
 it("opens asset management from Net Worth and omits full-history refresh", () => {
   const addAsset = vi.fn();
   const addLiability = vi.fn();
@@ -64,4 +81,41 @@ it("preserves the Investments menu", () => {
   expect(screen.queryByRole("button", { name: "Manage" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Refresh full history/i }));
   expect(mocks.rebuild).toHaveBeenCalledOnce();
+});
+
+it.each(["investments", "net-worth", "spending"] as const)(
+  "opens expense and income from the %s overflow menu",
+  (view) => {
+    render(<DashboardActions view={view} spendingEnabled />);
+    for (const [label, type] of [
+      ["Add expense", "WITHDRAWAL"],
+      ["Add income", "DEPOSIT"],
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      expect(mocks.navigate).toHaveBeenLastCalledWith(`/spending/transactions/new?type=${type}`, {
+        replace: false,
+        state: {
+          backgroundLocation: expect.objectContaining({ pathname: "/", search: "?tab=spending" }),
+        },
+      });
+    }
+  },
+);
+
+it("hides expense and income when Spending is disabled", () => {
+  render(<DashboardActions />);
+  expect(screen.queryByRole("button", { name: "Add expense" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add income" })).not.toBeInTheDocument();
+});
+
+it("keeps the full Spending picker and paired Transfer form available", () => {
+  render(<DashboardActions view="spending" spendingEnabled />);
+  fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+  expect(mocks.navigate).toHaveBeenLastCalledWith(
+    "/spending/transactions/new?type=TRANSFER",
+    expect.any(Object),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Add transaction" }));
+  expect(mocks.navigate).toHaveBeenLastCalledWith("/spending/transactions/new", expect.any(Object));
+  expect(screen.queryByRole("button", { name: /Refresh full history/i })).not.toBeInTheDocument();
 });

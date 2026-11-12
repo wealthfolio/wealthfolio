@@ -111,7 +111,7 @@ export function MultiSelectTaxonomy({
     existingWeight === undefined ? undefined : existingWeight / 100,
     {
       acceptPercent: true,
-      maximumFractionDigits: 1,
+      maximumFractionDigits: 2,
       onEnter: () => {
         if (editingAssignment) void handleWeightBlur(editingAssignment);
       },
@@ -439,7 +439,7 @@ export function MultiSelectTaxonomy({
                     )}
                   >
                     {numbers.formatPercent(assignment.weight / 10000, {
-                      digits: Number.isInteger(assignment.weight / 100) ? 0 : 1,
+                      digits: Number.isInteger(assignment.weight / 100) ? 0 : 2,
                     })}
                   </button>
                 )}
@@ -479,7 +479,7 @@ export function MultiSelectTaxonomy({
                 )}
               >
                 {numbers.formatPercent(totalWeight / 100, {
-                  digits: Number.isInteger(totalWeight) ? 0 : 1,
+                  digits: Number.isInteger(totalWeight) ? 0 : 2,
                 })}
               </div>
               <div className="w-7" />

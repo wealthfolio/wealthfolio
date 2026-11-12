@@ -97,7 +97,7 @@ interface CustomizedContentProps {
   id?: string; // Asset ID for navigation
   symbol?: string;
   name?: TreemapNode["name"];
-  gain?: number;
+  gain?: number | null;
   displayMode?: DisplayMode;
   returnType?: ReturnType;
   palette?: TreemapPalette;
@@ -112,7 +112,7 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
   id,
   symbol,
   name,
-  gain = 0,
+  gain,
   displayMode = "symbol",
   returnType = "daily",
   palette = fallbackPalette,
@@ -120,7 +120,10 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
   const formatting = useNumberFormatting();
   const fontSize = Math.min(width, height) < 80 ? Math.min(width, height) * 0.16 : 13;
   const fontSize2 = Math.min(width, height) < 80 ? Math.min(width, height) * 0.14 : 12;
-  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType, palette);
+  const { fill: fillColor, isLightTile } =
+    gain == null
+      ? { fill: "var(--muted)", isLightTile: false }
+      : getTreemapColor(gain, returnType, palette);
   // Labels by tile luminance; dark mode's translucent tiles always need the light one.
   const label = palette.isDark || !isLightTile ? palette.labelLight : palette.labelDark;
   const textColor = `rgb(${label.join(",")})`;
@@ -177,7 +180,11 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
               fontSize: fontSize2,
             }}
           >
-            {gain > 0 ? "+" + formatting.formatPercent(gain) : formatting.formatPercent(gain)}
+            {gain == null
+              ? "—"
+              : gain > 0
+                ? "+" + formatting.formatPercent(gain)
+                : formatting.formatPercent(gain)}
           </text>
         </>
       ) : null}
@@ -197,7 +204,7 @@ interface TooltipProps {
     payload: {
       symbol: string;
       name?: string;
-      gain: number;
+      gain: number | null;
       asOfDate?: string;
     };
   }[];
@@ -216,8 +223,8 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
   if (active && payload?.length) {
     const data = payload[0].payload;
     const value = payload[0].value;
-    const gain = data.gain || 0;
-    const isPositive = gain >= 0;
+    const gain = data.gain;
+    const isPositive = gain != null && gain >= 0;
 
     return (
       <Card>
@@ -256,12 +263,12 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
               <span
                 className={cn(
                   "flex items-center gap-1 text-sm font-semibold",
-                  isPositive ? "text-gain" : "text-loss",
+                  gain != null && (isPositive ? "text-gain" : "text-loss"),
                 )}
               >
                 {isPositive ? "+" : ""}
-                {numberFormatting.formatPercent(gain)}
-                <span className="text-xs">{isPositive ? "↗" : "↘"}</span>
+                {gain == null ? "—" : numberFormatting.formatPercent(gain)}
+                {gain != null && <span className="text-xs">{isPositive ? "↗" : "↘"}</span>}
               </span>
             </div>
           </div>
@@ -300,12 +307,12 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
         const symbol = holding.instrument?.symbol;
         if (!symbol) return null; // Skip if no symbol
 
-        const gain = getBaseHoldingPerformancePercentForMode(holding, returnType) ?? 0;
+        const gain = getBaseHoldingPerformancePercentForMode(holding, returnType);
 
-        const marketValue = Number(holding.marketValue?.base) || 0;
+        const marketValue = holding.marketValue?.base;
 
         // Basic validation
-        if (isNaN(gain) || isNaN(marketValue) || marketValue <= 0) return null;
+        if (marketValue == null || isNaN(marketValue) || marketValue <= 0) return null;
 
         return {
           id: holding.instrument?.id, // Asset ID for navigation
@@ -323,6 +330,16 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
 
     return processedData;
   }, [holdings, returnType]);
+
+  if (!isLoading && holdings.some((holding) => holding.marketValue.base == null)) {
+    return (
+      <Card>
+        <CardContent className="p-6" role="status">
+          {t("holdings:scope_unavailable")}
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (

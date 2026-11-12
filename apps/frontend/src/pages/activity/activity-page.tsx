@@ -92,9 +92,15 @@ function fromDateRange(range: DateRange | undefined): ActivityDateRangeFilter {
   };
 }
 
-const ActivityPage = () => {
+interface ActivityPageProps {
+  initialAction?: "transfer-holdings";
+}
+
+const ActivityPage = ({ initialAction }: ActivityPageProps) => {
   const { t } = useTranslation();
-  const [showBulkHoldingsForm, setShowBulkHoldingsForm] = useState(false);
+  const [showBulkHoldingsForm, setShowBulkHoldingsForm] = useState(
+    initialAction === "transfer-holdings",
+  );
   const [showAlternativeAssetModal, setShowAlternativeAssetModal] = useState(false);
   const [transferMatchDialog, setTransferMatchDialog] = useState<{
     open: boolean;
@@ -118,6 +124,12 @@ const ActivityPage = () => {
     duplicateActivity: handleDuplicate,
   } = useActivityActionDialogs();
   const navigate = useNavigate();
+  const closeBulkHoldings = () => {
+    setShowBulkHoldingsForm(false);
+    if (initialAction === "transfer-holdings") {
+      navigate("/activities", { replace: true });
+    }
+  };
   const showConnectAccountLink = useShowConnectAccountLink();
   const [searchParams, setSearchParams] = useSearchParams();
   const activityUrlFilterKey = searchParams.toString();
@@ -414,6 +426,7 @@ const ActivityPage = () => {
         label: account.name,
         currency: account.currency,
         accountType: account.accountType,
+        group: account.group,
         restrictionLevel: getActivityRestrictionLevel(account),
       }));
   }, [accounts, investmentAccounts, isSpendingEnabled, selectedActivity?.accountId]);
@@ -431,6 +444,7 @@ const ActivityPage = () => {
           label: account.name,
           currency: account.currency,
           accountType: account.accountType,
+          group: account.group,
           restrictionLevel: getActivityRestrictionLevel(account),
         })),
     [accounts],
@@ -610,6 +624,16 @@ const ActivityPage = () => {
                 },
               ]
             : []),
+        ],
+      },
+      {
+        items: [
+          {
+            icon: Icons.ArrowLeftRight,
+            label: t("activity:transfer_review.title"),
+            testId: "match-transfers-action",
+            onClick: () => navigate("/activities/transfers"),
+          },
         ],
       },
     ],
@@ -893,10 +917,8 @@ const ActivityPage = () => {
       />
       <BulkHoldingsModal
         open={showBulkHoldingsForm}
-        onClose={() => setShowBulkHoldingsForm(false)}
-        onSuccess={() => {
-          setShowBulkHoldingsForm(false);
-        }}
+        onClose={closeBulkHoldings}
+        onSuccess={closeBulkHoldings}
       />
       <AlternativeAssetQuickAddModal
         open={showAlternativeAssetModal}

@@ -6,9 +6,10 @@ use wealthfolio_core::activities::{
     Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
     ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
-    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-    ParseConfig, ParsedCsvResult, Sort, SuppressedActivity, TransferMatchCandidate,
-    TransferMatchCandidateRequest,
+    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse,
+    LinkTransferPairsResult, NewActivity, ParseConfig, ParsedCsvResult, Sort, SuppressedActivity,
+    TransferMatchCandidate, TransferMatchCandidateRequest, TransferMatchReview,
+    TransferPairLinkRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -82,7 +83,7 @@ pub async fn create_activity(
         .activity_service()
         .create_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(created)
 }
@@ -124,7 +125,7 @@ pub async fn update_activity(
         .activity_service()
         .update_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(updated)
 }
@@ -202,6 +203,17 @@ pub async fn find_transfer_match_candidates(
 }
 
 #[tauri::command]
+pub async fn review_transfer_matches(state: ProfileAccess) -> Result<TransferMatchReview, String> {
+    debug!("Reviewing transfer matches...");
+    state
+        .context()?
+        .activity_service()
+        .review_transfer_matches()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn save_internal_transfer_pair(
     request: InternalTransferPairRequest,
     state: ProfileAccess,
@@ -262,6 +274,25 @@ pub async fn link_transfer_activities(
         .map_err(|e| e.to_string())?;
     context.health_service().clear_cache().await;
     Ok(pair)
+}
+
+#[tauri::command]
+pub async fn link_transfer_pairs(
+    pairs: Vec<TransferPairLinkRequest>,
+    state: ProfileAccess,
+) -> Result<LinkTransferPairsResult, String> {
+    let context = state.context()?;
+    debug!("Linking transfer pairs...");
+    // Domain events handle recalculation automatically
+    let result = context
+        .activity_service()
+        .link_transfer_pairs(pairs)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !result.linked.is_empty() {
+        context.health_service().clear_cache().await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
