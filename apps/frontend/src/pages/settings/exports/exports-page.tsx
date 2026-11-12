@@ -28,15 +28,7 @@ const ExportSettingsPage = () => {
         </TabsContent>
 
         <TabsContent value="export" className="mt-6">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">{t("settings:export_title")}</h3>
-              <p className="text-muted-foreground text-sm">
-                {t("settings:export_section_description")}
-              </p>
-            </div>
-            <ExportForm />
-          </div>
+          <ExportForm />
         </TabsContent>
       </Tabs>
     </div>

@@ -10,6 +10,18 @@ function paste(text: string) {
 }
 
 describe("localized financial input typing", () => {
+  it("preserves existing Spanish input grouping choices", () => {
+    render(
+      <FormattingProvider locale="ES">
+        <MoneyInput aria-label="Amount" value={8765.43} thousandSeparator={false} />
+        <QuantityInput aria-label="Quantity" value={8765.43} />
+      </FormattingProvider>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("8765,43");
+    expect(screen.getByRole("textbox", { name: "Quantity" })).toHaveValue("8.765,43");
+  });
+
   it.each([
     ["money", "de-DE", "1.5", "1,5", 1.5],
     ["quantity", "de-DE", "1.5", "1,5", 1.5],

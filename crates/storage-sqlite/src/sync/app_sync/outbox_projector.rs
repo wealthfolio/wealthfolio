@@ -48,13 +48,40 @@ pub(crate) fn flush_projected_outbox(
     projected_changes: Vec<ProjectedChange>,
 ) -> Result<usize> {
     let mut inserted_count = 0;
-    for request in requests.into_iter().chain(
+    for mut request in requests.into_iter().chain(
         projected_changes
             .into_iter()
             .map(ProjectedChange::into_outbox_request),
     ) {
+        // Old clients reject unknown payload columns. Keep the original event
+        // readable, and send the complete row separately under a versioned
+        // entity they skip. Recurrence and exclusions share the versioned conflict
+        // clock so legacy edits cannot suppress settings they do not contain.
+        let versioned = if request.entity == SyncEntity::ContributionLimit
+            && request.op != SyncOperation::Delete
+            && (request.payload.get("isRecurring").is_some()
+                || request.payload.get("is_recurring").is_some())
+        {
+            let mut versioned = request.clone();
+            versioned.entity = SyncEntity::ContributionLimitV2;
+            versioned.event_id = None;
+            if let Some(payload) = request.payload.as_object_mut() {
+                payload.remove("isRecurring");
+                payload.remove("is_recurring");
+                payload.remove("excludedActivityIds");
+                payload.remove("excluded_activity_ids");
+            }
+            Some(versioned)
+        } else {
+            None
+        };
         insert_outbox_event(conn, request)?;
         inserted_count += 1;
+        if let Some(mut versioned) = versioned {
+            versioned.client_timestamp = chrono::Utc::now().to_rfc3339();
+            insert_outbox_event(conn, versioned)?;
+            inserted_count += 1;
+        }
     }
     Ok(inserted_count)
 }

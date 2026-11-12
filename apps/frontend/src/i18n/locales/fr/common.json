@@ -1,4 +1,6 @@
 {
+  "periodReturn": "Rendement {{period}}",
+  "currentValue": "Valeur actuelle",
   "app_name": "Wealthfolio",
   "welcome": "Bienvenue",
   "loading": "Chargement...",
@@ -181,13 +183,13 @@
     "rebuild_full_history": "Actualiser tout l’historique",
     "rebuild_full_history_label": "Actualiser tout l’historique",
     "rebuilding_history": "Actualiser tout l’historique…",
-    "record_buy": "Enregistrer un achat",
-    "record_sell": "Enregistrer une vente",
-    "record_dividend": "Enregistrer un dividende",
-    "record_deposit": "Enregistrer un dépôt",
-    "record_withdrawal": "Enregistrer un retrait",
+    "record_buy": "Ajouter un achat",
+    "record_sell": "Ajouter une vente",
+    "record_dividend": "Ajouter un dividende",
+    "record_deposit": "Ajouter un dépôt",
+    "record_withdrawal": "Ajouter un retrait",
     "add_holding": "Ajouter une position",
-    "record_interest": "Enregistrer des intérêts",
+    "record_interest": "Ajouter des intérêts",
     "add_transaction": "Ajouter une transaction",
     "import_activities": "Importer des activités",
     "manage_securities": "Gérer les titres",
@@ -323,7 +325,10 @@
     "all_portfolio": "Tout le portefeuille",
     "calculation_notes_one": "Note de calcul ({{count}})",
     "calculation_notes_other": "Notes de calcul ({{count}})",
-    "calculation_notes_many": "Notes de calcul ({{count}})"
+    "calculation_notes_many": "Notes de calcul ({{count}})",
+    "launcher_navigation": "Accéder à",
+    "launcher_appearance": "Apparence",
+    "launcher_tools": "Outils"
   },
   "globalEvents": {
     "syncingMarket": "Synchronisation des données de marché...",
@@ -711,5 +716,24 @@
     "accountNumberMax": "Le numéro de compte ne doit pas dépasser 64 caractères.",
     "accountCurrency": "Veuillez sélectionner une devise.",
     "creditCardTracking": "Les comptes de carte de crédit ne peuvent pas utiliser le suivi des positions."
+  },
+  "backendErrors": {
+    "internal": "L’opération n’a pas pu être effectuée.",
+    "invalidInput": "Vérifiez votre saisie et réessayez.",
+    "conflict": "La modification entre en conflit avec des données existantes.",
+    "notFound": "L’élément demandé est introuvable.",
+    "unauthorized": "Connectez-vous pour continuer.",
+    "forbidden": "Cette opération n’est pas autorisée.",
+    "unavailable": "Cette opération est indisponible.",
+    "providerKeyMissing": "Ajoutez une clé API pour ce fournisseur dans les paramètres.",
+    "providerUnknown": "Sélectionnez un fournisseur pris en charge.",
+    "providerUnavailable": "Le fournisseur n’a pas pu traiter la demande. Vérifiez ses paramètres.",
+    "customProviderCodeReserved": "Ce code de fournisseur est réservé. Choisissez un autre code.",
+    "customProviderInUse": "Changez le fournisseur des actifs concernés ou supprimez leurs correspondances de symboles avant de le supprimer.",
+    "addonManifestMissing": "Le fichier ZIP du module complémentaire ne contient pas de manifest.json.",
+    "addonMainFileMissing": "Le fichier ZIP du module complémentaire ne contient pas le fichier principal indiqué dans son manifeste.",
+    "addonNeedsNewerVersion": "Ce module complémentaire nécessite une version plus récente de Wealthfolio. Mettez Wealthfolio à jour, puis réessayez.",
+    "quoteCurrencyRequired": "La devise de cotation est obligatoire. Sélectionnez à nouveau le symbole dans les résultats de recherche.",
+    "rateLimited": "Trop de requêtes. Patientez une minute, puis réessayez."
   }
 }

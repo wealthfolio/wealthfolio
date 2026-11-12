@@ -100,7 +100,10 @@ for (const direction of ["ltr", "rtl"]) {
       await page.getByText(note, { exact: true }).click();
     }
     const form = page.getByRole("dialog", { name: "Edit Transaction", exact: true });
-    await expect(form.getByRole("combobox", { name: "Type" })).toHaveText("Credit");
+    // On a phone the field is a row whose trigger also shows its label.
+    await expect(
+      form.getByRole("combobox", { name: "Type" }).locator('[data-slot="select-value"]'),
+    ).toHaveText("Credit");
     await expect(form.getByText("Neutral", { exact: true })).toBeVisible();
     await expect(form.getByText("Neutral transfer", { exact: true })).toHaveCount(0);
     await form.getByRole("button", { name: /^Update(?: Transaction)?$/ }).click();

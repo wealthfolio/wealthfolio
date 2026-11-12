@@ -18,6 +18,7 @@ import {
   SheetTrigger,
 } from "@wealthfolio/ui/components/ui/sheet";
 import { useIsMobileViewport } from "@/hooks";
+import { AccountTypeIconTile, IconTile } from "@/components/account-type-icon";
 import { cn } from "@/lib/utils";
 import { forwardRef, useRef, useState, type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -94,16 +95,16 @@ const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
           triggerVariant === "input"
             ? "bg-background/70 text-foreground hover:bg-background/70 focus-visible:border-foreground w-full justify-between rounded-lg border px-3 py-2.5 text-sm font-semibold shadow-none"
             : compact
-              ? "rounded-full"
+              ? // On phones the margin keeps its row 44px tall and the tap layer is 44px
+                // tall to fit it; the mobile reset clips and scrolls .flex boxes otherwise.
+                "overflow-visible! rounded-full max-lg:my-1 max-lg:after:-inset-y-1 pointer-coarse:my-1 pointer-coarse:after:-inset-y-1"
               : "bg-secondary/30 hover:bg-muted/80 rounded-full border-none",
-          triggerVariant === "icon" && "h-8 w-8 justify-center p-0",
-          triggerVariant === "default" &&
-            (isMobile
-              ? "h-9 w-9 justify-center p-0"
-              : "min-w-55 h-10 justify-between px-4 text-sm"),
+          triggerVariant === "default" && !isMobile && "min-w-55 h-10 justify-between px-4 text-sm",
           className,
         )}
-        size={compact ? "sm" : "default"}
+        // icon-xs keeps the phone button the height of the period pills beside it,
+        // with an invisible 48px tap area, where icon-sm grows it to 44px.
+        size={compact ? (triggerVariant === "icon" || isMobile ? "icon-xs" : "icon-sm") : "default"}
         {...props}
       >
         {compact ? (
@@ -146,7 +147,7 @@ function AccountScopeCommand({
   t,
 }: {
   value: AccountScope;
-  accounts: { id: string; name: string; currency: string }[];
+  accounts: { id: string; name: string; currency: string; accountType?: string }[];
   portfolios: { id: string; name: string }[];
   onSelect: (filter: AccountScope) => void;
   onToggleAccount: (accountId: string) => void;
@@ -172,9 +173,7 @@ function AccountScopeCommand({
 
         <CommandGroup className={groupClassName}>
           <CommandItem className={itemClassName} onSelect={() => onSelect({ type: "all" })}>
-            <Icons.Wallet
-              className={cn("me-1 h-4 w-4", portfoliosOnly && "text-muted-foreground me-0")}
-            />
+            <IconTile icon={Icons.Wallet} />
             <span className="min-w-0 flex-1 truncate">{t("common:component.all_accounts")}</span>
             <Icons.Check
               className={cn("ms-auto h-4 w-4", value.type === "all" ? "opacity-100" : "opacity-0")}
@@ -192,9 +191,7 @@ function AccountScopeCommand({
                 className={itemClassName}
                 onSelect={() => onSelect({ type: "portfolio", portfolioId: p.id })}
               >
-                <Icons.Folder
-                  className={cn("me-1 h-4 w-4", portfoliosOnly && "text-muted-foreground me-0")}
-                />
+                <IconTile icon={Icons.Folder} />
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
                 <Icons.Check
                   className={cn(
@@ -221,9 +218,11 @@ function AccountScopeCommand({
                   className={itemClassName}
                   onSelect={() => onToggleAccount(a.id)}
                 >
-                  <Icons.CreditCard className="me-1 h-4 w-4" />
+                  <AccountTypeIconTile accountType={a.accountType} />
                   <span className="min-w-0 flex-1 truncate">{a.name}</span>
-                  <span className="text-muted-foreground shrink-0 text-xs">({a.currency})</span>
+                  <span data-slot="account-meta" className="text-muted-foreground shrink-0 text-xs">
+                    {a.currency}
+                  </span>
                   <Icons.Check
                     className={cn("ms-auto h-4 w-4", checked ? "opacity-100" : "opacity-0")}
                   />
@@ -244,15 +243,8 @@ function AccountScopeCommand({
               if (event.key === "Enter" || event.key === " ") event.stopPropagation();
             }}
           >
-            {showAddPortfolio ? (
-              <Icons.Plus
-                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "me-1 h-4 w-4")}
-              />
-            ) : (
-              <Icons.Settings
-                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "me-1 h-4 w-4")}
-              />
-            )}
+            {/* A tile like the rows' keeps the footer's icon and label in line with theirs. */}
+            <IconTile icon={showAddPortfolio ? Icons.Plus : Icons.Settings} />
             {t(
               showAddPortfolio
                 ? "settings:portfolios.add_button"
@@ -346,9 +338,10 @@ export function AccountScopeSelector({
           initialFocus={portfoliosOnly ? sheetTitleRef : undefined}
           className={cn(
             "mx-1 p-0",
-            portfoliosOnly ? "bg-card max-h-[80dvh] rounded-t-2xl" : "rounded-t-4xl h-[80vh]",
+            portfoliosOnly
+              ? "bg-card [--overlay-max-height:80dvh] rounded-t-4xl"
+              : "rounded-t-4xl h-[80vh]",
           )}
-          style={portfoliosOnly ? { paddingBottom: "var(--inset-bottom)" } : undefined}
         >
           <SheetHeader className="border-border border-b px-6 py-4">
             <SheetTitle ref={sheetTitleRef} tabIndex={portfoliosOnly ? -1 : undefined}>
@@ -370,16 +363,15 @@ export function AccountScopeSelector({
             commandClassName={cn(
               "rounded-none",
               portfoliosOnly && "bg-card [&_[data-cmdk-input-wrapper]]:px-6",
-              portfoliosOnly
-                ? "h-auto max-h-[calc(80dvh-5rem-var(--inset-bottom))]"
-                : "h-[calc(80vh-4.5rem)]",
+              portfoliosOnly ? "h-auto max-h-[calc(80dvh-5rem)]" : "h-[calc(80vh-4.5rem)]",
             )}
             listClassName="min-h-0 max-h-none flex-1 px-2 py-2"
-            groupClassName="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
             footerClassName="px-2 pb-2"
             itemClassName={cn(
-              "min-h-12 rounded-xl px-3 py-3 text-base",
-              portfoliosOnly && "gap-4 font-medium [&_svg]:size-5",
+              "min-h-12 gap-3 rounded-xl px-3 py-2 text-base",
+              "[&_[data-slot=icon-tile]]:size-8 [&_[data-slot=icon-tile]]:rounded-lg [&_[data-slot=icon-tile]_svg]:size-4",
+              "[&_[data-slot=account-meta]]:text-sm",
+              portfoliosOnly && "font-medium",
             )}
           />
         </SheetContent>

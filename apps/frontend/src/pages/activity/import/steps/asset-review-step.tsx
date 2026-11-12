@@ -53,6 +53,7 @@ function buildEditableAssetDraft(
       candidateDraft?.currency ||
       fallbackCurrency,
     instrumentType: item.draft?.instrumentType || candidateDraft?.instrumentType || "EQUITY",
+    instrumentTypeLabel: item.draft?.instrumentTypeLabel,
     instrumentSymbol:
       item.draft?.instrumentSymbol || item.draft?.displayCode || candidateDraft?.symbol,
     instrumentExchangeMic:
@@ -792,6 +793,9 @@ export function AssetReviewStep() {
                         key: item.key,
                         symbol,
                         mode: "create",
+                        initialAsset: item.draft
+                          ? { ...item.draft, quoteMode: "MANUAL" }
+                          : undefined,
                       })
                     }
                   />

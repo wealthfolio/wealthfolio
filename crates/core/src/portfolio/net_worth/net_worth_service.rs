@@ -28,10 +28,11 @@ use crate::utils::time_utils::{
 };
 
 /// Number of days after which a valuation is considered stale.
-const STALENESS_THRESHOLD_DAYS: i64 = 90;
+pub const STALENESS_THRESHOLD_DAYS: i64 = 90;
 
 /// Key prefix for a credit-card liability, in the breakdown and the history.
-const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";
+/// History breakdown key prefix for a credit card account's balance.
+pub(crate) const CREDIT_CARD_KEY_PREFIX: &str = "CREDIT_CARD:";
 
 /// Service for calculating net worth.
 #[derive(Clone)]
@@ -261,7 +262,7 @@ impl NetWorthService {
     }
 
     /// Get category key string for serialization.
-    fn category_key(category: AssetCategory) -> &'static str {
+    pub(crate) fn category_key(category: AssetCategory) -> &'static str {
         match category {
             AssetCategory::Cash => "cash",
             AssetCategory::Investment => "investments",
@@ -449,13 +450,44 @@ impl NetWorthService {
 
 #[async_trait]
 impl NetWorthServiceTrait for NetWorthService {
+    /// Net worth on a date reads stored valuations and every asset's quote
+    /// history, so it runs off the async workers, as the history does.
     async fn get_net_worth(&self, date: NaiveDate) -> Result<NetWorthResponse> {
         let base_currency = self
             .base_currency
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
+        let service = self.clone();
+        blocking(move || service.calculate_net_worth(date, base_currency)).await
+    }
 
+    /// The history reads every account's stored valuations over the range, so
+    /// it runs off the async workers. The base currency and timezone are each
+    /// read once here, so the calculation uses the same values throughout.
+    async fn get_net_worth_history(
+        &self,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<Vec<NetWorthHistoryPoint>> {
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let timezone = self.timezone();
+        let service = self.clone();
+        blocking(move || service.calculate_history(start_date, end_date, base_currency, timezone))
+            .await
+    }
+}
+
+impl NetWorthService {
+    fn calculate_net_worth(
+        &self,
+        date: NaiveDate,
+        base_currency: String,
+    ) -> Result<NetWorthResponse> {
         debug!("Calculating net worth as of {} in {}", date, base_currency);
 
         // Get all non-archived accounts (includes closed accounts for historical net worth)
@@ -844,27 +876,6 @@ impl NetWorthServiceTrait for NetWorthService {
         })
     }
 
-    /// The history reads every account's stored valuations over the range, so
-    /// it runs off the async workers. The base currency and timezone are each
-    /// read once here, so the calculation uses the same values throughout.
-    async fn get_net_worth_history(
-        &self,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> Result<Vec<NetWorthHistoryPoint>> {
-        let base_currency = self
-            .base_currency
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
-        let timezone = self.timezone();
-        let service = self.clone();
-        blocking(move || service.calculate_history(start_date, end_date, base_currency, timezone))
-            .await
-    }
-}
-
-impl NetWorthService {
     fn calculate_history(
         &self,
         start_date: NaiveDate,

@@ -1,3 +1,7 @@
+import {
+  SPENDING_ENTRY_PATH,
+  spendingEntryNavigationOptions,
+} from "@/features/spending/lib/activity-entry";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { syncService } from "@/features/devices-sync";
 import { useSyncStatus } from "@/features/devices-sync/hooks";
@@ -14,16 +18,28 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface DashboardActionsProps {
+  view?: "investments" | "net-worth" | "spending";
+  spendingEnabled?: boolean;
   onAddAsset?: () => void;
   onAddLiability?: () => void;
+  compareEnabled?: boolean;
+  onCompareToggle?: () => void;
 }
 
-export function DashboardActions({ onAddAsset, onAddLiability }: DashboardActionsProps) {
+export function DashboardActions({
+  onAddAsset,
+  onAddLiability,
+  view = onAddAsset && onAddLiability ? "net-worth" : "investments",
+  spendingEnabled = false,
+  compareEnabled = false,
+  onCompareToggle,
+}: DashboardActionsProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
 
   // Portfolio update mutations
@@ -60,18 +76,71 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
               onClick: () => navigate("/holdings?tab=assets"),
             },
           ]
-        : [
-            {
-              icon: Icons.Plus,
-              label: t("dashboard:actions.record_transaction"),
-              onClick: () => navigate("/activities/manage"),
-            },
-          ];
+        : view === "spending"
+          ? []
+          : [
+              {
+                icon: Icons.Plus,
+                label: t("common:component.add_transaction"),
+                onClick: () => navigate("/activities/manage"),
+              },
+            ];
 
     return [
       {
         items: [
+          ...(view === "spending" && onCompareToggle
+            ? [
+                {
+                  icon: Icons.BarChart,
+                  label: t("spending:tabContent.comparePriorPeriod"),
+                  checked: compareEnabled,
+                  onClick: onCompareToggle,
+                },
+              ]
+            : []),
           ...primaryActions,
+          ...(spendingEnabled
+            ? [
+                {
+                  icon: Icons.ArrowUpRight,
+                  label: t("spending:cashForm.addExpense"),
+                  onClick: () =>
+                    navigate(
+                      `${SPENDING_ENTRY_PATH}?type=WITHDRAWAL`,
+                      spendingEntryNavigationOptions(location),
+                    ),
+                },
+                {
+                  icon: Icons.ArrowDownLeft,
+                  label: t("spending:cashForm.addIncome"),
+                  onClick: () =>
+                    navigate(
+                      `${SPENDING_ENTRY_PATH}?type=DEPOSIT`,
+                      spendingEntryNavigationOptions(location),
+                    ),
+                },
+              ]
+            : []),
+          ...(view === "spending"
+            ? [
+                {
+                  icon: Icons.ArrowLeftRight,
+                  label: t("spending:cashForm.transfer"),
+                  onClick: () =>
+                    navigate(
+                      `${SPENDING_ENTRY_PATH}?type=TRANSFER`,
+                      spendingEntryNavigationOptions(location),
+                    ),
+                },
+                {
+                  icon: Icons.Plus,
+                  label: t("spending:txTab.addTransaction"),
+                  onClick: () =>
+                    navigate(SPENDING_ENTRY_PATH, spendingEntryNavigationOptions(location)),
+                },
+              ]
+            : []),
           ...(showSyncAction
             ? [
                 {
@@ -95,7 +164,7 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
             label: t("dashboard:actions.update_prices"),
             onClick: () => updatePortfolioMutation.mutate(),
           },
-          ...(!(onAddAsset && onAddLiability)
+          ...(view === "investments"
             ? [
                 {
                   icon: Icons.History,
@@ -115,8 +184,13 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
   }, [
     t,
     navigate,
+    location,
+    spendingEnabled,
+    view,
     onAddAsset,
     onAddLiability,
+    compareEnabled,
+    onCompareToggle,
     showSyncAction,
     showDeviceSyncAction,
     syncBrokerData,

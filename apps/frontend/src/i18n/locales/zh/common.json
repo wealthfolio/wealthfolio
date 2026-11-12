@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}}回报",
+  "currentValue": "当前价值",
   "app_name": "Wealthfolio",
   "welcome": "欢迎",
   "loading": "加载中...",
@@ -180,13 +182,13 @@
     "rebuild_full_history": "刷新全部历史",
     "rebuild_full_history_label": "刷新全部历史",
     "rebuilding_history": "刷新全部历史…",
-    "record_buy": "记录买入",
-    "record_sell": "记录卖出",
-    "record_dividend": "记录分红",
-    "record_deposit": "记录存入",
-    "record_withdrawal": "记录取出",
+    "record_buy": "添加买入",
+    "record_sell": "添加卖出",
+    "record_dividend": "添加股息",
+    "record_deposit": "添加存款",
+    "record_withdrawal": "添加提款",
     "add_holding": "添加持仓",
-    "record_interest": "记录利息",
+    "record_interest": "添加利息",
     "add_transaction": "添加交易",
     "import_activities": "导入活动",
     "manage_securities": "管理证券",
@@ -316,7 +318,10 @@
     "unable_to_open_changelog": "无法打开更新日志",
     "try_open_changelog_manually": "请尝试在浏览器中手动打开更新日志。",
     "all_portfolio": "全部投资组合",
-    "calculation_notes_other": "计算说明({{count}})"
+    "calculation_notes_other": "计算说明({{count}})",
+    "launcher_navigation": "前往",
+    "launcher_appearance": "外观",
+    "launcher_tools": "工具"
   },
   "globalEvents": {
     "syncingMarket": "正在同步市场数据...",
@@ -683,5 +688,24 @@
     "accountNumberMax": "账户号码不得超过 64 个字符。",
     "accountCurrency": "请选择货币。",
     "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。"
+  },
+  "backendErrors": {
+    "internal": "无法完成此操作。",
+    "invalidInput": "请检查输入内容后重试。",
+    "conflict": "此更改与现有数据冲突。",
+    "notFound": "未找到所请求的项目。",
+    "unauthorized": "请登录后继续。",
+    "forbidden": "不允许执行此操作。",
+    "unavailable": "此操作不可用。",
+    "providerKeyMissing": "请在设置中为此提供方添加 API 密钥。",
+    "providerUnknown": "请选择受支持的提供方。",
+    "providerUnavailable": "提供方无法完成请求。请检查提供方设置。",
+    "customProviderCodeReserved": "此提供方代码已被保留。请选择其他代码。",
+    "customProviderInUse": "删除前，请更改相关资产的提供方或移除其代码映射。",
+    "addonManifestMissing": "插件 ZIP 文件中没有 manifest.json。",
+    "addonMainFileMissing": "插件 ZIP 文件中没有其清单指定的主文件。",
+    "addonNeedsNewerVersion": "此插件需要更新版本的 Wealthfolio。请更新 Wealthfolio 后重试。",
+    "quoteCurrencyRequired": "需要报价货币。请从搜索结果中重新选择代码。",
+    "rateLimited": "请求过多。请稍等一分钟后重试。"
   }
 }

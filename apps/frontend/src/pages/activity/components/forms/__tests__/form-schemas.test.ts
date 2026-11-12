@@ -1701,6 +1701,28 @@ describe("Form Schemas Validation", () => {
     });
   });
 
+  describe("newActivitySchema empty charges", () => {
+    it("saves an empty fee or tax as 0", () => {
+      const charges = { DEPOSIT: ["fee"], DIVIDEND: ["fee", "tax"], INTEREST: ["fee", "tax"] };
+      for (const [activityType, fields] of Object.entries(charges)) {
+        const result = newActivitySchema.safeParse({
+          accountId: "acc-123",
+          activityType,
+          activityDate: new Date(),
+          amount: 10,
+          currency: "USD",
+          fee: undefined,
+          tax: undefined,
+        });
+
+        expect(result.success).toBe(true);
+        for (const field of fields) {
+          expect(result.data).toHaveProperty(field, 0);
+        }
+      }
+    });
+  });
+
   describe("newActivitySchema extended mobile edit types", () => {
     it("accepts explicit zero cash and income amounts", () => {
       for (const activityType of ["DEPOSIT", "WITHDRAWAL", "DIVIDEND", "INTEREST", "CREDIT"]) {

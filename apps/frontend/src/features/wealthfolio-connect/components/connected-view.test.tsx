@@ -3,6 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConnectedView } from "./connected-view";
 
+const sync = vi.hoisted(() => ({ trigger: vi.fn(), error: vi.fn(), loading: vi.fn() }));
+vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({
+  toast: { error: sync.error, loading: sync.loading },
+}));
+vi.mock("i18next", () => ({ default: { t: (key: string) => key } }));
+
 const context = vi.hoisted(() => ({
   user: { email: "user@example.com" },
   session: { access_token: "test" },
@@ -35,15 +41,19 @@ vi.mock("@/adapters", () => ({ openUrlInBrowser: vi.fn() }));
 vi.mock("../services/broker-service", () => ({
   listBrokerAccounts: vi.fn().mockResolvedValue([]),
   listBrokerConnections: vi.fn().mockResolvedValue([]),
-  syncBrokerData: vi.fn(),
+  syncBrokerData: sync.trigger,
 }));
 vi.mock("@wealthfolio/ui", () => ({
+  buttonVariants: () => "",
   useDateFormatting: () => ({ dateFormat: "yyyy-MM-dd" }),
   Spinner: () => <span data-testid="spinner" />,
   ActionConfirm: ({ button }: { button: React.ReactNode }) => button,
 }));
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { error?: string }) =>
+      key === "connect:sync.startFailed" ? `Start failed: ${options?.error}` : key,
+  }),
   Trans: () => null,
 }));
 
@@ -68,6 +78,24 @@ function renderView(direction: "ltr" | "rtl" = "ltr") {
 }
 
 describe("authenticated subscription view", () => {
+  it.each(["ltr", "rtl"] as const)(
+    "uses translated plan-denial errors for the Connect page Sync button (%s)",
+    async (direction) => {
+      context.userInfo = { team: { plan: "essentials", subscription_status: "active" } };
+      sync.trigger.mockRejectedValueOnce(
+        "API error 403: PLAN_UPGRADE_REQUIRED: Denied (requestId=synthetic)",
+      );
+      renderView(direction);
+      const button = screen.getByRole("button", { name: "connect:sync.syncNow" });
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() =>
+        expect(sync.error).toHaveBeenCalledWith("Start failed: connect:upgrade.title"),
+      );
+      expect(sync.loading).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([null, "canceled", "unpaid", "incomplete", "paused", "unknown"])(
     "shows pricing and preserves the session for status %s",
     (status) => {

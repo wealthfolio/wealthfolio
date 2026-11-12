@@ -37,8 +37,10 @@ const Balance: React.FC<BalanceProps> = ({
   const displayValue =
     !compact && Math.abs(targetValue) < 0.5 * 10 ** -fractionDigits ? 0 : targetValue;
 
-  // The hidden balance keeps the symbol and its place from the visible format, so "$"
-  // stays "$" (not "US$") and "€" stays after the number where the locale puts it there.
+  // The hidden balance keeps the symbol and its place from the visible format, so "US$"
+  // stays "US$" and "€" stays after the number where the locale puts it there. The
+  // symbol is the region's own, as on every other amount: a bare "$" for US dollars
+  // reads as Canadian dollars to a Canadian region.
   const hiddenValue = useMemo(() => {
     const dots = "•••••••";
     if (!displayCurrency || !validCurrency) return dots;
@@ -46,7 +48,7 @@ const Balance: React.FC<BalanceProps> = ({
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
-      currencyDisplay: "narrowSymbol",
+      currencyDisplay: "symbol",
     })
       .formatToParts(0)
       .map((part) => {
@@ -63,7 +65,7 @@ const Balance: React.FC<BalanceProps> = ({
     if (compact && useCurrencyStyle)
       return amountFormatting.formatCompactAmount(displayValue, currency);
     return new Intl.NumberFormat(locale, {
-      ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" as const } : {}),
+      ...(useCurrencyStyle ? { currency, currencyDisplay: "symbol" as const } : {}),
       style: useCurrencyStyle ? "currency" : "decimal",
       notation: compact ? "compact" : "standard",
       minimumFractionDigits: compact ? 0 : fractionDigits,
@@ -116,7 +118,7 @@ const Balance: React.FC<BalanceProps> = ({
             }}
             format={{
               ...(displayCurrency && validCurrency
-                ? { currency, currencyDisplay: "narrowSymbol" as const }
+                ? { currency, currencyDisplay: "symbol" as const }
                 : {}),
               style: displayCurrency && validCurrency ? "currency" : "decimal",
               notation: compact ? ("compact" as const) : ("standard" as const),

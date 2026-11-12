@@ -143,6 +143,22 @@ pub fn denormalization_multiplier(currency: &str) -> Decimal {
     }
 }
 
+/// Cryptocurrency codes the app recognizes. Dollar-pegged stablecoins (USDT,
+/// USDC, DAI, ...) are deliberately left out: they behave like USD.
+const CRYPTO_CURRENCY_CODES: &[&str] = &[
+    "BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL", "AVAX",
+    "MATIC", "ATOM", "ALGO", "VET", "FIL", "TRX", "ETC", "XMR", "AAVE", "MKR", "COMP", "SNX",
+    "YFI", "SUSHI", "CRV",
+];
+
+/// Whether a currency or bare symbol code (any case) is a cryptocurrency.
+pub fn is_crypto_currency(code: &str) -> bool {
+    let code = code.trim();
+    CRYPTO_CURRENCY_CODES
+        .iter()
+        .any(|crypto| crypto.eq_ignore_ascii_case(code))
+}
+
 pub fn currency_fraction_digits(currency: &str) -> u32 {
     match normalize_currency_code(currency)
         .to_ascii_uppercase()
@@ -152,15 +168,10 @@ pub fn currency_fraction_digits(currency: &str) -> u32 {
         | "UYI" | "VND" | "VUV" | "XAF" | "XOF" | "XPF" => 0,
         "BHD" | "IQD" | "JOD" | "KWD" | "LYD" | "OMR" | "TND" => 3,
         "CLF" | "UYW" => 4,
-        // Crypto currencies (mirrors `crypto_quotes`/`common_crypto` in
-        // assets_service): the two-decimal fiat default would make one
-        // "minor unit" worth real money and silently canonicalize genuine
-        // differences. Dollar-pegged stablecoins (USDT, USDC, DAI, ...)
-        // deliberately keep the fiat default - cent-level snapping is the
-        // desired behavior for them, exactly as for USD.
-        "BTC" | "ETH" | "XRP" | "LTC" | "BCH" | "ADA" | "DOT" | "LINK" | "XLM" | "DOGE" | "UNI"
-        | "SOL" | "AVAX" | "MATIC" | "ATOM" | "ALGO" | "VET" | "FIL" | "TRX" | "ETC" | "XMR"
-        | "AAVE" | "MKR" | "COMP" | "SNX" | "YFI" | "SUSHI" | "CRV" => 8,
+        // The two-decimal fiat default would make one "minor unit" of a
+        // crypto currency worth real money and silently canonicalize genuine
+        // differences. Stablecoins keep the fiat default, exactly as USD.
+        code if is_crypto_currency(code) => 8,
         _ => 2,
     }
 }
@@ -203,6 +214,16 @@ mod tests {
         assert_eq!(currency_minor_unit("USDC"), dec!(0.01));
         // Minor-unit aliases resolve to their major code first.
         assert_eq!(currency_minor_unit("GBp"), dec!(0.01));
+    }
+
+    #[test]
+    fn recognizes_crypto_currency_codes_in_any_case() {
+        assert!(is_crypto_currency("BTC"));
+        assert!(is_crypto_currency("eth"));
+        assert!(is_crypto_currency(" SOL "));
+        assert!(!is_crypto_currency("USD"));
+        assert!(!is_crypto_currency("USDT"));
+        assert!(!is_crypto_currency(""));
     }
 
     #[test]

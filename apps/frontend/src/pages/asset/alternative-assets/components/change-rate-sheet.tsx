@@ -19,6 +19,7 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatDateISO } from "@/lib/utils";
+import { parseISO } from "date-fns";
 import { inheritedLoanSettings } from "../lib/loan-event-editing";
 
 export interface LoanRateChangeInput {
@@ -32,6 +33,8 @@ interface ChangeRateSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   metadata: Record<string, unknown>;
+  /** Today in the settings timezone, which the backend dates loan actions against. */
+  today: string;
   onSubmit: (change: LoanRateChangeInput) => Promise<void>;
 }
 
@@ -44,15 +47,20 @@ function rateOn(metadata: Record<string, unknown>, date: Date) {
 }
 
 /** Record a rate set by the lender. The payment stays unless a new one is entered. */
-export function ChangeRateSheet({ open, onOpenChange, metadata, onSubmit }: ChangeRateSheetProps) {
+export function ChangeRateSheet({
+  open,
+  onOpenChange,
+  metadata,
+  today,
+  onSubmit,
+}: ChangeRateSheetProps) {
   const { t } = useTranslation();
   const { formatDecimal } = useNumberFormatting();
   const rateInputId = useId();
   const paymentInputId = useId();
-  const [effectiveDate, setEffectiveDate] = useState<Date>(() => new Date());
+  const [effectiveDate, setEffectiveDate] = useState<Date>(() => parseISO(today));
   // Starts from the rate on the default date, which the check below compares with.
-  // The calculation's rate is as of the settings timezone's day, which can differ.
-  const [newRate, setNewRate] = useState(() => String(rateOn(metadata, new Date())));
+  const [newRate, setNewRate] = useState(() => String(rateOn(metadata, parseISO(today))));
   const [payment, setPayment] = useState<number | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -63,9 +71,9 @@ export function ChangeRateSheet({ open, onOpenChange, metadata, onSubmit }: Chan
   if (lastOpen !== open) {
     setLastOpen(open);
     if (open) {
-      const today = new Date();
-      setEffectiveDate(today);
-      setNewRate(String(rateOn(metadata, today)));
+      const date = parseISO(today);
+      setEffectiveDate(date);
+      setNewRate(String(rateOn(metadata, date)));
       setPayment(undefined);
       setSubmitError(null);
     }
@@ -75,7 +83,7 @@ export function ChangeRateSheet({ open, onOpenChange, metadata, onSubmit }: Chan
   const currentRate = inheritedLoanSettings(metadata, -1, day).annualRate;
   const parsedRate = newRate === "" ? Number.NaN : Number(newRate);
   const rateInvalid = !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100;
-  const dateInvalid = !day || effectiveDate > new Date();
+  const dateInvalid = !day || day > today;
   const isInvalid =
     rateInvalid ||
     dateInvalid ||

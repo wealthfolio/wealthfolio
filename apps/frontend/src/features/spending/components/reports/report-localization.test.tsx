@@ -155,6 +155,8 @@ const group = (id: string, name: string, categories: BudgetCategoryRow[]): Budge
   remaining: 100,
   overspent: false,
   rolloverEnabled: false,
+  savingsTargetTotal: 0,
+  savingsActual: 0,
   categories,
 });
 const groups = [

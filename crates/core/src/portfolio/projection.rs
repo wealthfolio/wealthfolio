@@ -96,6 +96,25 @@ pub struct ActivityIssue {
     #[serde(default)]
     pub kind: ActivityIssueKind,
     pub message: String,
+    /// Optional structured cause; absent in issues stored by older versions.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_activity_reason"
+    )]
+    pub reason: Option<wealthfolio_portfolio_engine::ActivityReason>,
+}
+
+/// Reason metadata is additive: an unknown or incomplete future payload must
+/// not make the existing stored activity issue (or its whole list) unreadable.
+fn deserialize_activity_reason<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<wealthfolio_portfolio_engine::ActivityReason>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value.and_then(|value| serde_json::from_value(value).ok()))
 }
 
 /// One account's rows for one window of a run: stored rows dated from `start`
@@ -133,6 +152,32 @@ pub struct RunCompletion {
 
 #[async_trait]
 pub trait ProjectionStoreTrait: Send + Sync {
+    /// Captures accounting inputs and their readiness from one database read transaction.
+    fn holdings_read(
+        &self,
+        _accounts: &[String],
+        _day: NaiveDate,
+        _detail_asset: Option<&str>,
+    ) -> Result<crate::portfolio::holdings::HoldingsRead> {
+        Err(crate::Error::Repository(
+            "holdings reads are not configured".into(),
+        ))
+    }
+
+    /// Fences calculations discovered without an existing marker (for example day
+    /// advancement). Only newly created markers may be added to consumption.
+    async fn ensure_calculation_markers(
+        &self,
+        _accounts: &[(String, NaiveDate)],
+    ) -> Result<Vec<ProjectionMarker>> {
+        Ok(Vec::new())
+    }
+
+    /// Records failure only if the attempted inputs are still current.
+    async fn record_failed_calculations(&self, _attempted: &[ProjectionMarker]) -> Result<()> {
+        Ok(())
+    }
+
     /// Every marker with a dirty day.
     fn pending_markers(&self) -> Result<Vec<ProjectionMarker>>;
 
@@ -151,4 +196,28 @@ pub trait ProjectionStoreTrait: Send + Sync {
 
     /// Marks `scope` stale from `from` (a forced rebuild, synced facts).
     async fn invalidate(&self, scope: MarkerScope, from: NaiveDate) -> Result<()>;
+}
+
+#[cfg(test)]
+mod activity_issue_tests {
+    use super::*;
+
+    #[test]
+    fn older_activity_issues_keep_their_message_without_a_reason() {
+        let issues: Vec<ActivityIssue> =
+            serde_json::from_str(r#"[{"activityId":"buy-1","message":"old reason"}]"#)
+                .expect("legacy stored activity issues");
+        assert_eq!(issues[0].kind, ActivityIssueKind::Rejected);
+        assert_eq!(issues[0].message, "old reason");
+        assert_eq!(issues[0].reason, None);
+    }
+
+    #[test]
+    fn unknown_activity_reasons_do_not_drop_the_stored_issue_list() {
+        let issues: Vec<ActivityIssue> = serde_json::from_str(
+            r#"[{"activityId":"buy-1","kind":"REJECTED","message":"future reason","reason":{"code":"FUTURE_REASON","params":{"asset":"aapl"}}}]"#,
+        ).expect("unknown reasons keep the fallback message");
+        assert_eq!(issues[0].message, "future reason");
+        assert_eq!(issues[0].reason, None);
+    }
 }

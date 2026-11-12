@@ -26,10 +26,93 @@ fn is_syncable_system_taxonomy_id(taxonomy_id: &str) -> bool {
 
 /// Bundle payload for custom taxonomy sync events.
 /// Sent as one atomic event containing the taxonomy row and all its categories.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CustomTaxonomyPayload {
     pub taxonomy: TaxonomyDB,
+    #[serde(alias = "categories_after_atomic_merge")]
     pub categories: Vec<CategoryDB>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub category_merges: Vec<CategoryMergeRedirect>,
+    #[serde(default)]
+    pub merge_operation: bool,
+}
+
+impl Serialize for CustomTaxonomyPayload {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("taxonomy", &self.taxonomy)?;
+        // Keep atomic receipts distinct from ordinary category snapshots. The
+        // engine's authenticated payload header is the legacy replay barrier;
+        // this required-field change also prevents legacy direct decoders from
+        // applying destructive category snapshots without their receipts.
+        let key = if self.category_merges.is_empty() {
+            "categories"
+        } else {
+            "categories_after_atomic_merge"
+        };
+        map.serialize_entry(key, &self.categories)?;
+        if !self.category_merges.is_empty() {
+            map.serialize_entry("category_merges", &self.category_merges)?;
+        }
+        if self.merge_operation {
+            map.serialize_entry("merge_operation", &true)?;
+        }
+        map.end()
+    }
+}
+
+impl crate::sync::SyncOutboxModel for CustomTaxonomyPayload {
+    const ENTITY: SyncEntity = SyncEntity::CustomTaxonomy;
+    fn sync_entity_id(&self) -> &str {
+        &self.taxonomy.id
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoryMergeRedirect {
+    pub taxonomy_id: String,
+    pub source_id: String,
+    pub destination_id: String,
+    pub budget_origins: Vec<wealthfolio_spending::category_merge::MergeBudgetOrigin>,
+}
+
+pub(crate) fn category_merge_redirects(
+    conn: &mut SqliteConnection,
+) -> wealthfolio_core::Result<Vec<CategoryMergeRedirect>> {
+    use crate::{errors::StorageError, schema::app_settings};
+    let value = app_settings::table
+        .find(wealthfolio_spending::category_merge::SETTING_KEY_CATEGORY_MERGES)
+        .select(app_settings::setting_value)
+        .first::<String>(conn)
+        .optional()
+        .map_err(StorageError::from)?;
+    value
+        .map(|v| {
+            serde_json::from_str(&v).map_err(|e| {
+                wealthfolio_core::errors::ValidationError::InvalidInput(e.to_string()).into()
+            })
+        })
+        .unwrap_or_else(|| Ok(Vec::new()))
+}
+
+pub(crate) fn save_category_merge_redirects(
+    conn: &mut SqliteConnection,
+    redirects: &[CategoryMergeRedirect],
+) -> wealthfolio_core::Result<()> {
+    use crate::{errors::StorageError, schema::app_settings};
+    let value = serde_json::to_string(redirects)
+        .map_err(|e| wealthfolio_core::errors::ValidationError::InvalidInput(e.to_string()))?;
+    diesel::replace_into(app_settings::table)
+        .values((
+            app_settings::setting_key
+                .eq(wealthfolio_spending::category_merge::SETTING_KEY_CATEGORY_MERGES),
+            app_settings::setting_value.eq(value),
+        ))
+        .execute(conn)
+        .map_err(StorageError::from)?;
+    Ok(())
 }
 
 /// Returns `true` if the taxonomy should participate in sync.
@@ -74,6 +157,18 @@ pub fn build_custom_taxonomy_payload(
     Ok(Some(CustomTaxonomyPayload {
         taxonomy,
         categories,
+        merge_operation: false,
+        category_merges: if wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
+            .contains(&taxonomy_id)
+        {
+            category_merge_redirects(conn)
+                .map_err(|e| diesel::result::Error::QueryBuilderError(Box::new(e)))?
+                .into_iter()
+                .filter(|r| r.taxonomy_id == taxonomy_id)
+                .collect()
+        } else {
+            Vec::new()
+        },
     }))
 }
 

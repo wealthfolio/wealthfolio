@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/components/external-link";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import React from "react";
@@ -136,14 +137,14 @@ export const OnboardingStep1: React.FC = () => {
       <div className="text-center">
         <p className="text-muted-foreground text-xs">
           {t("onboarding:steps.chooseMode.footnote")}{" "}
-          <a
-            href="https://wealthfolio.app/docs/concepts/activity-types"
+          <ExternalLink
+            href="https://wealthfolio.app/docs/concepts/tracking-modes/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-foreground underline transition-colors"
           >
             {t("onboarding:steps.chooseMode.learnMore")}
-          </a>
+          </ExternalLink>
         </p>
       </div>
     </div>

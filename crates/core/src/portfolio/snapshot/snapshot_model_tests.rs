@@ -72,6 +72,7 @@ mod tests {
             account_id: "account-1".to_string(),
             snapshot_date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
             currency: "USD".to_string(),
+            base_currency: None,
             source: SnapshotSource::ManualEntry,
             calculated_at: Utc::now().naive_utc(),
             ..Default::default()
@@ -168,6 +169,7 @@ mod tests {
             id: "snapshot-1".to_string(),
             account_id: "account-1".to_string(),
             snapshot_date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+            base_currency: None,
             source: SnapshotSource::BrokerImported,
             calculated_at: Utc::now().naive_utc(),
             ..Default::default()
@@ -177,7 +179,8 @@ mod tests {
             id: "snapshot-2".to_string(), // Different ID
             account_id: "account-1".to_string(),
             snapshot_date: NaiveDate::from_ymd_opt(2024, 2, 20).unwrap(), // Different date
-            source: SnapshotSource::ManualEntry,                          // Different source
+            base_currency: None,
+            source: SnapshotSource::ManualEntry, // Different source
             calculated_at: Utc::now().naive_utc(),
             ..Default::default()
         };

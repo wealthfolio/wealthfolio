@@ -1,6 +1,6 @@
 use wealthfolio_core::assets::{AssetKind, NewAsset};
 use wealthfolio_core::errors::{DatabaseError, ValidationError};
-use wealthfolio_core::fx::{ExchangeRate, FxRepositoryTrait};
+use wealthfolio_core::fx::{ExchangeRate, FxError, FxRepositoryTrait};
 use wealthfolio_core::quotes::constants::DATA_SOURCE_MANUAL;
 use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
@@ -172,13 +172,18 @@ impl FxRepository {
 
     pub fn get_all_historical_exchange_rates(&self) -> Result<Vec<ExchangeRate>> {
         let mut conn = get_connection(&self.pool)?;
+        Self::historical_rates_on_connection(&mut conn)
+    }
 
+    pub(crate) fn historical_rates_on_connection(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<ExchangeRate>> {
         let results: Vec<(QuoteDB, AssetDB)> = quotes::table
             .inner_join(assets::table.on(quotes::asset_id.eq(assets::id)))
             .filter(assets::kind.eq(AssetKind::Fx.as_db_str()))
             .select((quotes::all_columns, assets::all_columns))
             .order_by((quotes::asset_id.asc(), quotes::timestamp.asc()))
-            .load(&mut conn)
+            .load(conn)
             .map_err(StorageError::from)?;
 
         Ok(results
@@ -464,6 +469,17 @@ impl FxRepository {
                 if let Some(existing_asset) = existing {
                     Ok(existing_asset.id)
                 } else {
+                    // `new_fx_asset` stores the pair upper-cased, so a code in any
+                    // other case would be inserted under a different key than the
+                    // one looked up above and read back below (#2188). Pairs that
+                    // older versions stored as entered are found above.
+                    if let Some(code) = [&from_owned, &to_owned]
+                        .into_iter()
+                        .find(|code| code.to_uppercase() != **code)
+                    {
+                        return Err(FxError::InvalidCurrencyCode(code.clone()).into());
+                    }
+
                     let new_asset = NewAsset::new_fx_asset(&from_owned, &to_owned, &source_owned);
                     let asset_db: InsertableAssetDB = new_asset.into();
 

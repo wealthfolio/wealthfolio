@@ -2,6 +2,8 @@
 //! `projection_state` migration), windowed row writes, and the end-of-run
 //! commit of lot books, activity issues and consumed markers.
 
+mod holdings;
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -171,42 +173,122 @@ fn write_window_rows(conn: &mut SqliteConnection, window: PreparedWindow) -> Res
     Ok(())
 }
 
+fn load_markers(conn: &mut SqliteConnection) -> Result<Vec<ProjectionMarker>> {
+    let rows: Vec<MarkerRow> = diesel::sql_query(
+        "SELECT scope, dirty_from, version FROM projection_state WHERE dirty_from IS NOT NULL",
+    )
+    .load(conn)
+    .map_err(StorageError::from)?;
+    Ok(rows
+        .into_iter()
+        .map(|row| ProjectionMarker {
+            scope: MarkerScope::parse(&row.scope),
+            // A day the triggers could not date means "everything".
+            dirty_from: row
+                .dirty_from
+                .as_deref()
+                .and_then(parse_day)
+                .unwrap_or(GENESIS),
+            version: row.version,
+        })
+        .collect())
+}
+
+fn load_last_valued(conn: &mut SqliteConnection) -> Result<HashMap<String, NaiveDate>> {
+    let rows: Vec<LastValuedRow> = diesel::sql_query(
+        "SELECT account_id, MAX(valuation_date) AS day FROM daily_account_valuation \
+             GROUP BY account_id",
+    )
+    .load(conn)
+    .map_err(StorageError::from)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| Some((row.account_id, parse_day(&row.day)?)))
+        .collect())
+}
+
 #[async_trait]
 impl ProjectionStoreTrait for ProjectionStore {
+    fn holdings_read(
+        &self,
+        accounts: &[String],
+        day: NaiveDate,
+        detail_asset: Option<&str>,
+    ) -> Result<wealthfolio_core::portfolio::holdings::HoldingsRead> {
+        let mut conn = get_connection(&self.pool)?;
+        holdings::read(&mut conn, accounts, day, detail_asset)
+    }
+
+    async fn ensure_calculation_markers(
+        &self,
+        accounts: &[(String, NaiveDate)],
+    ) -> Result<Vec<ProjectionMarker>> {
+        let accounts = accounts.to_vec();
+        self.writer
+            .exec(move |conn: &mut SqliteConnection| {
+                let mut added = Vec::new();
+                for (account, from) in accounts {
+                    let existing: Option<MarkerRow> = diesel::sql_query(
+                        "SELECT scope, dirty_from, version FROM projection_state WHERE scope = ?",
+                    )
+                    .bind::<Text, _>(&account)
+                    .get_result(conn)
+                    .optional()
+                    .map_err(StorageError::from)?;
+                    if existing
+                        .as_ref()
+                        .is_some_and(|row| row.dirty_from.is_some())
+                    {
+                        diesel::sql_query(
+                            "UPDATE projection_state SET failed_version = NULL WHERE scope = ?",
+                        )
+                        .bind::<Text, _>(&account)
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                        continue;
+                    }
+                    diesel::sql_query(INVALIDATE)
+                        .bind::<Text, _>(&account)
+                        .bind::<Text, _>(from.to_string())
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                    let row: MarkerRow = diesel::sql_query(
+                        "SELECT scope, dirty_from, version FROM projection_state WHERE scope = ?",
+                    )
+                    .bind::<Text, _>(&account)
+                    .get_result(conn)
+                    .map_err(StorageError::from)?;
+                    added.push(ProjectionMarker {
+                        scope: MarkerScope::Account(account),
+                        dirty_from: from,
+                        version: row.version,
+                    });
+                }
+                Ok(added)
+            })
+            .await
+    }
+
+    async fn record_failed_calculations(&self, attempted: &[ProjectionMarker]) -> Result<()> {
+        let attempted = attempted.to_vec();
+        self.writer.exec(move |conn: &mut SqliteConnection| {
+            for marker in attempted {
+                diesel::sql_query("UPDATE projection_state SET failed_version = version WHERE scope = ? AND version = ? AND dirty_from IS NOT NULL")
+                    .bind::<Text, _>(marker.scope.key()).bind::<BigInt, _>(marker.version)
+                    .execute(conn).map_err(StorageError::from)?;
+            }
+            Ok(())
+        }).await
+    }
+
     fn pending_markers(&self) -> Result<Vec<ProjectionMarker>> {
         let mut conn = get_connection(&self.pool)?;
-        let rows: Vec<MarkerRow> = diesel::sql_query(
-            "SELECT scope, dirty_from, version FROM projection_state WHERE dirty_from IS NOT NULL",
-        )
-        .load(&mut conn)
-        .map_err(StorageError::from)?;
-        Ok(rows
-            .into_iter()
-            .map(|row| ProjectionMarker {
-                scope: MarkerScope::parse(&row.scope),
-                // A day the triggers could not date means "everything".
-                dirty_from: row
-                    .dirty_from
-                    .as_deref()
-                    .and_then(parse_day)
-                    .unwrap_or(GENESIS),
-                version: row.version,
-            })
-            .collect())
+        load_markers(&mut conn)
     }
 
     fn last_valued_days(&self) -> Result<HashMap<String, NaiveDate>> {
         let mut conn = get_connection(&self.pool)?;
-        let rows: Vec<LastValuedRow> = diesel::sql_query(
-            "SELECT account_id, MAX(valuation_date) AS day FROM daily_account_valuation \
-             GROUP BY account_id",
-        )
-        .load(&mut conn)
-        .map_err(StorageError::from)?;
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| Some((row.account_id, parse_day(&row.day)?)))
-            .collect())
+        load_last_valued(&mut conn)
     }
 
     fn activity_issues(&self, account_ids: &[String]) -> Result<Vec<ActivityIssue>> {
@@ -373,7 +455,7 @@ impl ProjectionStoreTrait for ProjectionStore {
                     // that change is not in the run, so the marker stays.
                     let statement = match marker.scope {
                         MarkerScope::Account(_) => {
-                            "UPDATE projection_state SET dirty_from = NULL \
+                            "UPDATE projection_state SET dirty_from = NULL, failed_version = NULL \
                              WHERE scope = ? AND version = ?"
                         }
                         _ => "DELETE FROM projection_state WHERE scope = ? AND version = ?",
@@ -494,7 +576,7 @@ mod tests {
             },
         );
         AccountStateSnapshot {
-            id: AccountStateSnapshot::stable_id("acc1", date(day)),
+            id: AccountStateSnapshot::calculated_id("acc1", date(day)),
             account_id: "acc1".to_string(),
             snapshot_date: date(day),
             currency: "USD".to_string(),
@@ -505,6 +587,7 @@ mod tests {
             net_contribution_base: Decimal::from(1500),
             cash_total_account_currency: Decimal::from(500),
             cash_total_base_currency: Decimal::from(500),
+            base_currency: Some("USD".into()),
             calculated_at: Utc::now().naive_utc(),
             source: SnapshotSource::Calculated,
         }
@@ -557,6 +640,8 @@ mod tests {
             realized_pnl: "80".to_string(),
             proceeds_base: "480".to_string(),
             cost_basis_base: "400".to_string(),
+            proceeds_base_known: Some(true),
+            cost_basis_base_known: Some(true),
             realized_pnl_base: "80".to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
@@ -954,7 +1039,7 @@ mod tests {
             .map(|row| (row.snapshot_id, row.quantity))
             .collect()
         };
-        let id = |day: u32| AccountStateSnapshot::stable_id("acc1", date(day));
+        let id = |day: u32| AccountStateSnapshot::calculated_id("acc1", date(day));
 
         store
             .write_window(vec![window(2, None, &[2, 3, 4])])
@@ -975,6 +1060,504 @@ mod tests {
         let mut expected = vec![(id(2), "10".to_string()), (id(3), "7".to_string())];
         expected.sort();
         assert_eq!(positions(), expected);
+    }
+
+    #[tokio::test]
+    async fn issue_2487_manual_save_does_not_compare_against_calculated_sibling() {
+        use wealthfolio_core::portfolio::snapshot::{SnapshotService, SnapshotServiceTrait};
+        let db = setup();
+        sql(
+            &db,
+            "UPDATE accounts SET tracking_mode = 'HOLDINGS' WHERE id = 'acc1'",
+        );
+        let repository = Arc::new(SnapshotRepository::new(db.pool.clone(), db.writer.clone()));
+        let mut observed = snapshot(2, "1");
+        repository
+            .save_snapshots(std::slice::from_ref(&observed))
+            .await
+            .unwrap();
+        observed.source = SnapshotSource::ManualEntry;
+        observed.base_currency = None;
+        let service = SnapshotService::new(
+            Arc::new(std::sync::RwLock::new("UTC".into())),
+            Arc::new(crate::accounts::AccountRepository::new(
+                db.pool.clone(),
+                db.writer.clone(),
+            )),
+            repository.clone(),
+            Arc::new(crate::activities::ActivityRepository::new(
+                db.pool.clone(),
+                db.writer.clone(),
+            )),
+        );
+        service
+            .save_manual_snapshot("acc1", observed)
+            .await
+            .unwrap();
+        let rows = repository
+            .get_snapshots_by_account("acc1", None, None)
+            .unwrap();
+        assert_eq!(
+            rows.len(),
+            2,
+            "matching a calculation does not make a user observation redundant"
+        );
+        assert!(rows.iter().any(
+            |row| row.id == AccountStateSnapshot::stable_id("acc1", date(2))
+                && row.source == SnapshotSource::ManualEntry
+        ));
+    }
+
+    #[tokio::test]
+    async fn issue_2487_provenance_migration_preserves_observations_and_invalidates_calculations() {
+        use diesel::connection::SimpleConnection;
+        let db = setup();
+        let repository = SnapshotRepository::new(db.pool.clone(), db.writer.clone());
+        let mut observed = snapshot(2, "1");
+        observed.id = AccountStateSnapshot::stable_id("acc1", date(2));
+        observed.source = SnapshotSource::ManualEntry;
+        repository
+            .save_snapshots(std::slice::from_ref(&observed))
+            .await
+            .unwrap();
+        let mut conn = get_connection(&db.pool).unwrap();
+        conn.batch_execute(include_str!(
+            "../../../migrations/2026-11-06-000001_snapshot_basis_provenance/down.sql"
+        ))
+        .unwrap();
+        diesel::sql_query("UPDATE projection_state SET dirty_from = NULL")
+            .execute(&mut conn)
+            .unwrap();
+        conn.batch_execute(include_str!(
+            "../../../migrations/2026-11-06-000001_snapshot_basis_provenance/up.sql"
+        ))
+        .unwrap();
+        drop(conn);
+        let rows = repository
+            .get_snapshots_by_account("acc1", None, None)
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, observed.id);
+        assert_eq!(rows[0].positions, observed.positions);
+        assert_eq!(rows[0].base_currency, None);
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        assert!(store
+            .pending_markers()
+            .unwrap()
+            .iter()
+            .any(|marker| marker.scope == MarkerScope::All && marker.dirty_from == GENESIS));
+    }
+
+    #[tokio::test]
+    async fn issue_2487_recalculation_preserves_observed_snapshot_on_the_same_day() {
+        let db = setup();
+        let repository = SnapshotRepository::new(db.pool.clone(), db.writer.clone());
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        let mut observed = snapshot(2, "1");
+        observed.id = AccountStateSnapshot::stable_id("acc1", date(2));
+        observed.source = SnapshotSource::ManualEntry;
+        observed.base_currency = None;
+        observed.positions.get_mut("AAPL").unwrap().total_cost_basis = Decimal::from(120);
+        repository
+            .save_snapshots(&[observed.clone()])
+            .await
+            .unwrap();
+        for _ in 0..2 {
+            store
+                .write_window(vec![window(2, None, &[2])])
+                .await
+                .unwrap();
+            let snapshots = repository
+                .get_snapshots_by_account("acc1", None, None)
+                .unwrap();
+            assert_eq!(
+                snapshots.len(),
+                2,
+                "a calculated row must not replace the user's observed row"
+            );
+            assert!(snapshots.iter().any(|s| s.id == observed.id
+                && s.source == SnapshotSource::ManualEntry
+                && s.positions["AAPL"].total_cost_basis == Decimal::from(120)));
+        }
+        for mode in ["HOLDINGS", "TRANSACTIONS", "HOLDINGS"] {
+            sql(
+                &db,
+                &format!("UPDATE accounts SET tracking_mode = '{mode}' WHERE id = 'acc1'"),
+            );
+            let read = store
+                .holdings_read(&["acc1".into()], date(2), None)
+                .unwrap();
+            let selected = &read.snapshots["acc1"];
+            assert_eq!(
+                selected.positions["AAPL"].total_cost_basis,
+                Decimal::from(if mode == "HOLDINGS" { 120 } else { 1000 })
+            );
+            assert_eq!(
+                selected.source == SnapshotSource::Calculated,
+                mode == "TRANSACTIONS"
+            );
+        }
+        repository
+            .delete_snapshot_for_account_by_id("acc1", &observed.id)
+            .await
+            .unwrap();
+        let remaining = repository
+            .get_snapshots_by_account("acc1", None, None)
+            .unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].source, SnapshotSource::Calculated);
+        assert_eq!(
+            remaining[0].id,
+            AccountStateSnapshot::calculated_id("acc1", date(2))
+        );
+    }
+
+    #[tokio::test]
+    async fn issue_2487_refold_fence_preserves_edits_before_and_after_fact_capture() {
+        for edit in ["none", "before", "after"] {
+            let db = setup();
+            let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+            store
+                .complete_run(RunCompletion {
+                    consumed: store.pending_markers().unwrap(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let captured = store.pending_markers().unwrap();
+            assert!(captured.is_empty());
+            if edit == "before" {
+                store
+                    .invalidate(MarkerScope::Account("acc1".into()), date(2))
+                    .await
+                    .unwrap();
+            }
+            let fenced = store
+                .ensure_calculation_markers(&[("acc1".into(), date(2))])
+                .await
+                .unwrap();
+            assert_eq!(fenced.len(), usize::from(edit != "before"));
+            if edit == "after" {
+                store
+                    .invalidate(MarkerScope::Account("acc1".into()), date(3))
+                    .await
+                    .unwrap();
+            }
+            store
+                .complete_run(RunCompletion {
+                    consumed: captured.into_iter().chain(fenced).collect(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(
+                store.pending_markers().unwrap().is_empty(),
+                edit == "none",
+                "{edit}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_calculation_status_is_versioned_and_cleared_on_retry() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        let account = MarkerScope::Account("acc1".into());
+        let captured = store
+            .pending_markers()
+            .unwrap()
+            .into_iter()
+            .find(|marker| marker.scope == account)
+            .unwrap();
+        store.invalidate(account.clone(), date(2)).await.unwrap();
+        store.record_failed_calculations(&[captured]).await.unwrap();
+        assert!(
+            store
+                .holdings_read(&["acc1".into()], date(2), None)
+                .unwrap()
+                .failed_accounts
+                .is_empty(),
+            "a newer edit must not inherit an obsolete failure"
+        );
+        let current = store
+            .pending_markers()
+            .unwrap()
+            .into_iter()
+            .find(|marker| marker.scope == account)
+            .unwrap();
+        store
+            .record_failed_calculations(std::slice::from_ref(&current))
+            .await
+            .unwrap();
+        assert!(store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap()
+            .failed_accounts
+            .contains("acc1"));
+        store
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
+            .await
+            .unwrap();
+        assert!(store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap()
+            .failed_accounts
+            .is_empty());
+        store.record_failed_calculations(&[current]).await.unwrap();
+        sql(
+            &db,
+            "UPDATE activities SET notes = 'edited' WHERE account_id = 'acc1'",
+        );
+        assert!(
+            store
+                .holdings_read(&["acc1".into()], date(2), None)
+                .unwrap()
+                .failed_accounts
+                .is_empty(),
+            "existing triggers invalidate the failed version without a new trigger"
+        );
+    }
+
+    #[tokio::test]
+    async fn out_of_policy_snapshot_is_unavailable_even_with_pending_markers() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        store
+            .write_window(vec![window(2, None, &[2])])
+            .await
+            .unwrap();
+        sql(
+            &db,
+            "UPDATE holdings_snapshots SET snapshot_date = '0024-01-02' WHERE account_id = 'acc1'",
+        );
+        let read = store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap();
+        assert_eq!(
+            read.unavailable_reason("acc1"),
+            Some("ACCOUNTING_UNAVAILABLE")
+        );
+        assert!(!read.snapshots.contains_key("acc1"));
+    }
+
+    #[tokio::test]
+    async fn issue_2487_existing_dirty_fence_does_not_change_captured_versions() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        store
+            .invalidate(MarkerScope::Account("acc1".into()), date(2))
+            .await
+            .unwrap();
+        let captured = store.pending_markers().unwrap();
+        assert!(store
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(store.pending_markers().unwrap(), captured);
+        store
+            .complete_run(RunCompletion {
+                consumed: captured,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(store.pending_markers().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn issue_2487_failed_final_transaction_keeps_snapshot_read_pending() {
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        store
+            .complete_run(RunCompletion {
+                consumed: store.pending_markers().unwrap(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let fenced = store
+            .ensure_calculation_markers(&[("acc1".into(), date(2))])
+            .await
+            .unwrap();
+        store
+            .write_window(vec![window(2, None, &[2])])
+            .await
+            .unwrap();
+        sql(&db, "CREATE TRIGGER fail_issue2487_completion BEFORE UPDATE OF dirty_from ON projection_state WHEN NEW.dirty_from IS NULL BEGIN SELECT RAISE(ABORT, 'injected completion failure'); END");
+        assert!(store
+            .complete_run(RunCompletion {
+                consumed: fenced,
+                ..Default::default()
+            })
+            .await
+            .is_err());
+        let read = store
+            .holdings_read(&["acc1".into()], date(2), None)
+            .unwrap();
+        assert!(read.position_pending("acc1", date(2)));
+        assert!(read.snapshots.contains_key("acc1"));
+        assert!(read
+            .markers
+            .iter()
+            .any(|m| m.scope == MarkerScope::Account("acc1".into())));
+    }
+
+    #[tokio::test]
+    async fn issue_2487_corrupt_selected_snapshot_is_isolated_from_healthy_peer() {
+        let db = setup();
+        sql(&db, "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active, created_at, updated_at, tracking_mode, is_archived) VALUES ('acc2', 'Peer', 'SECURITIES', 'USD', 0, 1, datetime('now'), datetime('now'), 'TRANSACTIONS', 0)");
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        let first = snapshot(2, "1");
+        let mut peer = first.clone();
+        peer.id = AccountStateSnapshot::stable_id("acc2", date(2));
+        peer.account_id = "acc2".into();
+        let mut peer_window = window(2, None, &[2]);
+        peer_window.account_id = "acc2".into();
+        peer_window.snapshots = Some(vec![peer]);
+        store
+            .write_window(vec![window(2, None, &[2]), peer_window])
+            .await
+            .unwrap();
+        sql(
+            &db,
+            "UPDATE holdings_snapshots SET positions = 'invalid-json' WHERE account_id = 'acc1'",
+        );
+        let read = store
+            .holdings_read(&["acc1".into(), "acc2".into()], date(2), None)
+            .unwrap();
+        assert!(read.unavailable_accounts.contains("acc1"));
+        assert!(!read.unavailable_accounts.contains("acc2"));
+        assert!(read.snapshots.contains_key("acc2"));
+        assert!(!read.snapshots.contains_key("acc1"));
+    }
+
+    #[tokio::test]
+    async fn issue_2487_a_read_transaction_can_observe_unpublished_history_windows() {
+        #[derive(QueryableByName)]
+        struct Costs {
+            #[diesel(sql_type = Text)]
+            snapshot_cost: String,
+            #[diesel(sql_type = Text)]
+            lot_cost: String,
+        }
+
+        let db = setup();
+        let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+        let mut original = lot("lot-1");
+        original.original_quantity = "1".into();
+        original.remaining_quantity = "1".into();
+        original.original_cost_basis = "100".into();
+        original.remaining_cost_basis = "100".into();
+        original.original_cost_basis_base = "100".into();
+        original.remaining_cost_basis_base = "100".into();
+        let commit = |lot: LotRecord| RunCompletion {
+            lot_books: vec![LotBook {
+                account_id: "acc1".into(),
+                since: GENESIS,
+                lots: vec![lot],
+                disposals: Vec::new(),
+            }],
+            ..RunCompletion::default()
+        };
+        store.complete_run(commit(original.clone())).await.unwrap();
+
+        let mut updated = snapshot(2, "2");
+        let position = updated.positions.get_mut("AAPL").unwrap();
+        position.average_cost = Decimal::from(120);
+        position.total_cost_basis = Decimal::from(240);
+        let mut rows = window(2, None, &[]);
+        rows.snapshots = Some(vec![updated]);
+        store.write_window(vec![rows]).await.unwrap();
+
+        let read = || {
+            let mut conn = get_connection(&db.pool).unwrap();
+            conn.transaction::<Costs, diesel::result::Error, _>(|conn| {
+                diesel::sql_query(
+                    "SELECT sp.total_cost_basis AS snapshot_cost, l.remaining_cost_basis_base AS lot_cost \
+                     FROM snapshot_positions sp JOIN lots l ON l.asset_id = sp.asset_id \
+                     WHERE l.id = 'lot-1'",
+                ).get_result(conn)
+            }).unwrap()
+        };
+        // Both writes are real SQLite transactions. A consistent reader still
+        // sees different calculation editions between the two publication jobs.
+        let between = read();
+        assert_eq!(
+            (between.snapshot_cost.as_str(), between.lot_cost.as_str()),
+            ("240", "100")
+        );
+
+        let mut completed = original;
+        completed.original_quantity = "2".into();
+        completed.cost_per_unit = "120".into();
+        completed.original_cost_basis = "240".into();
+        completed.original_cost_basis_base = "240".into();
+        completed.remaining_quantity = "2".into();
+        completed.remaining_cost_basis = "240".into();
+        completed.remaining_cost_basis_base = "240".into();
+        store.complete_run(commit(completed)).await.unwrap();
+        let after = read();
+        assert_eq!(
+            (after.snapshot_cost.as_str(), after.lot_cost.as_str()),
+            ("240", "240")
+        );
+    }
+
+    #[tokio::test]
+    async fn issue_2487_fact_deletion_changes_lot_books_before_recalculation() {
+        #[derive(QueryableByName)]
+        struct Counts {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            lots: i64,
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            disposals: i64,
+        }
+
+        for deleted in ["buy-1", "sell-1"] {
+            let db = setup();
+            sql(&db, "INSERT INTO activities (id, account_id, activity_type, status, activity_date, currency, is_user_modified, needs_review, created_at, updated_at) VALUES ('buy-1', 'acc1', 'BUY', 'POSTED', '2025-01-02T00:00:00Z', 'USD', 0, 0, datetime('now'), datetime('now'))");
+            let store = ProjectionStore::new(db.pool.clone(), db.writer.clone());
+            let mut open = lot("lot-1");
+            open.open_activity_id = Some("buy-1".into());
+            open.remaining_quantity = "6".into();
+            open.remaining_cost_basis = "600".into();
+            open.remaining_cost_basis_base = "600".into();
+            store
+                .write_window(vec![window(2, None, &[2])])
+                .await
+                .unwrap();
+            store
+                .complete_run(RunCompletion {
+                    lot_books: vec![LotBook {
+                        account_id: "acc1".into(),
+                        since: GENESIS,
+                        lots: vec![open],
+                        disposals: vec![disposal("disposal-1")],
+                    }],
+                    ..RunCompletion::default()
+                })
+                .await
+                .unwrap();
+            let count = || {
+                let mut conn = get_connection(&db.pool).unwrap();
+                diesel::sql_query("SELECT (SELECT count(*) FROM lots) AS lots, (SELECT count(*) FROM lot_disposals) AS disposals")
+                    .get_result::<Counts>(&mut conn).unwrap()
+            };
+            let before = count();
+            assert_eq!((before.lots, before.disposals), (1, 1));
+
+            // No coordinator job runs: foreign keys alone change these records.
+            sql(
+                &db,
+                &format!("DELETE FROM activities WHERE id = '{deleted}'"),
+            );
+            let after = count();
+            assert_eq!(
+                (after.lots, after.disposals),
+                if deleted == "buy-1" { (0, 0) } else { (1, 0) }
+            );
+        }
     }
 
     #[tokio::test]
@@ -1041,6 +1624,12 @@ mod tests {
                         activity_id: "sell-1".to_string(),
                         kind: ActivityIssueKind::Oversold,
                         message: "oversold".to_string(),
+                        reason: Some(
+                            serde_json::from_value(serde_json::json!({
+                            "code": "INSUFFICIENT_QUANTITY",
+                            "params": { "action": "SELL", "asset": "aapl", "requested": "15", "held": "10", "excess": "5" }
+                        })).expect("activity reason fixture"),
+                        ),
                     }],
                 )],
                 consumed: seen.clone(),
@@ -1054,6 +1643,12 @@ mod tests {
                 activity_id: "sell-1".to_string(),
                 kind: ActivityIssueKind::Oversold,
                 message: "oversold".to_string(),
+                reason: Some(
+                    serde_json::from_value(serde_json::json!({
+                            "code": "INSUFFICIENT_QUANTITY",
+                            "params": { "action": "SELL", "asset": "aapl", "requested": "15", "held": "10", "excess": "5" }
+                        })).expect("activity reason fixture")
+                ),
             }]
         );
 

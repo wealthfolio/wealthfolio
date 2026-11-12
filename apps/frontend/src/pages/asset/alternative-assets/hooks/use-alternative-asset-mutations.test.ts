@@ -48,6 +48,20 @@ describe("alternative asset query invalidation", () => {
       queryKey: [QueryKeys.ASSET_DATA],
     });
   });
+
+  it("refreshes health status without waiting for the health check", async () => {
+    const healthCheck = new Promise<void>(() => undefined);
+    const invalidateQueries = vi.fn(({ queryKey }: { queryKey: string[] }) =>
+      queryKey[0] === QueryKeys.HEALTH_STATUS ? healthCheck : Promise.resolve(),
+    );
+    const queryClient = { invalidateQueries } as unknown as QueryClient;
+
+    await invalidateAlternativeAssetQueries(queryClient);
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: [QueryKeys.HEALTH_STATUS],
+    });
+  });
 });
 
 describe("saving details", () => {

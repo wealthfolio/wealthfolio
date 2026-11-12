@@ -1,5 +1,8 @@
 import {
   Icons,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -264,13 +267,35 @@ export function ReviewPanel({
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <p
-                        className="text-2xs text-warning-subtle-foreground truncate text-end"
-                        title={warnings.join("\n")}
-                      >
-                        {warnings.length > 0 &&
-                          t("allocation:worksheet.lineWarningCount", { count: warnings.length })}
-                      </p>
+                      {warnings.length > 0 && (
+                        <Popover>
+                          <PopoverTrigger
+                            openOnHover
+                            delay={150}
+                            render={
+                              <button
+                                type="button"
+                                className="text-warning-subtle-foreground border-warning-subtle-foreground/40 text-2xs max-w-full cursor-pointer justify-self-end truncate border-b border-dotted text-end"
+                              />
+                            }
+                          >
+                            {t("allocation:worksheet.lineWarningCount", {
+                              count: warnings.length,
+                            })}
+                          </PopoverTrigger>
+                          <PopoverContent
+                            aria-label={t("allocation:worksheet.lineWarningCount", {
+                              count: warnings.length,
+                            })}
+                            side="inline-start"
+                            className="w-80 max-w-[calc(100vw-2rem)] space-y-1 p-3 text-xs"
+                          >
+                            {warnings.map((warning, index) => (
+                              <p key={index}>{warning}</p>
+                            ))}
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </li>
                   );
                 })}

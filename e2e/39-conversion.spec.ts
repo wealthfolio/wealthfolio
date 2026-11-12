@@ -205,9 +205,12 @@ test.describe("Conversion", () => {
       await expect(add).toBeVisible({ timeout: 10_000 });
       await add.click();
       // The phone list hands a conversion to the sheet form.
-      await page.locator('label[for="CONVERSION"]').click();
+      // Each card's id carries a prefix unique to the list.
+      await page.locator('label[for$="-CONVERSION"]').click();
       await expect(page.getByTestId("activity-form-dialog")).toBeVisible();
-      await selectAccountOption(page, account.name, "USD");
+      // Inside a phone sheet the account picker opens as a screen of options.
+      await page.getByTestId("account-select").click();
+      await page.getByRole("option", { name: new RegExp(`^${account.name}`) }).click();
       await pickSymbol("AAPL");
       await page.locator('input[name="fromQuantity"]').fill("5");
       await pickSymbol("MSFT");

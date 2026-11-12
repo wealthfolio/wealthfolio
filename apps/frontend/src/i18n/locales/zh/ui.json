@@ -109,6 +109,9 @@
     "search": "搜索 ...",
     "reset": "重置",
     "columns": "列",
+    "moveColumnUp": "上移{{column}}",
+    "moveColumnDown": "下移{{column}}",
+    "resetColumnOrder": "重置列顺序",
     "sortAsc": "升序",
     "sortDesc": "降序",
     "hide": "隐藏"
@@ -116,6 +119,8 @@
   "datePicker": {
     "dateLabel": "日期",
     "pick": "选择日期",
+    "time": "时间",
+    "done": "完成",
     "previousMonth": "上个月",
     "nextMonth": "下个月",
     "chooseMonth": "选择月份",
@@ -206,6 +211,7 @@
     "typeToSearch": "输入以搜索"
   },
   "sheet": {
+    "back": "返回",
     "close": "关闭"
   },
   "page": {

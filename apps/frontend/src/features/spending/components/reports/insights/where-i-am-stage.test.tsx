@@ -117,7 +117,11 @@ describe("Where I am subcategories", () => {
     count: 1,
   });
 
-  const stage = (stageRange: typeof range, extraBuckets: ReturnType<typeof day>[] = []) => (
+  const stage = (
+    stageRange: typeof range,
+    extraBuckets: ReturnType<typeof day>[] = [],
+    stageBudget: BudgetSnapshot = budget,
+  ) => (
     <MemoryRouter>
       <FormattingProvider locale="en-US" timezone={timezone}>
         <WhereIAmStage
@@ -191,7 +195,7 @@ describe("Where I am subcategories", () => {
           ]}
           incomeCategories={[]}
           savingsCategories={[]}
-          budget={budget}
+          budget={stageBudget}
           currency="USD"
           isLoading={false}
         />
@@ -229,6 +233,29 @@ describe("Where I am subcategories", () => {
 
     expect(plan.queryByText("Shopping")).not.toBeInTheDocument();
     expect(plan.getAllByText("1 of 1 category shown").length).toBeGreaterThan(0);
+  });
+
+  it("lists an expense category moved into the Savings group under that group", () => {
+    // Insight returns the Savings group once it holds spending; the group is
+    // where the category is listed, not whether its money is spending.
+    const savingsGroupBudget = {
+      computed: {
+        totals: { spendingPlanned: 0 },
+        groupRows: [
+          {
+            group: { id: "savings", name: "Savings", key: "savings", color: "#6B8E54" },
+            plannedTotal: 0,
+            actual: 300,
+            categories: [{ ...housing, groupId: "savings" }],
+          },
+        ],
+      },
+    } as unknown as BudgetSnapshot;
+    render(stage(range, [], savingsGroupBudget));
+    const plan = within(document.getElementById("breakdown")!);
+
+    const group = plan.getByText("Savings").closest("tr")!;
+    expect(group).toHaveTextContent("$300.00");
   });
 
   it("starts a new date range at the overview", () => {

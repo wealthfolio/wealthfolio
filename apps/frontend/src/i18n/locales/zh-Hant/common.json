@@ -1,4 +1,6 @@
 {
+  "periodReturn": "{{period}}報酬",
+  "currentValue": "目前價值",
   "app_name": "Wealthfolio",
   "welcome": "歡迎",
   "loading": "載入中…",
@@ -180,13 +182,13 @@
     "rebuild_full_history": "重新整理全部歷史",
     "rebuild_full_history_label": "重新整理全部歷史",
     "rebuilding_history": "重新整理全部歷史…",
-    "record_buy": "記錄買入",
-    "record_sell": "記錄賣出",
-    "record_dividend": "記錄股利",
-    "record_deposit": "記錄入金",
-    "record_withdrawal": "記錄出金",
+    "record_buy": "新增買入",
+    "record_sell": "新增賣出",
+    "record_dividend": "新增股息",
+    "record_deposit": "新增存款",
+    "record_withdrawal": "新增提款",
     "add_holding": "新增持有部位",
-    "record_interest": "記錄利息",
+    "record_interest": "新增利息",
     "add_transaction": "新增交易",
     "import_activities": "匯入交易紀錄",
     "manage_securities": "管理有價證券",
@@ -317,7 +319,10 @@
     "try_open_changelog_manually": "請在瀏覽器中手動開啟變更記錄。",
     "all_portfolio": "整體投資組合",
     "calculation_notes_other": "計算說明（{{count}}）",
-    "calculation_notes_one": "計算說明（{{count}}）"
+    "calculation_notes_one": "計算說明（{{count}}）",
+    "launcher_navigation": "前往",
+    "launcher_appearance": "外觀",
+    "launcher_tools": "工具"
   },
   "globalEvents": {
     "syncingMarket": "正在同步市場資料…",
@@ -694,5 +699,24 @@
     "accountNumberMax": "帳號不得超過 64 個字元。",
     "accountCurrency": "請選擇貨幣。",
     "creditCardTracking": "信用卡帳戶不能使用持倉追蹤模式。"
+  },
+  "backendErrors": {
+    "internal": "無法完成此操作。",
+    "invalidInput": "請檢查輸入內容後重試。",
+    "conflict": "此變更與現有資料衝突。",
+    "notFound": "找不到所要求的項目。",
+    "unauthorized": "請登入後繼續。",
+    "forbidden": "不允許執行此操作。",
+    "unavailable": "此操作無法使用。",
+    "providerKeyMissing": "請在設定中為此提供者新增 API 金鑰。",
+    "providerUnknown": "請選擇支援的提供者。",
+    "providerUnavailable": "提供者無法完成請求。請檢查提供者設定。",
+    "customProviderCodeReserved": "此提供者代碼已被保留。請選擇其他代碼。",
+    "customProviderInUse": "刪除前，請變更相關資產的提供者或移除其代碼對應。",
+    "addonManifestMissing": "插件 ZIP 檔案中沒有 manifest.json。",
+    "addonMainFileMissing": "插件 ZIP 檔案中沒有其清單指定的主檔案。",
+    "addonNeedsNewerVersion": "此插件需要較新版本的 Wealthfolio。請更新 Wealthfolio 後再試一次。",
+    "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。",
+    "rateLimited": "請求過多。請稍候一分鐘後再試一次。"
   }
 }

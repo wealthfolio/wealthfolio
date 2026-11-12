@@ -176,7 +176,7 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
   await expect(sheet).not.toContainText("Keep existing");
   await sheet.getByRole("combobox", { name: "Interest calculation", exact: true }).click();
   const methodSheet = page.getByRole("dialog", { name: "Interest calculation", exact: true });
-  await methodSheet.getByRole("button", { name: "Compounded semiannually", exact: true }).click();
+  await methodSheet.getByRole("option", { name: "Compounded semiannually", exact: true }).click();
   await expect(async () => {
     await sheet.screenshot({ path: test.info().outputPath("loan-renewal-editor-mobile.png") });
   }).toPass();

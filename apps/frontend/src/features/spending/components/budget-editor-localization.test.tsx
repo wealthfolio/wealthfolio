@@ -31,6 +31,8 @@ vi.mock("../adapters/budget", () => ({
 }));
 import {
   assignCategoryToGroup,
+  deleteBudgetGroup,
+  deleteBudgetRolloverSetting,
   getBudget,
   updateBudgetGroup,
   upsertBudgetRolloverSetting,
@@ -71,6 +73,8 @@ function budgetSnapshot(
         remaining: 0,
         overspent: false,
         rolloverEnabled: false,
+        savingsTargetTotal: 0,
+        savingsActual: 0,
         categories:
           index === 0
             ? [
@@ -101,6 +105,8 @@ function budgetSnapshot(
         spendingPlanned: 0,
         spendingActual: 0,
         spendingRemaining: 0,
+        savingsPlanned: 0,
+        savingsActual: 0,
         incomePlanned: 0,
         incomeActual: 0,
         groupBuffer: 0,
@@ -199,7 +205,12 @@ it.each([
       within(dialog).getByRole("button", { name: enSpending.budgetEditor.moveCategory }),
     );
     await waitFor(() =>
-      expect(assignCategoryToGroup).toHaveBeenCalledWith("cat_housing", WANTS_ID, "default"),
+      expect(assignCategoryToGroup).toHaveBeenCalledWith(
+        "spending_categories",
+        "cat_housing",
+        WANTS_ID,
+        "default",
+      ),
     );
     expect(budget).toEqual(original);
   },
@@ -413,5 +424,450 @@ it.each([
       ),
     );
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  },
+);
+
+it.each([
+  { enabled: true, direction: "ltr" as const },
+  { enabled: true, direction: "rtl" as const },
+  { enabled: false, direction: "ltr" as const },
+  { enabled: false, direction: "rtl" as const },
+  { enabled: undefined, direction: "ltr" as const },
+  { enabled: undefined, direction: "rtl" as const },
+])(
+  "Setup rollover reads saved category state ($enabled) and toggles both ways in $direction",
+  async ({ enabled, direction }) => {
+    const budget = budgetSnapshot();
+    if (enabled !== undefined) {
+      budget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled,
+          startMonth: "2025-03",
+          startingBalance: "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+    }
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(`^${i18n.t("spending:budgetEditor.rollover")}`),
+    });
+    expect(item).toHaveTextContent(
+      i18n.t(enabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+    );
+
+    // Mutation invalidation reloads a default-period snapshot whose computed
+    // rollover flags remain false, even when the saved setting is enabled.
+    for (const [index, nextEnabled] of [!enabled, !!enabled].entries()) {
+      const nextBudget = structuredClone(budget);
+      nextBudget.state.rolloverSettings = [
+        {
+          id: "rollover-housing",
+          targetType: "category",
+          taxonomyId: "spending_categories",
+          categoryId: "cat_housing",
+          groupId: null,
+          enabled: nextEnabled,
+          startMonth: "2025-03",
+          startingBalance: enabled === undefined ? "0" : "25",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ];
+      vi.mocked(getBudget).mockResolvedValue(nextBudget);
+      vi.mocked(upsertBudgetRolloverSetting).mockResolvedValue(nextBudget);
+      await user.click(item);
+      await waitFor(() =>
+        expect(upsertBudgetRolloverSetting).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({
+            targetType: "category",
+            taxonomyId: "spending_categories",
+            categoryId: "cat_housing",
+            enabled: nextEnabled,
+            startingBalance: enabled === undefined ? "0" : "25",
+          }),
+          "default",
+        ),
+      );
+      await waitFor(() =>
+        expect(item).toHaveTextContent(
+          i18n.t(nextEnabled ? "spending:budgetEditor.on" : "spending:budgetEditor.off"),
+        ),
+      );
+    }
+  },
+);
+
+it.each(["ltr", "rtl"] as const)(
+  "Setup rollover respects saved group rollover in %s",
+  async (direction) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings = [
+      {
+        id: "rollover-needs",
+        targetType: "group",
+        taxonomyId: null,
+        categoryId: null,
+        groupId: NEEDS_ID,
+        enabled: true,
+        startMonth: "2025-03",
+        startingBalance: "25",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    const { i18n, user } = await setup(budget, "US", direction);
+    await user.click(
+      screen.getAllByRole("button", { name: zhSpending.budgetEditor.expandGroup })[0],
+    );
+    await user.click(screen.getByRole("button", { name: zhSpending.budgetEditor.rowOptions }));
+    const item = await screen.findByRole("menuitem", {
+      name: new RegExp(`^${i18n.t("spending:budgetEditor.rollover")}`),
+    });
+    expect(item).toHaveTextContent(i18n.t("spending:budgetEditor.groupWide"));
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(item);
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  ["ltr", false],
+  ["rtl", false],
+  ["ltr", true],
+  ["rtl", true],
+] as const)(
+  "requires a destination when deleting an optional default in %s (empty: %s)",
+  async (direction, empty) => {
+    const budget = budgetSnapshot();
+    if (empty) budget.computed.groupRows[0].categories = [];
+    budget.state.targets.push({
+      id: "future-buffer",
+      periodKey: "2028-05",
+      targetType: "group_buffer",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      amount: "125.50",
+      createdAt: "",
+      updatedAt: "",
+    });
+    vi.mocked(deleteBudgetGroup).mockResolvedValue(budget);
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    const section = screen
+      .getAllByRole("button", {
+        name: enSpending.budgetEditor.expandGroup,
+      })[0]
+      .closest("section")!;
+    await user.click(
+      within(section).getByRole("button", {
+        name: enSpending.budgetEditor.groupActions,
+      }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(enSpending.budgetEditor.deleteGroupDescription)).toBeVisible();
+    const confirm = within(dialog).getByRole("button", { name: enCommon.delete });
+    expect(confirm).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole("combobox", {
+        name: enSpending.budgetEditor.moveToGroup,
+      }),
+    );
+    await user.click(await screen.findByRole("option", { name: "Wants" }));
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, WANTS_ID, "default"),
+    );
+  },
+);
+
+it("protects Other and blocks deleting a group with a disabled rollover setting", async () => {
+  const budget = budgetSnapshot();
+  budget.state.groups[1].key = "other";
+  budget.state.rolloverSettings.push({
+    id: "rollover",
+    targetType: "group",
+    groupId: NEEDS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: false,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  const sections = screen
+    .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })
+    .map((button) => button.closest("section")!);
+  await user.click(
+    within(sections[1]).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  expect(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await user.keyboard("{Escape}");
+  await user.click(
+    within(sections[0]).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  await user.click(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  );
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(enSpending.budgetEditor.deleteGroupRollover)).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: enCommon.delete })).toBeDisabled();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+});
+
+it("excludes a destination with enabled group rollover", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings.push({
+    id: "rollover",
+    targetType: "group",
+    groupId: WANTS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: true,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  const section = screen
+    .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0]
+    .closest("section")!;
+  await user.click(
+    within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+  );
+  await user.click(
+    await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+  );
+  const dialog = await screen.findByRole("alertdialog");
+  expect(
+    within(dialog).getByText(enSpending.budgetEditor.deleteGroupDestinationRollover),
+  ).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: enCommon.delete })).toBeDisabled();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["ltr", true],
+  ["rtl", true],
+  ["ltr", false],
+  ["rtl", false],
+] as const)(
+  "confirms removal of a group rollover setting (%s, enabled: %s) before allowing deletion",
+  async (direction, enabled) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings.push({
+      id: "rollover-needs",
+      targetType: "group",
+      groupId: NEEDS_ID,
+      taxonomyId: null,
+      categoryId: null,
+      enabled,
+      startMonth: "2026-01",
+      startingBalance: "25",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const original = structuredClone(budget);
+    const removed = structuredClone(budget);
+    removed.state.rolloverSettings = [];
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementation(() => {
+      vi.mocked(getBudget).mockResolvedValue(removed);
+      return Promise.resolve(removed);
+    });
+    vi.mocked(deleteBudgetGroup).mockResolvedValue(removed);
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    const section = screen
+      .getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0]
+      .closest("section")!;
+    const openRemoval = async () => {
+      await user.click(
+        within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+      );
+      await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+      return screen.findByRole("alertdialog");
+    };
+    let dialog = await openRemoval();
+    expect(within(dialog).getByRole("heading")).toHaveTextContent(
+      "Remove rollover setting for Needs?",
+    );
+    expect(dialog).toHaveTextContent("saved starting balance");
+    expect(dialog).toHaveTextContent("all months");
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: enCommon.cancel }));
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    dialog = await openRemoval();
+    await user.click(within(dialog).getByRole("button", { name: enCommon.remove }));
+    await waitFor(() =>
+      expect(deleteBudgetRolloverSetting).toHaveBeenCalledExactlyOnceWith(
+        "rollover-needs",
+        "default",
+      ),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await user.click(
+      within(section).getByRole("button", { name: enSpending.budgetEditor.groupActions }),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Remove rollover setting" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("menuitem", { name: enSpending.budgetEditor.deleteGroup }),
+    );
+    dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).queryByText(enSpending.budgetEditor.deleteGroupRollover),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("combobox", { name: enSpending.budgetEditor.moveToGroup }),
+    );
+    await user.click(await screen.findByRole("option", { name: "Wants" }));
+    await user.click(within(dialog).getByRole("button", { name: enCommon.delete }));
+    await waitFor(() =>
+      expect(deleteBudgetGroup).toHaveBeenCalledWith(NEEDS_ID, WANTS_ID, "default"),
+    );
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
+    expect(budget).toEqual(original);
+  },
+);
+
+it("keeps rollover removal open on failure and prevents duplicate requests while pending", async () => {
+  const budget = budgetSnapshot();
+  budget.state.rolloverSettings.push({
+    id: "rollover-needs",
+    targetType: "group",
+    groupId: NEEDS_ID,
+    taxonomyId: null,
+    categoryId: null,
+    enabled: false,
+    startMonth: "2026-01",
+    startingBalance: "25",
+    createdAt: "",
+    updatedAt: "",
+  });
+  let rejectRemoval!: (error: Error) => void;
+  vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        rejectRemoval = reject;
+      }),
+  );
+  const { i18n, user } = await setup(budget);
+  await act(() => i18n.changeLanguage("en"));
+  await user.click(
+    screen.getAllByRole("button", { name: enSpending.budgetEditor.groupActions })[0],
+  );
+  await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+  const dialog = await screen.findByRole("alertdialog");
+  const confirm = within(dialog).getByRole("button", { name: enCommon.remove });
+  const cancel = within(dialog).getByRole("button", { name: enCommon.cancel });
+  await user.click(confirm);
+  await waitFor(() => expect(confirm).toBeDisabled());
+  expect(cancel).toBeDisabled();
+  await user.click(confirm);
+  expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(1);
+  act(() => rejectRemoval(new Error("Removal failed")));
+  await waitFor(() => expect(confirm).toBeEnabled());
+  expect(cancel).toBeEnabled();
+  expect(dialog).toBeVisible();
+  expect(deleteBudgetGroup).not.toHaveBeenCalled();
+  vi.mocked(deleteBudgetRolloverSetting).mockResolvedValueOnce(budget);
+  await user.click(confirm);
+  await waitFor(() => expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+});
+
+it.each([
+  ["ltr", true],
+  ["rtl", true],
+  ["ltr", false],
+  ["rtl", false],
+] as const)(
+  "removes a saved category rollover only after confirmation (%s, enabled: %s)",
+  async (direction, enabled) => {
+    const budget = budgetSnapshot();
+    budget.state.rolloverSettings.push({
+      id: "rollover-housing",
+      targetType: "category",
+      groupId: null,
+      taxonomyId: "spending_categories",
+      categoryId: "cat_housing",
+      enabled,
+      startMonth: "2026-01",
+      startingBalance: "23",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const original = structuredClone(budget);
+    const removed = structuredClone(budget);
+    removed.state.rolloverSettings = [];
+    let rejectRemoval!: (error: Error) => void;
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRemoval = reject;
+        }),
+    );
+    const { i18n, user } = await setup(budget, "US", direction);
+    await act(() => i18n.changeLanguage("en"));
+    await user.click(
+      screen.getAllByRole("button", { name: enSpending.budgetEditor.expandGroup })[0],
+    );
+    const openRemoval = async () => {
+      await user.click(screen.getByRole("button", { name: enSpending.budgetEditor.rowOptions }));
+      await user.click(await screen.findByRole("menuitem", { name: "Remove rollover setting" }));
+      return screen.findByRole("alertdialog");
+    };
+    let dialog = await openRemoval();
+    expect(within(dialog).getByRole("heading")).toHaveTextContent(
+      "Remove rollover setting for Housing?",
+    );
+    expect(dialog).toHaveTextContent("saved starting balance");
+    await user.click(within(dialog).getByRole("button", { name: enCommon.cancel }));
+    expect(deleteBudgetRolloverSetting).not.toHaveBeenCalled();
+    dialog = await openRemoval();
+    const confirm = within(dialog).getByRole("button", { name: enCommon.remove });
+    await user.click(confirm);
+    await waitFor(() => expect(confirm).toBeDisabled());
+    expect(within(dialog).getByRole("button", { name: enCommon.cancel })).toBeDisabled();
+    await user.click(confirm);
+    expect(deleteBudgetRolloverSetting).toHaveBeenCalledTimes(1);
+    act(() => rejectRemoval(new Error("Removal failed")));
+    await waitFor(() => expect(confirm).toBeEnabled());
+    expect(dialog).toBeVisible();
+    vi.mocked(deleteBudgetRolloverSetting).mockImplementationOnce(() => {
+      vi.mocked(getBudget).mockResolvedValue(removed);
+      return Promise.resolve(removed);
+    });
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteBudgetRolloverSetting).toHaveBeenLastCalledWith("rollover-housing", "default"),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(budget).toEqual(original);
+    expect(deleteBudgetGroup).not.toHaveBeenCalled();
+    expect(upsertBudgetRolloverSetting).not.toHaveBeenCalled();
   },
 );

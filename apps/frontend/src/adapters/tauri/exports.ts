@@ -1,4 +1,4 @@
-import type { ExportDataType, ExportedFileFormat } from "@/lib/types";
+import type { ExportedFileFormat, ExportOptions, ExportTarget } from "@/lib/types";
 import type { DataExportResult } from "../types";
 import { invoke } from "./core";
 import { saveAppDataFileViaPicker } from "./files";
@@ -11,11 +11,13 @@ interface BackendDataExportResult {
 
 export const exportDataFile = async (
   format: ExportedFileFormat,
-  data: ExportDataType,
+  data: ExportTarget,
+  options?: ExportOptions,
 ): Promise<DataExportResult> => {
   const result = await invoke<BackendDataExportResult>("export_data_file", {
     dataType: data,
     format,
+    options,
   });
 
   if (result.status === "pending") {

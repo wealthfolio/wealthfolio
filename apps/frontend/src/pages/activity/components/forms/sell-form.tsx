@@ -1,4 +1,3 @@
-import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
 import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION, QuoteMode } from "@/lib/constants";
 import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
@@ -16,6 +15,9 @@ import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useActivityCurrency } from "../../hooks/use-activity-currency";
+import { useSellHoldings } from "../../hooks/use-sell-holdings";
+import type { ActivityDetails } from "@/lib/types";
+import { SellAllButton } from "./fields/sell-all-button";
 import {
   AccountSelect,
   AdvancedOptionsSection,
@@ -249,6 +251,7 @@ interface SellFormProps {
   onCancel?: () => void;
   isLoading?: boolean;
   isEditing?: boolean;
+  originalActivity?: Partial<ActivityDetails>;
   /** Asset currency (from selected symbol) for advanced options */
   assetCurrency?: string;
 }
@@ -260,6 +263,7 @@ export function SellForm({
   onCancel,
   isLoading = false,
   isEditing = false,
+  originalActivity,
   assetCurrency,
 }: SellFormProps) {
   const { t } = useTranslation(["activity"]);
@@ -293,8 +297,8 @@ export function SellForm({
       quantity: undefined,
       unitPrice: undefined,
       amount: undefined,
-      fee: 0,
-      tax: 0,
+      fee: undefined,
+      tax: undefined,
       comment: null,
       subtype: null,
       fxRate: undefined,
@@ -418,25 +422,26 @@ export function SellForm({
   const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
 
-  // Fetch holdings for the selected account to check available quantity
-  const { holdings } = useHoldings({ type: "account", accountId });
-
   // Resolve the effective assetId for holdings lookup (OCC symbol for options)
   const underlying = watch("underlyingSymbol");
   const strike = watch("strikePrice");
   const expiration = watch("expirationDate");
   const optType = watch("optionType");
+  const existingAssetId = watch("existingAssetId");
+  const exchangeMic = watch("exchangeMic");
   const effectiveAssetId = useMemo(() => {
-    if (!isOption) return assetId;
+    if (!isOption) return existingAssetId || assetId;
     if (underlying && strike && isValidOptionExpiration(expiration) && optType) {
       return buildOccSymbol(underlying, expiration, optType, strike);
     }
     return assetId;
-  }, [isOption, assetId, underlying, strike, expiration, optType]);
+  }, [isOption, assetId, existingAssetId, underlying, strike, expiration, optType]);
 
   const originalEffectiveAssetId = useMemo(() => {
     if (!isEditing || !defaultValues) return "";
-    if (defaultValues.assetType !== "option") return defaultValues.assetId ?? "";
+    if (defaultValues.assetType !== "option") {
+      return defaultValues.existingAssetId || defaultValues.assetId || "";
+    }
 
     const { underlyingSymbol, strikePrice, expirationDate, optionType } = defaultValues;
     if (underlyingSymbol && strikePrice && isValidOptionExpiration(expirationDate) && optionType) {
@@ -447,56 +452,41 @@ export function SellForm({
     isEditing,
     defaultValues?.assetType,
     defaultValues?.assetId,
+    defaultValues?.existingAssetId,
     defaultValues?.underlyingSymbol,
     defaultValues?.strikePrice,
     defaultValues?.expirationDate,
     defaultValues?.optionType,
   ]);
 
-  const originalSellQuantity = useMemo(() => {
-    if (!isEditing) return 0;
-    const quantity = Number(defaultValues?.quantity);
-    return Number.isFinite(quantity) ? Math.abs(quantity) : 0;
-  }, [isEditing, defaultValues?.quantity]);
-
-  // Find the current holding quantity for the selected symbol
-  const currentHoldingQuantity = useMemo(() => {
-    const id = effectiveAssetId;
-    if (!id || !holdings) return 0;
-    const holding = holdings.find(
-      (h) => h.instrument?.symbol === id || h.instrument?.id === id || h.id === id,
-    );
-    return holding?.quantity ?? 0;
-  }, [effectiveAssetId, holdings]);
-
-  const availableHoldingQuantity = useMemo(() => {
-    const isSameEditedHolding =
-      isEditing &&
-      !!accountId &&
-      accountId === defaultValues?.accountId &&
-      !!effectiveAssetId &&
-      effectiveAssetId === originalEffectiveAssetId;
-
-    return isSameEditedHolding
-      ? currentHoldingQuantity + originalSellQuantity
-      : currentHoldingQuantity;
-  }, [
-    isEditing,
+  const {
+    availableQuantity: availableHoldingQuantity,
+    isLoading: isHoldingsLoading,
+    isFetching: isHoldingsFetching,
+    isError: isHoldingsError,
+  } = useSellHoldings({
     accountId,
-    defaultValues?.accountId,
-    effectiveAssetId,
-    originalEffectiveAssetId,
-    currentHoldingQuantity,
-    originalSellQuantity,
-  ]);
+    assetId: effectiveAssetId,
+    exchangeMic,
+    originalActivity,
+    originalAssetId: originalEffectiveAssetId,
+  });
 
   // Check if selling more than the quantity available for this form state
   const isSellingMoreThanHoldings = useMemo(() => {
-    if (isStockSellShort) return false;
+    if (isStockSellShort || isHoldingsLoading || isHoldingsError) return false;
     if (!optQuantity || optQuantity <= 0 || !effectiveAssetId) return false;
     if (isStock && availableHoldingQuantity < 0) return false;
     return optQuantity > availableHoldingQuantity;
-  }, [isStockSellShort, isStock, optQuantity, availableHoldingQuantity, effectiveAssetId]);
+  }, [
+    isStockSellShort,
+    isStock,
+    optQuantity,
+    availableHoldingQuantity,
+    effectiveAssetId,
+    isHoldingsLoading,
+    isHoldingsError,
+  ]);
 
   const isSellShortWhileLong = useMemo(() => {
     if (isEditing || !isStockSellShort || !effectiveAssetId) return false;
@@ -624,7 +614,25 @@ export function SellForm({
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <QuantityInput name="quantity" label={quantityLabel} />
+              <QuantityInput
+                name="quantity"
+                label={quantityLabel}
+                action={
+                  <SellAllButton
+                    availableQuantity={availableHoldingQuantity}
+                    holdingKey={JSON.stringify([accountId, effectiveAssetId, exchangeMic, subtype])}
+                    disabled={
+                      !accountId ||
+                      !effectiveAssetId ||
+                      isHoldingsLoading ||
+                      isHoldingsFetching ||
+                      isHoldingsError ||
+                      isLoading
+                    }
+                    hidden={isOption || isStockSellShort}
+                  />
+                }
+              />
               {/* Shares breakdown with click-to-edit multiplier */}
               {isOption && optQuantity && (
                 <div className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
@@ -644,26 +652,32 @@ export function SellForm({
                   <span>x</span>
                 </div>
               )}
-              {!isOption && availableHoldingQuantity > 0 && (
-                <p className="text-muted-foreground mt-1.5 text-xs">
-                  {t("activity:form.available_amount", {
-                    amount: formatting.formatDecimal(availableHoldingQuantity),
-                  })}
-                </p>
-              )}
+              {!isOption &&
+                accountId &&
+                effectiveAssetId &&
+                !isHoldingsLoading &&
+                !isHoldingsError && (
+                  <p className="text-muted-foreground mt-1.5 text-xs">
+                    {t("activity:form.available_amount", {
+                      amount: formatting.formatQuantity(availableHoldingQuantity),
+                    })}
+                  </p>
+                )}
               {isOption && availableHoldingQuantity > 0 && (
                 <p className="text-muted-foreground mt-1.5 text-xs">
                   {t("activity:form.holding_contracts", { count: availableHoldingQuantity })}
                 </p>
               )}
             </div>
-            <AmountInput
-              name="unitPrice"
-              label={priceLabel}
-              data-testid="price-input"
-              maxDecimalPlaces={DECIMAL_PRECISION}
-              currency={currency}
-            />
+            <div className="sm:pt-3.5">
+              <AmountInput
+                name="unitPrice"
+                label={priceLabel}
+                data-testid="price-input"
+                maxDecimalPlaces={DECIMAL_PRECISION}
+                currency={currency}
+              />
+            </div>
             <AmountInput
               name="fee"
               label={t("activity:form.label_fee")}
@@ -696,13 +710,13 @@ export function SellForm({
                 {isOption
                   ? t("activity:form.warn_selling_more_contracts", {
                       selling:
-                        optQuantity == null ? undefined : formatting.formatDecimal(optQuantity),
-                      available: formatting.formatDecimal(availableHoldingQuantity),
+                        optQuantity == null ? undefined : formatting.formatQuantity(optQuantity),
+                      available: formatting.formatQuantity(availableHoldingQuantity),
                     })
                   : t("activity:form.warn_selling_more_shares", {
                       selling:
-                        optQuantity == null ? undefined : formatting.formatDecimal(optQuantity),
-                      available: formatting.formatDecimal(availableHoldingQuantity),
+                        optQuantity == null ? undefined : formatting.formatQuantity(optQuantity),
+                      available: formatting.formatQuantity(availableHoldingQuantity),
                     })}
               </AlertDescription>
             </Alert>
@@ -713,7 +727,7 @@ export function SellForm({
               <Icons.AlertTriangle />
               <AlertDescription>
                 {t("activity:form.warn_sell_short_while_long", {
-                  available: formatting.formatDecimal(availableHoldingQuantity),
+                  available: formatting.formatQuantity(availableHoldingQuantity),
                 })}
               </AlertDescription>
             </Alert>

@@ -56,6 +56,8 @@ interface TaxTradeState {
 
 test.describe("Holdings and Performance Pages", () => {
   let page: Page;
+  let tradeAccountId: string;
+  let tradeAssetId: string;
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
@@ -102,6 +104,8 @@ test.describe("Holdings and Performance Pages", () => {
     await triggerFullRecalculation(page);
 
     const assetId = buyActivity.assetId;
+    tradeAccountId = account.id;
+    tradeAssetId = assetId!;
     expect(assetId, "Expected created BUY activity to resolve an AAPL asset").toBeTruthy();
     await expect
       .poll(() => getTaxTradeState(page, account.id, assetId!), {
@@ -194,7 +198,19 @@ test.describe("Holdings and Performance Pages", () => {
     await expect(page.getByText(/something went wrong/i)).not.toBeVisible();
   });
 
-  test("6. Dashboard: total value > 0 and account tiles visible", async () => {
+  test("6. Holdings remain readable in RTL", async () => {
+    await page.goto(`${BASE_URL}/holdings?dir=rtl`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.getByRole("row").filter({ hasText: "AAPL" }).first()).toBeVisible({
+      timeout: 15000,
+    });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("7. Dashboard: total value > 0 and account tiles visible", async () => {
     test.setTimeout(60000);
 
     await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
@@ -213,6 +229,37 @@ test.describe("Holdings and Performance Pages", () => {
       .getByText(/CAD Account|USD Account|EUR Account|GBP Account|E2E Trade Tax Account/i)
       .first();
     await expect(accountTile).toBeVisible({ timeout: 10000 });
+  });
+
+  test("8. Asset profile reads a per-account scope in LTR and RTL", async () => {
+    const scope = await apiPost<{ holdings: { instrument?: { id: string; symbol: string } }[] }>(
+      page,
+      "/holdings/list/query",
+      { filter: { type: "all" } },
+    );
+    const assetId = scope.holdings.find((holding) => holding.instrument?.id === tradeAssetId)
+      ?.instrument?.id;
+    expect(assetId).toBeTruthy();
+    for (const query of ["", "?dir=rtl"]) {
+      const response = page.waitForResponse(
+        (response) => response.url().includes("/holdings/by-asset?") && response.status() === 200,
+      );
+      await page.goto(`${BASE_URL}/holdings/${encodeURIComponent(assetId!)}${query}`, {
+        waitUntil: "domcontentloaded",
+      });
+      const body = (await (await response).json()) as {
+        holdings: { accountId: string; quantity: number | string }[];
+        incompleteAccounts: unknown[];
+      };
+      expect(body.incompleteAccounts).toEqual([]);
+      expect(
+        body.holdings.some(
+          (holding) => Number(holding.quantity) === 6 && holding.accountId === tradeAccountId,
+        ),
+      ).toBe(true);
+      await expect(page.getByText(/something went wrong/i)).not.toBeVisible();
+      if (query) await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    }
   });
 });
 

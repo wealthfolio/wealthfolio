@@ -1,4 +1,5 @@
 import type { DriftReport, Holding } from "@/lib/types";
+import { sumAmounts } from "@/lib/monetary-value";
 
 export interface EligibleHolding {
   assetId: string;
@@ -10,7 +11,7 @@ export interface EligibleHolding {
   /** Accounts that hold this security. */
   accountIds: string[];
   /** What it is worth across those accounts, in the base currency. */
-  value: number;
+  value: number | null;
 }
 
 function compareText(a: string, b: string): number {
@@ -34,7 +35,7 @@ export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
           exchangeMic: instrument.exchangeMic,
           instrumentType: instrument.instrumentType,
           accountIds: [holding.accountId],
-          value: holding.marketValue?.base ?? 0,
+          value: holding.marketValue.base,
         },
       ];
     })
@@ -57,7 +58,7 @@ export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
     for (const accountId of row.accountIds) {
       if (!existing.accountIds.includes(accountId)) existing.accountIds.push(accountId);
     }
-    existing.value += row.value;
+    existing.value = sumAmounts([existing.value, row.value]);
   }
   return [...unique.values()];
 }

@@ -237,10 +237,55 @@ async fn waiting_web_login_rechecks_revoked_profile_before_changing_credentials(
     let body = axum::body::to_bytes(response.into_body(), 4096)
         .await
         .unwrap();
-    assert!(String::from_utf8_lossy(&body).contains("PROFILE_LOCKED"));
+    let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(error["errorCode"], "PROFILE_LOCKED");
     assert!(state
         .secret_store
         .get_secret(wealthfolio_core::secrets::CLOUD_REFRESH_TOKEN_KEY)
         .unwrap()
         .is_none());
+}
+
+#[tokio::test]
+async fn tracking_mode_subscription_denial_emits_no_broker_progress_or_error() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let (_directory, _root, state, _grant, _app) = connect_test_app().await;
+    for code in ["SUBSCRIPTION_CANCELED", "PLAN_UPGRADE_REQUIRED"] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = calls.clone();
+        let cloud = Router::new().route(
+            "/api/v1/sync/brokerage/connections",
+            axum::routing::get(move || async move {
+                counted.fetch_add(1, Ordering::SeqCst);
+                (
+                    StatusCode::FORBIDDEN,
+                    axum::Json(json!({
+                        "code": code, "message": "Subscription required"
+                    })),
+                )
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, cloud).await.unwrap() });
+        let client = wealthfolio_connect::ConnectApiClient::new(&url, "synthetic-token").unwrap();
+        let mut events = state.event_bus.subscribe();
+        let result = crate::domain_events::perform_broker_sync_with_client(
+            state.connect_sync_service.clone(),
+            state.event_bus.clone(),
+            &client,
+        )
+        .await;
+        server.abort();
+        assert!(wealthfolio_connect::is_subscription_denial(
+            &result.unwrap_err()
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        while let Ok(event) = events.try_recv() {
+            assert!(!matches!(
+                event.name,
+                crate::events::BROKER_SYNC_START | crate::events::BROKER_SYNC_ERROR
+            ));
+        }
+    }
 }

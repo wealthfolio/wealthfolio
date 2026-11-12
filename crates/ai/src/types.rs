@@ -48,6 +48,13 @@ pub const DEFAULT_TOOLS_ALLOWLIST: &[&str] = &[
     "get_portfolios",
     "get_net_worth",
     "get_contribution_limits",
+    "get_spending_context",
+    "search_spending_transactions",
+    "get_budget",
+    "list_spending_events",
+    "get_spending_report",
+    "get_spending_insight",
+    "get_event_spending_summaries",
 ];
 
 const LEGACY_VISIBLE_DATA_TOOLS: &[&str] = &[

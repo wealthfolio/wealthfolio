@@ -24,6 +24,9 @@ use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::test_support::in_memory::*;
 use crate::test_support::scenario::{as_of_instant, load_all_scenarios, Scenario, ScenarioFacts};
 
+mod currency_transition;
+mod health;
+
 struct Harness {
     coordinator: PortfolioCoordinator,
     account_repo: Arc<InMemoryAccountRepository>,
@@ -365,6 +368,7 @@ async fn a_snapshot_kept_from_holdings_mode_is_not_read_on_a_transactions_accoun
         snapshot_date: as_of,
         positions: Default::default(),
         cash_balances: [(projected.currency.clone(), dec!(25000))].into(),
+        base_currency: None,
         source: SnapshotSource::BrokerImported,
         ..projected.clone()
     };
@@ -1981,7 +1985,15 @@ async fn the_health_view_reports_the_engine_decisions() {
                 .activity_issues()
                 .unwrap()
                 .into_iter()
-                .map(|issue| (issue.activity_id, issue.kind))
+                .map(|issue| {
+                    if matches!(
+                        issue.kind,
+                        ActivityIssueKind::Oversold | ActivityIssueKind::MissingAmount
+                    ) {
+                        assert!(issue.reason.is_some(), "stored activity reason: {issue:?}");
+                    }
+                    (issue.activity_id, issue.kind)
+                })
                 .collect();
             kinds.sort_by(|a, b| a.0.cmp(&b.0));
             (kinds, harness.coordinator.fx_conflicts().unwrap())
@@ -2011,6 +2023,7 @@ fn manual_snapshot(account_id: &str, date: chrono::NaiveDate) -> AccountStateSna
         id: format!("{account_id}_{date}"),
         account_id: account_id.to_string(),
         snapshot_date: date,
+        base_currency: None,
         source: SnapshotSource::ManualEntry,
         ..AccountStateSnapshot::default()
     }

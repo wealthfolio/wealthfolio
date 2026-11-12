@@ -4,16 +4,17 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
-use crate::fx::normalize_amount;
-use crate::quotes::{QuoteServiceTrait, SymbolSearchResult};
+use crate::fx::{normalize_amount, normalize_currency_code};
+use crate::quotes::{search_result_matches_query, QuoteServiceTrait, SymbolSearchResult};
 use crate::taxonomies::TaxonomyServiceTrait;
 use crate::utils::isin::looks_like_isin;
 use futures::stream::{self, StreamExt};
 
 use super::assets_model::{
     canonicalize_market_identity, normalize_quote_ccy_code, resolve_import_quote_ccy_precedence,
-    resolve_quote_ccy_precedence, Asset, AssetKind, AssetProfile, AssetSpec, EnsureAssetsResult,
-    InstrumentType, NewAsset, QuoteCcyResolutionSource, QuoteMode, UpdateAssetProfile,
+    resolve_quote_ccy_precedence, Asset, AssetKind, AssetProfile, AssetProfileUpdatePreview,
+    AssetSpec, EnsureAssetsResult, InstrumentType, NewAsset, QuoteCcyResolutionSource, QuoteMode,
+    UpdateAssetProfile,
 };
 use super::assets_traits::{AssetRepositoryTrait, AssetServiceTrait};
 use super::auto_classification::{
@@ -24,14 +25,14 @@ use super::{
     asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_known_exchange,
     AssetResolutionInput, AssetResolutionOutput,
 };
-use crate::errors::{DatabaseError, Error, Result};
+use crate::errors::{DatabaseError, Error, Result, ASSET_IDENTITY_CONFLICT_PREFIX};
 
 // Import mic_to_currency for resolving exchange trading currencies
 use wealthfolio_market_data::{
     canonicalize_exchange_mic, exchanges_for_currency, has_unrecognized_dotted_suffix,
     mic_to_currency, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
     ExchangeMap, InstrumentId as MarketInstrumentId, ProviderId, ProviderInstrument, QuoteContext,
-    ResolutionSource, ResolverChain, SymbolResolver,
+    ResolutionSource, ResolvedInstrument, ResolverChain, SymbolResolver,
 };
 
 /// Converts a provider's asset_type string to our InstrumentType enum.
@@ -183,9 +184,13 @@ impl AssetResolutionLocalIndex {
             {
                 by_symbol.entry(symbol).or_default().push(idx);
             }
-            for alias in asset_provider_alias_symbols(asset) {
-                if let Some(alias) = normalized_lookup_key(&alias) {
-                    by_provider_alias.entry(alias).or_default().push(idx);
+            // FX pairs are app-managed rates, never what an import row holds;
+            // a crypto pair's provider symbol (BTC-USD) is also the coin's.
+            if asset.kind != AssetKind::Fx {
+                for alias in asset_provider_alias_symbols(asset) {
+                    if let Some(alias) = normalized_lookup_key(&alias) {
+                        by_provider_alias.entry(alias).or_default().push(idx);
+                    }
                 }
             }
         }
@@ -515,12 +520,7 @@ impl AssetService {
             return (AssetKind::Investment, Some(InstrumentType::Equity));
         }
 
-        let common_crypto = [
-            "BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL",
-            "AVAX", "MATIC", "ATOM", "ALGO", "VET", "FIL", "TRX", "ETC", "XMR", "AAVE", "MKR",
-            "COMP", "SNX", "YFI", "SUSHI", "CRV",
-        ];
-        if common_crypto.contains(&upper_symbol.as_str()) {
+        if crate::fx::is_crypto_currency(&upper_symbol) {
             return (AssetKind::Investment, Some(InstrumentType::Crypto));
         }
 
@@ -859,13 +859,33 @@ impl AssetService {
         )
     }
 
+    /// A search result names the imported instrument only on an exact identity
+    /// match; the search also returns substring hits on symbols and names.
+    fn provider_result_is_exact_for_import(
+        result: &SymbolSearchResult,
+        search_symbol: &str,
+        constraints: &ImportProviderSelectionConstraints<'_>,
+    ) -> bool {
+        search_result_matches_query(result, search_symbol)
+            || Self::provider_result_canonical_matches(result, constraints.canonical_symbol)
+            || Self::provider_result_provider_symbol_matches_source(
+                result,
+                constraints.source_symbol,
+            )
+            || Self::provider_result_matches_deterministic_provider_symbol(result, constraints)
+    }
+
     fn select_provider_result_for_import(
         results: Vec<SymbolSearchResult>,
+        search_symbol: &str,
         constraints: &ImportProviderSelectionConstraints<'_>,
     ) -> Option<SymbolSearchResult> {
         results
             .into_iter()
-            .filter(|result| Self::provider_result_matches_import_constraints(result, constraints))
+            .filter(|result| {
+                Self::provider_result_matches_import_constraints(result, constraints)
+                    && Self::provider_result_is_exact_for_import(result, search_symbol, constraints)
+            })
             .max_by(|a, b| {
                 Self::provider_result_import_rank(a, constraints)
                     .cmp(&Self::provider_result_import_rank(b, constraints))
@@ -929,6 +949,26 @@ impl AssetService {
         }
     }
 
+    /// How `ResolverChain` resolves `instrument` for `provider` without stored
+    /// overrides. Makes no provider request.
+    fn rules_resolution(
+        provider: &str,
+        instrument: MarketInstrumentId,
+        quote_ccy: Option<&str>,
+    ) -> Option<ResolvedInstrument> {
+        let context = QuoteContext {
+            instrument,
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: quote_ccy.map(|ccy| Cow::Owned(ccy.to_string())),
+            preferred_provider: Some(Cow::Owned(provider.to_string())),
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        let provider_id: ProviderId = Cow::Owned(provider.to_string());
+        ResolverChain::new().resolve(&provider_id, &context).ok()
+    }
+
     fn provider_config_for_resolution(
         provider_id: Option<&str>,
         provider_symbol: Option<&str>,
@@ -958,19 +998,7 @@ impl AssetService {
             return (!default_yahoo).then_some(config);
         };
 
-        let context = QuoteContext {
-            instrument,
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: quote_ccy.map(|ccy| Cow::Owned(ccy.to_string())),
-            preferred_provider: Some(Cow::Owned(provider.to_string())),
-            bond_metadata: None,
-            custom_provider_code: None,
-        };
-        let provider_id: ProviderId = Cow::Owned(provider.to_string());
-        let deterministic = ResolverChain::new()
-            .resolve(&provider_id, &context)
-            .ok()
+        let deterministic = Self::rules_resolution(provider, instrument, quote_ccy)
             .filter(|resolved| resolved.source != ResolutionSource::RulesFallback)
             .map(|resolved| resolved.instrument.to_symbol_string());
 
@@ -994,6 +1022,69 @@ impl AssetService {
         }
 
         (!default_yahoo).then_some(config)
+    }
+
+    /// The stored asset a listing names by its instrument key, as
+    /// `get_or_create_minimal_asset` matches it. Reads only.
+    fn listing_match(
+        &self,
+        meta: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        let key = Self::listing_key(meta, context_currency)?;
+        self.asset_repository
+            .find_by_instrument_key(&key)
+            .ok()
+            .flatten()
+    }
+
+    /// The instrument key `get_or_create_minimal_asset` looks a listing up
+    /// by; two listings with one key save as one asset.
+    fn listing_key(
+        meta: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<String> {
+        let inferred_instrument_type = meta
+            .instrument_symbol
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .or(meta.display_code.as_ref().filter(|s| !s.is_empty()))
+            .map(|_| {
+                meta.instrument_type
+                    .clone()
+                    .unwrap_or(InstrumentType::Equity)
+            });
+        let canonical = canonicalize_market_identity(
+            inferred_instrument_type.clone(),
+            meta.instrument_symbol
+                .as_deref()
+                .or(meta.display_code.as_deref()),
+            meta.instrument_exchange_mic.as_deref(),
+            context_currency,
+        );
+        let sym = canonical.instrument_symbol.filter(|sym| !sym.is_empty())?;
+        let instrument_type = inferred_instrument_type.unwrap_or(InstrumentType::Equity);
+        let spec = AssetSpec {
+            id: None,
+            display_code: canonical.display_code.or(meta.display_code.clone()),
+            instrument_symbol: Some(sym),
+            instrument_exchange_mic: canonical
+                .instrument_exchange_mic
+                .or(meta.instrument_exchange_mic.clone()),
+            instrument_type: Some(instrument_type),
+            quote_ccy: canonical
+                .quote_ccy
+                .unwrap_or_else(|| context_currency.unwrap_or("USD").to_string()),
+            requested_quote_ccy: meta.requested_quote_ccy.clone(),
+            kind: meta.kind.clone().unwrap_or(AssetKind::Investment),
+            quote_mode: None,
+            name: meta.name.clone(),
+            provider_config: meta.provider_config.clone(),
+            provider_id: meta.provider_id.clone(),
+            provider_symbol: meta.provider_symbol.clone(),
+            metadata: None,
+        };
+        spec.instrument_key()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1261,6 +1352,163 @@ impl AssetService {
 }
 
 impl AssetService {
+    /// The profile `update_asset_profile` would store for `payload`: the
+    /// market identity canonicalized, and another asset that already has the
+    /// updated identity, which makes the update fail.
+    fn normalize_profile_update(
+        &self,
+        existing_asset: &Asset,
+        mut payload: UpdateAssetProfile,
+    ) -> Result<AssetProfileUpdatePreview> {
+        let mut conflicting_asset = None;
+        let effective_quote_mode = payload.quote_mode.unwrap_or(existing_asset.quote_mode);
+
+        payload.instrument_exchange_mic = payload
+            .instrument_exchange_mic
+            .as_deref()
+            .and_then(normalized_lookup_key);
+
+        let effective_instrument_type = payload
+            .instrument_type
+            .clone()
+            .or(existing_asset.instrument_type.clone());
+
+        if effective_instrument_type.is_some() {
+            let should_refresh_quote_ccy = Self::should_refresh_market_quote_ccy_on_mic_change(
+                effective_quote_mode,
+                payload.quote_ccy.as_deref(),
+                payload.instrument_exchange_mic.as_deref(),
+                existing_asset.instrument_exchange_mic.as_deref(),
+            );
+
+            let mut canonical = canonicalize_market_identity(
+                effective_instrument_type.clone(),
+                payload
+                    .instrument_symbol
+                    .as_deref()
+                    .or(payload.display_code.as_deref())
+                    .or(existing_asset.instrument_symbol.as_deref())
+                    .or(existing_asset.display_code.as_deref()),
+                payload
+                    .instrument_exchange_mic
+                    .as_deref()
+                    .or(existing_asset.instrument_exchange_mic.as_deref()),
+                if should_refresh_quote_ccy {
+                    None
+                } else {
+                    payload
+                        .quote_ccy
+                        .as_deref()
+                        .or(Some(existing_asset.quote_ccy.as_str()))
+                },
+            );
+
+            let requested_symbol = payload.instrument_symbol.as_deref().or_else(|| {
+                payload.display_code.as_deref().filter(|code| {
+                    normalized_lookup_key(code)
+                        != existing_asset
+                            .display_code
+                            .as_deref()
+                            .and_then(normalized_lookup_key)
+                })
+            });
+            let symbol_changed = requested_symbol.is_some_and(|symbol| {
+                normalized_lookup_key(symbol)
+                    != existing_asset
+                        .instrument_symbol
+                        .as_deref()
+                        .or(existing_asset.display_code.as_deref())
+                        .and_then(normalized_lookup_key)
+            });
+            let exchange_changed = payload
+                .instrument_exchange_mic
+                .as_deref()
+                .is_some_and(|mic| {
+                    normalized_lookup_key(mic)
+                        != existing_asset
+                            .instrument_exchange_mic
+                            .as_deref()
+                            .and_then(normalized_lookup_key)
+                });
+            let identity_changed = symbol_changed
+                || exchange_changed
+                || effective_instrument_type != existing_asset.instrument_type
+                || (matches!(
+                    effective_instrument_type,
+                    Some(InstrumentType::Crypto | InstrumentType::Fx)
+                ) && payload.quote_ccy.as_deref().is_some_and(|ccy| {
+                    normalized_lookup_key(ccy) != normalized_lookup_key(&existing_asset.quote_ccy)
+                }));
+
+            if !identity_changed {
+                // Name, notes, and provider edits must not silently rekey a
+                // legacy asset, including rows the migration skipped on collision.
+                canonical.instrument_symbol = existing_asset.instrument_symbol.clone();
+                canonical.display_code = payload
+                    .display_code
+                    .clone()
+                    .or(existing_asset.display_code.clone());
+                canonical.instrument_exchange_mic = existing_asset.instrument_exchange_mic.clone();
+                if matches!(
+                    effective_instrument_type,
+                    Some(InstrumentType::Crypto | InstrumentType::Fx)
+                ) {
+                    canonical.quote_ccy = Some(existing_asset.quote_ccy.clone());
+                    payload.quote_ccy = Some(existing_asset.quote_ccy.clone());
+                }
+            }
+
+            payload.instrument_symbol = canonical
+                .instrument_symbol
+                .or(payload.instrument_symbol.clone());
+            payload.display_code = canonical.display_code.or(payload.display_code.clone());
+            payload.instrument_exchange_mic = canonical
+                .instrument_exchange_mic
+                .or(payload.instrument_exchange_mic.clone());
+            if effective_quote_mode == QuoteMode::Market {
+                payload.quote_ccy = canonical.quote_ccy.or(payload.quote_ccy.clone());
+            }
+
+            if identity_changed {
+                if let (Some(symbol), Some(instrument_type)) = (
+                    payload.instrument_symbol.as_ref(),
+                    effective_instrument_type.as_ref(),
+                ) {
+                    // Match SQLite's generated key from the exact values that
+                    // update_profile will store; manual quote currencies are not normalized.
+                    let prefix = format!("{}:{}", instrument_type.as_db_str(), symbol);
+                    let key = match instrument_type {
+                        InstrumentType::Crypto | InstrumentType::Fx => format!(
+                            "{}/{}",
+                            prefix,
+                            payload
+                                .quote_ccy
+                                .as_deref()
+                                .unwrap_or(&existing_asset.quote_ccy)
+                        ),
+                        _ => match payload
+                            .instrument_exchange_mic
+                            .as_deref()
+                            .or(existing_asset.instrument_exchange_mic.as_deref())
+                        {
+                            Some(mic) => format!("{prefix}@{mic}"),
+                            None => prefix,
+                        },
+                    };
+                    conflicting_asset = self
+                        .asset_repository
+                        .find_by_instrument_key(&key)?
+                        .filter(|asset| asset.id != existing_asset.id);
+                }
+            }
+        }
+
+        Ok(AssetProfileUpdatePreview {
+            profile: payload,
+            conflicting_asset,
+        })
+    }
+
     async fn retain_bond_isin(&self, asset_id: &str, isin: &str) -> Result<Asset> {
         let asset = self.asset_repository.get_by_id(asset_id)?;
         let stored =
@@ -1299,6 +1547,7 @@ impl AssetService {
         .await
     }
 
+    /// Merges the provider profile into the asset without emitting an event.
     async fn enrich_asset_profile_silent(&self, asset_id: &str) -> Result<AssetEnrichmentOutcome> {
         // Get the existing asset
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
@@ -1442,8 +1691,15 @@ impl AssetService {
             existing_asset.instrument_exchange_mic.as_deref(),
             Some(provider_profile.currency.as_str()),
         );
+        // Profiles carry no currency, so `canonical` holds the exchange's. It only
+        // fixes the unit (GBP to GBp): CSPX on XLON trades in USD and stays USD.
         let resolved_quote_ccy = canonical
             .quote_ccy
+            .filter(|ccy| {
+                existing_asset.quote_ccy.trim().is_empty()
+                    || normalize_currency_code(ccy)
+                        .eq_ignore_ascii_case(normalize_currency_code(&existing_asset.quote_ccy))
+            })
             .unwrap_or_else(|| existing_asset.quote_ccy.clone());
 
         // Build profile update from provider data
@@ -1732,6 +1988,7 @@ impl AssetServiceTrait for AssetService {
                     quote_ccy_source: Some(QuoteCcyResolutionSource::ExistingAsset),
                     name,
                     draft: None,
+                    resolves_without_exchange: false,
                 });
                 continue;
             }
@@ -1767,6 +2024,7 @@ impl AssetServiceTrait for AssetService {
                     .and_then(|results| {
                         Self::select_provider_result_for_import(
                             results,
+                            &search_symbol,
                             &provider_selection_constraints,
                         )
                     });
@@ -1929,6 +2187,15 @@ impl AssetServiceTrait for AssetService {
                 })
                 .or_else(|| Some(canonical_symbol.clone()));
 
+            // The provider's quote type classifies the new asset only while it maps to
+            // the instrument type chosen here, not to a type taken from elsewhere.
+            let instrument_type_label = provider_result
+                .as_ref()
+                .filter(|result| {
+                    instrument_type.is_some()
+                        && InstrumentType::from_external_str(&result.quote_type) == instrument_type
+                })
+                .map(|result| result.quote_type.clone());
             let draft = if existing_asset_id.is_none() {
                 Some(NewAsset {
                     id: None,
@@ -1939,6 +2206,7 @@ impl AssetServiceTrait for AssetService {
                     quote_mode,
                     quote_ccy: quote_ccy.clone(),
                     instrument_type: instrument_type.clone(),
+                    instrument_type_label,
                     instrument_symbol: Some(canonical_symbol.clone()),
                     instrument_exchange_mic: exchange_mic.clone(),
                     provider_config: provider_config.clone(),
@@ -1950,6 +2218,29 @@ impl AssetServiceTrait for AssetService {
             } else {
                 None
             };
+
+            // A new asset needs no exchange when the selected provider resolves it
+            // from its own identifier, without a venue. A generic or fallback
+            // resolution of a bare ticker doesn't qualify.
+            let resolves_without_exchange = existing_asset_id.is_none()
+                && quote_mode == QuoteMode::Market
+                && exchange_mic.is_none()
+                && provider_id
+                    .as_deref()
+                    .map(str::trim)
+                    .zip(instrument_type.as_ref())
+                    .and_then(|(provider, instrument_type)| {
+                        Self::instrument_id_from_identity(
+                            instrument_type,
+                            &canonical_symbol,
+                            None,
+                            Some(&quote_ccy),
+                        )
+                        .and_then(|instrument| {
+                            Self::rules_resolution(provider, instrument, Some(&quote_ccy))
+                        })
+                    })
+                    .is_some_and(|resolved| resolved.source == ResolutionSource::Identifier);
 
             outputs.push(AssetResolutionOutput {
                 key: input.key,
@@ -1967,6 +2258,7 @@ impl AssetServiceTrait for AssetService {
                 existing_asset_id,
                 name,
                 draft,
+                resolves_without_exchange,
             });
         }
 
@@ -2018,158 +2310,17 @@ impl AssetServiceTrait for AssetService {
     async fn update_asset_profile(
         &self,
         asset_id: &str,
-        mut payload: UpdateAssetProfile,
+        payload: UpdateAssetProfile,
     ) -> Result<Asset> {
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
-        let effective_quote_mode = payload.quote_mode.unwrap_or(existing_asset.quote_mode);
-
-        payload.instrument_exchange_mic = payload
-            .instrument_exchange_mic
-            .as_deref()
-            .and_then(normalized_lookup_key);
-
-        let effective_instrument_type = payload
-            .instrument_type
-            .clone()
-            .or(existing_asset.instrument_type.clone());
-
-        if effective_instrument_type.is_some() {
-            let should_refresh_quote_ccy = Self::should_refresh_market_quote_ccy_on_mic_change(
-                effective_quote_mode,
-                payload.quote_ccy.as_deref(),
-                payload.instrument_exchange_mic.as_deref(),
-                existing_asset.instrument_exchange_mic.as_deref(),
-            );
-
-            let mut canonical = canonicalize_market_identity(
-                effective_instrument_type.clone(),
-                payload
-                    .instrument_symbol
-                    .as_deref()
-                    .or(payload.display_code.as_deref())
-                    .or(existing_asset.instrument_symbol.as_deref())
-                    .or(existing_asset.display_code.as_deref()),
-                payload
-                    .instrument_exchange_mic
-                    .as_deref()
-                    .or(existing_asset.instrument_exchange_mic.as_deref()),
-                if should_refresh_quote_ccy {
-                    None
-                } else {
-                    payload
-                        .quote_ccy
-                        .as_deref()
-                        .or(Some(existing_asset.quote_ccy.as_str()))
-                },
-            );
-
-            let requested_symbol = payload.instrument_symbol.as_deref().or_else(|| {
-                payload.display_code.as_deref().filter(|code| {
-                    normalized_lookup_key(code)
-                        != existing_asset
-                            .display_code
-                            .as_deref()
-                            .and_then(normalized_lookup_key)
-                })
-            });
-            let symbol_changed = requested_symbol.is_some_and(|symbol| {
-                normalized_lookup_key(symbol)
-                    != existing_asset
-                        .instrument_symbol
-                        .as_deref()
-                        .or(existing_asset.display_code.as_deref())
-                        .and_then(normalized_lookup_key)
-            });
-            let exchange_changed = payload
-                .instrument_exchange_mic
-                .as_deref()
-                .is_some_and(|mic| {
-                    normalized_lookup_key(mic)
-                        != existing_asset
-                            .instrument_exchange_mic
-                            .as_deref()
-                            .and_then(normalized_lookup_key)
-                });
-            let identity_changed = symbol_changed
-                || exchange_changed
-                || effective_instrument_type != existing_asset.instrument_type
-                || (matches!(
-                    effective_instrument_type,
-                    Some(InstrumentType::Crypto | InstrumentType::Fx)
-                ) && payload.quote_ccy.as_deref().is_some_and(|ccy| {
-                    normalized_lookup_key(ccy) != normalized_lookup_key(&existing_asset.quote_ccy)
-                }));
-
-            if !identity_changed {
-                // Name, notes, and provider edits must not silently rekey a
-                // legacy asset, including rows the migration skipped on collision.
-                canonical.instrument_symbol = existing_asset.instrument_symbol.clone();
-                canonical.display_code = payload
-                    .display_code
-                    .clone()
-                    .or(existing_asset.display_code.clone());
-                canonical.instrument_exchange_mic = existing_asset.instrument_exchange_mic.clone();
-                if matches!(
-                    effective_instrument_type,
-                    Some(InstrumentType::Crypto | InstrumentType::Fx)
-                ) {
-                    canonical.quote_ccy = Some(existing_asset.quote_ccy.clone());
-                    payload.quote_ccy = Some(existing_asset.quote_ccy.clone());
-                }
-            }
-
-            payload.instrument_symbol = canonical
-                .instrument_symbol
-                .or(payload.instrument_symbol.clone());
-            payload.display_code = canonical.display_code.or(payload.display_code.clone());
-            payload.instrument_exchange_mic = canonical
-                .instrument_exchange_mic
-                .or(payload.instrument_exchange_mic.clone());
-            if effective_quote_mode == QuoteMode::Market {
-                payload.quote_ccy = canonical.quote_ccy.or(payload.quote_ccy.clone());
-            }
-
-            if identity_changed {
-                if let (Some(symbol), Some(instrument_type)) = (
-                    payload.instrument_symbol.as_ref(),
-                    effective_instrument_type.as_ref(),
-                ) {
-                    // Match SQLite's generated key from the exact values that
-                    // update_profile will store; manual quote currencies are not normalized.
-                    let prefix = format!("{}:{}", instrument_type.as_db_str(), symbol);
-                    let key = match instrument_type {
-                        InstrumentType::Crypto | InstrumentType::Fx => format!(
-                            "{}/{}",
-                            prefix,
-                            payload
-                                .quote_ccy
-                                .as_deref()
-                                .unwrap_or(&existing_asset.quote_ccy)
-                        ),
-                        _ => match payload
-                            .instrument_exchange_mic
-                            .as_deref()
-                            .or(existing_asset.instrument_exchange_mic.as_deref())
-                        {
-                            Some(mic) => format!("{prefix}@{mic}"),
-                            None => prefix,
-                        },
-                    };
-                    if self
-                        .asset_repository
-                        .find_by_instrument_key(&key)?
-                        .is_some_and(|asset| asset.id != existing_asset.id)
-                    {
-                        return Err(Error::ConstraintViolation(
-                            concat!(
-                                "ASSET_IDENTITY_CONFLICT: An asset with this identity already exists. ",
-                                "Your changes were not saved."
-                            ).to_string(),
-                        ));
-                    }
-                }
-            }
+        let preview = self.normalize_profile_update(&existing_asset, payload)?;
+        if preview.conflicting_asset.is_some() {
+            return Err(Error::ConstraintViolation(format!(
+                "{ASSET_IDENTITY_CONFLICT_PREFIX} An asset with this identity already exists. \
+                 Your changes were not saved."
+            )));
         }
+        let payload = preview.profile;
 
         let asset = self
             .asset_repository
@@ -2193,6 +2344,15 @@ impl AssetServiceTrait for AssetService {
             .emit(DomainEvent::assets_updated(vec![asset.id.clone()]));
 
         Ok(asset)
+    }
+
+    fn preview_asset_profile_update(
+        &self,
+        asset_id: &str,
+        payload: UpdateAssetProfile,
+    ) -> Result<AssetProfileUpdatePreview> {
+        let existing_asset = self.asset_repository.get_by_id(asset_id)?;
+        self.normalize_profile_update(&existing_asset, payload)
     }
 
     async fn update_asset_metadata(
@@ -2282,18 +2442,47 @@ impl AssetServiceTrait for AssetService {
         }
 
         let instrument_type = new_asset.instrument_type.clone();
+        // A label that contradicts the instrument type does not classify the asset.
+        let instrument_type_label = new_asset.instrument_type_label.clone().filter(|label| {
+            instrument_type
+                .as_ref()
+                .is_none_or(|it| InstrumentType::from_external_str(label).as_ref() == Some(it))
+        });
+        let name = new_asset.name.clone();
         let kind = new_asset.kind.clone();
         let asset = self.asset_repository.create(new_asset).await?;
 
         // Auto-classify the newly created asset
-        self.classify_new_asset(&asset.id, instrument_type.as_ref(), None, None, &kind)
-            .await;
+        self.classify_new_asset(
+            &asset.id,
+            instrument_type.as_ref(),
+            instrument_type_label.as_deref(),
+            name.as_deref(),
+            &kind,
+        )
+        .await;
 
         // Emit event for newly created asset
         self.event_sink
             .emit(DomainEvent::assets_created(vec![asset.id.clone()]));
 
         Ok(asset)
+    }
+
+    fn find_asset_by_listing(
+        &self,
+        metadata: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<Asset> {
+        self.listing_match(metadata, context_currency)
+    }
+
+    fn listing_instrument_key(
+        &self,
+        metadata: &super::assets_model::AssetMetadata,
+        context_currency: Option<&str>,
+    ) -> Option<String> {
+        Self::listing_key(metadata, context_currency)
     }
 
     /// Creates a minimal asset without network calls.
@@ -2374,56 +2563,14 @@ impl AssetServiceTrait for AssetService {
         }
 
         // Try to find existing asset by instrument_key before creating a new one
-
-        if let Some(ref meta) = metadata {
-            let canonical = canonicalize_market_identity(
-                inferred_instrument_type.clone(),
-                meta.instrument_symbol
-                    .as_deref()
-                    .or(meta.display_code.as_deref()),
-                meta.instrument_exchange_mic.as_deref(),
-                context_currency.as_deref(),
-            );
-            if let Some(ref sym) = canonical.instrument_symbol {
-                if !sym.is_empty() {
-                    let instrument_type = inferred_instrument_type
-                        .clone()
-                        .unwrap_or(InstrumentType::Equity);
-                    let spec = AssetSpec {
-                        id: None,
-                        display_code: canonical.display_code.or(meta.display_code.clone()),
-                        instrument_symbol: Some(sym.clone()),
-                        instrument_exchange_mic: canonical
-                            .instrument_exchange_mic
-                            .or(meta.instrument_exchange_mic.clone()),
-                        instrument_type: Some(instrument_type.clone()),
-                        quote_ccy: canonical.quote_ccy.unwrap_or_else(|| {
-                            context_currency
-                                .clone()
-                                .unwrap_or_else(|| "USD".to_string())
-                        }),
-                        requested_quote_ccy: meta.requested_quote_ccy.clone(),
-                        kind: meta.kind.clone().unwrap_or(AssetKind::Investment),
-                        quote_mode: None,
-                        name: meta.name.clone(),
-                        provider_config: meta.provider_config.clone(),
-                        provider_id: meta.provider_id.clone(),
-                        provider_symbol: meta.provider_symbol.clone(),
-                        metadata: None,
-                    };
-                    if let Some(key) = spec.instrument_key() {
-                        if let Ok(Some(existing)) =
-                            self.asset_repository.find_by_instrument_key(&key)
-                        {
-                            if !existing.is_active {
-                                self.asset_repository.reactivate(&existing.id).await?;
-                            }
-
-                            return Ok(existing);
-                        }
-                    }
-                }
+        if let Some(existing) = metadata
+            .as_ref()
+            .and_then(|meta| self.listing_match(meta, context_currency.as_deref()))
+        {
+            if !existing.is_active {
+                self.asset_repository.reactivate(&existing.id).await?;
             }
+            return Ok(existing);
         }
 
         // Use metadata kind if provided, otherwise default to Investment
@@ -3256,6 +3403,44 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn find_asset_by_listing_matches_what_saving_a_listing_reuses() {
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let listing = super::super::AssetMetadata {
+            instrument_symbol: Some("AAPL".into()),
+            display_code: Some("AAPL".into()),
+            instrument_exchange_mic: Some("XNAS".into()),
+            instrument_type: Some(InstrumentType::Equity),
+            requested_quote_ccy: Some("USD".into()),
+            ..Default::default()
+        };
+        assert!(service
+            .find_asset_by_listing(&listing, Some("USD"))
+            .is_none());
+
+        let created = service
+            .get_or_create_minimal_asset("first", Some("USD".into()), Some(listing.clone()), None)
+            .await
+            .unwrap();
+        let found = service
+            .find_asset_by_listing(&listing, Some("USD"))
+            .expect("the created asset is found");
+        assert_eq!(found.id, created.id);
+        // Saving the same listing again under a new id reuses that asset.
+        let reused = service
+            .get_or_create_minimal_asset("second", Some("USD".into()), Some(listing.clone()), None)
+            .await
+            .unwrap();
+        assert_eq!(reused.id, created.id);
+
+        let other = super::super::AssetMetadata {
+            instrument_symbol: Some("MSFT".into()),
+            display_code: Some("MSFT".into()),
+            ..listing
+        };
+        assert!(service.find_asset_by_listing(&other, Some("USD")).is_none());
+    }
+
     fn treasury_test_asset() -> Asset {
         Asset {
             id: "treasury".into(),
@@ -4051,6 +4236,7 @@ mod tests {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: 1.0,
         }
@@ -4077,6 +4263,7 @@ mod tests {
             quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
+            exact_match: false,
             index: String::new(),
             score: 0.0,
         }
@@ -4322,6 +4509,64 @@ mod tests {
             assert_eq!(asset.instrument_symbol.as_deref(), Some("VWRPL.XC"));
             assert_eq!(asset.instrument_exchange_mic.as_deref(), Some("CXE"));
         }
+    }
+
+    #[test]
+    fn preview_asset_profile_update_names_the_colliding_asset_and_writes_nothing() {
+        let existing = Asset {
+            id: "original".to_string(),
+            name: Some("Original".to_string()),
+            display_code: Some("ABC".to_string()),
+            instrument_symbol: Some("ABC".to_string()),
+            instrument_exchange_mic: Some("XNYS".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "USD".to_string(),
+            ..Default::default()
+        };
+        let twin = Asset {
+            id: "twin".to_string(),
+            instrument_exchange_mic: Some("XNAS".to_string()),
+            instrument_key: Some("EQUITY:ABC@XNAS".to_string()),
+            ..existing.clone()
+        };
+        let service = test_asset_service(vec![existing, twin], TestQuoteService::default());
+        let profile = |mic: &str| UpdateAssetProfile {
+            name: Some("Original".to_string()),
+            notes: String::new(),
+            instrument_exchange_mic: Some(format!(" {} ", mic.to_lowercase())),
+            display_code: None,
+            instrument_symbol: None,
+            kind: None,
+            quote_mode: None,
+            quote_ccy: None,
+            instrument_type: None,
+            provider_config: None,
+            metadata: None,
+        };
+
+        let collision = service
+            .preview_asset_profile_update("original", profile("XNAS"))
+            .unwrap();
+        assert_eq!(
+            collision.conflicting_asset.map(|asset| asset.id).as_deref(),
+            Some("twin")
+        );
+        assert_eq!(
+            collision.profile.instrument_exchange_mic.as_deref(),
+            Some("XNAS")
+        );
+
+        let free = service
+            .preview_asset_profile_update("original", profile("XLON"))
+            .unwrap();
+        assert!(free.conflicting_asset.is_none());
+        assert_eq!(
+            free.profile.instrument_exchange_mic.as_deref(),
+            Some("XLON")
+        );
+        assert_eq!(free.profile.quote_ccy.as_deref(), Some("GBp"));
+        let unchanged = service.asset_repository.get_by_id("original").unwrap();
+        assert_eq!(unchanged.instrument_exchange_mic.as_deref(), Some("XNYS"));
     }
 
     #[tokio::test]
@@ -4594,6 +4839,68 @@ mod tests {
             draft.quote_ccy,
         );
         assert_eq!(spec.instrument_key().as_deref(), Some("EQUITY:ABC@XNAS"));
+    }
+
+    fn mutual_fund_search_result() -> SymbolSearchResult {
+        SymbolSearchResult {
+            quote_type: "MUTUALFUND".to_string(),
+            type_display: "Mutual Fund".to_string(),
+            ..yahoo_search_result(
+                "0P0000ABCD.BO",
+                "0P0000ABCD",
+                "XBOM",
+                "Example Corporate Bond Fund",
+                "INR",
+                "0P0000ABCD.BO",
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_import_keeps_the_provider_quote_type_on_a_new_fund_draft() {
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default()
+                .with_result("0P0000ABCD.BO", vec![mutual_fund_search_result()]),
+        );
+
+        let draft = service
+            .resolve_import_asset_inputs(vec![import_input("0P0000ABCD.BO", "INR")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap()
+            .draft
+            .expect("new fund draft");
+
+        assert_eq!(draft.instrument_type, Some(InstrumentType::Equity));
+        assert_eq!(draft.instrument_type_label.as_deref(), Some("MUTUALFUND"));
+    }
+
+    #[tokio::test]
+    async fn resolve_import_omits_a_provider_quote_type_that_maps_to_another_type() {
+        // A listed commodity product resolves to Equity, not to its COMMODITY quote type.
+        let result = SymbolSearchResult {
+            quote_type: "COMMODITY".to_string(),
+            type_display: "Commodity".to_string(),
+            ..yahoo_search_result("GLD", "GLD", "ARCX", "Example Gold Trust", "USD", "GLD")
+        };
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result("GLD", vec![result]),
+        );
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("GLD", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.provider_symbol.as_deref(), Some("GLD"));
+        let draft = output.draft.expect("new listed commodity draft");
+        assert_eq!(draft.instrument_type, Some(InstrumentType::Equity));
+        assert_eq!(draft.instrument_type_label, None);
     }
 
     #[tokio::test]
@@ -5122,6 +5429,7 @@ mod tests {
             assert_eq!(output.provider_id.as_deref(), Some("YAHOO"));
             assert_eq!(output.provider_symbol.as_deref(), Some("0P0000YWL1.BO"));
             assert_eq!(output.exchange_mic.as_deref(), Some("XBOM"));
+            assert!(!output.resolves_without_exchange);
         }
     }
 
@@ -5165,6 +5473,7 @@ mod tests {
                 "{symbol}"
             );
             assert_eq!(output.exchange_mic, None, "{symbol}");
+            assert!(output.resolves_without_exchange, "{symbol}");
             assert_eq!(output.quote_ccy.as_deref(), Some("INR"), "{symbol}");
             assert_eq!(output.name.as_deref(), Some(name), "{symbol}");
             let draft = output.draft.expect("new fund draft");
@@ -5174,6 +5483,46 @@ mod tests {
                 Some(serde_json::json!({ "preferred_provider": "AMFI" })),
                 "{symbol}"
             );
+        }
+    }
+
+    /// #2461: only a provider that resolves the new asset from its own
+    /// identifier, without a venue, lets it skip the exchange. A bare ticker
+    /// for a generic provider, a symbol the named provider can't resolve, or a
+    /// manually priced asset doesn't qualify.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_resolves_without_exchange_only_by_identifier() {
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let input =
+            |symbol: &str, provider: &str, quote_mode: Option<QuoteMode>| AssetResolutionInput {
+                instrument_type: Some(InstrumentType::Equity),
+                quote_mode,
+                provider_id: Some(provider.to_string()),
+                ..import_input(symbol, "INR")
+            };
+
+        for (input, expected) in [
+            (input("118989", "AMFI", None), true),
+            (input("UNLISTED", "AMFI", None), false),
+            (input("UNLISTED", "YAHOO", None), false),
+            (input("UNLISTED", "MOEX", None), false),
+            (input("UNLISTED", "BOERSE_FRANKFURT", None), false),
+            (input("UNLISTED", "CUSTOM_SCRAPER", None), false),
+            (input("118989", "AMFI", Some(QuoteMode::Manual)), false),
+        ] {
+            let key = format!(
+                "{} {:?} {:?}",
+                input.source_symbol, input.provider_id, input.quote_mode
+            );
+            let output = service
+                .resolve_import_asset_inputs(vec![input])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.exchange_mic, None, "{key}");
+            assert_eq!(output.resolves_without_exchange, expected, "{key}");
         }
     }
 
@@ -5404,6 +5753,38 @@ mod tests {
         assert_eq!(output.provider_symbol.as_deref(), Some("ACME-B"));
     }
 
+    /// #2405: the symbol search also returns substring hits on symbols and
+    /// names, existing holdings first. A row for "A" must not take one of them.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_ignores_substring_search_hits() {
+        let mut holding = yahoo_search_result(
+            "RELIANCE.NS",
+            "RELIANCE",
+            "XNSE",
+            "Reliance Industries",
+            "INR",
+            "RELIANCE.NS",
+        );
+        holding.is_existing = true;
+        holding.existing_asset_id = Some("reliance".to_string());
+        let quote_service = TestQuoteService::default()
+            .with_result("A.NS", vec![holding.clone()])
+            .with_result("A", vec![holding]);
+        let service = test_asset_service(Vec::new(), quote_service);
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("A", "INR")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.canonical_symbol.as_deref(), Some("A"));
+        assert_eq!(output.existing_asset_id, None);
+        assert_eq!(output.provider_symbol, None);
+        assert_ne!(output.name.as_deref(), Some("Reliance Industries"));
+    }
+
     /// HYDR is RusHydro on MOEX and a hydrogen ETF on Nasdaq. With both
     /// listings in the search results, the activity currency picks the venue.
     #[tokio::test]
@@ -5573,6 +5954,39 @@ mod tests {
         assert_eq!(output.exchange_mic.as_deref(), Some("XNYS"));
         assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
         assert!(output.draft.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_never_matches_an_fx_pair_by_provider_symbol() {
+        // A BTC/USD exchange rate fetched from Yahoo as BTC-USD (the symbol a
+        // user maps by hand) shares that symbol with the coin itself.
+        let btc_usd_rate = Asset {
+            id: "fx-btc-usd".to_string(),
+            name: Some("BTC/USD Exchange Rate".to_string()),
+            display_code: Some("BTC/USD".to_string()),
+            instrument_symbol: Some("BTC".to_string()),
+            instrument_type: Some(InstrumentType::Fx),
+            instrument_key: Some("FX:BTC/USD".to_string()),
+            quote_ccy: "USD".to_string(),
+            kind: AssetKind::Fx,
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "YAHOO",
+                "overrides": {
+                    "YAHOO": { "type": "fx_symbol", "symbol": "BTC-USD" }
+                }
+            })),
+            ..Default::default()
+        };
+        let service = test_asset_service(vec![btc_usd_rate], TestQuoteService::default());
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("BTC-USD", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_ne!(output.existing_asset_id.as_deref(), Some("fx-btc-usd"));
     }
 
     #[tokio::test]
@@ -6210,6 +6624,76 @@ mod tests {
             asset_ids,
             &vec!["option-a".to_string(), "option-b".to_string()]
         );
+    }
+
+    /// #2532: a USD-traded London ETF kept its quote currency until the first
+    /// enrichment, which reported none and so took the exchange's GBp. The
+    /// exchange still fixes the unit of a pence-quoted listing stored as GBP.
+    #[tokio::test]
+    async fn enrichment_keeps_a_listing_currency_other_than_the_exchanges() {
+        let listing = |id: &str, symbol: &str, quote_ccy: &str| Asset {
+            id: id.to_string(),
+            instrument_symbol: Some(symbol.to_string()),
+            instrument_exchange_mic: Some("XLON".to_string()),
+            quote_ccy: quote_ccy.to_string(),
+            ..test_market_asset()
+        };
+        let repo = Arc::new(TestAssetRepository::with_assets(vec![
+            listing("cspx", "CSPX", "USD"),
+            listing("vod", "VOD", "GBP"),
+            listing("lloy", "LLOY", "gbp"),
+        ]));
+        let quotes = TestQuoteService::default();
+        for symbol in ["CSPX", "VOD", "LLOY"] {
+            quotes.profiles.lock().unwrap().insert(
+                symbol.to_string(),
+                ProviderProfile {
+                    symbol: symbol.to_string(),
+                    data_source: "YAHOO".to_string(),
+                    ..Default::default()
+                },
+            );
+        }
+        let service = AssetService::new(repo.clone(), Arc::new(quotes)).unwrap();
+
+        service.enrich_asset_profile("cspx").await.unwrap();
+        service.enrich_asset_profile("vod").await.unwrap();
+        service.enrich_asset_profile("lloy").await.unwrap();
+
+        assert_eq!(repo.get_by_id("cspx").unwrap().quote_ccy, "USD");
+        assert_eq!(repo.get_by_id("vod").unwrap().quote_ccy, "GBp");
+        assert_eq!(repo.get_by_id("lloy").unwrap().quote_ccy, "GBp");
+    }
+
+    /// #2265: a profile without a name (Yahoo has none for some funds, AMFI never
+    /// sends one) keeps the name the user gave the asset.
+    #[tokio::test]
+    async fn enrichment_without_a_provider_name_keeps_the_stored_name() {
+        let repo = Arc::new(TestAssetRepository::with_assets(vec![Asset {
+            name: Some("WhiteOak Capital Fund Dir Gr".to_string()),
+            instrument_symbol: Some("0P00036T6I".to_string()),
+            instrument_exchange_mic: Some("XBOM".to_string()),
+            instrument_type: None,
+            quote_ccy: "INR".to_string(),
+            ..test_market_asset()
+        }]));
+        let quotes = TestQuoteService::default();
+        quotes.profiles.lock().unwrap().insert(
+            "0P00036T6I".to_string(),
+            ProviderProfile {
+                symbol: "0P00036T6I".to_string(),
+                asset_type: Some("MUTUALFUND".to_string()),
+                data_source: "YAHOO".to_string(),
+                ..Default::default()
+            },
+        );
+        let service = AssetService::new(repo.clone(), Arc::new(quotes)).unwrap();
+
+        service.enrich_asset_profile("asset-1").await.unwrap();
+
+        let asset = repo.get_by_id("asset-1").unwrap();
+        assert_eq!(asset.name.as_deref(), Some("WhiteOak Capital Fund Dir Gr"));
+        assert!(asset.metadata.is_some(), "the profile was applied");
     }
 
     fn test_market_asset() -> Asset {

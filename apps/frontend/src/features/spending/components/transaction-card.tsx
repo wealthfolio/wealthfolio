@@ -138,7 +138,8 @@ function TransactionCardImpl({
                 cannot separate the colours. */}
             {row.needsReview && <NeedsReviewMark label={t("spending:transactions.review")} />}
             <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-              {a.notes ?? <span className="text-muted-foreground italic">—</span>}
+              {/* The form saves no notes as "", which must not leave a blank title. */}
+              {a.notes?.trim() ? a.notes : <span className="text-muted-foreground italic">—</span>}
             </span>
             <span
               className={cn(

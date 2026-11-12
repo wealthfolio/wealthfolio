@@ -727,3 +727,27 @@ describe("agent token permission editing", () => {
     expect(JSON.parse(body as string)).toEqual({ scopes: ["holdings:read"] });
   });
 });
+
+describe("contribution limit details and exclusions", () => {
+  it("fetches details with an encoded limit ID", async () => {
+    const mock = stubFetch({});
+    await invoke("get_contribution_limit_details", { limitId: "limit/1" });
+    expect(lastCall(mock)).toMatchObject({
+      url: "/api/v1/limits/limit%2F1/details",
+      method: "GET",
+    });
+  });
+
+  it.each([true, false])("sends an exclusion update with excluded=%s", async (excluded) => {
+    const mock = stubFetch({});
+    await invoke("set_contribution_activity_excluded", {
+      limitId: "limit/1",
+      activityId: "activity/1",
+      excluded,
+    });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/limits/limit%2F1/activities/activity%2F1");
+    expect(method).toBe("PUT");
+    expect(JSON.parse(body as string)).toEqual({ excluded });
+  });
+});
