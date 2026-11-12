@@ -77,7 +77,7 @@ pub struct ActivityImportRow {
     pub account_id: Option<String>,
     #[serde(default)]
     pub comment: Option<String>,
-    /// Whether a transfer or credit crosses the portfolio boundary.
+    /// Explicit external marker for a transfer or credit.
     #[serde(default)]
     pub is_external: Option<bool>,
     /// 1-based source line, surfaced in previews and duplicate messages.
@@ -684,7 +684,7 @@ fn activity_row_schema() -> serde_json::Value {
             "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP for DIVIDEND or STAKING_REWARD for INTEREST." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
-            "isExternal": { "type": "boolean", "description": "Whether a transfer or credit crosses the portfolio boundary. Omit if unknown." },
+            "isExternal": { "type": "boolean", "description": "Mark a transfer or credit as external with true. False follows the core import semantics; an unpaired transfer without an external marker has an unknown boundary." },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
             "forceImport": { "type": "boolean", "description": "Import despite a detected duplicate." }
         },
@@ -750,6 +750,16 @@ mod tests {
             let parsed: ActivityImportRow = serde_json::from_value(input).unwrap();
             let mapped = to_import_rows(&[parsed]).unwrap();
             assert_eq!(mapped[0].is_external, flag);
+            let activity: wealthfolio_core::activities::NewActivity = mapped[0].clone().into();
+            let metadata = activity
+                .metadata
+                .as_deref()
+                .map(|m| serde_json::from_str::<serde_json::Value>(m).unwrap());
+            if flag == Some(true) {
+                assert_eq!(metadata.unwrap()["flow"]["is_external"], true);
+            } else {
+                assert!(metadata.is_none());
+            }
         }
         let properties = &PrepareActivityImport.input_schema()["properties"]["activities"]["items"]
             ["properties"];
