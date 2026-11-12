@@ -4,7 +4,7 @@ import { once } from "node:events";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
 import { stopServer } from "./e2e-server.mjs";
-import { waitForBackend, waitForServer } from "./run-e2e.mjs";
+import { splitWorkersArg, waitForBackend, waitForServer } from "./run-e2e.mjs";
 
 const BACKEND_URL = "http://127.0.0.1:8188";
 const runningServer = { exitCode: null };
@@ -97,3 +97,16 @@ test(
     }
   },
 );
+
+test("a --workers argument sets the server count and leaves the rest", () => {
+  assert.deepEqual(splitWorkersArg(["--workers", "2", "e2e/a.spec.ts"]), {
+    workers: 2,
+    rest: ["e2e/a.spec.ts"],
+  });
+  assert.deepEqual(splitWorkersArg(["--workers=3", "--headed"]), {
+    workers: 3,
+    rest: ["--headed"],
+  });
+  assert.deepEqual(splitWorkersArg(["-j", "1"]), { workers: 1, rest: [] });
+  assert.deepEqual(splitWorkersArg(["--ui"]), { workers: undefined, rest: ["--ui"] });
+});
