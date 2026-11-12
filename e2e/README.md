@@ -46,6 +46,22 @@ created from `.env.web.example` when missing.
 pnpm test:e2e
 ```
 
+Options (combine as needed; Playwright arguments such as spec paths or
+`--headed` pass through):
+
+| To                                             | Run                                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| Use fewer or more parallel workers (default 4) | `pnpm test:e2e --workers 2` or `WF_E2E_WORKERS=2 pnpm test:e2e`               |
+| Run one at a time, as before                   | `pnpm test:e2e --workers 1`                                                   |
+| Run some specs                                 | `pnpm test:e2e e2e/24-loan-editing.spec.ts e2e/25-loan-payments.spec.ts`      |
+| Watch the browser                              | `pnpm test:e2e --headed e2e/02-activities.spec.ts`                            |
+| Move the servers off busy ports                | `WF_E2E_BACKEND_URL=http://localhost:8200 pnpm test:e2e` (uses 8200, 8201, …) |
+
+Each worker costs a server, a browser and their recalculations. Four suits a
+12-core machine; on a smaller or busier one, use 2-3: specs that check timing,
+scroll or focus start failing under load before the run gets faster. `--workers`
+also sets how many servers start, so the two always match.
+
 The runner replaces supported market-data providers with fixtures and disables
 other providers. Treasury fixtures supply security terms and yield curves to the
 real Treasury parser and calculator. See
@@ -132,14 +148,35 @@ npx playwright test e2e/10-symbol-mapping-validation.spec.ts
 # Run with browser visible (useful for debugging)
 npx playwright test e2e/10-symbol-mapping-validation.spec.ts --headed
 
-# Run all tests
-npx playwright test
-
 # Run and open the HTML report afterwards
-npx playwright test && npx playwright show-report
+npx playwright test e2e/10-symbol-mapping-validation.spec.ts && npx playwright show-report
 ```
 
+For the whole suite, use `pnpm test:e2e`: it runs `01-happy-path` first, on a
+new installation, then the rest in parallel. A plain `npx playwright test` runs
+everything on this one server, one test at a time, with `01-happy-path` not
+necessarily first.
+
 ---
+
+## Writing a spec
+
+A spec runs on its worker's database after other specs, in no fixed order, and
+other workers run at the same time on their own databases.
+
+- **Click only through what the spec tests.** Create preconditions (accounts,
+  activities, assets, settings) with `e2e/api.ts`; keep the UI for the flow
+  under test.
+- **Use names unique to the run** (`uniqueName`) and **assert only on your own
+  records**: filter by your account or ids, never the first row, whole-database
+  totals, or "the only account".
+- **Put back app-wide settings you change** (language, region, base currency,
+  text size, providers, Spending accounts) in `finally`/`afterEach`;
+  `updateSettings` and `useSpendingAccounts` return the previous values.
+- **No `/src/...` imports in `page.evaluate`**: the build doesn't serve them.
+  Use the API from the test instead. `?dir=rtl` and `?swipe=app` still work.
+- **Wait on state, not time**: after closing a picker or menu, wait until it is
+  gone before opening the next; the build is faster than the dev server.
 
 ## Important rules
 

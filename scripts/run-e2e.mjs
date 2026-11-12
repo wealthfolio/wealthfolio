@@ -9,11 +9,28 @@ import { prepE2eEnv } from "./prep-e2e.mjs";
 // Each Playwright worker gets its own server and database, on consecutive ports
 // from this one. The server serves the built app, so app and API share an origin.
 const FIRST_URL = new URL(process.env.WF_E2E_BACKEND_URL || "http://localhost:8088");
-const WORKERS = Math.max(1, Number(process.env.WF_E2E_WORKERS) || 4);
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
-const cliArgs = process.argv.slice(2);
+// `--workers N` (also `--workers=N`, `-j N`) sets how many servers start, so it
+// never exceeds them; it is passed on to Playwright as the runner's own flag.
+export const splitWorkersArg = (args) => {
+  const rest = [];
+  let workers;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const inline = /^--workers=(\d+)$/.exec(arg);
+    if (inline) workers = Number(inline[1]);
+    else if ((arg === "--workers" || arg === "-j") && /^\d+$/.test(args[index + 1] ?? "")) {
+      workers = Number(args[index + 1]);
+      index += 1;
+    } else rest.push(arg);
+  }
+  return { workers, rest };
+};
+
+const { workers: workersArg, rest: cliArgs } = splitWorkersArg(process.argv.slice(2));
+const WORKERS = Math.max(1, workersArg || Number(process.env.WF_E2E_WORKERS) || 4);
 const shouldUseUi = cliArgs.includes("--ui");
 
 const buildHealthUrl = (base, path = "/") =>
