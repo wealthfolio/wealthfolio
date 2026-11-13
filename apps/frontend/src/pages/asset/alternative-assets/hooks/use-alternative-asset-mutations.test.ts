@@ -49,12 +49,21 @@ describe("alternative asset query invalidation", () => {
     });
   });
 
-  it("leaves account values and performance alone", async () => {
+  it("refreshes holdings views but leaves account values and performance alone", async () => {
     const invalidateQueries = vi.fn((_: { queryKey: string[] }) => Promise.resolve());
     await invalidateAlternativeAssetQueries({ invalidateQueries } as unknown as QueryClient);
 
     const keys = invalidateQueries.mock.calls.map(([{ queryKey }]) => queryKey[0]);
     expect(keys).toContain(QueryKeys.QUOTE_HISTORY);
+    // An account that holds one values it in its holdings views.
+    for (const key of [
+      QueryKeys.HOLDINGS,
+      QueryKeys.PORTFOLIO_ALLOCATIONS,
+      QueryKeys.HOLDINGS_BY_ALLOCATION,
+      QueryKeys.ALLOCATION_TARGET_DRIFT,
+    ]) {
+      expect(keys).toContain(key);
+    }
     for (const key of [
       QueryKeys.ACCOUNTS,
       QueryKeys.HISTORY_VALUATION,
