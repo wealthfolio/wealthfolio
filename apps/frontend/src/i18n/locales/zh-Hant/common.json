@@ -717,6 +717,8 @@
     "addonMainFileMissing": "插件 ZIP 檔案中沒有其清單指定的主檔案。",
     "addonNeedsNewerVersion": "此插件需要較新版本的 Wealthfolio。請更新 Wealthfolio 後再試一次。",
     "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。",
-    "rateLimited": "請求過多。請稍候一分鐘後再試一次。"
+    "rateLimited": "請求過多。請稍候一分鐘後再試一次。",
+    "secretTooLarge": "此密鑰內容過大，無法儲存。請縮小內容後重試。",
+    "secretStoreUnavailable": "安全憑證儲存空間無法使用或已滿。請檢查系統憑證儲存空間或重新啟動 Wealthfolio，然後再試一次。"
   }
 }

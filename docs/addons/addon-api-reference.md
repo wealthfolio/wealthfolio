@@ -1427,6 +1427,40 @@ await ctx.api.storage.delete("prefs");
 Securely store and retrieve sensitive data like API keys and tokens. All data is
 scoped to your addon for security.
 
+On Windows, the host transparently splits values that exceed Credential
+Manager's per-entry limit and reassembles them on reads. Add-ons do not need to
+split values or inspect platform error messages. Each value may contain up to 1
+MiB of UTF-8 data on Windows, subject to the system credential store's available
+capacity. Existing single-entry credentials remain readable, and deleting a
+secret removes its chunks. A missing or invalid chunk causes `get` to reject; it
+does not return a partial value or `null`.
+
+Chunked values require a host version that supports this format. Older host
+versions cannot reconstruct values written in chunks. Other platforms continue
+to use their existing native or file-backed secret storage.
+
+Rejected host calls expose a stable `code` property on the `Error` when the host
+can classify the failure. `SECRET_TOO_LARGE` means the value exceeds the storage
+limit; `SECRET_STORE_UNAVAILABLE` means the system credential store cannot be
+accessed or has insufficient capacity. A refused chunked write preserves the
+previous value. Messages are localized and must not be parsed to identify a
+failure. Older host versions may omit `code`.
+
+```typescript
+try {
+  await ctx.api.secrets.set("auth-token", userAuthToken);
+} catch (error) {
+  if (
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "SECRET_STORE_UNAVAILABLE"
+  ) {
+    // Ask the user to check credential store access and available capacity.
+  }
+  throw error;
+}
+```
+
 ### Methods
 
 #### `set(key: string, value: string): Promise<void>`

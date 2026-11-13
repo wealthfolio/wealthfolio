@@ -706,6 +706,8 @@
     "addonMainFileMissing": "插件 ZIP 文件中没有其清单指定的主文件。",
     "addonNeedsNewerVersion": "此插件需要更新版本的 Wealthfolio。请更新 Wealthfolio 后重试。",
     "quoteCurrencyRequired": "需要报价货币。请从搜索结果中重新选择代码。",
-    "rateLimited": "请求过多。请稍等一分钟后重试。"
+    "rateLimited": "请求过多。请稍等一分钟后重试。",
+    "secretTooLarge": "此密钥内容过大，无法存储。请缩小内容后重试。",
+    "secretStoreUnavailable": "安全凭据存储不可用或已满。请检查系统凭据存储或重启 Wealthfolio，然后重试。"
   }
 }

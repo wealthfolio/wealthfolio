@@ -717,6 +717,8 @@
     "addonMainFileMissing": "The add-on ZIP file doesn't contain the main file its manifest names.",
     "addonNeedsNewerVersion": "This add-on needs a newer version of Wealthfolio. Update Wealthfolio, then try again.",
     "quoteCurrencyRequired": "Quote currency is required. Select the symbol again from the search results.",
-    "rateLimited": "Too many requests. Wait a minute and try again."
+    "rateLimited": "Too many requests. Wait a minute and try again.",
+    "secretTooLarge": "This secret is too large to store. Reduce its size and try again.",
+    "secretStoreUnavailable": "Secure credential storage is unavailable or full. Check your system credential store or restart Wealthfolio, then try again."
   }
 }

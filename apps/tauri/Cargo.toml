@@ -45,6 +45,7 @@ async-trait = { workspace = true }
 
 # Additional dependencies
 keyring-core = "1.0.0"
+regex = "1"
 dotenvy = "0.15.7"
 base64 = "0.22"
 

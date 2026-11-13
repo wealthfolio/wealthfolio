@@ -25,6 +25,7 @@ import {
 import { resetAddonSandboxRuntimeAssetsForTest } from "./addon-sandbox-assets";
 import { setAddonLocalizationSnapshot } from "./addon-sandbox-localization";
 import { loadAddonAsset } from "@/adapters";
+import { backendError, BackendError } from "@/lib/backend-error";
 
 const input = {
   addonId: "test-addon",
@@ -80,6 +81,69 @@ function successfulRuntimeFetch() {
 }
 
 describe("AddonIframeManager", () => {
+  it.each(["SECRET_TOO_LARGE", "SECRET_STORE_UNAVAILABLE"])(
+    "preserves the reviewed %s code through secret RPC without private text",
+    async (code) => {
+      const manager = new AddonIframeManager();
+      const postMessage = vi.fn();
+      const error = backendError({ errorCode: code, message: "FAKE-SECRET credential-name" });
+      const runtime = {
+        addonId: input.addonId,
+        api: { secrets: { set: vi.fn().mockRejectedValue(error) } },
+        iframe: { contentWindow: { postMessage } },
+        nonce: "nonce-1",
+      };
+      const internals = manager as unknown as {
+        dispatchMessage: (runtime: unknown, message: unknown) => Promise<void>;
+      };
+      await internals.dispatchMessage(runtime, {
+        type: "api",
+        method: "secrets.set",
+        args: ["test", "dummy"],
+        requestId: "secret-write",
+      });
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "rpcResponse",
+          ok: false,
+          errorCode: code,
+          error: expect.any(String) as unknown,
+        }),
+        "*",
+      );
+      expect(JSON.stringify(postMessage.mock.calls)).not.toContain("FAKE-SECRET");
+      expect(JSON.stringify(postMessage.mock.calls)).not.toContain("credential-name");
+    },
+  );
+
+  it("does not forward arbitrary errorCode properties", () => {
+    const manager = new AddonIframeManager();
+    const postMessage = vi.fn();
+    const runtime = {
+      addonId: input.addonId,
+      iframe: { contentWindow: { postMessage } },
+      nonce: "nonce-1",
+    };
+    const internals = manager as unknown as {
+      respond: (
+        runtime: unknown,
+        requestId: string,
+        ok: boolean,
+        result: unknown,
+        error: unknown,
+      ) => void;
+    };
+    internals.respond(
+      runtime,
+      "failed",
+      false,
+      undefined,
+      Object.assign(new Error("Local failure"), { errorCode: "PRIVATE-CODE" }),
+    );
+    expect(postMessage.mock.calls[0][0].errorCode).toBeUndefined();
+    internals.respond(runtime, "normalized", false, undefined, new BackendError("PRIVATE-CODE"));
+    expect(postMessage.mock.calls[1][0].errorCode).toBe("internal_error");
+  });
   beforeEach(() => {
     resetAddonSandboxRuntimeAssetsForTest();
   });
