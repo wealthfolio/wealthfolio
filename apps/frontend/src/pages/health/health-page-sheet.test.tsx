@@ -1,5 +1,5 @@
 import type { HealthIssue, HealthStatus } from "@/lib/types";
-import { render, screen, waitFor } from "@/test/render";
+import { render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -22,11 +22,22 @@ vi.mock("@/context/auth-context", () => ({
   useAuth: () => ({ isAuthenticated: true, statusLoading: false }),
 }));
 
-// The confirm popover is exercised elsewhere; here its button confirms directly.
+// The confirm popover is exercised elsewhere; here its button confirms directly
+// and shows whether a dismiss is still saving.
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
-  ActionConfirm: ({ button, handleConfirm }: { button: ReactNode; handleConfirm: () => void }) => (
-    <span onClick={handleConfirm}>{button}</span>
+  ActionConfirm: ({
+    button,
+    handleConfirm,
+    isPending,
+  }: {
+    button: ReactNode;
+    handleConfirm: () => void;
+    isPending?: boolean;
+  }) => (
+    <span data-testid="dismiss-confirm" aria-busy={isPending} onClick={handleConfirm}>
+      {button}
+    </span>
   ),
 }));
 
@@ -109,15 +120,15 @@ describe("HealthPage issue sheet", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(screen.getByText(other.title));
-    await screen.findByRole("dialog");
+    const otherSheet = await screen.findByRole("dialog");
+    expect(within(otherSheet).getByTestId("dismiss-confirm")).toHaveAttribute("aria-busy", "true");
 
     finishDismiss();
     await waitFor(() =>
-      expect(
-        Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
-          (b) => b.textContent === "Dismiss",
-        ),
-      ).toBeEnabled(),
+      expect(within(otherSheet).getByTestId("dismiss-confirm")).toHaveAttribute(
+        "aria-busy",
+        "false",
+      ),
     );
     expect(screen.getByRole("dialog")).toHaveTextContent(other.title);
   });
