@@ -4,14 +4,17 @@
 //! All business logic lives in the core service - these handlers only handle:
 //! - String ↔ typed value conversion
 //! - HTTP status code mapping
-//! - Portfolio job triggering (server-specific)
+//! - Health Center cache clearing
+//!
+//! A change to an asset's values starts a portfolio job only when an account
+//! holds the asset (the quote service says so): stored account values leave
+//! alternative assets out otherwise, and net worth reads their values
+//! directly.
 
 use std::sync::Arc;
 
 use crate::{
-    api::shared::{enqueue_portfolio_job, PortfolioJobConfig},
-    error::ApiResult,
-    main_lib::AppState,
+    api::shared::trigger_lightweight_portfolio_update, error::ApiResult, main_lib::AppState,
 };
 use axum::{
     extract::Path,
@@ -23,14 +26,10 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use wealthfolio_core::{
-    assets::{
-        AssetKind, CreateAlternativeAssetRequest as CoreCreateRequest,
-        LinkLiabilityRequest as CoreLinkRequest,
-        UpdateAssetDetailsRequest as CoreUpdateDetailsRequest,
-        UpdateValuationRequest as CoreValuationRequest,
-    },
-    quotes::MarketSyncMode,
+use wealthfolio_core::assets::{
+    AssetKind, CreateAlternativeAssetRequest as CoreCreateRequest,
+    LinkLiabilityRequest as CoreLinkRequest, UpdateAssetDetailsRequest as CoreUpdateDetailsRequest,
+    UpdateValuationRequest as CoreValuationRequest,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,16 +185,8 @@ async fn create_alternative_asset(
         .alternative_asset_service
         .create_alternative_asset(core_request)
         .await?;
-
-    // Trigger portfolio recalculation
-    enqueue_portfolio_job(
-        state.clone(),
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
+    // A value dated long ago shows as stale in Health Center.
+    state.health_service.clear_cache().await;
 
     Ok(Json(CreateAlternativeAssetResponse {
         asset_id: response.asset_id,
@@ -216,6 +207,7 @@ async fn update_alternative_asset_valuation(
         .map_err(|e| anyhow::anyhow!("Invalid value: {}", e))?;
     let date = NaiveDate::parse_from_str(&request.date, "%Y-%m-%d")
         .map_err(|e| anyhow::anyhow!("Invalid date: {}", e))?;
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
 
     // Build core request
     let core_request = CoreValuationRequest {
@@ -232,16 +224,9 @@ async fn update_alternative_asset_valuation(
         .await?;
     // A new value can end a stale valuation in Health Center.
     state.health_service.clear_cache().await;
-
-    // Trigger portfolio recalculation
-    enqueue_portfolio_job(
-        state.clone(),
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
+    if feeds_accounts {
+        trigger_lightweight_portfolio_update(state.clone());
+    }
 
     Ok(Json(UpdateValuationResponse {
         quote_id: response.quote_id,
@@ -293,20 +278,17 @@ async fn delete_alternative_asset(
     Path(asset_id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
+    // Asked first: deleting the asset clears it from the activities that held it.
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
     state
         .alternative_asset_service
         .delete_alternative_asset(&asset_id)
         .await?;
-
-    // Trigger portfolio recalculation
-    enqueue_portfolio_job(
-        state.clone(),
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
+    // The asset's issues in Health Center go with it.
+    state.health_service.clear_cache().await;
+    if feeds_accounts {
+        trigger_lightweight_portfolio_update(state.clone());
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -465,20 +447,18 @@ async fn apply_loan_action(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(action): Json<wealthfolio_core::assets::loan::LoanAction>,
 ) -> ApiResult<StatusCode> {
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
     let result = state
         .alternative_asset_service
         .apply_loan_action(&asset_id, action)
         .await?;
-    // Recorded balances change valuations, as a manual quote save does.
+    // Recorded balances are the loan's values: a new one can end a stale
+    // valuation in Health Center, and removing one can start it.
     if result.balances_changed {
-        enqueue_portfolio_job(
-            state.clone(),
-            PortfolioJobConfig {
-                account_ids: None,
-                market_sync_mode: MarketSyncMode::None,
-                force_full: false,
-            },
-        );
+        state.health_service.clear_cache().await;
+        if feeds_accounts {
+            trigger_lightweight_portfolio_update(state.clone());
+        }
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -497,4 +477,149 @@ async fn recalculate_loan(
     Ok(Json(wealthfolio_core::assets::loan::recalculate_loan(
         &request,
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::Path as StdPath, time::Duration};
+
+    use axum::{
+        body::{to_bytes, Body},
+        http::Request,
+    };
+    use tower::ServiceExt;
+    use wealthfolio_core::portfolio::coordinator::SilentObserver;
+
+    use crate::{api::shared::PortfolioJobConfig, config::Config, events::PORTFOLIO_UPDATE_START};
+
+    fn test_config(root: &StdPath) -> Config {
+        Config {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            db_path: root.join("app.db").to_string_lossy().into_owned(),
+            addons_root: root.join("addons").to_string_lossy().into_owned(),
+            static_dir: root.join("static").to_string_lossy().into_owned(),
+            cors_allow: vec![],
+            request_timeout: Duration::from_secs(10),
+            raw_secret_key: vec![7; 32],
+            secrets_encryption_key: [8; 32],
+            database_key: [9; 32],
+            db_encryption_required: false,
+            auth: None,
+            oidc: None,
+            mcp_enabled: false,
+            mcp_audit_enabled: false,
+            mcp_allowed_hosts: None,
+        }
+    }
+
+    async fn send(
+        app: &axum::Router,
+        method: &str,
+        uri: &str,
+        body: Option<serde_json::Value>,
+    ) -> serde_json::Value {
+        let request = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(body.map_or_else(Body::empty, |body| Body::from(body.to_string())))
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert!(status.is_success(), "{method} {uri}: {status} {bytes:?}");
+        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+    }
+
+    /// Alternative assets sit outside account values, so changing one, or one
+    /// of its values in the Values table, starts no portfolio job. A price the
+    /// server can't place still does.
+    #[tokio::test]
+    async fn alternative_asset_changes_start_no_portfolio_job() {
+        let root = tempfile::tempdir().unwrap();
+        let config = test_config(root.path());
+        let state = crate::build_state(&config).await.unwrap();
+        let wait_for_queued_jobs = || async {
+            // Queued jobs reach the coordinator's lock first; this one runs last.
+            for _ in 0..10 {
+                tokio::task::yield_now().await;
+            }
+            state
+                .portfolio_coordinator
+                .run_job(
+                    PortfolioJobConfig::default().into_request(),
+                    &SilentObserver,
+                )
+                .await
+                .unwrap();
+        };
+        // Let the startup update finish before counting.
+        wait_for_queued_jobs().await;
+        let mut events = state.event_bus.subscribe();
+        let app = crate::api::app_router(state.clone(), &config).unwrap();
+
+        let created = send(
+            &app,
+            "POST",
+            "/api/v1/alternative-assets",
+            Some(serde_json::json!({
+                "kind": "property", "name": "Old Barn", "currency": "USD",
+                "currentValue": "400000", "valueDate": "2026-10-01"
+            })),
+        )
+        .await;
+        let asset_id = created["assetId"].as_str().unwrap().to_string();
+        let first_value = created["quoteId"].as_str().unwrap().to_string();
+        send(
+            &app,
+            "PUT",
+            &format!("/api/v1/alternative-assets/{asset_id}/valuation"),
+            Some(serde_json::json!({ "value": "460000", "date": "2026-11-01" })),
+        )
+        .await;
+        // The Values table edits through the generic quote routes.
+        send(
+            &app,
+            "PUT",
+            &format!("/api/v1/market-data/quotes/{asset_id}"),
+            Some(serde_json::json!({
+                "id": "", "assetId": asset_id, "timestamp": "2026-11-05T12:00:00Z",
+                "open": 470000, "high": 470000, "low": 470000, "close": 470000,
+                "adjclose": 470000, "volume": 0, "currency": "USD",
+                "dataSource": "MANUAL", "createdAt": "2026-11-05T12:00:00Z"
+            })),
+        )
+        .await;
+        send(
+            &app,
+            "DELETE",
+            &format!("/api/v1/market-data/quotes/id/{first_value}"),
+            None,
+        )
+        .await;
+        send(
+            &app,
+            "DELETE",
+            &format!("/api/v1/alternative-assets/{asset_id}"),
+            None,
+        )
+        .await;
+        // The control: a price the server can't place keeps its job.
+        send(
+            &app,
+            "DELETE",
+            "/api/v1/market-data/quotes/id/no-such-quote",
+            None,
+        )
+        .await;
+        wait_for_queued_jobs().await;
+
+        let mut started = 0;
+        while let Ok(event) = events.try_recv() {
+            if event.name == PORTFOLIO_UPDATE_START {
+                started += 1;
+            }
+        }
+        assert_eq!(started, 1, "only the control's job should run");
+    }
 }

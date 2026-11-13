@@ -4,13 +4,14 @@ import { Link } from "react-router-dom";
 import { ResponsiveSelect } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useAlternativeHoldings, useLinkLiability } from "@/hooks/use-alternative-assets";
+import { useAlternativeHoldings } from "@/hooks/use-alternative-assets";
 import {
   AlternativeAssetKind,
   type AlternativeAssetHolding,
   type StaleAssetInfo,
 } from "@/lib/types";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components/alternative-asset-quick-add-modal";
+import { useAlternativeAssetMutations } from "@/pages/asset/alternative-assets/hooks/use-alternative-asset-mutations";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import { cn } from "@/lib/utils";
 
@@ -140,7 +141,7 @@ export function NetWorthAttentionCard({
 
 export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo[] }) {
   const { data: holdings = [], isError } = useAlternativeHoldings();
-  const linkLiability = useLinkLiability();
+  const { linkLiabilityMutation: linkLiability } = useAlternativeAssetMutations();
   const [liabilityId, setLiabilityId] = useState<string | null>(null);
   return (
     <>
@@ -149,7 +150,7 @@ export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo
         holdings={isError ? [] : holdings}
         isLinking={linkLiability.isPending}
         onLink={(liabilityId, targetAssetId) =>
-          linkLiability.mutate({ liabilityId, targetAssetId })
+          linkLiability.mutate({ liabilityId, request: { targetAssetId } })
         }
         onAddProperty={setLiabilityId}
       />
@@ -162,7 +163,7 @@ export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo
           defaultKind={AlternativeAssetKind.PROPERTY}
           allowKindChange={false}
           onAssetCreated={({ assetId }) =>
-            linkLiability.mutate({ liabilityId, targetAssetId: assetId })
+            linkLiability.mutate({ liabilityId, request: { targetAssetId: assetId } })
           }
         />
       )}

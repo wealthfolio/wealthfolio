@@ -552,6 +552,21 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Delete a quote by ID.
     async fn delete_quote(&self, quote_id: &str) -> Result<()>;
 
+    /// Whether changing this asset's prices can change stored account values,
+    /// so a portfolio job has to follow the change. An alternative asset's
+    /// can't unless an account's activity or holdings snapshot holds it.
+    /// Unknown assets count as able to.
+    fn prices_feed_account_values(&self, _asset_id: &str) -> bool {
+        true
+    }
+
+    /// [`Self::prices_feed_account_values`] for the asset whose stored price
+    /// `quote_id` is. Ask before deleting the quote. Unknown quotes count as
+    /// able to.
+    fn quote_feeds_account_values(&self, _quote_id: &str) -> bool {
+        true
+    }
+
     /// Bulk upsert quotes.
     async fn bulk_upsert_quotes(&self, quotes: Vec<Quote>) -> Result<usize>;
 
@@ -1583,6 +1598,40 @@ where
 
     async fn delete_quote(&self, quote_id: &str) -> Result<()> {
         self.quote_store.delete_quote(quote_id).await
+    }
+
+    fn prices_feed_account_values(&self, asset_id: &str) -> bool {
+        // An asset that can't be read keeps the job: the safe side.
+        let Ok(asset) = self.asset_repo.get_by_id(asset_id) else {
+            return true;
+        };
+        if !asset.is_alternative() {
+            return true;
+        }
+        // Account valuations leave alternative positions out and net worth
+        // reads their values directly, but an account activity or snapshot
+        // that holds one prices its transfers from those values.
+        let ids = [asset_id.to_string()];
+        let dated = |(first, last): &(Option<NaiveDate>, Option<NaiveDate>)| {
+            first.is_some() || last.is_some()
+        };
+        // A lookup that fails keeps the job.
+        let in_activities = self
+            .activity_repo
+            .get_activity_bounds_for_assets(&ids)
+            .map_or(true, |bounds| bounds.get(asset_id).is_some_and(dated));
+        in_activities
+            || self
+                .activity_repo
+                .get_holdings_snapshot_bounds_for_assets(&ids)
+                .map_or(true, |bounds| bounds.get(asset_id).is_some_and(dated))
+    }
+
+    fn quote_feeds_account_values(&self, quote_id: &str) -> bool {
+        match self.quote_store.quote_asset_id(quote_id) {
+            Ok(Some(asset_id)) => self.prices_feed_account_values(&asset_id),
+            Ok(None) | Err(_) => true,
+        }
     }
 
     async fn bulk_upsert_quotes(&self, quotes: Vec<Quote>) -> Result<usize> {
@@ -3427,6 +3476,10 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
+        fn quote_asset_id(&self, _quote_id: &str) -> Result<Option<String>> {
+            unimplemented!("unused in this test")
+        }
+
         async fn upsert_quotes(&self, _quotes: &[Quote]) -> Result<usize> {
             unimplemented!("unused in this test")
         }
@@ -3538,6 +3591,10 @@ mod tests {
         }
 
         async fn delete_quote(&self, _quote_id: &str) -> Result<()> {
+            unimplemented!("unused in this test")
+        }
+
+        fn quote_asset_id(&self, _quote_id: &str) -> Result<Option<String>> {
             unimplemented!("unused in this test")
         }
 
@@ -3698,6 +3755,10 @@ mod tests {
         }
 
         async fn delete_quote(&self, _quote_id: &str) -> Result<()> {
+            unimplemented!("unused in this test")
+        }
+
+        fn quote_asset_id(&self, _quote_id: &str) -> Result<Option<String>> {
             unimplemented!("unused in this test")
         }
 

@@ -520,19 +520,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             request.asset_id, request.value, request.date
         );
 
-        // Verify the asset exists
-        self.asset_repository.get_by_id(&request.asset_id)?;
-
-        // Get the existing quote to find the currency
-        let currency = match self.quote_service.get_latest_quote(&request.asset_id) {
-            Ok(existing_quote) => existing_quote.currency,
-            Err(_) => {
-                return Err(Error::Validation(ValidationError::InvalidInput(format!(
-                    "Cannot find existing valuation for asset: {}. Please check the asset exists.",
-                    request.asset_id
-                ))));
-            }
-        };
+        let asset = self.asset_repository.get_by_id(&request.asset_id)?;
+        // The kinds this service creates, so each can take further values.
+        Self::validate_alternative_asset_kind(&asset.kind)?;
+        // The asset's currency, which creating it gave its values too. A value
+        // can be added after the last one was deleted.
+        let currency = asset.quote_ccy;
 
         // Create new valuation quote
         let quote_id = Uuid::new_v4().to_string();
@@ -579,9 +572,27 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
 
-        self.alternative_asset_repository
+        let untagged = self
+            .alternative_asset_repository
             .delete_alternative_asset(asset_id)
             .await?;
+        // Untagging a deleted loan's payments rewrites them, which marks their
+        // accounts for recalculation, as linking one does; the event runs it.
+        if !untagged.is_empty() {
+            let unique = |values: Vec<String>| -> Vec<String> {
+                values
+                    .into_iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect()
+            };
+            self.event_sink.emit(DomainEvent::activities_changed(
+                unique(untagged.iter().map(|a| a.account_id.clone()).collect()),
+                unique(untagged.iter().filter_map(|a| a.asset_id.clone()).collect()),
+                unique(untagged.iter().map(|a| a.currency.clone()).collect()),
+                untagged.iter().map(|a| a.activity_date).min(),
+            ));
+        }
 
         debug!("Successfully deleted alternative asset: {}", asset_id);
         Ok(())
@@ -907,7 +918,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         // Build AlternativeHolding for each asset
         let holdings: Vec<AlternativeHolding> = alternative_assets
             .into_iter()
-            .filter_map(|asset| {
+            .map(|asset| {
                 let quote = quotes.get(&asset.id);
                 let principal = (asset.kind == AssetKind::Liability
                     && !recorded_loan_dates.contains_key(&asset.id))
@@ -924,13 +935,9 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     .copied()
                     .or_else(|| quote.map(|q| q.close))
                     .or_else(|| principal.map(|(_, value)| value));
-                // A liability is still editable when its last balance is deleted,
-                // even if it has no usable original principal.
-                let market_value = match value {
-                    Some(value) => value,
-                    None if asset.kind == AssetKind::Liability => Decimal::ZERO,
-                    None => return None,
-                };
+                // An asset stays listed and editable when its last value is
+                // deleted, as does a liability with no usable original principal.
+                let market_value = value.unwrap_or(Decimal::ZERO);
                 let valuation_date = quote.map(|q| q.timestamp).unwrap_or_else(|| {
                     principal
                         .map_or(as_of, |(date, _)| date)
@@ -989,7 +996,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                         (None, None)
                     };
 
-                Some(AlternativeHolding {
+                AlternativeHolding {
                     id: asset.id.clone(),
                     kind: asset.kind.clone(),
                     name: asset
@@ -1008,7 +1015,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     linked_asset_id,
                     notes: asset.notes,
                     loan,
-                })
+                }
             })
             .collect();
 
@@ -1045,6 +1052,8 @@ mod tests {
         as_of_quotes: HashMap<String, Quote>,
         /// Quotes returned by get_latest_quotes (old, unbounded path — should NOT be called).
         latest_quotes: HashMap<String, Quote>,
+        /// Quotes add_quote saved.
+        added: std::sync::Mutex<Vec<Quote>>,
     }
 
     #[async_trait]
@@ -1160,8 +1169,9 @@ mod tests {
             unimplemented!("not used in this test")
         }
 
-        async fn add_quote(&self, _quote: &Quote) -> Result<Quote> {
-            unimplemented!("not used in this test")
+        async fn add_quote(&self, quote: &Quote) -> Result<Quote> {
+            self.added.lock().unwrap().push(quote.clone());
+            Ok(quote.clone())
         }
 
         async fn update_quote(&self, _quote: Quote) -> Result<Quote> {
@@ -1420,12 +1430,17 @@ mod tests {
     #[derive(Default)]
     struct MockAltAssetRepository {
         metadata_writes: std::sync::Mutex<Vec<(String, Option<Value>)>>,
+        /// Loan payments delete_alternative_asset reports untagging.
+        untagged_on_delete: Vec<crate::activities::Activity>,
     }
 
     #[async_trait]
     impl AlternativeAssetRepositoryTrait for MockAltAssetRepository {
-        async fn delete_alternative_asset(&self, _asset_id: &str) -> Result<()> {
-            unimplemented!("not used in this test")
+        async fn delete_alternative_asset(
+            &self,
+            _asset_id: &str,
+        ) -> Result<Vec<crate::activities::Activity>> {
+            Ok(self.untagged_on_delete.clone())
         }
 
         async fn update_asset_metadata(
@@ -1591,6 +1606,7 @@ mod tests {
                 Arc::new(asset_repo),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::default(),
+                    added: Default::default(),
                     as_of_quotes: HashMap::new(),
                     latest_quotes: HashMap::new(),
                 }),
@@ -1648,6 +1664,7 @@ mod tests {
         let cutoff = Arc::new(std::sync::Mutex::new(None));
         let quote_svc = MockQuoteService {
             cutoff: cutoff.clone(),
+            added: Default::default(),
             as_of_quotes: [(ASSET_ID.to_string(), past_quote)].into_iter().collect(),
             latest_quotes: [(ASSET_ID.to_string(), future_zero_quote)]
                 .into_iter()
@@ -1719,6 +1736,7 @@ mod tests {
         };
         let quotes = MockQuoteService {
             cutoff: Arc::new(std::sync::Mutex::new(None)),
+            added: Default::default(),
             as_of_quotes: [("loan".into(), quote)].into_iter().collect(),
             latest_quotes: HashMap::new(),
         };
@@ -1759,6 +1777,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: HashMap::new(),
                 latest_quotes: HashMap::new(),
             }),
@@ -1800,6 +1819,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: [(
                     "house".into(),
                     make_quote("house", Decimal::new(5000, 0), initial),
@@ -1881,6 +1901,7 @@ mod tests {
                 }),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
                     as_of_quotes: quotes,
                     latest_quotes: HashMap::new(),
                 }),
@@ -1897,6 +1918,215 @@ mod tests {
             if source.is_none() {
                 assert!(holding.unrealized_gain.is_none());
             }
+        }
+    }
+
+    #[test]
+    fn assets_remain_listed_after_their_last_value_is_deleted() {
+        for kind in [
+            AssetKind::Property,
+            AssetKind::Vehicle,
+            AssetKind::Collectible,
+            AssetKind::PreciousMetal,
+            AssetKind::Other,
+        ] {
+            let asset = Asset {
+                id: "home".into(),
+                kind: kind.clone(),
+                quote_ccy: "USD".into(),
+                metadata: Some(json!({"purchase_price":"400000"})),
+                ..Default::default()
+            };
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository::default()),
+                Arc::new(MockAssetRepository {
+                    assets: vec![asset],
+                }),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            )
+            .with_timezone(Arc::new(RwLock::new("UTC".into())));
+            let holdings = service.get_alternative_holdings().unwrap();
+            assert_eq!(holdings.len(), 1, "{kind:?} must stay listed");
+            assert_eq!(holdings[0].kind, kind);
+            assert_eq!(holdings[0].market_value, Decimal::ZERO);
+            assert!(holdings[0].unrealized_gain.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn deleting_a_loan_recalculates_the_accounts_its_payments_came_from() {
+        let payment = |id: &str, account: &str, day: u32| {
+            let date = chrono::Utc
+                .with_ymd_and_hms(2026, 9, day, 12, 0, 0)
+                .unwrap();
+            crate::activities::Activity {
+                id: id.into(),
+                account_id: account.into(),
+                asset_id: None,
+                activity_type: "WITHDRAWAL".into(),
+                activity_type_override: None,
+                source_type: None,
+                subtype: None,
+                status: crate::activities::ActivityStatus::Posted,
+                activity_date: date,
+                settlement_date: None,
+                quantity: None,
+                unit_price: None,
+                amount: Some(Decimal::new(1_500, 0)),
+                fee: None,
+                tax: None,
+                currency: "USD".into(),
+                fx_rate: None,
+                notes: None,
+                metadata: None,
+                source_system: None,
+                source_record_id: None,
+                source_group_id: None,
+                idempotency_key: None,
+                import_run_id: None,
+                is_user_modified: false,
+                needs_review: false,
+                created_at: date,
+                updated_at: date,
+            }
+        };
+        let delete = |untagged_on_delete: Vec<crate::activities::Activity>| async move {
+            let sink = crate::events::MockDomainEventSink::new();
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository {
+                    untagged_on_delete,
+                    ..Default::default()
+                }),
+                Arc::new(MockAssetRepository {
+                    assets: vec![Asset {
+                        id: "loan".into(),
+                        kind: AssetKind::Liability,
+                        quote_ccy: "USD".into(),
+                        ..Default::default()
+                    }],
+                }),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            )
+            .with_event_sink(Arc::new(sink.clone()));
+            service.delete_alternative_asset("loan").await.unwrap();
+            sink.events()
+        };
+
+        let events = delete(vec![
+            payment("aug", "checking", 20),
+            payment("sep", "checking", 5),
+            payment("joint", "joint", 12),
+        ])
+        .await;
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            DomainEvent::ActivitiesChanged {
+                account_ids,
+                earliest_activity_at_utc,
+                ..
+            } => {
+                assert_eq!(account_ids, &["checking".to_string(), "joint".to_string()]);
+                assert_eq!(
+                    *earliest_activity_at_utc,
+                    Some(chrono::Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap())
+                );
+            }
+            other => panic!("expected ActivitiesChanged, got {other:?}"),
+        }
+
+        assert!(delete(Vec::new()).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_value_can_be_added_after_the_last_one_is_deleted() {
+        let asset = Asset {
+            id: "home".into(),
+            kind: AssetKind::Property,
+            quote_ccy: "EUR".into(),
+            ..Default::default()
+        };
+        let quotes = Arc::new(MockQuoteService {
+            cutoff: Arc::new(std::sync::Mutex::new(None)),
+            added: Default::default(),
+            as_of_quotes: HashMap::new(),
+            latest_quotes: HashMap::new(),
+        });
+        let service = AlternativeAssetService::new(
+            Arc::new(MockAltAssetRepository::default()),
+            Arc::new(MockAssetRepository {
+                assets: vec![asset],
+            }),
+            quotes.clone(),
+        );
+
+        service
+            .update_valuation(UpdateValuationRequest {
+                asset_id: "home".into(),
+                value: Decimal::new(460_000, 0),
+                date: NaiveDate::from_ymd_opt(2026, 11, 1).unwrap(),
+                notes: None,
+            })
+            .await
+            .unwrap();
+
+        let added = quotes.added.lock().unwrap();
+        assert_eq!(added.len(), 1);
+        assert_eq!(added[0].close, Decimal::new(460_000, 0));
+        assert_eq!(added[0].currency, "EUR");
+    }
+
+    #[tokio::test]
+    async fn update_value_takes_only_the_kinds_create_takes() {
+        for (kind, accepted) in [
+            (AssetKind::Investment, false),
+            (AssetKind::Fx, false),
+            (AssetKind::PrivateEquity, true),
+            (AssetKind::Property, true),
+        ] {
+            let quotes = Arc::new(MockQuoteService {
+                cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
+                as_of_quotes: HashMap::new(),
+                latest_quotes: HashMap::new(),
+            });
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository::default()),
+                Arc::new(MockAssetRepository {
+                    assets: vec![Asset {
+                        id: "listed".into(),
+                        kind: kind.clone(),
+                        quote_ccy: "USD".into(),
+                        ..Default::default()
+                    }],
+                }),
+                quotes.clone(),
+            );
+
+            let saved = service
+                .update_valuation(UpdateValuationRequest {
+                    asset_id: "listed".into(),
+                    value: Decimal::new(100, 0),
+                    date: NaiveDate::from_ymd_opt(2026, 11, 1).unwrap(),
+                    notes: None,
+                })
+                .await;
+
+            assert_eq!(saved.is_ok(), accepted, "{kind:?}");
+            assert_eq!(
+                quotes.added.lock().unwrap().len(),
+                usize::from(accepted),
+                "{kind:?}"
+            );
         }
     }
 
@@ -1922,6 +2152,7 @@ mod tests {
                 }),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
                     as_of_quotes: HashMap::new(),
                     latest_quotes: [("loan".into(), make_quote("loan", balance, future))]
                         .into_iter()
@@ -1958,6 +2189,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: HashMap::new(),
                 latest_quotes: HashMap::new(),
             }),

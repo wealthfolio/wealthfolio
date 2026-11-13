@@ -225,6 +225,16 @@ impl QuoteStore for MarketDataRepository {
             .await
     }
 
+    fn quote_asset_id(&self, quote_id: &str) -> Result<Option<String>> {
+        let mut conn = get_connection(&self.pool)?;
+        quotes_dsl::quotes
+            .filter(quotes_dsl::id.eq(quote_id))
+            .select(quotes_dsl::asset_id)
+            .first::<String>(&mut conn)
+            .optional()
+            .into_core()
+    }
+
     async fn upsert_quotes(&self, input_quotes: &[Quote]) -> Result<usize> {
         if input_quotes.is_empty() {
             return Ok(0);

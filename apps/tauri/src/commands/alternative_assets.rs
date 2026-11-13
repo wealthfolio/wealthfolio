@@ -4,7 +4,16 @@
 //! All business logic lives in the core service - these commands only handle:
 //! - String ↔ typed value conversion
 //! - Error formatting for the frontend
+//! - Health Center cache clearing
+//!
+//! A change to an asset's values starts a portfolio job only when an account
+//! holds the asset (the quote service says so): stored account values leave
+//! alternative assets out otherwise, and net worth reads their values
+//! directly.
 
+use std::sync::Arc;
+
+use crate::context::ServiceContext;
 use crate::events::{emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
 use crate::profiles::ProfileAccess;
 use chrono::NaiveDate;
@@ -172,6 +181,8 @@ pub async fn create_alternative_asset(
             error!("Failed to create alternative asset: {}", e);
             format!("Failed to create asset: {}", e)
         })?;
+    // A value dated long ago shows as stale in Health Center.
+    context.health_service().clear_cache().await;
 
     Ok(CreateAlternativeAssetResponse {
         asset_id: response.asset_id,
@@ -180,11 +191,24 @@ pub async fn create_alternative_asset(
 }
 
 /// Updates the valuation of an alternative asset.
+/// Recalculates the accounts after a change to the values of an asset they
+/// hold, as a manual price edit does.
+fn recalculate_portfolio(handle: tauri::AppHandle, context: Arc<ServiceContext>) {
+    tauri::async_runtime::spawn(async move {
+        let payload = PortfolioRequestPayload::builder()
+            .account_ids(None)
+            .market_sync_mode(MarketSyncMode::None)
+            .build();
+        emit_portfolio_trigger_recalculate(&handle, payload, &context);
+    });
+}
+
 #[tauri::command]
 pub async fn update_alternative_asset_valuation(
     asset_id: String,
     request: UpdateValuationRequest,
     state: ProfileAccess,
+    handle: tauri::AppHandle,
 ) -> Result<UpdateValuationResponse, String> {
     let context = state.context()?;
     // Parse string values
@@ -194,6 +218,9 @@ pub async fn update_alternative_asset_valuation(
         .map_err(|e| format!("Invalid value: {}", e))?;
     let date = NaiveDate::parse_from_str(&request.date, "%Y-%m-%d")
         .map_err(|e| format!("Invalid date: {}", e))?;
+    let feeds_accounts = context
+        .quote_service()
+        .prices_feed_account_values(&asset_id);
 
     // Build core request
     let core_request = CoreValuationRequest {
@@ -214,6 +241,9 @@ pub async fn update_alternative_asset_valuation(
         })?;
     // A new value can end a stale valuation in Health Center.
     context.health_service().clear_cache().await;
+    if feeds_accounts {
+        recalculate_portfolio(handle, context);
+    }
 
     Ok(UpdateValuationResponse {
         quote_id: response.quote_id,
@@ -274,8 +304,13 @@ pub async fn update_alternative_asset_metadata(
 pub async fn delete_alternative_asset(
     asset_id: String,
     state: ProfileAccess,
+    handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let context = state.context()?;
+    // Asked first: deleting the asset clears it from the activities that held it.
+    let feeds_accounts = context
+        .quote_service()
+        .prices_feed_account_values(&asset_id);
     context
         .alternative_asset_service()
         .delete_alternative_asset(&asset_id)
@@ -283,7 +318,13 @@ pub async fn delete_alternative_asset(
         .map_err(|e| {
             error!("Failed to delete alternative asset: {}", e);
             format!("Failed to delete asset: {}", e)
-        })
+        })?;
+    // The asset's issues in Health Center go with it.
+    context.health_service().clear_cache().await;
+    if feeds_accounts {
+        recalculate_portfolio(handle, context);
+    }
+    Ok(())
 }
 
 /// Links a liability to a target asset.
@@ -433,20 +474,21 @@ pub async fn apply_loan_action(
     handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let context = state.context()?;
+    let feeds_accounts = context
+        .quote_service()
+        .prices_feed_account_values(&asset_id);
     let result = context
         .alternative_asset_service()
         .apply_loan_action(&asset_id, action)
         .await
         .map_err(|e| e.to_string())?;
-    // Recorded balances change valuations, as a manual quote save does.
+    // Recorded balances are the loan's values: a new one can end a stale
+    // valuation in Health Center, and removing one can start it.
     if result.balances_changed {
-        tauri::async_runtime::spawn(async move {
-            let payload = PortfolioRequestPayload::builder()
-                .account_ids(None)
-                .market_sync_mode(MarketSyncMode::None)
-                .build();
-            emit_portfolio_trigger_recalculate(&handle, payload, &context);
-        });
+        context.health_service().clear_cache().await;
+        if feeds_accounts {
+            recalculate_portfolio(handle, context);
+        }
     }
     Ok(())
 }

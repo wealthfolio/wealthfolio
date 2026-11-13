@@ -12,7 +12,11 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-alternative-assets", () => ({
   useAlternativeHoldings: () => ({ data: mocks.holdings(), isError: mocks.error }),
-  useLinkLiability: () => ({ mutate: mocks.link, isPending: mocks.pending }),
+}));
+vi.mock("@/pages/asset/alternative-assets/hooks/use-alternative-asset-mutations", () => ({
+  useAlternativeAssetMutations: () => ({
+    linkLiabilityMutation: { mutate: mocks.link, isPending: mocks.pending },
+  }),
 }));
 vi.mock("@wealthfolio/ui", () => ({
   ResponsiveSelect: ({
@@ -128,7 +132,10 @@ describe("NetWorthAttention", () => {
     renderCard([]);
     expect(screen.queryByRole("option", { name: "Car" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "home" } });
-    expect(mocks.link).toHaveBeenCalledWith({ liabilityId: "mortgage", targetAssetId: "home" });
+    expect(mocks.link).toHaveBeenCalledWith({
+      liabilityId: "mortgage",
+      request: { targetAssetId: "home" },
+    });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -150,7 +157,7 @@ describe("NetWorthAttention", () => {
     fireEvent.click(screen.getByText("Save property"));
     expect(mocks.link).toHaveBeenCalledWith({
       liabilityId: "mortgage",
-      targetAssetId: "new-property",
+      request: { targetAssetId: "new-property" },
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

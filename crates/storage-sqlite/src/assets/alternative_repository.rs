@@ -198,11 +198,11 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
     /// 3. Deletes the asset record
     ///
     /// Note: No account or activity deletion needed - alternative assets don't create them.
-    async fn delete_alternative_asset(&self, asset_id: &str) -> Result<()> {
+    async fn delete_alternative_asset(&self, asset_id: &str) -> Result<Vec<Activity>> {
         let asset_id_owned = asset_id.to_string();
 
         self.writer
-            .exec_tx(move |tx| -> Result<()> {
+            .exec_tx(move |tx| -> Result<Vec<Activity>> {
                 // Step 1: Find and unlink any liabilities that reference this asset
                 let linked_pattern = format!("%\"linked_asset_id\":\"{}\"%", asset_id_owned);
 
@@ -249,9 +249,11 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     .select(ActivityDB::as_select())
                     .load::<ActivityDB>(tx.conn())
                     .map_err(StorageError::from)?;
+                let mut untagged_payments = Vec::with_capacity(tagged.len());
                 for row in tagged {
                     let activity = Activity::from(row);
                     write_activity_metadata(tx, &activity.id, untagged(&activity).as_ref())?;
+                    untagged_payments.push(activity);
                 }
 
                 // Step 2: Delete all quotes for this asset with source = 'MANUAL'
@@ -278,7 +280,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
 
                 tx.delete::<crate::assets::AssetDB>(asset_id_owned);
 
-                Ok(())
+                Ok(untagged_payments)
             })
             .await
     }
