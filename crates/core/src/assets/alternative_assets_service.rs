@@ -143,21 +143,17 @@ impl AlternativeAssetService {
         self
     }
 
-    /// Validates that the request is for an alternative asset kind.
+    /// Validates that the request is for an alternative asset kind. Private
+    /// equity is an investment an account holds: net worth and the
+    /// alternative holdings list leave it out, so it isn't created here.
     fn validate_alternative_asset_kind(kind: &AssetKind) -> Result<()> {
-        match kind {
-            AssetKind::Property
-            | AssetKind::Vehicle
-            | AssetKind::Collectible
-            | AssetKind::PreciousMetal
-            | AssetKind::PrivateEquity
-            | AssetKind::Liability
-            | AssetKind::Other => Ok(()),
-            _ => Err(Error::Validation(ValidationError::InvalidInput(format!(
-                "Asset kind {:?} is not an alternative asset type",
-                kind
-            )))),
+        if kind.is_alternative() {
+            return Ok(());
         }
+        Err(Error::Validation(ValidationError::InvalidInput(format!(
+            "Asset kind {:?} is not an alternative asset type",
+            kind
+        ))))
     }
 
     /// Builds the asset metadata JSON, including purchase info and kind-specific metadata.
@@ -1525,11 +1521,15 @@ mod tests {
             AlternativeAssetService::validate_alternative_asset_kind(&AssetKind::Other).is_ok()
         );
 
-        // Invalid asset kinds
+        // Invalid asset kinds: investments, private equity included, live in accounts.
         assert!(
             AlternativeAssetService::validate_alternative_asset_kind(&AssetKind::Investment)
                 .is_err()
         );
+        assert!(AlternativeAssetService::validate_alternative_asset_kind(
+            &AssetKind::PrivateEquity
+        )
+        .is_err());
         assert!(AlternativeAssetService::validate_alternative_asset_kind(&AssetKind::Fx).is_err());
     }
 

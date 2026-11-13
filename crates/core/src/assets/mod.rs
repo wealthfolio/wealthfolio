@@ -50,7 +50,7 @@ pub use assets_model::{
     Asset, AssetKind, AssetMetadata, AssetProfile, AssetProfileUpdatePreview, AssetSpec, BondSpec,
     Country, EnsureAssetsResult, InstrumentId, InstrumentType, NewAsset, OptionSpec,
     ProviderProfile, QuoteCcyResolutionSource, QuoteMode, Sector, UpdateAssetProfile,
-    CONTRACT_MULTIPLIER_METADATA_KEY,
+    ALTERNATIVE_ASSET_NOT_IN_ACCOUNT, CONTRACT_MULTIPLIER_METADATA_KEY,
 };
 pub use assets_service::AssetService;
 pub use assets_traits::{AssetRepositoryTrait, AssetServiceTrait};

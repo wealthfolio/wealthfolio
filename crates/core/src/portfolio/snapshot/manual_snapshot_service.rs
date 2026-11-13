@@ -8,8 +8,11 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::accounts::Account;
-use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode};
-use crate::errors::{Error, Result};
+use crate::assets::{
+    AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode,
+    ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+};
+use crate::errors::{Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::{
     validate_snapshot_write_date, AccountStateSnapshot, Position, SnapshotServiceTrait,
@@ -273,6 +276,24 @@ impl ManualSnapshotService {
             request.source.as_str(),
             user_today(parse_user_timezone_or_default(&self.timezone)),
         )?;
+
+        // Alternative assets count toward net worth on their own, never in an
+        // account. Checked for every holding before anything is written.
+        for holding in &request.positions {
+            let Some(asset_id) = holding.asset_id.as_deref().filter(|id| !id.is_empty()) else {
+                continue;
+            };
+            if !holding.quantity.is_zero()
+                && self
+                    .asset_service
+                    .get_asset_by_id(asset_id)
+                    .is_ok_and(|asset| asset.kind.is_alternative())
+            {
+                return Err(Error::Validation(ValidationError::InvalidInput(
+                    ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
+                )));
+            }
+        }
 
         let mut positions: HashMap<String, Position> = HashMap::new();
         let mut asset_ids: Vec<String> = Vec::new();
@@ -601,8 +622,20 @@ mod tests {
         Arc<InMemoryQuoteService>,
         Arc<InMemorySnapshotRepository>,
     ) {
+        service_for_kind(quotes, AssetKind::Investment)
+    }
+
+    fn service_for_kind(
+        quotes: Vec<Quote>,
+        kind: AssetKind,
+    ) -> (
+        ManualSnapshotService,
+        Arc<InMemoryQuoteService>,
+        Arc<InMemorySnapshotRepository>,
+    ) {
         let asset = Asset {
             id: ASSET_ID.to_string(),
+            kind,
             display_code: Some("MANUAL".to_string()),
             quote_mode: QuoteMode::Manual,
             quote_ccy: "USD".to_string(),
@@ -680,6 +713,28 @@ mod tests {
             .collect();
         closes.sort();
         closes
+    }
+
+    #[tokio::test]
+    async fn an_alternative_asset_is_refused_and_nothing_is_written() {
+        let date = day("2026-01-15");
+        for kind in [AssetKind::Property, AssetKind::Liability] {
+            let (service, quotes, snapshots) = service_for_kind(Vec::new(), kind.clone());
+
+            let refused = service
+                .save_manual_snapshot(request(date))
+                .await
+                .expect_err("an account never holds an alternative asset");
+
+            assert!(
+                refused
+                    .to_string()
+                    .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{kind:?}: {refused}"
+            );
+            assert!(closes(&quotes).is_empty(), "{kind:?}: no price written");
+            assert!(stored(&snapshots).is_empty(), "{kind:?}: no snapshot saved");
+        }
     }
 
     #[tokio::test]
