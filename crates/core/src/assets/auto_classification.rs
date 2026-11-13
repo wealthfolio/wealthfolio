@@ -334,7 +334,7 @@ fn map_sector_to_gics(sector: &str) -> Option<&'static str> {
 /// Resolves a provider country string against the regions taxonomy.
 ///
 /// The seeded taxonomy is three levels — continent, sub-region, country — and
-/// carries 227 `country_*` nodes keyed on ISO 3166-1 alpha-2. Resolving to the
+/// carries 248 `country_*` nodes keyed on ISO 3166-1 alpha-2. Resolving to the
 /// country node is what lets a German holding be told apart from a Portuguese
 /// one, and what gives Europe a drill-down at all: a category rolled up to
 /// itself contributes no child row to the allocation breakdown.
