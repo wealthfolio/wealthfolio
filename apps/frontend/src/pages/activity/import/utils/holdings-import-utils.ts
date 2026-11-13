@@ -12,7 +12,11 @@ import {
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import { getDateFnsPattern } from "./date-format-options";
-import { analyzeMappedNumericColumns, resolveNumericDecimalSeparator } from "./numeric-format";
+import {
+  analyzeNumericColumn,
+  resolveNumericDecimalSeparator,
+  type NumericColumnAnalysis,
+} from "./numeric-format";
 
 export const CASH_SYMBOL = "$CASH";
 
@@ -57,6 +61,29 @@ export interface ParseOptions {
   decimalSeparator: string;
   thousandsSeparator: string;
   defaultCurrency: string;
+}
+
+/** Use the same first matching headers and required rows as the holdings grid. */
+export function analyzeHoldingsNumericColumns(
+  headers: string[],
+  rows: string[][],
+  mapping: Record<string, string>,
+  parseOptions: ParseOptions,
+): Record<string, NumericColumnAnalysis> {
+  const requiredIndexes = [HoldingsFormat.DATE, HoldingsFormat.SYMBOL, HoldingsFormat.QUANTITY].map(
+    (field) => headers.indexOf(mapping[field]),
+  );
+  const visibleRows = rows.filter((row) => requiredIndexes.every((index) => row[index]?.trim()));
+  return Object.fromEntries(
+    [HoldingsFormat.QUANTITY, HoldingsFormat.AVG_COST].map((field) => [
+      field,
+      analyzeNumericColumn(
+        visibleRows.map((row) => row[headers.indexOf(mapping[field])]),
+        parseOptions.decimalSeparator,
+        parseOptions.thousandsSeparator,
+      ),
+    ]),
+  );
 }
 
 export interface HoldingsRowResolution {
@@ -361,13 +388,7 @@ function parseHoldingsSnapshotsInternal(
   preserveInvalidRows: boolean,
 ): HoldingsSnapshotInput[] {
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseOptions;
-  const numericColumns = analyzeMappedNumericColumns(
-    headers,
-    rows,
-    mapping,
-    decimalSeparator,
-    thousandsSeparator,
-  );
+  const numericColumns = analyzeHoldingsNumericColumns(headers, rows, mapping, parseOptions);
 
   const dateHeader = mapping[HoldingsFormat.DATE];
   const symbolHeader = mapping[HoldingsFormat.SYMBOL];

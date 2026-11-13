@@ -4,6 +4,7 @@ import { parseNumericValue, parseSignedNumericValue } from "./review-draft-utils
 import {
   parseHoldingsSnapshots,
   parseHoldingsSnapshotsForValidation,
+  parseNumericValue as parseHoldingsNumericValue,
 } from "./holdings-import-utils";
 import { analyzeMappedNumericColumns, analyzeNumericColumn } from "./numeric-format";
 
@@ -18,6 +19,11 @@ describe("numeric column detection", () => {
     [["1,000e-2", "1,5e2"], ","],
     [["1234,567"], ","],
     [[".125"], "."],
+    [["0.125", "1,000"], "."],
+    [["0,125", "1.000"], ","],
+    [["EUR 12,50", "1,000"], ","],
+    [["-SEK 1,5", "1.000"], ","],
+    [["12.50 USD", "1,000"], "."],
   ])("uses consistent evidence from %j", (values, decimalSeparator) => {
     expect(analyzeNumericColumn(values, "auto", "auto")).toEqual({ decimalSeparator });
     expect(analyzeNumericColumn([...values].reverse(), "auto", "auto")).toEqual({
@@ -26,7 +32,7 @@ describe("numeric column detection", () => {
   });
 
   it("leaves all-ambiguous columns unresolved", () => {
-    expect(analyzeNumericColumn(["1,000", "2,000", "0,125"], "auto", "auto")).toEqual({
+    expect(analyzeNumericColumn(["1,000", "2,000"], "auto", "auto")).toEqual({
       decimalSeparator: "auto",
       issue: "ambiguous",
     });
@@ -56,6 +62,14 @@ describe("numeric column detection", () => {
     expect(analyzeNumericColumn(["1,5"], ".", "auto")).toEqual({ decimalSeparator: "." });
     expect(analyzeNumericColumn(["1,000"], "auto", ",")).toEqual({ decimalSeparator: "." });
     expect(analyzeNumericColumn(["1.000"], "auto", ".")).toEqual({ decimalSeparator: "," });
+  });
+
+  it.each(["none", " "])("does not infer punctuation grouping with thousands %j", (grouping) => {
+    expect(analyzeNumericColumn(["1,000", "25.50"], "auto", grouping)).toEqual({
+      decimalSeparator: "auto",
+      issue: "conflicting",
+    });
+    expect(parseSignedNumericValue("1,000", "auto", grouping)).toBe("1.000");
   });
 
   it("uses the same effective fallback columns as activity parsing", () => {
@@ -201,6 +215,26 @@ describe("activity column parsing", () => {
 });
 
 describe("holdings column parsing", () => {
+  it.each([
+    ["EUR 12,50", "12.50"],
+    ["SEK 1,5", "1.5"],
+  ])("preserves the legacy holdings fallback for currency prefix %s", (input, expected) => {
+    expect(parseHoldingsNumericValue(input, "auto", "auto")).toBe(expected);
+  });
+
+  it("matches the first duplicate header used by the holdings parser", () => {
+    const snapshots = parseHoldingsSnapshots(
+      ["Date", "Symbol", "Quantity", "Quantity"],
+      [
+        ["2026-01-15", "TEST", "1,000", "1,5"],
+        ["2026-01-15", "OTHER", "25.50", "2,000"],
+      ],
+      { date: "Date", symbol: "Symbol", quantity: "Quantity" },
+      parseConfig,
+    );
+    expect(snapshots[0].positions[0].quantity).toBe("1000");
+  });
+
   it("uses the same column resolution for validation and final snapshots", () => {
     const rows = [
       ["2026-01-15", "TEST", "1,000", "$1,500"],

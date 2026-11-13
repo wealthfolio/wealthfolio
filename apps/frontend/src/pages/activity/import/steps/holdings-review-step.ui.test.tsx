@@ -226,4 +226,56 @@ describe("HoldingsReviewStep validation feedback", () => {
       expect(snapshots[0].positions[1].quantity).toBe("25");
     },
   );
+
+  it.each(["quantity", "avgCost"])("accepts a cleared %s cell with decimal comma", (field) => {
+    const context = useImportContextMock();
+    context.state.parseConfig.decimalSeparator = ",";
+    context.state.parseConfig.thousandsSeparator = ".";
+    context.state.headers = ["Date", "Symbol", "Quantity", "Currency", "Cost"];
+    context.state.mapping.fieldMappings.avgCost = "Cost";
+    context.state.parsedRows = [["2024-07-20", "AAPL", "1,5", "USD"]];
+    render(<HoldingsReviewStep />);
+    const { rows, onDataChange } = holdingsDataGridMock.mock.calls.at(-1)?.[0] as {
+      rows: HoldingsRow[];
+      onDataChange: (rows: HoldingsRow[]) => void;
+    };
+    // Number cells emit null when cleared, despite the row's nominal string type.
+    act(() =>
+      onDataChange(rows.map((row) => ({ ...row, [field]: null })) as unknown as HoldingsRow[]),
+    );
+    const edit = dispatch.mock.calls
+      .filter(([action]) => action.type === "SET_PARSED_DATA")
+      .at(-1)?.[0];
+    expect(edit.payload.rows[0][field === "quantity" ? 2 : 4]).toBe("");
+  });
+
+  it("does not let hidden footer cells reinterpret an edited numeric column", () => {
+    const context = useImportContextMock();
+    context.state.parseConfig.decimalSeparator = "auto";
+    context.state.parseConfig.thousandsSeparator = "auto";
+    context.state.parsedRows = [
+      ["2024-07-20", "AAPL", "1,000", "USD"],
+      ["2024-07-20", "MSFT", "2,000", "USD"],
+      ["", "", "3,5", "USD"],
+    ];
+    render(<HoldingsReviewStep />);
+    const { rows, onDataChange } = holdingsDataGridMock.mock.calls.at(-1)?.[0] as {
+      rows: HoldingsRow[];
+      onDataChange: (rows: HoldingsRow[]) => void;
+    };
+    expect(rows).toHaveLength(2);
+    act(() =>
+      onDataChange(rows.map((row, index) => (index === 1 ? { ...row, quantity: "2.500" } : row))),
+    );
+    const edit = dispatch.mock.calls
+      .filter(([action]) => action.type === "SET_PARSED_DATA")
+      .at(-1)?.[0];
+    const snapshots = parseHoldingsSnapshots(
+      context.state.headers,
+      edit.payload.rows,
+      context.state.mapping.fieldMappings,
+      context.state.parseConfig,
+    );
+    expect(snapshots[0].positions.map((position) => Number(position.quantity))).toEqual([1, 2.5]);
+  });
 });

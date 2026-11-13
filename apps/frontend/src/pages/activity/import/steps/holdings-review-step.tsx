@@ -8,14 +8,12 @@ import { useImportContext } from "../context";
 import { setParsedData, setHoldingsCheckPassed, setIsValidating } from "../context/import-actions";
 import { ImportAlert } from "../components/import-alert";
 import { NumericFormatAlert } from "../components/numeric-format-alert";
-import {
-  analyzeMappedNumericColumns,
-  resolveNumericDecimalSeparator,
-} from "../utils/numeric-format";
+import { resolveNumericDecimalSeparator } from "../utils/numeric-format";
 import { HoldingsFormat } from "./holdings-mapping-step";
 import {
   CASH_SYMBOL,
   analyzeDateColumn,
+  analyzeHoldingsNumericColumns,
   buildHoldingsRowResolutionMap,
   type HoldingsRowResolution,
   parseDateToYMD,
@@ -40,12 +38,11 @@ function buildHoldingsRows(
   rowResolutions?: Record<number, HoldingsRowResolution>,
 ): HoldingsRow[] {
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseOptions;
-  const numericColumns = analyzeMappedNumericColumns(
+  const numericColumns = analyzeHoldingsNumericColumns(
     headers,
     parsedRows,
     fieldMappings,
-    decimalSeparator,
-    thousandsSeparator,
+    parseOptions,
   );
 
   const { order: dateOrder } = analyzeDateColumn(headers, parsedRows, fieldMappings, dateFormat);
@@ -143,21 +140,8 @@ export function HoldingsReviewStep() {
     [headers, parsedRows, fieldMappings, parseConfig.dateFormat],
   );
   const numericColumns = useMemo(
-    () =>
-      analyzeMappedNumericColumns(
-        headers,
-        parsedRows,
-        fieldMappings,
-        parseConfig.decimalSeparator,
-        parseConfig.thousandsSeparator,
-      ),
-    [
-      headers,
-      parsedRows,
-      fieldMappings,
-      parseConfig.decimalSeparator,
-      parseConfig.thousandsSeparator,
-    ],
+    () => analyzeHoldingsNumericColumns(headers, parsedRows, fieldMappings, parseOptions),
+    [headers, parsedRows, fieldMappings, parseOptions],
   );
   const rowResolutions = useMemo(
     () => buildHoldingsRowResolutionMap(draftActivities),
@@ -285,7 +269,10 @@ export function HoldingsReviewStep() {
         parseConfig.decimalSeparator,
         parseConfig.thousandsSeparator,
       );
-      const formatEdit = (value: string) => (editDecimal === "," ? value.replace(".", ",") : value);
+      const formatEdit = (value: string | null | undefined) => {
+        const normalized = value ?? "";
+        return editDecimal === "," ? normalized.replace(".", ",") : normalized;
+      };
 
       const quantityIndex = fieldMappings[HoldingsFormat.QUANTITY]
         ? headers.indexOf(fieldMappings[HoldingsFormat.QUANTITY])
