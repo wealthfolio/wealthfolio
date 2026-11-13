@@ -5,7 +5,9 @@ use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use wealthfolio_core::assets::{Asset, AssetRepositoryTrait, NewAsset, UpdateAssetProfile};
+use wealthfolio_core::assets::{
+    Asset, AssetMergePreview, AssetMergeReport, AssetRepositoryTrait, NewAsset, UpdateAssetProfile,
+};
 use wealthfolio_core::{Error, Result};
 
 use super::model::{AssetDB, InsertableAssetDB};
@@ -557,6 +559,19 @@ impl AssetRepositoryTrait for AssetRepository {
 
                 Ok(orphan_ids)
             })
+            .await
+    }
+
+    fn preview_merge(&self, survivor_id: &str, duplicate_id: &str) -> Result<AssetMergePreview> {
+        let mut conn = get_connection(&self.pool)?;
+        super::split_merge::preview(&mut conn, survivor_id, duplicate_id)
+    }
+
+    async fn merge_into(&self, survivor_id: &str, duplicate_id: &str) -> Result<AssetMergeReport> {
+        let survivor_id = survivor_id.to_string();
+        let duplicate_id = duplicate_id.to_string();
+        self.writer
+            .exec_tx(move |tx| super::split_merge::merge(tx, &survivor_id, &duplicate_id))
             .await
     }
 }
