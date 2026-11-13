@@ -566,8 +566,14 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_asset_holdings": {
-      const p = payload as { assetId: string };
-      url += `?assetId=${encodeURIComponent(p.assetId)}`;
+      const p = payload as { assetId: string; filter?: unknown };
+      if (p.filter) {
+        url = `${API_PREFIX}/holdings/by-asset/query`;
+        method = "POST";
+        body = JSON.stringify({ assetId: p.assetId, filter: p.filter });
+      } else {
+        url += `?assetId=${encodeURIComponent(p.assetId)}`;
+      }
       break;
     }
     case "get_asset_lots": {

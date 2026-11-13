@@ -316,20 +316,25 @@ pub async fn get_holding(
 pub async fn get_asset_holdings(
     state: ProfileAccess,
     asset_id: String,
+    filter: Option<AccountScopeInput>,
 ) -> Result<HoldingsListResponse, String> {
     let context = state.context()?;
-    debug!("Get holdings for asset {} across all accounts", asset_id);
+    debug!("Get holdings for asset {}", asset_id);
     let base_currency = context.get_base_currency();
-    let accounts = context
-        .account_service()
-        .get_active_accounts()
-        .map_err(|e| format!("Failed to get accounts: {}", e))?;
-
-    let ids = accounts
-        .into_iter()
-        .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
-        .map(|account| account.id)
-        .collect::<Vec<_>>();
+    let ids = if let Some(filter) = filter {
+        let filter = filter.into_account_filter()?;
+        let resolved = resolve_scope(&filter, &context).await?;
+        holdings_account_ids(&context, &resolved.account_ids)?
+    } else {
+        context
+            .account_service()
+            .get_active_accounts()
+            .map_err(|e| format!("Failed to get accounts: {}", e))?
+            .into_iter()
+            .filter(|account| account_supports_portfolio_scope(account, AccountPurpose::Holdings))
+            .map(|account| account.id)
+            .collect::<Vec<_>>()
+    };
     context
         .holdings_service()
         .get_asset_holdings_scope(&ids, &asset_id, &base_currency)

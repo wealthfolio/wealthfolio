@@ -18,6 +18,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/holdings/list/query", post(handlers::get_holdings_list))
         .route("/holdings/item", get(handlers::get_holding))
         .route("/holdings/by-asset", get(handlers::get_asset_holdings))
+        .route(
+            "/holdings/by-asset/query",
+            post(handlers::get_asset_holdings_for_scope),
+        )
         .route("/holdings/lots", get(handlers::get_asset_lots))
         .route(
             "/valuations/history",

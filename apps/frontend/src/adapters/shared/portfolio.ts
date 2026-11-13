@@ -199,8 +199,14 @@ export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
   return scope.holdings;
 };
 
-export const getAssetHoldingsScope = async (assetId: string): Promise<HoldingsListResponse> => {
-  return invoke<HoldingsListResponse>("get_asset_holdings", { assetId });
+export const getAssetHoldingsScope = async (
+  assetId: string,
+  filter?: AccountScope,
+): Promise<HoldingsListResponse> => {
+  return invoke<HoldingsListResponse>("get_asset_holdings", {
+    assetId,
+    ...(filter ? { filter } : {}),
+  });
 };
 
 export const getAssetLots = async (
