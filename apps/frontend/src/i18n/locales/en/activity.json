@@ -974,6 +974,8 @@
       "decimalAuto": "Auto-detect",
       "decimalPeriod": "Period (.)",
       "decimalComma": "Comma (,)",
+      "numberFormatWarningTitle": "Check number formats",
+      "numberFormatWarningDescription": "Some columns have ambiguous or conflicting number formats ({{columns}}). Check these values or choose a decimal separator in Parse Settings on the Upload step.",
       "summaryDelimiter": "Delimiter: {{value}}",
       "summaryDate": "Date: {{value}}",
       "summaryDecimal": "Decimal: {{value}}",

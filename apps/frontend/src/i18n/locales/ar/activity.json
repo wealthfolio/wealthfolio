@@ -876,6 +876,8 @@
       "dateFormat": "تنسيق التاريخ",
       "decimalAuto": "اكتشاف تلقائي",
       "decimalComma": "فاصلة (,)",
+      "numberFormatWarningTitle": "تحقق من تنسيقات الأرقام",
+      "numberFormatWarningDescription": "تحتوي بعض الأعمدة على تنسيقات أرقام غامضة أو متعارضة ({{columns}}). تحقق من هذه القيم أو اختر فاصلًا عشريًا في إعدادات التحليل في خطوة الرفع.",
       "decimalPeriod": "نقطة (.)",
       "decimalSeparator": "الفاصل العشري",
       "delimiter": "المحدِّد",

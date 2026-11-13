@@ -1001,6 +1001,8 @@
       "decimalAuto": "Detección automática",
       "decimalPeriod": "Punto (.)",
       "decimalComma": "Coma (,)",
+      "numberFormatWarningTitle": "Revisa los formatos numéricos",
+      "numberFormatWarningDescription": "Algunas columnas tienen formatos numéricos ambiguos o contradictorios ({{columns}}). Revisa estos valores o elige un separador decimal en los ajustes de análisis del paso de carga.",
       "summaryDelimiter": "Delimitador: {{value}}",
       "summaryDate": "Fecha: {{value}}",
       "summaryDecimal": "Decimal: {{value}}",

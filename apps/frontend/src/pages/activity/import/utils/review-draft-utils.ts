@@ -1,5 +1,6 @@
 import { ActivityType } from "@/lib/constants";
 import { isAssetBackedIncomeSubtype } from "@/lib/activity-utils";
+import { resolveNumericDecimalSeparator } from "./numeric-format";
 
 /**
  * Parse a numeric value from a string, handling various formats.
@@ -28,18 +29,11 @@ export function parseSignedNumericValue(
     exponent = normalized.slice(expIndex + 1);
   }
 
-  const lastComma = mantissa.lastIndexOf(",");
-  const lastDot = mantissa.lastIndexOf(".");
-  let resolvedDecimal = decimalSeparator;
-  if (decimalSeparator === "auto") {
-    if (lastComma !== -1 && lastDot !== -1) {
-      resolvedDecimal = lastComma > lastDot ? "," : ".";
-    } else if (lastComma !== -1) {
-      resolvedDecimal = ",";
-    } else {
-      resolvedDecimal = ".";
-    }
-  }
+  const resolvedDecimal = resolveNumericDecimalSeparator(
+    mantissa,
+    decimalSeparator,
+    thousandsSeparator,
+  );
 
   let cleaned = mantissa.replace(/[^\d.,+-]/g, "");
 
