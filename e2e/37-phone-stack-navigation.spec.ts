@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import {
+  BASE_URL,
+  completeOnboardingIfNeeded,
+  gotoAppPath,
+  trackPortfolioUpdates,
+  waitForPortfolioUpdates,
+} from "./helpers";
 
 // The phone layout stacks the screens of Holdings and Settings: a pushed screen
 // slides over the one it came from, which stays mounted, and back returns to it
@@ -264,9 +270,14 @@ async function seedHolding(page: Page, { quantity = 10, unitPrice = 100 } = {}) 
 test("a holding opens over the Holdings list and back returns to it", async ({ page }) => {
   test.setTimeout(120_000);
   const { assetId, symbol } = await seedHolding(page);
+  await trackPortfolioUpdates(page);
   await gotoAppPath(page, "/holdings?swipe=app");
   const holding = page.getByText(symbol, { exact: true }).locator("visible=true").first();
   await expect(holding).toBeVisible({ timeout: 15_000 });
+  // Gestures below must not race the refetch that the load's portfolio update
+  // triggers when it finishes.
+  await waitForPortfolioUpdates(page);
+  await expect(holding).toBeVisible();
   const list = (await screens(page)).top;
   const listIndex = await historyIndex(page);
 

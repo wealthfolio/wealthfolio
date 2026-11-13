@@ -164,6 +164,36 @@ async function waitForLoginOnboardingOrApp(page: Page, timeout: number) {
     .not.toBe("loading");
 }
 
+// Every app load asks for a portfolio update; when it finishes, the app
+// refetches what is on screen. A spec that measures layout or clicks while that
+// lands can flake, so it can count the updates the page has seen finish
+// (`trackPortfolioUpdates` before loading) and wait for the next one.
+export async function trackPortfolioUpdates(page: Page) {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    const state = window as unknown as { __wfPortfolioUpdates: number };
+    state.__wfPortfolioUpdates = 0;
+    window.EventSource = class extends NativeEventSource {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        this.addEventListener("portfolio:update-complete", () => {
+          state.__wfPortfolioUpdates += 1;
+        });
+      }
+    };
+  });
+}
+
+export async function waitForPortfolioUpdates(page: Page, count = 1, timeout = 60_000) {
+  await page.waitForFunction(
+    (expected) =>
+      ((window as unknown as { __wfPortfolioUpdates?: number }).__wfPortfolioUpdates ?? 0) >=
+      expected,
+    count,
+    { timeout },
+  );
+}
+
 export async function gotoAppPath(page: Page, path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const targetUrl = `${BASE_URL}${normalizedPath}`;
