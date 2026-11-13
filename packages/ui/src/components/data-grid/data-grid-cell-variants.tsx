@@ -27,7 +27,7 @@ import { useBadgeOverflow } from "../../hooks/use-badge-overflow";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
 import { getCurrencyDisplayLabel, quoteCurrencies } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
-import { parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
+import { localizeDecimalString, parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
 import { cn, isKeyboardEventComposing } from "../../lib/utils";
 import { DataGridCellWrapper } from "./data-grid-cell-wrapper";
 import type { DataGridCellProps, FileCellData, SymbolSearchResult } from "./data-grid-types";
@@ -366,8 +366,10 @@ export function NumberCell<TData>({
   const formatting = useNumberFormatting();
   const { locale } = useLocalizationSettings();
   const initialValue = cell.getValue() as number | string | null;
-  const initialInputValue = String(initialValue ?? "");
+  const initialInputValue = localizeDecimalString(String(initialValue ?? ""), formatting);
   const [value, setValue] = React.useState(initialInputValue);
+  // An active draft keeps the region it was written in until editing ends.
+  const inputFormattingRef = React.useRef({ locale, formatting, initialInputValue });
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cancelEditRef = React.useRef(false);
@@ -389,42 +391,43 @@ export function NumberCell<TData>({
 
   const parseCellValue = React.useCallback(
     (rawValue: string) => {
-      if (rawValue === initialInputValue) {
+      if (rawValue === inputFormattingRef.current.initialInputValue) {
         return { valid: true, value: initialComparable } as const;
       }
       const trimmed = rawValue.trim();
       if (trimmed === "") return { valid: true, value: null } as const;
       if (valueType !== "number") {
-        const parsed = parseLocalizedDecimalString(trimmed, locale);
+        const parsed = parseLocalizedDecimalString(trimmed, inputFormattingRef.current.locale);
         return parsed === undefined ? ({ valid: false } as const) : ({ valid: true, value: parsed } as const);
       }
 
-      const parsed = formatting.parseNumber(trimmed);
+      const parsed = inputFormattingRef.current.formatting.parseNumber(trimmed);
       return parsed === undefined ? ({ valid: false } as const) : ({ valid: true, value: parsed } as const);
     },
-    [formatting, initialComparable, initialInputValue, locale, valueType],
+    [initialComparable, valueType],
   );
 
   const prevInitialValueRef = React.useRef(initialValue);
   if (initialValue !== prevInitialValueRef.current) {
     prevInitialValueRef.current = initialValue;
-    setValue(String(initialValue ?? ""));
+    inputFormattingRef.current = { locale, formatting, initialInputValue };
+    setValue(initialInputValue);
   }
 
   const onBlur = React.useCallback(() => {
     if (cancelEditRef.current) {
-      setValue(String(initialValue ?? ""));
+      setValue(initialInputValue);
       tableMeta?.onCellEditingStop?.();
       return;
     }
     const parsed = parseCellValue(value);
     if (!parsed.valid) {
-      setValue(String(initialValue ?? ""));
+      setValue(initialInputValue);
     } else if (!readOnly && parsed.value !== initialComparable) {
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
     }
     tableMeta?.onCellEditingStop?.();
-  }, [tableMeta, rowIndex, columnId, initialValue, initialComparable, value, readOnly, parseCellValue]);
+  }, [tableMeta, rowIndex, columnId, initialInputValue, initialComparable, value, readOnly, parseCellValue]);
 
   const onChange = React.useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setValue(event.target.value);
@@ -437,7 +440,7 @@ export function NumberCell<TData>({
           event.preventDefault();
           const parsed = parseCellValue(value);
           if (!parsed.valid) {
-            setValue(String(initialValue ?? ""));
+            setValue(initialInputValue);
           } else if (parsed.value !== initialComparable) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
@@ -446,7 +449,7 @@ export function NumberCell<TData>({
           event.preventDefault();
           const parsed = parseCellValue(value);
           if (!parsed.valid) {
-            setValue(String(initialValue ?? ""));
+            setValue(initialInputValue);
           } else if (parsed.value !== initialComparable) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
@@ -456,7 +459,7 @@ export function NumberCell<TData>({
         } else if (event.key === "Escape") {
           event.preventDefault();
           cancelEditRef.current = true;
-          setValue(String(initialValue ?? ""));
+          setValue(initialInputValue);
           inputRef.current?.blur();
         }
       } else if (isFocused) {
@@ -471,7 +474,7 @@ export function NumberCell<TData>({
         }
       }
     },
-    [isEditing, isFocused, initialValue, initialComparable, tableMeta, rowIndex, columnId, value, parseCellValue],
+    [isEditing, isFocused, initialInputValue, initialComparable, tableMeta, rowIndex, columnId, value, parseCellValue],
   );
 
   // Track if editing was started by typing (vs double-click/Enter)
@@ -487,12 +490,12 @@ export function NumberCell<TData>({
     if (wasEditingRef.current && !isEditing) {
       if (cancelEditRef.current) {
         cancelEditRef.current = false;
-        setValue(String(initialValue ?? ""));
+        setValue(initialInputValue);
       } else {
         const currentValue = valueRef.current;
         const parsed = parseCellValue(currentValue);
         if (!parsed.valid) {
-          setValue(String(initialValue ?? ""));
+          setValue(initialInputValue);
         } else if (!readOnly && parsed.value !== initialComparable) {
           tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
         }
@@ -500,7 +503,14 @@ export function NumberCell<TData>({
       startedByTypingRef.current = false;
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, initialValue, initialComparable, readOnly, tableMeta, rowIndex, columnId, parseCellValue]);
+  }, [isEditing, initialInputValue, initialComparable, readOnly, tableMeta, rowIndex, columnId, parseCellValue]);
+
+  React.useEffect(() => {
+    if (!isEditing) {
+      inputFormattingRef.current = { locale, formatting, initialInputValue };
+      setValue(initialInputValue);
+    }
+  }, [isEditing, locale, formatting, initialInputValue]);
 
   React.useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -553,9 +563,11 @@ export function NumberCell<TData>({
         <span data-slot="grid-cell-content">
           {valueRenderer
             ? valueRenderer(initialValue, cell.row.original)
-            : value === "" || formatting.parseNumber(value) === undefined
-              ? value
-              : formatting.formatDecimal(value, { maximumFractionDigits: 8 })}
+            : initialValue == null || initialValue === ""
+              ? ""
+              : !Number.isFinite(Number(initialValue))
+                ? String(initialValue)
+                : formatting.formatDecimal(initialValue, { maximumFractionDigits: 8 })}
         </span>
       )}
     </DataGridCellWrapper>

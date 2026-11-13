@@ -483,17 +483,8 @@ function parsePreparedNumber(
   locale: string,
   parser: NumberParser,
 ): number | undefined {
-  const { value } = input;
-  const localizedValue = normalizeCurrencyGrouping(input, locale);
-  const localized = parser.parse(localizedValue);
-  const valueLocale = numberingSystemLocale(localizedValue, locale, parser);
-  if (Number.isFinite(localized) && hasValidGrouping(localizedValue, valueLocale, localized)) {
-    return localized;
-  }
-  if (!INVARIANT_NUMBER_PATTERN.test(value)) return undefined;
-
-  const invariant = Number(value.replaceAll(",", ""));
-  return Number.isFinite(invariant) ? invariant : undefined;
+  const decimal = parsePreparedDecimalString(input, locale, parser);
+  return decimal === undefined ? undefined : Number(decimal);
 }
 
 function normalizeInvariantNumberString(value: string): string {
@@ -523,10 +514,53 @@ function parsePreparedDecimalString(
   const localized = parser.parse(localizedValue);
   const valueLocale = numberingSystemLocale(localizedValue, locale, parser);
   if (Number.isFinite(localized) && hasValidGrouping(localizedValue, valueLocale, localized)) {
-    return localizedNumberToInvariant(localizedValue, valueLocale);
+    let decimal = localizedNumberToInvariant(localizedValue, valueLocale);
+    if (decimal === undefined) {
+      // Canonical native separators can also be pasted into a Latin region.
+      const digitLocale = new Intl.Locale(locale, {
+        numberingSystem: parser.getNumberingSystem(localizedValue),
+      }).toString();
+      if (hasValidGrouping(localizedValue, digitLocale, localized)) {
+        decimal = localizedNumberToInvariant(localizedValue, digitLocale);
+      }
+    }
+    // NumberParser accepts additional keyboard aliases and whitespace. Only
+    // accept them when the exact decimal conversion has the same meaning.
+    return decimal !== undefined && Number(decimal) === localized ? decimal : undefined;
   }
   if (!INVARIANT_NUMBER_PATTERN.test(value)) return undefined;
-  return normalizeInvariantNumberString(value);
+  const decimal = normalizeInvariantNumberString(value);
+  return Number.isFinite(Number(decimal)) ? decimal : undefined;
+}
+
+/** Translate canonical decimal text without applying display precision limits. */
+export function localizeDecimalString(value: string, numbers: NumberFormatting): string {
+  // JavaScript serializes small quantities in scientific notation. Expand the
+  // exponent as text so clipboard/editor values remain parseable and exact.
+  // Three exponent digits cover every finite JS number and bound expansion.
+  const scientific = /^([+-]?)(\d+)(?:\.(\d*))?[eE]([+-]?\d{1,3})$/.exec(value);
+  if (scientific) {
+    const [, sign = "", integer = "", fraction = "", exponent = "0"] = scientific;
+    const digits = integer + fraction;
+    const point = integer.length + Number(exponent);
+    value =
+      sign +
+      (point <= 0
+        ? `0.${"0".repeat(-point)}${digits}`
+        : point >= digits.length
+          ? digits + "0".repeat(point - digits.length)
+          : `${digits.slice(0, point)}.${digits.slice(point)}`);
+  }
+  return value.replace(/[0-9.]/g, (character) =>
+    character === "."
+      ? numbers.decimalSeparator
+      : stripBidiControls(
+          numbers.formatDecimal(Number(character), {
+            useGrouping: false,
+            maximumFractionDigits: 0,
+          }),
+        ),
+  );
 }
 
 export function parseLocalizedNumber(value: string, locale: string): number | undefined {

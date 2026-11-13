@@ -49,6 +49,7 @@ import {
 } from "../formatting-provider";
 import {
   calendarDateFromLocalDate,
+  localizeDecimalString,
   parseDateTimeInTimezone,
   parseLocalizedDecimalString,
 } from "../../lib/formatting";
@@ -614,6 +615,11 @@ function useDataGrid<TData>({
           let serializedValue = "";
           if (cellVariant === "file" || cellVariant === "multi-select") {
             serializedValue = value ? JSON.stringify(value) : "";
+          } else if (
+            cellVariant === "number" &&
+            (typeof value === "number" || typeof value === "string")
+          ) {
+            serializedValue = localizeDecimalString(String(value ?? ""), numberFormatting);
           } else if (value instanceof Date) {
             serializedValue = value.toISOString();
           } else {
@@ -667,7 +673,7 @@ function useDataGrid<TData>({
           : t("ui:dataGrid.copyFailed", "Failed to copy to clipboard"),
       );
     }
-  }, [store, t]);
+  }, [store, t, numberFormatting]);
 
   const onCellsCut = React.useCallback(async () => {
     if (propsRef.current.readOnly) return;
@@ -712,6 +718,11 @@ function useDataGrid<TData>({
           let serializedValue = "";
           if (cellVariant === "file" || cellVariant === "multi-select") {
             serializedValue = value ? JSON.stringify(value) : "";
+          } else if (
+            cellVariant === "number" &&
+            (typeof value === "number" || typeof value === "string")
+          ) {
+            serializedValue = localizeDecimalString(String(value ?? ""), numberFormatting);
           } else if (value instanceof Date) {
             serializedValue = value.toISOString();
           } else {
@@ -762,7 +773,7 @@ function useDataGrid<TData>({
           : t("ui:dataGrid.cutFailed", "Failed to cut to clipboard"),
       );
     }
-  }, [store, propsRef, t]);
+  }, [store, propsRef, t, numberFormatting]);
 
   const restoreFocus = React.useCallback((element: HTMLDivElement | null) => {
     if (element && document.activeElement !== element) {
