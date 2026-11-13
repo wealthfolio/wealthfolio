@@ -572,9 +572,27 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
 
-        self.alternative_asset_repository
+        let untagged = self
+            .alternative_asset_repository
             .delete_alternative_asset(asset_id)
             .await?;
+        // Untagging a deleted loan's payments rewrites them, which marks their
+        // accounts for recalculation, as linking one does; the event runs it.
+        if !untagged.is_empty() {
+            let unique = |values: Vec<String>| -> Vec<String> {
+                values
+                    .into_iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect()
+            };
+            self.event_sink.emit(DomainEvent::activities_changed(
+                unique(untagged.iter().map(|a| a.account_id.clone()).collect()),
+                unique(untagged.iter().filter_map(|a| a.asset_id.clone()).collect()),
+                unique(untagged.iter().map(|a| a.currency.clone()).collect()),
+                untagged.iter().map(|a| a.activity_date).min(),
+            ));
+        }
 
         debug!("Successfully deleted alternative asset: {}", asset_id);
         Ok(())
@@ -1412,12 +1430,17 @@ mod tests {
     #[derive(Default)]
     struct MockAltAssetRepository {
         metadata_writes: std::sync::Mutex<Vec<(String, Option<Value>)>>,
+        /// Loan payments delete_alternative_asset reports untagging.
+        untagged_on_delete: Vec<crate::activities::Activity>,
     }
 
     #[async_trait]
     impl AlternativeAssetRepositoryTrait for MockAltAssetRepository {
-        async fn delete_alternative_asset(&self, _asset_id: &str) -> Result<()> {
-            unimplemented!("not used in this test")
+        async fn delete_alternative_asset(
+            &self,
+            _asset_id: &str,
+        ) -> Result<Vec<crate::activities::Activity>> {
+            Ok(self.untagged_on_delete.clone())
         }
 
         async fn update_asset_metadata(
@@ -1933,6 +1956,95 @@ mod tests {
             assert_eq!(holdings[0].market_value, Decimal::ZERO);
             assert!(holdings[0].unrealized_gain.is_none());
         }
+    }
+
+    #[tokio::test]
+    async fn deleting_a_loan_recalculates_the_accounts_its_payments_came_from() {
+        let payment = |id: &str, account: &str, day: u32| {
+            let date = chrono::Utc
+                .with_ymd_and_hms(2026, 9, day, 12, 0, 0)
+                .unwrap();
+            crate::activities::Activity {
+                id: id.into(),
+                account_id: account.into(),
+                asset_id: None,
+                activity_type: "WITHDRAWAL".into(),
+                activity_type_override: None,
+                source_type: None,
+                subtype: None,
+                status: crate::activities::ActivityStatus::Posted,
+                activity_date: date,
+                settlement_date: None,
+                quantity: None,
+                unit_price: None,
+                amount: Some(Decimal::new(1_500, 0)),
+                fee: None,
+                tax: None,
+                currency: "USD".into(),
+                fx_rate: None,
+                notes: None,
+                metadata: None,
+                source_system: None,
+                source_record_id: None,
+                source_group_id: None,
+                idempotency_key: None,
+                import_run_id: None,
+                is_user_modified: false,
+                needs_review: false,
+                created_at: date,
+                updated_at: date,
+            }
+        };
+        let delete = |untagged_on_delete: Vec<crate::activities::Activity>| async move {
+            let sink = crate::events::MockDomainEventSink::new();
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository {
+                    untagged_on_delete,
+                    ..Default::default()
+                }),
+                Arc::new(MockAssetRepository {
+                    assets: vec![Asset {
+                        id: "loan".into(),
+                        kind: AssetKind::Liability,
+                        quote_ccy: "USD".into(),
+                        ..Default::default()
+                    }],
+                }),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            )
+            .with_event_sink(Arc::new(sink.clone()));
+            service.delete_alternative_asset("loan").await.unwrap();
+            sink.events()
+        };
+
+        let events = delete(vec![
+            payment("aug", "checking", 20),
+            payment("sep", "checking", 5),
+            payment("joint", "joint", 12),
+        ])
+        .await;
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            DomainEvent::ActivitiesChanged {
+                account_ids,
+                earliest_activity_at_utc,
+                ..
+            } => {
+                assert_eq!(account_ids, &["checking".to_string(), "joint".to_string()]);
+                assert_eq!(
+                    *earliest_activity_at_utc,
+                    Some(chrono::Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap())
+                );
+            }
+            other => panic!("expected ActivitiesChanged, got {other:?}"),
+        }
+
+        assert!(delete(Vec::new()).await.is_empty());
     }
 
     #[tokio::test]
