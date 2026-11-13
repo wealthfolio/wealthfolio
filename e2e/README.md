@@ -171,6 +171,11 @@ necessarily first.
 A spec runs on its worker's database after other specs, in no fixed order, and
 other workers run at the same time on their own databases.
 
+- **Import `test` and `expect` from `./fixtures`**, not `@playwright/test`. Its
+  crash guard fails a test when a page it drives crashes: an uncaught error, or
+  a render error the page error boundary caught ("Something went wrong"). It
+  covers the test's `page` and pages from `browser.newPage()`. A crash is an app
+  bug to fix, not one to silence.
 - **Click only through what the spec tests.** Create preconditions (accounts,
   activities, assets, settings) with `e2e/api.ts`; keep the UI for the flow
   under test.
@@ -207,6 +212,7 @@ other workers run at the same time on their own databases.
 | File                                   | What it tests                                                                                                               |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `health-activity-reasons.spec.ts`      | Persisted engine activity reasons rendered in French on desktop and Arabic on mobile, with RTL and overflow checks          |
+| `page-sweep.spec.ts`                   | Every page renders without a crash or leftover skeletons: normally, with API responses delayed up to 0.75 s, and RTL        |
 | `01-happy-path.spec.ts`                | Onboarding, accounts, deposits, trades                                                                                      |
 | `02-activities.spec.ts`                | All activity types                                                                                                          |
 | `03-fx-cash-balance.spec.ts`           | FX cash balances                                                                                                            |
