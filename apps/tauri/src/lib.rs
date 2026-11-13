@@ -302,6 +302,8 @@ pub fn run() {
             commands::activity::review_internal_transfer_pair_split_effects,
             commands::activity::save_activities,
             commands::activity::delete_activity,
+            commands::activity::list_suppressed_activities,
+            commands::activity::restore_suppressed_activities,
             commands::activity::get_transfer_pair_for_activity,
             commands::activity::find_transfer_match_candidates,
             commands::activity::review_transfer_matches,

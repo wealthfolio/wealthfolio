@@ -18,6 +18,7 @@ export interface ActivityDeleteModalProps {
   linkedTransfer?: boolean;
   /** A conversion row: its other row is deleted with it. */
   conversion?: boolean;
+  brokerSynced?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -27,6 +28,7 @@ export function ActivityDeleteModal({
   isDeleting,
   linkedTransfer,
   conversion,
+  brokerSynced,
   onConfirm,
   onCancel,
 }: ActivityDeleteModalProps) {
@@ -46,7 +48,9 @@ export function ActivityDeleteModal({
               ? t("activity:delete_modal.linked_conversion_desc")
               : linkedTransfer
                 ? t("activity:delete_modal.linked_transfer_desc")
-                : t("activity:delete_modal.description")}
+                : brokerSynced
+                  ? t("activity:delete_modal.broker_synced_desc")
+                  : t("activity:delete_modal.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
