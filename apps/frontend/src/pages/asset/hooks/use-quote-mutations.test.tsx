@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -56,7 +56,7 @@ describe("useQuoteMutations", () => {
     adapterMocks.updateQuote.mockResolvedValue(undefined);
   });
 
-  it("defers invalidation until the batch boundary when requested", async () => {
+  it("leaves refreshing to the caller when requested", async () => {
     const { queryClient, wrapper } = createHarness();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(
@@ -70,11 +70,18 @@ describe("useQuoteMutations", () => {
 
     expect(invalidateQueries).not.toHaveBeenCalled();
     expect(performanceMocks.invalidatePerformanceCaches).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the asset's values after a save", async () => {
+    const { queryClient, wrapper } = createHarness();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useQuoteMutations(assetId), { wrapper });
 
     await act(async () => {
-      await result.current.invalidateQuoteQueries();
+      await result.current.saveQuoteMutation.mutateAsync(quote);
     });
 
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(7));
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [QueryKeys.QUOTE_HISTORY, assetId],
     });
@@ -88,7 +95,6 @@ describe("useQuoteMutations", () => {
     ]) {
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: [key] });
     }
-    expect(invalidateQueries).toHaveBeenCalledTimes(7);
     expect(performanceMocks.invalidatePerformanceCaches).toHaveBeenCalledWith(queryClient);
   });
 });

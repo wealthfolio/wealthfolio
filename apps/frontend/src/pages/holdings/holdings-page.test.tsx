@@ -18,9 +18,6 @@ vi.mock("@/hooks/use-holdings", () => ({
 vi.mock("@/hooks/use-portfolios", () => ({ usePortfolios: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-alternative-assets", () => ({
   useAlternativeHoldings: () => ({ data: [], isLoading: false }),
-  useDeleteAlternativeAsset: () => ({ mutate: vi.fn() }),
-  useLinkLiability: () => ({ mutate: vi.fn() }),
-  useUnlinkLiability: () => ({ mutate: vi.fn() }),
 }));
 vi.mock("@/hooks/use-calculate-portfolio", () => ({
   useUpdatePortfolioMutation: () => ({ mutate: vi.fn() }),
@@ -29,10 +26,6 @@ vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { baseCurrency: "USD" } }),
 }));
-vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-}));
-vi.mock("@/adapters", () => ({ updateAlternativeAssetMetadata: vi.fn() }));
 
 // Render only the active view's actions + content, as SwipablePage does on desktop.
 vi.mock("@/components/page", () => ({
@@ -70,6 +63,15 @@ vi.mock("@/pages/asset/alternative-assets", () => ({
   AlternativeAssetQuickAddModal: () => null,
   AssetDetailsSheet: () => null,
   UpdateValuationModal: () => null,
+  useAlternativeAssetMutations: () => {
+    const mutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+    return {
+      deleteMutation: mutation,
+      updateMetadataMutation: mutation,
+      linkLiabilityMutation: mutation,
+      unlinkLiabilityMutation: mutation,
+    };
+  },
 }));
 vi.mock("./components/holdings-table", () => ({ HoldingsTable: () => null }));
 vi.mock("./components/holdings-table-mobile", () => ({ HoldingsTableMobile: () => null }));

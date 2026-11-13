@@ -49,6 +49,22 @@ describe("alternative asset query invalidation", () => {
     });
   });
 
+  it("leaves account values and performance alone", async () => {
+    const invalidateQueries = vi.fn((_: { queryKey: string[] }) => Promise.resolve());
+    await invalidateAlternativeAssetQueries({ invalidateQueries } as unknown as QueryClient);
+
+    const keys = invalidateQueries.mock.calls.map(([{ queryKey }]) => queryKey[0]);
+    expect(keys).toContain(QueryKeys.QUOTE_HISTORY);
+    for (const key of [
+      QueryKeys.ACCOUNTS,
+      QueryKeys.HISTORY_VALUATION,
+      QueryKeys.PERFORMANCE_HISTORY,
+      QueryKeys.PERFORMANCE_SUMMARY,
+    ]) {
+      expect(keys).not.toContain(key);
+    }
+  });
+
   it("refreshes health status without waiting for the health check", async () => {
     const healthCheck = new Promise<void>(() => undefined);
     const invalidateQueries = vi.fn(({ queryKey }: { queryKey: string[] }) =>

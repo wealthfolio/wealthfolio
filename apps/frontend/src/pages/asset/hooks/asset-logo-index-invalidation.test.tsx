@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDeleteAlternativeAsset } from "@/hooks/use-alternative-assets";
+import { useAlternativeAssetMutations } from "@/pages/asset/alternative-assets/hooks/use-alternative-asset-mutations";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { BackendError } from "@/lib/backend-error";
 import { QueryKeys } from "@/lib/query-keys";
@@ -22,6 +22,7 @@ const adapterMocks = vi.hoisted(() => ({
   linkLiability: vi.fn(),
   logger: { error: vi.fn() },
   unlinkLiability: vi.fn(),
+  updateAlternativeAssetMetadata: vi.fn(),
   updateAlternativeAssetValuation: vi.fn(),
   updateAssetProfile: vi.fn(),
   updateQuoteMode: vi.fn(),
@@ -97,7 +98,9 @@ describe("asset logo index invalidation", () => {
   it("invalidates after deleting an alternative asset", async () => {
     const { queryClient, wrapper } = createHarness();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => useDeleteAlternativeAsset(), { wrapper });
+    const { result } = renderHook(() => useAlternativeAssetMutations().deleteMutation, {
+      wrapper,
+    });
 
     await act(async () => {
       await result.current.mutateAsync(assetId);
