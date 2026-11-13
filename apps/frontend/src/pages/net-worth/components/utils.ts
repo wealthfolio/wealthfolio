@@ -58,6 +58,17 @@ export interface BreakdownEntry {
 /** A breakdown row selected for the detail drawer. */
 /** History key prefix the backend gives a credit card's balance (`CREDIT_CARD:<accountId>`). */
 export const CREDIT_CARD_KEY_PREFIX = "CREDIT_CARD:";
+const CASH_ACCOUNT_KEY_PREFIX = "CASH:";
+
+/** Only Net Worth cash breakdown keys identify accounts instead of assets. */
+export function categoryItemDetailPath(category: string, assetId?: string): string | null {
+  if (!assetId) return null;
+  if (category === "cash" && assetId.startsWith(CASH_ACCOUNT_KEY_PREFIX)) {
+    const accountId = assetId.slice(CASH_ACCOUNT_KEY_PREFIX.length).split(":")[0];
+    return accountId ? `/accounts/${encodeURIComponent(accountId)}` : null;
+  }
+  return `/holdings/${encodeURIComponent(assetId)}`;
+}
 
 /**
  * Where a liability's own page is: the account for a credit card, the asset

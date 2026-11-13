@@ -1,10 +1,9 @@
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { HoldingType } from "@/lib/constants";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
-import { Account, AccountScope, Holding, IncompleteHoldingsAccount } from "@/lib/types";
+import { Account, AccountScope, Holding } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   AmountDisplay,
@@ -19,7 +18,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { HoldingsMobileFilterSheet } from "./holdings-mobile-filter-sheet";
@@ -57,7 +56,6 @@ interface HoldingsTableMobileProps {
   showClosedPositions?: boolean;
   hasHiddenPositions?: boolean;
   toolbarActions?: ReactNode;
-  incompleteAccounts?: IncompleteHoldingsAccount[];
 }
 
 export const HoldingsTableMobile = ({
@@ -82,7 +80,6 @@ export const HoldingsTableMobile = ({
   showClosedPositions = true,
   hasHiddenPositions = false,
   toolbarActions,
-  incompleteAccounts,
 }: HoldingsTableMobileProps) => {
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
@@ -98,7 +95,7 @@ export const HoldingsTableMobile = ({
   const cashHolding = holdings.find(
     (holding) => holding.holdingType === HoldingType.CASH && holding.localCurrency === cashCurrency,
   );
-  useEffectOnChange(() => {
+  useEffect(() => {
     if (!cashHolding) setCashCurrency(null);
   }, [cashHolding]);
 
@@ -346,8 +343,9 @@ export const HoldingsTableMobile = ({
 
       {cashHolding && (
         <CashHoldingsSheet
-          holding={cashHolding}
-          incompleteAccounts={incompleteAccounts}
+          currency={cashHolding.localCurrency}
+          accountFilter={accountFilter}
+          accounts={accounts}
           onClose={() => setCashCurrency(null)}
         />
       )}

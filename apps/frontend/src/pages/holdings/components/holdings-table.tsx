@@ -29,17 +29,16 @@ import {
   ROW_ACTIONS_TRIGGER,
 } from "./holdings-table-styles";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
 import { subtractAmounts, sumAmounts } from "@/lib/monetary-value";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { Holding, IncompleteHoldingsAccount, MonetaryValue } from "@/lib/types";
+import { Account, AccountScope, Holding, MonetaryValue } from "@/lib/types";
 import { AmountDisplay, PriceDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { HoldingsStatusSegmentedControl } from "./holdings-status-control";
@@ -128,7 +127,8 @@ export const HoldingsTable = ({
   visibilityFilters,
   setVisibilityFilters,
   showClosedPositions = true,
-  incompleteAccounts,
+  accountFilter = { type: "all" },
+  accounts = [],
 }: {
   holdings: Holding[];
   isLoading: boolean;
@@ -136,7 +136,8 @@ export const HoldingsTable = ({
   visibilityFilters?: HoldingsVisibilityFilter[];
   setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
   showClosedPositions?: boolean;
-  incompleteAccounts?: IncompleteHoldingsAccount[];
+  accountFilter?: AccountScope;
+  accounts?: Account[];
 }) => {
   const { t, i18n } = useTranslation();
   const formatting = useNumberFormatting();
@@ -156,7 +157,7 @@ export const HoldingsTable = ({
   const cashHolding = holdings.find(
     (holding) => isCashHolding(holding) && holding.localCurrency === cashCurrency,
   );
-  useEffectOnChange(() => {
+  useEffect(() => {
     if (!cashHolding) setCashCurrency(null);
   }, [cashHolding]);
   const handleCashClick = useCallback(
@@ -330,8 +331,9 @@ export const HoldingsTable = ({
       />
       {cashHolding && (
         <CashHoldingsSheet
-          holding={cashHolding}
-          incompleteAccounts={incompleteAccounts}
+          currency={cashHolding.localCurrency}
+          accountFilter={accountFilter}
+          accounts={accounts}
           onClose={() => setCashCurrency(null)}
           finalFocus={() => cashTriggers.current.get(cashHolding.localCurrency) ?? null}
         />

@@ -22,7 +22,9 @@ use crate::fx::FxServiceTrait;
 use crate::lots::{AssetLotView, LotRepositoryTrait};
 use crate::portfolio::coordinator::blocking;
 use crate::portfolio::economic_events::ActivityEconomicsResolver;
-use crate::portfolio::holdings::holdings_model::{Holding, HoldingType, Instrument, MonetaryValue};
+use crate::portfolio::holdings::holdings_model::{
+    Holding, HoldingType, Instrument, MonetaryValue, CASH_INSTRUMENT_ID_PREFIX,
+};
 use crate::portfolio::projection::ProjectionStoreTrait;
 use crate::portfolio::snapshot::{self, SnapshotServiceTrait};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
@@ -173,6 +175,7 @@ enum ReadView {
     Aggregate,
     Accounts,
     Asset(String),
+    Cash(String),
 }
 
 #[cfg(test)]
@@ -288,10 +291,11 @@ impl HoldingsService {
             .ok_or_else(|| CoreError::Repository("holdings read store is not configured".into()))?;
         let mut ids = account_ids.to_vec();
         let aggregate = matches!(&view, ReadView::Aggregate);
-        let live_accounts_only = matches!(&view, ReadView::Asset(_));
-        let asset_id = match view {
-            ReadView::Asset(id) => Some(id),
-            _ => None,
+        let live_accounts_only = matches!(&view, ReadView::Asset(_) | ReadView::Cash(_));
+        let (asset_id, cash_currency) = match view {
+            ReadView::Asset(id) => (Some(id), None),
+            ReadView::Cash(currency) => (None, Some(currency)),
+            _ => (None, None),
         };
         let day = self.today_in_user_timezone();
         let detail_asset = detail_asset.map(str::to_owned);
@@ -393,6 +397,11 @@ impl HoldingsService {
                         .instrument
                         .as_ref()
                         .is_some_and(|instrument| instrument.id == asset_id)
+                });
+            }
+            if let Some(currency) = cash_currency {
+                scope.holdings.retain(|holding| {
+                    holding.holding_type == HoldingType::Cash && holding.local_currency == currency
                 });
             }
             Ok(scope)
@@ -662,7 +671,7 @@ impl HoldingsService {
             }
 
             let cash_instrument = Instrument {
-                id: format!("cash:{}", currency),
+                id: format!("{CASH_INSTRUMENT_ID_PREFIX}{currency}"),
                 symbol: currency.clone(),
                 name: Some(format!("Cash ({})", currency)),
                 currency: currency.clone(),
@@ -1228,15 +1237,12 @@ impl HoldingsServiceTrait for HoldingsService {
         asset_id: &str,
         base_currency: &str,
     ) -> Result<HoldingsScope> {
-        self.read_scope(
-            account_ids,
-            base_currency,
-            asset_id,
-            false,
-            None,
-            ReadView::Asset(asset_id.into()),
-        )
-        .await
+        let view = match asset_id.strip_prefix(CASH_INSTRUMENT_ID_PREFIX) {
+            Some(currency) => ReadView::Cash(normalize_currency_code(currency).to_string()),
+            None => ReadView::Asset(asset_id.to_string()),
+        };
+        self.read_scope(account_ids, base_currency, asset_id, false, None, view)
+            .await
     }
 
     async fn get_asset_lot_view(
@@ -3969,6 +3975,124 @@ mod tests {
             let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
             run(&coordinator).await;
             assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+        }
+
+        #[tokio::test]
+        async fn cash_asset_scope_captures_accounts_once_and_preserves_pending_peers() {
+            let first = account("first", "CAD", TrackingMode::Transactions);
+            let second = account("second", "CAD", TrackingMode::Transactions);
+            let outside = account("outside", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&first.id, "CAD", dec!(100)),
+                    buy(&second.id, "CAD", dec!(80)),
+                    buy(&outside.id, "CAD", dec!(500)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) =
+                fixture.services(vec![first.clone(), second.clone(), outside]);
+            run(&coordinator).await;
+            let ids = [first.id.clone(), second.id.clone()];
+            let scope = holdings
+                .get_asset_holdings_scope(&ids, "cash:CAD", "CAD")
+                .await
+                .unwrap();
+            assert_eq!(fixture.store.holdings_read_count(), 1);
+            assert!(scope.incomplete_accounts.is_empty());
+            assert_eq!(scope.holdings.len(), 2);
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|row| row.holding_type == HoldingType::Cash && ids.contains(&row.account_id)));
+            assert_eq!(
+                scope
+                    .holdings
+                    .iter()
+                    .map(|row| row.market_value.local.unwrap())
+                    .sum::<Decimal>(),
+                dec!(-180)
+            );
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(first.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let partial = holdings
+                .get_asset_holdings_scope(&ids, "cash:CAD", "CAD")
+                .await
+                .unwrap();
+            assert_eq!(partial.holdings.len(), 1);
+            assert_eq!(partial.holdings[0].account_id, second.id);
+            assert_eq!(partial.incomplete_accounts[0].account_id, first.id);
+            assert_eq!(partial.incomplete_accounts[0].status, "pending");
+        }
+
+        #[tokio::test]
+        async fn cash_asset_scope_matches_normalized_currency_without_asset_records() {
+            let account = account("manual", "GBP", TrackingMode::Holdings);
+            let fixture = Fixture::new(Vec::new(), vec![rate("USD", "GBP", "2025-01-15", dec!(1))]);
+            *fixture.base_currency.write().unwrap() = "GBP".into();
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (_, holdings, snapshots) = fixture.services(vec![account.clone()]);
+            ManualSnapshotService::new(
+                Arc::new(
+                    AssetService::new(fixture.assets.clone(), fixture.quotes.clone()).unwrap(),
+                ),
+                fixture.fx.clone(),
+                snapshots,
+                fixture.quotes.clone(),
+            )
+            .with_timezone("UTC".into())
+            .save_manual_snapshot(ManualSnapshotRequest {
+                account_id: account.id.clone(),
+                account_currency: "GBP".into(),
+                snapshot_date: fixture.now.date_naive(),
+                positions: Vec::new(),
+                cash_balances: vec![
+                    crate::portfolio::snapshot::CashBalanceInput {
+                        currency: "GBp".into(),
+                        amount: dec!(1000),
+                    },
+                    crate::portfolio::snapshot::CashBalanceInput {
+                        currency: "GBP".into(),
+                        amount: dec!(5),
+                    },
+                    crate::portfolio::snapshot::CashBalanceInput {
+                        currency: "USD".into(),
+                        amount: dec!(20),
+                    },
+                ],
+                base_currency: Some("GBP".into()),
+                source: SnapshotSource::ManualEntry,
+            })
+            .await
+            .unwrap();
+            for asset_id in ["cash:GBP", "cash:GBp"] {
+                let scope = holdings
+                    .get_asset_holdings_scope(std::slice::from_ref(&account.id), asset_id, "GBP")
+                    .await
+                    .unwrap();
+                assert!(scope.incomplete_accounts.is_empty());
+                assert!(!scope.holdings.is_empty());
+                assert!(scope.holdings.iter().all(
+                    |row| row.holding_type == HoldingType::Cash && row.local_currency == "GBP"
+                ));
+                assert_eq!(
+                    scope
+                        .holdings
+                        .iter()
+                        .map(|row| row.market_value.local.unwrap())
+                        .sum::<Decimal>(),
+                    dec!(15)
+                );
+            }
+            assert_eq!(
+                fixture.store.holdings_read_count(),
+                2,
+                "one captured read per request"
+            );
         }
 
         #[tokio::test]

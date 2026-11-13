@@ -13,8 +13,8 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
 }));
 vi.mock("./holdings-mobile-filter-sheet", () => ({ HoldingsMobileFilterSheet: () => null }));
 vi.mock("./cash-holdings-sheet", () => ({
-  CashHoldingsSheet: ({ holding, onClose }: { holding: Holding; onClose: () => void }) => (
-    <div role="dialog" aria-label={`Cash (${holding.localCurrency})`}>
+  CashHoldingsSheet: ({ currency, onClose }: { currency: string; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Cash (${currency})`}>
       <button onClick={onClose}>Close cash</button>
     </div>
   ),
