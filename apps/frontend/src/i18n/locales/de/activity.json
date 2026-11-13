@@ -974,6 +974,8 @@
       "decimalAuto": "Automatisch erkennen",
       "decimalPeriod": "Punkt (.)",
       "decimalComma": "Komma (,)",
+      "numberFormatWarningTitle": "Zahlenformate prüfen",
+      "numberFormatWarningDescription": "Einige Spalten enthalten mehrdeutige oder widersprüchliche Zahlenformate ({{columns}}). Prüfen Sie diese Werte oder wählen Sie beim Hochladen in den Parsing-Einstellungen ein Dezimaltrennzeichen.",
       "summaryDelimiter": "Trennzeichen: {{value}}",
       "summaryDate": "Datum: {{value}}",
       "summaryDecimal": "Dezimal: {{value}}",

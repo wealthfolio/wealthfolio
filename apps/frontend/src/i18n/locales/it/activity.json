@@ -1001,6 +1001,8 @@
       "decimalAuto": "Rilevamento automatico",
       "decimalPeriod": "Punto (.)",
       "decimalComma": "Virgola (,)",
+      "numberFormatWarningTitle": "Controlla i formati numerici",
+      "numberFormatWarningDescription": "Alcune colonne hanno formati numerici ambigui o contrastanti ({{columns}}). Controlla questi valori o scegli un separatore decimale nelle impostazioni di analisi durante il caricamento.",
       "summaryDelimiter": "Delimitatore: {{value}}",
       "summaryDate": "Data: {{value}}",
       "summaryDecimal": "Decimale: {{value}}",

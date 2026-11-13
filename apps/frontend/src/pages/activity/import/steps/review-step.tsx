@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportAlert } from "../components/import-alert";
 import { ImportReviewGrid } from "../components/import-review-grid";
+import { NumericFormatAlert } from "../components/numeric-format-alert";
 import {
   bulkForceImportDrafts,
   bulkSetCurrency,
@@ -20,6 +21,7 @@ import {
 import { buildImportAssetCandidateFromDraft } from "../utils/asset-review-utils";
 import { reconcileExpenseReversalBoundary, validateDraft } from "../utils/draft-utils";
 import { getActivityImportProfileForResolvedAccountIds } from "../utils/activity-import-profile";
+import { analyzeMappedNumericColumns } from "../utils/numeric-format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Filter Helpers
@@ -96,6 +98,17 @@ export function ReviewStep() {
   const compareNames = useNameComparator();
   const { parsedRows, mapping, draftActivities } = state;
   const isValidating = state.isValidating;
+  const numericColumns = useMemo(
+    () =>
+      analyzeMappedNumericColumns(
+        state.headers,
+        draftActivities.map((draft) => draft.rawRow),
+        mapping?.fieldMappings ?? {},
+        state.parseConfig.decimalSeparator,
+        state.parseConfig.thousandsSeparator,
+      ),
+    [state.headers, draftActivities, mapping?.fieldMappings, state.parseConfig],
+  );
   const { accounts = [] } = useAccounts({ filterActive: true, includeArchived: false });
 
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
@@ -419,6 +432,7 @@ export function ReviewStep() {
 
   return (
     <div className="flex flex-col gap-4">
+      <NumericFormatAlert columns={numericColumns} fieldMappings={mapping.fieldMappings} />
       {/* Summary alert */}
       {state.validationError ? (
         <ImportAlert
