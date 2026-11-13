@@ -13,6 +13,10 @@ let package = Package(
             targets: ["WealthfolioAppleIntelligence"])
     ],
     targets: [
-        .target(name: "WealthfolioAppleIntelligence")
+        .target(name: "WealthfolioAppleIntelligence"),
+        // Run with `swift test`; the Rust build does not build it.
+        .testTarget(
+            name: "WealthfolioAppleIntelligenceTests",
+            dependencies: ["WealthfolioAppleIntelligence"]),
     ]
 )

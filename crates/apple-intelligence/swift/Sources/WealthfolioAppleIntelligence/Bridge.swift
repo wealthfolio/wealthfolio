@@ -263,12 +263,8 @@ private final class BridgeSession: @unchecked Sendable {
             }
             for try await snapshot in stream {
                 try Task.checkCancellation()
-                // Compared by Unicode scalars, not characters: a snapshot can
-                // end inside a character that the next one extends (a skin
-                // tone, an Arabic vowel mark), and a character-wise prefix
-                // would send that character twice.
                 let content = snapshot.content.unicodeScalars
-                let delta = Self.delta(from: sent, to: content)
+                let delta = textDelta(from: sent, to: content)
                 sent = content
                 if !delta.isEmpty { send(["type": "text", "delta": delta]) }
             }
@@ -276,17 +272,6 @@ private final class BridgeSession: @unchecked Sendable {
         } catch {
             finish(Self.event(for: error))
         }
-    }
-
-    /// What `content` adds after `sent`. A snapshot that rewrites earlier
-    /// text, which the framework does not do, sends only its new end.
-    static func delta(from sent: String.UnicodeScalarView, to content: String.UnicodeScalarView) -> String {
-        var common = 0
-        for (old, new) in zip(sent, content) {
-            guard old == new else { break }
-            common += 1
-        }
-        return String(String.UnicodeScalarView(content.dropFirst(common)))
     }
 
     /// Sends the tool call to the app and waits for the tool's output.

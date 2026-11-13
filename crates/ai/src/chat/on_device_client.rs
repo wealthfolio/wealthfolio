@@ -1013,10 +1013,12 @@ fn spending_summary(output: &str) -> Option<String> {
         .flatten()
         .filter_map(|bucket| {
             let date = NaiveDate::parse_from_str(bucket.get("date")?.as_str()?, "%Y-%m-%d").ok()?;
-            let spent = bucket.get("spent")?.as_f64()?;
-            (spent > 0.0).then_some((date, spent))
+            Some((date, bucket.get("spent")?.as_f64()?))
         })
         .collect();
+    // A day's spending is net of its refunds, so it can be negative. Each
+    // weekday nets its days the same way and is listed when it comes out as
+    // spending; the costliest days are the days that did.
     let mut by_weekday: Vec<(chrono::Weekday, f64)> = Vec::new();
     for (date, spent) in &days {
         match by_weekday
@@ -1027,7 +1029,9 @@ fn spending_summary(output: &str) -> Option<String> {
             None => by_weekday.push((date.weekday(), *spent)),
         }
     }
+    by_weekday.retain(|(_, spent)| *spent > 0.0);
     by_weekday.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    days.retain(|(_, spent)| *spent > 0.0);
     days.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut summary = Map::new();
@@ -1592,6 +1596,37 @@ mod tests {
             }
         })
         .to_string()
+    }
+
+    /// A day's spending is net of refunds and can be negative: a weekday nets
+    /// its days, so a large refund can move it down the list.
+    #[test]
+    fn weekday_spending_is_net_of_refunds() {
+        let mut output: serde_json::Value =
+            serde_json::from_str(&insight_output("available")).unwrap();
+        output["insight"]["byDay"] = serde_json::json!([
+            { "date": "2026-11-02", "spent": 100.0, "income": 0.0 },
+            { "date": "2026-11-03", "spent": 50.0, "income": 0.0 },
+            { "date": "2026-11-09", "spent": -60.0, "income": 0.0 },
+            { "date": "2026-11-11", "spent": -5.0, "income": 0.0 }
+        ]);
+        let summary: serde_json::Value =
+            serde_json::from_str(&on_device_output(SPENDING_TOOL, &output.to_string())).unwrap();
+
+        assert_eq!(
+            summary["spentByWeekday"],
+            serde_json::json!([
+                { "weekday": "Tuesday", "spent": 50.0 },
+                { "weekday": "Monday", "spent": 40.0 }
+            ])
+        );
+        assert_eq!(
+            summary["topDays"],
+            serde_json::json!([
+                { "date": "2026-11-02", "weekday": "Monday", "spent": 100.0 },
+                { "date": "2026-11-03", "weekday": "Tuesday", "spent": 50.0 }
+            ])
+        );
     }
 
     /// The period's bounds are UTC instants of local midnights; the summary
