@@ -520,12 +520,16 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             request.asset_id, request.value, request.date
         );
 
+        let asset = self.asset_repository.get_by_id(&request.asset_id)?;
+        if !asset.kind.is_alternative() {
+            return Err(Error::Validation(ValidationError::InvalidInput(format!(
+                "Asset {} is not an alternative asset (kind: {:?})",
+                request.asset_id, asset.kind
+            ))));
+        }
         // The asset's currency, which creating it gave its values too. A value
         // can be added after the last one was deleted.
-        let currency = self
-            .asset_repository
-            .get_by_id(&request.asset_id)?
-            .quote_ccy;
+        let currency = asset.quote_ccy;
 
         // Create new valuation quote
         let quote_id = Uuid::new_v4().to_string();
@@ -2083,6 +2087,45 @@ mod tests {
         assert_eq!(added.len(), 1);
         assert_eq!(added[0].close, Decimal::new(460_000, 0));
         assert_eq!(added[0].currency, "EUR");
+    }
+
+    #[tokio::test]
+    async fn update_value_refuses_assets_that_are_not_alternative() {
+        for kind in [AssetKind::Investment, AssetKind::Fx] {
+            let quotes = Arc::new(MockQuoteService {
+                cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
+                as_of_quotes: HashMap::new(),
+                latest_quotes: HashMap::new(),
+            });
+            let service = AlternativeAssetService::new(
+                Arc::new(MockAltAssetRepository::default()),
+                Arc::new(MockAssetRepository {
+                    assets: vec![Asset {
+                        id: "listed".into(),
+                        kind: kind.clone(),
+                        quote_ccy: "USD".into(),
+                        ..Default::default()
+                    }],
+                }),
+                quotes.clone(),
+            );
+
+            let refused = service
+                .update_valuation(UpdateValuationRequest {
+                    asset_id: "listed".into(),
+                    value: Decimal::new(100, 0),
+                    date: NaiveDate::from_ymd_opt(2026, 11, 1).unwrap(),
+                    notes: None,
+                })
+                .await;
+
+            assert!(refused.is_err(), "{kind:?} must be refused");
+            assert!(
+                quotes.added.lock().unwrap().is_empty(),
+                "{kind:?} saved a value"
+            );
+        }
     }
 
     #[test]
