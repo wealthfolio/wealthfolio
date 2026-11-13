@@ -715,7 +715,8 @@
     "accountNameMax": "Il nome non deve superare 50 caratteri.",
     "accountNumberMax": "Il numero conto non deve superare 64 caratteri.",
     "accountCurrency": "Seleziona una valuta.",
-    "creditCardTracking": "I conti carta di credito non possono usare il monitoraggio delle posizioni."
+    "creditCardTracking": "I conti carta di credito non possono usare il monitoraggio delle posizioni.",
+    "creditCardBillingDays": "I giorni di chiusura e scadenza devono essere numeri interi da 1 a 31."
   },
   "backendErrors": {
     "internal": "Impossibile completare l’operazione.",

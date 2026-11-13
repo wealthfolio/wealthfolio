@@ -4,6 +4,20 @@ use log::{debug, error};
 
 use wealthfolio_core::accounts::{Account, AccountUpdate, NewAccount};
 
+/// Reads derived statements from the admitted profile's activity service.
+#[tauri::command]
+pub async fn get_credit_card_statements(
+    account_id: String,
+    state: ProfileAccess,
+) -> Result<Vec<wealthfolio_core::accounts::CreditCardStatement>, String> {
+    let context = state.context()?;
+    context
+        .activity_service()
+        .get_credit_card_statements(&account_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_accounts(
     include_archived: Option<bool>,

@@ -698,7 +698,8 @@
     "accountNameMax": "Name must not be longer than 50 characters.",
     "accountNumberMax": "Account number must not be longer than 64 characters.",
     "accountCurrency": "Please select a currency.",
-    "creditCardTracking": "Credit card accounts cannot use holdings tracking mode."
+    "creditCardTracking": "Credit card accounts cannot use holdings tracking mode.",
+    "creditCardBillingDays": "Closing and payment due days must be whole numbers from 1 to 31."
   },
   "backendErrors": {
     "internal": "The operation could not be completed.",

@@ -65,6 +65,7 @@ impl AccountService {
 impl AccountServiceTrait for AccountService {
     /// Creates a new account with currency exchange support.
     async fn create_account(&self, new_account: NewAccount) -> Result<Account> {
+        new_account.validate()?;
         let base_currency = self
             .base_currency
             .read()

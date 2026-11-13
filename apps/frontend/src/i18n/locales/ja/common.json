@@ -687,7 +687,8 @@
     "accountNameMax": "名前は50文字以内で入力してください。",
     "accountNumberMax": "口座番号は64文字以内で入力してください。",
     "accountCurrency": "通貨を選択してください。",
-    "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。"
+    "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。",
+    "creditCardBillingDays": "締め日と支払日は1～31の整数で指定してください。"
   },
   "backendErrors": {
     "internal": "操作を完了できませんでした。",

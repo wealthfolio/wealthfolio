@@ -715,7 +715,8 @@
     "accountNameMax": "El nombre no debe superar los 50 caracteres.",
     "accountNumberMax": "El número de cuenta no debe superar los 64 caracteres.",
     "accountCurrency": "Seleccione una moneda.",
-    "creditCardTracking": "Las cuentas de tarjeta de crédito no pueden usar el seguimiento de posiciones."
+    "creditCardTracking": "Las cuentas de tarjeta de crédito no pueden usar el seguimiento de posiciones.",
+    "creditCardBillingDays": "Los días de cierre y vencimiento deben ser números enteros del 1 al 31."
   },
   "backendErrors": {
     "internal": "No se pudo completar la operación.",

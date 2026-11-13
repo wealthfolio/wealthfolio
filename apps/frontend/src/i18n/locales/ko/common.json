@@ -687,7 +687,8 @@
     "accountNameMax": "이름은 50자를 초과할 수 없습니다.",
     "accountNumberMax": "계좌 번호는 64자를 초과할 수 없습니다.",
     "accountCurrency": "통화를 선택해 주세요.",
-    "creditCardTracking": "신용카드 계좌는 보유 자산 추적 모드를 사용할 수 없습니다."
+    "creditCardTracking": "신용카드 계좌는 보유 자산 추적 모드를 사용할 수 없습니다.",
+    "creditCardBillingDays": "마감일과 결제일은 1부터 31까지의 정수여야 합니다."
   },
   "backendErrors": {
     "internal": "작업을 완료할 수 없습니다.",

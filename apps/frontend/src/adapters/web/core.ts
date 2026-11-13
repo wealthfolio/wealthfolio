@@ -25,6 +25,7 @@ export const COMMANDS: CommandMap = {
   cloud_backup_action: { method: "POST", path: "/cloud-backups/action" },
   cloud_backup_capture: { method: "POST", path: "/cloud-backups/capture" },
   get_accounts: { method: "GET", path: "/accounts" },
+  get_credit_card_statements: { method: "GET", path: "/accounts" },
   create_account: { method: "POST", path: "/accounts" },
   update_account: { method: "PUT", path: "/accounts" },
   delete_account: { method: "DELETE", path: "/accounts" },
@@ -721,6 +722,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         params.set("includeArchived", "true");
         url += `?${params.toString()}`;
       }
+      break;
+    }
+    case "get_credit_card_statements": {
+      const { accountId } = payload as { accountId: string };
+      url = `${API_PREFIX}/accounts/${encodeURIComponent(accountId)}/statements`;
       break;
     }
     case "calculate_performance_history": {

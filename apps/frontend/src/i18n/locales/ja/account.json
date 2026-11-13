@@ -165,5 +165,29 @@
     "twr_hover_hint": " 数値にカーソルを合わせると累積TWRを表示します。",
     "irr_hover_hint": " 数値にカーソルを合わせると選択期間のIRRを表示します。"
   },
-  "more_count_other": "他{{count}}件"
+  "more_count_other": "他{{count}}件",
+  "billing": {
+    "title": "カード利用明細",
+    "closing_day": "締め日（1～31）",
+    "due_day": "支払日（1～31）",
+    "schedule_hint": "日数の少ない月は月末日を使います。支払日は締め日より後の最初の指定日です。変更は過去の明細にも適用されます。",
+    "setup": "口座設定で締め日と支払日を設定してください。",
+    "load_error": "明細を読み込めませんでした。",
+    "previous": "過去の明細",
+    "closed": "確定済み",
+    "open": "未確定",
+    "due": "支払日 {{date}}",
+    "statement_balance": "締め日時点の残高",
+    "balance_hint": "残高は記録済みの取引に基づき、過去の未払い分も含みます。正の金額は支払債務、負の金額は預り金です。確定後の支払いは確定済み明細の残高を変更しないため、現在の未払い額を示すものではありません。",
+    "manage": "請求設定",
+    "current_balance": "現在の残高",
+    "last_closed": "直近の確定済み明細",
+    "closes_on": "締め日",
+    "closed_on": "確定日",
+    "payment_due": "支払期日",
+    "current_hint": "記録済みの支払いと過去の未払い分を含みます。",
+    "closed_hint": "締め日時点の残高です。その後の支払いは差し引かれません。",
+    "view_transactions": "取引を表示",
+    "calculation_help": "残高の計算方法"
+  }
 }
