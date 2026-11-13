@@ -5,6 +5,10 @@ use crate::errors::Result;
 /// applications that may share the same underlying credential store.
 pub const SERVICE_PREFIX: &str = "wealthfolio_";
 
+/// Stable public refusals; diagnostic text must never cross the API boundary.
+pub const SECRET_TOO_LARGE: &str = "SECRET_TOO_LARGE";
+pub const SECRET_STORE_UNAVAILABLE: &str = "SECRET_STORE_UNAVAILABLE";
+
 /// Device enrollment identity and E2EE credentials.
 pub const CLOUD_REFRESH_TOKEN_KEY: &str = "sync_refresh_token";
 pub const CLOUD_ACCESS_TOKEN_KEY: &str = "sync_access_token";

@@ -156,6 +156,14 @@ impl PublicError {
 impl Error {
     pub fn public_error(&self) -> PublicError {
         match self {
+            Self::SecretTooLarge => PublicError::new(
+                crate::secrets::SECRET_TOO_LARGE,
+                "This secret is too large to store. Reduce its size and try again.",
+            ),
+            Self::SecretStoreUnavailable => PublicError::new(
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+                "Secure credential storage is unavailable or full. Check your system credential store or restart Wealthfolio, then try again.",
+            ),
             // LoanError is a closed enum of stable codes, with no user data.
             Self::Validation(ValidationError::Loan(error)) => PublicError {
                 error_code: error.to_string(),
@@ -280,6 +288,12 @@ pub enum Error {
 
     #[error("Secret store error: {0}")]
     Secret(String),
+
+    #[error("Secret exceeds the storage size limit")]
+    SecretTooLarge,
+
+    #[error("Secure credential storage is unavailable")]
+    SecretStoreUnavailable,
 
     #[error("Unexpected error: {0}")]
     Unexpected(String),
@@ -480,6 +494,23 @@ impl From<Error> for String {
 #[cfg(test)]
 mod public_error_tests {
     use super::*;
+
+    #[test]
+    fn secret_refusals_have_stable_public_codes() {
+        for (error, code) in [
+            (Error::SecretTooLarge, crate::secrets::SECRET_TOO_LARGE),
+            (
+                Error::SecretStoreUnavailable,
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+            ),
+        ] {
+            assert_eq!(error.public_error().error_code, code);
+            let wrapped = anyhow::Error::new(error).context("FAKE-KEY private-credential-name");
+            let public = PublicError::from_error(wrapped.as_ref());
+            assert_eq!(public.error_code, code);
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
+    }
 
     #[test]
     fn legacy_control_codes_discard_private_suffixes_and_reject_unknown_codes() {

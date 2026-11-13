@@ -734,6 +734,8 @@
     "addonMainFileMissing": "El archivo ZIP del complemento no contiene el archivo principal que indica su manifiesto.",
     "addonNeedsNewerVersion": "Este complemento necesita una versión más reciente de Wealthfolio. Actualiza Wealthfolio e inténtalo de nuevo.",
     "quoteCurrencyRequired": "La divisa de cotización es obligatoria. Vuelve a seleccionar el símbolo en los resultados de búsqueda.",
-    "rateLimited": "Demasiadas solicitudes. Espera un minuto e inténtalo de nuevo."
+    "rateLimited": "Demasiadas solicitudes. Espera un minuto e inténtalo de nuevo.",
+    "secretTooLarge": "Este secreto es demasiado grande para guardarlo. Reduzca su tamaño e inténtelo de nuevo.",
+    "secretStoreUnavailable": "El almacenamiento seguro de credenciales no está disponible o está lleno. Compruebe el almacén de credenciales del sistema o reinicie Wealthfolio y vuelva a intentarlo."
   }
 }

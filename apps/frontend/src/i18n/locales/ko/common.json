@@ -706,6 +706,8 @@
     "addonMainFileMissing": "애드온 ZIP 파일에 매니페스트가 지정한 메인 파일이 없습니다.",
     "addonNeedsNewerVersion": "이 애드온에는 최신 버전의 Wealthfolio가 필요합니다. Wealthfolio를 업데이트한 후 다시 시도하세요.",
     "quoteCurrencyRequired": "호가 통화가 필요합니다. 검색 결과에서 심볼을 다시 선택하세요.",
-    "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요."
+    "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요.",
+    "secretTooLarge": "이 비밀 값은 너무 커서 저장할 수 없습니다. 크기를 줄인 후 다시 시도하세요.",
+    "secretStoreUnavailable": "보안 자격 증명 저장소를 사용할 수 없거나 저장소가 가득 찼습니다. 시스템 자격 증명 저장소를 확인하거나 Wealthfolio를 다시 시작한 후 다시 시도하세요."
   }
 }

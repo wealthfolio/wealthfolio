@@ -706,6 +706,8 @@
     "addonMainFileMissing": "アドオンの ZIP ファイルに、マニフェストで指定されたメインファイルがありません。",
     "addonNeedsNewerVersion": "このアドオンには新しいバージョンの Wealthfolio が必要です。Wealthfolio を更新してから、もう一度お試しください。",
     "quoteCurrencyRequired": "建値通貨が必要です。検索結果から銘柄コードを選び直してください。",
-    "rateLimited": "リクエストが多すぎます。1 分ほど待ってから、もう一度お試しください。"
+    "rateLimited": "リクエストが多すぎます。1 分ほど待ってから、もう一度お試しください。",
+    "secretTooLarge": "このシークレットは大きすぎるため保存できません。サイズを小さくして再試行してください。",
+    "secretStoreUnavailable": "安全な資格情報ストレージを利用できないか、容量が不足しています。システムの資格情報ストアを確認するか、Wealthfolio を再起動して再試行してください。"
   }
 }
