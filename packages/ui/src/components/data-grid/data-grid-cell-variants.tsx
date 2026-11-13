@@ -422,7 +422,7 @@ export function NumberCell<TData>({
     }
     const parsed = parseCellValue(value);
     if (!parsed.valid) {
-      setValue(initialInputValue);
+      setValue(inputFormattingRef.current.initialInputValue);
     } else if (!readOnly && parsed.value !== initialComparable) {
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
     }
@@ -440,7 +440,7 @@ export function NumberCell<TData>({
           event.preventDefault();
           const parsed = parseCellValue(value);
           if (!parsed.valid) {
-            setValue(initialInputValue);
+            setValue(inputFormattingRef.current.initialInputValue);
           } else if (parsed.value !== initialComparable) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
@@ -449,7 +449,7 @@ export function NumberCell<TData>({
           event.preventDefault();
           const parsed = parseCellValue(value);
           if (!parsed.valid) {
-            setValue(initialInputValue);
+            setValue(inputFormattingRef.current.initialInputValue);
           } else if (parsed.value !== initialComparable) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
