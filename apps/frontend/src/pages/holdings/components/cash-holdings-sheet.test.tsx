@@ -102,6 +102,31 @@ it("supports a single-account row without source account IDs and focuses the tit
   await waitFor(() => expect(screen.getByRole("heading", { name: "Cash (USD)" })).toHaveFocus());
 });
 
+it("uses normalized monetary values and combines cash in the same account and currency", async () => {
+  // The backend normalizes GBp to GBP and monetary values to pounds, while
+  // quantity retains the snapshot's original number of minor units.
+  const normalized = {
+    ...cash("a", 1000, "GBP"),
+    id: "CASH-a-GBp",
+    marketValue: { local: 10, base: 12.5 },
+  };
+  vi.mocked(getHoldingsList).mockResolvedValue(results([normalized, cash("a", 5, "GBP")]));
+  mount(normalized);
+  const account = await screen.findByRole("link", { name: /Brokerage/ });
+  expect(account).toHaveTextContent("£15.00");
+  expect(screen.getAllByRole("link")).toHaveLength(1);
+  expect(screen.getByText("Total").parentElement).toHaveTextContent("£15.00");
+});
+
+it("does not substitute quantity for an unavailable monetary value", async () => {
+  const missing = { ...cash("a", 100), marketValue: { local: null, base: null } };
+  vi.mocked(getHoldingsList).mockResolvedValue(results([missing]));
+  mount(missing);
+  await screen.findByRole("link", { name: /Brokerage/ });
+  expect(screen.queryAllByText("$100.00")).toHaveLength(0);
+  expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+});
+
 it("keeps signed negative balances and a net-zero total without allocation percentages", async () => {
   vi.mocked(getHoldingsList).mockImplementation((filter: AccountScope) =>
     Promise.resolve(

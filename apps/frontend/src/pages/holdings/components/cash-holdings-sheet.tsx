@@ -4,6 +4,7 @@ import { TickerAvatar } from "@/components/ticker-avatar";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
+import { sumAmounts } from "@/lib/monetary-value";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Holding, IncompleteHoldingsAccount } from "@/lib/types";
 import { useQueries } from "@tanstack/react-query";
@@ -32,6 +33,12 @@ interface CashHoldingsSheetProps {
   incompleteAccounts?: IncompleteHoldingsAccount[];
   onClose: () => void;
   finalFocus?: () => HTMLElement | null;
+}
+
+interface CashAccountBalance {
+  accountId: string;
+  name: string;
+  amount: number | null;
 }
 
 // Mounted only while open: per-account reads share the ordinary holdings cache
@@ -70,21 +77,32 @@ export function CashHoldingsSheet({
     ...queries.flatMap((query) => query.data?.incompleteAccounts ?? []),
   ];
   const isComplete = !isLoading && !isError && missingAccounts.length === 0;
-  const balances = queries
-    .flatMap((query) =>
-      (query.data?.holdings ?? [])
-        .filter((row) => row.holdingType === HoldingType.CASH && row.localCurrency === currency)
-        .map((row) => ({
+  const balancesByAccount = new Map<string, CashAccountBalance>();
+  for (const query of queries) {
+    for (const row of query.data?.holdings ?? []) {
+      if (row.holdingType !== HoldingType.CASH || row.localCurrency !== currency) continue;
+      const existing = balancesByAccount.get(row.accountId);
+      if (existing) {
+        existing.amount = sumAmounts([existing.amount, row.marketValue.local]);
+      } else {
+        balancesByAccount.set(row.accountId, {
           accountId: row.accountId,
           name: accounts.find((account) => account.id === row.accountId)?.name ?? row.accountId,
-          amount: row.quantity,
-        })),
-    )
-    .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
-  const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
+          amount: row.marketValue.local,
+        });
+      }
+    }
+  }
+  const balances = [...balancesByAccount.values()].sort(
+    (a, b) => (b.amount ?? 0) - (a.amount ?? 0) || a.name.localeCompare(b.name),
+  );
+  const total = sumAmounts(balances.map((balance) => balance.amount));
   // A stacked allocation cannot represent debt or a net-zero cash balance.
   const showAllocation =
-    isComplete && total > 0 && balances.every((balance) => balance.amount >= 0);
+    isComplete &&
+    total != null &&
+    total > 0 &&
+    balances.every((balance) => balance.amount != null && balance.amount >= 0);
 
   return (
     <Sheet
@@ -150,7 +168,7 @@ export function CashHoldingsSheet({
                           key={balance.accountId}
                           className="border-background h-full border-e last:border-0"
                           style={{
-                            width: `${(balance.amount / total) * 100}%`,
+                            width: `${((balance.amount ?? 0) / total) * 100}%`,
                             backgroundColor: chartSliceColor(index),
                           }}
                         />
@@ -168,7 +186,7 @@ export function CashHoldingsSheet({
                           />
                           <span className="text-muted-foreground truncate">{balance.name}</span>
                           <span className="font-medium tabular-nums">
-                            {formatting.formatPercent(balance.amount / total, { digits: 0 })}
+                            {formatting.formatPercent((balance.amount ?? 0) / total, { digits: 0 })}
                           </span>
                         </div>
                       ))}
@@ -203,7 +221,9 @@ export function CashHoldingsSheet({
                           />
                           {showAllocation && (
                             <p className="text-muted-foreground text-xs tabular-nums">
-                              {formatting.formatPercent(balance.amount / total, { digits: 1 })}
+                              {formatting.formatPercent((balance.amount ?? 0) / total, {
+                                digits: 1,
+                              })}
                             </p>
                           )}
                         </div>
