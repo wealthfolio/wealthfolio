@@ -175,18 +175,7 @@ describe("decimal-integrity regressions", () => {
 });
 
 describe("regional parser parity", () => {
-  for (const locale of [
-    "en-US",
-    "en-CA",
-    "en-GB",
-    "en-IN",
-    "de-CH",
-    "es-MX",
-    "zh-CN",
-    "zh-TW",
-    "ja-JP",
-    "ko-KR",
-  ]) {
+  for (const locale of pointLocales) {
     it.each(["٠.١٢٥", ".١٢٥", "-.١٢٥"])(`${locale} %s agrees or both reject`, (text) => {
       const number = parseLocalizedNumber(text, locale);
       const decimal = parseLocalizedDecimalString(text, locale);
