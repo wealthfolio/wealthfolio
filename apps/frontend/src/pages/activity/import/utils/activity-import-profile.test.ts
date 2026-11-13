@@ -135,6 +135,22 @@ describe("activity import profiles", () => {
     expect(profile).toBe(getActivityImportProfileForAccountType(AccountType.CREDIT_CARD));
   });
 
+  it("reads the last of two account columns with the same name, as the import does", () => {
+    const profile = getActivityImportProfileForImportContext({
+      accounts: [
+        { id: "brokerage-1", accountType: AccountType.SECURITIES },
+        { id: "card-1", accountType: AccountType.CREDIT_CARD },
+      ],
+      headers: ["Date", "Account", "Merchant", "Amount", "Account"],
+      parsedRows: [["2024-01-15", "brokerage-1", "Starbucks", "12.50", "card-1"]],
+      fieldMappings: {
+        [ImportFormat.ACCOUNT]: "Account",
+      },
+    });
+
+    expect(profile).toBe(getActivityImportProfileForAccountType(AccountType.CREDIT_CARD));
+  });
+
   it("keeps transaction defaults when merging an old template for a credit card account", () => {
     const profile = getActivityImportProfileForAccountType(AccountType.CREDIT_CARD);
     const merged = mergeActivityMappingsForImportProfile(
