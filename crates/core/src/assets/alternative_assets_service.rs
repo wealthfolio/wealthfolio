@@ -520,19 +520,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             request.asset_id, request.value, request.date
         );
 
-        // Verify the asset exists
-        self.asset_repository.get_by_id(&request.asset_id)?;
-
-        // Get the existing quote to find the currency
-        let currency = match self.quote_service.get_latest_quote(&request.asset_id) {
-            Ok(existing_quote) => existing_quote.currency,
-            Err(_) => {
-                return Err(Error::Validation(ValidationError::InvalidInput(format!(
-                    "Cannot find existing valuation for asset: {}. Please check the asset exists.",
-                    request.asset_id
-                ))));
-            }
-        };
+        // The asset's currency, which creating it gave its values too. A value
+        // can be added after the last one was deleted.
+        let currency = self
+            .asset_repository
+            .get_by_id(&request.asset_id)?
+            .quote_ccy;
 
         // Create new valuation quote
         let quote_id = Uuid::new_v4().to_string();
@@ -1041,6 +1034,8 @@ mod tests {
         as_of_quotes: HashMap<String, Quote>,
         /// Quotes returned by get_latest_quotes (old, unbounded path — should NOT be called).
         latest_quotes: HashMap<String, Quote>,
+        /// Quotes add_quote saved.
+        added: std::sync::Mutex<Vec<Quote>>,
     }
 
     #[async_trait]
@@ -1156,8 +1151,9 @@ mod tests {
             unimplemented!("not used in this test")
         }
 
-        async fn add_quote(&self, _quote: &Quote) -> Result<Quote> {
-            unimplemented!("not used in this test")
+        async fn add_quote(&self, quote: &Quote) -> Result<Quote> {
+            self.added.lock().unwrap().push(quote.clone());
+            Ok(quote.clone())
         }
 
         async fn update_quote(&self, _quote: Quote) -> Result<Quote> {
@@ -1587,6 +1583,7 @@ mod tests {
                 Arc::new(asset_repo),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::default(),
+                    added: Default::default(),
                     as_of_quotes: HashMap::new(),
                     latest_quotes: HashMap::new(),
                 }),
@@ -1644,6 +1641,7 @@ mod tests {
         let cutoff = Arc::new(std::sync::Mutex::new(None));
         let quote_svc = MockQuoteService {
             cutoff: cutoff.clone(),
+            added: Default::default(),
             as_of_quotes: [(ASSET_ID.to_string(), past_quote)].into_iter().collect(),
             latest_quotes: [(ASSET_ID.to_string(), future_zero_quote)]
                 .into_iter()
@@ -1715,6 +1713,7 @@ mod tests {
         };
         let quotes = MockQuoteService {
             cutoff: Arc::new(std::sync::Mutex::new(None)),
+            added: Default::default(),
             as_of_quotes: [("loan".into(), quote)].into_iter().collect(),
             latest_quotes: HashMap::new(),
         };
@@ -1755,6 +1754,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: HashMap::new(),
                 latest_quotes: HashMap::new(),
             }),
@@ -1796,6 +1796,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: [(
                     "house".into(),
                     make_quote("house", Decimal::new(5000, 0), initial),
@@ -1877,6 +1878,7 @@ mod tests {
                 }),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
                     as_of_quotes: quotes,
                     latest_quotes: HashMap::new(),
                 }),
@@ -1919,6 +1921,7 @@ mod tests {
                 }),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
                     as_of_quotes: HashMap::new(),
                     latest_quotes: HashMap::new(),
                 }),
@@ -1930,6 +1933,44 @@ mod tests {
             assert_eq!(holdings[0].market_value, Decimal::ZERO);
             assert!(holdings[0].unrealized_gain.is_none());
         }
+    }
+
+    #[tokio::test]
+    async fn a_value_can_be_added_after_the_last_one_is_deleted() {
+        let asset = Asset {
+            id: "home".into(),
+            kind: AssetKind::Property,
+            quote_ccy: "EUR".into(),
+            ..Default::default()
+        };
+        let quotes = Arc::new(MockQuoteService {
+            cutoff: Arc::new(std::sync::Mutex::new(None)),
+            added: Default::default(),
+            as_of_quotes: HashMap::new(),
+            latest_quotes: HashMap::new(),
+        });
+        let service = AlternativeAssetService::new(
+            Arc::new(MockAltAssetRepository::default()),
+            Arc::new(MockAssetRepository {
+                assets: vec![asset],
+            }),
+            quotes.clone(),
+        );
+
+        service
+            .update_valuation(UpdateValuationRequest {
+                asset_id: "home".into(),
+                value: Decimal::new(460_000, 0),
+                date: NaiveDate::from_ymd_opt(2026, 11, 1).unwrap(),
+                notes: None,
+            })
+            .await
+            .unwrap();
+
+        let added = quotes.added.lock().unwrap();
+        assert_eq!(added.len(), 1);
+        assert_eq!(added[0].close, Decimal::new(460_000, 0));
+        assert_eq!(added[0].currency, "EUR");
     }
 
     #[test]
@@ -1954,6 +1995,7 @@ mod tests {
                 }),
                 Arc::new(MockQuoteService {
                     cutoff: Arc::new(std::sync::Mutex::new(None)),
+                    added: Default::default(),
                     as_of_quotes: HashMap::new(),
                     latest_quotes: [("loan".into(), make_quote("loan", balance, future))]
                         .into_iter()
@@ -1990,6 +2032,7 @@ mod tests {
             }),
             Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
+                added: Default::default(),
                 as_of_quotes: HashMap::new(),
                 latest_quotes: HashMap::new(),
             }),
