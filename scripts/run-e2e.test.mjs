@@ -110,3 +110,9 @@ test("a --workers argument sets the server count and leaves the rest", () => {
   assert.deepEqual(splitWorkersArg(["-j", "1"]), { workers: 1, rest: [] });
   assert.deepEqual(splitWorkersArg(["--ui"]), { workers: undefined, rest: ["--ui"] });
 });
+
+test("a worker count that isn't a whole number is rejected", () => {
+  for (const args of [["--workers=50%"], ["--workers", "50%"], ["-j", "2.5"], ["--workers"]]) {
+    assert.throws(() => splitWorkersArg(args), /--workers takes a whole number of workers/);
+  }
+});
