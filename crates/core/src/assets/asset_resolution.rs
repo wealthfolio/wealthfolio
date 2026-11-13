@@ -23,6 +23,8 @@ pub struct AssetResolutionInput {
     pub asset_id: Option<String>,
     pub provider_id: Option<String>,
     pub provider_symbol: Option<String>,
+    /// Name the source gave the instrument, for a new asset no provider names.
+    pub name: Option<String>,
 }
 
 impl AssetResolutionInput {

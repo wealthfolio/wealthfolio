@@ -2185,6 +2185,14 @@ impl AssetServiceTrait for AssetService {
                         .map(|result| result.long_name.clone())
                         .filter(|name| !name.trim().is_empty())
                 })
+                .or_else(|| {
+                    input
+                        .name
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|name| !name.is_empty())
+                        .map(str::to_string)
+                })
                 .or_else(|| Some(canonical_symbol.clone()));
 
             // The provider's quote type classifies the new asset only while it maps to
@@ -4206,6 +4214,7 @@ mod tests {
             asset_id: None,
             provider_id: None,
             provider_symbol: None,
+            name: None,
         }
     }
 
@@ -5726,6 +5735,51 @@ mod tests {
         assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
         assert_eq!(output.provider_symbol.as_deref(), Some("AAPL"));
         assert!(output.draft.is_some());
+    }
+
+    /// #2419: a fund that no provider finds keeps the name from the import file,
+    /// while a provider's name still wins over it.
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_names_unmatched_asset_from_input() {
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result(
+                "US0378331005",
+                vec![yahoo_search_result(
+                    "AAPL",
+                    "AAPL",
+                    "XNAS",
+                    "Apple Inc.",
+                    "USD",
+                    "AAPL",
+                )],
+            ),
+        );
+        let mut unmatched = import_input("INF879O01027", "INR");
+        unmatched.key = "unmatched".to_string();
+        unmatched.name = Some(" PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN ".to_string());
+        let mut matched = import_input("US0378331005", "USD");
+        matched.key = "matched".to_string();
+        matched.name = Some("APPLE FROM THE FILE".to_string());
+
+        let outputs = service
+            .resolve_import_asset_inputs(vec![unmatched, matched])
+            .await
+            .unwrap();
+
+        let unmatched = &outputs[0];
+        assert_eq!(
+            unmatched.name.as_deref(),
+            Some("PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN")
+        );
+        assert_eq!(
+            unmatched
+                .draft
+                .as_ref()
+                .and_then(|draft| draft.name.as_deref()),
+            Some("PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN")
+        );
+        assert_eq!(outputs[1].name.as_deref(), Some("Apple Inc."));
     }
 
     #[tokio::test]

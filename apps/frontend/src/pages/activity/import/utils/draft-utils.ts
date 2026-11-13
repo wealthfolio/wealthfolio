@@ -7,7 +7,7 @@ import {
   ImportFormat,
   POSITION_INTENT_ALIASES,
 } from "@/lib/constants";
-import { canonicalizeActivitySubtype } from "@/lib/activity-utils";
+import { canonicalizeActivitySubtype, shouldResolveImportAsset } from "@/lib/activity-utils";
 import type { ActivityImport } from "@/lib/types";
 import { type DateOrder, detectDateOrder, tryParseDate } from "@/lib/utils";
 import { isValid, parse, parseISO } from "date-fns";
@@ -15,6 +15,7 @@ import { findMappedActivityType } from "./activity-type-mapping";
 import { getDateFnsPattern } from "./date-format-options";
 import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instrument-type";
 import { buildImportAssetCandidateKey } from "./asset-review-utils";
+import { isinFallbackSymbol } from "./validation-utils";
 import {
   parseNumericValue,
   parseSignedNumericValue,
@@ -54,6 +55,25 @@ export function isFieldMapped(value: string | string[] | undefined, headers: str
   if (!value) return false;
   if (Array.isArray(value)) return value.some((h) => headers.includes(h));
   return headers.includes(value);
+}
+
+/**
+ * The fields that can read each CSV header, in `fields` order: every header a field lists,
+ * fallback headers included, since any of them can supply its value.
+ */
+export function getHeaderFields(
+  fieldMappings: Record<string, string | string[]>,
+  fields: readonly ImportFormat[],
+): Map<string, ImportFormat[]> {
+  const headerFields = new Map<string, ImportFormat[]>();
+  for (const field of fields) {
+    const value = fieldMappings[field];
+    if (!value) continue;
+    for (const header of new Set(Array.isArray(value) ? value : [value])) {
+      headerFields.set(header, [...(headerFields.get(header) ?? []), field]);
+    }
+  }
+  return headerFields;
 }
 
 export function mergeIssueMaps(
@@ -844,7 +864,19 @@ export function createDraftActivities(
     // Parse typed symbol prefixes (e.g., "bond:US037833DU14")
     const { symbol: prefixParsedSymbol, instrumentType: prefixInstrumentType } =
       splitInstrumentPrefixedSymbol(mappedSymbol);
-    const symbol = prefixParsedSymbol;
+
+    // An unmapped Symbol that isn't a symbol, such as a fund name, resolves by the
+    // row's valid ISIN and stays on as the asset's name. A type prefix still applies.
+    const trimmedRawSymbol = rawSymbol?.trim();
+    const isinSymbol =
+      trimmedRawSymbol &&
+      activityType &&
+      shouldResolveImportAsset(activityType, rawSubtype, trimmedRawSymbol) &&
+      !symbolMappings[trimmedRawSymbol]
+        ? isinFallbackSymbol(trimmedRawSymbol, rawIsin)
+        : undefined;
+    const symbol = isinSymbol ?? prefixParsedSymbol;
+    const symbolName = mappedSymbolName ?? (isinSymbol ? prefixParsedSymbol : undefined);
 
     // Normalize instrument type: explicit CSV column > prefix > symbol mapping meta
     const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);
@@ -939,7 +971,7 @@ export function createDraftActivities(
       symbol,
       isin: rawIsin?.trim() || undefined,
       exchangeMic: mappedExchangeMic,
-      symbolName: mappedSymbolName,
+      symbolName,
       quoteCcy: mappedQuoteCcy,
       instrumentType: resolvedInstrumentType,
       quoteMode: mappedQuoteMode,
