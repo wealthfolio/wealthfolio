@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { HoldingType, QuoteMode } from "@/lib/constants";
@@ -54,6 +54,8 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
 
     return (
       <div>
+        {data[0] &&
+          columns.find((column) => column.id === "symbol")?.cell?.({ row: { original: data[0] } })}
         <div data-testid="column-ids">{columns.map((column) => column.id).join(",")}</div>
         <div data-testid="symbol-name-hidden">
           {String(defaultColumnVisibility?.symbolName === false)}
@@ -73,6 +75,15 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
       </div>
     );
   },
+}));
+
+vi.mock("@/components/ticker-avatar", () => ({ TickerAvatar: () => null }));
+vi.mock("./cash-holdings-sheet", () => ({
+  CashHoldingsSheet: ({ holding, onClose }: { holding: Holding; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Cash (${holding.localCurrency})`}>
+      <button onClick={onClose}>Close cash</button>
+    </div>
+  ),
 }));
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
@@ -208,7 +219,7 @@ describe("HoldingsTable columns", () => {
     expect(screen.getByTestId("exact-type-match")).toHaveTextContent("true");
   });
 
-  it("does not pin cash rows above an explicit column sort", () => {
+  it("keeps cash sortable and opens its account breakdown", () => {
     const cashHolding: Holding = {
       id: "cash-usd",
       accountId: "account-1",
@@ -226,5 +237,9 @@ describe("HoldingsTable columns", () => {
     );
 
     expect(screen.getByTestId("cash-pinning")).toHaveTextContent("undefined");
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog", { name: "Cash (USD)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close cash" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

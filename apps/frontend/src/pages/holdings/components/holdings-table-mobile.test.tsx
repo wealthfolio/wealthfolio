@@ -12,6 +12,13 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
 }));
 vi.mock("./holdings-mobile-filter-sheet", () => ({ HoldingsMobileFilterSheet: () => null }));
+vi.mock("./cash-holdings-sheet", () => ({
+  CashHoldingsSheet: ({ holding, onClose }: { holding: Holding; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Cash (${holding.localCurrency})`}>
+      <button onClick={onClose}>Close cash</button>
+    </div>
+  ),
+}));
 
 const security = {
   id: "holding-1",
@@ -32,7 +39,7 @@ function Detail() {
   return <div role="status">{holding.id}</div>;
 }
 
-it("exposes a real holding link, preserves its context, and leaves cash non-interactive", () => {
+it("opens cash details and preserves security link navigation", () => {
   render(
     <MemoryRouter initialEntries={["/holdings"]}>
       <Routes>
@@ -61,6 +68,10 @@ it("exposes a real holding link, preserves its context, and leaves cash non-inte
   const link = screen.getByRole("link", { name: /TEST/ });
   expect(link).toHaveAttribute("href", "/holdings/asset%2Fwith%20space");
   expect(screen.getAllByRole("link")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+  expect(screen.getByRole("dialog", { name: "Cash (USD)" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Close cash" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   fireEvent.click(link);
   expect(screen.getByRole("status")).toHaveTextContent("holding-1");
 });
