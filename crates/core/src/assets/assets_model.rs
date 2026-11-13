@@ -442,6 +442,13 @@ impl Asset {
         self.kind.is_alternative()
     }
 
+    /// Whether this asset's prices feed stored account values. An alternative
+    /// asset's don't: the portfolio engine leaves alternative positions out of
+    /// account valuations, and net worth reads their values directly.
+    pub fn prices_feed_account_values(&self) -> bool {
+        !self.is_alternative()
+    }
+
     /// Check if this asset is included in investment performance calculations.
     pub fn is_investment(&self) -> bool {
         self.kind.is_investment()
