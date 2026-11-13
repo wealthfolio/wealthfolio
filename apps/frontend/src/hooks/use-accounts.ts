@@ -5,6 +5,10 @@ import { getAccounts } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { AccountPurpose, accountSupportsPurpose } from "@/lib/constants";
 
+// One empty list while accounts load: a new `[]` each render would change the
+// memoized result every render, and forms that reset on it never settle.
+const NO_ACCOUNTS: Account[] = [];
+
 export function useAccounts(options?: {
   filterActive?: boolean;
   includeArchived?: boolean;
@@ -13,7 +17,7 @@ export function useAccounts(options?: {
   const { filterActive = true, includeArchived = false, accountPurpose } = options ?? {};
 
   const {
-    data: fetchedAccounts = [],
+    data: fetchedAccounts = NO_ACCOUNTS,
     isLoading,
     isError,
     error,
