@@ -20,12 +20,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { useHoldingsWithClosedProbe } from "@/hooks/use-holdings";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import {
-  useAlternativeHoldings,
-  useDeleteAlternativeAsset,
-  useLinkLiability,
-  useUnlinkLiability,
-} from "@/hooks/use-alternative-assets";
+import { useAlternativeHoldings } from "@/hooks/use-alternative-assets";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
   AccountPurpose,
@@ -66,15 +61,13 @@ import {
   AssetDetailsSheet,
   UpdateValuationModal,
   toLinkedLiability,
+  useAlternativeAssetMutations,
   type AssetDetailsSheetAsset,
   type LinkableAsset,
   type LinkedLiability,
 } from "@/pages/asset/alternative-assets";
-import { updateAlternativeAssetMetadata } from "@/adapters";
 import { ClassificationSheet } from "@/components/classification/classification-sheet";
 import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
-import { useQueryClient } from "@tanstack/react-query";
-import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
@@ -87,7 +80,6 @@ export const HoldingsPage = () => {
   // Health-center deep-links (e.g. /holdings?filter=negative|unclassified).
   const healthFilter = searchParams.get("filter");
   const healthContext = searchParams.get("healthContext");
-  const queryClient = useQueryClient();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -149,14 +141,11 @@ export const HoldingsPage = () => {
   // Alternative asset action state
   const [editAsset, setEditAsset] = useState<AssetDetailsSheetAsset | null>(null);
   const [updateValueAsset, setUpdateValueAsset] = useState<AlternativeAssetHolding | null>(null);
-  const [isSavingDetails, setIsSavingDetails] = useState(false);
 
-  // Delete mutation
-  const { mutate: deleteAsset, isPending: isDeleting } = useDeleteAlternativeAsset();
-
-  // Linking mutations
-  const linkLiabilityMutation = useLinkLiability();
-  const unlinkLiabilityMutation = useUnlinkLiability();
+  const { deleteMutation, updateMetadataMutation, linkLiabilityMutation, unlinkLiabilityMutation } =
+    useAlternativeAssetMutations();
+  const { mutate: deleteAsset, isPending: isDeleting } = deleteMutation;
+  const { mutateAsync: saveAssetDetails, isPending: isSavingDetails } = updateMetadataMutation;
 
   // State for chained liability creation (when creating property with mortgage checkbox)
   const [pendingLiabilityLink, setPendingLiabilityLink] = useState<string | null>(null);
@@ -243,18 +232,9 @@ export const HoldingsPage = () => {
       notes?: string | null,
       loan?: LoanSetup,
     ) => {
-      setIsSavingDetails(true);
-      try {
-        await updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan);
-        // Invalidate queries to refresh the list and the asset detail page
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
-        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
-      } finally {
-        setIsSavingDetails(false);
-      }
+      await saveAssetDetails({ assetId, metadata, name, notes, loan });
     },
-    [queryClient],
+    [saveAssetDetails],
   );
 
   // Handler to delete an asset
@@ -367,7 +347,7 @@ export const HoldingsPage = () => {
       if (!editAsset) return;
       await linkLiabilityMutation.mutateAsync({
         liabilityId: mortgageId,
-        targetAssetId: editAsset.id,
+        request: { targetAssetId: editAsset.id },
       });
     },
     [editAsset, linkLiabilityMutation],
