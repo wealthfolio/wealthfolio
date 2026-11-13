@@ -242,4 +242,28 @@ describe("HoldingsTable columns", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close cash" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("does not reopen cash details when a removed balance returns", () => {
+    const cash: Holding = {
+      id: "cash-usd",
+      accountId: "account-1",
+      holdingType: HoldingType.CASH,
+      quantity: 100,
+      localCurrency: "USD",
+      baseCurrency: "USD",
+      marketValue: { local: 100, base: 100 },
+      weight: 0.1,
+      asOfDate: "2026-08-20",
+    };
+    const view = (holdings: Holding[]) => <HoldingsTable holdings={holdings} isLoading={false} />;
+    const { rerender } = render(view([cash]));
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(view([]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(view([cash]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });

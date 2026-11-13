@@ -29,6 +29,7 @@ import {
   ROW_ACTIONS_TRIGGER,
 } from "./holdings-table-styles";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
 import { subtractAmounts, sumAmounts } from "@/lib/monetary-value";
@@ -155,6 +156,9 @@ export const HoldingsTable = ({
   const cashHolding = holdings.find(
     (holding) => isCashHolding(holding) && holding.localCurrency === cashCurrency,
   );
+  useEffectOnChange(() => {
+    if (!cashHolding) setCashCurrency(null);
+  }, [cashHolding]);
   const handleCashClick = useCallback(
     (holding: Holding) => setCashCurrency(holding.localCurrency),
     [],
