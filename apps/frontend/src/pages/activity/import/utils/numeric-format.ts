@@ -12,7 +12,6 @@ const NUMERIC_FIELDS: string[] = [
   ImportFormat.FEE,
   ImportFormat.TAX,
   ImportFormat.FX_RATE,
-  "avgCost",
 ];
 
 /** Only well-formed numbers supply evidence; labels and malformed cells do not. */

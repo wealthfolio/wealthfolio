@@ -278,4 +278,44 @@ describe("HoldingsReviewStep validation feedback", () => {
     );
     expect(snapshots[0].positions.map((position) => Number(position.quantity))).toEqual([1, 2.5]);
   });
+
+  it("preserves costs when clearing the quantity of their only format evidence row", () => {
+    const context = useImportContextMock();
+    context.state.parseConfig.decimalSeparator = "auto";
+    context.state.parseConfig.thousandsSeparator = "auto";
+    context.state.headers = ["Date", "Symbol", "Quantity", "Currency", "Cost"];
+    context.state.mapping.fieldMappings.avgCost = "Cost";
+    context.state.parsedRows = [
+      ["2024-07-20", "AAPL", "10", "USD", "1,000"],
+      ["2024-07-20", "MSFT", "5", "USD", "25.50"],
+    ];
+    render(<HoldingsReviewStep />);
+    const { rows, onDataChange } = holdingsDataGridMock.mock.calls.at(-1)?.[0] as {
+      rows: HoldingsRow[];
+      onDataChange: (rows: HoldingsRow[]) => void;
+    };
+    expect(rows[0].avgCost).toBe("1000");
+    act(() =>
+      onDataChange(
+        rows.map((row, index) =>
+          index === 1 ? { ...row, quantity: null } : row,
+        ) as unknown as HoldingsRow[],
+      ),
+    );
+    const edit = dispatch.mock.calls
+      .filter(([action]) => action.type === "SET_PARSED_DATA")
+      .at(-1)?.[0];
+    const snapshots = parseHoldingsSnapshots(
+      context.state.headers,
+      edit.payload.rows,
+      context.state.mapping.fieldMappings,
+      context.state.parseConfig,
+    );
+    expect(snapshots[0].positions).toHaveLength(1);
+    expect(snapshots[0].positions[0]).toMatchObject({
+      symbol: "AAPL",
+      quantity: "10",
+      avgCost: "1000",
+    });
+  });
 });
