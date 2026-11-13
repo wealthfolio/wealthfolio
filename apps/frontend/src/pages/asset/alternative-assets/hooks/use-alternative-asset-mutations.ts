@@ -10,7 +10,6 @@ import {
   unlinkLiability,
 } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
-import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 import { logger } from "@/adapters";
 import type {
   CreateAlternativeAssetRequest,
@@ -28,21 +27,37 @@ interface UseAlternativeAssetMutationsOptions {
   onMetadataUpdateSuccess?: () => void;
 }
 
+/**
+ * Refreshes everything that shows alternative assets, after any change to
+ * one: its details, its values, its loan or its liability links.
+ *
+ * Alternative assets sit outside accounts, and stored account values leave
+ * them out, so performance and valuation history never change with them.
+ * Each query below reads the assets or their values when it loads.
+ */
 export async function invalidateAlternativeAssetQueries(queryClient: QueryClient): Promise<void> {
-  invalidatePerformanceCaches(queryClient);
   // A new value can end a stale valuation in Health Center. Not awaited: a
   // full health check should not hold the save.
   void queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] }),
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] }),
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] }),
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] }),
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] }),
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] }),
-    // The Values table and chart on the asset page.
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY] }),
-  ]);
+  await Promise.all(
+    [
+      QueryKeys.ALTERNATIVE_HOLDINGS,
+      // The asset record and its loan.
+      QueryKeys.ASSET_DATA,
+      // The Values table and chart on the asset page.
+      QueryKeys.QUOTE_HISTORY,
+      QueryKeys.NET_WORTH,
+      QueryKeys.NET_WORTH_HISTORY,
+      // Asset lists, which also show an asset's latest value, and logos.
+      QueryKeys.ASSETS,
+      QueryKeys.ASSET_LOGO_INDEX,
+      // An imported activity can put an alternative asset in an account,
+      // where holdings and allocations value it from its latest value.
+      QueryKeys.HOLDINGS,
+      QueryKeys.ASSET_HOLDINGS,
+      QueryKeys.PORTFOLIO_ALLOCATIONS,
+    ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+  );
 }
 
 export function useAlternativeAssetMutations(options: UseAlternativeAssetMutationsOptions = {}) {
