@@ -84,6 +84,44 @@ describe("HealthPage issue sheet", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("keeps another issue's sheet open when an earlier dismiss finishes", async () => {
+    const user = userEvent.setup();
+    const other: HealthIssue = {
+      ...issue,
+      id: "manual_valuation:stale:def",
+      title: "Valuation not updated for New Shed",
+      dataHash: "def",
+    };
+    adapters.getHealthStatus.mockResolvedValue(status([issue, other]));
+    let finishDismiss = () => {};
+    adapters.dismissHealthIssue.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishDismiss = resolve;
+      }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByText(issue.title));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(
+      Array.from(sheet.querySelectorAll("button")).find((b) => b.textContent === "Dismiss")!,
+    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByText(other.title));
+    await screen.findByRole("dialog");
+
+    finishDismiss();
+    await waitFor(() =>
+      expect(
+        Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
+          (b) => b.textContent === "Dismiss",
+        ),
+      ).toBeEnabled(),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(other.title);
+  });
+
   it("keeps the sheet open when the dismiss fails", async () => {
     const user = userEvent.setup();
     adapters.getHealthStatus.mockResolvedValue(status([issue]));
