@@ -521,12 +521,8 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         );
 
         let asset = self.asset_repository.get_by_id(&request.asset_id)?;
-        if !asset.kind.is_alternative() {
-            return Err(Error::Validation(ValidationError::InvalidInput(format!(
-                "Asset {} is not an alternative asset (kind: {:?})",
-                request.asset_id, asset.kind
-            ))));
-        }
+        // The kinds this service creates, so each can take further values.
+        Self::validate_alternative_asset_kind(&asset.kind)?;
         // The asset's currency, which creating it gave its values too. A value
         // can be added after the last one was deleted.
         let currency = asset.quote_ccy;
@@ -2090,8 +2086,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_value_refuses_assets_that_are_not_alternative() {
-        for kind in [AssetKind::Investment, AssetKind::Fx] {
+    async fn update_value_takes_only_the_kinds_create_takes() {
+        for (kind, accepted) in [
+            (AssetKind::Investment, false),
+            (AssetKind::Fx, false),
+            (AssetKind::PrivateEquity, true),
+            (AssetKind::Property, true),
+        ] {
             let quotes = Arc::new(MockQuoteService {
                 cutoff: Arc::new(std::sync::Mutex::new(None)),
                 added: Default::default(),
@@ -2111,7 +2112,7 @@ mod tests {
                 quotes.clone(),
             );
 
-            let refused = service
+            let saved = service
                 .update_valuation(UpdateValuationRequest {
                     asset_id: "listed".into(),
                     value: Decimal::new(100, 0),
@@ -2120,10 +2121,11 @@ mod tests {
                 })
                 .await;
 
-            assert!(refused.is_err(), "{kind:?} must be refused");
-            assert!(
-                quotes.added.lock().unwrap().is_empty(),
-                "{kind:?} saved a value"
+            assert_eq!(saved.is_ok(), accepted, "{kind:?}");
+            assert_eq!(
+                quotes.added.lock().unwrap().len(),
+                usize::from(accepted),
+                "{kind:?}"
             );
         }
     }
