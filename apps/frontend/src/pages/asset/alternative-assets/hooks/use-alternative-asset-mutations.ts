@@ -40,6 +40,8 @@ export async function invalidateAlternativeAssetQueries(queryClient: QueryClient
     queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] }),
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] }),
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] }),
+    // The Values table and chart on the asset page.
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY] }),
   ]);
 }
 
