@@ -1,18 +1,18 @@
 import { createElement, type ReactNode } from "react";
 import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@/test/render";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@/test/render";
 import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAlternativeAssetQueries,
   useAlternativeAssetMutations,
 } from "./use-alternative-asset-mutations";
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), toast: vi.fn() }));
+const mocks = vi.hoisted(() => ({ update: vi.fn(), updateValuation: vi.fn(), toast: vi.fn() }));
 vi.mock("@/adapters", () => ({
   createAlternativeAsset: vi.fn(),
-  updateAlternativeAssetValuation: vi.fn(),
+  updateAlternativeAssetValuation: mocks.updateValuation,
   updateAlternativeAssetMetadata: mocks.update,
   deleteAlternativeAsset: vi.fn(),
   linkLiability: vi.fn(),
@@ -61,6 +61,40 @@ describe("alternative asset query invalidation", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [QueryKeys.HEALTH_STATUS],
     });
+  });
+});
+
+describe("updating a value", () => {
+  it("reloads the asset's value history", async () => {
+    mocks.updateValuation.mockResolvedValueOnce({
+      quoteId: "q2",
+      valuationDate: "2026-11-01",
+      value: "460000",
+    });
+    // Nothing goes stale on its own here, as with the app's five-minute window.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const loadHistory = vi.fn().mockResolvedValue([]);
+    const { result } = renderHook(
+      () => {
+        useQuery({ queryKey: [QueryKeys.QUOTE_HISTORY, "house"], queryFn: loadHistory });
+        return useAlternativeAssetMutations();
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(loadHistory).toHaveBeenCalledTimes(1));
+
+    await act(() =>
+      result.current.updateValuationMutation.mutateAsync({
+        assetId: "house",
+        request: { value: "460000", date: "2026-11-01" },
+      }),
+    );
+
+    expect(loadHistory).toHaveBeenCalledTimes(2);
   });
 });
 
