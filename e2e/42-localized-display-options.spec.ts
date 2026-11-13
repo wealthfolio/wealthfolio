@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type TestInfo } from "@playwright/test";
+import { expect, test, type TestInfo } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 async function runCleanup(testInfo: TestInfo, testFailed: boolean, steps: (() => Promise<void>)[]) {

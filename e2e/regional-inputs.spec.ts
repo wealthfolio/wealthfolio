@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, gotoAppPath } from "./helpers";
 
 test("manual exchange rates display and save Spain's decimal commas in LTR and RTL", async ({

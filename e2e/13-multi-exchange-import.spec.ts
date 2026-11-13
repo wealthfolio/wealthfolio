@@ -1,4 +1,4 @@
-import { expect, Locator, Page, test } from "@playwright/test";
+import { expect, Locator, Page, test } from "./fixtures";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createAccount, uniqueName } from "./api";

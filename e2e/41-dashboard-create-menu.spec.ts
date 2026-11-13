@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator } from "./fixtures";
 import { restoreSpendingSettings, seedSpendingAccounts } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 

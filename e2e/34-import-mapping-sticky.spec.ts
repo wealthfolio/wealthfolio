@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { createAccount } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 

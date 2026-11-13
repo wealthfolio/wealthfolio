@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 test("Performance filters stay clear of the page tabs at tablet and desktop widths", async ({

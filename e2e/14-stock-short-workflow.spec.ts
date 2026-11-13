@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "./fixtures";
 import { api, createAccount, uniqueName } from "./api";
 import {
   BASE_URL,

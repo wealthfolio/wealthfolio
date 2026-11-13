@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, gotoAppPath } from "./helpers";
 
 test("saved goal health reaches a mounted list and agrees with detail in both directions", async ({

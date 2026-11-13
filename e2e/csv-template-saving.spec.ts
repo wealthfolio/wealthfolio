@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import type { ImportTemplateData } from "../apps/frontend/src/lib/types";
 import { createAccount, uniqueName } from "./api";
 import { BASE_URL, loginIfNeeded } from "./helpers";
