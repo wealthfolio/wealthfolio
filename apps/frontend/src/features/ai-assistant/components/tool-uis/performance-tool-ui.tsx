@@ -263,9 +263,11 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
             <span
               className={cn(
                 "text-lg font-medium tabular-nums",
+                // The amount's own sign: the return can be unavailable while
+                // the amount is known.
                 isBalanceHidden
                   ? "text-muted-foreground"
-                  : isPositiveReturn
+                  : periodPnlAmount >= 0
                     ? "text-gain"
                     : "text-loss",
               )}
