@@ -1,6 +1,7 @@
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { HoldingType } from "@/lib/constants";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { Account, AccountScope, Holding, IncompleteHoldingsAccount } from "@/lib/types";
@@ -97,6 +98,9 @@ export const HoldingsTableMobile = ({
   const cashHolding = holdings.find(
     (holding) => holding.holdingType === HoldingType.CASH && holding.localCurrency === cashCurrency,
   );
+  useEffectOnChange(() => {
+    if (!cashHolding) setCashCurrency(null);
+  }, [cashHolding]);
 
   // Internal state for uncontrolled mode
   const [internalSortBy, setInternalSortBy] = useState<"symbol" | "marketValue">("marketValue");

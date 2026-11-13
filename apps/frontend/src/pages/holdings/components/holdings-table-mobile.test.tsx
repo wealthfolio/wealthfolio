@@ -96,6 +96,33 @@ const cashHolding: Holding = {
 };
 
 describe("HoldingsTableMobile", () => {
+  it("does not reopen cash details when a removed balance returns", () => {
+    const view = (holdings: Holding[]) => (
+      <HoldingsTableMobile
+        holdings={holdings}
+        isLoading={false}
+        selectedTypes={[]}
+        setSelectedTypes={vi.fn()}
+        accountFilter={{ type: "all" }}
+        onAccountScopeChange={vi.fn()}
+        accounts={[]}
+        portfolios={[]}
+        showAccountScope={false}
+        showSearch={false}
+        showFilterButton={false}
+      />
+    );
+    const { rerender } = render(view([cashHolding]));
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(view([]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(view([cashHolding]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Details for Cash (USD)" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("keeps its controls available while holdings load", () => {
     render(
       <HoldingsTableMobile
