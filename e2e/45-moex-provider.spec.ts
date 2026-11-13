@@ -106,10 +106,14 @@ for (const direction of ["ltr", "rtl"] as const) {
       });
       await page.keyboard.press("Escape");
     } finally {
-      if (assetId) await page.request.delete(`${BASE_URL}/api/v1/assets/${assetId}`);
-      await page.request.put(`${BASE_URL}/api/v1/providers/settings`, {
+      // Both run before either is checked, so a failed delete still restores MOEX.
+      const deleted =
+        assetId && (await page.request.delete(`${BASE_URL}/api/v1/assets/${assetId}`));
+      const restored = await page.request.put(`${BASE_URL}/api/v1/providers/settings`, {
         data: { providerId: "MOEX", priority: moex.priority, enabled: moex.enabled },
       });
+      if (deleted) expect(deleted.ok()).toBeTruthy();
+      expect(restored.ok()).toBeTruthy();
     }
   });
 }

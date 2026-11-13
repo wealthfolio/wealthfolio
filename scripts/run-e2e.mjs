@@ -14,15 +14,23 @@ const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
 // `--workers N` (also `--workers=N`, `-j N`) sets how many servers start, so it
 // never exceeds them; it is passed on to Playwright as the runner's own flag.
+// Each worker needs a server started before Playwright runs, so the count must
+// be a whole number: Playwright's percentages are rejected.
+const parseWorkers = (value) => {
+  if (!/^\d+$/.test(value ?? "")) {
+    throw new Error(`--workers takes a whole number of workers, got "${value ?? ""}"`);
+  }
+  return Number(value);
+};
+
 export const splitWorkersArg = (args) => {
   const rest = [];
   let workers;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    const inline = /^--workers=(\d+)$/.exec(arg);
-    if (inline) workers = Number(inline[1]);
-    else if ((arg === "--workers" || arg === "-j") && /^\d+$/.test(args[index + 1] ?? "")) {
-      workers = Number(args[index + 1]);
+    if (arg.startsWith("--workers=")) workers = parseWorkers(arg.slice("--workers=".length));
+    else if (arg === "--workers" || arg === "-j") {
+      workers = parseWorkers(args[index + 1]);
       index += 1;
     } else rest.push(arg);
   }
@@ -30,7 +38,12 @@ export const splitWorkersArg = (args) => {
 };
 
 const { workers: workersArg, rest: cliArgs } = splitWorkersArg(process.argv.slice(2));
-const WORKERS = Math.max(1, workersArg || Number(process.env.WF_E2E_WORKERS) || 4);
+const WORKERS = Math.max(
+  1,
+  workersArg ||
+    (process.env.WF_E2E_WORKERS ? parseWorkers(process.env.WF_E2E_WORKERS) : undefined) ||
+    4,
+);
 const shouldUseUi = cliArgs.includes("--ui");
 
 const buildHealthUrl = (base, path = "/") =>
@@ -127,7 +140,43 @@ const runPlaywrightTests = (extraArgs = [], extraEnv = {}) =>
     });
   });
 
+// Each project's run passes with no matching tests, so check once that the
+// filters match at least one test across both before building anything.
+const checkTestsMatch = () =>
+  new Promise((resolve, reject) => {
+    const list = spawn(
+      "pnpm",
+      [
+        "exec",
+        "playwright",
+        "test",
+        ...cliArgs,
+        // After the arguments: `--project` takes every value up to the next flag.
+        "--list",
+        "--reporter",
+        "list",
+        "--project",
+        "onboarding",
+        "--project",
+        "chromium",
+      ],
+      { stdio: ["ignore", "pipe", "pipe"], env: process.env },
+    );
+    let output = "";
+    list.stdout.on("data", (chunk) => (output += chunk));
+    list.stderr.on("data", (chunk) => (output += chunk));
+    list.once("error", reject);
+    list.once("exit", (code) => {
+      if (code === 0) resolve();
+      else {
+        process.stderr.write(output);
+        reject(new Error("No tests match the given arguments"));
+      }
+    });
+  });
+
 const run = async () => {
+  if (!shouldUseUi) await checkTestsMatch();
   const dataDirectory = await prepE2eEnv();
 
   // Tests run against the built app, not the Vite dev server: every test opens
@@ -207,7 +256,9 @@ const run = async () => {
         join("test-results", "onboarding"),
         ...cliArgs,
       ],
-      // Its own report, which doesn't open and wait while the next run is due.
+      // Each run keeps its results and report in its own folder, since Playwright
+      // empties those folders when it starts. This report doesn't open and wait
+      // while the next run is due.
       {
         ...testEnv,
         PLAYWRIGHT_HTML_OUTPUT_DIR: join("playwright-report", "onboarding"),
@@ -218,8 +269,17 @@ const run = async () => {
     });
     await onboard(urls[0]);
     await runPlaywrightTests(
-      ["--project", "chromium", "--workers", String(WORKERS), "--pass-with-no-tests", ...cliArgs],
-      testEnv,
+      [
+        "--project",
+        "chromium",
+        "--workers",
+        String(WORKERS),
+        "--pass-with-no-tests",
+        "--output",
+        join("test-results", "app"),
+        ...cliArgs,
+      ],
+      { ...testEnv, PLAYWRIGHT_HTML_OUTPUT_DIR: join("playwright-report", "app") },
     ).catch((error) => {
       failure ??= error;
     });

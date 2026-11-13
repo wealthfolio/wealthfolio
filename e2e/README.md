@@ -60,7 +60,14 @@ Options (combine as needed; Playwright arguments such as spec paths or
 Each worker costs a server, a browser and their recalculations. Four suits a
 12-core machine; on a smaller or busier one, use 2-3: specs that check timing,
 scroll or focus start failing under load before the run gets faster. `--workers`
-also sets how many servers start, so the two always match.
+also sets how many servers start, so the two always match; it takes a whole
+number (not Playwright's percentages).
+
+The runner first checks that the given specs or `--grep` match at least one
+test, then runs `01-happy-path` and the other specs as two Playwright runs. Each
+keeps its results and HTML report in its own folder: `test-results/onboarding`
+and `playwright-report/onboarding`, `test-results/app` and
+`playwright-report/app`.
 
 The runner replaces supported market-data providers with fixtures and disables
 other providers. Treasury fixtures supply security terms and yield curves to the
@@ -291,10 +298,12 @@ holdings.
 # Run with Playwright inspector (step through actions)
 npx playwright test e2e/<spec>.spec.ts --debug
 
-# Show the last HTML report
-npx playwright show-report
+# Show the last HTML report (pnpm test:e2e writes playwright-report/app and
+# playwright-report/onboarding; pass the folder)
+npx playwright show-report playwright-report/app
 
-# Open the trace kept for a failed test (playwright.config.ts: trace: "retain-on-failure")
+# Open the trace kept for a failed test (playwright.config.ts: trace: "retain-on-failure";
+# under test-results/app/ or test-results/onboarding/ after pnpm test:e2e)
 npx playwright show-trace test-results/<test-folder>/trace.zip
 ```
 
