@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import frHealth from "../apps/frontend/src/i18n/locales/fr/health.json" with { type: "json" };
 import arHealth from "../apps/frontend/src/i18n/locales/ar/health.json" with { type: "json" };
 import type { HealthIssue } from "../apps/frontend/src/lib/types";

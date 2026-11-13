@@ -1,4 +1,4 @@
-import { expect, Page, test } from "@playwright/test";
+import { expect, Page, test } from "./fixtures";
 import { createAccount, deposit, uniqueName } from "./api";
 import {
   completeOnboardingIfNeeded,

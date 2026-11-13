@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 test("a closed asset counts return of capital once in total return", async ({ page }) => {

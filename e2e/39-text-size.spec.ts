@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { updateSettings } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 

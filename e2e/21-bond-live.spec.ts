@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, loginIfNeeded } from "./helpers";
 
 // Run explicitly against an isolated, non-fixture web server: WF_BOND_LIVE_E2E=1.

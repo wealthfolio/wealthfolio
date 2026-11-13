@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 test("dashboard portfolio selection, creation, persistence, deletion and mobile layout", async ({

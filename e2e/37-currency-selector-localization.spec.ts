@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import zhActivity from "../apps/frontend/src/i18n/locales/zh/activity.json" with { type: "json" };
 import zhSettings from "../apps/frontend/src/i18n/locales/zh/settings.json" with { type: "json" };
 import { createAccount } from "./api";

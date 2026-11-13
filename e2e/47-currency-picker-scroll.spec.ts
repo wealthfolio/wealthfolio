@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 // The desktop currency pickers wrap their options in a ScrollArea inside cmdk's list, which
