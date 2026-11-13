@@ -2952,7 +2952,7 @@ struct TaggedPayments(HashMap<String, Vec<crate::assets::loan::StoredPayment>>);
 
 #[async_trait]
 impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
-    async fn delete_alternative_asset(&self, _: &str) -> Result<()> {
+    async fn delete_alternative_asset(&self, _: &str) -> Result<Vec<crate::activities::Activity>> {
         unimplemented!("not used by net worth")
     }
     async fn update_asset_metadata(&self, _: &str, _: Option<serde_json::Value>) -> Result<()> {
