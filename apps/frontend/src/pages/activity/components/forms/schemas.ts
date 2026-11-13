@@ -1,3 +1,4 @@
+import { chargeLinesAddUp, type ChargeLineFormValues } from "@/lib/activity-charges";
 import { ActivityType, QuoteMode } from "@/lib/constants";
 import { isoDateTimeSchema } from "@/lib/schemas";
 import { invalidTypeError } from "@/lib/zod-errors";
@@ -19,6 +20,59 @@ export const assetMetadataSchema = z
 // otherwise falls back to the English source string (static export / tests).
 type MsgFn = TFunction | undefined;
 const msg = (t: MsgFn, key: string, en: string) => (t ? t(key) : en);
+
+/**
+ * Form fields for an activity's fee and tax lines (`metadata.charges`). Each
+ * line needs a label and an amount; the total they break down is their sum.
+ */
+export const createChargeLineFields = (t?: TFunction) => {
+  const line = z.object({
+    label: z
+      .string()
+      .trim()
+      .min(1, {
+        message: msg(t, "activity:form.err_charge_label_required", "Enter a label."),
+      }),
+    amount: z
+      .number({
+        error: invalidTypeError(
+          msg(t, "activity:form.err_charge_amount_required", "Enter an amount."),
+        ),
+      })
+      .min(0, {
+        message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
+      }),
+  });
+  return {
+    feeLines: z.array(line).optional(),
+    taxLines: z.array(line).optional(),
+    hadChargeLines: z.boolean().optional(),
+    chargeLinesLocked: z.boolean().optional(),
+  };
+};
+
+/** Core checks both totals whenever any lines are sent. */
+export const createChargeLinesRefinement =
+  (t?: TFunction) =>
+  (values: ChargeLineFormValues & { fee?: number; tax?: number }, ctx: z.RefinementCtx) => {
+    if (values.chargeLinesLocked || !(values.feeLines?.length || values.taxLines?.length)) return;
+    for (const category of ["fee", "tax"] as const) {
+      const lines = values[category === "fee" ? "feeLines" : "taxLines"] ?? [];
+      if (chargeLinesAddUp(lines, values[category])) continue;
+      ctx.addIssue({
+        code: "custom",
+        path: [category],
+        message:
+          lines.length === 0
+            ? msg(t, "activity:form.err_charge_lines_total", "Break down this total too.")
+            : msg(
+                t,
+                "activity:form.err_charge_lines_precision",
+                "The line sum is too precise. Use smaller amounts or fewer decimal places.",
+              ),
+      });
+    }
+  };
 
 // Builds the activity schemas. `t` is optional so the exported static schemas
 // keep English messages (used by tests, type inference and the assistant).
@@ -248,6 +302,7 @@ export const createActivitySchemas = (t?: TFunction) => {
   //   - Desktop: `buyFormSchema`/`sellFormSchema` have their own `.superRefine()`
   //   - Mobile: `validateTradeFields()` in the submit handler
   const trade = base.extend({
+    ...createChargeLineFields(t),
     activityType: z.enum([ActivityType.BUY, ActivityType.SELL]),
     assetId: z.string().default(""), // Relaxed: options build OCC symbol at submit
     quantity: z.coerce
@@ -312,6 +367,7 @@ export const createActivitySchemas = (t?: TFunction) => {
   });
 
   const income = base.extend({
+    ...createChargeLineFields(t),
     activityType: z.enum([ActivityType.DIVIDEND, ActivityType.INTEREST]),
     assetId: z.string().min(1, { message: selectSecurity }).optional(),
     // No .positive() on unitPrice: cash records persist quantity/unitPrice as 0,
@@ -356,6 +412,7 @@ export const createActivitySchemas = (t?: TFunction) => {
         showCurrencySelect: z.boolean().optional(),
       }),
     )
+    .superRefine(createChargeLinesRefinement(t))
     .superRefine((activity, ctx) => {
       if (activity.activityType !== ActivityType.ADJUSTMENT || activity.assetId?.trim()) return;
 

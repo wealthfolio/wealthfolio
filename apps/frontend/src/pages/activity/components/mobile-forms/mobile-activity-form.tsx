@@ -44,8 +44,13 @@ import { showValidationToast, type AccountSelectOption } from "../forms/fields";
 import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
 import type { IncomeAmountTypedLast } from "../forms/use-income-amounts";
 import { calculateIncomeReceivedAmount } from "@/lib/activity-final-amount";
+import { chargeLineDefaults, chargeLinesMetadata } from "@/lib/activity-charges";
 import { MobileActivitySteps } from "./mobile-activity-steps";
-import { getMobileActivityAssetId, hasStoredCustomTradeAmount } from "./mobile-activity-utils";
+import {
+  getMobileActivityAssetId,
+  hasStoredCustomTradeAmount,
+  mobileChargeLineCategories,
+} from "./mobile-activity-utils";
 import { Spinner } from "@wealthfolio/ui";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
@@ -438,6 +443,7 @@ export function MobileActivityForm({
       // Saved charges arrive as strings: "0" opens empty too, so typing replaces it.
       fee: Number(activity?.fee) || undefined,
       tax: Number(activity?.tax) || undefined,
+      ...chargeLineDefaults(activity, mobileChargeLineCategories(activity?.activityType)),
       comment: activity?.comment ?? null,
       subtype: activity?.subtype ?? null,
       fxRate,
@@ -519,6 +525,17 @@ export function MobileActivityForm({
   useEffectOnChange(() => {
     if (form.getFieldState("activityType").isDirty) {
       amountWasEdited.current = false;
+      const categories = mobileChargeLineCategories(watchedActivityType);
+      if (!categories.includes("fee")) {
+        form.setValue("feeLines", undefined, { shouldDirty: true });
+      }
+      if (!categories.includes("tax")) {
+        form.setValue("taxLines", undefined, { shouldDirty: true });
+      }
+      // Dividend has no fee field; a previous type's fee must not stay hidden.
+      if (watchedActivityType === ActivityType.DIVIDEND && (form.getValues("fee") ?? 0) !== 0) {
+        form.setValue("fee", 0, { shouldDirty: true });
+      }
     }
   }, [form, watchedActivityType]);
   const effectiveAccounts =
@@ -577,6 +594,11 @@ export function MobileActivityForm({
         contractMultiplier: _multiplier,
         // Cash income's amount before tax is input only; the received amount is saved.
         grossAmount: _grossAmount,
+        // Fee and tax lines are saved as metadata below.
+        feeLines: _feeLines,
+        taxLines: _taxLines,
+        hadChargeLines: _hadChargeLines,
+        chargeLinesLocked: _chargeLinesLocked,
         id,
         ...submitData
       } = data as any;
@@ -634,6 +656,21 @@ export function MobileActivityForm({
       // For bonds: set instrument type
       if (_assetType === "bond") {
         submitData.symbolInstrumentType = submitData.symbolInstrumentType ?? "BOND";
+      }
+
+      // Only the types that show a lines editor save its lines.
+      const chargeCategories = mobileChargeLineCategories(submitData.activityType);
+      const chargesPatch =
+        chargeCategories.length > 0
+          ? chargeLinesMetadata({
+              feeLines: chargeCategories.includes("fee") ? _feeLines : undefined,
+              taxLines: chargeCategories.includes("tax") ? _taxLines : undefined,
+              hadChargeLines: _hadChargeLines,
+              chargeLinesLocked: _chargeLinesLocked,
+            })
+          : undefined;
+      if (chargesPatch) {
+        submitData.metadata = { ...submitData.metadata, ...chargesPatch };
       }
 
       // Ensure symbolQuoteCcy is set — manual/custom symbols leave it undefined

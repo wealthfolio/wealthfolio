@@ -84,6 +84,30 @@ vi.mock("../fields", async () => {
         </div>
       );
     },
+    // The lines editor is left out; its total renders like an amount input.
+    ChargeLinesField: ({
+      totalName: name,
+      label,
+      maxDecimalPlaces,
+    }: {
+      totalName: string;
+      label: string;
+      maxDecimalPlaces?: number;
+    }) => {
+      const { register } = useFormContext();
+      return (
+        <div>
+          <label htmlFor={name}>{label}</label>
+          <input
+            data-testid={`input-${name}`}
+            data-max-decimal-places={maxDecimalPlaces}
+            type="number"
+            id={name}
+            {...register(name, { setValueAs: emptyAsUndefined })}
+          />
+        </div>
+      );
+    },
     QuantityInput: ({ name, label }: { name: string; label: string }) => {
       const { register } = useFormContext();
       return (

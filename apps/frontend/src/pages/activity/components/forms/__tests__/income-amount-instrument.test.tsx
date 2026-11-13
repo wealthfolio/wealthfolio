@@ -52,6 +52,7 @@ vi.mock("../fields", async () => {
       );
     },
     AmountInput: NumberField,
+    ChargeLinesField: ({ totalName }: { totalName: string }) => <NumberField name={totalName} />,
     QuantityInput: NumberField,
     createValidatedSubmit: vi.fn((form, handler) => form.handleSubmit(handler)),
   };
