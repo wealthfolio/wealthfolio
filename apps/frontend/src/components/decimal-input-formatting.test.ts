@@ -6,7 +6,7 @@ import {
 } from "@wealthfolio/ui";
 import { expect, it } from "vitest";
 
-it.each(["en-US", "de-DE", "ar-EG", "fa-IR"])(
+it.each(["en-US", "de-DE", "ar-EG", "fa-IR", "zh-CN-u-nu-hanidec"])(
   "%s preserves precision when localizing canonical decimals",
   (locale) => {
     const numbers = createNumberFormatting(locale);

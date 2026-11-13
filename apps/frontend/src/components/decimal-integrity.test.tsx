@@ -133,6 +133,105 @@ function cell(
 }
 
 describe("decimal-integrity regressions", () => {
+  for (const type of ["number", "string"] as const) {
+    for (const action of ["c", "x"] as const) {
+      it(`${type} ${action} retains the source region after a region change`, async () => {
+        const write = clipboard();
+        const change = vi.fn();
+        const view = render(
+          <Wrapper locale="de-DE">
+            <Grid type={type} onDataChange={change} />
+          </Wrapper>,
+        );
+        fireEvent.click(screen.getByText("Source"));
+        fireEvent.keyDown(screen.getByTestId("grid"), { key: action, ctrlKey: true });
+        await waitFor(() => expect(write).toHaveBeenLastCalledWith("1,125"));
+        view.rerender(
+          <Wrapper locale="en-US">
+            <Grid type={type} onDataChange={change} />
+          </Wrapper>,
+        );
+        fireEvent.click(screen.getByText("Destination"));
+        fireEvent.keyDown(screen.getByTestId("grid"), { key: "v", ctrlKey: true });
+        await waitFor(() => expect(change).toHaveBeenCalled());
+        expect(change.mock.lastCall?.[0][0]).toEqual({
+          a: action === "x" ? null : type === "string" ? "1.125" : 1.125,
+          b: type === "string" ? "1.125" : 1.125,
+        });
+      });
+    }
+    it(`${type} Han decimal copy/paste and editor round trip`, async () => {
+      const locale = "zh-CN-u-nu-hanidec";
+      const write = clipboard();
+      const change = vi.fn();
+      const view = render(
+        <Wrapper locale={locale}>
+          <Grid type={type} onDataChange={change} />
+        </Wrapper>,
+      );
+      fireEvent.click(screen.getByText("Source"));
+      fireEvent.keyDown(screen.getByTestId("grid"), { key: "c", ctrlKey: true });
+      await waitFor(() => expect(write).toHaveBeenLastCalledWith("一.一二五"));
+      fireEvent.click(screen.getByText("Destination"));
+      fireEvent.keyDown(screen.getByTestId("grid"), { key: "v", ctrlKey: true });
+      await waitFor(() => expect(change).toHaveBeenCalled());
+      expect(Number(change.mock.lastCall?.[0][0].b)).toBe(1.125);
+      view.unmount();
+      const update = cell(type, locale);
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "一.一二六" } });
+      fireEvent.blur(screen.getByRole("textbox"));
+      expect(Number(update.mock.lastCall?.[0].value)).toBe(1.126);
+    });
+  }
+  it("retains the source region across grid remounts and multi-cell paste", async () => {
+    const write = clipboard();
+    const change = vi.fn();
+    const source = render(
+      <Wrapper locale="de-DE">
+        <Grid type="string" initialB="12.345" onDataChange={change} />
+      </Wrapper>,
+    );
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "a", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "c", ctrlKey: true });
+    await waitFor(() => expect(write).toHaveBeenLastCalledWith("1,125\t12,345"));
+    source.unmount();
+    render(
+      <Wrapper locale="en-US">
+        <Grid type="string" onDataChange={change} />
+      </Wrapper>,
+    );
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "v", ctrlKey: true });
+    await waitFor(() => expect(change).toHaveBeenCalled());
+    expect(change.mock.lastCall?.[0][0]).toEqual({ a: "1.125", b: "12.345" });
+  });
+  it.each([false, true])(
+    "uses source region for fill, external replacement: %s",
+    async (external) => {
+      const write = clipboard();
+      const change = vi.fn();
+      const view = render(
+        <Wrapper locale="de-DE">
+          <Grid type="string" onDataChange={change} />
+        </Wrapper>,
+      );
+      fireEvent.click(screen.getByText("Source"));
+      fireEvent.keyDown(screen.getByTestId("grid"), { key: "c", ctrlKey: true });
+      await waitFor(() => expect(write).toHaveBeenLastCalledWith("1,125"));
+      if (external) clipboard("2,125");
+      view.rerender(
+        <Wrapper locale="en-US">
+          <Grid type="string" onDataChange={change} />
+        </Wrapper>,
+      );
+      fireEvent.keyDown(screen.getByTestId("grid"), { key: "a", ctrlKey: true });
+      fireEvent.keyDown(screen.getByTestId("grid"), { key: "v", ctrlKey: true });
+      await waitFor(() => expect(change).toHaveBeenCalled());
+      const expected = external ? "2125" : "1.125";
+      expect(change.mock.lastCall?.[0][0]).toEqual({ a: expected, b: expected });
+    },
+  );
   it.each(["number", "string"] as const)(
     "#2216 %s copy/paste preserves stored value",
     async (type) => {

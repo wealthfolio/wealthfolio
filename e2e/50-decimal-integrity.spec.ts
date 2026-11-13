@@ -1,52 +1,39 @@
 import { expect, test } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { api, createAccount, updateSettings } from "./api";
 
 test.use({ locale: "ar-EG", permissions: ["clipboard-read", "clipboard-write"] });
 
-for (const region of ["DE", "system"] as const) {
+for (const { region, switchRegion } of [
+  { region: "DE", switchRegion: false },
+  { region: "system", switchRegion: false },
+  { region: "DE", switchRegion: true },
+] as const) {
   for (const direction of ["ltr", "rtl"] as const) {
-    test(`decimal grid copy/edit persists under ${region} in ${direction}`, async ({ page }) => {
+    test(`decimal grid copy/edit persists under ${region}${switchRegion ? " to US" : ""} in ${direction}`, async ({
+      page,
+    }) => {
       test.setTimeout(180_000);
       await page.setViewportSize({ width: 1600, height: 1000 });
       await completeOnboardingIfNeeded(page);
-      const api = `${BASE_URL}/api/v1`;
-      const original = await page.request.get(`${api}/settings`);
-      expect(original.ok(), await original.text()).toBeTruthy();
-      const { formattingRegion } = (await original.json()) as { formattingRegion: string };
+      const original = await updateSettings(page, { formattingRegion: region });
       try {
-        const settings = await page.request.put(`${api}/settings`, {
-          data: { formattingRegion: region },
+        const { id: accountId } = await createAccount(page, {
+          name: `Decimal ${region} ${direction} ${Date.now()}`,
         });
-        expect(settings.ok(), await settings.text()).toBeTruthy();
-        const account = await page.request.post(`${api}/accounts`, {
-          data: {
-            name: `Decimal ${region} ${direction} ${Date.now()}`,
-            accountType: "SECURITIES",
-            currency: "USD",
-            isDefault: false,
-            isActive: true,
-            isArchived: false,
-            trackingMode: "TRANSACTIONS",
-          },
-        });
-        expect(account.ok(), await account.text()).toBeTruthy();
-        const { id: accountId } = (await account.json()) as { id: string };
         const marker = `decimal-${region}-${direction}-${Date.now()}`;
         for (const [suffix, amount] of [
           ["source", "1.125"],
           ["target", "2.5"],
         ] as const) {
-          const created = await page.request.post(`${api}/activities`, {
-            data: {
-              accountId,
-              activityType: "DEPOSIT",
-              activityDate: "2026-05-11T10:00:00Z",
-              currency: "USD",
-              amount,
-              comment: `${marker}-${suffix}`,
-            },
+          await api(page, "POST", "/activities", {
+            accountId,
+            activityType: "DEPOSIT",
+            activityDate: "2026-05-11T10:00:00Z",
+            currency: "USD",
+            amount,
+            comment: `${marker}-${suffix}`,
           });
-          expect(created.ok(), await created.text()).toBeTruthy();
         }
 
         await gotoAppPath(page, `/activities?dir=${direction}`);
@@ -64,10 +51,29 @@ for (const region of ["DE", "system"] as const) {
         await sourceAmount.click();
         await page.evaluate(() => navigator.clipboard.writeText(""));
         await page.keyboard.press("ControlOrMeta+c");
-        const localized = region === "DE" ? "1,125" : "١٫١٢٥";
+        let localized = region === "DE" ? "1,125" : "١٫١٢٥";
         await expect
           .poll(() => page.evaluate(() => navigator.clipboard.readText()))
           .toBe(localized);
+        if (switchRegion) {
+          // Remount the grid as a settings route would, without reloading the
+          // browser process that owns the in-memory clipboard source locale.
+          await page.evaluate((path) => {
+            window.history.pushState({}, "", path);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }, `/settings/general?dir=${direction}`);
+          const regionSelect = page.getByTestId("formatting-locale-select");
+          await regionSelect.click();
+          await page.getByPlaceholder("Search...").fill("United States");
+          await page.getByRole("option", { name: "United States", exact: true }).click();
+          await expect(regionSelect).toHaveText("United States");
+          await page.evaluate((path) => {
+            window.history.pushState({}, "", path);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }, `/activities?dir=${direction}`);
+          await page.getByTestId("edit-mode-toggle").click();
+          localized = "1.125";
+        }
         await targetAmount.click();
         await page.keyboard.press("ControlOrMeta+v");
         await targetAmount.dblclick();
@@ -89,7 +95,7 @@ for (const region of ["DE", "system"] as const) {
           await page.keyboard.press("F2");
           await expect(input).toHaveValue(localized);
         }
-        await input.fill(region === "DE" ? "1,126" : "١٫١٢٦");
+        await input.fill(localized.replace(/5$/, "6").replace(/٥$/, "٦"));
         await input.press("Tab");
         await page.getByRole("button", { name: "Save changes", exact: true }).click();
         await expect(
@@ -99,21 +105,20 @@ for (const region of ["DE", "system"] as const) {
 
         await expect
           .poll(async () => {
-            const response = await page.request.post(`${api}/activities/search`, {
-              data: { page: 0, pageSize: 10, accountIdFilter: [accountId] },
-            });
-            expect(response.ok()).toBeTruthy();
-            const { data } = (await response.json()) as {
+            const { data } = await api<{
               data: { comment: string; amount: string }[];
-            };
+            }>(page, "POST", "/activities/search", {
+              page: 0,
+              pageSize: 10,
+              accountIdFilter: [accountId],
+            });
             return Object.fromEntries(
               data.map((activity) => [activity.comment, Number(activity.amount)]),
             );
           })
           .toEqual({ [`${marker}-source`]: 1.126, [`${marker}-target`]: 1.125 });
       } finally {
-        const restored = await page.request.put(`${api}/settings`, { data: { formattingRegion } });
-        expect(restored.ok(), await restored.text()).toBeTruthy();
+        await api(page, "PUT", "/settings", original);
       }
     });
   }

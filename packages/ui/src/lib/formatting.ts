@@ -425,7 +425,10 @@ function stripFinancialAffixes(value: string, locale: string): FinancialNumberIn
     .replace(/^([+\-−]?)\s*\p{Sc}\s*/u, "$1")
     .replace(/\s*\p{Sc}\s*$/u, "")
     .trim();
-  if (/\p{L}|\p{Sc}/u.test(result)) return null;
+  // Some supported digits (for example hanidec 一) are Unicode letters. Check
+  // their numeric equivalents, but retain the source digits for separator rules
+  // and currency-affix detection below.
+  if (/\p{L}|\p{Sc}/u.test(normalizeLocalizedDigits(result, locale))) return null;
   const hasCurrencyAffix = result !== value.trim();
   // In locales such as ar-EG, the parser reads a bare "+" as Arabic notation and
   // then treats Latin "." and "," as Arabic separator aliases.
