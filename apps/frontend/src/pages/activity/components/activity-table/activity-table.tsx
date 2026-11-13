@@ -961,11 +961,15 @@ export const ActivityTable = ({
               sticky cells, so the cells draw the header's bottom line.
               The page header's offset only applies when the header pins to
               the page. While the box scrolls sideways the header pins to the
-              box instead, where that offset would push it down over the rows. */}
+              box instead, where that offset would push it down over the rows.
+              Engines without `overflow: clip` keep `globals.css`'s
+              `overflow-x: hidden` up to 1024px, which makes an ancestor the
+              scroller there too, so they get the offset only above 1024px. */}
           <TableHeader
             className={cn(
               "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
-              !scrollsSideways && "top-[var(--page-header-height,0px)]",
+              !scrollsSideways &&
+                "supports-[overflow:clip]:top-[var(--page-header-height,0px)] [@media(width>1024px)]:top-[var(--page-header-height,0px)]",
             )}
           >
             {table.getHeaderGroups().map((headerGroup) => (
