@@ -258,12 +258,10 @@ export function HoldingsReviewStep() {
       // Map grid edits back to parsedRows
       const updatedParsedRows = [...parsedRows];
       const previousRows = new Map(holdingsRows.map((row) => [row.rowIndex, row]));
-      const quantityChanged = nextRows.some(
-        (row) => row.quantity !== previousRows.get(row.rowIndex)?.quantity,
-      );
-      const avgCostChanged = nextRows.some(
-        (row) => row.avgCost !== previousRows.get(row.rowIndex)?.avgCost,
-      );
+      const numericChanged = nextRows.some((row) => {
+        const previous = previousRows.get(row.rowIndex);
+        return row.quantity !== previous?.quantity || row.avgCost !== previous?.avgCost;
+      });
       const editDecimal = resolveNumericDecimalSeparator(
         "",
         parseConfig.decimalSeparator,
@@ -286,11 +284,10 @@ export function HoldingsReviewStep() {
 
       for (const row of nextRows) {
         const origRow = [...(updatedParsedRows[row.rowIndex] || [])];
-        // Grid values are already normalized. Rewrite the edited column together
-        // so removing its only format evidence cannot reinterpret untouched cells.
-        if (quantityChanged && quantityIndex >= 0)
-          origRow[quantityIndex] = formatEdit(row.quantity);
-        if (avgCostChanged && avgCostIndex >= 0) origRow[avgCostIndex] = formatEdit(row.avgCost);
+        // Preserve both normalized columns together: clearing a quantity can hide
+        // the only row that establishes either column's number format.
+        if (numericChanged && quantityIndex >= 0) origRow[quantityIndex] = formatEdit(row.quantity);
+        if (numericChanged && avgCostIndex >= 0) origRow[avgCostIndex] = formatEdit(row.avgCost);
         if (currencyIndex >= 0 && row.currency !== previousRows.get(row.rowIndex)?.currency) {
           origRow[currencyIndex] = row.currency;
         }
