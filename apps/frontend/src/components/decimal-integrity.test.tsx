@@ -53,11 +53,13 @@ function Grid({
   onDataChange,
   initial = "1.125",
   initialB,
+  rowCount = 1,
 }: {
   type: "string" | "number";
   onDataChange: (data: Row[]) => void;
   initial?: string;
   initialB?: string;
+  rowCount?: number;
 }) {
   const columns = useMemo<ColumnDef<Row>[]>(
     () =>
@@ -68,13 +70,12 @@ function Grid({
     [type],
   );
   const data = useMemo(
-    () => [
-      {
+    () =>
+      Array.from({ length: rowCount }, () => ({
         a: type === "string" ? initial : Number(initial),
         b: initialB === undefined ? null : type === "string" ? initialB : Number(initialB),
-      },
-    ],
-    [type, initial, initialB],
+      })),
+    [type, initial, initialB, rowCount],
   );
   const grid = useDataGrid({ data, columns, enablePaste: true, onDataChange });
   return (
@@ -133,6 +134,32 @@ function cell(
 }
 
 describe("decimal-integrity regressions", () => {
+  it("retains the source region when the OS changes clipboard line endings", async () => {
+    const write = clipboard();
+    const change = vi.fn();
+    const view = render(
+      <Wrapper locale="de-DE">
+        <Grid type="string" initialB="12.345" rowCount={2} onDataChange={change} />
+      </Wrapper>,
+    );
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "a", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "c", ctrlKey: true });
+    const text = "1,125\t12,345\n1,125\t12,345";
+    await waitFor(() => expect(write).toHaveBeenLastCalledWith(text));
+    clipboard(text.replaceAll("\n", "\r\n"));
+    view.rerender(
+      <Wrapper locale="en-US">
+        <Grid type="string" rowCount={2} onDataChange={change} />
+      </Wrapper>,
+    );
+    fireEvent.keyDown(screen.getByTestId("grid"), { key: "v", ctrlKey: true });
+    await waitFor(() => expect(change).toHaveBeenCalled());
+    expect(change.mock.lastCall?.[0]).toEqual([
+      { a: "1.125", b: "12.345" },
+      { a: "1.125", b: "12.345" },
+    ]);
+  });
   for (const type of ["number", "string"] as const) {
     for (const action of ["c", "x"] as const) {
       it(`${type} ${action} retains the source region after a region change`, async () => {

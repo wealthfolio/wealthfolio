@@ -809,9 +809,14 @@ function useDataGrid<TData>({
           if (!clipboardText) return;
         }
 
-        // A different clipboard payload belongs to an external copy; parse it
-        // with the current region instead of retaining an obsolete source.
-        if (copiedNumberFormatting?.text !== clipboardText) copiedNumberFormatting = undefined;
+        // Windows clipboard writes may convert LF to CRLF. Ignore that change
+        // when matching; other payloads use the current region's parser.
+        if (
+          copiedNumberFormatting?.text.replaceAll("\r\n", "\n") !==
+          clipboardText.replaceAll("\r\n", "\n")
+        ) {
+          copiedNumberFormatting = undefined;
+        }
         const numberLocale = copiedNumberFormatting?.locale ?? locale;
         const pasteNumbers = copiedNumberFormatting?.numbers ?? numberFormatting;
 
