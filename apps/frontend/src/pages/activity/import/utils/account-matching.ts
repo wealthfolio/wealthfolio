@@ -51,8 +51,9 @@ function buildAccountIndexes(accounts: readonly Account[]) {
 
 /**
  * Collect the distinct, non-blank account values a CSV column holds. Fallback
- * column arrays resolve to the first non-blank value in the row, matching how
- * mapped values are read elsewhere in the wizard.
+ * column arrays resolve to the first non-blank value in the row, and of two
+ * columns with the same name the last is read, matching how mapped values are
+ * read elsewhere in the wizard.
  */
 export function collectCsvAccountValues(
   rows: readonly string[][],
@@ -63,7 +64,7 @@ export function collectCsvAccountValues(
 
   const mappedHeaders = Array.isArray(fieldMapping) ? fieldMapping : [fieldMapping];
   const indices = mappedHeaders
-    .map((header) => headers.indexOf(header))
+    .map((header) => headers.lastIndexOf(header))
     .filter((index) => index !== -1);
   if (indices.length === 0) return [];
 

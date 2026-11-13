@@ -59,7 +59,11 @@ import {
 } from "./utils/asset-review-utils";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "./utils/account-matching";
 import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
-import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
+import {
+  findMappedActivityType,
+  isinFallbackSymbol,
+  validateTickerSymbol,
+} from "./utils/validation-utils";
 import {
   activityTypeAllowedForImportProfile,
   getActivityImportProfileForImportContext,
@@ -102,7 +106,7 @@ const HOLDINGS_REQUIRED_FIELDS: HoldingsFormat[] = [
 /**
  * Check if a step can proceed to the next step (for activity import)
  */
-function useStepValidation(
+export function useStepValidation(
   isHoldingsMode: boolean,
   importProfile: ActivityImportProfile,
   accounts?: Account[],
@@ -128,6 +132,8 @@ function useStepValidation(
         }
 
         // Activity mode: existing validation logic
+        // Columns are found with lastIndexOf: when two share a name, draft
+        // creation and the preview read the last one, so the check must too.
         if (!mapping) return false;
         // Rows skipped in this step don't need their values mapped
         const skippedRows = new Set(state.skippedRowIndexes);
@@ -139,7 +145,7 @@ function useStepValidation(
 
         if (mapping.fieldMappings[ImportFormat.ACCOUNT]) {
           const accountCol = primaryHeader(mapping.fieldMappings[ImportFormat.ACCOUNT]);
-          const accountHeaderIndex = accountCol ? headers.indexOf(accountCol) : -1;
+          const accountHeaderIndex = accountCol ? headers.lastIndexOf(accountCol) : -1;
           if (accountHeaderIndex === -1) {
             return false;
           }
@@ -174,7 +180,7 @@ function useStepValidation(
           const atHeaders = Array.isArray(activityTypeMapping)
             ? activityTypeMapping
             : [activityTypeMapping];
-          const atIndices = atHeaders.map((h) => headers.indexOf(h)).filter((i) => i !== -1);
+          const atIndices = atHeaders.map((h) => headers.lastIndexOf(h)).filter((i) => i !== -1);
 
           if (atIndices.length > 0) {
             const uniqueValues = new Set<string>();
@@ -208,19 +214,25 @@ function useStepValidation(
 
         const symbolColumn = primaryHeader(mapping.fieldMappings[ImportFormat.SYMBOL]);
         if (symbolColumn) {
-          const symbolHeaderIndex = headers.indexOf(symbolColumn);
+          const symbolHeaderIndex = headers.lastIndexOf(symbolColumn);
 
           // Activity type indices for per-row type resolution
           const atMapping = mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE];
           const atCols = atMapping
             ? (Array.isArray(atMapping) ? atMapping : [atMapping])
-                .map((h) => headers.indexOf(h))
+                .map((h) => headers.lastIndexOf(h))
                 .filter((i) => i !== -1)
             : [];
           const subtypeMapping = mapping.fieldMappings[ImportFormat.SUBTYPE];
           const subtypeCols = subtypeMapping
             ? (Array.isArray(subtypeMapping) ? subtypeMapping : [subtypeMapping])
-                .map((h) => headers.indexOf(h))
+                .map((h) => headers.lastIndexOf(h))
+                .filter((i) => i !== -1)
+            : [];
+          const isinMapping = mapping.fieldMappings[ImportFormat.ISIN];
+          const isinCols = isinMapping
+            ? (Array.isArray(isinMapping) ? isinMapping : [isinMapping])
+                .map((h) => headers.lastIndexOf(h))
                 .filter((i) => i !== -1)
             : [];
 
@@ -258,6 +270,10 @@ function useStepValidation(
                   return;
                 }
               }
+
+              // A row whose Symbol isn't a symbol resolves by its valid ISIN instead
+              const isin = isinCols.map((idx) => row[idx]?.trim()).find(Boolean);
+              if (isinFallbackSymbol(symbol, isin)) return;
 
               symbolsNeedingResolution.add(symbol);
             });

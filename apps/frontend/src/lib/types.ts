@@ -1550,6 +1550,8 @@ export interface ImportAssetCandidate {
   isin?: string;
   providerId?: string;
   providerSymbol?: string;
+  /** Instrument name from the import file, used when no provider names a new asset. */
+  name?: string;
 }
 
 export type ImportAssetPreviewStatus =
