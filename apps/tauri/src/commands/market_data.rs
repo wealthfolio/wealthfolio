@@ -148,6 +148,9 @@ pub async fn update_quote(
 ) -> Result<(), String> {
     let context = state.context()?;
     debug!("Updating quote: {:?}", quote);
+    let feeds_accounts = context
+        .quote_service()
+        .prices_feed_account_values(&quote.asset_id);
     context
         .quote_service()
         .update_quote(quote.clone())
@@ -159,14 +162,16 @@ pub async fn update_quote(
 
     // Manual quote update - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the updated quotes
-    let handle = handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let payload = PortfolioRequestPayload::builder()
-            .account_ids(None)
-            .market_sync_mode(MarketSyncMode::None)
-            .build();
-        emit_portfolio_trigger_recalculate(&handle, payload, &context);
-    });
+    if feeds_accounts {
+        let handle = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            let payload = PortfolioRequestPayload::builder()
+                .account_ids(None)
+                .market_sync_mode(MarketSyncMode::None)
+                .build();
+            emit_portfolio_trigger_recalculate(&handle, payload, &context);
+        });
+    }
     Ok(())
 }
 
@@ -178,6 +183,8 @@ pub async fn delete_quote(
 ) -> Result<(), String> {
     let context = state.context()?;
     debug!("Deleting quote: {}", id);
+    // Asked first: once deleted, the quote can't say whose price it was.
+    let feeds_accounts = context.quote_service().quote_feeds_account_values(&id);
     context
         .quote_service()
         .delete_quote(&id)
@@ -188,14 +195,16 @@ pub async fn delete_quote(
 
     // Manual quote deletion - no market sync needed, but force full recalculation
     // so historical valuations are recomputed without the deleted quotes
-    let handle = handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let payload = PortfolioRequestPayload::builder()
-            .account_ids(None)
-            .market_sync_mode(MarketSyncMode::None)
-            .build();
-        emit_portfolio_trigger_recalculate(&handle, payload, &context);
-    });
+    if feeds_accounts {
+        let handle = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            let payload = PortfolioRequestPayload::builder()
+                .account_ids(None)
+                .market_sync_mode(MarketSyncMode::None)
+                .build();
+            emit_portfolio_trigger_recalculate(&handle, payload, &context);
+        });
+    }
     Ok(())
 }
 

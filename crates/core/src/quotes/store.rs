@@ -103,6 +103,9 @@ pub trait QuoteStore: Send + Sync {
     /// * `quote_id` - The unique identifier of the quote to delete
     async fn delete_quote(&self, quote_id: &str) -> Result<()>;
 
+    /// The asset a stored quote prices, or `None` when no quote has this ID.
+    fn quote_asset_id(&self, quote_id: &str) -> Result<Option<String>>;
+
     /// Upserts multiple quotes in a single batch operation.
     ///
     /// This is the preferred method for bulk imports and sync operations.
