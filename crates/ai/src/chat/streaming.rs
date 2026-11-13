@@ -147,6 +147,18 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             .is_some_and(|model| model.supports_images());
     }
 
+    // Get the tools allowlist for this provider (None = all tools allowed)
+    // The device's model gets its own short list, within the user's.
+    let tools_allowlist = provider_service.get_tools_allowlist(&provider_id);
+    let tools_allowlist = if on_device {
+        Some(on_device_tools(tools_allowlist.as_deref()))
+    } else {
+        tools_allowlist
+    };
+    let import_csv_allowed = tools_allowlist
+        .as_ref()
+        .is_none_or(|list| list.iter().any(|tool| tool == "import_csv"));
+
     let base_currency = env.base_currency();
     let user_time = user_time_context(env.as_ref());
 
@@ -189,7 +201,9 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             message text and the attachment action itself to determine their request.",
         );
     }
-    if has_csv_attachment {
+    // Only where the tool is offered: the device's model, or a user's own
+    // tool list, can leave it out.
+    if has_csv_attachment && import_csv_allowed {
         turn_context.push_str(
             "\nThe user attached a CSV, which requests the existing CSV import preview. Call \
             `import_csv` with the attached file's name in `attachmentName`; the app reads the file \
@@ -253,15 +267,6 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
 
     // Clone env for repository access in stream_agent_response
     let repo = env.chat_repository();
-
-    // Get the tools allowlist for this provider (None = all tools allowed)
-    // The device's model gets its own short list, within the user's.
-    let tools_allowlist = provider_service.get_tools_allowlist(&provider_id);
-    let tools_allowlist = if on_device {
-        Some(on_device_tools(tools_allowlist.as_deref()))
-    } else {
-        tools_allowlist
-    };
 
     // If this provider has a restricted allowlist, clarify the limitation behavior.
     // The device's model has its own short line for this: it repeats this
@@ -1547,6 +1552,94 @@ mod tests {
             report.http_status = status;
             assert_eq!(stream_error_code(&PromptError::Report(report)), expected);
         }
+    }
+
+    /// A device model that answers the routing step with "general" and every
+    /// other request with "ok", and keeps the prompts it was sent.
+    #[derive(Debug, Default)]
+    struct PromptLog(std::sync::Mutex<Vec<String>>);
+
+    impl crate::on_device::OnDeviceModel for PromptLog {
+        fn status(&self) -> crate::on_device::OnDeviceModelStatus {
+            crate::on_device::OnDeviceModelStatus::Available
+        }
+        fn context_size(&self) -> usize {
+            8192
+        }
+        fn start(
+            &self,
+            request: crate::on_device::OnDeviceRequest,
+        ) -> Box<dyn crate::on_device::OnDeviceSession> {
+            let answer = if request.choices.is_empty() {
+                self.0.lock().unwrap().push(request.prompt);
+                "ok"
+            } else {
+                "general"
+            };
+            Box::new(ScriptedSession(vec![
+                crate::on_device::OnDeviceEvent::Done,
+                crate::on_device::OnDeviceEvent::Text(answer.into()),
+            ]))
+        }
+    }
+
+    struct ScriptedSession(Vec<crate::on_device::OnDeviceEvent>);
+
+    #[async_trait::async_trait]
+    impl crate::on_device::OnDeviceSession for ScriptedSession {
+        async fn next(
+            &mut self,
+        ) -> Option<Result<crate::on_device::OnDeviceEvent, crate::on_device::OnDeviceError>>
+        {
+            self.0.pop().map(Ok)
+        }
+        fn send_tool_output(&self, _call_id: &str, _output: &str) {}
+    }
+
+    /// The device's model has no `import_csv`, so an attached CSV must not
+    /// tell it to call that tool.
+    #[tokio::test]
+    async fn a_csv_attachment_names_import_csv_only_where_it_is_offered() {
+        use crate::env::test_env::MockEnvironment;
+
+        let log = Arc::new(PromptLog::default());
+        let mut env = MockEnvironment::new();
+        env.on_device_model = Some(log.clone());
+        let env = Arc::new(env);
+        let csv = MessageAttachment {
+            name: "trades.csv".into(),
+            content_type: "text/csv".into(),
+            data: "date,symbol\n2026-11-03,AAPL".into(),
+        };
+        let (tx, mut rx) = mpsc::channel(100);
+        let drain = tokio::spawn(async move { while rx.recv().await.is_some() {} });
+
+        spawn_chat_stream(
+            env,
+            tx,
+            "Import this file".into(),
+            Vec::new(),
+            vec![csv.clone()],
+            vec![csv],
+            ON_DEVICE_PROVIDER_ID.into(),
+            "on-device".into(),
+            "thread".into(),
+            "run".into(),
+            "message".into(),
+            Some("Title".into()),
+            Some("Title".into()),
+            false,
+            None,
+            false,
+            ChatWorkingContext::default(),
+        )
+        .await
+        .unwrap();
+        drain.await.unwrap();
+
+        let prompts = log.0.lock().unwrap();
+        assert!(!prompts.is_empty(), "the device got the message");
+        assert!(prompts.iter().all(|prompt| !prompt.contains("import_csv")));
     }
 
     #[tokio::test]

@@ -86,7 +86,13 @@ async function pickAndConfirm(account: RegExp) {
 describe("an AI draft without an account", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    adapter.createActivity.mockResolvedValue({ id: "created-deposit" });
+    adapter.createActivity.mockImplementation(
+      async (activity: { accountId: string; currency: string }) => ({
+        id: "created-deposit",
+        accountId: activity.accountId,
+        currency: activity.currency,
+      }),
+    );
   });
 
   it("offers the accounts in place and confirms with the one picked", async () => {
@@ -127,6 +133,29 @@ describe("an AI draft without an account", () => {
       accountId: "acc-tfsa",
       currency: "USD",
     });
+  });
+
+  it("shows the picked account and its currency once recorded", async () => {
+    renderCard(draftResult());
+
+    await pickAndConfirm(/TFSA/);
+
+    expect(await screen.findByText("Activity Recorded")).toBeInTheDocument();
+    expect(screen.getByText("TFSA")).toBeInTheDocument();
+    expect(screen.getByText(/CA\$500/)).toBeInTheDocument();
+  });
+
+  it("shows what was recorded when the thread is opened again", () => {
+    renderCard({
+      ...draftResult(),
+      submitted: true,
+      createdActivityId: "created-deposit",
+      recorded: { accountId: "acc-tfsa", accountName: "TFSA", currency: "CAD" },
+    });
+
+    expect(screen.getByText("Activity Recorded")).toBeInTheDocument();
+    expect(screen.getByText("TFSA")).toBeInTheDocument();
+    expect(screen.getByText(/CA\$500/)).toBeInTheDocument();
   });
 
   it("shows the draft's own account without a picker", () => {

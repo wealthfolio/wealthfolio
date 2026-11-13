@@ -12,12 +12,12 @@
 //! The eval binary in `crates/ai` cannot reach the device's model, which only
 //! this crate links, so this entry point hands the model to the same runner.
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn main() {
-    eprintln!("Apple Intelligence evals need macOS.");
+    eprintln!("Apple Intelligence evals need an Apple silicon Mac.");
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     use std::path::PathBuf;

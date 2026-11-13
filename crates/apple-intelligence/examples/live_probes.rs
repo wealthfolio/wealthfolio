@@ -10,12 +10,12 @@
 //!     WF_PROBE_TRIALS   - runs per question (default: 1)
 //!     WF_PROBE_FILTER   - only questions containing this text (`a|b` for either)
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn main() {
-    eprintln!("Apple Intelligence probes need macOS.");
+    eprintln!("Apple Intelligence probes need an Apple silicon Mac.");
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod probes {
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
@@ -633,7 +633,7 @@ mod probes {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     probes::run().await

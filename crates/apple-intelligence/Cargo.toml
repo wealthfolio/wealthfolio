@@ -6,12 +6,12 @@ description = "Apple Intelligence's on-device model as a Wealthfolio AI provider
 license = "AGPL-3.0"
 repository = "https://github.com/wealthfolio/wealthfolio"
 
-# Everything here is macOS-only: on other targets the crate is empty and its
-# build script does nothing, so the workspace still builds everywhere.
-[target.'cfg(target_os = "macos")'.dependencies]
+# Everything here is for Apple silicon Macs, the only Macs that run Apple
+# Intelligence: on other targets the crate is empty and its build script does
+# nothing, so the workspace still builds everywhere. The build script's own
+# dependency stays macOS-wide because the script compiles on any Mac host.
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 async-trait = { workspace = true }
-log = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 wealthfolio-ai = { path = "../ai" }
@@ -19,7 +19,7 @@ wealthfolio-ai = { path = "../ai" }
 [target.'cfg(target_os = "macos")'.build-dependencies]
 swift-rs = { version = "1.0.9", features = ["build"] }
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 # The live eval runner and the mock environment, for the examples.
 wealthfolio-ai = { path = "../ai", features = ["eval"] }

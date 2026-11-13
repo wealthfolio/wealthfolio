@@ -454,11 +454,10 @@ impl OnDeviceRuntime {
         match route {
             Route::AllTools => {}
             Route::Portfolio => request.tools.retain(|tool| tool.name != SPENDING_TOOL),
-            // Unless the user's tool list leaves that tool out.
-            Route::Only(name) if request.tools.iter().any(|tool| tool.name == name) => {
-                request.tools.retain(|tool| tool.name == name);
-            }
-            Route::Only(_) => {}
+            // When the user's tool list leaves that tool out, no other tool
+            // answers in its place: the prompt's no-tools rule makes the
+            // model say it does not have that information.
+            Route::Only(name) => request.tools.retain(|tool| tool.name == name),
             Route::NoTools => request.tools.clear(),
         }
         // A prompt that describes a tool the reply lacks makes the model call
@@ -702,12 +701,12 @@ fn tool_output_text(result: &ToolResult) -> String {
 }
 
 /// Tokens of the context window kept free for the outputs of the tools one
-/// message calls, at most: a smaller window keeps 3/8 of itself.
+/// message calls.
 const TOOL_OUTPUT_RESERVE: usize = 3000;
 
 /// Tokens kept free for the reply when the request sets no limit. A reply
-/// also takes at most 1/8 of the window, so macOS 26's 4,096 tokens still
-/// leave room for the conversation.
+/// also takes at most 1/8 of the window, whatever the provider's Max tokens
+/// setting says, so a large setting cannot crowd out the conversation.
 const DEFAULT_REPLY_TOKENS: usize = 1024;
 
 /// Tokens counted for each image sent with the prompt. The model resizes
@@ -845,7 +844,7 @@ fn on_device_request(request: &CompletionRequest, context_size: usize) -> Option
         + if tools.is_empty() {
             0
         } else {
-            TOOL_OUTPUT_RESERVE.min(context_size * 3 / 8)
+            TOOL_OUTPUT_RESERVE
         };
     let history = newest_turns_that_fit(turns, context_size.saturating_sub(taken));
 
@@ -935,6 +934,7 @@ const SPENDING_TOP_DAYS: usize = 3;
 fn spending_summary(output: &str) -> Option<String> {
     use chrono::{Datelike, NaiveDate};
     use serde_json::{json, Map, Value};
+    use wealthfolio_core::utils::time_utils::activity_date_in_user_timezone;
 
     let value: Value = serde_json::from_str(output).ok()?;
     match value.pointer("/context/availability")?.as_str()? {
@@ -960,11 +960,21 @@ fn spending_summary(output: &str) -> Option<String> {
             .and_then(Value::as_f64)
             .map(|fraction| (fraction * 100.0).round())
     };
+    // The period's bounds are UTC instants of the user's local midnights, so
+    // their dates are read in the user's timezone: 2026-10-31T23:00Z is
+    // November 1 in Berlin.
+    let timezone = value
+        .pointer("/context/timezone")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let day = |field: &str| {
-        insight
+        let bound = insight
             .pointer(&format!("/period/{field}"))
-            .and_then(Value::as_str)
-            .map(|date| date.chars().take(10).collect::<String>())
+            .and_then(Value::as_str)?;
+        Some(match chrono::DateTime::parse_from_rfc3339(bound) {
+            Ok(instant) => activity_date_in_user_timezone(instant.to_utc(), timezone).to_string(),
+            Err(_) => bound.chars().take(10).collect(),
+        })
     };
 
     let mut categories: Vec<&Value> = insight
@@ -1584,6 +1594,46 @@ mod tests {
         .to_string()
     }
 
+    /// The period's bounds are UTC instants of local midnights; the summary
+    /// gives the device the user's own dates, as the user named them.
+    #[test]
+    fn the_spending_period_is_given_in_the_users_dates() {
+        let in_zone = |timezone: &str, start: &str, end: &str| {
+            let mut output: serde_json::Value =
+                serde_json::from_str(&insight_output("available")).unwrap();
+            output["context"]["timezone"] = serde_json::json!(timezone);
+            output["insight"]["period"] = serde_json::json!({ "start": start, "end": end });
+            let summary: serde_json::Value =
+                serde_json::from_str(&on_device_output(SPENDING_TOOL, &output.to_string()))
+                    .unwrap();
+            (summary["from"].clone(), summary["to"].clone())
+        };
+
+        // November 1 to 12, as the spending tool bounds it in each zone.
+        assert_eq!(
+            in_zone(
+                "Europe/Berlin",
+                "2026-10-31T23:00:00+00:00",
+                "2026-11-12T22:59:59.999+00:00"
+            ),
+            (
+                serde_json::json!("2026-11-01"),
+                serde_json::json!("2026-11-12")
+            )
+        );
+        assert_eq!(
+            in_zone(
+                "America/New_York",
+                "2026-11-01T04:00:00+00:00",
+                "2026-11-13T04:59:59.999+00:00"
+            ),
+            (
+                serde_json::json!("2026-11-01"),
+                serde_json::json!("2026-11-12")
+            )
+        );
+    }
+
     #[test]
     fn the_spending_insight_reaches_the_device_cut_to_its_summary() {
         let summary: serde_json::Value = serde_json::from_str(&on_device_output(
@@ -1703,6 +1753,20 @@ mod tests {
             ["text:Here.", "end"]
         );
         assert_eq!(log.lock().unwrap().requests[0].tools.len(), 3);
+    }
+
+    /// Spending turned off in the user's tool list: a spending question gets
+    /// no tools, rather than the portfolio reads and the record tool.
+    #[tokio::test]
+    async fn a_routed_tool_the_user_turned_off_leaves_no_tools() {
+        let (model, log) = FakeModel::new(vec![vec![text("I don't have that."), done()]]);
+        model.routes_as(vec![text(ROUTE_SPENDING), done()]);
+        let runtime = runtime(model);
+        let mut request = request_with_a_tool("What did I spend on restaurants?");
+        request.tools.retain(|tool| tool.name != SPENDING_TOOL);
+
+        frames(&runtime, request).await;
+        assert!(log.lock().unwrap().requests[0].tools.is_empty());
     }
 
     #[tokio::test]
@@ -2084,22 +2148,21 @@ mod tests {
         assert_eq!(sent.history.len(), 2, "earlier turns go as text");
     }
 
-    /// macOS 26's 4,096-token window keeps less for the reply and the tools'
-    /// outputs than 8,192 tokens do, and the reply is capped to match.
+    /// The provider's Max tokens setting accepts up to 131,072; a reply still
+    /// takes at most 1/8 of the window, so the conversation keeps its room.
     #[test]
-    fn the_reserves_shrink_with_a_small_window() {
+    fn a_large_max_tokens_setting_keeps_the_history() {
         let mut request = CompletionRequest::new("now");
-        request.max_tokens = Some(1024);
-        request.chat_history = vec![Arc::new(Message::user("now"))];
+        request.max_tokens = Some(8192);
+        request.chat_history = vec![
+            Arc::new(Message::user("Record a buy of 3 AAPL")),
+            Arc::new(Message::assistant("The draft is ready to review.")),
+            Arc::new(Message::user("yes")),
+        ];
 
-        assert_eq!(
-            on_device_request(&request, 8192).unwrap().max_output_tokens,
-            Some(1024)
-        );
-        assert_eq!(
-            on_device_request(&request, 4096).unwrap().max_output_tokens,
-            Some(512)
-        );
+        let sent = on_device_request(&request, 8192).unwrap();
+        assert_eq!(sent.max_output_tokens, Some(1024));
+        assert_eq!(sent.history.len(), 2, "the turn \"yes\" answers is kept");
     }
 
     #[test]

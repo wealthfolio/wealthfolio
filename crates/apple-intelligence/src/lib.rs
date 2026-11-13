@@ -2,9 +2,10 @@
 //! over Apple's FoundationModels framework.
 //!
 //! Nothing here uses the network: the model runs on the device. The crate is
-//! empty on every target but macOS.
+//! empty on every target but Apple silicon Macs, the only Macs with Apple
+//! Intelligence.
 
-#![cfg(target_os = "macos")]
+#![cfg(all(target_os = "macos", target_arch = "aarch64"))]
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::Arc;
@@ -35,7 +36,8 @@ extern "C" {
     fn wf_apple_intelligence_cancel(session: u64);
 }
 
-/// The device's model, or `None` where the system has no such framework.
+/// The device's model, or `None` before macOS 27 or in a build without its
+/// SDK (see `wfAppleIntelligenceStatus` in `Bridge.swift`).
 /// A model that exists but is switched off or still downloading is returned,
 /// so the app can say what to do about it.
 pub fn model() -> Option<Arc<dyn OnDeviceModel>> {
@@ -52,7 +54,7 @@ fn status_code() -> i32 {
     }
 }
 
-/// `None` for a system older than the framework. Codes mirror `StatusCode` in
+/// `None` for an unsupported system. Codes mirror `StatusCode` in
 /// `Bridge.swift`.
 fn status_code_to_status(code: i32) -> Option<OnDeviceModelStatus> {
     match code {
@@ -129,7 +131,7 @@ extern "C" fn on_event(context: *mut c_void, event_json: *const c_char) {
     let sender = context.cast::<EventSender>();
     #[allow(
         unsafe_code,
-        reason = "`context` is the sender `start` leaked; Swift calls back once more at most after a final event"
+        reason = "`context` is the sender `start` leaked; Swift sends one final event and never uses `context` after it"
     )]
     unsafe {
         if let Some(event) = event {
@@ -315,7 +317,8 @@ mod tests {
     async fn live_reply_streams_text() {
         let model = model().expect("this system has the framework");
         assert_eq!(model.status(), OnDeviceModelStatus::Available);
-        assert!(model.context_size() >= 4096);
+        // The prompt and history budget assume macOS 27's window.
+        assert!(model.context_size() >= 8192);
 
         let mut session = model.start(request("Say hello in five words.", Vec::new()));
         let mut text = String::new();

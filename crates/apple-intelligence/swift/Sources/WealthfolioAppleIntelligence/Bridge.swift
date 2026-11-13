@@ -15,14 +15,17 @@ private enum StatusCode: Int32 {
     case deviceNotEligible = 1
     case notEnabled = 2
     case modelNotReady = 3
-    /// The system is older than the framework, or the SDK did not have it.
+    /// The system is older than macOS 27, or the app was built without its SDK.
     case unsupportedSystem = 4
 }
 
+/// The app supports macOS 27's model only: macOS 26's has half the context
+/// window (4,096 tokens), which the app's prompt and tools nearly fill, and
+/// reads no images. FoundationModels 2.1.14 is the macOS 27 SDK's.
 @_cdecl("wf_apple_intelligence_status")
 public func wfAppleIntelligenceStatus() -> Int32 {
-    #if canImport(FoundationModels)
-    if #available(macOS 26.0, iOS 26.0, *) {
+    #if canImport(FoundationModels, _version: 2.1.14)
+    if #available(macOS 27.0, iOS 27.0, *) {
         switch SystemLanguageModel.default.availability {
         case .available: return StatusCode.available.rawValue
         case .unavailable(.deviceNotEligible): return StatusCode.deviceNotEligible.rawValue
@@ -38,15 +41,10 @@ public func wfAppleIntelligenceStatus() -> Int32 {
 /// The model's context window in tokens, or 0 where there is no model.
 @_cdecl("wf_apple_intelligence_context_size")
 public func wfAppleIntelligenceContextSize() -> Int64 {
-    // `contextSize` first shipped in the 26.4 SDK. With an older SDK, report
-    // macOS 26's window, which only makes the app keep less history.
+    // Where the model is supported; see `wfAppleIntelligenceStatus`.
     #if canImport(FoundationModels, _version: 2.1.14)
-    if #available(macOS 26.0, iOS 26.0, *) {
+    if #available(macOS 27.0, iOS 27.0, *) {
         return Int64(SystemLanguageModel.default.contextSize)
-    }
-    #elseif canImport(FoundationModels)
-    if #available(macOS 26.0, iOS 26.0, *) {
-        return 4096
     }
     #endif
     return 0
@@ -255,7 +253,7 @@ private final class BridgeSession: @unchecked Sendable {
             }
 
             // The framework reports the whole answer so far; the app takes deltas.
-            var sent = ""
+            var sent = String.UnicodeScalarView()
             let stream: LanguageModelSession.ResponseStream<String>
             if request.images.isEmpty {
                 stream = session.streamResponse(to: request.prompt, options: options)
@@ -265,8 +263,12 @@ private final class BridgeSession: @unchecked Sendable {
             }
             for try await snapshot in stream {
                 try Task.checkCancellation()
-                let content = snapshot.content
-                let delta = String(content.dropFirst(content.commonPrefix(with: sent).count))
+                // Compared by Unicode scalars, not characters: a snapshot can
+                // end inside a character that the next one extends (a skin
+                // tone, an Arabic vowel mark), and a character-wise prefix
+                // would send that character twice.
+                let content = snapshot.content.unicodeScalars
+                let delta = Self.delta(from: sent, to: content)
                 sent = content
                 if !delta.isEmpty { send(["type": "text", "delta": delta]) }
             }
@@ -274,6 +276,17 @@ private final class BridgeSession: @unchecked Sendable {
         } catch {
             finish(Self.event(for: error))
         }
+    }
+
+    /// What `content` adds after `sent`. A snapshot that rewrites earlier
+    /// text, which the framework does not do, sends only its new end.
+    static func delta(from sent: String.UnicodeScalarView, to content: String.UnicodeScalarView) -> String {
+        var common = 0
+        for (old, new) in zip(sent, content) {
+            guard old == new else { break }
+            common += 1
+        }
+        return String(String.UnicodeScalarView(content.dropFirst(common)))
     }
 
     /// Sends the tool call to the app and waits for the tool's output.

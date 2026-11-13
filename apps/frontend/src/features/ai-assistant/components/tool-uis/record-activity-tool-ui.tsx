@@ -136,6 +136,15 @@ interface RecordActivityOutput {
   submitted?: boolean;
   createdActivityId?: string;
   createdAt?: string;
+  /** What was saved where it differs from the AI's draft. */
+  recorded?: RecordedActivity;
+}
+
+/** The account and currency the user confirmed, which the draft may lack. */
+interface RecordedActivity {
+  accountId: string;
+  accountName?: string;
+  currency: string;
 }
 
 // ============================================================================
@@ -375,7 +384,17 @@ function normalizeResult(result: unknown, fallbackCurrency: string): RecordActiv
       (candidate.created_activity_id as string) ??
       undefined,
     createdAt: (candidate.createdAt as string) ?? (candidate.created_at as string) ?? undefined,
+    recorded: recordedActivity(candidate.recorded),
   };
+}
+
+function recordedActivity(value: unknown): RecordedActivity | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const raw = value as Record<string, unknown>;
+  const accountId = stringValue(raw.accountId);
+  const currency = stringValue(raw.currency);
+  if (!accountId || !currency) return undefined;
+  return { accountId, accountName: stringValue(raw.accountName), currency };
 }
 
 // ============================================================================
@@ -893,7 +912,7 @@ interface DraftFormProps {
   /** Whether the AI passed a currency, rather than the draft taking a default. */
   currencyStated: boolean;
   toolCallId?: string;
-  onSuccess: (createdActivityId: string) => void;
+  onSuccess: (createdActivityId: string, recorded: RecordedActivity) => void;
 }
 
 function DraftForm({
@@ -1004,6 +1023,13 @@ function DraftForm({
         } as unknown as NewActivityFormValues;
 
         const created = await addActivityMutation.mutateAsync(submitData);
+        // The account picked or edited in the card, which the AI's draft lacks.
+        const accountId = created.accountId ?? submitData.accountId;
+        const recorded: RecordedActivity = {
+          accountId,
+          accountName: availableAccounts.find((account) => account.id === accountId)?.name,
+          currency: created.currency ?? submitData.currency ?? draft.currency,
+        };
 
         // Persist that this draft was acted on so the tool card flips to
         // "submitted" state next time the thread is loaded.
@@ -1016,6 +1042,7 @@ function DraftForm({
                 submitted: true,
                 createdActivityId: created.id,
                 createdAt: new Date().toISOString(),
+                recorded,
               },
             });
           } catch (e) {
@@ -1023,12 +1050,22 @@ function DraftForm({
           }
         }
 
-        onSuccess(created.id);
+        onSuccess(created.id, recorded);
       } catch {
         // Error already surfaced via the mutation hook's toast handler.
       }
     },
-    [config, pickerType, draft.fxRate, threadId, toolCallId, onSuccess, addActivityMutation],
+    [
+      config,
+      pickerType,
+      draft.fxRate,
+      draft.currency,
+      threadId,
+      toolCallId,
+      onSuccess,
+      addActivityMutation,
+      availableAccounts,
+    ],
   );
 
   const handleConfirm = useCallback(() => {
@@ -1146,6 +1183,7 @@ function RecordActivityToolUIContentImpl({
   const [successState, setSuccessState] = useState<{
     submitted: boolean;
     createdActivityId?: string;
+    recorded?: RecordedActivity;
   }>({ submitted: false });
 
   const isLoading = status?.type === "running";
@@ -1179,11 +1217,21 @@ function RecordActivityToolUIContentImpl({
   }
 
   if (wasSubmitted) {
+    const recorded = successState.recorded ?? parsed.recorded;
+    const draft = recorded
+      ? {
+          ...parsed.draft,
+          ...recorded,
+          accountName:
+            recorded.accountName ??
+            (recorded.accountId === parsed.draft.accountId ? parsed.draft.accountName : undefined),
+        }
+      : parsed.draft;
     return (
       <SuccessState
-        draft={parsed.draft}
+        draft={draft}
         createdActivityId={parsed.createdActivityId ?? successState.createdActivityId}
-        currency={parsed.draft.currency}
+        currency={draft.currency}
       />
     );
   }
@@ -1196,8 +1244,8 @@ function RecordActivityToolUIContentImpl({
       resolvedAsset={parsed.resolvedAsset}
       currencyStated={Boolean(args?.currency?.trim())}
       toolCallId={toolCallId}
-      onSuccess={(createdActivityId) => {
-        setSuccessState({ submitted: true, createdActivityId });
+      onSuccess={(createdActivityId, recorded) => {
+        setSuccessState({ submitted: true, createdActivityId, recorded });
       }}
     />
   );

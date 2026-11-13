@@ -332,14 +332,14 @@ impl AiEnvironment for TauriAiEnvironment {
     }
 }
 
-/// The model built into this device: Apple Intelligence on macOS, none
-/// elsewhere.
+/// The model built into this device: Apple Intelligence on Apple silicon
+/// Macs, none elsewhere.
 pub fn on_device_model() -> Option<Arc<dyn OnDeviceModel>> {
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
         wealthfolio_apple_intelligence::model()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
     {
         None
     }

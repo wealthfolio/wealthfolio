@@ -87,9 +87,11 @@ tauri-plugin-web-auth = "1"
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri-plugin-mobile-share = "0.1.2"
 
-[target.'cfg(target_os = "macos")'.dependencies]
-# Apple Intelligence's on-device model as an AI provider
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+# Apple Intelligence's on-device model as an AI provider (Apple silicon only)
 wealthfolio-apple-intelligence = { path = "../../crates/apple-intelligence" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSNotification", "NSDistributedNotificationCenter", "NSOperation", "NSString", "block2"] }
 block2 = "0.6"
 
