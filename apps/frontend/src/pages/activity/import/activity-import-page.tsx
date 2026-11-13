@@ -1,6 +1,5 @@
 import { getAccounts, logger } from "@/adapters";
 import { usePlatform } from "@/hooks/use-platform";
-import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account } from "@/lib/types";
@@ -58,16 +57,15 @@ import {
   holdingsImportHasAssets,
 } from "./utils/asset-review-utils";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "./utils/account-matching";
-import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
-import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
+import { isFieldMapped } from "./utils/draft-utils";
 import {
-  activityTypeAllowedForImportProfile,
   getActivityImportProfileForImportContext,
   isTransactionImportProfile,
   mergeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
   type ActivityImportProfile,
 } from "./utils/activity-import-profile";
+import { canProceedFromActivityMappingStep } from "./utils/mapping-step-validation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step Configuration
@@ -132,145 +130,14 @@ function useStepValidation(
         // Rows skipped in this step don't need their values mapped
         const skippedRows = new Set(state.skippedRowIndexes);
         const keptRows = parsedRows.filter((_, rowIndex) => !skippedRows.has(rowIndex));
-        if (keptRows.length === 0) return false;
-        if (!state.accountId && !mapping.fieldMappings[ImportFormat.ACCOUNT]) {
-          return false;
-        }
-
-        if (mapping.fieldMappings[ImportFormat.ACCOUNT]) {
-          const accountCol = primaryHeader(mapping.fieldMappings[ImportFormat.ACCOUNT]);
-          const accountHeaderIndex = accountCol ? headers.indexOf(accountCol) : -1;
-          if (accountHeaderIndex === -1) {
-            return false;
-          }
-
-          const validAccountIds = new Set((accounts ?? []).map((account) => account.id));
-          for (const row of keptRows) {
-            const rawAccount = row[accountHeaderIndex]?.trim();
-            if (!rawAccount) {
-              if (!state.accountId && !mapping.accountMappings?.[""]) {
-                return false;
-              }
-              continue;
-            }
-            if (!validAccountIds.has(rawAccount) && !mapping.accountMappings?.[rawAccount]) {
-              return false;
-            }
-          }
-        }
-
-        const requiredFieldsMapped = importProfile.requiredMappingFields.every((field) =>
-          isFieldMapped(mapping.fieldMappings[field], headers),
-        );
-        if (!requiredFieldsMapped) return false;
-
-        // Check if all activity types have mappings
-        const activityTypeMapping = mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE];
-        if (activityTypeMapping) {
-          const activityMappings = isTransactionImportProfile(importProfile)
-            ? mergeActivityMappingsForImportProfile(mapping.activityMappings, importProfile)
-            : mapping.activityMappings || {};
-          // Build column indices for fallback resolution
-          const atHeaders = Array.isArray(activityTypeMapping)
-            ? activityTypeMapping
-            : [activityTypeMapping];
-          const atIndices = atHeaders.map((h) => headers.indexOf(h)).filter((i) => i !== -1);
-
-          if (atIndices.length > 0) {
-            const uniqueValues = new Set<string>();
-            keptRows.forEach((row) => {
-              for (const idx of atIndices) {
-                const value = row[idx]?.trim();
-                if (value) {
-                  uniqueValues.add(value);
-                  break;
-                }
-              }
-            });
-
-            for (const value of uniqueValues) {
-              const mappedType = findMappedActivityType(value, activityMappings) as string | null;
-              if (
-                !mappedType ||
-                (mappedType !== ACTIVITY_SKIP &&
-                  !activityTypeAllowedForImportProfile(mappedType, importProfile))
-              ) {
-                return false;
-              }
-            }
-          }
-        }
-
-        // Check if all symbols are resolved (only for non-cash activities)
-        if (!importProfile.assetResolutionEnabled) {
-          return true;
-        }
-
-        const symbolColumn = primaryHeader(mapping.fieldMappings[ImportFormat.SYMBOL]);
-        if (symbolColumn) {
-          const symbolHeaderIndex = headers.indexOf(symbolColumn);
-
-          // Activity type indices for per-row type resolution
-          const atMapping = mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE];
-          const atCols = atMapping
-            ? (Array.isArray(atMapping) ? atMapping : [atMapping])
-                .map((h) => headers.indexOf(h))
-                .filter((i) => i !== -1)
-            : [];
-          const subtypeMapping = mapping.fieldMappings[ImportFormat.SUBTYPE];
-          const subtypeCols = subtypeMapping
-            ? (Array.isArray(subtypeMapping) ? subtypeMapping : [subtypeMapping])
-                .map((h) => headers.indexOf(h))
-                .filter((i) => i !== -1)
-            : [];
-
-          if (symbolHeaderIndex !== -1) {
-            const symbolsNeedingResolution = new Set<string>();
-
-            keptRows.forEach((row) => {
-              const symbol = row[symbolHeaderIndex]?.trim();
-              if (!symbol) return;
-
-              // Resolve activity type using explicit mappings only
-              let csvActivityType: string | undefined;
-              for (const idx of atCols) {
-                const val = row[idx]?.trim();
-                if (val) {
-                  csvActivityType = val;
-                  break;
-                }
-              }
-              let csvSubtype: string | undefined;
-              for (const idx of subtypeCols) {
-                const val = row[idx]?.trim();
-                if (val) {
-                  csvSubtype = val;
-                  break;
-                }
-              }
-
-              if (csvActivityType) {
-                const mappedType = findMappedActivityType(
-                  csvActivityType,
-                  mapping.activityMappings || {},
-                );
-                if (mappedType && !shouldResolveImportAsset(mappedType, csvSubtype, symbol)) {
-                  return;
-                }
-              }
-
-              symbolsNeedingResolution.add(symbol);
-            });
-
-            for (const symbol of symbolsNeedingResolution) {
-              if (!mapping.symbolMappings?.[symbol] && !validateTickerSymbol(symbol)) {
-                return false;
-              }
-            }
-          }
-        }
-
-        return true;
+        return canProceedFromActivityMappingStep({
+          importProfile,
+          mapping,
+          headers,
+          keptRows,
+          accountId: state.accountId,
+          accounts,
+        });
       }
 
       case "assets":
