@@ -6,12 +6,16 @@
 //! - HTTP status code mapping
 //! - Health Center cache clearing
 //!
-//! No write here starts a portfolio job: stored account values leave
-//! alternative assets out, and net worth reads their values directly.
+//! A change to an asset's values starts a portfolio job only when an account
+//! holds the asset (the quote service says so): stored account values leave
+//! alternative assets out otherwise, and net worth reads their values
+//! directly.
 
 use std::sync::Arc;
 
-use crate::{error::ApiResult, main_lib::AppState};
+use crate::{
+    api::shared::trigger_lightweight_portfolio_update, error::ApiResult, main_lib::AppState,
+};
 use axum::{
     extract::Path,
     http::StatusCode,
@@ -203,6 +207,7 @@ async fn update_alternative_asset_valuation(
         .map_err(|e| anyhow::anyhow!("Invalid value: {}", e))?;
     let date = NaiveDate::parse_from_str(&request.date, "%Y-%m-%d")
         .map_err(|e| anyhow::anyhow!("Invalid date: {}", e))?;
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
 
     // Build core request
     let core_request = CoreValuationRequest {
@@ -219,6 +224,9 @@ async fn update_alternative_asset_valuation(
         .await?;
     // A new value can end a stale valuation in Health Center.
     state.health_service.clear_cache().await;
+    if feeds_accounts {
+        trigger_lightweight_portfolio_update(state.clone());
+    }
 
     Ok(Json(UpdateValuationResponse {
         quote_id: response.quote_id,
@@ -270,12 +278,17 @@ async fn delete_alternative_asset(
     Path(asset_id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
+    // Asked first: deleting the asset clears it from the activities that held it.
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
     state
         .alternative_asset_service
         .delete_alternative_asset(&asset_id)
         .await?;
     // The asset's issues in Health Center go with it.
     state.health_service.clear_cache().await;
+    if feeds_accounts {
+        trigger_lightweight_portfolio_update(state.clone());
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -434,6 +447,7 @@ async fn apply_loan_action(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(action): Json<wealthfolio_core::assets::loan::LoanAction>,
 ) -> ApiResult<StatusCode> {
+    let feeds_accounts = state.quote_service.prices_feed_account_values(&asset_id);
     let result = state
         .alternative_asset_service
         .apply_loan_action(&asset_id, action)
@@ -442,6 +456,9 @@ async fn apply_loan_action(
     // valuation in Health Center, and removing one can start it.
     if result.balances_changed {
         state.health_service.clear_cache().await;
+        if feeds_accounts {
+            trigger_lightweight_portfolio_update(state.clone());
+        }
     }
     Ok(StatusCode::NO_CONTENT)
 }

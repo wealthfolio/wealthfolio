@@ -553,8 +553,9 @@ pub trait QuoteServiceTrait: Send + Sync {
     async fn delete_quote(&self, quote_id: &str) -> Result<()>;
 
     /// Whether changing this asset's prices can change stored account values,
-    /// so a portfolio job has to follow the change. Unknown assets count as
-    /// able to.
+    /// so a portfolio job has to follow the change. An alternative asset's
+    /// can't unless an account's activity or holdings snapshot holds it.
+    /// Unknown assets count as able to.
     fn prices_feed_account_values(&self, _asset_id: &str) -> bool {
         true
     }
@@ -1600,11 +1601,30 @@ where
     }
 
     fn prices_feed_account_values(&self, asset_id: &str) -> bool {
-        match self.asset_repo.get_by_id(asset_id) {
-            Ok(asset) => asset.prices_feed_account_values(),
-            // An asset that can't be read keeps the job: the safe side.
-            Err(_) => true,
+        // An asset that can't be read keeps the job: the safe side.
+        let Ok(asset) = self.asset_repo.get_by_id(asset_id) else {
+            return true;
+        };
+        if !asset.is_alternative() {
+            return true;
         }
+        // Account valuations leave alternative positions out and net worth
+        // reads their values directly, but an account activity or snapshot
+        // that holds one prices its transfers from those values.
+        let ids = [asset_id.to_string()];
+        let dated = |(first, last): &(Option<NaiveDate>, Option<NaiveDate>)| {
+            first.is_some() || last.is_some()
+        };
+        // A lookup that fails keeps the job.
+        let in_activities = self
+            .activity_repo
+            .get_activity_bounds_for_assets(&ids)
+            .map_or(true, |bounds| bounds.get(asset_id).is_some_and(dated));
+        in_activities
+            || self
+                .activity_repo
+                .get_holdings_snapshot_bounds_for_assets(&ids)
+                .map_or(true, |bounds| bounds.get(asset_id).is_some_and(dated))
     }
 
     fn quote_feeds_account_values(&self, quote_id: &str) -> bool {
