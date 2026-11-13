@@ -194,7 +194,7 @@ function getMappedAccountColumnValue(
     ? accountFieldMapping
     : [accountFieldMapping];
   for (const mappedHeader of mappedHeaders) {
-    const idx = headers.indexOf(mappedHeader);
+    const idx = headers.lastIndexOf(mappedHeader);
     if (idx === -1) continue;
     const value = row[idx]?.trim();
     if (value) return value;
