@@ -1001,6 +1001,8 @@
       "decimalAuto": "Détection automatique",
       "decimalPeriod": "Point (.)",
       "decimalComma": "Virgule (,)",
+      "numberFormatWarningTitle": "Vérifiez les formats numériques",
+      "numberFormatWarningDescription": "Certaines colonnes ont des formats numériques ambigus ou contradictoires ({{columns}}). Vérifiez ces valeurs ou choisissez un séparateur décimal dans les paramètres d’analyse à l’étape de chargement.",
       "summaryDelimiter": "Séparateur : {{value}}",
       "summaryDate": "Date : {{value}}",
       "summaryDecimal": "Décimal : {{value}}",

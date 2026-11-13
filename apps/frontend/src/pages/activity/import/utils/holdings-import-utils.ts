@@ -12,6 +12,7 @@ import {
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import { getDateFnsPattern } from "./date-format-options";
+import { analyzeMappedNumericColumns, resolveNumericDecimalSeparator } from "./numeric-format";
 
 export const CASH_SYMBOL = "$CASH";
 
@@ -126,18 +127,11 @@ export function parseNumericValue(
     normalized = normalized.slice(1, -1);
   }
 
-  const lastComma = normalized.lastIndexOf(",");
-  const lastDot = normalized.lastIndexOf(".");
-  let resolvedDecimal = decimalSeparator;
-  if (decimalSeparator === "auto") {
-    if (lastComma !== -1 && lastDot !== -1) {
-      resolvedDecimal = lastComma > lastDot ? "," : ".";
-    } else if (lastComma !== -1) {
-      resolvedDecimal = ",";
-    } else {
-      resolvedDecimal = ".";
-    }
-  }
+  const resolvedDecimal = resolveNumericDecimalSeparator(
+    normalized,
+    decimalSeparator,
+    thousandsSeparator,
+  );
 
   let cleaned = normalized.replace(/[^\d.,+-]/g, "");
 
@@ -367,6 +361,13 @@ function parseHoldingsSnapshotsInternal(
   preserveInvalidRows: boolean,
 ): HoldingsSnapshotInput[] {
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseOptions;
+  const numericColumns = analyzeMappedNumericColumns(
+    headers,
+    rows,
+    mapping,
+    decimalSeparator,
+    thousandsSeparator,
+  );
 
   const dateHeader = mapping[HoldingsFormat.DATE];
   const symbolHeader = mapping[HoldingsFormat.SYMBOL];
@@ -396,8 +397,16 @@ function parseHoldingsSnapshotsInternal(
     const currency = currencyIndex >= 0 ? row[currencyIndex]?.trim() : defaultCurrency;
 
     const normalizedDate = parseDateToYMD(rawDate, dateFormat, dateOrder);
-    const parsedQuantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
-    const parsedAvgCost = parseNumericValue(rawAvgCost, decimalSeparator, thousandsSeparator);
+    const parsedQuantity = parseNumericValue(
+      rawQuantity,
+      numericColumns[HoldingsFormat.QUANTITY]?.decimalSeparator ?? decimalSeparator,
+      thousandsSeparator,
+    );
+    const parsedAvgCost = parseNumericValue(
+      rawAvgCost,
+      numericColumns[HoldingsFormat.AVG_COST]?.decimalSeparator ?? decimalSeparator,
+      thousandsSeparator,
+    );
 
     if (!preserveInvalidRows && (!normalizedDate || !rawSymbol || !parsedQuantity)) continue;
 

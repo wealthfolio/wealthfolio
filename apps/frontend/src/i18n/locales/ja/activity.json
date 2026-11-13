@@ -967,6 +967,8 @@
       "decimalAuto": "自動検出",
       "decimalPeriod": "ピリオド(.)",
       "decimalComma": "カンマ(,)",
+      "numberFormatWarningTitle": "数値形式を確認してください",
+      "numberFormatWarningDescription": "一部の列の数値形式が曖昧、または混在しています（{{columns}}）。値を確認するか、アップロード手順の解析設定で小数点の区切り文字を選択してください。",
       "summaryDelimiter": "区切り文字: {{value}}",
       "summaryDate": "日付: {{value}}",
       "summaryDecimal": "小数点: {{value}}",

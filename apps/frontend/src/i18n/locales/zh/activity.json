@@ -967,6 +967,8 @@
       "decimalAuto": "自动检测",
       "decimalPeriod": "句点（.）",
       "decimalComma": "逗号（,）",
+      "numberFormatWarningTitle": "请检查数字格式",
+      "numberFormatWarningDescription": "部分列的数字格式不明确或存在冲突（{{columns}}）。请检查这些值，或在上传步骤的解析设置中选择小数分隔符。",
       "summaryDelimiter": "分隔符：{{value}}",
       "summaryDate": "日期：{{value}}",
       "summaryDecimal": "小数：{{value}}",
