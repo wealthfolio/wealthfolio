@@ -97,6 +97,8 @@ describe("numeric parsing regression", () => {
     ["-$2,000,000", "-2000000"],
     ["($1,234,567)", "-1234567"],
     ["1,234,567e-2", "1234567e-2"],
+    ["1.5e2 USD", "1.5e2"],
+    ["-1.5E-2", "-1.5e-2"],
   ])("recognizes repeated grouping in %s", (input, expected) => {
     expect(parseSignedNumericValue(input, "auto", "auto")).toBe(expected);
   });
@@ -132,6 +134,21 @@ const mapping = {
 };
 
 describe("activity column parsing", () => {
+  it("parses currency-prefixed cells that supply decimal evidence", () => {
+    const drafts = createDraftActivities(
+      [
+        ["2026-01-15", "DEPOSIT", "1,000"],
+        ["2026-01-16", "DEPOSIT", "EUR 12,50"],
+        ["2026-01-17", "DEPOSIT", "-SEK 1,5"],
+      ],
+      headers,
+      mapping,
+      parseConfig,
+      "account-1",
+    );
+    expect(drafts.map((draft) => draft.amount)).toEqual(["1.000", "12.50", "1.5"]);
+  });
+
   it("resolves each numeric field independently and preserves the import payload", () => {
     const drafts = createDraftActivities(
       [

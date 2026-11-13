@@ -23,10 +23,10 @@ export function parseSignedNumericValue(
 
   let mantissa = normalized;
   let exponent = "";
-  const expIndex = normalized.search(/[eE]/);
-  if (expIndex >= 0) {
-    mantissa = normalized.slice(0, expIndex);
-    exponent = normalized.slice(expIndex + 1);
+  const exponentMatch = /\d[eE]([+-]?\d+)[^\d]*$/.exec(normalized);
+  if (exponentMatch) {
+    mantissa = normalized.slice(0, exponentMatch.index + 1);
+    exponent = exponentMatch[1];
   }
 
   const resolvedDecimal = resolveNumericDecimalSeparator(
