@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { BASE_URL } from "./helpers";
+import { BASE_URL, trackPortfolioUpdates, waitForPortfolioUpdates } from "./helpers";
 
 let requestHeaders: Record<string, string> = {};
 
@@ -63,6 +63,40 @@ async function checkWorksheetPreview(page: Page, region: "US" | "ES") {
     },
   });
   expect(settings.ok(), await settings.text()).toBe(true);
+
+  // Creating AAPL and MSFT starts the server's background work: it classifies the new
+  // assets from their fixture profiles, recalculates, and only then announces the
+  // sectors it assigned, after the recalculation below can already answer. The app
+  // refetches holdings and drift on that announcement, and a refetch that lands while
+  // "Next: Adjust positions" calculates discards the result and leaves Setup open.
+  // Listen from a page opened before seeding, so the announcement cannot be missed.
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    const state = window as unknown as { __wfStreamOpen: boolean; __wfSectorAssets: string[] };
+    state.__wfStreamOpen = false;
+    state.__wfSectorAssets = [];
+    window.EventSource = class extends NativeEventSource {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        this.addEventListener("open", () => {
+          state.__wfStreamOpen = true;
+        });
+        this.addEventListener("asset:classifications-changed", (event) => {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as {
+            assetIds?: string[];
+            taxonomyIds?: string[];
+          } | null;
+          if (payload?.taxonomyIds?.includes("industries_gics")) {
+            state.__wfSectorAssets.push(...(payload.assetIds ?? []));
+          }
+        });
+      }
+    };
+  });
+  await page.goto(`${BASE_URL}/insights`);
+  await page.waitForFunction(
+    () => (window as unknown as { __wfStreamOpen?: boolean }).__wfStreamOpen === true,
+  );
 
   let assetId = "";
   const assetIds = new Set<string>();
@@ -172,15 +206,29 @@ async function checkWorksheetPreview(page: Page, region: "US" | "ES") {
       { timeout: 60000 },
     )
     .toBeGreaterThan(0);
+  await page.waitForFunction(
+    (ids) => {
+      const seen = (window as unknown as { __wfSectorAssets?: string[] }).__wfSectorAssets ?? [];
+      return ids.every((id) => seen.includes(id));
+    },
+    [...assetIds],
+    { timeout: 60000 },
+  );
 
+  // Each load's own portfolio update refetches the screen when it finishes; wait for
+  // it, so the goto's update cannot finish on the reloaded page and the reload's
+  // cannot land while Next calculates.
+  await trackPortfolioUpdates(page);
   for (const dir of ["ltr", "rtl"]) {
     await page.goto(`${BASE_URL}/insights?dir=${dir}`);
+    await waitForPortfolioUpdates(page);
     await page.evaluate(() => {
       for (const key of Object.keys(localStorage)) {
         if (key.includes("rebalancing-worksheet")) localStorage.removeItem(key);
       }
     });
     await page.reload();
+    await waitForPortfolioUpdates(page);
     await page.getByRole("button", { name: /^Details/ }).click();
     await page.getByRole("button", { name: "Open rebalancing" }).click();
     const disclosure = page.getByRole("alertdialog");
