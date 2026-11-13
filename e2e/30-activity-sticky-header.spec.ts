@@ -189,12 +189,13 @@ test("account activities keep the column header below the page header", async ({
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expectHeaderPinned(page);
 
-  // At 1024px and below, `globals.css` makes flex ancestors scroll containers,
-  // so even a table that fits keeps its header at its own top.
+  // At 1024px and below a table that fits rests at its own top, then pins below
+  // the page header once scrolled, as it does on wider screens.
   await toggleColumns(page, ["Currency", "Quantity", "Fee", "Tax"], false);
   await page.setViewportSize({ width: 1024, height: 900 });
   await expect.poll(async () => (await sidewaysScroll(page)).overflows).toBe(false);
   await expect.poll(() => headerOffsetAtRest(page)).toBeLessThanOrEqual(1);
+  await expectHeaderPinned(page);
 });
 
 test("Activities keeps the investment table's column header in view", async ({ page }) => {
@@ -233,9 +234,21 @@ test("Spending keeps rows rendered when the tablet scrollport moves", async ({ p
       await page.setViewportSize({ width, height: 900 });
       await gotoAppPath(page, `/activities?tab=spending&dir=${direction}`);
       await expect(page.getByRole("columnheader", { name: "Name / Notes" })).toBeVisible();
-      const scroller = page.locator("[data-ptr-content]");
-      await scroller.evaluate((element) => element.scrollTo({ top: 550, behavior: "instant" }));
-      await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(550);
+      // The page's scroll port: the nearest box around the table that really scrolls.
+      const scrollTop = (top?: number) =>
+        page.evaluate((target) => {
+          let box = document.querySelector("main table")?.parentElement ?? null;
+          while (box) {
+            const { overflowY } = getComputedStyle(box);
+            if (/(auto|scroll)/.test(overflowY) && box.scrollHeight > box.clientHeight + 100) break;
+            box = box.parentElement;
+          }
+          if (!box) return null;
+          if (target !== undefined) box.scrollTo({ top: target, behavior: "instant" });
+          return box.scrollTop;
+        }, top);
+      await scrollTop(550);
+      await expect.poll(() => scrollTop()).toBe(550);
       // The bottom of the visible table must be a rendered data row, not the
       // virtualizer's spacer standing in for rows it failed to render.
       await expect

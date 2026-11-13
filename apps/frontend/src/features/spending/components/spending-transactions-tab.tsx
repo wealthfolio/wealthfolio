@@ -1367,7 +1367,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               <TableHeader
                 className={cn(
                   "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
-                  !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+                  !scrollsSideways &&
+                    "supports-[overflow:clip]:top-[var(--page-header-height,0px)] [@media(width>1024px)]:top-[var(--page-header-height,0px)]",
                 )}
               >
                 <TableRow>
