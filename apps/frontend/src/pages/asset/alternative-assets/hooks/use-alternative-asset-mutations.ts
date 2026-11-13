@@ -52,10 +52,13 @@ export async function invalidateAlternativeAssetQueries(queryClient: QueryClient
       QueryKeys.ASSETS,
       QueryKeys.ASSET_LOGO_INDEX,
       // An imported activity can put an alternative asset in an account,
-      // where holdings and allocations value it from its latest value.
+      // where holdings, allocations and target drift value it from its
+      // latest value.
       QueryKeys.HOLDINGS,
       QueryKeys.ASSET_HOLDINGS,
       QueryKeys.PORTFOLIO_ALLOCATIONS,
+      QueryKeys.HOLDINGS_BY_ALLOCATION,
+      QueryKeys.ALLOCATION_TARGET_DRIFT,
     ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
   );
 }
