@@ -918,8 +918,122 @@ fn on_device_fields(tool: &str) -> Option<&'static [&'static str]> {
 fn on_device_output(tool: &str, output: &str) -> String {
     match tool {
         SPENDING_TOOL => spending_summary(output).unwrap_or_else(|| output.to_string()),
+        HOLDINGS_TOOL => holdings_summary(output).unwrap_or_else(|| output.to_string()),
         _ => output.to_string(),
     }
+}
+
+const HOLDINGS_TOOL: &str = "get_holdings";
+
+/// Holdings a holdings summary lists with their figures, largest first. The
+/// rest are listed by symbol and name only.
+const HOLDINGS_LISTED: usize = 10;
+
+/// The holdings cut to what the model answers from. Each holding takes about
+/// 600 bytes in full, so a few dozen fill the context window; here the
+/// largest are listed with their value, weight and gain, sorted by value, and
+/// the others by name, so the model can still say whether the user holds one.
+/// Weights and gains are percentages with one decimal. `None` when the output
+/// is not a holdings list, such as an error, which then passes unchanged.
+fn holdings_summary(output: &str) -> Option<String> {
+    use serde_json::{json, Map, Value};
+
+    let value: Value = serde_json::from_str(output).ok()?;
+    let mut holdings: Vec<&Value> = value.get("holdings")?.as_array()?.iter().collect();
+    let worth = |holding: &Value| {
+        holding
+            .get("marketValueBase")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+    };
+    holdings.sort_by(|a, b| {
+        worth(b)
+            .partial_cmp(&worth(a))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let money = |value: Option<&Value>| value.and_then(Value::as_f64).map(round_cents);
+    let percent = |value: Option<&Value>| {
+        value
+            .and_then(Value::as_f64)
+            .map(|fraction| (fraction * 1000.0).round() / 10.0)
+    };
+
+    let listed: Vec<Value> = holdings
+        .iter()
+        .take(HOLDINGS_LISTED)
+        .map(|holding| {
+            let fields = [
+                ("symbol", holding.get("symbol").cloned()),
+                ("name", holding.get("name").cloned()),
+                ("account", holding.get("account").cloned()),
+                ("quantity", holding.get("quantity").cloned()),
+                (
+                    "value",
+                    money(holding.get("marketValueBase")).map(Value::from),
+                ),
+                (
+                    "shareOfPortfolioPercent",
+                    percent(holding.get("weight")).map(Value::from),
+                ),
+                (
+                    "unrealizedGain",
+                    money(holding.get("unrealizedGainBase")).map(Value::from),
+                ),
+                (
+                    "unrealizedGainPercent",
+                    percent(holding.get("unrealizedGainPct")).map(Value::from),
+                ),
+                (
+                    "dayChangePercent",
+                    percent(holding.get("dayChangePct")).map(Value::from),
+                ),
+            ];
+            Value::Object(
+                fields
+                    .into_iter()
+                    .filter_map(|(key, value)| {
+                        value
+                            .filter(|value| !value.is_null())
+                            .map(|value| (key.to_string(), value))
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    let others: Vec<String> = holdings
+        .iter()
+        .skip(HOLDINGS_LISTED)
+        .map(|holding| {
+            let field = |key: &str| holding.get(key).and_then(Value::as_str).unwrap_or_default();
+            format!("{} {}", field("symbol"), field("name"))
+                .trim()
+                .to_string()
+        })
+        .collect();
+
+    let mut summary = Map::new();
+    summary.insert("currency".into(), json!(value.get("currency")));
+    summary.insert("totalValue".into(), json!(money(value.get("totalValue"))));
+    summary.insert("accountScope".into(), json!(value.get("accountScope")));
+    summary.insert("holdingCount".into(), json!(holdings.len()));
+    summary.insert("largestHoldings".into(), json!(listed));
+    if !others.is_empty() {
+        summary.insert("smallerHoldings".into(), json!(others));
+    }
+    if value.get("truncated").and_then(Value::as_bool) == Some(true) {
+        summary.insert(
+            "note".into(),
+            json!(format!(
+                "The portfolio has {} holdings; the app read {} of them.",
+                value
+                    .get("originalCount")
+                    .and_then(Value::as_u64)
+                    .unwrap_or_default(),
+                holdings.len()
+            )),
+        );
+    }
+    Some(Value::Object(summary).to_string())
 }
 
 /// Categories, days and weekdays a spending summary lists, largest first.
@@ -1596,6 +1710,74 @@ mod tests {
             }
         })
         .to_string()
+    }
+
+    /// A holding as `get_holdings` outputs it, with every field filled.
+    fn full_holding(index: usize, value: f64) -> serde_json::Value {
+        serde_json::json!({
+            "account": "Brokerage", "assetId": format!("asset-{index}"),
+            "symbol": format!("TKR{index}"), "name": format!("Sample Company {index}"),
+            "instrumentType": "EQUITY", "exchangeMic": "XNAS", "holdingType": "security",
+            "openDate": "2024-01-02", "quantity": 10.0, "marketValueBase": value,
+            "costBasisBase": value - 100.0, "unrealizedGainBase": 100.0,
+            "unrealizedGainPct": 0.0123, "realizedGainBase": 0.0, "totalGainBase": 100.0,
+            "totalGainPct": 0.0123, "incomeBase": 0.0, "totalReturnBase": 100.0,
+            "totalReturnPct": 0.0123, "returnBasisBase": value - 100.0, "dayChangeBase": 1.0,
+            "dayChangePct": 0.001, "weight": 0.01, "currency": "USD", "localCurrency": "USD",
+            "price": value / 10.0, "marketValueLocal": value, "costBasisLocal": value - 100.0,
+            "fxRate": 1.0
+        })
+    }
+
+    fn holdings_output(holdings: Vec<serde_json::Value>) -> String {
+        serde_json::json!({
+            "holdings": holdings, "totalValue": 123456.789, "currency": "USD",
+            "accountScope": "all", "viewMode": "table"
+        })
+        .to_string()
+    }
+
+    /// A hundred holdings, the most the tool returns, fit in a fraction of the
+    /// room kept for tool outputs: in full they take about 60 KB.
+    #[test]
+    fn a_hundred_holdings_reach_the_device_within_the_tool_reserve() {
+        let holdings = (0..100)
+            .map(|index| full_holding(index, 1000.0 + index as f64))
+            .collect();
+        let output = holdings_output(holdings);
+        let summary_text = on_device_output(HOLDINGS_TOOL, &output);
+        assert!(output.len() > 50_000);
+        assert!(
+            estimated_tokens(&summary_text) < TOOL_OUTPUT_RESERVE / 2,
+            "{} estimated tokens",
+            estimated_tokens(&summary_text)
+        );
+
+        let summary: serde_json::Value = serde_json::from_str(&summary_text).unwrap();
+        assert_eq!(summary["holdingCount"], 100);
+        assert_eq!(summary["totalValue"], 123456.79);
+        let largest = summary["largestHoldings"].as_array().unwrap();
+        assert_eq!(largest.len(), HOLDINGS_LISTED);
+        assert_eq!(largest[0]["symbol"], "TKR99", "largest first");
+        let others = summary["smallerHoldings"].as_array().unwrap();
+        assert_eq!(others.len(), 100 - HOLDINGS_LISTED);
+        assert!(others.contains(&serde_json::json!("TKR0 Sample Company 0")));
+    }
+
+    #[test]
+    fn a_holding_reaches_the_device_with_percentages_and_without_its_ids() {
+        let output = holdings_output(vec![full_holding(1, 2500.0)]);
+        let summary: serde_json::Value =
+            serde_json::from_str(&on_device_output(HOLDINGS_TOOL, &output)).unwrap();
+        assert_eq!(
+            summary["largestHoldings"][0],
+            serde_json::json!({
+                "symbol": "TKR1", "name": "Sample Company 1", "account": "Brokerage",
+                "quantity": 10.0, "value": 2500.0, "shareOfPortfolioPercent": 1.0,
+                "unrealizedGain": 100.0, "unrealizedGainPercent": 1.2, "dayChangePercent": 0.1
+            })
+        );
+        assert!(summary.get("smallerHoldings").is_none());
     }
 
     /// A day's spending is net of refunds and can be negative: a weekday nets

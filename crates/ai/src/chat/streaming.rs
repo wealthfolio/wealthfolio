@@ -155,9 +155,7 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     } else {
         tools_allowlist
     };
-    let import_csv_allowed = tools_allowlist
-        .as_ref()
-        .is_none_or(|list| list.iter().any(|tool| tool == "import_csv"));
+    let import_csv_allowed = import_csv_offered(capabilities.tools, tools_allowlist.as_deref());
 
     let base_currency = env.base_currency();
     let user_time = user_time_context(env.as_ref());
@@ -675,6 +673,13 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
 
 /// Append the turn's app context to the user's message as its last block.
 /// Only the request carries it; the saved message keeps the user's text.
+/// Whether this run offers `import_csv`: a model without tool support gets no
+/// tools, and a tool list (the user's, or the device model's own) can leave it
+/// out.
+fn import_csv_offered(tools: bool, allowlist: Option<&[String]>) -> bool {
+    tools && allowlist.is_none_or(|list| list.iter().any(|tool| tool == "import_csv"))
+}
+
 fn with_turn_context(prompt: Message, context: &str) -> Message {
     let block = format!(
         "<app_context>\n\
@@ -1594,6 +1599,18 @@ mod tests {
             self.0.pop().map(Ok)
         }
         fn send_tool_output(&self, _call_id: &str, _output: &str) {}
+    }
+
+    #[test]
+    fn import_csv_is_offered_only_with_tools_and_in_the_tool_list() {
+        let without = vec!["get_holdings".to_string()];
+        let with = vec!["import_csv".to_string()];
+        assert!(import_csv_offered(true, None));
+        assert!(import_csv_offered(true, Some(&with)));
+        assert!(!import_csv_offered(true, Some(&without)));
+        // A model without tool support is built with no tools at all.
+        assert!(!import_csv_offered(false, None));
+        assert!(!import_csv_offered(false, Some(&with)));
     }
 
     /// The device's model has no `import_csv`, so an attached CSV must not
