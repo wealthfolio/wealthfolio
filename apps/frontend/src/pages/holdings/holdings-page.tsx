@@ -530,6 +530,7 @@ export const HoldingsPage = () => {
           <div className="hidden md:block">
             <HoldingsTable
               holdings={filteredHoldings ?? []}
+              incompleteAccounts={incompleteAccounts}
               isLoading={isDataLoading}
               visibilityFilters={effectiveVisibilityFilters}
               setVisibilityFilters={handleVisibilityFiltersChange}
@@ -542,6 +543,7 @@ export const HoldingsPage = () => {
           <div className="block md:hidden">
             <HoldingsTableMobile
               holdings={filteredHoldings ?? []}
+              incompleteAccounts={incompleteAccounts}
               isLoading={isDataLoading}
               selectedTypes={selectedTypes}
               setSelectedTypes={setSelectedTypes}

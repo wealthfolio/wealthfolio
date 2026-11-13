@@ -315,6 +315,7 @@ const AccountHoldings = ({
       {isMobile ? (
         <HoldingsTableMobile
           holdings={filteredHoldings ?? []}
+          incompleteAccounts={incompleteAccounts}
           isLoading={isLoading}
           selectedTypes={selectedTypes}
           setSelectedTypes={setSelectedTypes}
@@ -332,6 +333,7 @@ const AccountHoldings = ({
       ) : (
         <HoldingsTable
           holdings={filteredHoldings ?? []}
+          incompleteAccounts={incompleteAccounts}
           isLoading={isLoading}
           visibilityFilters={effectiveVisibilityFilters}
           setVisibilityFilters={handleVisibilityFiltersChange}
