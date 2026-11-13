@@ -84,6 +84,14 @@ mod tests {
             Ok(())
         }
 
+        fn quote_asset_id(&self, quote_id: &str) -> Result<Option<String>> {
+            let quotes = self.quotes.lock().unwrap();
+            Ok(quotes
+                .iter()
+                .find(|q| q.id == quote_id)
+                .map(|q| q.asset_id.clone()))
+        }
+
         async fn upsert_quotes(&self, quotes_to_upsert: &[Quote]) -> Result<usize> {
             if *self.fail_on_save.lock().unwrap() {
                 return Err(crate::Error::Unexpected("Intentional save failure".into()));

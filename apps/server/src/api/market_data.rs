@@ -153,19 +153,24 @@ async fn update_quote(
 ) -> ApiResult<StatusCode> {
     // Ensure asset_id matches path parameter
     quote.asset_id = symbol;
+    let feeds_accounts = state
+        .quote_service
+        .prices_feed_account_values(&quote.asset_id);
     state.quote_service.update_quote(quote).await?;
     // A new value can end a stale valuation in Health Center.
     state.health_service.clear_cache().await;
-    // Manual quote update - no market sync needed, but force full recalculation
-    // so historical valuations are recomputed with the updated quotes
-    enqueue_portfolio_job(
-        state.clone(),
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
+    // Manual quote update - no market sync needed. Valuations recompute
+    // from the edited day for the accounts that hold the asset.
+    if feeds_accounts {
+        enqueue_portfolio_job(
+            state.clone(),
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: MarketSyncMode::None,
+                force_full: false,
+            },
+        );
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -173,19 +178,23 @@ async fn delete_quote(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
+    // Asked first: once deleted, the quote can't say whose price it was.
+    let feeds_accounts = state.quote_service.quote_feeds_account_values(&id);
     state.quote_service.delete_quote(&id).await?;
     // Removing a value can make an asset's valuation stale in Health Center.
     state.health_service.clear_cache().await;
-    // Manual quote deletion - no market sync needed, but force full recalculation
-    // so historical valuations are recomputed without the deleted quotes
-    enqueue_portfolio_job(
-        state,
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
+    // Manual quote deletion - no market sync needed. Valuations recompute
+    // from the deleted day for the accounts that hold the asset.
+    if feeds_accounts {
+        enqueue_portfolio_job(
+            state,
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: MarketSyncMode::None,
+                force_full: false,
+            },
+        );
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
