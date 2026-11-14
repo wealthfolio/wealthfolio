@@ -1,21 +1,20 @@
-import {
-  bg,
-  de,
-  enCA,
-  enGB,
-  enUS,
-  es,
-  fr,
-  frCA,
-  ja,
-  ko,
-  pt,
-  ptBR,
-  ro,
-  zhCN,
-  zhTW,
-  type Locale,
-} from "date-fns/locale";
+import type { Locale } from "date-fns";
+// Each locale by subpath: the date-fns/locale index loads every locale date-fns ships.
+import { bg } from "date-fns/locale/bg";
+import { de } from "date-fns/locale/de";
+import { enCA } from "date-fns/locale/en-CA";
+import { enGB } from "date-fns/locale/en-GB";
+import { enUS } from "date-fns/locale/en-US";
+import { es } from "date-fns/locale/es";
+import { fr } from "date-fns/locale/fr";
+import { frCA } from "date-fns/locale/fr-CA";
+import { ja } from "date-fns/locale/ja";
+import { ko } from "date-fns/locale/ko";
+import { pt } from "date-fns/locale/pt";
+import { ptBR } from "date-fns/locale/pt-BR";
+import { ro } from "date-fns/locale/ro";
+import { zhCN } from "date-fns/locale/zh-CN";
+import { zhTW } from "date-fns/locale/zh-TW";
 import { useLocalizationSettings } from "../components/formatting-provider";
 
 const DATE_FNS_LOCALES: Record<string, Locale> = {
