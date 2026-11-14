@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 const SUPPORTED_FORMATTING_REGIONS: &[&str] = &[
     "system", "CA", "US", "GB", "IN", "FR", "DE", "AT", "CH", "ES", "MX", "BR", "PT", "CN", "TW",
-    "JP", "KR", "IT", "RO", "BG",
+    "JP", "KR", "IT", "RO", "BG", "RU",
 ];
 const SUPPORTED_UI_LANGUAGES: &[&str] = &[
-    "en", "fr", "de", "es", "pt", "zh", "zh-Hant", "ja", "ko", "it", "ar",
+    "en", "fr", "de", "es", "pt", "zh", "zh-Hant", "ja", "ko", "it", "ar", "ru",
 ];
 
 /// Traditional Chinese is written in Taiwan, Hong Kong and Macau. Match the
@@ -473,6 +473,7 @@ mod tests {
         assert_eq!(normalize_ui_language("ja-JP"), "ja");
         assert_eq!(normalize_ui_language("ko_KR"), "ko");
         assert_eq!(normalize_ui_language("ar-SA"), "ar");
+        assert_eq!(normalize_ui_language("ru-RU"), "ru");
     }
 
     #[test]
@@ -561,6 +562,7 @@ mod tests {
         assert!(validate_formatting_region("AT").is_ok());
         assert!(validate_formatting_region("RO").is_ok());
         assert!(validate_formatting_region("BG").is_ok());
+        assert!(validate_formatting_region("RU").is_ok());
         assert!(validate_formatting_region("de-DE").is_err());
     }
 

@@ -107,7 +107,10 @@ describe.each(Object.entries(catalogs))("profile translations: %s", (path, catal
     });
     const t = instance.getFixedT(lang, "common");
     expect(profileErrorMessage("PROFILE_COOLDOWN: Try again in 30 seconds.", t)).toBe(
-      catalog.default.profiles.errors.cooldown_other.replace("{{count}}", "30"),
+      // The form for 30 is `other` in most languages, `many` in Russian.
+      (catalog.default.profiles.errors as Record<string, string>)[
+        `cooldown_${new Intl.PluralRules(lang).select(30)}`
+      ].replace("{{count}}", "30"),
     );
     expect(profileErrorMessage("PROFILE_ORIGIN_REJECTED: internal details", t)).toBe(
       catalog.default.profiles.errors.originRejected,

@@ -48,6 +48,7 @@ export const FORMATTING_REGIONS = [
   "IT",
   "RO",
   "BG",
+  "RU",
 ] as const;
 
 export type FormattingRegionSetting = (typeof FORMATTING_REGIONS)[number];
@@ -72,6 +73,7 @@ const FORMATTING_REGION_LOCALES: Record<Exclude<FormattingRegionSetting, "system
   IT: "it-IT",
   RO: "ro-RO",
   BG: "bg-BG",
+  RU: "ru-RU",
 };
 
 export interface PercentFormatOptions {
@@ -607,9 +609,20 @@ function monthTokens(locale: string): Map<string, number> {
   if (cached) return cached;
 
   const tokens = new Map<string, number>();
+  // Tokens of the in-date forms are collected apart, so that a word shared by
+  // several months there can be dropped without touching the standalone names.
+  const inDateTokens = new Map<string, number>();
+  const inDateAmbiguous = new Set<string>();
   const formatters = [
     new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }),
     new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }),
+  ];
+  // Languages that inflect the month inside a date (Russian "15 января" next to
+  // the standalone "январь"; also Ukrainian, Polish, Czech) need the in-date
+  // forms too.
+  const inDateFormatters = [
+    new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }),
+    new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }),
   ];
   const numericFormatter = new Intl.DateTimeFormat(locale, {
     month: "numeric",
@@ -632,6 +645,24 @@ function monthTokens(locale: string): Map<string, number> {
       if (!name) continue;
       for (const token of normalizedDateTokens(name, locale)) tokens.set(token, month);
     }
+    for (const formatter of inDateFormatters) {
+      const part = formatter.formatToParts(date).find((p) => p.type === "month")?.value;
+      // Only a word counts: ja-JP gives the bare digit "1" (see above), and
+      // native digits would equally turn a day into a month.
+      if (!part || !/\p{L}/u.test(part)) continue;
+      for (const token of normalizedDateTokens(part, locale)) {
+        const known = inDateTokens.get(token);
+        if (known !== undefined && known !== month) inDateAmbiguous.add(token);
+        inDateTokens.set(token, month);
+      }
+    }
+  }
+  // Only the in-date forms are checked for ambiguity: a word that precedes
+  // most months there (Catalan puts a preposition before the month: "de gener",
+  // "de març") says nothing about which one it is. Standalone names keep
+  // their previous behaviour, and never lose a token to an in-date one.
+  for (const [token, month] of inDateTokens) {
+    if (!inDateAmbiguous.has(token) && !tokens.has(token)) tokens.set(token, month);
   }
   localizedMonths.set(locale, tokens);
   return tokens;

@@ -123,6 +123,12 @@ sentences that embed them place them as a subject or predicate, never after a
 preposition. `arabic.test.ts` covers rendered counts, independent
 interpolations, embedded durations, and financial terminology.
 
+Where the `one` category also serves 21, 31, and so on (Russian), the checker
+holds a `_one` form to the placeholders of the English `_other`: `{{count}}`
+stays even when the English `_one` has no number ("Outdated exchange rate"
+becomes `{{count}} валюта с устаревшим обменным курсом`), because a sentence
+without the number would be wrong at 21.
+
 ## Provenance of current translations
 
 - **English keys + French**: adapted from PR #416 (namespaced structure, 100%
@@ -145,6 +151,10 @@ interpolations, embedded durations, and financial terminology.
   punctuation (`"..."`, never `«...»`). `_many` plural forms are required
   because Portuguese has a CLDR `many` category. Intended for continued
   community review.
+- **Russian**: translated by a model from the English source against a fixed
+  glossary; the glossary and a sample of screens were reviewed by a native
+  speaker. `russian.test.ts` covers terminology, plural forms and words inserted
+  into sentences.
 - **Traditional Chinese (`zh-Hant`)**: contributed in PR #1566, machine-seeded
   from the English source and reviewed for Taiwan financial terminology by a
   native speaker; intended for continued community review.

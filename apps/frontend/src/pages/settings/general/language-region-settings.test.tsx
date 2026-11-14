@@ -208,3 +208,22 @@ describe("LanguageRegionSettings currency formats", () => {
     expect(screen.getByRole("button", { name: "Select currency" })).toHaveFocus();
   });
 });
+
+describe("LanguageRegionSettings region choice", () => {
+  beforeEach(() => {
+    currencyFormattingRegions = {};
+    Element.prototype.scrollIntoView = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => false);
+    Element.prototype.releasePointerCapture = vi.fn();
+  });
+
+  it("offers every formatting region, Russia included", async () => {
+    const { FORMATTING_REGIONS } = await import("@wealthfolio/ui");
+    render(<LanguageRegionSettings />);
+
+    await userEvent.click(screen.getByTestId("formatting-locale-select"));
+
+    expect(await screen.findByRole("option", { name: "Russia" })).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(FORMATTING_REGIONS.length);
+  });
+});

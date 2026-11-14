@@ -25,7 +25,11 @@ const plural = /_(zero|one|two|few|many|other)$/;
 const namespaces = readdirSync(path.join(root, "en")).filter((f) => f.endsWith(".json"));
 let total = 0;
 for (const language of readdirSync(root).filter((l) => l !== "en")) {
-  const categories = new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+  const rules = new Intl.PluralRules(language);
+  const categories = rules.resolvedOptions().pluralCategories;
+  // In Russian and Ukrainian the "one" form also serves 21, 31 and so on, so a
+  // singular statement without the count would be wrong there.
+  const oneCoversTwentyOne = rules.select(21) === "one";
   const errors = [];
   const files = readdirSync(path.join(root, language)).filter((f) => f.endsWith(".json"));
   for (const file of namespaces) {
@@ -56,7 +60,9 @@ for (const language of readdirSync(root).filter((l) => l !== "en")) {
           }
           expected.set(
             `${base}_${category}`,
-            source[`${base}_${category}`] ?? source[`${base}_other`],
+            category === "one" && oneCoversTwentyOne
+              ? source[`${base}_other`]
+              : (source[`${base}_${category}`] ?? source[`${base}_other`]),
           );
         }
       } else expected.set(key, value);
