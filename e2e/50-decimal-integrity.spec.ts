@@ -36,7 +36,10 @@ for (const { region, switchRegion } of [
           });
         }
 
-        await gotoAppPath(page, `/activities?dir=${direction}`);
+        // Only this account's rows: on a worker's used database, other specs'
+        // newer activities would push these out of the grid.
+        const activitiesPath = `/activities?account=${accountId}&dir=${direction}`;
+        await gotoAppPath(page, activitiesPath);
         await expect(page.locator("html")).toHaveAttribute("dir", direction);
         await page.getByTestId("edit-mode-toggle").click();
         const source = page
@@ -70,7 +73,7 @@ for (const { region, switchRegion } of [
           await page.evaluate((path) => {
             window.history.pushState({}, "", path);
             window.dispatchEvent(new PopStateEvent("popstate"));
-          }, `/activities?dir=${direction}`);
+          }, activitiesPath);
           await page.getByTestId("edit-mode-toggle").click();
           localized = "1.125";
         }
