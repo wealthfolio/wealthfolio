@@ -48,7 +48,6 @@ use crate::registry::{RateLimitConfig, RateLimiter};
 const PROVIDER_ID: &str = "MOEX";
 const MIC: &str = "MISX";
 const BASE_URL: &str = "https://iss.moex.com/iss";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Upper bound on history pages per board (100 rows each, ~40 years of
 /// trading days) so a malformed cursor cannot loop forever.
 const MAX_HISTORY_PAGES: usize = 100;
@@ -569,8 +568,7 @@ impl Default for MoexProvider {
 
 impl MoexProvider {
     pub fn new() -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
         let request_limiter = RateLimiter::new();

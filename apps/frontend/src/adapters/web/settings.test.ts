@@ -30,10 +30,41 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   setUnauthorizedHandler(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+it.each(["caller", "deadline"])(
+  "keeps backup export cancellable by %s and clears its timer",
+  async (cause) => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    const fetch = vi.fn(
+      (_url, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal!.addEventListener("abort", () => reject(init.signal!.reason as Error), {
+            once: true,
+          });
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const result = exportDatabaseBackup("backup.db", null, true, caller.signal);
+    const assertion = expect(result).rejects.toMatchObject({
+      name: cause === "caller" ? "AbortError" : "TimeoutError",
+    });
+    if (cause === "caller") caller.abort();
+    else {
+      await vi.advanceTimersByTimeAsync(1_919_999);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    await assertion;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
 
 it.each([401, 500])(
   "notifies the auth gate only for an unauthorized export: %s",

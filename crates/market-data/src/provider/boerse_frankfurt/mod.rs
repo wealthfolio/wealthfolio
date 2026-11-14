@@ -28,7 +28,6 @@ use crate::registry::{RateLimitConfig, RateLimiter};
 
 const PROVIDER_ID: &str = "BOERSE_FRANKFURT";
 const BASE_URL: &str = "https://api.live.deutsche-boerse.com/v1";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
     AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -118,8 +117,7 @@ impl Default for BoerseFrankfurtProvider {
 
 impl BoerseFrankfurtProvider {
     pub fn new() -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .default_headers(default_headers())
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
