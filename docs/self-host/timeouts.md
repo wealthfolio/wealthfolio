@@ -24,6 +24,11 @@ use one minute. Import validation and transfer rules take precedence over heavy
 families. The API's alternate account/scoped query URLs use the same family
 budget.
 
+Manually triggered device-sync cycles, team-sync resets, and legacy
+classification migration retain five-minute client budgets. These requests
+perform work inline (a sync cycle can also wait for an active background cycle),
+so their server and proxy allowances use the heavy profile.
+
 Budgets apply to each request, not to the entire import or a background job.
 Native Tauri calls bypass the HTTP server and proxy. The native client timer
 does not cancel a Rust command. Aborting a web request does not prove server
@@ -92,7 +97,14 @@ upstream wealthfolio_backend {
 
 Replace overlapping API location blocks when adopting the generated ones;
 earlier regex locations or a `^~ /api/` block can take precedence. Keep your
-existing TLS, frontend/static-file, authentication, and streaming configuration.
+existing TLS, frontend/static-file, authentication, streaming, and request-size
+configuration. Preserve `client_max_body_size` from old locations by moving it
+to the `server` context or carrying it into the new locations. NGINX's default
+is 1 MiB, while the server accepts activity-import bodies up to 64 MiB;
+`client_max_body_size 64m;` allows that activity-import limit. Retain any larger
+limits needed for backup uploads and any stricter endpoint-specific limits. See
+the
+[NGINX body-size documentation](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size).
 For SSE/AI routes, retain response buffering disabled in the applicable server
 or location configuration.
 

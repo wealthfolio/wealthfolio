@@ -29,6 +29,7 @@ export function nginxTimeoutLocations() {
     ].join("\n");
   return [
     "# Generated from config/timeouts.json; preserve rule order.",
+    "# Timeouts only: preserve body-size, authentication and streaming settings; see docs/self-host/timeouts.md.",
     ...policy.rules.map((rule) =>
       block(
         `location ~ ^/api/v1(?:${rule.paths.map(routeRegex).join("|")})$`,

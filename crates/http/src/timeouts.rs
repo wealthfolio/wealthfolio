@@ -132,6 +132,17 @@ mod tests {
             ),
             ("parse_csv", vec!["/activities/import/parse"], 270_000),
             (
+                "device_sync_trigger_cycle",
+                vec!["/connect/device/trigger-cycle"],
+                270_000,
+            ),
+            (
+                "migrate_legacy_classifications",
+                vec!["/taxonomies/migration/run"],
+                270_000,
+            ),
+            ("reset_team_sync", vec!["/sync/team/reset"], 270_000),
+            (
                 "preview_import_assets",
                 vec!["/activities/import/assets/preview"],
                 540_000,
