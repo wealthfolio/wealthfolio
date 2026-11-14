@@ -8,7 +8,7 @@ the installation's data directory.
 | Operation                                                   | Web server   | Client, all platforms | Proxy allowance |
 | ----------------------------------------------------------- | ------------ | --------------------- | --------------- |
 | Routine API calls                                           | 45 sec       | 60 sec                | 75 sec          |
-| Heavy financial operations                                  | 4 min 30 sec | 5 min                 | 5 min 30 sec    |
+| Heavy financial operations / backup management              | 4 min 30 sec | 5 min                 | 5 min 30 sec    |
 | CSV parsing                                                 | 4 min 30 sec | 5 min                 | 5 min 30 sec    |
 | Asset preview, per batch                                    | 9 min        | 10 min                | 11 min          |
 | Activity/transaction validation                             | 9 min        | 10 min                | 11 min          |
@@ -35,6 +35,23 @@ thirty-second total HTTP limit. Custom-provider settings remain independent.
 Supplementary exchange searches retain their two-second budget, including
 rate-limit waiting. Provider selection and rate limits are unchanged. Underlying
 snapshot/backup transfers retain their fifteen-minute limits.
+
+## Native operations
+
+Native app installation uses the 32-minute transfer budget. Desktop text/binary
+save commands and desktop data export include a native dialog in the Rust call;
+they use admitted IPC without a frontend deadline so user interaction can
+finish. Mobile data-export preparation and pending text/binary export writes
+retain a five-minute deadline. The subsequent iOS/Android picker has no command
+timer. Cloud-backup management uses five minutes on both clients, with the heavy
+server deadline, because setup/recovery can involve multiple cloud requests.
+
+The remaining native-only routine calls intentionally use one minute: local MCP
+settings, tokens, audit operations and listener start/stop; local sync crypto
+primitives; platform/startup metadata, discarding staged restore entries, and
+opening the backup folder. `profile_transfer_file` applies its one-minute budget
+to each bounded 1 MiB read/write or path/cleanup call, not the whole file copy.
+Profile admission and error sanitization still apply to untimed dialog commands.
 
 ## Server overrides
 

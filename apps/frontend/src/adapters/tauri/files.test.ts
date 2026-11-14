@@ -14,7 +14,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   startAccessingSecurityScopedResource: mocks.start,
   stopAccessingSecurityScopedResource: mocks.stop,
 }));
-vi.mock("./core", () => ({ invoke: mocks.invoke }));
+vi.mock("./core", () => ({ invoke: mocks.invoke, tauriInvoke: mocks.invoke }));
 import { saveAppDataFileViaPicker, stagePickedDatabaseFileForRestore } from "./files";
 const id = "e8a3d0a8-7b46-4d41-a455-2608d510b521";
 const exported = `pending-exports/${id}/accounts.csv`;

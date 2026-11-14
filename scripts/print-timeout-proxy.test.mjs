@@ -15,6 +15,7 @@ test("generated NGINX locations preserve special-route precedence and response m
     ["/api/v1/snapshots/import", 330],
     ["/api/v1/performance/history", 330],
     ["/api/v1/cloud-backups/capture", 1980],
+    ["/api/v1/cloud-backups/action", 330],
     ["/api/v1/utilities/database/backups/a%2Fb/export", 1980],
   ]) {
     const selected = locations.find(([, regex]) => new RegExp(regex).test(path));
