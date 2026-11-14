@@ -1292,6 +1292,9 @@
       "syncAutomatically": "Prefere sincronizar automaticamente?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transação",
+      "transactionCount_other": "{{count}} transações",
+      "transactionCount_many": "{{count}} transações",
       "checkingTitle": "Correspondência de ativos",
       "checkingDescription": "Verificando os ativos únicos entre os ativos existentes e os provedores de dados de mercado habilitados.",
       "slowTitle": "A correspondência de ativos está demorando mais que o normal",

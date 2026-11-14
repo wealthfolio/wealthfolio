@@ -1230,6 +1230,8 @@
       "syncAutomatically": "自動で同期しますか?"
     },
     "assets": {
+      "transactionCount_one": "取引{{count}}件",
+      "transactionCount_other": "取引{{count}}件",
       "checkingTitle": "資産を照合中",
       "checkingDescription": "既存の資産と有効な市場データプロバイダーに対して、重複を除いた資産を確認しています。",
       "slowTitle": "資産の照合に通常より時間がかかっています",

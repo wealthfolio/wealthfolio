@@ -1292,6 +1292,9 @@
       "syncAutomatically": "Vous préférez une synchronisation automatique ?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transaction",
+      "transactionCount_other": "{{count}} transactions",
+      "transactionCount_many": "{{count}} transactions",
       "checkingTitle": "Rapprochement des actifs",
       "checkingDescription": "Vérification des actifs uniques parmi les actifs existants et les fournisseurs de données de marché activés.",
       "slowTitle": "Le rapprochement des actifs prend plus de temps que prévu",

@@ -82,11 +82,15 @@ const STEP_COMPONENTS: Record<ImportStep, React.ComponentType> = {
   result: ContextResultStep,
 };
 
+function HoldingsAssetReviewStep() {
+  return <AssetReviewStep isHoldingsMode />;
+}
+
 // Holdings import steps (for HOLDINGS-mode accounts)
 const HOLDINGS_STEP_COMPONENTS: Record<ImportStep, React.ComponentType> = {
   upload: UploadStep,
   mapping: HoldingsMappingStep,
-  assets: AssetReviewStep,
+  assets: HoldingsAssetReviewStep,
   review: HoldingsReviewStep,
   confirm: HoldingsConfirmStep,
   result: ContextResultStep,

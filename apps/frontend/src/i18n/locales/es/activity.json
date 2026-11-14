@@ -1292,6 +1292,9 @@
       "syncAutomatically": "¿Prefieres que se sincronice automáticamente?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transacción",
+      "transactionCount_other": "{{count}} transacciones",
+      "transactionCount_many": "{{count}} transacciones",
       "checkingTitle": "Buscando coincidencias de activos",
       "checkingDescription": "Comprobando los activos únicos con los activos existentes y los proveedores de datos de mercado habilitados.",
       "slowTitle": "La búsqueda de activos está tardando más de lo habitual",

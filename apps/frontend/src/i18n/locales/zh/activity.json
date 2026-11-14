@@ -1230,6 +1230,8 @@
       "syncAutomatically": "想要自动同步吗？"
     },
     "assets": {
+      "transactionCount_one": "{{count}} 笔交易",
+      "transactionCount_other": "{{count}} 笔交易",
       "checkingTitle": "正在匹配资产",
       "checkingDescription": "正在根据现有资产和已启用的市场数据提供商核对唯一资产。",
       "slowTitle": "资产匹配耗时比平时更长",
