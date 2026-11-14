@@ -12,6 +12,7 @@ type AlertVariant = "warning" | "success" | "destructive" | "info";
 type AlertSize = "sm" | "lg" | "xl";
 
 interface ImportAlertProps {
+  role?: React.AriaRole;
   variant: AlertVariant;
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -40,6 +41,7 @@ const sizeStyles: Record<AlertSize, { alert: string; icon: string; description: 
 
 /** A notice or summary in an import step: an Alert with a default icon per variant. */
 export function ImportAlert({
+  role = "alert",
   variant,
   title,
   description,
@@ -55,6 +57,7 @@ export function ImportAlert({
 
   return (
     <Alert
+      role={role}
       variant={variant === "info" ? "default" : variant}
       className={cn("mb-6", sizeStyle.alert, className)}
     >

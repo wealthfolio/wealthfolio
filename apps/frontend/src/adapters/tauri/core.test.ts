@@ -49,6 +49,24 @@ it("preserves the ordinary deadline for unrelated commands", async () => {
   await assertion;
 });
 
+it("identifies an asset-preview timeout without cancelling or applying its late result", async () => {
+  vi.useFakeTimers();
+  let complete!: (value: string) => void;
+  mocks.invoke.mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const result = invoke("preview_import_assets").catch((error: unknown) => error);
+  await vi.advanceTimersByTimeAsync(600_001);
+  const error = await result;
+  expect(error).toHaveProperty("name", "TimeoutError");
+  complete("late result");
+  expect(await result).toBe(error);
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+});
+
 it("does not log or rethrow private desktop provider error messages", async () => {
   mocks.invoke.mockRejectedValue({
     errorCode: "provider_unavailable",

@@ -7,7 +7,7 @@ import { getExchangeDisplayName } from "@/lib/constants";
 import { normalizeCurrency } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { ProgressIndicator } from "@wealthfolio/ui/components/ui/progress-indicator";
+import { AssetPreviewFeedback } from "../components/asset-preview-feedback";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportAlert } from "../components/import-alert";
@@ -16,6 +16,7 @@ import {
   applyAssetResolution,
   buildImportAssetCandidateFromDraft,
   buildNewAssetFromSearchResult,
+  getUnreviewedAssetCandidates,
 } from "../utils/asset-review-utils";
 import { badgeVariants } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
@@ -680,46 +681,38 @@ export function AssetReviewStep() {
     );
   }
 
-  // ── Loading state ────────────────────────────────────────────────────────────
-  if (isPreviewingAssets || (assetPreviewItems.length === 0 && !state.assetPreviewError)) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <ProgressIndicator
-          message={t("activity:import.assets.resolvingMessage")}
-          description={t("activity:import.assets.resolvingDescription")}
-          className="border-none shadow-none"
-        />
-      </div>
-    );
-  }
-
-  // ── Error state ──────────────────────────────────────────────────────────────
-  if (state.assetPreviewError) {
-    return (
-      <ImportAlert
-        variant="destructive"
-        title={t("activity:import.assets.previewFailedTitle")}
-        description={state.assetPreviewError}
-      >
-        <div className="mt-3">
-          <Button size="sm" variant="outline" onClick={() => void previewAssets(draftActivities)}>
-            {t("activity:import.assets.retry")}
-          </Button>
-        </div>
-      </ImportAlert>
-    );
-  }
+  const remaining = getUnreviewedAssetCandidates(draftActivities, assetPreviewItems).length;
 
   return (
-    <div className="space-y-4">
+    <fieldset
+      disabled={isPreviewingAssets}
+      className="min-w-0 space-y-4"
+      aria-label={t("activity:import.steps.reviewAssets")}
+    >
+      <AssetPreviewFeedback
+        total={candidateMap.size}
+        remaining={remaining}
+        isChecking={isPreviewingAssets}
+        progress={state.assetPreviewProgress}
+        error={state.assetPreviewError}
+        onRetry={() => {
+          setActiveSearchKey(null);
+          setAssetDialog((current) => ({ ...current, open: false }));
+          void previewAssets(draftActivities, { retry: true });
+        }}
+      />
       {/* ── Summary banner ────────────────────────────────────────────────── */}
-      {needsFixing.length === 0 && autoResolvedItems.length === 0 && (
-        <ImportAlert
-          variant="success"
-          title={t("activity:import.assets.allResolvedTitle")}
-          description={t("activity:import.assets.allResolvedDescription")}
-        />
-      )}
+      {remaining === 0 &&
+        !isPreviewingAssets &&
+        !state.assetPreviewError &&
+        needsFixing.length === 0 &&
+        autoResolvedItems.length === 0 && (
+          <ImportAlert
+            variant="success"
+            title={t("activity:import.assets.allResolvedTitle")}
+            description={t("activity:import.assets.allResolvedDescription")}
+          />
+        )}
 
       {/* ── Needs Fixing section ──────────────────────────────────────────── */}
       {needsFixing.length > 0 && (
@@ -1012,7 +1005,7 @@ export function AssetReviewStep() {
             : handleManualCreate(payload))
         }
       />
-    </div>
+    </fieldset>
   );
 }
 
