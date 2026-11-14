@@ -278,17 +278,25 @@ impl ManualSnapshotService {
         )?;
 
         // Alternative assets count toward net worth on their own, never in an
-        // account. Checked for every holding before anything is written.
+        // account. Checked for every holding before anything is written, on
+        // the asset saving would use: the one named by ID, or else the stored
+        // one its listing matches, read without changing anything.
         for holding in &request.positions {
-            let Some(asset_id) = holding.asset_id.as_deref().filter(|id| !id.is_empty()) else {
+            if holding.quantity.is_zero() {
                 continue;
-            };
-            if !holding.quantity.is_zero()
-                && self
-                    .asset_service
-                    .get_asset_by_id(asset_id)
-                    .is_ok_and(|asset| asset.kind.is_alternative())
-            {
+            }
+            let asset = holding
+                .asset_id
+                .as_deref()
+                .filter(|id| !id.is_empty())
+                .and_then(|asset_id| self.asset_service.get_asset_by_id(asset_id).ok())
+                .or_else(|| {
+                    self.asset_service.find_asset_by_listing(
+                        &holding.asset_metadata(),
+                        Some(holding.currency.as_str()),
+                    )
+                });
+            if asset.is_some_and(|asset| asset.kind.is_alternative()) {
                 return Err(Error::Validation(ValidationError::InvalidInput(
                     ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
                 )));
@@ -633,6 +641,18 @@ mod tests {
         Arc<InMemoryQuoteService>,
         Arc<InMemorySnapshotRepository>,
     ) {
+        service_with(quotes, kind, Vec::new())
+    }
+
+    fn service_with(
+        quotes: Vec<Quote>,
+        kind: AssetKind,
+        other_assets: Vec<Asset>,
+    ) -> (
+        ManualSnapshotService,
+        Arc<InMemoryQuoteService>,
+        Arc<InMemorySnapshotRepository>,
+    ) {
         let asset = Asset {
             id: ASSET_ID.to_string(),
             kind,
@@ -648,9 +668,11 @@ mod tests {
             is_active: true,
             ..Default::default()
         };
-        let quote_service = Arc::new(InMemoryQuoteService::new(quotes, vec![asset.clone()]));
+        let mut assets = vec![asset];
+        assets.extend(other_assets);
+        let quote_service = Arc::new(InMemoryQuoteService::new(quotes, assets.clone()));
         let asset_repo: Arc<dyn AssetRepositoryTrait> =
-            Arc::new(InMemoryAssetRepository::new(vec![asset]));
+            Arc::new(InMemoryAssetRepository::new(assets));
         let asset_service = Arc::new(
             AssetService::new(asset_repo, quote_service.clone()).expect("asset service builds"),
         );
@@ -735,6 +757,44 @@ mod tests {
             assert!(closes(&quotes).is_empty(), "{kind:?}: no price written");
             assert!(stored(&snapshots).is_empty(), "{kind:?}: no snapshot saved");
         }
+    }
+
+    #[tokio::test]
+    async fn a_holding_whose_listing_matches_an_alternative_asset_is_refused() {
+        // An alternative asset an activity created with a listing, before
+        // accounts refused them; a symbol-only holding would reuse it.
+        let cottage = Asset {
+            id: "cottage".to_string(),
+            kind: AssetKind::Property,
+            display_code: Some("COTTAGE".to_string()),
+            instrument_symbol: Some("COTTAGE".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_key: Some("EQUITY:COTTAGE".to_string()),
+            quote_mode: QuoteMode::Manual,
+            quote_ccy: "USD".to_string(),
+            is_active: true,
+            ..Default::default()
+        };
+        let date = day("2026-01-15");
+        let (service, quotes, snapshots) =
+            service_with(Vec::new(), AssetKind::Investment, vec![cottage]);
+        let mut symbol_only = request(date);
+        symbol_only.positions[0].asset_id = None;
+        symbol_only.positions[0].symbol = "COTTAGE".to_string();
+
+        let refused = service
+            .save_manual_snapshot(symbol_only)
+            .await
+            .expect_err("the matched alternative asset is refused");
+
+        assert!(
+            refused
+                .to_string()
+                .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+            "{refused}"
+        );
+        assert!(closes(&quotes).is_empty(), "no price written");
+        assert!(stored(&snapshots).is_empty(), "no snapshot saved");
     }
 
     #[tokio::test]
