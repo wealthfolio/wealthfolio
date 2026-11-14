@@ -711,14 +711,15 @@
     "providerKeyMissing": "請在設定中為此提供者新增 API 金鑰。",
     "providerUnknown": "請選擇支援的提供者。",
     "providerUnavailable": "提供者無法完成請求。請檢查提供者設定。",
+    "secretTooLarge": "此密鑰內容過大，無法儲存。請縮小內容後重試。",
+    "secretStoreUnavailable": "安全憑證儲存空間無法使用或已滿。請檢查系統憑證儲存空間或重新啟動 Wealthfolio，然後再試一次。",
     "customProviderCodeReserved": "此提供者代碼已被保留。請選擇其他代碼。",
     "customProviderInUse": "刪除前，請變更相關資產的提供者或移除其代碼對應。",
     "addonManifestMissing": "插件 ZIP 檔案中沒有 manifest.json。",
     "addonMainFileMissing": "插件 ZIP 檔案中沒有其清單指定的主檔案。",
     "addonNeedsNewerVersion": "此插件需要較新版本的 Wealthfolio。請更新 Wealthfolio 後再試一次。",
     "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。",
-    "rateLimited": "請求過多。請稍候一分鐘後再試一次。",
-    "secretTooLarge": "此密鑰內容過大，無法儲存。請縮小內容後重試。",
-    "secretStoreUnavailable": "安全憑證儲存空間無法使用或已滿。請檢查系統憑證儲存空間或重新啟動 Wealthfolio，然後再試一次。"
+    "alternativeAssetNotInAccount": "房產、車輛、收藏品、貴金屬、負債和其他個人資產單獨計入淨資產，不能在帳戶中持有。要在帳戶中持有自訂資產，請將其新增為投資。",
+    "rateLimited": "請求過多。請稍候一分鐘後再試一次。"
   }
 }

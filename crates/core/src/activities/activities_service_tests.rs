@@ -23041,4 +23041,277 @@ pub(crate) mod tests {
             "{error}"
         );
     }
+
+    // ── Alternative assets count toward net worth, never in an account ──────
+
+    fn alternative_assets_service() -> (
+        ActivityService,
+        Arc<MockAssetService>,
+        Arc<MockActivityRepository>,
+        Arc<RecordingQuoteService>,
+    ) {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        let mut barn = create_test_asset("barn", "USD");
+        barn.kind = AssetKind::Property;
+        barn.display_code = Some("BARN".to_string());
+        barn.name = Some("Old Barn".to_string());
+        asset_service.add_asset(barn);
+        let quote_service = Arc::new(RecordingQuoteService::default());
+        let service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            quote_service.clone(),
+        );
+        (service, asset_service, activity_repository, quote_service)
+    }
+
+    fn transfer_in(asset: AssetResolutionInput) -> NewActivity {
+        NewActivity {
+            id: None,
+            account_id: "acc-1".to_string(),
+            asset: Some(asset),
+            activity_type: "TRANSFER_IN".to_string(),
+            subtype: None,
+            activity_date: "2026-10-02".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(400000)),
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        }
+    }
+
+    fn manual_asset(symbol: &str, kind: &str) -> AssetResolutionInput {
+        AssetResolutionInput {
+            symbol: Some(symbol.to_string()),
+            kind: Some(kind.to_string()),
+            name: Some(symbol.to_string()),
+            quote_mode: Some("MANUAL".to_string()),
+            quote_ccy: Some("USD".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn an_account_refuses_alternative_assets_and_takes_custom_investments() {
+        let (service, asset_service, activity_repository, quote_service) =
+            alternative_assets_service();
+
+        // An existing property, picked by ID, and a new asset named as one.
+        for asset in [
+            AssetResolutionInput {
+                id: Some("barn".to_string()),
+                ..Default::default()
+            },
+            manual_asset("COTTAGE", "PROPERTY"),
+        ] {
+            let refused = service
+                .create_activity(transfer_in(asset))
+                .await
+                .expect_err("an alternative asset is refused");
+            assert!(
+                refused
+                    .to_string()
+                    .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{refused}"
+            );
+        }
+        assert!(activity_repository.get_activities().unwrap().is_empty());
+        assert!(quote_service.updated_quotes().is_empty(), "nothing priced");
+        assert!(
+            asset_service
+                .assets
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|asset| asset.display_code.as_deref() != Some("COTTAGE")),
+            "no property created"
+        );
+
+        // A custom asset an account holds is an investment.
+        let created = service
+            .create_activity(transfer_in(manual_asset("PRIVCO", "OTHER")))
+            .await
+            .expect("a custom investment is taken");
+        let asset_id = created.asset_id.expect("linked asset");
+        let kind = asset_service
+            .assets
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|asset| asset.id == asset_id)
+            .map(|asset| asset.kind.clone());
+        assert_eq!(kind, Some(AssetKind::Investment));
+    }
+
+    #[tokio::test]
+    async fn an_activity_that_holds_an_alternative_asset_cannot_be_saved_again() {
+        let (service, _, activity_repository, _) = alternative_assets_service();
+        activity_repository.add_activity(create_stored_activity("old", "acc-1", Some("barn")));
+
+        let refused = service
+            .update_activity(create_test_activity_update(
+                "old",
+                "acc-1",
+                Some(AssetResolutionInput {
+                    id: Some("barn".to_string()),
+                    ..Default::default()
+                }),
+                "USD",
+            ))
+            .await
+            .expect_err("saving it again is refused");
+        assert!(
+            refused
+                .to_string()
+                .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+            "{refused}"
+        );
+    }
+
+    fn alternative_import_row(asset_id: Option<&str>, symbol: &str) -> ActivityImport {
+        ActivityImport {
+            id: None,
+            date: "2026-10-02".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(400000)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(400000)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MANUAL".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: asset_id.map(str::to_string),
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn import_review_and_import_refuse_an_alternative_asset() {
+        let (service, _, activity_repository, _) = alternative_assets_service();
+
+        let reviewed = service
+            .check_activities_import(vec![alternative_import_row(Some("barn"), "BARN")])
+            .await
+            .expect("review runs");
+        assert!(!reviewed[0].is_valid);
+        let errors = reviewed[0].errors.clone().unwrap_or_default();
+        assert_eq!(
+            errors.get("symbol").map(Vec::as_slice),
+            Some([crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string()].as_slice())
+        );
+
+        // A row that names the property by ID alone links it at import.
+        let imported = service
+            .import_activities(vec![alternative_import_row(Some("barn"), "")])
+            .await;
+        match imported {
+            Ok(result) => assert_eq!(result.summary.imported, 0),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{error}"
+            ),
+        }
+        assert!(activity_repository.get_activities().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn broker_sync_keeps_alternative_asset_rows_as_unlinked_drafts() {
+        let (service, asset_service, _, quote_service) = alternative_assets_service();
+        // An older property an activity created with a listing.
+        let mut shed = create_test_asset_with_instrument(
+            "shed",
+            "SHED",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        shed.kind = AssetKind::Property;
+        shed.instrument_key = Some("EQUITY:SHED".to_string());
+        asset_service.add_asset(shed);
+        let synced = |asset: AssetResolutionInput| NewActivity {
+            source_system: Some("SNAPTRADE".to_string()),
+            ..transfer_in(asset)
+        };
+
+        let result = service
+            .prepare_activities_for_sync(
+                vec![
+                    synced(manual_asset("COTTAGE", "PROPERTY")),
+                    synced(AssetResolutionInput {
+                        id: Some("barn".to_string()),
+                        ..Default::default()
+                    }),
+                    synced(AssetResolutionInput {
+                        symbol: Some("SHED".to_string()),
+                        instrument_type: Some("EQUITY".to_string()),
+                        quote_ccy: Some("USD".to_string()),
+                        ..Default::default()
+                    }),
+                ],
+                &create_test_account("acc-1", "USD"),
+            )
+            .await
+            .expect("sync preparation runs");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.prepared.len(), 3);
+        for prepared in &result.prepared {
+            assert_eq!(prepared.resolved_asset_id, None);
+            assert_eq!(prepared.activity.status, Some(ActivityStatus::Draft));
+            assert_eq!(prepared.activity.needs_review, Some(true));
+        }
+        assert!(
+            asset_service
+                .get_assets()
+                .unwrap()
+                .iter()
+                .all(|asset| asset.display_code.as_deref() != Some("COTTAGE")),
+            "no property created"
+        );
+        assert!(quote_service.updated_quotes().is_empty(), "nothing priced");
+    }
 }

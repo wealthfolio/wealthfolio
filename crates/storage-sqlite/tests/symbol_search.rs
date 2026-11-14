@@ -125,3 +125,43 @@ async fn isin_in_a_name_is_not_an_exact_match() {
 
     assert!(!matches(&quotes, "US0378331005", "note").await);
 }
+
+#[tokio::test]
+async fn search_leaves_out_alternative_assets_and_keeps_custom_investments() {
+    let dir = common::TestDir::new();
+    let personal = |id: &str, kind: AssetKind, name: &str| NewAsset {
+        id: Some(id.into()),
+        kind,
+        name: Some(name.into()),
+        display_code: Some(name.to_uppercase()),
+        is_active: true,
+        quote_mode: wealthfolio_core::assets::QuoteMode::Manual,
+        quote_ccy: "USD".into(),
+        ..Default::default()
+    };
+    let custom = NewAsset {
+        quote_mode: wealthfolio_core::assets::QuoteMode::Manual,
+        instrument_exchange_mic: None,
+        ..equity("barnco", "BARNCO", "Barn Co")
+    };
+    let quotes = service(
+        &dir,
+        vec![
+            personal("barn", AssetKind::Property, "Barn"),
+            personal("barn-loan", AssetKind::Liability, "Barn Mortgage"),
+            custom,
+        ],
+    )
+    .await;
+
+    let found: Vec<_> = quotes
+        .search_symbol_with_currency("barn", None)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter_map(|result| result.existing_asset_id)
+        .collect();
+    // The account-holdable custom investment is found; the property and its
+    // mortgage, which count toward net worth on their own, are not.
+    assert_eq!(found, vec!["barnco".to_string()]);
+}

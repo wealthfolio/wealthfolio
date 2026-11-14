@@ -711,14 +711,15 @@
     "providerKeyMissing": "Fügen Sie in den Einstellungen einen API-Schlüssel für diesen Anbieter hinzu.",
     "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
     "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen.",
+    "secretTooLarge": "Dieses Geheimnis ist zu groß zum Speichern. Verkleinern Sie es und versuchen Sie es erneut.",
+    "secretStoreUnavailable": "Der sichere Anmeldedatenspeicher ist nicht verfügbar oder voll. Prüfen Sie den Anmeldedatenspeicher Ihres Systems oder starten Sie Wealthfolio neu und versuchen Sie es erneut.",
     "customProviderCodeReserved": "Dieser Anbietercode ist reserviert. Wählen Sie einen anderen Code.",
     "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen.",
     "addonManifestMissing": "Die ZIP-Datei des Add-ons enthält keine manifest.json.",
     "addonMainFileMissing": "Die ZIP-Datei des Add-ons enthält nicht die Hauptdatei, die im Manifest angegeben ist.",
     "addonNeedsNewerVersion": "Dieses Add-on erfordert eine neuere Version von Wealthfolio. Aktualisieren Sie Wealthfolio und versuchen Sie es erneut.",
     "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus.",
-    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut.",
-    "secretTooLarge": "Dieses Geheimnis ist zu groß zum Speichern. Verkleinern Sie es und versuchen Sie es erneut.",
-    "secretStoreUnavailable": "Der sichere Anmeldedatenspeicher ist nicht verfügbar oder voll. Prüfen Sie den Anmeldedatenspeicher Ihres Systems oder starten Sie Wealthfolio neu und versuchen Sie es erneut."
+    "alternativeAssetNotInAccount": "Immobilien, Fahrzeuge, Sammlerstücke, Edelmetalle, Verbindlichkeiten und andere persönliche Vermögenswerte zählen eigenständig zum Nettovermögen und können nicht in einem Konto gehalten werden. Um einen eigenen Vermögenswert in einem Konto zu halten, fügen Sie ihn als Investition hinzu.",
+    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut."
   }
 }

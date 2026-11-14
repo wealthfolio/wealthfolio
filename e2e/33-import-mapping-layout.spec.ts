@@ -23,8 +23,8 @@ async function clippingAncestors(element: Locator) {
     const box = node.getBoundingClientRect();
     const clipped: string[] = [];
     for (let el = node.parentElement; el; el = el.parentElement) {
-      const style = getComputedStyle(el);
-      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      // Only vertical clipping is measured, and overflow-x: clip leaves y visible.
+      if (getComputedStyle(el).overflowY === "visible") continue;
       const rect = el.getBoundingClientRect();
       const hidden = Math.max(rect.top - box.top, box.bottom - rect.bottom);
       if (hidden > 0.5) clipped.push(`${el.className} (${Math.round(hidden)}px)`);
@@ -116,8 +116,8 @@ test("mapping previews fit the visible step area", async ({ page }) => {
   await expect.poll(() => clippingAncestors(pagination), { message: "pagination" }).toEqual([]);
 });
 
-// Up to 1024px wide, globals.css makes every .flex and .grid a scroll container, which a
-// flex parent can shrink to nothing. The step doesn't fit on a phone, so it scrolls.
+// Up to 1024px wide, globals.css clips every .flex and .grid and lets it shrink to
+// nothing in a flex parent. The step doesn't fit on a phone, so it scrolls.
 test("mapping step keeps its blocks whole on a phone", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -136,8 +136,8 @@ test("mapping step keeps its blocks whole on a phone", async ({ page }) => {
   }
 });
 
-// The "Account assignment required" alert is a .grid too, so the same rule lets the step squeeze
-// it until its own text scrolls inside it.
+// The "Account assignment required" alert is a .grid too, so the same rule could let the step
+// squeeze it until its own text is cut.
 for (const dir of ["ltr", "rtl"]) {
   test(`account warning keeps its text whole on a phone (${dir})`, async ({ page }) => {
     test.setTimeout(120_000);

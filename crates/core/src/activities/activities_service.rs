@@ -1945,6 +1945,18 @@ impl ActivityService {
         ActivityError::InvalidData(message.into()).into()
     }
 
+    /// Refuses an alternative asset kind: alternative assets count toward net
+    /// worth on their own, so an account never holds one. A custom asset an
+    /// account holds is an investment.
+    fn refuse_alternative_kind(kind: Option<&AssetKind>) -> Result<()> {
+        match kind {
+            Some(kind) if kind.is_alternative() => Err(Error::Validation(
+                crate::errors::ValidationError::AlternativeAssetNotInAccount,
+            )),
+            _ => Ok(()),
+        }
+    }
+
     fn internal_transfer_metadata() -> Option<String> {
         Some(
             serde_json::json!({
@@ -4795,6 +4807,8 @@ impl ActivityService {
             .as_ref()
             .map(Self::kind_from_instrument_type)
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
+        // Refused before any asset is created for the activity.
+        Self::refuse_alternative_kind(effective_kind.as_ref())?;
 
         let quote_ccy_input = Self::submitted_quote_ccy(
             symbol.as_deref(),
@@ -5046,6 +5060,9 @@ impl ActivityService {
                     )
                     .await?
             };
+            // An existing alternative asset, picked by ID or matched by symbol,
+            // is refused before the activity writes anything to it.
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified (for existing assets that need mode change)
             if let Some(ref mode) = quote_mode {
@@ -5392,6 +5409,8 @@ impl ActivityService {
             .as_ref()
             .map(Self::kind_from_instrument_type)
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
+        // Refused before any asset is created for the activity.
+        Self::refuse_alternative_kind(effective_kind.as_ref())?;
 
         let quote_ccy_input = Self::submitted_quote_ccy(
             symbol.as_deref(),
@@ -5602,6 +5621,9 @@ impl ActivityService {
                     )
                     .await?
             };
+            // An existing alternative asset, picked by ID or matched by symbol,
+            // is refused before the activity writes anything to it.
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified
             if let Some(ref mode) = quote_mode {
@@ -6416,9 +6438,28 @@ impl ActivityService {
                 activities_with_status.push(activity);
                 continue;
             }
+            let existing_asset = existing_id
+                .as_deref()
+                .and_then(|id| self.asset_service.get_asset_by_id(id).ok());
+            // Alternative assets count toward net worth on their own, so a row
+            // can't put one in an account; review shows why before import.
+            if effective_kind.is_alternative()
+                || existing_asset
+                    .as_ref()
+                    .is_some_and(|asset| asset.kind.is_alternative())
+            {
+                activity.is_valid = false;
+                Self::add_activity_error(
+                    &mut activity,
+                    "symbol",
+                    crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+                );
+                activities_with_status.push(activity);
+                continue;
+            }
             if let Some(ref id) = existing_id {
                 activity.asset_id = Some(id.clone());
-                if let Ok(asset) = self.asset_service.get_asset_by_id(id) {
+                if let Some(asset) = existing_asset {
                     activity.symbol_name = asset.name;
                     asset_currency = Some(asset.quote_ccy.clone());
                     if activity.quote_mode.is_none() {
@@ -9565,6 +9606,22 @@ impl ActivityService {
                 )
                 .await
             {
+                Ok(Some(spec)) if spec.kind.is_alternative() => {
+                    // Refused before ensure_assets could create it in the account.
+                    if mode.is_sync() {
+                        warn!(
+                            "Broker sync activity at index {} names an alternative asset and will be imported for review",
+                            idx
+                        );
+                        sync_review_indices.insert(idx);
+                    } else {
+                        result.errors.push((
+                            idx,
+                            crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
+                        ));
+                    }
+                    activity_asset_map.push(None);
+                }
                 Ok(Some(spec)) => {
                     // Use spec.id if available, or instrument_key for mapping
                     let map_key = spec.id.clone().or_else(|| spec.instrument_key());
@@ -9624,6 +9681,31 @@ impl ActivityService {
                     );
                     *entry = None;
                 }
+            }
+        }
+
+        // An existing alternative asset matched by ID or symbol: alternative
+        // assets count toward net worth on their own, never in an account.
+        for (idx, entry) in activity_asset_map.iter_mut().enumerate() {
+            let alternative = entry
+                .as_ref()
+                .and_then(|asset_id| ensure_result.assets.get(asset_id))
+                .is_some_and(|asset| asset.kind.is_alternative());
+            if !alternative {
+                continue;
+            }
+            *entry = None;
+            if mode.is_sync() {
+                warn!(
+                    "Broker sync activity at index {} matched an alternative asset and will be imported for review",
+                    idx
+                );
+                sync_review_indices.insert(idx);
+            } else {
+                result.errors.push((
+                    idx,
+                    crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
+                ));
             }
         }
 

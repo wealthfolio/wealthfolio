@@ -179,6 +179,11 @@ impl Error {
             Self::Validation(ValidationError::CustomProviderInUse) => PublicError::new(
                 "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
+            // A closed refusal with fixed text: the forms explain it.
+            Self::Validation(ValidationError::AlternativeAssetNotInAccount) => PublicError::new(
+                "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT",
+                crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+            ),
             Self::Validation(_) => PublicError::invalid_input(),
             // The activity form names this refusal; only the static text is compared.
             Self::Activity(ActivityError::InvalidData(message))
@@ -419,6 +424,10 @@ pub enum ValidationError {
     /// Provider deletion is blocked by existing asset references.
     #[error("Change the provider for affected assets or remove their symbol mappings before deleting it.")]
     CustomProviderInUse,
+
+    /// A save would put an alternative asset in an account.
+    #[error("{}", crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT)]
+    AlternativeAssetNotInAccount,
 
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]
@@ -662,6 +671,23 @@ mod public_error_tests {
         // Only the leading code counts; other constraint failures stay generic.
         let other = Error::ConstraintViolation("UNIQUE failed: ASSET_IDENTITY_CONFLICT:".into());
         assert_eq!(other.public_error().error_code, "conflict");
+    }
+
+    #[test]
+    fn public_errors_explain_an_alternative_asset_refusal() {
+        let error = Error::Validation(ValidationError::AlternativeAssetNotInAccount).public_error();
+        assert_eq!(error.error_code, "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            error.message,
+            crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+        // Desktop commands that return String errors pass the code.
+        assert_eq!(
+            String::from(Error::Validation(
+                ValidationError::AlternativeAssetNotInAccount
+            )),
+            "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT"
+        );
     }
 
     #[test]
