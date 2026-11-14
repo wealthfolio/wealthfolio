@@ -13,6 +13,7 @@ import {
 import { checkActivitiesImport, previewImportAssets, logger } from "@/adapters";
 import type {
   ActivityImport,
+  ImportAssetCandidate,
   ImportAssetPreviewItem,
   ImportMappingData,
   ImportTemplateScope,
@@ -27,6 +28,40 @@ import { assetPreviewError, type AssetPreviewError } from "../utils/asset-previe
 
 // Keep requests sequential and small; provider rate limiting stays in the backend.
 const ASSET_PREVIEW_BATCH_SIZE = 5;
+
+function buildAssetPreviewBatches(
+  candidates: ImportAssetCandidate[],
+  unchecked: ImportAssetCandidate[],
+): ImportAssetCandidate[][] {
+  // The core bond alias resolver checks conflicting ISIN/CUSIP claims across
+  // its entire input. Keep all explicit bond inputs together, including known
+  // matches needed as context on retry; do not reimplement those checks here.
+  const bonds = candidates.filter(
+    (candidate) => candidate.instrumentType?.trim().toUpperCase() === "BOND",
+  );
+  const bondKeys = new Set(bonds.map((candidate) => candidate.key));
+  const batches: ImportAssetCandidate[][] = [];
+  let batch: ImportAssetCandidate[] = [];
+  let bondsQueued = false;
+  const flush = () => {
+    if (batch.length) batches.push(batch);
+    batch = [];
+  };
+  for (const candidate of unchecked) {
+    if (bondKeys.has(candidate.key)) {
+      if (!bondsQueued) {
+        flush();
+        batches.push(bonds);
+        bondsQueued = true;
+      }
+    } else {
+      batch.push(candidate);
+      if (batch.length === ASSET_PREVIEW_BATCH_SIZE) flush();
+    }
+  }
+  flush();
+  return batches;
+}
 
 export interface AssetPreviewProgress {
   total: number;
@@ -645,16 +680,19 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
 
   const validationRunRef = useRef(0);
   const previewRunRef = useRef(0);
+  const isActiveRef = useRef(true);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  useEffect(
-    () => () => {
-      ++validationRunRef.current;
-      ++previewRunRef.current;
-    },
-    [],
-  );
+  useEffect(() => {
+    isActiveRef.current = true;
+    return () => {
+      // React Activity also cleans up effects when a kept phone screen hides.
+      // Let the pending request settle its preserved state, but stop scheduling
+      // further batches while hidden or after a permanent unmount.
+      isActiveRef.current = false;
+    };
+  }, []);
 
   // Invalidate in-flight async work when navigating backward so stale
   // responses cannot repopulate state the user already left behind.
@@ -849,6 +887,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
       const unchecked = retry
         ? getUnreviewedAssetCandidates(drafts, stateRef.current.assetPreviewItems)
         : candidates;
+      const uncheckedKeys = new Set(unchecked.map((candidate) => candidate.key));
       const isCurrent = () =>
         run === previewRunRef.current && draftRevisionRef.current <= requestedRevision;
 
@@ -866,9 +905,8 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
       });
       let failure: AssetPreviewError | null = null;
       try {
-        for (let offset = 0; offset < unchecked.length; offset += ASSET_PREVIEW_BATCH_SIZE) {
-          if (!isCurrent()) return;
-          const batch = unchecked.slice(offset, offset + ASSET_PREVIEW_BATCH_SIZE);
+        for (const batch of buildAssetPreviewBatches(candidates, unchecked)) {
+          if (!isCurrent() || !isActiveRef.current) return;
           const preview = await previewImportAssets({ candidates: batch });
           if (!isCurrent()) return;
           // An incomplete response cannot count as a completed batch or unlock review.
@@ -892,7 +930,12 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
           }
           dispatch({
             type: "APPLY_ASSET_PREVIEW_BATCH",
-            payload: { revision: requestedRevision, items: preview },
+            payload: {
+              revision: requestedRevision,
+              // Reviewed bonds can be request context without replacing edits
+              // or counting their already completed results a second time.
+              items: preview.filter((item) => uncheckedKeys.has(item.key)),
+            },
           });
         }
       } catch (error) {

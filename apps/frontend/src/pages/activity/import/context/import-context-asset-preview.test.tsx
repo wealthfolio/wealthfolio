@@ -2,7 +2,11 @@ import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImportAssetCandidate, ImportAssetPreviewItem } from "@/lib/types";
 import { ImportProvider, useImportContext, type DraftActivity } from "./import-context";
-import { canProceedFromAssetReviewStep } from "../utils/asset-review-utils";
+import {
+  applyAssetResolution,
+  canProceedFromAssetReviewStep,
+  getImportAssetCandidates,
+} from "../utils/asset-review-utils";
 
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), check: vi.fn() }));
 vi.mock("@/adapters", () => ({
@@ -40,7 +44,7 @@ function previews(candidates: ImportAssetCandidate[]): ImportAssetPreviewItem[] 
       name: candidate.symbol,
       displayCode: candidate.symbol,
       instrumentSymbol: candidate.symbol,
-      instrumentType: "EQUITY",
+      instrumentType: candidate.instrumentType?.trim().toUpperCase() || "EQUITY",
       instrumentExchangeMic: "XNAS",
       quoteCcy: "USD",
       quoteMode: "MARKET",
@@ -78,6 +82,83 @@ function setup(drafts = Array.from({ length: 12 }, (_, index) => draft(index))) 
 }
 
 beforeEach(() => vi.resetAllMocks());
+
+describe("bond identity context", () => {
+  const ca = "CA135087D275";
+  const us = "US135087D279";
+  // Both valid ISINs have CUSIP 135087D27. The Rust alias resolver must see
+  // both claims together to refuse linking them to the same legacy CUSIP asset.
+  function bondDrafts() {
+    const drafts = Array.from({ length: 6 }, (_, index) => draft(index));
+    drafts[0] = { ...drafts[0], symbol: ca, instrumentType: "BOND" };
+    drafts[5] = { ...drafts[5], symbol: us, instrumentType: "BOND" };
+    return drafts;
+  }
+
+  it("keeps bond claims across the five-item boundary in one request", async () => {
+    mocks.preview.mockImplementation(async ({ candidates }) => previews(candidates));
+    const { context } = setup(bondDrafts());
+    await act(async () => context().previewAssets(context().state.draftActivities));
+    const bondBatches = mocks.preview.mock.calls
+      .map(([args]) => args.candidates as ImportAssetCandidate[])
+      .filter((batch) => batch.some((c) => c.instrumentType === "BOND"));
+    expect(bondBatches.map((batch) => batch.map((c) => c.symbol))).toEqual([[ca, us]]);
+    expect(context().state.assetPreviewProgress).toMatchObject({ completed: 6, total: 6 });
+  });
+
+  it("keeps more than five bonds together instead of splitting their identity context", async () => {
+    const drafts = Array.from({ length: 7 }, (_, index) => ({
+      ...draft(index),
+      instrumentType: "BOND",
+    }));
+    mocks.preview.mockImplementation(async ({ candidates }) => previews(candidates));
+    const { context } = setup(drafts);
+    await act(async () => context().previewAssets(context().state.draftActivities));
+    expect(mocks.preview).toHaveBeenCalledTimes(1);
+    expect(mocks.preview.mock.calls[0][0].candidates).toHaveLength(7);
+  });
+
+  it("includes reviewed bonds as retry context without replacing a manual match", async () => {
+    const { context } = setup(bondDrafts());
+    const [candidate] = getImportAssetCandidates(context().state.draftActivities);
+    const [retained] = previews([candidate]);
+    const manual = { ...retained.draft!, name: "Reviewed bond", quoteMode: "MANUAL" };
+    act(() => {
+      context().dispatch({
+        type: "SET_DRAFT_ACTIVITIES",
+        payload: applyAssetResolution(context().state.draftActivities, retained.key, manual, {
+          importAssetKey: retained.key,
+        }),
+      });
+      context().dispatch({
+        type: "SET_ASSET_PREVIEW_ITEMS",
+        payload: [{ ...retained, draft: manual, resolutionSource: "manual_edit" }],
+      });
+      context().dispatch({
+        type: "SET_PENDING_IMPORT_ASSET",
+        payload: { key: retained.key, draft: manual, source: "manual" },
+      });
+    });
+    mocks.preview.mockImplementation(async ({ candidates }) => previews(candidates));
+    await act(async () =>
+      context().previewAssets(context().state.draftActivities, { retry: true }),
+    );
+    const bondBatches = mocks.preview.mock.calls
+      .map(([args]) => args.candidates as ImportAssetCandidate[])
+      .filter((batch) => batch.some((c) => c.instrumentType === "BOND"));
+    expect(bondBatches.map((batch) => batch.map((c) => c.symbol))).toEqual([[ca, us]]);
+    expect(context().state.pendingImportAssets[retained.key]).toEqual({
+      key: retained.key,
+      draft: manual,
+      source: "manual",
+    });
+    expect(context().state.draftActivities[0]).toMatchObject({
+      symbolName: "Reviewed bond",
+      quoteMode: "MANUAL",
+    });
+    expect(context().state.assetPreviewProgress).toMatchObject({ completed: 6, total: 6 });
+  });
+});
 
 describe("batched asset preview", () => {
   it("publishes real progress sequentially, preserves edits on retry, then validates the same drafts", async () => {
