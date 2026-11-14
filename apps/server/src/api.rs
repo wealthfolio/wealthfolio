@@ -365,13 +365,13 @@ mod request_timeout_tests {
                 request_timeout(&format!("/api/v1{path}"), ordinary)
             );
         }
-        for path in [
-            "/api/v1/accounts",
-            "/api/v1/cloud-backups/action",
-            "/api/v1/connect/device/status",
-        ] {
+        for path in ["/api/v1/accounts", "/api/v1/connect/device/status"] {
             assert_eq!(request_timeout(path, ordinary), ordinary);
         }
+        assert_eq!(
+            request_timeout("/api/v1/cloud-backups/action", ordinary),
+            std::time::Duration::from_secs(270),
+        );
     }
 }
 

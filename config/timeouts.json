@@ -28,7 +28,8 @@
         "cloud_backup_capture",
         "device_sync_generate_snapshot_now",
         "complete_pairing_with_transfer",
-        "export_database_backup"
+        "export_database_backup",
+        "install_app_update"
       ],
       "paths": [
         "/cloud-backups/capture",
@@ -189,7 +190,10 @@
         "link_loan_payment",
         "get_alternative_holdings",
         "parse_csv",
-        "export_data_file"
+        "export_data_file",
+        "write_pending_export_text_file",
+        "write_pending_export_file",
+        "cloud_backup_action"
       ],
       "paths": [
         "/holdings",
@@ -236,7 +240,8 @@
         "/spending/rules/rerun/*",
         "/utilities/export",
         "/utilities/export/*",
-        "/utilities/database/backup"
+        "/utilities/database/backup",
+        "/cloud-backups/action"
       ]
     }
   ],

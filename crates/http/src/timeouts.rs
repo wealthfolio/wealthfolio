@@ -125,6 +125,11 @@ mod tests {
     fn import_and_history_routes_have_the_same_class_as_their_commands() {
         for (command, paths, expected) in [
             ("get_accounts", vec!["/accounts"], 45_000),
+            (
+                "cloud_backup_action",
+                vec!["/cloud-backups/action"],
+                270_000,
+            ),
             ("parse_csv", vec!["/activities/import/parse"], 270_000),
             (
                 "preview_import_assets",

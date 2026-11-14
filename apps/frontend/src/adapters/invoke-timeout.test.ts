@@ -19,6 +19,11 @@ it.each([
   ["cloud_backup_capture", 1_920_000],
   ["device_sync_generate_snapshot_now", 1_920_000],
   ["complete_pairing_with_transfer", 1_920_000],
+  ["install_app_update", 1_920_000],
+  ["write_pending_export_text_file", 300_000],
+  ["write_pending_export_file", 300_000],
+  ["export_data_file", 300_000],
+  ["cloud_backup_action", 300_000],
 ])("gives %s its production client deadline", (command, expected) => {
   expect(invokeTimeoutMs(command)).toBe(expected);
 });
