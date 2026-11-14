@@ -71,6 +71,14 @@ const baseSchema = z.object({
     .optional()
     .nullable(),
   purchaseDate: z.date().optional().nullable(),
+  // Percentage of this asset you own (e.g. 50 for a house split with a spouse).
+  // Only affects net worth totals, not the displayed market value.
+  ownershipPct: z.coerce
+    .number()
+    .gt(0, "asset:detailsSheet.validation.ownership_must_be_greater_than_0")
+    .max(100, "asset:detailsSheet.validation.ownership_must_be_100_or_less")
+    .optional()
+    .nullable(),
   notes: z
     .string()
     .max(1000, "asset:detailsSheet.validation.notes_must_be_less_than_1000_characters")
@@ -270,6 +278,7 @@ export function getDefaultDetailsFormValues(
     name,
     purchasePrice: metadata?.purchase_price ? parseFloat(metadata.purchase_price as string) : null,
     purchaseDate: metadata?.purchase_date ? parseLocalDate(metadata.purchase_date as string) : null,
+    ownershipPct: metadata?.ownership_pct ? parseFloat(metadata.ownership_pct as string) : null,
     notes: notes ?? null,
   };
 
@@ -392,6 +401,10 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
   if (values.purchaseDate) {
     metadata.purchase_date = formatDateToISO(values.purchaseDate);
   }
+
+  // The backend merges these changes into the stored metadata, where an empty
+  // value removes the key; send one so clearing the field restores 100%.
+  metadata.ownership_pct = values.ownershipPct != null ? values.ownershipPct.toString() : "";
 
   // Notes are NOT stored in metadata - they go in asset.notes field
 

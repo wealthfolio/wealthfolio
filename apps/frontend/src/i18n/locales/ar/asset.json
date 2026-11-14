@@ -239,6 +239,8 @@
     "metal_type": "نوع المعدن",
     "name": "الاسم",
     "name_placeholder": "أدخل اسم الأصل...",
+    "ownership_pct": "نسبة الملكية",
+    "ownership_pct_description": "حصتك في هذا الأصل. تؤثر فقط على إجمالي صافي ثروتك، وتظل القيمة المعروضة 100% دائمًا. تُطبَّق الحصة الجديدة على كامل سجل صافي ثروتك، وليس من اليوم فقط.",
     "no_assets_to_link": "لا توجد أصول متاحة للربط. أنشئ عقارًا أو مركبة أولًا.",
     "none_standalone": "لا شيء (التزام مستقل)",
     "notes": "ملاحظات",
@@ -289,7 +291,9 @@
       "name_must_be_less_than_100_characters": "يجب أن يكون الاسم أقل من 100 حرف",
       "interest_rate_must_be_0_or_greater": "يجب أن يكون سعر الفائدة 0 أو أكبر",
       "description_must_be_less_than_200_characters": "يجب أن يكون الوصف أقل من 200 حرف",
-      "original_amount_must_be_greater_than_0": "يجب أن يكون المبلغ الأصلي أكبر من 0"
+      "original_amount_must_be_greater_than_0": "يجب أن يكون المبلغ الأصلي أكبر من 0",
+      "ownership_must_be_greater_than_0": "يجب أن تكون نسبة الملكية أكبر من 0",
+      "ownership_must_be_100_or_less": "يجب أن تكون نسبة الملكية 100 أو أقل"
     }
   },
   "editSheet": {

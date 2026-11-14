@@ -259,3 +259,32 @@ it("lists an unavailable linked balance without an amount, but keeps a recorded 
   ).toEqual({ id: "loan", name: "Manual loan", balance: "0" });
   expect(toLinkedLiability({ ...holding, loan: undefined }).balance).toBe("0");
 });
+
+describe("ownership percentage", () => {
+  const property = (ownership?: string) =>
+    getDefaultDetailsFormValues(
+      AlternativeAssetKind.PROPERTY,
+      "Beach House",
+      ownership ? { ownership_pct: ownership } : undefined,
+    );
+
+  it("loads and saves the stored share", () => {
+    const values = property("50");
+    expect(values.ownershipPct).toBe(50);
+    expect(formValuesToMetadata(values).ownership_pct).toBe("50");
+  });
+
+  it("sends an empty value when cleared so the stored share is removed", () => {
+    const values = { ...property("50"), ownershipPct: null };
+    expect(formValuesToMetadata(values).ownership_pct).toBe("");
+  });
+
+  it("accepts shares above 0 up to 100", () => {
+    const parse = (ownershipPct: number) =>
+      assetDetailsSchema.safeParse({ ...property(), ownershipPct }).success;
+    expect(parse(0)).toBe(false);
+    expect(parse(0.5)).toBe(true);
+    expect(parse(100)).toBe(true);
+    expect(parse(100.01)).toBe(false);
+  });
+});

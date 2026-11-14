@@ -270,6 +270,31 @@ export function AssetDetailsSheet({
                 )}
               />
 
+              {/* Ownership Percentage - common to all asset kinds, affects net worth only */}
+              <FormField
+                control={form.control}
+                name="ownershipPct"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("asset:detailsSheet.ownership_pct")}</FormLabel>
+                    <FormControl>
+                      <QuantityInput
+                        ref={field.ref}
+                        name={field.name}
+                        value={field.value}
+                        onValueChange={(value) => field.onChange(value ?? null)}
+                        placeholder="100"
+                        maxDecimalPlaces={2}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      {t("asset:detailsSheet.ownership_pct_description")}
+                    </FormDescription>
+                    <AssetFormMessage />
+                  </FormItem>
+                )}
+              />
+
               {!isLoan && <Separator />}
 
               {/* Purchase Information - only for assets, not liabilities */}
