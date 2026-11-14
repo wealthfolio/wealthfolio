@@ -87,8 +87,10 @@ impl<'a> ChunkedCredential<'a> {
         let previous = self.metadata()?;
         if secret.encode_utf16().count() <= CHUNK_UTF16_UNITS {
             self.entry(USERNAME)?.set_password(secret)?;
-            // Until this succeeds, readers continue to see the old chunks.
-            delete(&self.entry(METADATA_USER)?)?;
+            if previous.is_some() {
+                // Until this succeeds, readers continue to see the old chunks.
+                delete(&self.entry(METADATA_USER)?)?;
+            }
         } else {
             let chunks = split(secret);
             let metadata = Metadata {

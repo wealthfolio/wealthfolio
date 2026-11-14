@@ -1436,8 +1436,15 @@ secret removes its chunks. A missing or invalid chunk causes `get` to reject; it
 does not return a partial value or `null`.
 
 Chunked values require a host version that supports this format. Older host
-versions cannot reconstruct values written in chunks. Other platforms continue
-to use their existing native or file-backed secret storage.
+versions cannot reconstruct values written in chunks. They also cannot remove
+the chunks or their metadata when replacing or deleting a secret. If you
+downgrade, replace or delete that secret, and upgrade again, the old chunked
+value can reappear because its metadata still takes precedence. Before
+downgrading, delete affected secrets using this API in a host that supports
+chunking, then configure them again in the older host.
+
+Other platforms continue to use their existing native or file-backed secret
+storage.
 
 Rejected host calls expose a stable `code` property on the `Error` when the host
 can classify the failure. `SECRET_TOO_LARGE` means the value exceeds the storage

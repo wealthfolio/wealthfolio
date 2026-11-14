@@ -129,6 +129,19 @@ fn existing_values_and_single_credential_writes_keep_their_format() {
 }
 
 #[test]
+fn ordinary_updates_do_not_delete_absent_metadata() {
+    let store = Store::default();
+    let entry = ChunkedCredential::new(&store, SERVICE);
+    entry.set("original").unwrap();
+    store.0.lock().unwrap().fail_delete_user = Some(METADATA_USER.into());
+
+    entry.set("updated").unwrap();
+
+    assert_eq!(entry.get().unwrap().as_deref(), Some("updated"));
+    assert_eq!(store.0.lock().unwrap().values.len(), 1);
+}
+
+#[test]
 fn unicode_boundaries_and_large_values_round_trip_across_new_entries() {
     let store = Store::default();
     for value in [
