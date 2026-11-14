@@ -8,11 +8,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::accounts::Account;
-use crate::assets::{
-    AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode,
-    ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
-};
-use crate::errors::{Error, Result, ValidationError};
+use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode};
+use crate::errors::{DatabaseError, Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::{
     validate_snapshot_write_date, AccountStateSnapshot, Position, SnapshotServiceTrait,
@@ -285,21 +282,27 @@ impl ManualSnapshotService {
             if holding.quantity.is_zero() {
                 continue;
             }
-            let asset = holding
-                .asset_id
-                .as_deref()
-                .filter(|id| !id.is_empty())
-                .and_then(|asset_id| self.asset_service.get_asset_by_id(asset_id).ok())
-                .or_else(|| {
-                    self.asset_service.find_asset_by_listing(
-                        &holding.asset_metadata(),
-                        Some(holding.currency.as_str()),
-                    )
-                });
+            let by_id = match holding.asset_id.as_deref().filter(|id| !id.is_empty()) {
+                // Only a missing asset falls through to the listing, as in
+                // get_or_create_minimal_asset; any other read error aborts the
+                // save, so the check never passes on a failed lookup.
+                Some(asset_id) => match self.asset_service.get_asset_by_id(asset_id) {
+                    Ok(asset) => Some(asset),
+                    Err(Error::Database(DatabaseError::NotFound(_))) => None,
+                    Err(error) => return Err(error),
+                },
+                None => None,
+            };
+            let asset = by_id.or_else(|| {
+                self.asset_service.find_asset_by_listing(
+                    &holding.asset_metadata(),
+                    Some(holding.currency.as_str()),
+                )
+            });
             if asset.is_some_and(|asset| asset.kind.is_alternative()) {
-                return Err(Error::Validation(ValidationError::InvalidInput(
-                    ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
-                )));
+                return Err(Error::Validation(
+                    ValidationError::AlternativeAssetNotInAccount,
+                ));
             }
         }
 
@@ -587,7 +590,9 @@ mod tests {
     use super::*;
     use crate::accounts::{Account, AccountRepositoryTrait};
     use crate::activities::ActivityRepositoryTrait;
-    use crate::assets::{Asset, AssetRepositoryTrait, AssetService};
+    use crate::assets::{
+        Asset, AssetRepositoryTrait, AssetService, ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+    };
     use crate::fx::FxService;
     use crate::portfolio::snapshot::{SnapshotRepositoryTrait, SnapshotService};
     use crate::test_support::in_memory::{
@@ -776,25 +781,32 @@ mod tests {
             ..Default::default()
         };
         let date = day("2026-01-15");
-        let (service, quotes, snapshots) =
-            service_with(Vec::new(), AssetKind::Investment, vec![cottage]);
-        let mut symbol_only = request(date);
-        symbol_only.positions[0].asset_id = None;
-        symbol_only.positions[0].symbol = "COTTAGE".to_string();
+        // Symbol only, and an ID no asset has: saving falls through to the
+        // listing in both cases, so the check does too.
+        for asset_id in [None, Some("no-such-asset".to_string())] {
+            let (service, quotes, snapshots) =
+                service_with(Vec::new(), AssetKind::Investment, vec![cottage.clone()]);
+            let mut holding = request(date);
+            holding.positions[0].asset_id = asset_id.clone();
+            holding.positions[0].symbol = "COTTAGE".to_string();
 
-        let refused = service
-            .save_manual_snapshot(symbol_only)
-            .await
-            .expect_err("the matched alternative asset is refused");
+            let refused = service
+                .save_manual_snapshot(holding)
+                .await
+                .expect_err("the matched alternative asset is refused");
 
-        assert!(
-            refused
-                .to_string()
-                .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
-            "{refused}"
-        );
-        assert!(closes(&quotes).is_empty(), "no price written");
-        assert!(stored(&snapshots).is_empty(), "no snapshot saved");
+            assert!(
+                refused
+                    .to_string()
+                    .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{asset_id:?}: {refused}"
+            );
+            assert!(closes(&quotes).is_empty(), "{asset_id:?}: no price written");
+            assert!(
+                stored(&snapshots).is_empty(),
+                "{asset_id:?}: no snapshot saved"
+            );
+        }
     }
 
     #[tokio::test]
