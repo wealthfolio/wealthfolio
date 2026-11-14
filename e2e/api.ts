@@ -87,6 +87,32 @@ export function createActivity(
   });
 }
 
+export interface ApiActivityDetails {
+  id: string;
+  accountId: string;
+  activityType: string;
+  subtype: string | null;
+  assetId: string | null;
+  assetSymbol: string | null;
+  quantity: string | null;
+  unitPrice: string | null;
+  amount: string | null;
+  fee: string | null;
+  currency: string;
+  comment: string | null;
+}
+
+/** One activity as the activities search returns it. */
+export async function getActivity(page: Page, id: string): Promise<ApiActivityDetails> {
+  const { data } = await api<{ data: ApiActivityDetails[] }>(page, "POST", "/activities/search", {
+    page: 0,
+    pageSize: 10,
+    activityIdFilter: [id],
+  });
+  expect(data, `activity ${id}`).toHaveLength(1);
+  return data[0];
+}
+
 export function deposit(
   page: Page,
   accountId: string,
