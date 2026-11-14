@@ -17,6 +17,8 @@ const ERROR_KEYS: Record<string, string> = {
   provider_key_missing: "common:backendErrors.providerKeyMissing",
   provider_unknown: "common:backendErrors.providerUnknown",
   provider_unavailable: "common:backendErrors.providerUnavailable",
+  SECRET_TOO_LARGE: "common:backendErrors.secretTooLarge",
+  SECRET_STORE_UNAVAILABLE: "common:backendErrors.secretStoreUnavailable",
   INVALID_SNAPSHOT_DATE: "account:snapshot.invalid_date_update_desc",
   ASSET_IDENTITY_CONFLICT: "asset:editSheet.identity_conflict",
   [CONNECT_REBIND_REQUIRED]: "common:profiles.errors.rebind",

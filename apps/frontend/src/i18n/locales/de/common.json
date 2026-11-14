@@ -711,6 +711,8 @@
     "providerKeyMissing": "Fügen Sie in den Einstellungen einen API-Schlüssel für diesen Anbieter hinzu.",
     "providerUnknown": "Wählen Sie einen unterstützten Anbieter aus.",
     "providerUnavailable": "Der Anbieter konnte die Anfrage nicht bearbeiten. Prüfen Sie die Anbietereinstellungen.",
+    "secretTooLarge": "Dieses Geheimnis ist zu groß zum Speichern. Verkleinern Sie es und versuchen Sie es erneut.",
+    "secretStoreUnavailable": "Der sichere Anmeldedatenspeicher ist nicht verfügbar oder voll. Prüfen Sie den Anmeldedatenspeicher Ihres Systems oder starten Sie Wealthfolio neu und versuchen Sie es erneut.",
     "customProviderCodeReserved": "Dieser Anbietercode ist reserviert. Wählen Sie einen anderen Code.",
     "customProviderInUse": "Ändern Sie vor dem Löschen den Anbieter der betroffenen Anlagen oder entfernen Sie deren Symbolzuordnungen.",
     "addonManifestMissing": "Die ZIP-Datei des Add-ons enthält keine manifest.json.",

@@ -728,6 +728,8 @@
     "providerKeyMissing": "Aggiungi una chiave API per questo fornitore nelle impostazioni.",
     "providerUnknown": "Seleziona un fornitore supportato.",
     "providerUnavailable": "Il fornitore non ha potuto completare la richiesta. Controlla le impostazioni del fornitore.",
+    "secretTooLarge": "Questo segreto è troppo grande per essere salvato. Riducine le dimensioni e riprova.",
+    "secretStoreUnavailable": "L’archivio sicuro delle credenziali non è disponibile o è pieno. Controlla l’archivio delle credenziali di sistema o riavvia Wealthfolio, quindi riprova.",
     "customProviderCodeReserved": "Questo codice fornitore è riservato. Scegli un altro codice.",
     "customProviderInUse": "Cambia il fornitore degli asset interessati o rimuovi le relative associazioni dei simboli prima di eliminarlo.",
     "addonManifestMissing": "Il file ZIP del componente aggiuntivo non contiene manifest.json.",

@@ -700,6 +700,8 @@
     "providerKeyMissing": "请在设置中为此提供方添加 API 密钥。",
     "providerUnknown": "请选择受支持的提供方。",
     "providerUnavailable": "提供方无法完成请求。请检查提供方设置。",
+    "secretTooLarge": "此密钥内容过大，无法存储。请缩小内容后重试。",
+    "secretStoreUnavailable": "安全凭据存储不可用或已满。请检查系统凭据存储或重启 Wealthfolio，然后重试。",
     "customProviderCodeReserved": "此提供方代码已被保留。请选择其他代码。",
     "customProviderInUse": "删除前，请更改相关资产的提供方或移除其代码映射。",
     "addonManifestMissing": "插件 ZIP 文件中没有 manifest.json。",

@@ -24,6 +24,17 @@ afterEach(async () => {
 
 describe("public backend errors", () => {
   it.each([
+    ["SECRET_TOO_LARGE", "secretTooLarge"],
+    ["SECRET_STORE_UNAVAILABLE", "secretStoreUnavailable"],
+  ] as const)("localizes %s without trusting private backend text", async (code, key) => {
+    const error = backendError({ errorCode: code, message: privateMessage });
+    expect(error?.errorCode).toBe(code);
+    const translations = createInstance();
+    await translations.init({ lng: "fr", resources: { fr: { common: fr } } });
+    expect(backendErrorText(error, translations.t)).toBe(fr.backendErrors[key]);
+    expect(backendErrorText(error, translations.t)).not.toContain("FAKE-KEY");
+  });
+  it.each([
     "Profile operations are running. Wait for them to finish and try again.",
     "Connect account change is in progress. Try again.",
     `PROFILE_BUSY: ${privateMessage}`,

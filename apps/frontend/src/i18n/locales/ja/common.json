@@ -700,6 +700,8 @@
     "providerKeyMissing": "設定でこのプロバイダーの API キーを追加してください。",
     "providerUnknown": "対応しているプロバイダーを選択してください。",
     "providerUnavailable": "プロバイダーがリクエストを完了できませんでした。プロバイダーの設定を確認してください。",
+    "secretTooLarge": "このシークレットは大きすぎるため保存できません。サイズを小さくして再試行してください。",
+    "secretStoreUnavailable": "安全な資格情報ストレージを利用できないか、容量が不足しています。システムの資格情報ストアを確認するか、Wealthfolio を再起動して再試行してください。",
     "customProviderCodeReserved": "このプロバイダーコードは予約されています。別のコードを選択してください。",
     "customProviderInUse": "削除する前に、対象資産のプロバイダーを変更するか、シンボルのマッピングを削除してください。",
     "addonManifestMissing": "アドオンの ZIP ファイルに manifest.json がありません。",
