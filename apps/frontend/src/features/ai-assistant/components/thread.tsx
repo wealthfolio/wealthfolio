@@ -5,8 +5,8 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useAssistantApi,
-  useAssistantState,
+  useAui,
+  useAuiState,
 } from "@assistant-ui/react";
 
 import { Component, type ClipboardEvent, type ErrorInfo, type FC, type ReactNode } from "react";
@@ -161,7 +161,7 @@ interface ComposerProps {
 
 const Composer: FC<ComposerProps> = ({ composerActions }) => {
   const { t } = useTranslation();
-  const api = useAssistantApi();
+  const aui = useAui();
 
   // A pasted table becomes a CSV attachment, so an import reads the pasted
   // text itself rather than a copy the model writes out.
@@ -171,7 +171,7 @@ const Composer: FC<ComposerProps> = ({ composerActions }) => {
     if (!isPastedCsvTable(text)) return;
 
     event.preventDefault();
-    const composer = api.composer();
+    const composer = aui.composer;
     const name = pastedCsvFileName(
       composer.getState().attachments.map((attachment) => attachment.name),
     );
@@ -309,7 +309,7 @@ interface TypingIndicatorProps {
 }
 
 const TypingIndicator: FC<TypingIndicatorProps> = ({ position }) => {
-  const showIndicator = useAssistantState(({ message }) => {
+  const showIndicator = useAuiState(({ message }) => {
     if (message.status?.type !== "running") return false;
 
     if (position === "initial") {
