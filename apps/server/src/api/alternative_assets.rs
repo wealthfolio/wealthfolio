@@ -514,9 +514,9 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
     }
 
-    /// Alternative assets sit outside account values, so changing one, or one
-    /// of its values in the Values table, starts no portfolio job. A price the
-    /// server can't place still does.
+    /// Alternative assets sit outside account values, so creating one,
+    /// updating its value or deleting it starts no portfolio job. A price
+    /// edit, which the Values table makes for any asset, still does.
     #[tokio::test]
     async fn alternative_asset_changes_start_no_portfolio_job() {
         let root = tempfile::tempdir().unwrap();
@@ -552,32 +552,11 @@ mod tests {
         )
         .await;
         let asset_id = created["assetId"].as_str().unwrap().to_string();
-        let first_value = created["quoteId"].as_str().unwrap().to_string();
         send(
             &app,
             "PUT",
             &format!("/api/v1/alternative-assets/{asset_id}/valuation"),
             Some(serde_json::json!({ "value": "460000", "date": "2026-11-01" })),
-        )
-        .await;
-        // The Values table edits through the generic quote routes.
-        send(
-            &app,
-            "PUT",
-            &format!("/api/v1/market-data/quotes/{asset_id}"),
-            Some(serde_json::json!({
-                "id": "", "assetId": asset_id, "timestamp": "2026-11-05T12:00:00Z",
-                "open": 470000, "high": 470000, "low": 470000, "close": 470000,
-                "adjclose": 470000, "volume": 0, "currency": "USD",
-                "dataSource": "MANUAL", "createdAt": "2026-11-05T12:00:00Z"
-            })),
-        )
-        .await;
-        send(
-            &app,
-            "DELETE",
-            &format!("/api/v1/market-data/quotes/id/{first_value}"),
-            None,
         )
         .await;
         send(
@@ -587,7 +566,7 @@ mod tests {
             None,
         )
         .await;
-        // The control: a price the server can't place keeps its job.
+        // The control: a price edit starts its job.
         send(
             &app,
             "DELETE",
