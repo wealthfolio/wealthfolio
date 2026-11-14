@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::context::ServiceContext;
 use log::{debug, info, warn};
 use serde::Deserialize;
-use tauri::AppHandle;
 use wealthfolio_core::activities::Activity;
 use wealthfolio_spending::activity_assignments::{
     ActivityTaxonomyAssignment, BulkCategoryAssignment,
@@ -125,7 +124,6 @@ pub async fn get_spending_settings(state: ProfileAccess) -> Result<SpendingSetti
 
 #[tauri::command]
 pub async fn update_spending_settings(
-    handle: AppHandle,
     update: SpendingSettingsUpdate,
     state: ProfileAccess,
 ) -> Result<SpendingSettings, String> {
@@ -155,11 +153,6 @@ pub async fn update_spending_settings(
         Vec::new()
     };
     spawn_auto_categorize(Arc::clone(&context), to_categorize);
-    // These settings change the Spending widget without a portfolio update.
-    let widget_context = Arc::clone(&context);
-    tauri::async_runtime::spawn(async move {
-        crate::widget::publish(&handle, &widget_context).await;
-    });
     Ok(after)
 }
 

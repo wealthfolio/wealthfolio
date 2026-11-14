@@ -789,6 +789,15 @@ pub fn run() {
                     tauri::WindowEvent::Resumed => Some(false),
                     _ => None,
                 };
+                #[cfg(target_os = "ios")]
+                if suspended == Some(true) {
+                    if let Some(context) = _handle
+                        .try_state::<profiles::NativeProfiles>()
+                        .and_then(|profiles| profiles.try_context())
+                    {
+                        listeners::refresh_widgets(_handle.clone(), context);
+                    }
+                }
                 if let Some(suspended) = suspended {
                     if let Some(startup) = _handle.try_state::<profile_startup::ProfileStartup>() {
                         startup
@@ -821,6 +830,24 @@ pub fn run() {
                             let _ = commands::device_sync::share_backup_access(&context).await;
                         }
                     });
+                }
+            }
+
+            // The desktop widgets show while the app's windows are behind other
+            // apps, so leaving the app refreshes them, as suspending does on iOS.
+            #[cfg(target_os = "macos")]
+            if matches!(
+                &event,
+                tauri::RunEvent::WindowEvent {
+                    event: tauri::WindowEvent::Focused(false),
+                    ..
+                }
+            ) {
+                if let Some(context) = _handle
+                    .try_state::<profiles::NativeProfiles>()
+                    .and_then(|profiles| profiles.try_context())
+                {
+                    listeners::refresh_widgets(_handle.clone(), context);
                 }
             }
 

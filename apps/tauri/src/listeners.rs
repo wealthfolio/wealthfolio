@@ -136,6 +136,24 @@ pub(crate) fn refresh_portfolio_on_resume(handle: AppHandle, context: Arc<Servic
     );
 }
 
+/// Rebuilds the widgets' snapshot as the app leaves the foreground, where the
+/// widgets are seen. One place covers every edit made while the app was open,
+/// including spending categories, splits and settings, which run no portfolio
+/// update. It runs as a portfolio task, so locking or deleting the profile
+/// cancels and joins it before the widgets are cleared.
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+pub(crate) fn refresh_widgets(handle: AppHandle, context: Arc<ServiceContext>) {
+    if !context.is_active() {
+        return;
+    }
+    let task_context = Arc::clone(&context);
+    // Not a portfolio job: report no success, so the resume cooldown is untouched.
+    let _ = context.portfolio_tasks.spawn(false, async move {
+        crate::widget::publish(&handle, &task_context).await;
+        false
+    });
+}
+
 /// Whether a finished job leaves the profile fresh for the resume cooldown:
 /// a broad market update whose sync completed and whose accounts all
 /// projected. Anything else stays retryable.
