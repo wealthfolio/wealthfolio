@@ -1,6 +1,7 @@
 "use client";
 
-import { format, type Locale } from "date-fns";
+import type { Locale } from "date-fns";
+import { format } from "date-fns/format";
 import * as React from "react";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 import { useTranslation } from "react-i18next";

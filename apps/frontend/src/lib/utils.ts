@@ -3,13 +3,12 @@ import { dateFnsLocaleFor } from "@wealthfolio/ui/hooks/use-date-fns-locale";
 import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 import type { FormattingApi } from "@wealthfolio/ui/lib/formatting";
 import { type ClassValue, clsx } from "clsx";
-import {
-  format,
-  formatDistanceToNow as formatDistanceToNowDateFns,
-  isValid,
-  parse,
-  parseISO,
-} from "date-fns";
+// By subpath: the date-fns index loads every function, and most tests reach this file.
+import { format } from "date-fns/format";
+import { formatDistanceToNow as formatDistanceToNowDateFns } from "date-fns/formatDistanceToNow";
+import { isValid } from "date-fns/isValid";
+import { parse } from "date-fns/parse";
+import { parseISO } from "date-fns/parseISO";
 import { twMerge } from "tailwind-merge";
 import { DECIMAL_PRECISION } from "./constants";
 
