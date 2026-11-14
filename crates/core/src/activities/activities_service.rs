@@ -1950,8 +1950,8 @@ impl ActivityService {
     /// account holds is an investment.
     fn refuse_alternative_kind(kind: Option<&AssetKind>) -> Result<()> {
         match kind {
-            Some(kind) if kind.is_alternative() => Err(Self::invalid_activity_data(
-                crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+            Some(kind) if kind.is_alternative() => Err(Error::Validation(
+                crate::errors::ValidationError::AlternativeAssetNotInAccount,
             )),
             _ => Ok(()),
         }
