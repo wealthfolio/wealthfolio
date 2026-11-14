@@ -195,7 +195,7 @@ other workers run at the same time on their own databases.
   card, Next, details, Add Activity) and returns what the server saved; its
   parts (`openPhoneActivityForm`, `choosePhoneActivityType`,
   `fillPhoneActivityDetails`, `savePhoneActivity`) drive one step at a time.
-  `tabBar` and `backButton` find the phone navigation.
+  `tabBar` finds the tab bar, and `tapBack` taps the top screen's Back.
 
 ## Important rules
 

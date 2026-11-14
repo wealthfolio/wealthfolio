@@ -19,10 +19,15 @@ export function tabBar(page: Page) {
   return page.getByRole("navigation", { name: "Primary navigation" });
 }
 
-/** The visible Back button of the screen on top. */
-export function backButton(page: Page) {
+/**
+ * Taps the Back button of the screen on top, once the stack has settled: while
+ * a screen slides in or out, the one it covers shows its own Back too.
+ */
+export async function tapBack(page: Page) {
   // Exact: "Back" alone would also match rows such as "Backup & export".
-  return page.getByRole("button", { name: "Back", exact: true }).locator("visible=true").first();
+  const back = page.getByRole("button", { name: "Back", exact: true }).locator("visible=true");
+  await expect(back).toHaveCount(1);
+  await back.click();
 }
 
 export type PhoneActivityType =
