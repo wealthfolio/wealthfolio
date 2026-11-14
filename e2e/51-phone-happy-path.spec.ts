@@ -14,9 +14,9 @@ import { expect, test, type Page } from "./fixtures";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 import {
   activitySheet,
-  backButton,
   PHONE,
   savePhoneActivity,
+  tapBack,
   tabBar,
   type SavedActivity,
 } from "./phone";
@@ -30,6 +30,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 const pathOf = (page: Page) => page.evaluate(() => location.pathname);
+
+// Specs on the same worker may leave another base currency, so values are
+// recorded in whichever one it has and read without a currency symbol.
+async function baseCurrency(page: Page) {
+  return (await api<{ baseCurrency: string }>(page, "GET", "/settings")).baseCurrency;
+}
 
 /** Opens Settings from the tab bar's More menu. */
 async function openSettings(page: Page) {
@@ -94,6 +100,7 @@ test("tab bar moves between the main pages and marks the current one", async ({ 
 test("create an account, open it from Settings and from the Dashboard", async ({ page }) => {
   test.setTimeout(90_000);
   const name = uniqueName("Phone account");
+  const base = await baseCurrency(page);
   await gotoAppPath(page, "/dashboard");
   await openSettings(page);
   await openSettingsRow(page, "Accounts");
@@ -111,7 +118,8 @@ test("create an account, open it from Settings and from the Dashboard", async ({
   const response = await saved;
   expect(response.ok(), await response.text()).toBe(true);
   const account = (await response.json()) as { id: string; currency: string; accountType: string };
-  expect([account.currency, account.accountType]).toEqual(["CAD", "SECURITIES"]);
+  // A new account starts in the base currency.
+  expect([account.currency, account.accountType]).toEqual([base, "SECURITIES"]);
   await expect(sheet).toBeHidden();
 
   // The new account is listed; tapping it opens its screen over the list.
@@ -127,18 +135,18 @@ test("create an account, open it from Settings and from the Dashboard", async ({
   await expect(page.getByText("No holdings yet").locator("visible=true")).toBeVisible({
     timeout: 60_000,
   });
-  await backButton(page).click();
+  await tapBack(page);
   await expect.poll(() => pathOf(page)).toBe("/settings/accounts");
   await expect(row).toBeVisible();
 
   // On the Dashboard, its card opens the account's own page.
   await tabBar(page).getByRole("link", { name: "Dashboard", exact: true }).click();
   const card = page.getByRole("link", { name: new RegExp(`^${name}\\b`) });
-  await expect(card).toContainText("CAD");
+  await expect(card).toContainText(base);
   await card.click();
   await expect.poll(() => pathOf(page)).toBe(`/accounts/${account.id}`);
   await expect(accountHeader).toHaveText(name);
-  await backButton(page).click();
+  await tapBack(page);
   await expect.poll(() => pathOf(page)).toBe("/dashboard");
 });
 
@@ -168,7 +176,7 @@ test("a holding opens from the Holdings list, with its quantity and value", asyn
   ).toBeVisible();
   // 12 shares bought at $25 and valued at that manual price.
   await expect(detail.getByText("$300.00").locator("visible=true").first()).toBeVisible();
-  await backButton(page).click();
+  await tapBack(page);
   await expect.poll(() => pathOf(page)).toBe("/holdings");
   await expect(holding).toBeVisible();
 });
@@ -202,11 +210,9 @@ test("an activity opens from the list, edits in its sheet and saves", async ({ p
 
 test("dashboard and Insights show an account's value", async ({ page }) => {
   test.setTimeout(90_000);
-  const account = await createAccount(page, {
-    name: uniqueName("Phone insights"),
-    currency: "CAD",
-  });
-  await deposit(page, account.id, 1234.5, "CAD", "2026-01-05T15:00:00.000Z");
+  const base = await baseCurrency(page);
+  const account = await createAccount(page, { name: uniqueName("Phone insights"), currency: base });
+  await deposit(page, account.id, 1234.5, base, "2026-01-05T15:00:00.000Z");
   // The deposit is valued by a recalculation that runs after it is saved.
   await expect
     .poll(
@@ -243,7 +249,7 @@ test("dashboard and Insights show an account's value", async ({ page }) => {
     account.name,
   );
   await expect(page.locator("main").getByText("Portfolio value")).toBeVisible();
-  await expect(page.locator("main")).toContainText("Portfolio valueCA$1,234.50");
+  await expect(page.locator("main")).toContainText(/Portfolio value\D{0,4}1,234\.50/);
 });
 
 test("create a savings goal and land on its page", async ({ page }) => {
@@ -276,7 +282,7 @@ test("Spending dashboard records an expense added from its menu", async ({ page 
   const account = await createAccount(page, {
     name: uniqueName("Phone spending"),
     accountType: "CASH",
-    currency: "CAD",
+    currency: await baseCurrency(page),
   });
   const previous = await useSpendingAccounts(page, [account.id]);
   try {
@@ -307,7 +313,7 @@ test("Spending dashboard records an expense added from its menu", async ({ page 
       .toEqual([["WITHDRAWAL", 42.5]]);
     // Spending is pointed at this account alone, so the month's total is its expense.
     await expect(page.getByRole("heading", { level: 1 }).locator("visible=true")).toContainText(
-      "CA$42.50",
+      "42.50",
     );
   } finally {
     await restoreSpendingSettings(page, previous);
@@ -330,7 +336,7 @@ test("language, theme and text size change from Settings", async ({ page }) => {
     const before = await rootSize();
     await page.getByRole("button", { name: "Large", exact: true }).click();
     await expect.poll(rootSize).toBeGreaterThan(before);
-    await backButton(page).click();
+    await tapBack(page);
 
     await openSettingsRow(page, "General");
     await page.getByRole("combobox", { name: "Language", exact: true }).click();
