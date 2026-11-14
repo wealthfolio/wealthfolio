@@ -8,3 +8,10 @@ const TIMEOUTS_MS: Record<string, number> = {
   check_activities_import: 600_000,
 };
 export const invokeTimeoutMs = (command: string): number => TIMEOUTS_MS[command] ?? 300_000;
+
+export class InvokeTimeoutError extends Error {
+  constructor(command: string) {
+    super(`Command "${command}" timed out`);
+    this.name = "TimeoutError";
+  }
+}
