@@ -189,6 +189,13 @@ other workers run at the same time on their own databases.
   Use the API from the test instead. `?dir=rtl` and `?swipe=app` still work.
 - **Wait on state, not time**: after closing a picker or menu, wait until it is
   gone before opening the next; the build is faster than the dev server.
+- **Phone specs use `e2e/phone.ts`**: `test.use(PHONE)` gives the 390×844
+  screen, touch input and iPhone user agent the phone layout needs (Chrome
+  only). `addActivityOnPhone` saves an activity through the step form (type
+  card, Next, details, Add Activity) and returns what the server saved; its
+  parts (`openPhoneActivityForm`, `choosePhoneActivityType`,
+  `fillPhoneActivityDetails`, `savePhoneActivity`) drive one step at a time.
+  `tabBar` and `backButton` find the phone navigation.
 
 ## Important rules
 
@@ -254,6 +261,9 @@ other workers run at the same time on their own databases.
 | `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
 | `46-phone-tab-links.spec.ts`           | Phone: links to the dashboard's and Insights' Spending tab open it, though the tab joins the page after settings load       |
 | `47-currency-picker-scroll.spec.ts`    | Desktop currency pickers (base currency, exchange rate From/To) scroll in one area, not two nested ones (#2450)             |
+| `51-phone-happy-path.spec.ts`          | Phone: tab bar, account, holding, activity edit, Dashboard/Insights, goal, expense, settings                                |
+| `52-phone-activity-entry.spec.ts`      | Phone: each activity type saved through the step form and read back from the API                                            |
+| `53-phone-validation.spec.ts`          | Phone: activity form errors stay on screen; amounts typed with a decimal comma save their value                             |
 
 ---
 
