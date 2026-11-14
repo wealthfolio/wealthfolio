@@ -1,13 +1,13 @@
+import { CategoryAvatar } from "@/components/financial/category-avatar";
+import { CompactAmount } from "@/components/financial/compact-amount";
+import { CARD_LABEL } from "@/components/financial/styles";
 import { buttonVariants, useNumberFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { CategoryTrendChart } from "./category-trend-chart";
-import { CompactAmount } from "./compact-amount";
-import { CategoryAvatar } from "./category-avatar";
 import {
-  CARD_LABEL,
   categoryItemDetailPath,
   deriveChange,
   formatChangePercent,

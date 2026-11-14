@@ -1,7 +1,7 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { CompactAmount } from "@/components/financial/compact-amount";
 import { useAmountFormatting, useDateFormatting, type FormattingApi } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
-import { CompactAmount } from "./compact-amount";
 import { toneClass, toneFill, type Momentum } from "./utils";
 
 const PRIOR_BAR_COLOR = "color-mix(in srgb, var(--muted-foreground) 35%, transparent)";

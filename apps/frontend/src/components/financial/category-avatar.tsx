@@ -1,5 +1,5 @@
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { CATEGORY_CSS_COLORS } from "./utils";
+import { CATEGORY_CSS_COLORS } from "./styles";
 
 interface CategoryAvatarProps {
   category: string;
