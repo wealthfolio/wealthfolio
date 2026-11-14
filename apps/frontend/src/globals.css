@@ -82,33 +82,6 @@
   }
 }
 
-/* A thin scrollbar that stays invisible until the pointer is over the box or focus is
-   inside it, for side lists whose scrolling is incidental. Its thin gutter is kept
-   either way, so nothing shifts when it appears. */
-@utility scrollbar-hover {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  &:hover,
-  &:focus-within {
-    scrollbar-color: color-mix(in oklab, var(--color-muted-foreground) 40%, transparent) transparent;
-  }
-  &::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 3px;
-  }
-  &:hover::-webkit-scrollbar-thumb,
-  &:focus-within::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklab, var(--color-muted-foreground) 40%, transparent);
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-}
-
 @utility scrollbar-thin {
   scrollbar-width: thin;
   &::-webkit-scrollbar {
