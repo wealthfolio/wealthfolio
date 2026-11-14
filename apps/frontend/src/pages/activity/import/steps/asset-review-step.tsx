@@ -71,7 +71,7 @@ interface NeedsFixingRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
   symbolName?: string;
-  count: number;
+  countLabel: string;
   onSearch: (item: ImportAssetPreviewItem, result?: SymbolSearchResult) => void;
   onMarkCustom: () => void;
   onCreateAsset: () => void;
@@ -84,7 +84,7 @@ function NeedsFixingRow({
   item,
   symbol,
   symbolName,
-  count,
+  countLabel,
   onSearch,
   onMarkCustom,
   onCreateAsset,
@@ -109,10 +109,10 @@ function NeedsFixingRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span className="text-2xs bg-warning-subtle text-warning-subtle-foreground rounded px-1.5 py-0.5 font-semibold">
-              {count}×
+              {countLabel}
             </span>
           </div>
           {symbolName && (
@@ -173,7 +173,7 @@ function NeedsFixingRow({
 interface AutoResolvedRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
-  count: number;
+  countLabel: string;
   isSuspicious: boolean;
   csvCurrency?: string;
   isSearchOpen: boolean;
@@ -185,7 +185,7 @@ interface AutoResolvedRowProps {
 function AutoResolvedRow({
   item,
   symbol,
-  count,
+  countLabel,
   isSuspicious,
   csvCurrency,
   isSearchOpen,
@@ -217,10 +217,10 @@ function AutoResolvedRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span className="text-2xs bg-info-subtle text-info-subtle-foreground rounded px-1.5 py-0.5 font-semibold">
-              {count}×
+              {countLabel}
             </span>
           </div>
           {assetName && (
@@ -302,7 +302,7 @@ function AutoResolvedRow({
 interface ReadyAssetRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
-  count: number;
+  countLabel: string;
   isSearchOpen: boolean;
   onToggleSearch: () => void;
   onSearch: (item: ImportAssetPreviewItem, result?: SymbolSearchResult) => void;
@@ -312,7 +312,7 @@ interface ReadyAssetRowProps {
 function ReadyAssetRow({
   item,
   symbol,
-  count,
+  countLabel,
   isSearchOpen,
   onToggleSearch,
   onSearch,
@@ -342,7 +342,7 @@ function ReadyAssetRow({
           className="size-7 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
             <span
               className={cn(
@@ -350,7 +350,7 @@ function ReadyAssetRow({
                 "text-2xs rounded px-1.5 font-semibold",
               )}
             >
-              {count}×
+              {countLabel}
             </span>
           </div>
           {assetName && (
@@ -411,10 +411,17 @@ function ReadyAssetRow({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function AssetReviewStep() {
+interface AssetReviewStepProps {
+  isHoldingsMode?: boolean;
+}
+
+export function AssetReviewStep({ isHoldingsMode = false }: AssetReviewStepProps) {
   const { state, dispatch, previewAssets } = useImportContext();
   const { t } = useTranslation();
   const { draftActivities, assetPreviewItems, isPreviewingAssets } = state;
+  const countLabelKey = isHoldingsMode
+    ? "activity:import.upload.rows"
+    : "activity:import.assets.transactionCount";
   const [activeSearchKey, setActiveSearchKey] = useState<string | null>(null);
   const [assetDialog, setAssetDialog] = useState<AssetDialogState>({
     open: false,
@@ -777,7 +784,7 @@ export function AssetReviewStep() {
                     item={item}
                     symbol={symbol}
                     symbolName={symbolName}
-                    count={count}
+                    countLabel={t(countLabelKey, { count })}
                     onSearch={handleSearchSelection}
                     onMarkCustom={() => handleMarkCustom(item)}
                     onCreateAsset={() =>
@@ -875,7 +882,7 @@ export function AssetReviewStep() {
                         key={item.key}
                         item={item}
                         symbol={symbol}
-                        count={count}
+                        countLabel={t(countLabelKey, { count })}
                         isSuspicious={isSuspicious}
                         csvCurrency={csvCcy}
                         isSearchOpen={activeSearchKey === item.key}
@@ -950,7 +957,7 @@ export function AssetReviewStep() {
                     key={item.key}
                     item={item}
                     symbol={symbol}
-                    count={count}
+                    countLabel={t(countLabelKey, { count })}
                     isSearchOpen={activeSearchKey === item.key}
                     onToggleSearch={() =>
                       setActiveSearchKey((cur) => (cur === item.key ? null : item.key))

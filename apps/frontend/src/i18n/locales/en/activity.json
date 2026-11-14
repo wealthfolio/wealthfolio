@@ -1243,6 +1243,8 @@
       "syncAutomatically": "Want this to sync automatically?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transaction",
+      "transactionCount_other": "{{count}} transactions",
       "checkingTitle": "Matching assets",
       "checkingDescription": "Checking unique assets against existing assets and enabled market-data providers.",
       "slowTitle": "Asset matching is taking longer than usual",

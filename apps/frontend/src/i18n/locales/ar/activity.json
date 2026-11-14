@@ -497,6 +497,12 @@
   "holdings_imported_successfully": "تم استيراد الحيازات بنجاح.",
   "import": {
     "assets": {
+      "transactionCount_few": "{{count}} معاملات",
+      "transactionCount_many": "{{count}} معاملةً",
+      "transactionCount_one": "{{count}} معاملة",
+      "transactionCount_other": "{{count}} معاملة",
+      "transactionCount_two": "معاملتان",
+      "transactionCount_zero": "{{count}} معاملات",
       "allResolvedDescription": "جاهز للمتابعة. لا يزال بإمكانك إعادة ربط أي أصل أو تعديله قبل التأكيد.",
       "allResolvedTitle": "تمت معالجة جميع الأصول",
       "cancel": "إلغاء",

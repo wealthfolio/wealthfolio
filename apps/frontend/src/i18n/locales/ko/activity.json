@@ -1228,6 +1228,8 @@
       "syncAutomatically": "자동으로 동기화하시겠습니까?"
     },
     "assets": {
+      "transactionCount_one": "거래 {{count}}건",
+      "transactionCount_other": "거래 {{count}}건",
       "checkingTitle": "자산 일치 여부 확인 중",
       "checkingDescription": "기존 자산 및 활성화된 시장 데이터 제공업체를 통해 중복을 제외한 자산을 확인하고 있습니다.",
       "slowTitle": "자산 확인이 평소보다 오래 걸리고 있습니다",

@@ -1243,6 +1243,8 @@
       "syncAutomatically": "想要自動同步嗎？"
     },
     "assets": {
+      "transactionCount_one": "{{count}} 筆交易",
+      "transactionCount_other": "{{count}} 筆交易",
       "checkingTitle": "正在比對資產",
       "checkingDescription": "正在根據現有資產及已啟用的市場資料供應商核對不重複的資產。",
       "slowTitle": "資產比對耗時比平常更久",

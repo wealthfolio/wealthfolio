@@ -1290,6 +1290,9 @@
       "syncAutomatically": "Preferisci la sincronizzazione automatica?"
     },
     "assets": {
+      "transactionCount_one": "{{count}} transazione",
+      "transactionCount_many": "{{count}} transazioni",
+      "transactionCount_other": "{{count}} transazioni",
       "checkingTitle": "Abbinamento delle attività finanziarie",
       "checkingDescription": "Verifica delle attività finanziarie uniche tra quelle esistenti e i fornitori di dati di mercato abilitati.",
       "slowTitle": "L’abbinamento richiede più tempo del previsto",
