@@ -15,7 +15,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import {
-  useAssistantState,
+  useAuiState,
   useMessagePartReasoning,
   type ReasoningGroupComponent,
   type ReasoningMessagePartComponent,
@@ -67,7 +67,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const startTimeRef = useRef<number | null>(null);
 
-  const isStreaming = useAssistantState(({ message }) => {
+  const isStreaming = useAuiState(({ message }) => {
     if (message.status?.type !== "running") return false;
     const lastIndex = message.parts.length - 1;
     if (lastIndex < 0) return false;

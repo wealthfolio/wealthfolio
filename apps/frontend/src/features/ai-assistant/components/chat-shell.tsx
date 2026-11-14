@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useAui } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -198,7 +198,7 @@ const consumedPromptKeys = new Set<string>();
 function InitialPromptSender() {
   const location = useLocation();
   const navigate = useNavigate();
-  const threadRuntime = useThreadRuntime();
+  const aui = useAui();
 
   useEffect(() => {
     const prompt = (location.state as { aiPrompt?: string } | null)?.aiPrompt;
@@ -206,8 +206,8 @@ function InitialPromptSender() {
     consumedPromptKeys.add(location.key);
     // Clear navigation state first so a refresh or back nav won't resend.
     navigate(location.pathname, { replace: true, state: null });
-    threadRuntime.append(prompt);
-  }, [location, navigate, threadRuntime]);
+    aui.thread.append(prompt);
+  }, [location, navigate, aui]);
 
   return null;
 }
