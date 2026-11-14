@@ -343,10 +343,19 @@ impl NativeProfiles {
         Ok(session)
     }
 
+    /// Locks the active profile and hides it from the widgets.
     pub async fn lock<R: tauri::Runtime>(&self, handle: &AppHandle<R>) -> Result<(), String> {
-        self.lock_epoch.fetch_add(1, Ordering::SeqCst);
-        // A locked profile shows nothing on the home screen.
+        let result = self.release(handle).await;
+        // After the release has joined the profile's portfolio jobs, so no
+        // update in flight can write the snapshot back.
         crate::widget::clear();
+        result
+    }
+
+    /// Closes the active profile but leaves the widgets' last numbers in
+    /// place: quitting the app is not a privacy lock.
+    pub async fn release<R: tauri::Runtime>(&self, handle: &AppHandle<R>) -> Result<(), String> {
+        self.lock_epoch.fetch_add(1, Ordering::SeqCst);
         self.registry
             .sessions
             .revoke(NATIVE_OWNER)
@@ -538,8 +547,10 @@ pub async fn delete_profile(
         }
         if let Some(runtime) = state.active()? {
             if runtime.profile_id == profile_id {
-                crate::widget::clear();
                 runtime.shutdown(&handle).await?;
+                // After shutdown has joined the portfolio jobs, so none can
+                // write the deleted profile's snapshot back.
+                crate::widget::clear();
             }
         }
         if state.active()?.is_some_and(|r| r.profile_id == profile_id) {
@@ -782,7 +793,8 @@ fn release_within<R: tauri::Runtime>(handle: &AppHandle<R>, limit: std::time::Du
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {
         if let Some(profiles) = handle.try_state::<NativeProfiles>() {
-            if let Err(error) = profiles.lock(&handle).await {
+            // Not `lock`: the desktop widgets keep the last numbers after Quit.
+            if let Err(error) = profiles.release(&handle).await {
                 log::warn!("Profile database was not released before exit: {error}");
             }
         }
