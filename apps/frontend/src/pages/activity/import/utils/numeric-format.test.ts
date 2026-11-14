@@ -134,6 +134,22 @@ const mapping = {
 };
 
 describe("activity column parsing", () => {
+  it("preserves trailing-decimal exponents through draft validation and import conversion", () => {
+    const drafts = createDraftActivities(
+      [
+        ["2026-01-15", "DEPOSIT", "1.e3"],
+        ["2026-01-16", "DEPOSIT", "1.e+3"],
+      ],
+      headers,
+      mapping,
+      parseConfig,
+      "account-1",
+    );
+    expect(drafts.map((draft) => draft.status)).toEqual(["valid", "valid"]);
+    expect(drafts.map((draft) => draft.amount)).toEqual(["1.e3", "1.e+3"]);
+    expect(drafts.map((draft) => draftToActivityImport(draft).amount)).toEqual(["1.e3", "1.e+3"]);
+  });
+
   it("parses currency-prefixed cells that supply decimal evidence", () => {
     const drafts = createDraftActivities(
       [
