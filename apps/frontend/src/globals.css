@@ -82,21 +82,6 @@
   }
 }
 
-@utility scrollbar-thin {
-  scrollbar-width: thin;
-  &::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-}
-
 @theme {
   /* Extra-small breakpoint (430 px), below sm, for phone headers */
   --breakpoint-xs: 26.875rem;
