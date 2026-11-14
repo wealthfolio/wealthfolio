@@ -14,6 +14,15 @@ import { cn } from "@/lib/utils";
 import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import {
   Badge,
+  Command,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  Icons,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   SearchableSelect,
   Select,
   SelectContent,
@@ -49,14 +58,27 @@ export function MappingHeaderCell({
   mapping: ImportMappingData;
   headers: string[];
   requiredFields?: readonly ImportFormat[];
-  handleColumnMapping: (field: ImportFormat, value: string) => void;
+  handleColumnMapping: (field: ImportFormat, value: string | string[]) => void;
 }) {
   const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState<ImportFormat | null>(null);
+  const [multiSelectOpen, setMultiSelectOpen] = useState(false);
   const mappedHeader = mapping.fieldMappings[field];
-  const displayHeader = Array.isArray(mappedHeader) ? mappedHeader[0] : mappedHeader;
-  const isMapped = displayHeader ? headers.includes(displayHeader) : false;
-  const isEditing = editingHeader === field || !isMapped;
+  const isMultiColumn = field === ImportFormat.COMMENT;
+  const mappedHeaders = (Array.isArray(mappedHeader) ? mappedHeader : [mappedHeader]).filter(
+    (header): header is string => Boolean(header) && headers.includes(header),
+  );
+  const displayHeader = isMultiColumn
+    ? mappedHeaders.join(", ")
+    : Array.isArray(mappedHeader)
+      ? mappedHeader[0]
+      : mappedHeader;
+  const isMapped = isMultiColumn
+    ? mappedHeaders.length > 0
+    : displayHeader
+      ? headers.includes(displayHeader)
+      : false;
+  const isEditing = editingHeader === field || multiSelectOpen || !isMapped;
   const isRequired = requiredFields.includes(field);
   const skipLabel =
     field === ImportFormat.CURRENCY
@@ -73,7 +95,21 @@ export function MappingHeaderCell({
           {isRequired && !isMapped && <span className="text-warning ms-1">*</span>}
         </span>
       </div>
-      {isEditing ? (
+      {isEditing && isMultiColumn ? (
+        <MultiColumnSelect
+          headers={headers}
+          selected={mappedHeaders}
+          defaultOpen={editingHeader === field}
+          placeholder={t("activity:import.mapping.optionalColumn")}
+          ignoreLabel={t("activity:import.mapping.ignore")}
+          onChange={(value) => handleColumnMapping(field, value)}
+          onClose={() => {
+            setEditingHeader(null);
+            setMultiSelectOpen(false);
+          }}
+          onOpen={() => setMultiSelectOpen(true)}
+        />
+      ) : isEditing ? (
         <Select
           onValueChange={(val) => {
             if (val === null) return;
@@ -126,6 +162,93 @@ export function MappingHeaderCell({
         </Button>
       )}
     </div>
+  );
+}
+
+/** Column picker that allows several columns; the result keeps CSV column order. */
+function MultiColumnSelect({
+  headers,
+  selected,
+  defaultOpen,
+  placeholder,
+  ignoreLabel,
+  onChange,
+  onClose,
+  onOpen,
+}: {
+  headers: string[];
+  selected: string[];
+  defaultOpen: boolean;
+  placeholder: string;
+  ignoreLabel: string;
+  onChange: (value: string[]) => void;
+  onClose: () => void;
+  onOpen: () => void;
+}) {
+  const toggle = (header: string) => {
+    const next = selected.includes(header)
+      ? selected.filter((h) => h !== header)
+      : [...selected, header];
+    onChange(headers.filter((h) => next.includes(h)));
+  };
+
+  return (
+    <Popover
+      defaultOpen={defaultOpen}
+      onOpenChange={(value) => {
+        if (value) onOpen();
+        else onClose();
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded
+            className={cn(MAPPING_TRIGGER_CLASS, "text-muted-foreground w-full justify-between")}
+          />
+        }
+      >
+        <span className="truncate">{selected.length > 0 ? selected.join(", ") : placeholder}</span>
+        <Icons.ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+      </PopoverTrigger>
+      <PopoverContent className="w-auto min-w-[200px] p-0" align="start" initialFocus={false}>
+        <Command>
+          <CommandList className="max-h-[300px]">
+            <CommandGroup>
+              <CommandItem
+                value={SKIP_FIELD_VALUE}
+                onSelect={() => onChange([])}
+                className="text-xs"
+              >
+                {ignoreLabel}
+              </CommandItem>
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup>
+              {headers.map((header) => (
+                <CommandItem
+                  key={header || "-"}
+                  value={header || "-"}
+                  onSelect={() => toggle(header)}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <Icons.Check
+                    className={cn(
+                      "h-4 w-4 shrink-0",
+                      selected.includes(header) ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {header || "-"}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
