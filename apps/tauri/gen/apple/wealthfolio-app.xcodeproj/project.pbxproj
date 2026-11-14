@@ -9,85 +9,146 @@
 /* Begin PBXBuildFile section */
 		14402780B74F35B7053DB363 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9FE2BEDCC259D9EB1FC5F8B4 /* LaunchScreen.storyboard */; };
 		1D6DACE320B534706889229C /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = C5C46351FDB34AE99C3679AB /* AppIcon.icon */; };
+		2FB08C9D28D225AA5BBC9A5E /* WidgetSnapshotBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086011122CA22B98910E5E8D /* WidgetSnapshotBridge.swift */; };
 		35474C70695C2E7E936F4246 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AFC7346F7035420DB11DE772 /* MetalKit.framework */; };
 		41898C46534400F9EDFEA54B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E0C8F9840DC77C88F80537F /* Security.framework */; };
 		47DCCEA1C5515065CCBE176A /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30694E2825F5DDFFAC79D38 /* WebKit.framework */; };
 		509DA50038B1C6CE9B547344 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34D6F0F66577621761735308 /* main.mm */; };
+		6483086F3108AF15FA86AC8B /* WealthfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44AC9A20C199C2422EEEB0FD /* WealthfolioWidget.swift */; };
 		69D0BB23A47919691E829AAB /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B3B5B182F7455DC93E262A9A /* QuartzCore.framework */; };
 		6A7385546F92FC2526B5CF2F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A231B49AA86F1147F323663A /* Assets.xcassets */; };
 		98C6DA3DCF39206667DD49E6 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8905B7E2ADB3E21EACFCF0CD /* Metal.framework */; };
 		A2632B4F7F108BAC76D7F0B9 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCCD4C76AFC9679E4F218D1C /* UIKit.framework */; };
+		AF579D818BB2BC9E9EFDF6E8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B82325C1F301E94237D51672 /* PrivacyInfo.xcprivacy */; };
 		B6271E8A01A21C366FA90C6D /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 85CC8C0818B9EDAAF523F498 /* libapp.a */; };
 		C3154C29DC898BD9A8E3A680 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2C37B76435A645CA417F486 /* CoreGraphics.framework */; };
 		C47A6D725B810C306186ECE5 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 09977832959AA8303D91E5AE /* assets */; };
+		C9C15607899A372D3EDF546D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 808575590577D39C9872D633 /* Localizable.xcstrings */; };
+		EAAAD9D34E6025198DFD3745 /* WealthfolioWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EDEEE0001626CB96030EFF8B /* WealthfolioWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FFBF2C23081165841DBE5855 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C8D2E2F4DAB465A0C8E5E0 /* WidgetKit.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5FDD8F6EC2FB66CC2122D564 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 175244695126E033DC6A25FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 503125CBDCAC02C9CDEAFCDB;
+			remoteInfo = WealthfolioWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0AA7B1D8E0073320AB9257E9 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EAAAD9D34E6025198DFD3745 /* WealthfolioWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		00DAAADA0677741AA4F67598 /* asset.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = asset.rs; sourceTree = "<group>"; };
+		00DAAADA0677741AA4F67598 /* asset.rs */ = {isa = PBXFileReference; path = asset.rs; sourceTree = "<group>"; };
 		053DCA4A499036C3B5E49505 /* wealthfolio-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; name = "wealthfolio-app_iOS.app"; path = Wealthfolio.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		065A739A84F1CD4D2E49AFD3 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
-		07CB9DEAA7F957332ABCD395 /* providers_settings.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = providers_settings.rs; sourceTree = "<group>"; };
-		08D57B3EDF6DF4B78A16C449 /* limits.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = limits.rs; sourceTree = "<group>"; };
+		065A739A84F1CD4D2E49AFD3 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		07CB9DEAA7F957332ABCD395 /* providers_settings.rs */ = {isa = PBXFileReference; path = providers_settings.rs; sourceTree = "<group>"; };
+		086011122CA22B98910E5E8D /* WidgetSnapshotBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotBridge.swift; sourceTree = "<group>"; };
+		08D57B3EDF6DF4B78A16C449 /* limits.rs */ = {isa = PBXFileReference; path = limits.rs; sourceTree = "<group>"; };
+		096120BD232DE56285DA42E1 /* lockfile.rs */ = {isa = PBXFileReference; path = lockfile.rs; sourceTree = "<group>"; };
 		09977832959AA8303D91E5AE /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		0C0834BAAC9433BC91B25C7D /* wealthfolio-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "wealthfolio-app_iOS.entitlements"; sourceTree = "<group>"; };
-		131369A2D8203C5A6DF6B93B /* listeners.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = listeners.rs; sourceTree = "<group>"; };
-		18C261B6F8C0CA08DB5DEAFC /* ai_environment.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = ai_environment.rs; sourceTree = "<group>"; };
-		1B7DD46327BE7C44B416A343 /* scheduler.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = scheduler.rs; sourceTree = "<group>"; };
-		1DF3BD13C1F6A27337CA81EA /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
-		2BB1545FEB33DE002315AD91 /* connect_service.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = connect_service.rs; sourceTree = "<group>"; };
-		2F10C6936C8FFE1A41EF8C2B /* snapshot.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = snapshot.rs; sourceTree = "<group>"; };
+		0ECC1CBFA9DCBEC1E1D83287 /* profiles.rs */ = {isa = PBXFileReference; path = profiles.rs; sourceTree = "<group>"; };
+		0FC14B574F069E589DEB7D16 /* asset_logo.rs */ = {isa = PBXFileReference; path = asset_logo.rs; sourceTree = "<group>"; };
+		131369A2D8203C5A6DF6B93B /* listeners.rs */ = {isa = PBXFileReference; path = listeners.rs; sourceTree = "<group>"; };
+		18C261B6F8C0CA08DB5DEAFC /* ai_environment.rs */ = {isa = PBXFileReference; path = ai_environment.rs; sourceTree = "<group>"; };
+		1B7DD46327BE7C44B416A343 /* scheduler.rs */ = {isa = PBXFileReference; path = scheduler.rs; sourceTree = "<group>"; };
+		1DF3BD13C1F6A27337CA81EA /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		1F1F6D9B61D8E88C2B1D1AC0 /* data_dir.rs */ = {isa = PBXFileReference; path = data_dir.rs; sourceTree = "<group>"; };
+		2BB1545FEB33DE002315AD91 /* connect_service.rs */ = {isa = PBXFileReference; path = connect_service.rs; sourceTree = "<group>"; };
+		2F10C6936C8FFE1A41EF8C2B /* snapshot.rs */ = {isa = PBXFileReference; path = snapshot.rs; sourceTree = "<group>"; };
 		34D6F0F66577621761735308 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
-		372A659E33EE984F7E484A42 /* sync_crypto.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = sync_crypto.rs; sourceTree = "<group>"; };
-		4B76727B7CDC898953550445 /* ai_providers.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = ai_providers.rs; sourceTree = "<group>"; };
-		4E84394A175F80C164B7A005 /* alternative_assets.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = alternative_assets.rs; sourceTree = "<group>"; };
-		5B0778423025288BA358523F /* health.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = health.rs; sourceTree = "<group>"; };
-		5C172234CFE0FB57611B67C3 /* device_enroll_service.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = device_enroll_service.rs; sourceTree = "<group>"; };
-		5DD901D6813EA3A56701A1AC /* activity.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = activity.rs; sourceTree = "<group>"; };
-		6067DFB5B9BFB0F3EF135427 /* secret_store.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = secret_store.rs; sourceTree = "<group>"; };
-		65F737C8C10DDA3D6F05F89C /* error.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = error.rs; sourceTree = "<group>"; };
-		6A09836EB6B6A66CA4EA1A73 /* brokers_sync.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = brokers_sync.rs; sourceTree = "<group>"; };
-		72F89ED2B10BF30A25B62A42 /* addon.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = addon.rs; sourceTree = "<group>"; };
-		73957C79584865E93BB46861 /* account.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = account.rs; sourceTree = "<group>"; };
-		8167741C3A93FCA609430547 /* settings.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = settings.rs; sourceTree = "<group>"; };
-		839D9455D23B7143177D8255 /* events.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = events.rs; sourceTree = "<group>"; };
+		372A659E33EE984F7E484A42 /* sync_crypto.rs */ = {isa = PBXFileReference; path = sync_crypto.rs; sourceTree = "<group>"; };
+		37A4B0E7DB64A721DD5A5EDA /* portfolio_jobs.rs */ = {isa = PBXFileReference; path = portfolio_jobs.rs; sourceTree = "<group>"; };
+		38C8D2E2F4DAB465A0C8E5E0 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		44AC9A20C199C2422EEEB0FD /* WealthfolioWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthfolioWidget.swift; sourceTree = "<group>"; };
+		4B76727B7CDC898953550445 /* ai_providers.rs */ = {isa = PBXFileReference; path = ai_providers.rs; sourceTree = "<group>"; };
+		4E84394A175F80C164B7A005 /* alternative_assets.rs */ = {isa = PBXFileReference; path = alternative_assets.rs; sourceTree = "<group>"; };
+		54D2F95B499FEE7ED98DCDA2 /* allocation_targets.rs */ = {isa = PBXFileReference; path = allocation_targets.rs; sourceTree = "<group>"; };
+		5B0778423025288BA358523F /* health.rs */ = {isa = PBXFileReference; path = health.rs; sourceTree = "<group>"; };
+		5C172234CFE0FB57611B67C3 /* device_enroll_service.rs */ = {isa = PBXFileReference; path = device_enroll_service.rs; sourceTree = "<group>"; };
+		5DD901D6813EA3A56701A1AC /* activity.rs */ = {isa = PBXFileReference; path = activity.rs; sourceTree = "<group>"; };
+		6067DFB5B9BFB0F3EF135427 /* secret_store.rs */ = {isa = PBXFileReference; path = secret_store.rs; sourceTree = "<group>"; };
+		65F737C8C10DDA3D6F05F89C /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		67C522A5C021048F3E0092D1 /* restore.rs */ = {isa = PBXFileReference; path = restore.rs; sourceTree = "<group>"; };
+		6A09836EB6B6A66CA4EA1A73 /* brokers_sync.rs */ = {isa = PBXFileReference; path = brokers_sync.rs; sourceTree = "<group>"; };
+		6A2DDF42987C152C197A2F0D /* database.rs */ = {isa = PBXFileReference; path = database.rs; sourceTree = "<group>"; };
+		72F89ED2B10BF30A25B62A42 /* addon.rs */ = {isa = PBXFileReference; path = addon.rs; sourceTree = "<group>"; };
+		73957C79584865E93BB46861 /* account.rs */ = {isa = PBXFileReference; path = account.rs; sourceTree = "<group>"; };
+		808575590577D39C9872D633 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		8167741C3A93FCA609430547 /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
+		839D9455D23B7143177D8255 /* events.rs */ = {isa = PBXFileReference; path = events.rs; sourceTree = "<group>"; };
 		85CC8C0818B9EDAAF523F498 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		877C0322451AAD72A2C81B9B /* cloud_backups.rs */ = {isa = PBXFileReference; path = cloud_backups.rs; sourceTree = "<group>"; };
+		88408973FD398D5B0060FB53 /* widget.rs */ = {isa = PBXFileReference; path = widget.rs; sourceTree = "<group>"; };
 		8905B7E2ADB3E21EACFCF0CD /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
-		8ADCED45227E43B606DA4469 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
+		8AD3DF8D497055590DE0E92D /* spending.rs */ = {isa = PBXFileReference; path = spending.rs; sourceTree = "<group>"; };
+		8ADCED45227E43B606DA4469 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		8E0C8F9840DC77C88F80537F /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
-		8F24E4B1F8CB332DC173FE56 /* error.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = error.rs; sourceTree = "<group>"; };
-		9BF465D90BBF87E1B04B6CA3 /* updater.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = updater.rs; sourceTree = "<group>"; };
-		9F1E79FCCDAFEC22158BCA9B /* providers.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = providers.rs; sourceTree = "<group>"; };
+		8EA161CB463DDF5E594D3A1D /* server.rs */ = {isa = PBXFileReference; path = server.rs; sourceTree = "<group>"; };
+		8F24E4B1F8CB332DC173FE56 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		8F966298D2665B1245D1633B /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
+		9B101C09226576A089D5500B /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
+		9BF465D90BBF87E1B04B6CA3 /* updater.rs */ = {isa = PBXFileReference; path = updater.rs; sourceTree = "<group>"; };
+		9CE1C6FCF7BC3BDEBE49B748 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		9F1E79FCCDAFEC22158BCA9B /* providers.rs */ = {isa = PBXFileReference; path = providers.rs; sourceTree = "<group>"; };
 		9FE2BEDCC259D9EB1FC5F8B4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A231B49AA86F1147F323663A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A23835D8F6C9598050516AE2 /* utilities.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = utilities.rs; sourceTree = "<group>"; };
-		A808D0809909572A63FD6981 /* taxonomy.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = taxonomy.rs; sourceTree = "<group>"; };
-		AA52E54D44ACD9583AFF8A0B /* sink.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = sink.rs; sourceTree = "<group>"; };
-		AA9348949D6731A3CC9869C6 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
-		ADB02ECA825523C54BAE6C51 /* secrets.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = secrets.rs; sourceTree = "<group>"; };
+		A23835D8F6C9598050516AE2 /* utilities.rs */ = {isa = PBXFileReference; path = utilities.rs; sourceTree = "<group>"; };
+		A808D0809909572A63FD6981 /* taxonomy.rs */ = {isa = PBXFileReference; path = taxonomy.rs; sourceTree = "<group>"; };
+		AA52E54D44ACD9583AFF8A0B /* sink.rs */ = {isa = PBXFileReference; path = sink.rs; sourceTree = "<group>"; };
+		AA9348949D6731A3CC9869C6 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		AC45E3CC8CCA6A67988E62C8 /* portfolios.rs */ = {isa = PBXFileReference; path = portfolios.rs; sourceTree = "<group>"; };
+		ADB02ECA825523C54BAE6C51 /* secrets.rs */ = {isa = PBXFileReference; path = secrets.rs; sourceTree = "<group>"; };
 		AE6FA26C0929E5E603524B08 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AFC7346F7035420DB11DE772 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
-		B1BBCF8202A373998B530E72 /* queue_worker.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = queue_worker.rs; sourceTree = "<group>"; };
+		B02D42D4C786C60F7D69008D /* middleware.rs */ = {isa = PBXFileReference; path = middleware.rs; sourceTree = "<group>"; };
+		B11CEF22539C97A78959999A /* addon_network.rs */ = {isa = PBXFileReference; path = addon_network.rs; sourceTree = "<group>"; };
+		B1BBCF8202A373998B530E72 /* queue_worker.rs */ = {isa = PBXFileReference; path = queue_worker.rs; sourceTree = "<group>"; };
 		B3B5B182F7455DC93E262A9A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
-		B61407380CD4D9E94C77134F /* custom_provider.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = custom_provider.rs; sourceTree = "<group>"; };
-		B942261504E85DBE761C2615 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
-		BE5C5E4A3C29625EE936B56E /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
-		BF02A56DE9679A42768DBA6C /* platform.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = platform.rs; sourceTree = "<group>"; };
+		B53E5C9932D169FFF15DDDC3 /* database.rs */ = {isa = PBXFileReference; path = database.rs; sourceTree = "<group>"; };
+		B61407380CD4D9E94C77134F /* custom_provider.rs */ = {isa = PBXFileReference; path = custom_provider.rs; sourceTree = "<group>"; };
+		B7A6FA1BB94802AC1EE6AE83 /* mcp.rs */ = {isa = PBXFileReference; path = mcp.rs; sourceTree = "<group>"; };
+		B82325C1F301E94237D51672 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B942261504E85DBE761C2615 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		BE5C5E4A3C29625EE936B56E /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		BF02A56DE9679A42768DBA6C /* platform.rs */ = {isa = PBXFileReference; path = platform.rs; sourceTree = "<group>"; };
 		C30694E2825F5DDFFAC79D38 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		C5C46351FDB34AE99C3679AB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		C96A24BC56751219956C5025 /* planner.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = planner.rs; sourceTree = "<group>"; };
-		CA0A9F39873112F3E426B873 /* portfolio.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = portfolio.rs; sourceTree = "<group>"; };
+		C5F6FE415469DA233FD79903 /* audit_sink.rs */ = {isa = PBXFileReference; path = audit_sink.rs; sourceTree = "<group>"; };
+		C96A24BC56751219956C5025 /* planner.rs */ = {isa = PBXFileReference; path = planner.rs; sourceTree = "<group>"; };
+		CA0A9F39873112F3E426B873 /* portfolio.rs */ = {isa = PBXFileReference; path = portfolio.rs; sourceTree = "<group>"; };
 		CCCD4C76AFC9679E4F218D1C /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		CE7F85300ADE4A44E81B303B /* ai_chat.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = ai_chat.rs; sourceTree = "<group>"; };
-		D7E4E6AC45A219ADA3F79F2B /* market_data.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = market_data.rs; sourceTree = "<group>"; };
-		DDA0A9869F65B1AD2EC63C47 /* engine.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = engine.rs; sourceTree = "<group>"; };
+		CE7F85300ADE4A44E81B303B /* ai_chat.rs */ = {isa = PBXFileReference; path = ai_chat.rs; sourceTree = "<group>"; };
+		D7E4E6AC45A219ADA3F79F2B /* market_data.rs */ = {isa = PBXFileReference; path = market_data.rs; sourceTree = "<group>"; };
+		DDA0A9869F65B1AD2EC63C47 /* engine.rs */ = {isa = PBXFileReference; path = engine.rs; sourceTree = "<group>"; };
+		E26F3C192CBD0B57A868D170 /* profile_lifecycle.rs */ = {isa = PBXFileReference; path = profile_lifecycle.rs; sourceTree = "<group>"; };
 		E2C37B76435A645CA417F486 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
-		E3D9E93C6CBD1AFEEF5E0337 /* registry.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = registry.rs; sourceTree = "<group>"; };
-		E8D27541EADE400FAF9666B2 /* goal.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = goal.rs; sourceTree = "<group>"; };
+		E3D9E93C6CBD1AFEEF5E0337 /* registry.rs */ = {isa = PBXFileReference; path = registry.rs; sourceTree = "<group>"; };
+		E8D27541EADE400FAF9666B2 /* goal.rs */ = {isa = PBXFileReference; path = goal.rs; sourceTree = "<group>"; };
+		E989D833B1C8CC10EE0D96CA /* profile_startup.rs */ = {isa = PBXFileReference; path = profile_startup.rs; sourceTree = "<group>"; };
+		EDEEE0001626CB96030EFF8B /* WealthfolioWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = WealthfolioWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F19D13CA6DC2B579249721F2 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
-		F78C9F28C93DBD86DA139B8A /* wealthfolio_connect.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = wealthfolio_connect.rs; sourceTree = "<group>"; };
-		FBB7D0A948D1A3473181C27F /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
-		FBD4DFEFB9F8DD68984795E0 /* menu.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = menu.rs; sourceTree = "<group>"; };
-		FDAB7F6241242469E757909A /* fire.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = fire.rs; sourceTree = "<group>"; };
+		F4D38C4D453177A0CD5E98D9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F78C9F28C93DBD86DA139B8A /* wealthfolio_connect.rs */ = {isa = PBXFileReference; path = wealthfolio_connect.rs; sourceTree = "<group>"; };
+		FBB7D0A948D1A3473181C27F /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		FBD4DFEFB9F8DD68984795E0 /* menu.rs */ = {isa = PBXFileReference; path = menu.rs; sourceTree = "<group>"; };
+		FDAB7F6241242469E757909A /* fire.rs */ = {isa = PBXFileReference; path = fire.rs; sourceTree = "<group>"; };
+		FEA0D29A2637D12E8E2AD2EF /* WealthfolioWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WealthfolioWidget.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,6 +164,7 @@
 				41898C46534400F9EDFEA54B /* Security.framework in Frameworks */,
 				A2632B4F7F108BAC76D7F0B9 /* UIKit.framework in Frameworks */,
 				47DCCEA1C5515065CCBE176A /* WebKit.framework in Frameworks */,
+				FFBF2C23081165841DBE5855 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +175,7 @@
 			isa = PBXGroup;
 			children = (
 				053DCA4A499036C3B5E49505 /* wealthfolio-app_iOS.app */,
+				EDEEE0001626CB96030EFF8B /* WealthfolioWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -125,6 +188,18 @@
 			path = bindings;
 			sourceTree = "<group>";
 		};
+		5B57AE2AFD83E1FC702BEF25 /* WealthfolioWidget */ = {
+			isa = PBXGroup;
+			children = (
+				F4D38C4D453177A0CD5E98D9 /* Info.plist */,
+				808575590577D39C9872D633 /* Localizable.xcstrings */,
+				B82325C1F301E94237D51672 /* PrivacyInfo.xcprivacy */,
+				FEA0D29A2637D12E8E2AD2EF /* WealthfolioWidget.entitlements */,
+				44AC9A20C199C2422EEEB0FD /* WealthfolioWidget.swift */,
+			);
+			path = WealthfolioWidget;
+			sourceTree = "<group>";
+		};
 		5CEC39D5EFFE44FDCD2CA446 /* wealthfolio-app */ = {
 			isa = PBXGroup;
 			children = (
@@ -132,6 +207,19 @@
 				4E2461CDABA92AA50518BC8E /* bindings */,
 			);
 			path = "wealthfolio-app";
+			sourceTree = "<group>";
+		};
+		68BFBE6AD5C021CFA2C1926F /* mcp */ = {
+			isa = PBXGroup;
+			children = (
+				C5F6FE415469DA233FD79903 /* audit_sink.rs */,
+				096120BD232DE56285DA42E1 /* lockfile.rs */,
+				B02D42D4C786C60F7D69008D /* middleware.rs */,
+				9CE1C6FCF7BC3BDEBE49B748 /* mod.rs */,
+				8EA161CB463DDF5E594D3A1D /* server.rs */,
+				9B101C09226576A089D5500B /* tests.rs */,
+			);
+			path = mcp;
 			sourceTree = "<group>";
 		};
 		7A5A513E910CB9852196B3B9 /* services */ = {
@@ -148,6 +236,7 @@
 			children = (
 				DDA0A9869F65B1AD2EC63C47 /* engine.rs */,
 				AA9348949D6731A3CC9869C6 /* mod.rs */,
+				67C522A5C021048F3E0092D1 /* restore.rs */,
 				2F10C6936C8FFE1A41EF8C2B /* snapshot.rs */,
 			);
 			path = device_sync;
@@ -172,6 +261,8 @@
 				B5AD4D7ABF96EB381F1D1A3A /* Sources */,
 				CD445CCE0070C491906BC82E /* src */,
 				8ED0337378087918CD725562 /* wealthfolio-app_iOS */,
+				5B57AE2AFD83E1FC702BEF25 /* WealthfolioWidget */,
+				D10DD277C3E1C35674EE3059 /* WidgetBridge */,
 				9C3FA7595796B9D7249E62F2 /* Frameworks */,
 				03C7D315EBF6F91E47A9AC32 /* Products */,
 			);
@@ -188,8 +279,17 @@
 				8E0C8F9840DC77C88F80537F /* Security.framework */,
 				CCCD4C76AFC9679E4F218D1C /* UIKit.framework */,
 				C30694E2825F5DDFFAC79D38 /* WebKit.framework */,
+				38C8D2E2F4DAB465A0C8E5E0 /* WidgetKit.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		AB39066C57CA122C62E80F27 /* secret_store */ = {
+			isa = PBXGroup;
+			children = (
+				8F966298D2665B1245D1633B /* tests.rs */,
+			);
+			path = secret_store;
 			sourceTree = "<group>";
 		};
 		B5AD4D7ABF96EB381F1D1A3A /* Sources */ = {
@@ -214,22 +314,40 @@
 		CD445CCE0070C491906BC82E /* src */ = {
 			isa = PBXGroup;
 			children = (
+				1F1F6D9B61D8E88C2B1D1AC0 /* data_dir.rs */,
+				B53E5C9932D169FFF15DDDC3 /* database.rs */,
 				8F24E4B1F8CB332DC173FE56 /* error.rs */,
 				839D9455D23B7143177D8255 /* events.rs */,
 				065A739A84F1CD4D2E49AFD3 /* lib.rs */,
 				131369A2D8203C5A6DF6B93B /* listeners.rs */,
 				FBB7D0A948D1A3473181C27F /* main.rs */,
 				FBD4DFEFB9F8DD68984795E0 /* menu.rs */,
+				37A4B0E7DB64A721DD5A5EDA /* portfolio_jobs.rs */,
+				E26F3C192CBD0B57A868D170 /* profile_lifecycle.rs */,
+				E989D833B1C8CC10EE0D96CA /* profile_startup.rs */,
+				0ECC1CBFA9DCBEC1E1D83287 /* profiles.rs */,
 				1B7DD46327BE7C44B416A343 /* scheduler.rs */,
 				6067DFB5B9BFB0F3EF135427 /* secret_store.rs */,
 				9BF465D90BBF87E1B04B6CA3 /* updater.rs */,
+				88408973FD398D5B0060FB53 /* widget.rs */,
 				DFADFC4DEF735CA7F8B1BC88 /* commands */,
 				C42FA1912C26F06975208F28 /* context */,
 				ED5409F75EB40A3DC68D7018 /* domain_events */,
+				68BFBE6AD5C021CFA2C1926F /* mcp */,
+				AB39066C57CA122C62E80F27 /* secret_store */,
 				7A5A513E910CB9852196B3B9 /* services */,
 			);
 			name = src;
 			path = ../../src;
+			sourceTree = "<group>";
+		};
+		D10DD277C3E1C35674EE3059 /* WidgetBridge */ = {
+			isa = PBXGroup;
+			children = (
+				086011122CA22B98910E5E8D /* WidgetSnapshotBridge.swift */,
+			);
+			name = WidgetBridge;
+			path = "../../widget-bridge/Sources/WidgetBridge";
 			sourceTree = "<group>";
 		};
 		DFADFC4DEF735CA7F8B1BC88 /* commands */ = {
@@ -237,13 +355,18 @@
 			children = (
 				73957C79584865E93BB46861 /* account.rs */,
 				5DD901D6813EA3A56701A1AC /* activity.rs */,
+				B11CEF22539C97A78959999A /* addon_network.rs */,
 				72F89ED2B10BF30A25B62A42 /* addon.rs */,
 				CE7F85300ADE4A44E81B303B /* ai_chat.rs */,
 				4B76727B7CDC898953550445 /* ai_providers.rs */,
+				54D2F95B499FEE7ED98DCDA2 /* allocation_targets.rs */,
 				4E84394A175F80C164B7A005 /* alternative_assets.rs */,
+				0FC14B574F069E589DEB7D16 /* asset_logo.rs */,
 				00DAAADA0677741AA4F67598 /* asset.rs */,
 				6A09836EB6B6A66CA4EA1A73 /* brokers_sync.rs */,
+				877C0322451AAD72A2C81B9B /* cloud_backups.rs */,
 				B61407380CD4D9E94C77134F /* custom_provider.rs */,
+				6A2DDF42987C152C197A2F0D /* database.rs */,
 				5C172234CFE0FB57611B67C3 /* device_enroll_service.rs */,
 				65F737C8C10DDA3D6F05F89C /* error.rs */,
 				FDAB7F6241242469E757909A /* fire.rs */,
@@ -251,12 +374,15 @@
 				5B0778423025288BA358523F /* health.rs */,
 				08D57B3EDF6DF4B78A16C449 /* limits.rs */,
 				D7E4E6AC45A219ADA3F79F2B /* market_data.rs */,
+				B7A6FA1BB94802AC1EE6AE83 /* mcp.rs */,
 				1DF3BD13C1F6A27337CA81EA /* mod.rs */,
 				BF02A56DE9679A42768DBA6C /* platform.rs */,
 				CA0A9F39873112F3E426B873 /* portfolio.rs */,
+				AC45E3CC8CCA6A67988E62C8 /* portfolios.rs */,
 				07CB9DEAA7F957332ABCD395 /* providers_settings.rs */,
 				ADB02ECA825523C54BAE6C51 /* secrets.rs */,
 				8167741C3A93FCA609430547 /* settings.rs */,
+				8AD3DF8D497055590DE0E92D /* spending.rs */,
 				372A659E33EE984F7E484A42 /* sync_crypto.rs */,
 				A808D0809909572A63FD6981 /* taxonomy.rs */,
 				A23835D8F6C9598050516AE2 /* utilities.rs */,
@@ -288,10 +414,12 @@
 				DC6A4DE99CBE43CB171EFD9C /* Sources */,
 				6E52B9284800408ABE71CEEC /* Resources */,
 				5B85FD4D6D6AAF249F4577C5 /* Frameworks */,
+				0AA7B1D8E0073320AB9257E9 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B5B66139B79B730E1FB003C4 /* PBXTargetDependency */,
 			);
 			name = "wealthfolio-app_iOS";
 			packageProductDependencies = (
@@ -299,6 +427,24 @@
 			productName = "wealthfolio-app_iOS";
 			productReference = 053DCA4A499036C3B5E49505 /* wealthfolio-app_iOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		503125CBDCAC02C9CDEAFCDB /* WealthfolioWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 61191CB9B3EA8448086F0BAA /* Build configuration list for PBXNativeTarget "WealthfolioWidget" */;
+			buildPhases = (
+				3BFB4A72E4ADC6EA7B4F2A94 /* Sources */,
+				18C2D9654D193FC20E4E474D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WealthfolioWidget;
+			packageProductDependencies = (
+			);
+			productName = WealthfolioWidget;
+			productReference = EDEEE0001626CB96030EFF8B /* WealthfolioWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -308,6 +454,14 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0611B7A201FCFBBF724846B3 = {
+						DevelopmentTeam = DYDJ2RNL5H;
+					};
+					503125CBDCAC02C9CDEAFCDB = {
+						DevelopmentTeam = DYDJ2RNL5H;
+					};
+				};
 			};
 			buildConfigurationList = E81B54BA86E92A8854E169B5 /* Build configuration list for PBXProject "wealthfolio-app" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -315,19 +469,40 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				ar,
+				de,
 				en,
+				es,
+				fr,
+				it,
+				ja,
+				ko,
+				pt,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = 9A6C2E21447C7454ADEA38BC;
 			minimizedProjectReferenceProxies = 1;
+			productRefGroup = 03C7D315EBF6F91E47A9AC32 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				0611B7A201FCFBBF724846B3 /* wealthfolio-app_iOS */,
+				503125CBDCAC02C9CDEAFCDB /* WealthfolioWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		18C2D9654D193FC20E4E474D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C9C15607899A372D3EDF546D /* Localizable.xcstrings in Resources */,
+				AF579D818BB2BC9E9EFDF6E8 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6E52B9284800408ABE71CEEC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -361,27 +536,46 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n# Xcode does not load the interactive shell setup for Node or Rust.\nexport PATH=\"$PATH:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin\"\nif command -v fnm >/dev/null 2>&1; then\n  eval \"$(fnm env --shell bash)\"\n  fnm use \"$(cat \"${SRCROOT}/../../../../.node-version\")\"\nfi\ncp \"${SRCROOT}/wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements\" \"${TARGET_TEMP_DIR}/wealthfolio-app_iOS.entitlements\" && pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${ARCHS:?}";
+			shellScript = "set -e\n# Xcode does not load the interactive shell setup for Node or Rust.\nexport PATH=\"$PATH:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin\"\nif command -v fnm >/dev/null 2>&1; then\n  eval \"$(fnm env --shell bash)\"\n  fnm use \"$(cat \"${SRCROOT}/../../../../.node-version\")\"\nfi\ncp \"${SRCROOT}/wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements\" \"${TARGET_TEMP_DIR}/wealthfolio-app_iOS.entitlements\" && pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${ARCHS:?}\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3BFB4A72E4ADC6EA7B4F2A94 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6483086F3108AF15FA86AC8B /* WealthfolioWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DC6A4DE99CBE43CB171EFD9C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2FB08C9D28D225AA5BBC9A5E /* WidgetSnapshotBridge.swift in Sources */,
 				509DA50038B1C6CE9B547344 /* main.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		B5B66139B79B730E1FB003C4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 503125CBDCAC02C9CDEAFCDB /* WealthfolioWidget */;
+			targetProxy = 5FDD8F6EC2FB66CC2122D564 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		1FD5B14873418471133E6433 /* debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = "wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements";
@@ -398,23 +592,36 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.teymz.wealthfolio;
 				PRODUCT_NAME = "Wealthfolio";
 				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		84DC3EDD0517D2214EB3D405 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = WealthfolioWidget/WealthfolioWidget.entitlements;
+				DEVELOPMENT_TEAM = DYDJ2RNL5H;
+				INFOPLIST_FILE = WealthfolioWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.teymz.wealthfolio.widget;
+				PRODUCT_NAME = WealthfolioWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
 			};
@@ -487,7 +694,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = arm64;
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = "wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements";
@@ -504,23 +713,36 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.teymz.wealthfolio;
 				PRODUCT_NAME = "Wealthfolio";
 				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		C389FF6745105BBD93CCDED7 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = WealthfolioWidget/WealthfolioWidget.entitlements;
+				DEVELOPMENT_TEAM = DYDJ2RNL5H;
+				INFOPLIST_FILE = WealthfolioWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.teymz.wealthfolio.widget;
+				PRODUCT_NAME = WealthfolioWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
 			};
@@ -585,6 +807,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		61191CB9B3EA8448086F0BAA /* Build configuration list for PBXNativeTarget "WealthfolioWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				84DC3EDD0517D2214EB3D405 /* debug */,
+				C389FF6745105BBD93CCDED7 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
 		E13D00C4E5C5E314ACD8792C /* Build configuration list for PBXNativeTarget "wealthfolio-app_iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

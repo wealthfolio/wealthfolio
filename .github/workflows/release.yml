@@ -18,12 +18,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The overlay copies the desktop widgets into the app and grants it
+          # their shared folder (see "Build the macOS widget").
           - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
+            args: "--target x86_64-apple-darwin --config apps/tauri/tauri.macos-widget.conf.json"
             cache-key: macos-x86_64
+            widget-arch: x86_64
           - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin --config apps/tauri/tauri.macos-widget.conf.json"
             cache-key: macos-aarch64
+            widget-arch: arm64
           - platform: "windows-latest"
             args: "--target x86_64-pc-windows-msvc"
             cache-key: windows-x86_64
@@ -119,6 +123,41 @@ jobs:
         shell: bash
         run: printf '%s' "${{ secrets.APPLE_API_KEY_P8 }}" > "$RUNNER_TEMP/asc.p8"
 
+      # Tauri's bundler doesn't build app extensions, so the desktop widgets are
+      # built and signed here; tauri.macos-widget.conf.json then copies them into
+      # the app before Tauri signs and notarizes it. The certificate goes into a
+      # throwaway keychain that's removed again, so tauri-action's own import
+      # doesn't find the identity twice.
+      - name: Build the macOS widget
+        if: contains(matrix.platform, 'macos')
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/widget-signing.keychain-db"
+          certificate="$RUNNER_TEMP/widget-signing.p12"
+          password="$(openssl rand -hex 16)"
+          previous="$(security list-keychains -d user | tr -d '"')"
+          cleanup() {
+            # shellcheck disable=SC2086 # one keychain path per word
+            security list-keychains -d user -s $previous
+            security delete-keychain "$keychain" 2>/dev/null || true
+            rm -f "$certificate"
+          }
+          trap cleanup EXIT
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          # shellcheck disable=SC2086
+          security list-keychains -d user -s "$keychain" $previous
+          node apps/tauri/scripts/build-macos-widget.mjs --arch "${{ matrix.widget-arch }}"
+
       - name: Check Connect build configuration
         env:
           CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
@@ -159,6 +198,32 @@ jobs:
           args:
             ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }} ${{
             steps.win-signing.outputs.args }} -- --locked
+
+      # Tauri signs the app around the widget; check the widget kept its own
+      # signature and sandbox, without which macOS won't load it.
+      - name: Verify the macOS widget in the app
+        if: contains(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=(target/*/release/bundle/macos/*.app)
+          if [ "${#apps[@]}" -eq 0 ]; then
+            echo "::error::No .app bundle found under target/*/release/bundle/macos/"
+            exit 1
+          fi
+          for app in "${apps[@]}"; do
+            widget="$app/Contents/PlugIns/WealthfolioWidget.appex"
+            if [ ! -d "$widget" ]; then
+              echo "::error::$widget is missing"
+              exit 1
+            fi
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if ! codesign -d --entitlements - --xml "$widget" | grep -q "com.apple.security.app-sandbox"; then
+              echo "::error::The widget lost its sandbox entitlement"
+              exit 1
+            fi
+          done
 
       - name: Verify Windows Authenticode signatures
         if: contains(matrix.platform, 'windows')

@@ -7,5 +7,9 @@
 		<string>applinks:connect.wealthfolio.app</string>
 		<string>applinks:connect-staging.wealthfolio.app</string>
 	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.teymz.wealthfolio</string>
+	</array>
 </dict>
 </plist>

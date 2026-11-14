@@ -108,6 +108,7 @@ impl JobObserver for TauriJobObserver {
                 wealthfolio_core::goals::summary_refresh_error_kind(&error)
             ),
         }
+        crate::widget::publish(&self.app_handle, &self.context).await;
     }
 }
 

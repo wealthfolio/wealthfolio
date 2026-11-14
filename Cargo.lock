@@ -8637,6 +8637,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
+ "swift-rs",
  "tauri",
  "tauri-build",
  "tauri-plugin-barcode-scanner",

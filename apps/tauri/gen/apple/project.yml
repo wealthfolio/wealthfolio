@@ -1,6 +1,7 @@
 name: wealthfolio-app
 options:
   bundleIdPrefix: com.teymz.wealthfolio
+  projectFormat: xcode14_0
   deploymentTarget:
     iOS: 16.0
 fileGroups: [../../src]
@@ -29,6 +30,8 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # The widgets' snapshot bridge, shared with the macOS app.
+      - path: ../../widget-bridge/Sources/WidgetBridge
       - path: Assets.xcassets
       - path: AppIcon.icon
       - path: wealthfolio-app_iOS
@@ -64,6 +67,7 @@ targets:
         ENABLE_BITCODE: false
         CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
         CODE_SIGN_ENTITLEMENTS: $(TARGET_TEMP_DIR)/wealthfolio-app_iOS.entitlements
+        DEVELOPMENT_TEAM: DYDJ2RNL5H
         ARCHS: [arm64]
         VALID_ARCHS: arm64
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
@@ -81,6 +85,8 @@ targets:
       - sdk: Security.framework
       - sdk: UIKit.framework
       - sdk: WebKit.framework
+      - sdk: WidgetKit.framework
+      - target: WealthfolioWidget
     preBuildScripts:
       - script: |
           set -e
@@ -96,3 +102,33 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  WealthfolioWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: WealthfolioWidget
+    info:
+      path: WealthfolioWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Wealthfolio
+        # Must match the app's version (bumped together at release).
+        CFBundleShortVersionString: 3.13.0
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: WealthfolioWidget/WealthfolioWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.teymz.wealthfolio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.teymz.wealthfolio.widget
+        PRODUCT_NAME: WealthfolioWidget
+        DEVELOPMENT_TEAM: DYDJ2RNL5H
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: true
+        ARCHS: [arm64]
+        VALID_ARCHS: arm64

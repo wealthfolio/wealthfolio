@@ -259,7 +259,7 @@ pub async fn get_holdings_list(
     )
 }
 
-async fn get_holdings_for_filter(
+pub(crate) async fn get_holdings_for_filter(
     state: &ServiceContext,
     filter: AccountScope,
     include_closed: bool,
@@ -415,6 +415,41 @@ pub async fn get_holdings_by_allocation(
     }
 }
 
+/// Daily valuations for an account scope, as the Dashboard chart reads them.
+pub(crate) async fn historical_valuations_for_scope(
+    context: &ServiceContext,
+    account_filter: &AccountScope,
+    from_date: Option<NaiveDate>,
+    to_date: Option<NaiveDate>,
+) -> Result<Vec<DailyAccountValuation>, String> {
+    let base_currency = context.get_base_currency();
+    let resolved = context
+        .portfolio_service()
+        .resolve_account_scope(account_filter, &base_currency)
+        .map_err(|e| e.to_string())?;
+    let account_ids = holdings_account_ids(context, &resolved.account_ids)?;
+    if account_ids.is_empty() {
+        Ok(Vec::new())
+    } else if account_ids.len() == 1 {
+        context
+            .valuation_service()
+            .get_historical_valuations(&account_ids[0], from_date, to_date)
+            .map_err(|e| e.to_string())
+    } else {
+        context
+            .valuation_service()
+            .get_historical_valuation_totals_for_accounts(
+                &resolved.scope_id,
+                &account_ids,
+                &resolved.base_currency,
+                from_date,
+                to_date,
+            )
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn get_historical_valuations(
     state: ProfileAccess,
@@ -447,33 +482,8 @@ pub async fn get_historical_valuations(
         .transpose()?;
 
     let result = if let Some(input) = filter {
-        let base_currency = context.get_base_currency();
         let account_filter = input.into_account_filter()?;
-        let resolved = context
-            .portfolio_service()
-            .resolve_account_scope(&account_filter, &base_currency)
-            .map_err(|e| e.to_string())?;
-        let account_ids = holdings_account_ids(context.as_ref(), &resolved.account_ids)?;
-        if account_ids.is_empty() {
-            Ok(Vec::new())
-        } else if account_ids.len() == 1 {
-            context
-                .valuation_service()
-                .get_historical_valuations(&account_ids[0], from_date_opt, to_date_opt)
-                .map_err(|e| e.to_string())
-        } else {
-            context
-                .valuation_service()
-                .get_historical_valuation_totals_for_accounts(
-                    &resolved.scope_id,
-                    &account_ids,
-                    &resolved.base_currency,
-                    from_date_opt,
-                    to_date_opt,
-                )
-                .await
-                .map_err(|e| e.to_string())
-        }
+        historical_valuations_for_scope(&context, &account_filter, from_date_opt, to_date_opt).await
     } else if let Some(account_id) = account_id {
         let account_ids =
             holdings_account_ids(context.as_ref(), std::slice::from_ref(&account_id))?;
@@ -560,11 +570,20 @@ pub async fn get_current_valuation(
     let context = state.context()?;
     debug!("Get scoped current valuation...");
 
+    let account_filter = filter.into_account_filter()?;
+    current_valuation_for_scope(&context, &account_filter, include_accounts.unwrap_or(false)).await
+}
+
+/// The current valuation of an account scope, as the Dashboard headline reads it.
+pub(crate) async fn current_valuation_for_scope(
+    context: &ServiceContext,
+    account_filter: &AccountScope,
+    include_accounts: bool,
+) -> Result<CurrentValuationResponse, String> {
     let base_currency = context.get_base_currency();
     let timezone = context.get_timezone();
     let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
-    let account_filter = filter.into_account_filter()?;
-    let resolved = resolve_current_valuation_scope(&account_filter, &context).await?;
+    let resolved = resolve_current_valuation_scope(account_filter, context).await?;
     let account_service = context.account_service();
     let snapshot_service = context.snapshot_service();
     let asset_service = context.asset_service();
@@ -584,7 +603,7 @@ pub async fn get_current_valuation(
             &resolved.account_ids,
             &base_currency,
             latest_snapshot_cutoff,
-            include_accounts.unwrap_or(false),
+            include_accounts,
         )
         .await
         .map_err(|e| e.to_string())
@@ -786,6 +805,77 @@ pub async fn calculate_performance_history(
 /// Calculates performance summary for a given item (account or symbol) over a given date range.
 /// return performance metrics for the item.
 /// tracking_mode: Optional tracking mode for the account ("HOLDINGS" or "TRANSACTIONS")
+/// The performance summary of an account scope, as the Dashboard reads its period gain.
+pub(crate) async fn performance_summary_for_scope(
+    context: &ServiceContext,
+    account_filter: &AccountScope,
+    start_date_opt: Option<NaiveDate>,
+    end_date_opt: Option<NaiveDate>,
+    profile: PerformanceSummaryProfile,
+) -> Result<PerformanceResult, String> {
+    let summary_start = Instant::now();
+    let base_currency = context.get_base_currency();
+    let resolved = context
+        .portfolio_service()
+        .resolve_account_scope(account_filter, &base_currency)
+        .map_err(|e| e.to_string())?;
+    let accounts_by_id = performance_accounts_by_id(context, &resolved.account_ids)?;
+    let account_ids = performance_account_ids_from_map(&accounts_by_id, &resolved.account_ids);
+    if account_ids.is_empty() {
+        let mut result = empty_performance_metrics(
+            &resolved.scope_id,
+            resolved.base_currency.clone(),
+            start_date_opt,
+            end_date_opt,
+        );
+        if !resolved.account_ids.is_empty() {
+            result.data_quality.warnings.push(
+                "Requested accounts were excluded because they are archived or not eligible for performance."
+                    .to_string(),
+            );
+            sync_performance_summary_quality(&mut result);
+        }
+        return Ok(result);
+    }
+    let tracking_modes = performance_account_tracking_modes_from_map(&accounts_by_id, &account_ids);
+    let account_types = performance_account_types_from_map(&accounts_by_id, &account_ids);
+    let tracking_composition = performance_tracking_composition(&tracking_modes, &account_ids);
+    let mut result = context
+        .performance_service()
+        .calculate_performance_summary_for_accounts(
+            &resolved.scope_id,
+            &account_ids,
+            &resolved.base_currency,
+            &tracking_modes,
+            &account_types,
+            start_date_opt,
+            end_date_opt,
+            profile,
+        )
+        .await
+        .map_err(|e| format!("Failed to calculate performance: {}", e))?;
+    debug!(
+        "Performance summary timing: item_type={}, scope_id={}, profile={:?}, account_count={}, tracking_composition={}, start={:?}, end={:?}, elapsed_ms={:.1}",
+        "account",
+        resolved.scope_id,
+        profile,
+        account_ids.len(),
+        tracking_composition,
+        start_date_opt,
+        end_date_opt,
+        summary_start.elapsed().as_secs_f64() * 1000.0
+    );
+    if account_ids.len() != resolved.account_ids.len() {
+        result.data_quality.warnings.push(
+            "Some requested accounts were excluded because they are archived or not eligible for performance."
+                .to_string(),
+        );
+        result.data_quality.status = DataQualityStatus::Partial;
+        sync_performance_summary_quality(&mut result);
+    }
+    Ok(result)
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn calculate_performance_summary(
@@ -829,68 +919,15 @@ pub async fn calculate_performance_summary(
     let summary_start = Instant::now();
 
     if let (true, Some(filter)) = (item_type == "account", filter) {
-        let base_currency = context.get_base_currency();
         let account_filter = filter.into_account_filter()?;
-        let resolved = context
-            .portfolio_service()
-            .resolve_account_scope(&account_filter, &base_currency)
-            .map_err(|e| e.to_string())?;
-        let accounts_by_id = performance_accounts_by_id(context.as_ref(), &resolved.account_ids)?;
-        let account_ids = performance_account_ids_from_map(&accounts_by_id, &resolved.account_ids);
-        if account_ids.is_empty() {
-            let mut result = empty_performance_metrics(
-                &resolved.scope_id,
-                resolved.base_currency.clone(),
-                start_date_opt,
-                end_date_opt,
-            );
-            if !resolved.account_ids.is_empty() {
-                result.data_quality.warnings.push(
-                    "Requested accounts were excluded because they are archived or not eligible for performance."
-                        .to_string(),
-                );
-                sync_performance_summary_quality(&mut result);
-            }
-            return Ok(result);
-        }
-        let tracking_modes =
-            performance_account_tracking_modes_from_map(&accounts_by_id, &account_ids);
-        let account_types = performance_account_types_from_map(&accounts_by_id, &account_ids);
-        let tracking_composition = performance_tracking_composition(&tracking_modes, &account_ids);
-        let mut result = context
-            .performance_service()
-            .calculate_performance_summary_for_accounts(
-                &resolved.scope_id,
-                &account_ids,
-                &resolved.base_currency,
-                &tracking_modes,
-                &account_types,
-                start_date_opt,
-                end_date_opt,
-                profile,
-            )
-            .await
-            .map_err(|e| format!("Failed to calculate performance: {}", e))?;
-        debug!(
-            "Performance summary timing: item_type={}, scope_id={}, profile={:?}, account_count={}, tracking_composition={}, start={:?}, end={:?}, elapsed_ms={:.1}",
-            item_type,
-            resolved.scope_id,
-            profile,
-            account_ids.len(),
-            tracking_composition,
+        performance_summary_for_scope(
+            &context,
+            &account_filter,
             start_date_opt,
             end_date_opt,
-            summary_start.elapsed().as_secs_f64() * 1000.0
-        );
-        if account_ids.len() != resolved.account_ids.len() {
-            result.data_quality.warnings.push(
-                "Some requested accounts were excluded because they are archived or not eligible for performance."
-                    .to_string(),
-            );
-            result.data_quality.status = DataQualityStatus::Partial;
-            sync_performance_summary_quality(&mut result);
-        }
-        Ok(result)
+            profile,
+        )
+        .await
     } else {
         let (authoritative_tracking_mode, authoritative_account_type) = if item_type == "account" {
             let account = context

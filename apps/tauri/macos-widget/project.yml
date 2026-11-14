@@ -1,0 +1,47 @@
+# The macOS desktop widgets. The Tauri bundler doesn't build app extensions,
+# so `apps/tauri/scripts/build-macos-widget.mjs` builds this target with
+# xcodebuild and `tauri.macos-widget.conf.json` copies it into
+# Wealthfolio.app/Contents/PlugIns. The views are the iOS widget's own source.
+#
+# Regenerate the checked-in project after editing: `xcodegen generate` here.
+name: WealthfolioWidget
+options:
+  bundleIdPrefix: com.teymz.wealthfolio
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  WealthfolioWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: ../gen/apple/WealthfolioWidget/WealthfolioWidget.swift
+      - path: ../gen/apple/WealthfolioWidget/Localizable.xcstrings
+      - path: ../gen/apple/WealthfolioWidget/PrivacyInfo.xcprivacy
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Wealthfolio
+        # Set by the build script from tauri.conf.json, so they match the app.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: WealthfolioWidget.entitlements
+      properties:
+        # macOS runs widget extensions only when they are sandboxed.
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - DYDJ2RNL5H.com.teymz.wealthfolio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.teymz.wealthfolio.widget
+        PRODUCT_NAME: WealthfolioWidget
+        MARKETING_VERSION: "0.0.0"
+        CURRENT_PROJECT_VERSION: "0"
+        DEVELOPMENT_TEAM: DYDJ2RNL5H
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: true
+        SWIFT_VERSION: "5.0"
+        SKIP_INSTALL: true

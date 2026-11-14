@@ -345,6 +345,8 @@ impl NativeProfiles {
 
     pub async fn lock<R: tauri::Runtime>(&self, handle: &AppHandle<R>) -> Result<(), String> {
         self.lock_epoch.fetch_add(1, Ordering::SeqCst);
+        // A locked profile shows nothing on the home screen.
+        crate::widget::clear();
         self.registry
             .sessions
             .revoke(NATIVE_OWNER)
@@ -536,6 +538,7 @@ pub async fn delete_profile(
         }
         if let Some(runtime) = state.active()? {
             if runtime.profile_id == profile_id {
+                crate::widget::clear();
                 runtime.shutdown(&handle).await?;
             }
         }

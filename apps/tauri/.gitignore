@@ -11,6 +11,8 @@
 /gen/apple/AppIcon.icon/
 /gen/apple/Assets.xcassets/AppIcon.appiconset/
 /gen/apple/Assets.xcassets/Contents.json
+/macos-widget/build/
+/widget-bridge/.build/
 
 # Tauri .env (if present)
 /.env

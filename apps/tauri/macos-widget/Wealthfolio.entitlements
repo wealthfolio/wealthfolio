@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The macOS app (not sandboxed) shares this folder with its widgets.
+	     Used only with tauri.macos-widget.conf.json. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>DYDJ2RNL5H.com.teymz.wealthfolio</string>
+	</array>
+</dict>
+</plist>

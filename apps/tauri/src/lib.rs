@@ -16,6 +16,7 @@ mod profiles;
 mod scheduler;
 mod secret_store;
 mod services;
+mod widget;
 
 #[cfg(desktop)]
 mod menu;

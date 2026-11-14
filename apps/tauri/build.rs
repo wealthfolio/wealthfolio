@@ -114,6 +114,25 @@ fn main() {
         println!("cargo:warning=CONNECT_AUTH_PUBLISHABLE_KEY is NOT set");
     }
 
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        // The widget bridge (src/widget.rs) calls Swift functions that live in
+        // the app target. The app links the staticlib, where Swift provides
+        // them; the cdylib is never shipped, so let its link leave them open.
+        for symbol in ["_wf_widget_write_snapshot", "_wf_widget_clear_snapshot"] {
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-U,{symbol}");
+        }
+    }
+
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        // The macOS app has no Xcode target, so the same Swift bridge comes in
+        // as a package (widget-bridge/). macOS 12 is the app's minimum.
+        println!("cargo:rerun-if-changed=widget-bridge/Package.swift");
+        println!("cargo:rerun-if-changed=widget-bridge/Sources");
+        swift_rs::SwiftLinker::new("12.0")
+            .with_package("WidgetBridge", "widget-bridge")
+            .link();
+    }
+
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
     {

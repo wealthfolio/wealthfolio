@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "macOS": {
+      "files": {
+        "PlugIns/WealthfolioWidget.appex": "macos-widget/build/WealthfolioWidget.appex"
+      },
+      "entitlements": "macos-widget/Wealthfolio.entitlements"
+    }
+  }
+}
