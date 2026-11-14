@@ -23257,4 +23257,61 @@ pub(crate) mod tests {
         }
         assert!(activity_repository.get_activities().unwrap().is_empty());
     }
+
+    #[tokio::test]
+    async fn broker_sync_keeps_alternative_asset_rows_as_unlinked_drafts() {
+        let (service, asset_service, _, quote_service) = alternative_assets_service();
+        // An older property an activity created with a listing.
+        let mut shed = create_test_asset_with_instrument(
+            "shed",
+            "SHED",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        shed.kind = AssetKind::Property;
+        shed.instrument_key = Some("EQUITY:SHED".to_string());
+        asset_service.add_asset(shed);
+        let synced = |asset: AssetResolutionInput| NewActivity {
+            source_system: Some("SNAPTRADE".to_string()),
+            ..transfer_in(asset)
+        };
+
+        let result = service
+            .prepare_activities_for_sync(
+                vec![
+                    synced(manual_asset("COTTAGE", "PROPERTY")),
+                    synced(AssetResolutionInput {
+                        id: Some("barn".to_string()),
+                        ..Default::default()
+                    }),
+                    synced(AssetResolutionInput {
+                        symbol: Some("SHED".to_string()),
+                        instrument_type: Some("EQUITY".to_string()),
+                        quote_ccy: Some("USD".to_string()),
+                        ..Default::default()
+                    }),
+                ],
+                &create_test_account("acc-1", "USD"),
+            )
+            .await
+            .expect("sync preparation runs");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.prepared.len(), 3);
+        for prepared in &result.prepared {
+            assert_eq!(prepared.resolved_asset_id, None);
+            assert_eq!(prepared.activity.status, Some(ActivityStatus::Draft));
+            assert_eq!(prepared.activity.needs_review, Some(true));
+        }
+        assert!(
+            asset_service
+                .get_assets()
+                .unwrap()
+                .iter()
+                .all(|asset| asset.display_code.as_deref() != Some("COTTAGE")),
+            "no property created"
+        );
+        assert!(quote_service.updated_quotes().is_empty(), "nothing priced");
+    }
 }
