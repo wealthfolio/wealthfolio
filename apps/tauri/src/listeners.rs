@@ -19,6 +19,9 @@ pub struct PortfolioTasks(Mutex<PortfolioTaskState>);
 
 struct PortfolioTaskState {
     tasks: Option<JoinSet<Option<SystemTime>>>,
+    /// Widget refreshes: stopped and joined with the portfolio jobs, but kept
+    /// out of their admission, so a pending refresh never holds one back.
+    widget_refreshes: Option<JoinSet<()>>,
     // Wall time includes time spent with the phone asleep; Instant may not.
     last_success: Option<SystemTime>,
 }
@@ -49,6 +52,7 @@ impl PortfolioTasks {
     pub fn new() -> Self {
         Self(Mutex::new(PortfolioTaskState {
             tasks: Some(JoinSet::new()),
+            widget_refreshes: Some(JoinSet::new()),
             last_success: None,
         }))
     }
@@ -61,9 +65,11 @@ impl PortfolioTasks {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.collect_finished();
+        // Widget refreshes don't count toward admission.
         let PortfolioTaskState {
             tasks,
             last_success,
+            widget_refreshes: _,
         } = &mut *state;
         let Some(tasks) = tasks.as_mut() else {
             return false;
@@ -85,16 +91,35 @@ impl PortfolioTasks {
         true
     }
 
-    pub async fn stop(&self) {
-        // Taking the set also rejects late requests from commands already in flight.
-        let tasks = self
+    // Widgets exist only on iOS and macOS.
+    #[cfg_attr(not(any(target_os = "ios", target_os = "macos")), allow(dead_code))]
+    fn spawn_widget_refresh(&self, task: impl Future<Output = ()> + Send + 'static) -> bool {
+        let mut state = self
             .0
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .tasks
-            .take();
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let Some(refreshes) = state.widget_refreshes.as_mut() else {
+            return false;
+        };
+        while refreshes.try_join_next().is_some() {}
+        refreshes.spawn_on(task, tauri::async_runtime::handle().inner());
+        true
+    }
+
+    pub async fn stop(&self) {
+        // Taking the sets also rejects late requests from commands already in flight.
+        let (tasks, widget_refreshes) = {
+            let mut state = self
+                .0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            (state.tasks.take(), state.widget_refreshes.take())
+        };
         if let Some(mut tasks) = tasks {
             tasks.shutdown().await;
+        }
+        if let Some(mut refreshes) = widget_refreshes {
+            refreshes.shutdown().await;
         }
     }
 }
@@ -139,18 +164,16 @@ pub(crate) fn refresh_portfolio_on_resume(handle: AppHandle, context: Arc<Servic
 /// Rebuilds the widgets' snapshot as the app leaves the foreground, where the
 /// widgets are seen. One place covers every edit made while the app was open,
 /// including spending categories, splits and settings, which run no portfolio
-/// update. It runs as a portfolio task, so locking or deleting the profile
-/// cancels and joins it before the widgets are cleared.
+/// update. Locking or deleting the profile stops and joins it with the
+/// portfolio jobs, before the widgets are cleared.
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 pub(crate) fn refresh_widgets(handle: AppHandle, context: Arc<ServiceContext>) {
     if !context.is_active() {
         return;
     }
     let task_context = Arc::clone(&context);
-    // Not a portfolio job: report no success, so the resume cooldown is untouched.
-    let _ = context.portfolio_tasks.spawn(false, async move {
+    let _ = context.portfolio_tasks.spawn_widget_refresh(async move {
         crate::widget::publish(&handle, &task_context).await;
-        false
     });
 }
 
@@ -307,6 +330,16 @@ mod tests {
         assert!(tasks.0.lock().unwrap().last_success.is_none());
         assert!(!tasks.spawn(true, async { true }));
         assert!(!tasks.spawn(false, async { true }));
+    }
+
+    #[tokio::test]
+    async fn a_pending_widget_refresh_never_holds_back_a_resume() {
+        let tasks = PortfolioTasks::new();
+        assert!(tasks.spawn_widget_refresh(std::future::pending()));
+        assert!(tasks.spawn(true, async { true }));
+        tasks.stop().await;
+        // Stopping joins refreshes too, and turns later ones away.
+        assert!(!tasks.spawn_widget_refresh(async {}));
     }
 
     #[test]

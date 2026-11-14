@@ -50,6 +50,10 @@ fn month_ago(today: NaiveDate) -> NaiveDate {
 /// snapshot neither rewrites the file nor spends WidgetKit's reload budget.
 static LAST_PUBLISHED: Mutex<Option<String>> = Mutex::new(None);
 
+/// One publish at a time, build to write: a portfolio update and a foreground
+/// refresh can overlap, and the later build must also be the later write.
+static PUBLISHING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetSnapshot {
@@ -170,10 +174,11 @@ fn investments_from_parts(
 /// Shapes the Net Worth page's reads. `None` when nothing is tracked.
 fn net_worth_from_parts(
     total: Decimal,
-    has_anything: bool,
+    has_balance: bool,
     history: Vec<HistoryPoint>,
 ) -> Option<NetWorthSection> {
-    if !has_anything {
+    // A profile emptied this month still shows its zero and the drop to it.
+    if !has_balance && history.iter().all(|point| point.value == 0.0) {
         return None;
     }
     let (change, change_percent) = match (history.first(), history.last()) {
@@ -418,7 +423,7 @@ async fn build_net_worth(
         .get_net_worth(today)
         .await
         .map_err(|e| e.to_string())?;
-    let history = service
+    let history: Vec<HistoryPoint> = service
         .get_net_worth_history(month_ago(today), today)
         .await
         .unwrap_or_default()
@@ -428,10 +433,10 @@ async fn build_net_worth(
             value: display_value(point.net_worth),
         })
         .collect();
-    let has_anything = !current.assets.total.is_zero() || !current.liabilities.total.is_zero();
+    let has_balance = !current.assets.total.is_zero() || !current.liabilities.total.is_zero();
     Ok(net_worth_from_parts(
         current.net_worth,
-        has_anything,
+        has_balance,
         history,
     ))
 }
@@ -552,6 +557,7 @@ pub async fn publish(app_handle: &AppHandle, context: &ServiceContext) {
     if !cfg!(any(target_os = "ios", target_os = "macos")) {
         return;
     }
+    let _publishing = PUBLISHING.lock().await;
     let snapshot = match build_snapshot(app_handle, context).await {
         Ok(snapshot) => snapshot,
         Err(_) => {
@@ -804,6 +810,21 @@ mod tests {
     #[test]
     fn net_worth_is_absent_when_nothing_is_tracked() {
         assert_eq!(net_worth_from_parts(Decimal::ZERO, false, Vec::new()), None);
+        let flat = vec![point("2026-10-13", 0.0), point("2026-11-11", 0.0)];
+        assert_eq!(net_worth_from_parts(Decimal::ZERO, false, flat), None);
+    }
+
+    #[test]
+    fn a_profile_emptied_this_month_shows_zero_and_the_drop() {
+        let section = net_worth_from_parts(
+            Decimal::ZERO,
+            false,
+            vec![point("2026-10-13", 1000.0), point("2026-11-11", 0.0)],
+        )
+        .unwrap();
+        assert_eq!(section.total, 0.0);
+        assert_eq!(section.change, Some(-1000.0));
+        assert_eq!(section.change_percent, Some(-1.0));
     }
 
     #[test]
