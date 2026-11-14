@@ -52,12 +52,17 @@ for (const { mode, dir, width } of [
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let releaseRetry!: () => void;
+    const retryGate = new Promise<void>((resolve) => {
+      releaseRetry = resolve;
+    });
     await page.route("**/api/v1/activities/import/assets/preview", async (route) => {
       const body = route.request().postDataJSON() as { candidates: { symbol: string }[] };
       requests.push(body.candidates.map((candidate) => candidate.symbol));
       // Hold the second real request so completed progress can be inspected.
       // No API responses or persistence are mocked: offline mode supplies the failure.
       if (requests.length === 2) await gate;
+      if (requests.length === 3 && width === 390) await retryGate;
       await route.continue();
     });
 
@@ -105,6 +110,19 @@ for (const { mode, dir, width } of [
 
       await context.setOffline(false);
       await feedback.getByRole("button", { name: /Check remaining assets/ }).click();
+      if (width === 390) {
+        await expect.poll(() => requests.length).toBe(3);
+        // Exercise the real kept-screen Activity lifecycle used by phone web
+        // and iOS/Android Tauri, while the real retry response is pending.
+        const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+        await navigation.getByRole("link", { name: "Holdings", exact: true }).click();
+        await expect(page).toHaveURL(/\/holdings/);
+        const response = page.waitForResponse("**/api/v1/activities/import/assets/preview");
+        releaseRetry();
+        await (await response).finished();
+        await navigation.getByRole("link", { name: "Dashboard", exact: true }).click();
+        await expect(page).toHaveURL(/\/import/);
+      }
       const review = page.getByRole("button", {
         name: mode === "holdings" ? /Review Holdings/i : /Review Activities/i,
       });
@@ -126,8 +144,73 @@ for (const { mode, dir, width } of [
       });
     } finally {
       release();
+      releaseRetry();
       if (!page.isClosed()) {
         await context.setOffline(false);
+        await page.unroute("**/api/v1/activities/import/assets/preview");
+      }
+    }
+  });
+}
+
+for (const { accountType, activityType, dir } of [
+  { accountType: "CASH", activityType: "DEPOSIT", dir: "ltr" },
+  { accountType: "CREDIT_CARD", activityType: "WITHDRAWAL", dir: "rtl" },
+] as const) {
+  test(`${accountType}: transaction validation finishes on a hidden phone screen (${dir})`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await loginIfNeeded(page);
+    const account = await createAccount(page, {
+      name: uniqueName(`Kept ${accountType}`),
+      accountType,
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let checks = 0;
+    let previews = 0;
+    await page.route("**/api/v1/activities/import/assets/preview", async (route) => {
+      previews++;
+      await route.continue();
+    });
+    await page.route("**/api/v1/activities/import/check", async (route) => {
+      if (++checks === 1) await gate;
+      await route.continue();
+    });
+    try {
+      await page.goto(`${BASE_URL}/import?account=${account.id}&dir=${dir}`);
+      await page.locator('input[type="file"]').setInputFiles({
+        name: "transactions.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(`date,activityType,amount,currency\n2024-01-15,${activityType},10,USD`),
+      });
+      await page.getByRole("button", { name: /Configure Mapping/i }).click();
+      await page.getByRole("button", { name: /Review Transactions/i }).click();
+      await expect.poll(() => checks).toBe(1);
+      const confirm = page.getByRole("button", { name: /Continue to Import/i });
+      await expect(page.getByRole("button", { name: /Revalidate & Continue/i })).toBeDisabled();
+      const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+      await navigation.getByRole("link", { name: "Holdings", exact: true }).click();
+      await expect(page).toHaveURL(/\/holdings/);
+      const response = page.waitForResponse("**/api/v1/activities/import/check");
+      release();
+      await (await response).finished();
+      await navigation.getByRole("link", { name: "Dashboard", exact: true }).click();
+      await expect(page).toHaveURL(/\/import/);
+      await expect(confirm).toBeEnabled();
+      expect(checks).toBe(1);
+      expect(previews).toBe(0);
+      await confirm.click();
+      await page.getByRole("button", { name: /Import.*1.*Activit/i }).click();
+      await expect(page.getByText("Import Complete", { exact: true })).toBeVisible();
+    } finally {
+      release();
+      if (!page.isClosed()) {
+        await page.unroute("**/api/v1/activities/import/check");
         await page.unroute("**/api/v1/activities/import/assets/preview");
       }
     }
