@@ -1330,7 +1330,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
             </EmptyContent>
           </Empty>
         ) : isMobile ? (
-          <div className="spending-activity-list space-y-2">
+          <div className="space-y-2">
             <SelectionToolbar
               rowCount={rows.length}
               selectionMode={selectionMode}
