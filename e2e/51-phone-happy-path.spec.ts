@@ -325,6 +325,9 @@ test("language, theme and text size change from Settings", async ({ page }) => {
   let previous: Settings | undefined;
   try {
     previous = await updateSettings(page, { language: "en", theme: "light", textSize: "default" });
+    // A new installation has no saved text size, and putting back "unset" would
+    // leave Large in place for the specs after this one.
+    previous.textSize ??= "default";
     await gotoAppPath(page, "/dashboard");
     await openSettings(page);
 
