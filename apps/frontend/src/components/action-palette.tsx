@@ -77,16 +77,16 @@ export function ActionPalette({
         side={side}
         sideOffset={8}
         aria-label={title ?? t("common:actions")}
-        className="w-auto max-w-80 min-w-65 p-0"
+        className="w-auto max-w-80 min-w-56 p-0"
       >
         {/* Header - only show if title provided */}
         {title && (
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <h3 className="text-foreground text-lg font-bold">{title}</h3>
+          <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1">
+            <h3 className="text-foreground text-sm font-semibold">{title}</h3>
             <button
               onClick={handleClose}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full",
+                "flex size-7 shrink-0 items-center justify-center rounded-full",
                 "bg-muted/80 hover:bg-muted",
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors duration-150",
@@ -94,13 +94,13 @@ export function ActionPalette({
               )}
               aria-label={t("common:close")}
             >
-              <Icons.X className="h-4 w-4" />
+              <Icons.X className="size-3.5" />
             </button>
           </div>
         )}
 
         {/* Action Groups */}
-        <div className={cn("px-3 pb-4", !title && "pt-3")}>
+        <div className={cn("px-1.5 pb-1.5", !title && "pt-1.5")}>
           {groups.map((group, groupIndex) => (
             <div key={groupIndex}>
               {group.title && (
@@ -122,7 +122,7 @@ export function ActionPalette({
                         onClick={() => handleItemClick(item)}
                         className={cn(
                           "disabled:pointer-events-none disabled:opacity-50",
-                          "flex w-full items-center gap-4 rounded-xl px-3 py-3",
+                          "flex w-full items-center gap-2.5 rounded-lg px-3 py-2",
                           "transition-colors duration-150",
                           isDestructive
                             ? "text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground active:bg-destructive-subtle/70"
@@ -132,11 +132,11 @@ export function ActionPalette({
                       >
                         <IconComponent
                           className={cn(
-                            "h-5 w-5 shrink-0",
+                            "size-4 shrink-0",
                             isDestructive ? "text-destructive" : "text-muted-foreground",
                           )}
                         />
-                        <span className="text-base font-medium">{item.label}</span>
+                        <span className="text-sm">{item.label}</span>
                         {item.checked && <Icons.Check className="ms-auto size-4 shrink-0" />}
                       </button>
                     </React.Fragment>
