@@ -38,13 +38,15 @@ export const Thread: FC<ThreadProps> = ({ composerActions }) => {
         ["--thread-max-width" as string]: "44rem",
       }}
     >
+      {/* Follows the reply while it streams. With turnAnchor="top" the library pins the
+          question to the top instead and doesn't follow, which fought autoScroll; smooth
+          scrolling also animated each jump to the bottom while new text kept arriving. */}
       <ThreadPrimitive.Viewport
         autoScroll
-        turnAnchor="top"
         scrollToBottomOnRunStart
         scrollToBottomOnInitialize
         scrollToBottomOnThreadSwitch
-        className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-4 pt-4"
       >
         <div className="flex min-h-full flex-col">
           <ThreadPrimitive.Empty>
