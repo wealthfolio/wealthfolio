@@ -1,6 +1,14 @@
 import { TimePeriod } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-import { useAmountFormatting, useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
+import {
+  useAmountFormatting,
+  useDateFormatting,
+  useNumberFormatting,
+  HistoryChartMarkerShape,
+  type HistoryChartMarkerTone,
+  type HistoryChartMarkerVariant,
+  type RechartsMarkerShapeProps,
+} from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,12 +23,6 @@ import {
   YAxis,
 } from "recharts";
 import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
-import {
-  HistoryChartMarkerShape,
-  type HistoryChartMarkerTone,
-  type HistoryChartMarkerVariant,
-  type RechartsMarkerShapeProps,
-} from "./history-chart-marker";
 
 type SymbolActivityMarkerVariant = Exclude<HistoryChartMarkerVariant, "snapshot">;
 

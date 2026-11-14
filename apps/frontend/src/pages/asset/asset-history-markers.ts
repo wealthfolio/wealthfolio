@@ -1,7 +1,4 @@
-import type {
-  HistoryChartMarkerTone,
-  HistoryChartMarkerVariant,
-} from "@/components/history-chart-marker";
+import type { HistoryChartMarkerTone, HistoryChartMarkerVariant } from "@wealthfolio/ui";
 import { isAssetBackedIncomeActivity, isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityTypeNames } from "@/lib/constants";
 import { ActivityDetails, ActivityType } from "@/lib/types";

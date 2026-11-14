@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { HistoryChartMarkerShape, lineColorAt } from "./history-chart-marker";
+import { HistoryChartMarkerShape, lineColorAt } from "@wealthfolio/ui";
 
 // The chart's tooltip, hover dot and single-point dot read the same rule.
 describe("lineColorAt", () => {
