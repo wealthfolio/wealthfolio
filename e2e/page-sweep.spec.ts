@@ -1,6 +1,7 @@
 import { api, createAccount, createActivity, deposit, uniqueName } from "./api";
 import { expect, test, type Page } from "./fixtures";
 import { BASE_URL } from "./helpers";
+import { PHONE } from "./phone";
 
 // Opens every page of the app and checks that it renders: no crash (the
 // fixture's crash guard), content in the page, and no loading placeholders
@@ -67,12 +68,23 @@ const ROUTES: Array<string | ((seed: Seed) => string)> = [
 
 // The second slow pass reverses every delay, so any two requests the page sends
 // together arrive in one order in the first pass and the other in the second.
+// The phone pass opens the phone layout: tab bar, stacked screens and sheets.
 const PASSES = [
-  { name: "normal", query: "", slow: undefined },
-  { name: "slow API", query: "", slow: "forward" },
-  { name: "slow API, reversed", query: "", slow: "reversed" },
-  { name: "right-to-left", query: "?dir=rtl", slow: undefined },
+  { name: "normal", query: "", slow: undefined, phone: false },
+  { name: "slow API", query: "", slow: "forward", phone: false },
+  { name: "slow API, reversed", query: "", slow: "reversed", phone: false },
+  { name: "right-to-left", query: "?dir=rtl", slow: undefined, phone: false },
+  { name: "phone", query: "", slow: undefined, phone: true },
 ] as const;
+
+// App bugs this sweep finds, by "<pass> <route>", each to fix separately. The
+// test is expected to fail until then.
+const KNOWN_FAILURES: Record<string, string> = {
+  "phone /activities/add":
+    "The Add existing holdings sheet sits 4 px right of the screen's left edge at full width, so its right edge is cut off.",
+  "phone /spending/insights":
+    "The Spending insights chip row is overflow-x-auto, but globals.css's unlayered `.flex { overflow-x: hidden }` overrides it: chips past the screen edge are cut off and can't be swiped to.",
+};
 
 const MAX_API_DELAY_MS = 750;
 
@@ -150,6 +162,56 @@ function trackApiRequests(page: Page) {
       .toBe(true);
 }
 
+/**
+ * What reaches past the window's sides. The document mustn't scroll sideways,
+ * but the app clips sideways on `html`, `body` and most containers, so content
+ * that is too wide is cut off rather than scrolled to: also look for visible
+ * elements that cross the window's left or right edge. Elements in a scroller
+ * meant to scroll sideways (overflow-x auto, as wide tables and tab strips
+ * use) or in a carousel, which shows its next slide in part, don't count; nor do
+ * ones their containers hide, such as a swipeable page's other tabs.
+ */
+function sidewaysOverflow(page: Page) {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    const found: string[] = [];
+    if (root.scrollWidth > root.clientWidth) {
+      found.push(`document scrolls: ${root.scrollWidth} > ${root.clientWidth}`);
+    }
+    const width = root.clientWidth;
+    // Elements in a sideways scroller or a carousel don't count. Of the rest,
+    // the part not clipped by the containers around it is what shows.
+    const shownPart = (element: Element, box: DOMRect) => {
+      let [left, right] = [box.left, box.right];
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        const overflowX = getComputedStyle(parent).overflowX;
+        if (/(auto|scroll)/.test(overflowX) || parent.dataset.slot === "carousel-content") {
+          return null;
+        }
+        if (overflowX !== "visible") {
+          const bounds = parent.getBoundingClientRect();
+          [left, right] = [Math.max(left, bounds.left), Math.min(right, bounds.right)];
+        }
+      }
+      return right - left > 1 ? { left, right } : null;
+    };
+    for (const element of document.querySelectorAll("body *")) {
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) continue;
+      const crossesEdge =
+        (box.left < -1 && box.right > 1) || (box.left < width - 1 && box.right > width + 1);
+      if (!crossesEdge) continue;
+      if (!element.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+      // Wholly hidden by a container, such as a swipeable page's other tabs.
+      if (!shownPart(element, box)) continue;
+      const name = `${element.tagName.toLowerCase()}.${String(element.className).slice(0, 60)}`;
+      found.push(`${name}: ${Math.round(box.left)}-${Math.round(box.right)} of ${width}`);
+      if (found.length >= 5) break;
+    }
+    return found;
+  });
+}
+
 let seeded: Seed;
 
 test.describe.configure({ mode: "parallel" });
@@ -163,6 +225,7 @@ test.beforeAll(async ({ browser }) => {
 
 for (const pass of PASSES) {
   test.describe(`page sweep, ${pass.name}`, () => {
+    if (pass.phone) test.use(PHONE);
     for (const route of ROUTES) {
       const label =
         typeof route === "string"
@@ -175,6 +238,8 @@ for (const pass of PASSES) {
             });
       test(label, async ({ page }) => {
         test.setTimeout(pass.slow ? 120_000 : 60_000);
+        const knownFailure = KNOWN_FAILURES[`${pass.name} ${label}`];
+        test.fail(knownFailure !== undefined, knownFailure);
         const { slow } = pass;
         if (slow) {
           await page.route("**/api/v1/**", async (request) => {
@@ -196,7 +261,12 @@ for (const pass of PASSES) {
         // rendered; the spending entry page is a dialog over an empty page.
         const content = page.locator('main, [role="dialog"]');
         await expect(content.filter({ hasText: /\S/ }).first()).toBeVisible();
-        await expect(content.locator('[data-slot="skeleton"]')).toHaveCount(0);
+        // The phone keeps the screens under the top one mounted and hidden.
+        const skeletons = content.locator('[data-slot="skeleton"]');
+        await expect(pass.phone ? skeletons.locator("visible=true") : skeletons).toHaveCount(0);
+        // Nothing reaches past the window's sides: the page doesn't scroll sideways or cut content off.
+        // Polled, so a sheet or tab still sliding into place can finish.
+        await expect.poll(() => sidewaysOverflow(page)).toEqual([]);
         if (pass.query.includes("rtl")) {
           await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         }

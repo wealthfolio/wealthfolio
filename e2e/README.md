@@ -219,7 +219,7 @@ other workers run at the same time on their own databases.
 | File                                   | What it tests                                                                                                               |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `health-activity-reasons.spec.ts`      | Persisted engine activity reasons rendered in French on desktop and Arabic on mobile, with RTL and overflow checks          |
-| `page-sweep.spec.ts`                   | Every page renders without a crash or leftover skeletons: normally, with API responses delayed up to 0.75 s, and RTL        |
+| `page-sweep.spec.ts`                   | No crash, leftover skeletons or content past the sides on any page: normal, slow API, RTL, phone                            |
 | `01-happy-path.spec.ts`                | Onboarding, accounts, deposits, trades                                                                                      |
 | `02-activities.spec.ts`                | All activity types                                                                                                          |
 | `03-fx-cash-balance.spec.ts`           | FX cash balances                                                                                                            |
