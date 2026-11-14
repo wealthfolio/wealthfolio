@@ -9,15 +9,16 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Icons } from "./icons";
+// Per-component entry points: the react-aria-components index loads every component.
+import { Button } from "react-aria-components/Button";
 import {
-  Button,
   DateValue,
-  Dialog,
-  Group,
-  Popover,
   DatePicker as RacDatePicker,
   DatePickerProps as RacDatePickerProps,
-} from "react-aria-components";
+} from "react-aria-components/DatePicker";
+import { Dialog } from "react-aria-components/Dialog";
+import { Group } from "react-aria-components/Group";
+import { Popover } from "react-aria-components/Popover";
 
 import { Calendar } from "./calendar-rac";
 import { DateInput } from "./datefield-rac";
