@@ -394,15 +394,7 @@ export function AccountScopeSelector({
           />
         }
       />
-      <PopoverContent
-        className={cn(
-          "w-80 p-0",
-          portfoliosOnly &&
-            "bg-card border-border/50 overflow-hidden rounded-2xl shadow-lg backdrop-blur-xl dark:border-white/10",
-        )}
-        align="end"
-        sideOffset={8}
-      >
+      <PopoverContent className="w-80 p-0" align="end" sideOffset={8}>
         <AccountScopeCommand
           value={value}
           accounts={accounts}
@@ -411,17 +403,8 @@ export function AccountScopeSelector({
           onToggleAccount={toggleAccount}
           t={t}
           {...portfolioActions}
-          commandClassName={
-            portfoliosOnly ? "bg-card rounded-none [&_[data-cmdk-input-wrapper]]:px-6" : undefined
-          }
-          listClassName={portfoliosOnly ? "px-3 pt-3" : undefined}
-          groupClassName={portfoliosOnly ? "p-0" : undefined}
-          footerClassName="px-3 pb-4"
-          itemClassName={
-            portfoliosOnly
-              ? "cursor-pointer gap-4 rounded-xl px-3 py-3 text-base font-medium transition-colors duration-150 [&_svg]:size-5"
-              : "py-2"
-          }
+          footerClassName="px-1 pb-1"
+          itemClassName="gap-2.5 px-3 py-2"
         />
       </PopoverContent>
     </Popover>
