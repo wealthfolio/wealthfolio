@@ -1087,8 +1087,9 @@ export function MobileActivityForm({
             </div>
           </SheetHeader>
 
-          {/* The header floats over this scroll area, which starts below it. */}
-          <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) overflow-y-auto pt-(--sheet-header-height)">
+          {/* The header floats over this scroll area, which starts below it. The bottom
+              scroll padding keeps the message under a field focused on Add Activity in view. */}
+          <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) scroll-pb-12 overflow-y-auto pt-(--sheet-header-height)">
             <div className="p-4">
               <CashActivityReclassification
                 activity={activity}
