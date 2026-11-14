@@ -94,7 +94,7 @@ function Sidebar({ collapsed }: { collapsed?: boolean }) {
         collapsed ? "w-0 overflow-hidden opacity-0" : "w-65 opacity-100",
       )}
     >
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 scrollbar-thin overflow-y-auto p-3">
         <ThreadList />
       </div>
     </aside>
@@ -121,7 +121,7 @@ function MobileSidebar() {
         <div className="flex h-14 items-center border-b px-4">
           <span className="font-semibold">{t("ai:shell.conversations")}</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-3">
           <ThreadList />
         </div>
       </SheetContent>
