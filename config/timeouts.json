@@ -193,7 +193,10 @@
         "export_data_file",
         "write_pending_export_text_file",
         "write_pending_export_file",
-        "cloud_backup_action"
+        "cloud_backup_action",
+        "device_sync_trigger_cycle",
+        "migrate_legacy_classifications",
+        "reset_team_sync"
       ],
       "paths": [
         "/holdings",
@@ -241,7 +244,10 @@
         "/utilities/export",
         "/utilities/export/*",
         "/utilities/database/backup",
-        "/cloud-backups/action"
+        "/cloud-backups/action",
+        "/connect/device/trigger-cycle",
+        "/taxonomies/migration/run",
+        "/sync/team/reset"
       ]
     }
   ],

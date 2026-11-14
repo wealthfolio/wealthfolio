@@ -328,6 +328,9 @@ mod request_timeout_tests {
             ("/api/v1/activities/import", 200),
             ("/api/v1/snapshots/import", 200),
             ("/api/v1/valuations/history/query", 200),
+            ("/api/v1/connect/device/trigger-cycle", 200),
+            ("/api/v1/taxonomies/migration/run", 200),
+            ("/api/v1/sync/team/reset", 200),
         ] {
             let router = Router::new()
                 .route(

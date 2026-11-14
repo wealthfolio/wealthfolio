@@ -24,6 +24,9 @@ it.each([
   ["write_pending_export_file", 300_000],
   ["export_data_file", 300_000],
   ["cloud_backup_action", 300_000],
+  ["device_sync_trigger_cycle", 300_000],
+  ["migrate_legacy_classifications", 300_000],
+  ["reset_team_sync", 300_000],
 ])("gives %s its production client deadline", (command, expected) => {
   expect(invokeTimeoutMs(command)).toBe(expected);
 });
