@@ -81,10 +81,8 @@ test("buy without a symbol shows the symbol error", async ({ page }) => {
 });
 
 test("buy of zero shares shows the quantity error", async ({ page }) => {
-  // App bug: the form focuses Shares and scrolls it to the bottom of the sheet,
-  // so the message under it sits beneath the Back / Add Activity bar, outside
-  // the sheet's visible area; only the toast, which goes away, says what's wrong.
-  test.fail();
+  // The form focuses Shares, scrolling it only as far as the sheet's bottom edge;
+  // its message, below it, must still be in view.
   await openPhoneActivityForm(page);
   await choosePhoneActivityType(page, "BUY");
   await fillPhoneActivityDetails(page, {
@@ -95,6 +93,19 @@ test("buy of zero shares shows the quantity error", async ({ page }) => {
     price: "100",
   });
   await expectErrorsOnSave(page, ["Quantity must be greater than 0."]);
+});
+
+test("buy at a price of zero shows the price error", async ({ page }) => {
+  await openPhoneActivityForm(page);
+  await choosePhoneActivityType(page, "BUY");
+  await fillPhoneActivityDetails(page, {
+    type: "BUY",
+    account: account.name,
+    symbol: "MSFT",
+    quantity: "5",
+    price: "0",
+  });
+  await expectErrorsOnSave(page, ["Price must be greater than 0."]);
 });
 
 test("amounts typed with a decimal comma save their value", async ({ page }) => {
