@@ -2087,10 +2087,12 @@ mod tests {
 
     #[tokio::test]
     async fn update_value_takes_only_the_kinds_create_takes() {
+        // Private equity is an investment kind, held in accounts, which this
+        // service doesn't create either.
         for (kind, accepted) in [
             (AssetKind::Investment, false),
             (AssetKind::Fx, false),
-            (AssetKind::PrivateEquity, true),
+            (AssetKind::PrivateEquity, false),
             (AssetKind::Property, true),
         ] {
             let quotes = Arc::new(MockQuoteService {
