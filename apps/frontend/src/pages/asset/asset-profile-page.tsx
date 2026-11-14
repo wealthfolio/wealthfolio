@@ -1558,7 +1558,7 @@ export const AssetProfilePage = () => {
       >
         <div className="group/asset-header flex items-center gap-2" data-tauri-drag-region="true">
           {isAltAsset && altHolding ? (
-            <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-full">
+            <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full md:size-9">
               <AlternativeAssetIcon kind={altHolding.kind} size={20} />
             </div>
           ) : (
@@ -1575,7 +1575,8 @@ export const AssetProfilePage = () => {
                 }
                 instrumentType={holding?.instrument?.instrumentType ?? assetProfile?.instrumentType}
                 assetId={assetProfile?.id ?? assetId}
-                className="size-9"
+                // A step larger on phones, next to the two-line name.
+                className="size-10 md:size-9"
                 onEdit={() => setLogoDialogOpen(true)}
               />
             )
@@ -1584,11 +1585,11 @@ export const AssetProfilePage = () => {
             {/* Provider names read in their own direction, so a clipped one keeps its start. */}
             <h1
               dir="auto"
-              className="truncate text-base leading-tight font-semibold md:text-lg rtl:text-right"
+              className="text-base leading-tight font-semibold break-words max-md:line-clamp-2 md:truncate md:text-lg rtl:text-right"
             >
               {assetProfile?.name ?? holding?.instrument?.name ?? assetId ?? "-"}
             </h1>
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs leading-tight md:text-sm">
+            <p className="text-muted-foreground flex items-center gap-1 text-xs leading-tight md:gap-1.5 md:text-sm">
               {isAltAsset && altHolding ? (
                 (altHolding.metadata?.sub_type ?? altHolding.metadata?.liability_type) ===
                 "mortgage" ? (
@@ -1608,9 +1609,13 @@ export const AssetProfilePage = () => {
                             variant="ghost"
                             size="icon"
                             className={cn(
-                              "ms-1 h-5 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity]",
-                              "md:ms-0 md:w-0 md:opacity-0 md:focus-visible:ms-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ms-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
-                              symbolCopied && "opacity-100 md:ms-1 md:w-5 md:opacity-100",
+                              // The touch minimum would make this 44px and push the line apart; a
+                              // 20×24px target is enough for a secondary action.
+                              "ms-1 h-6 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity] pointer-coarse:min-h-0 pointer-coarse:min-w-0 max-lg:min-h-0 max-lg:min-w-0 pointer-fine:md:h-5",
+                              // Hidden until hover only for a mouse; touch screens always show it.
+                              "pointer-fine:md:ms-0 pointer-fine:md:w-0 pointer-fine:md:opacity-0 md:focus-visible:ms-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ms-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
+                              symbolCopied &&
+                                "opacity-100 pointer-fine:md:ms-1 pointer-fine:md:w-5 pointer-fine:md:opacity-100",
                             )}
                             aria-label={`${t("ui:dataGrid.copy")} ${displayedSymbol}`}
                             onClick={() => void handleCopySymbol()}
@@ -1628,7 +1633,10 @@ export const AssetProfilePage = () => {
                   </span>
                   {(assetProfile?.quoteCcy ?? profile?.currency) && (
                     <>
-                      <span className="bg-muted-foreground/40 h-3 w-px rounded-full" />
+                      <span aria-hidden="true" className="pe-0.5 md:hidden">
+                        ·
+                      </span>
+                      <span className="bg-muted-foreground/40 hidden h-3 w-px rounded-full md:block" />
                       {assetProfile?.quoteCcy ?? profile?.currency}
                     </>
                   )}

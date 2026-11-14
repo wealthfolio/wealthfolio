@@ -14,8 +14,9 @@ interface EditableTickerAvatarProps {
 }
 
 /**
- * `TickerAvatar` with a hover/focus overlay (and an always-visible badge on
- * touch devices) that opens the logo dialog. The parent owns the dialog.
+ * `TickerAvatar` with a hover/focus overlay that opens the logo dialog. On touch
+ * devices the logo shows no overlay or badge; a tap on it opens the dialog. The
+ * parent owns the dialog.
  */
 export function EditableTickerAvatar({
   symbol,
@@ -41,16 +42,10 @@ export function EditableTickerAvatar({
         aria-label={t("logo.change")}
         data-testid="asset-logo-edit"
         onClick={onEdit}
-        className="focus-visible:ring-ring absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+        className="focus-visible:ring-ring absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none pointer-coarse:bg-transparent"
       >
-        <Icons.ImageUp className="size-3.5" />
+        <Icons.ImageUp className="size-3.5 pointer-coarse:hidden" />
       </button>
-      <span
-        aria-hidden="true"
-        className="bg-background text-muted-foreground pointer-events-none absolute -end-0.5 -bottom-0.5 hidden rounded-full border p-0.5 pointer-coarse:block"
-      >
-        <Icons.ImageUp className="size-2.5" />
-      </span>
     </div>
   );
 }

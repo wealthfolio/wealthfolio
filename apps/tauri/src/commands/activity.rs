@@ -83,7 +83,7 @@ pub async fn create_activity(
         .activity_service()
         .create_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(created)
 }
@@ -125,7 +125,7 @@ pub async fn update_activity(
         .activity_service()
         .update_activity(activity)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(String::from)?;
     context.health_service().clear_cache().await;
     Ok(updated)
 }

@@ -158,3 +158,38 @@ fn categorization_context_still_requires_review_widget() {
         "system prompt should prevent treating context-only deterministic matches as applied",
     );
 }
+
+#[test]
+fn spending_questions_use_spending_reads_not_categorization() {
+    let lower = SYSTEM_PROMPT.to_lowercase();
+    assert!(lower.contains("where am i spending the most"));
+    assert!(SYSTEM_PROMPT.contains("`get_spending_report`"));
+    assert!(lower.contains("never answers a spending question"));
+    assert!(lower.contains("name only categories and amounts that a spending tool returned"));
+}
+
+#[test]
+fn empty_categorization_batch_is_not_called_a_draft() {
+    let lower = SYSTEM_PROMPT.to_lowercase();
+    assert!(
+        lower.contains("read the `propose_transaction_categories` result, not the context result")
+    );
+    assert!(lower.contains("describe only the rows its widget shows"));
+    assert!(lower.contains("if both lists are empty, nothing was drafted"));
+    assert!(lower.contains("never claim a batch was drafted"));
+    assert!(lower.contains("`proposals` is empty but `unproposed` has rows"));
+}
+
+#[test]
+fn full_empty_batch_is_not_called_nothing_to_categorize() {
+    let lower = SYSTEM_PROMPT.to_lowercase();
+    assert!(lower.contains("when it equals the limit, only the first matches were checked"));
+    assert!(lower.contains("suggest a narrower date range"));
+}
+
+#[test]
+fn rows_waiting_for_a_choice_are_not_called_done() {
+    let lower = SYSTEM_PROMPT.to_lowercase();
+    assert!(lower.contains("only say nothing is left to categorize when `unproposed` is empty"));
+    assert!(!lower.contains("there are no more uncategorized transactions"));
+}

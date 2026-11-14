@@ -1,3 +1,5 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
@@ -503,6 +505,7 @@ export function AssetEditSheet({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const EDIT_INSTRUMENT_TYPE_OPTIONS = useMemo(
     () =>
       [
@@ -767,7 +770,13 @@ export function AssetEditSheet({
         else requestClose();
       }}
     >
-      <SheetContent side="inline-end" className="flex h-full w-full flex-col sm:max-w-2xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex h-full flex-col",
+          isMobile ? "mx-1 rounded-t-4xl [--overlay-max-height:90dvh]" : "w-full sm:max-w-2xl",
+        )}
+      >
         <SheetHeader className="shrink-0 pb-4">
           <div className="flex items-center gap-3">
             <EditableTickerAvatar

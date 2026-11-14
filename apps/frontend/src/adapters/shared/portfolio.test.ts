@@ -23,3 +23,12 @@ it("keeps the existing complete asset-holdings API for activity and expiry actio
   mocks.invoke.mockResolvedValue({ holdings, incompleteAccounts: [] });
   expect(await getAssetHoldings("asset")).toEqual(holdings);
 });
+
+it("passes a reporting scope through the existing asset-holdings command", async () => {
+  mocks.invoke.mockResolvedValue({ holdings: [], incompleteAccounts: [] });
+  await getAssetHoldingsScope("cash:GBP", { type: "portfolio", portfolioId: "pf" });
+  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("get_asset_holdings", {
+    assetId: "cash:GBP",
+    filter: { type: "portfolio", portfolioId: "pf" },
+  });
+});

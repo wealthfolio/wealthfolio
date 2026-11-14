@@ -62,4 +62,32 @@ describe("performanceAxis", () => {
     expect(new Set(axis.ticks).size).toBe(axis.ticks.length);
     expect(axis.ticks.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("keeps day ticks out of the edges when a gap is given", () => {
+    const dates = dailyDates("2026-10-09", "2026-11-09");
+    const last = dates.length - 1;
+    expect(performanceAxis(dates, 4).ticks[0]).toBe(dates[0]);
+
+    const { ticks } = performanceAxis(dates, 4, 0.08);
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    for (const tick of ticks) {
+      const position = dates.indexOf(tick) / last;
+      expect(position).toBeGreaterThanOrEqual(0.08);
+      expect(position).toBeLessThanOrEqual(0.92);
+    }
+  });
+
+  it("drops month starts that fall in the edge gap", () => {
+    // Dec 1 sits 2% into this range, Nov 1 of the next year 2% from its end.
+    const dates = dailyDates("2024-11-24", "2025-11-08");
+    expect(performanceAxis(dates, 12).ticks).toContain("2024-12-01");
+    const { ticks } = performanceAxis(dates, 12, 0.05);
+    expect(ticks).not.toContain("2024-12-01");
+    expect(ticks).not.toContain("2025-11-01");
+    expect(ticks).toContain("2025-01-01");
+  });
+
+  it("still labels a two-point range inside the gap", () => {
+    expect(performanceAxis(["2026-11-08", "2026-11-09"], 4, 0.08).ticks).toHaveLength(1);
+  });
 });

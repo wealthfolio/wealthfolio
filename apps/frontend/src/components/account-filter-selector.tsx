@@ -95,12 +95,16 @@ const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
           triggerVariant === "input"
             ? "bg-background/70 text-foreground hover:bg-background/70 focus-visible:border-foreground w-full justify-between rounded-lg border px-3 py-2.5 text-sm font-semibold shadow-none"
             : compact
-              ? "rounded-full"
+              ? // On phones the margin keeps its row 44px tall and the tap layer is 44px
+                // tall to fit it; the mobile reset clips and scrolls .flex boxes otherwise.
+                "overflow-visible! rounded-full max-lg:my-1 max-lg:after:-inset-y-1 pointer-coarse:my-1 pointer-coarse:after:-inset-y-1"
               : "bg-secondary/30 hover:bg-muted/80 rounded-full border-none",
           triggerVariant === "default" && !isMobile && "min-w-55 h-10 justify-between px-4 text-sm",
           className,
         )}
-        size={compact ? (triggerVariant === "icon" ? "icon-xs" : "icon-sm") : "default"}
+        // icon-xs keeps the phone button the height of the period pills beside it,
+        // with an invisible 48px tap area, where icon-sm grows it to 44px.
+        size={compact ? (triggerVariant === "icon" || isMobile ? "icon-xs" : "icon-sm") : "default"}
         {...props}
       >
         {compact ? (
@@ -335,7 +339,7 @@ export function AccountScopeSelector({
           className={cn(
             "mx-1 p-0",
             portfoliosOnly
-              ? "bg-card [--overlay-max-height:80dvh] rounded-t-2xl"
+              ? "bg-card [--overlay-max-height:80dvh] rounded-t-4xl"
               : "rounded-t-4xl h-[80vh]",
           )}
         >

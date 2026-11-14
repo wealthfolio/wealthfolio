@@ -896,6 +896,16 @@ export function MobileActivityForm({
       }
 
       if (id) {
+        // A transfer's empty fee is left out so a pair keeps both legs' fees, but
+        // an external transfer is one record: a fee the user cleared saves as 0,
+        // where omission would keep the old fee.
+        if (
+          transferIsExternal &&
+          submitData.fee === undefined &&
+          form.getFieldState("fee").isDirty
+        ) {
+          submitData.fee = 0;
+        }
         const wasAssetBackedIncome = isAssetBackedIncomeSubtype(
           activity?.activityType ?? "",
           activity?.subtype,
@@ -1077,8 +1087,9 @@ export function MobileActivityForm({
             </div>
           </SheetHeader>
 
-          {/* The header floats over this scroll area, which starts below it. */}
-          <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) overflow-y-auto pt-(--sheet-header-height)">
+          {/* The header floats over this scroll area, which starts below it. The bottom
+              scroll padding keeps the message under a field focused on Add Activity in view. */}
+          <div className="min-h-0 flex-auto scroll-pt-(--sheet-header-height) scroll-pb-12 overflow-y-auto pt-(--sheet-header-height)">
             <div className="p-4">
               <CashActivityReclassification
                 activity={activity}

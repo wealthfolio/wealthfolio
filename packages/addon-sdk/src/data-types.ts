@@ -480,6 +480,25 @@ export interface ActivityImport {
    * stored in the activity's `metadata.charges` and change no calculation.
    */
   charges?: ActivityCharge[];
+  /**
+   * Your own ID for the transaction this row records, such as a statement's
+   * reference. A row with one is a duplicate of the activity your add-on
+   * imported with the same ID into the same account, whatever its values or
+   * comment, and is skipped like other duplicates. Keep each ID the same in
+   * every import and different for every separate transaction. A row with an
+   * ID also matches an activity it would match without one that was imported
+   * without an ID, so sending IDs doesn't import earlier rows again. The
+   * activity stores it as `addon:<your add-on id>:<ID>` in `sourceRecordId`.
+   * IDs are trimmed; blank IDs are treated as absent. Matching by ID is scoped
+   * to your add-on, but the values fallback can match any import without an ID
+   * in the account, including CSV or another add-on's imports.
+   */
+  sourceRecordId?: string;
+  /**
+   * Details to keep with the activity, stored in its metadata under
+   * `addons[<your add-on id>]`, apart from the keys Wealthfolio reads.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /**

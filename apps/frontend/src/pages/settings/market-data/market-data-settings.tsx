@@ -57,6 +57,7 @@ import {
   useUpdateCustomProvider,
 } from "@/hooks/use-custom-providers";
 import { QueryKeys } from "@/lib/query-keys";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
@@ -120,6 +121,7 @@ function ProviderSettings({
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const name = getProviderName(t, provider.id, provider.name);
+  const isMobile = useIsMobileViewport();
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [isLoadingKey, setIsLoadingKey] = useState(false);
@@ -203,6 +205,53 @@ function ProviderSettings({
       return { icon: null, label: t("settings:market_data_page.feature_no_api_key") };
     return { icon: null, label: feature };
   };
+
+  const providerControls = (
+    <>
+      {/* Phones: the 44px touch targets already space the buttons. */}
+      <div className={cn("flex items-center", !isMobile && "gap-2")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          // A provider that's off keeps its place but has no rank to move.
+          className={cn(
+            "text-muted-foreground hover:text-foreground h-8 w-8",
+            !provider.enabled && (isMobile ? "hidden" : "invisible"),
+          )}
+          disabled={!canMoveUp || locked}
+          onClick={() => onMove(-1)}
+          aria-label={t("settings:market_data_page.move_up", { name })}
+        >
+          <Icons.ArrowUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "text-muted-foreground hover:text-foreground h-8 w-8",
+            !provider.enabled && (isMobile ? "hidden" : "invisible"),
+          )}
+          disabled={!canMoveDown || locked}
+          onClick={() => onMove(1)}
+          aria-label={t("settings:market_data_page.move_down", { name })}
+        >
+          <Icons.ArrowDown className="h-4 w-4" />
+        </Button>
+      </div>
+      <CollapsibleTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground h-8 w-8"
+            aria-label={t("common:settings_for", { name })}
+          />
+        }
+      >
+        <Icons.Settings className="h-4 w-4" />
+      </CollapsibleTrigger>
+    </>
+  );
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -289,48 +338,7 @@ function ProviderSettings({
           }
           actions={
             <>
-              {/* Phones stack the arrows so the name keeps room. */}
-              <div className="flex items-center gap-2 max-sm:flex-col max-sm:gap-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  // A provider that's off keeps its place but has no rank to move.
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
-                    !provider.enabled && "invisible",
-                  )}
-                  disabled={!canMoveUp || locked}
-                  onClick={() => onMove(-1)}
-                  aria-label={t("settings:market_data_page.move_up", { name })}
-                >
-                  <Icons.ArrowUp className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
-                    !provider.enabled && "invisible",
-                  )}
-                  disabled={!canMoveDown || locked}
-                  onClick={() => onMove(1)}
-                  aria-label={t("settings:market_data_page.move_down", { name })}
-                >
-                  <Icons.ArrowDown className="h-4 w-4" />
-                </Button>
-              </div>
-              <CollapsibleTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8"
-                    aria-label={t("common:settings_for", { name })}
-                  />
-                }
-              >
-                <Icons.Settings className="h-4 w-4" />
-              </CollapsibleTrigger>
+              {!isMobile && providerControls}
               <Switch
                 id={`${provider.id}-enabled`}
                 aria-label={name}
@@ -340,7 +348,10 @@ function ProviderSettings({
               />
             </>
           }
-        />
+        >
+          {/* Phones give the name and badges the row's width; the controls sit under them. */}
+          {isMobile && <div className="-ms-3.5 mt-1 flex items-center">{providerControls}</div>}
+        </SettingsListRow>
 
         {/* Expandable settings */}
         <CollapsibleContent>
@@ -571,6 +582,99 @@ function CustomProviderCard({
   const latestSource = provider.sources.find((s) => s.kind === "latest");
   const historicalSource = provider.sources.find((s) => s.kind === "historical");
   const usedBy = usageCount(usage);
+  const isMobile = useIsMobileViewport();
+
+  const editControls = (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:text-foreground h-8 w-8"
+        onClick={onEdit}
+        aria-label={t("settings:market_data_page.edit_custom_provider")}
+      >
+        <Icons.Pencil className="h-4 w-4" />
+      </Button>
+      {deleteBlockerCount(usage) > 0 ? (
+        // The backend refuses to delete a provider securities still use; say which.
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive h-8 w-8"
+                aria-label={t("common:delete")}
+              />
+            }
+          >
+            <Icons.Trash className="h-4 w-4" />
+          </PopoverTrigger>
+          <PopoverContent className="w-80 space-y-3" align="end">
+            <h4 className="leading-none font-medium">
+              {t("settings:market_data_page.delete_provider_in_use_title", {
+                name: provider.name,
+              })}
+            </h4>
+            {/* Changing a security's provider keeps its symbol mappings, so each group
+                      needs its own instruction. */}
+            {usage.assigned.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-sm">
+                  {t("settings:market_data_page.delete_provider_in_use_assigned", {
+                    count: usage.assigned.length,
+                  })}
+                </p>
+                <CustomProviderUsageChips assets={usage.assigned} linkable />
+              </div>
+            )}
+            {usage.mappedOnly.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-sm">
+                  {t("settings:market_data_page.delete_provider_in_use_mapped", {
+                    count: usage.mappedOnly.length,
+                  })}
+                </p>
+                <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
+              </div>
+            )}
+            {usage.leftover.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-sm">
+                  {t("settings:market_data_page.delete_provider_in_use_leftover", {
+                    count: usage.leftover.length,
+                  })}
+                </p>
+                <CustomProviderUsageChips assets={usage.leftover} linkable />
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <ActionConfirm
+          handleConfirm={onDelete}
+          isPending={isDeleting}
+          confirmTitle={t("settings:market_data_page.delete_provider_title")}
+          confirmMessage={t("settings:market_data_page.delete_provider_message", {
+            name: provider.name,
+          })}
+          confirmButtonText={t("common:delete")}
+          cancelButtonText={t("common:cancel")}
+          confirmButtonVariant="destructive"
+          button={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-destructive h-8 w-8"
+              aria-label={t("common:delete")}
+            >
+              <Icons.Trash className="h-4 w-4" />
+            </Button>
+          }
+        />
+      )}
+    </>
+  );
 
   return (
     <div>
@@ -606,93 +710,7 @@ function CustomProviderCard({
               onCheckedChange={onToggleEnabled}
               disabled={isToggling}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground h-8 w-8"
-              onClick={onEdit}
-              aria-label={t("settings:market_data_page.edit_custom_provider")}
-            >
-              <Icons.Pencil className="h-4 w-4" />
-            </Button>
-            {deleteBlockerCount(usage) > 0 ? (
-              // The backend refuses to delete a provider securities still use; say which.
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive h-8 w-8"
-                      aria-label={t("common:delete")}
-                    />
-                  }
-                >
-                  <Icons.Trash className="h-4 w-4" />
-                </PopoverTrigger>
-                <PopoverContent className="w-80 space-y-3" align="end">
-                  <h4 className="leading-none font-medium">
-                    {t("settings:market_data_page.delete_provider_in_use_title", {
-                      name: provider.name,
-                    })}
-                  </h4>
-                  {/* Changing a security's provider keeps its symbol mappings, so each group
-                      needs its own instruction. */}
-                  {usage.assigned.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-muted-foreground text-sm">
-                        {t("settings:market_data_page.delete_provider_in_use_assigned", {
-                          count: usage.assigned.length,
-                        })}
-                      </p>
-                      <CustomProviderUsageChips assets={usage.assigned} linkable />
-                    </div>
-                  )}
-                  {usage.mappedOnly.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-muted-foreground text-sm">
-                        {t("settings:market_data_page.delete_provider_in_use_mapped", {
-                          count: usage.mappedOnly.length,
-                        })}
-                      </p>
-                      <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
-                    </div>
-                  )}
-                  {usage.leftover.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-muted-foreground text-sm">
-                        {t("settings:market_data_page.delete_provider_in_use_leftover", {
-                          count: usage.leftover.length,
-                        })}
-                      </p>
-                      <CustomProviderUsageChips assets={usage.leftover} linkable />
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <ActionConfirm
-                handleConfirm={onDelete}
-                isPending={isDeleting}
-                confirmTitle={t("settings:market_data_page.delete_provider_title")}
-                confirmMessage={t("settings:market_data_page.delete_provider_message", {
-                  name: provider.name,
-                })}
-                confirmButtonText={t("common:delete")}
-                cancelButtonText={t("common:cancel")}
-                confirmButtonVariant="destructive"
-                button={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive h-8 w-8"
-                    aria-label={t("common:delete")}
-                  >
-                    <Icons.Trash className="h-4 w-4" />
-                  </Button>
-                }
-              />
-            )}
+            {!isMobile && editControls}
           </>
         }
       >
@@ -715,6 +733,8 @@ function CustomProviderCard({
             </span>
           )}
         </div>
+        {/* Phones give the name the row's width; edit and delete sit under it. */}
+        {isMobile && <div className="-ms-3.5 mt-1 flex items-center">{editControls}</div>}
       </SettingsListRow>
     </div>
   );

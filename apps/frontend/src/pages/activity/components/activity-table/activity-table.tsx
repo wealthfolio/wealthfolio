@@ -77,6 +77,7 @@ import {
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
+import { calculateIncomeGrossAmount } from "@/lib/activity-final-amount";
 import { flattenDayGroups } from "@/lib/day-groups";
 import { groupActivitiesByDay } from "./activity-day-groups";
 import { ActivityDayHeaderRow } from "./activity-day-header";
@@ -498,12 +499,43 @@ export const ActivityTable = ({
               </div>
             );
           }
+          // Cash income (Dividend/Interest, not asset-backed): Price/Amount shows
+          // the gross amount before charges so the row reads
+          //   Price/Amount (gross) − Tax − Fee = Total (net received).
+          // calculateIncomeGrossAmount uses scaled-integer arithmetic to avoid
+          // float rounding (e.g. 0.60 + 0.28 → 0.88, not 0.8800000000000001).
+          if (isIncomeActivity(activityType) && !isIncomeInKind) {
+            // Use the absolute magnitude so legacy negatively-stored income
+            // amounts still produce the correct positive gross. Null/empty are
+            // passed through unchanged so the missing-amount guard below fires.
+            const absAmount =
+              amount != null && amount !== "" && Number.isFinite(Number(amount))
+                ? Math.abs(Number(amount))
+                : amount;
+            // Mirror the core resolver: gross = received + tax + fee.
+            // The dividend form hides the fee field, so form-created dividends
+            // always have fee = null — their gross is unaffected (null → 0).
+            // Imported dividends may carry a stored fee; including it here keeps
+            // the table gross aligned with the core resolver for those rows.
+            const gross = calculateIncomeGrossAmount({
+              receivedAmount: absAmount,
+              tax: row.original.tax,
+              fee: row.original.fee,
+            });
+            // gross is undefined only when receivedAmount is missing; render
+            // "—" rather than a misleading zero.
+            if (gross === undefined) return <div className="pe-4 text-end">-</div>;
+            return (
+              <div className="text-end whitespace-nowrap tabular-nums">
+                <AmountDisplay value={gross} currency={currency} isHidden={isBalanceHidden} />
+              </div>
+            );
+          }
           if (
             (isCashActivity(activityType) &&
               !isIncomeInKind &&
               !isSecuritiesTransfer(activityType, assetSymbol, row.original.assetId)) ||
-            isCashTransfer(activityType, assetSymbol, row.original.assetId) ||
-            (isIncomeActivity(activityType) && !isIncomeInKind)
+            isCashTransfer(activityType, assetSymbol, row.original.assetId)
           ) {
             return (
               <div className="text-end whitespace-nowrap tabular-nums">
@@ -743,7 +775,7 @@ export const ActivityTable = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {hideableColumns.map((column) => {
-                    const meta = column.columnDef.meta as { label?: string } | undefined;
+                    const meta = column.columnDef.meta;
                     return (
                       <DropdownMenuCheckboxItem
                         key={column.id}
@@ -960,14 +992,16 @@ export const ActivityTable = ({
               row border stays with the table grid instead of moving with
               sticky cells, so the cells draw the header's bottom line.
               The page header's offset only applies when the header pins to
-              the page. Otherwise it pins to a nearer scroll container (the
-              box while it scrolls sideways, or at 1024px and below an
-              ancestor `globals.css` gives `overflow-x: hidden`), where that
-              offset would push it down over the rows. */}
+              the page. While the box scrolls sideways the header pins to the
+              box instead, where that offset would push it down over the rows.
+              Engines without `overflow: clip` keep `globals.css`'s
+              `overflow-x: hidden` up to 1024px, which makes an ancestor the
+              scroller there too, so they get the offset only above 1024px. */}
           <TableHeader
             className={cn(
               "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
-              !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+              !scrollsSideways &&
+                "supports-[overflow:clip]:top-[var(--page-header-height,0px)] [@media(width>1024px)]:top-[var(--page-header-height,0px)]",
             )}
           >
             {table.getHeaderGroups().map((headerGroup) => (

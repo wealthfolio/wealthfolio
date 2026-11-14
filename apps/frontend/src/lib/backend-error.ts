@@ -17,13 +17,24 @@ const ERROR_KEYS: Record<string, string> = {
   provider_key_missing: "common:backendErrors.providerKeyMissing",
   provider_unknown: "common:backendErrors.providerUnknown",
   provider_unavailable: "common:backendErrors.providerUnavailable",
+  SECRET_TOO_LARGE: "common:backendErrors.secretTooLarge",
+  SECRET_STORE_UNAVAILABLE: "common:backendErrors.secretStoreUnavailable",
   INVALID_SNAPSHOT_DATE: "account:snapshot.invalid_date_update_desc",
+  ASSET_IDENTITY_CONFLICT: "asset:editSheet.identity_conflict",
   [CONNECT_REBIND_REQUIRED]: "common:profiles.errors.rebind",
   [BACKUP_REAUTHENTICATION_REQUIRED]: "settings:cloud_backup_reauth",
   [BACKUP_MANUAL_LIMIT]: "settings:cloud_backup_manual_limit",
   PROFILE_BUSY: "common:profiles.errors.busy",
   custom_provider_code_reserved: "common:backendErrors.customProviderCodeReserved",
   custom_provider_in_use: "common:backendErrors.customProviderInUse",
+  ADDON_MANIFEST_MISSING: "common:backendErrors.addonManifestMissing",
+  ADDON_MAIN_FILE_MISSING: "common:backendErrors.addonMainFileMissing",
+  ADDON_NEEDS_NEWER_VERSION: "common:backendErrors.addonNeedsNewerVersion",
+  QUOTE_CURRENCY_REQUIRED: "common:backendErrors.quoteCurrencyRequired",
+  ALTERNATIVE_ASSET_NOT_IN_ACCOUNT: "common:backendErrors.alternativeAssetNotInAccount",
+  SUBSCRIPTION_REQUIRED: "connect:subscription.syncPausedDescription",
+  PLAN_UPGRADE_REQUIRED: "connect:upgrade.title",
+  RATE_LIMITED: "common:backendErrors.rateLimited",
 };
 
 /** Retains a code, never the server's arbitrary message, cause, or parameters. */
@@ -51,6 +62,11 @@ export class BackendError extends Error {
             ? backendErrorText(this, i18n.t)
             : "The operation could not be completed.",
     });
+  }
+
+  // Views show errors with String(error); keep the class name out of that text.
+  override toString(): string {
+    return this.message;
   }
 }
 

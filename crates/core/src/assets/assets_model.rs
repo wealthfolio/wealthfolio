@@ -343,6 +343,11 @@ fn default_is_active() -> bool {
     true
 }
 
+/// Why a save that would put an alternative asset in an account is refused.
+pub const ALTERNATIVE_ASSET_NOT_IN_ACCOUNT: &str = "Properties, vehicles, collectibles, precious \
+metals, liabilities and other personal assets count toward net worth on their own and can't be \
+held in an account. To hold a custom asset in an account, add it as an investment.";
+
 impl AssetKind {
     /// Returns the database string representation (SCREAMING_SNAKE_CASE).
     pub const fn as_db_str(&self) -> &'static str {

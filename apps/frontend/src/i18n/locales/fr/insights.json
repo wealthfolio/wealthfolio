@@ -152,7 +152,15 @@
     "portfolio_share": "Part de la valeur du portefeuille, trésorerie incluse",
     "largest": "Position la plus importante",
     "top_five": "Les cinq principales positions",
-    "concentration_unavailable": "La concentration nécessite des valeurs de positions positives et un portefeuille sans positions à découvert."
+    "concentration_unavailable": "La concentration nécessite des valeurs de positions positives et un portefeuille sans positions à découvert.",
+    "holdings": "Positions",
+    "holdings_count_one": "{{count}} position",
+    "holdings_count_many": "{{count}} positions",
+    "holdings_count_other": "{{count}} positions",
+    "other_holdings_one": "{{count}} autre position",
+    "other_holdings_many": "{{count}} autres positions",
+    "other_holdings_other": "{{count}} autres positions",
+    "holdings_unavailable": "Le graphique des positions nécessite des valeurs positives et un portefeuille sans positions à découvert."
   },
   "customize": {
     "edit": "Personnaliser",

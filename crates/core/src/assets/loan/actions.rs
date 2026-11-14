@@ -144,7 +144,7 @@ pub struct AssetDetailsChange {
 }
 
 impl LoanUpdate {
-    /// Balance quotes change valuations everywhere, so callers refresh portfolios.
+    /// Whether recorded balances, the loan's values, changed.
     pub fn changes_balances(&self) -> bool {
         !self.save_balances.is_empty() || !self.delete_balances.is_empty()
     }

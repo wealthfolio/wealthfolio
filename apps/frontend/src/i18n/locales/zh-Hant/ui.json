@@ -110,6 +110,9 @@
     "search": "搜尋…",
     "reset": "重設",
     "columns": "欄位",
+    "moveColumnUp": "上移{{column}}",
+    "moveColumnDown": "下移{{column}}",
+    "resetColumnOrder": "重設欄位順序",
     "sortAsc": "升冪",
     "sortDesc": "降冪",
     "hide": "隱藏"

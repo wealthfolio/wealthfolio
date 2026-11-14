@@ -209,7 +209,7 @@ pub trait AssetServiceTrait: Send + Sync {
             && existing_quote_ccy.is_none()
         {
             return Err(crate::activities::ActivityError::InvalidData(
-                "Quote currency is required. Please re-select the symbol.".to_string(),
+                crate::errors::QUOTE_CURRENCY_REQUIRED_MESSAGE.to_string(),
             )
             .into());
         }

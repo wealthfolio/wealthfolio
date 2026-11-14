@@ -974,6 +974,8 @@
       "decimalAuto": "自動偵測",
       "decimalPeriod": "句點（.）",
       "decimalComma": "逗號（,）",
+      "numberFormatWarningTitle": "請檢查數字格式",
+      "numberFormatWarningDescription": "部分欄位的數字格式不明確或存在衝突（{{columns}}）。請檢查這些值，或在上傳步驟的剖析設定中選擇小數分隔符號。",
       "summaryDelimiter": "分隔符號：{{value}}",
       "summaryDate": "日期：{{value}}",
       "summaryDecimal": "小數：{{value}}",

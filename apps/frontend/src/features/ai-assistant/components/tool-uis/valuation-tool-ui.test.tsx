@@ -46,6 +46,7 @@ describe("AI valuation card labels", () => {
         type: "tool-call",
         addResult: vi.fn(),
         resume: vi.fn(),
+        respondToApproval: vi.fn(),
       };
       const view = render(<ValuationContentImpl {...props} />);
       expect(screen.getByText("Portfolio")).toBeInTheDocument();

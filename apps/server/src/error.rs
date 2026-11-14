@@ -121,6 +121,8 @@ impl IntoResponse for ApiError {
         };
         let status = match &self {
             ApiError::Core(e) => match e {
+                CoreError::SecretTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                CoreError::SecretStoreUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 CoreError::ConstraintViolation(_)
                 | CoreError::Database(
                     DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
@@ -134,6 +136,10 @@ impl IntoResponse for ApiError {
             ApiError::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             ApiError::BadRequest(_) | ApiError::Provider(_) => StatusCode::BAD_REQUEST,
             ApiError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            // An upstream rate limit reaches the app as a reviewed control code.
+            ApiError::Forbidden(_) if error.error_code == "RATE_LIMITED" => {
+                StatusCode::TOO_MANY_REQUESTS
+            }
             ApiError::Forbidden(_) => StatusCode::FORBIDDEN,
             ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Anyhow(e) => {
@@ -225,6 +231,16 @@ mod tests {
     #[tokio::test]
     async fn response_bodies_do_not_expose_internal_error_text() {
         let cases = [
+            (
+                ApiError::Core(CoreError::SecretTooLarge),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "SECRET_TOO_LARGE",
+            ),
+            (
+                ApiError::Core(CoreError::SecretStoreUnavailable),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "SECRET_STORE_UNAVAILABLE",
+            ),
             (
                 ApiError::Core(CoreError::Database(DatabaseError::QueryFailed(
                     PRIVATE.into(),
@@ -355,6 +371,50 @@ mod tests {
                 .unwrap();
             let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             assert_eq!(json["errorCode"], code);
+            for value in PRIVATE.split_whitespace() {
+                assert!(!String::from_utf8_lossy(&bytes).contains(value));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_subscription_and_rate_limit_codes_reach_the_app() {
+        // Connect's client error text, as broker sync and the profile refresh get it.
+        for (reason, code, status) in [
+            (
+                format!("API error 403: SUBSCRIPTION_CANCELED: Subscription required ({PRIVATE})"),
+                "SUBSCRIPTION_REQUIRED",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                format!("API error 403: PLAN_UPGRADE_REQUIRED: Upgrade ({PRIVATE})"),
+                "PLAN_UPGRADE_REQUIRED",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                format!("API error 429 ({PRIVATE})"),
+                "RATE_LIMITED",
+                StatusCode::TOO_MANY_REQUESTS,
+            ),
+            (
+                format!("API error 429: Too many requests ({PRIVATE})"),
+                "RATE_LIMITED",
+                StatusCode::TOO_MANY_REQUESTS,
+            ),
+            (
+                format!("API error 403: SUBSCRIPTIONS ({PRIVATE})"),
+                "forbidden",
+                StatusCode::FORBIDDEN,
+            ),
+        ] {
+            let response = ApiError::Forbidden(reason).into_response();
+            assert_eq!(response.status(), status);
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(json["errorCode"], code);
+            assert_eq!(json["code"], status.as_u16());
             for value in PRIVATE.split_whitespace() {
                 assert!(!String::from_utf8_lossy(&bytes).contains(value));
             }

@@ -1500,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Datos de mercado: escribir",
-        "description": "Guardar precios (cotizaciones) revisados de activos existentes. Requiere el ámbito de posiciones (lectura)."
+        "description": "Guardar precios (cotizaciones) revisados, actualizar o reemplazar el historial de precios de un activo y cambiar cómo se cotiza: su símbolo, mercado, divisa de cotización, modo de cotización o proveedor de datos. Requiere el ámbito de posiciones (lectura)."
       },
       "spending_read": {
         "label": "Ver gastos",

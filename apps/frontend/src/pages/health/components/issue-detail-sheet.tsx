@@ -1,3 +1,4 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import type {
   DiagnosticAction,
   EngineActivityIssue,
@@ -428,6 +429,7 @@ export function IssueDetailSheet({
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const numbers = useNumberFormatting();
 
   if (!issue) return null;
@@ -495,7 +497,15 @@ export function IssueDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="inline-end" className="flex w-full flex-col sm:max-w-xl lg:max-w-2xl">
+      <SheetContent
+        side={isMobile ? "bottom" : "inline-end"}
+        className={cn(
+          "flex flex-col",
+          isMobile
+            ? "mx-1 h-full rounded-t-4xl [--overlay-max-height:90dvh]"
+            : "w-full sm:max-w-xl lg:max-w-2xl",
+        )}
+      >
         <SheetHeader className="shrink-0 space-y-3 pb-6">
           <div className="flex items-center gap-2 text-xs">
             <span className={cn("font-medium", severityConfig.color)}>
@@ -517,7 +527,7 @@ export function IssueDetailSheet({
         </SheetHeader>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-6 pe-4">
+          <div className={cn("space-y-6", !isMobile && "pe-4")}>
             {!hasDiagnostics && issue.affectedItems && issue.affectedItems.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">

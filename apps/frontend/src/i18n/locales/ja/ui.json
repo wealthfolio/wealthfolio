@@ -109,6 +109,9 @@
     "search": "検索 ...",
     "reset": "リセット",
     "columns": "列",
+    "moveColumnUp": "{{column}}を上へ移動",
+    "moveColumnDown": "{{column}}を下へ移動",
+    "resetColumnOrder": "列の順序をリセット",
     "sortAsc": "昇順",
     "sortDesc": "降順",
     "hide": "非表示"

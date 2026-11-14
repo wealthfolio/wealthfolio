@@ -854,6 +854,65 @@ describe("addon activity update payload boundary", () => {
   );
 });
 
+describe("addon import rows", () => {
+  it("keeps an addon's source record IDs and metadata under its own id", async () => {
+    const checkActivitiesImport = vi.fn(({ activities }: { activities: object[] }) =>
+      Promise.resolve(activities.map((row) => ({ ...row, isValid: true }))),
+    );
+    const importActivities = vi.fn(({ activities }: { activities: object[] }) =>
+      Promise.resolve({
+        activities,
+        importRunId: "run-1",
+        summary: { imported: activities.length },
+      }),
+    );
+    const api = createSDKHostAPIBridge(
+      { checkActivitiesImport, importActivities } as unknown as InternalHostAPI,
+      "statement-importer",
+    );
+    const base = { accountId: "account", activityType: "BUY", isDraft: false, isValid: false };
+    const rows = [
+      { ...base, sourceRecordId: " folio-1/7 ", metadata: { folio: "1" } },
+      { ...base, sourceRecordId: "  ", comment: "No ID" },
+      { ...base, comment: "Absent fields" },
+      { ...base, sourceRecordId: null, metadata: null, comment: "Null fields" },
+      { ...base, sourceRecordId: "empty-details", metadata: {} },
+    ];
+
+    const checked = await api.activities.checkImport(rows as never);
+    const sent = [
+      {
+        ...base,
+        sourceRecordId: "addon:statement-importer:folio-1/7",
+        metadata: { addons: { "statement-importer": { folio: "1" } } },
+      },
+      { ...base, comment: "No ID" },
+      { ...base, comment: "Absent fields" },
+      { ...base, comment: "Null fields" },
+      {
+        ...base,
+        sourceRecordId: "addon:statement-importer:empty-details",
+        metadata: { addons: { "statement-importer": {} } },
+      },
+    ];
+    expect(checkActivitiesImport.mock.calls[0][0].activities).toEqual(sent);
+    expect(checked).toEqual([
+      { ...base, isValid: true, sourceRecordId: "folio-1/7", metadata: { folio: "1" } },
+      { ...base, isValid: true, comment: "No ID" },
+      { ...base, isValid: true, comment: "Absent fields" },
+      { ...base, isValid: true, comment: "Null fields" },
+      { ...base, isValid: true, sourceRecordId: "empty-details", metadata: {} },
+    ]);
+
+    const result = await api.activities.import(checked);
+    expect(importActivities.mock.calls[0][0].activities).toEqual(
+      sent.map((row) => ({ ...row, isValid: true })),
+    );
+    expect(result.activities).toEqual(checked);
+    expect(result.importRunId).toBe("run-1");
+  });
+});
+
 it("preserves SDK update values, legacy aliases, and bulk create/delete requests", async () => {
   const updateActivity = vi.fn().mockResolvedValue({ id: "a" });
   const saveActivities = vi.fn().mockResolvedValue({ updated: [] });

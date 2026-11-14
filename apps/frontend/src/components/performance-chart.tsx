@@ -6,6 +6,7 @@ import {
   valueRange,
 } from "@/components/performance-chart-axis";
 import { ReturnData } from "@/lib/types";
+import { useChartScrubHaptic } from "@/hooks/use-chart-scrub-haptic";
 import { cn } from "@/lib/utils";
 import { useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { ChartConfig, ChartContainer, ChartTooltip } from "@wealthfolio/ui/components/ui/chart";
@@ -31,6 +32,8 @@ const noVerticalGridPoints = () => [];
 const TOOLTIP_MAX_ROWS = 6;
 /** A phone draws at most this many points; daily points on a long range only add jitter. */
 const COMPACT_MAX_POINTS = 160;
+/** Share of a phone chart at each end with no x-axis label; half a date label is up to ~25px of ~340px. */
+const COMPACT_AXIS_EDGE_GAP = 0.08;
 /** Every k-th point, keeping the last so the line still ends on the period's value. */
 function thinPoints<T>(points: T[], maxPoints: number): T[] {
   if (points.length <= maxPoints) return points;
@@ -153,6 +156,7 @@ export function PerformanceChart({
   const fillId = `performance-fill-${useId().replace(/:/g, "")}`;
   const fingerDownRef = useRef(false);
   const usesTouchRef = useRef(false);
+  const scrubHaptic = useChartScrubHaptic();
 
   // Built once per data change: a finger drag re-renders the page on every move, and
   // rebuilding these scanned every series once per plotted date.
@@ -183,9 +187,11 @@ export function PerformanceChart({
         compact ? 3 : 5,
       ),
       zeroOffset: areaTop === areaBottom ? 0 : areaTop / (areaTop - areaBottom),
+      // Phones plot to the card's edge, so a first or last label there would be cut.
       axis: performanceAxis(
         plotted.map((point) => point.date),
         compact ? 4 : 6,
+        compact ? COMPACT_AXIS_EDGE_GAP : 0,
       ),
     };
   }, [compact, data]);
@@ -209,13 +215,16 @@ export function PerformanceChart({
   // restart the scrub after the finger lifted. Only moves while a finger is down count,
   // and once touch is used, the mouse events browsers emulate after a tap are ignored.
   const handleTouchMove = (state: MouseHandlerDataParam) => {
-    if (fingerDownRef.current) reportScrub(state);
+    if (!fingerDownRef.current) return;
+    reportScrub(state);
+    if (state.isTooltipActive) scrubHaptic.tick(state.activeLabel);
   };
   const handleMouseMove = (state: MouseHandlerDataParam) => {
     if (!usesTouchRef.current) reportScrub(state);
   };
   const endScrub = () => {
     fingerDownRef.current = false;
+    scrubHaptic.reset();
     onScrub?.(null);
   };
 
@@ -320,7 +329,19 @@ export function PerformanceChart({
               orientation={compact ? "right" : "left"}
               mirror={compact}
               tickMargin={compact ? 0 : 8}
-              tick={compact ? { fontSize: "0.6875rem", dy: -7 } : undefined}
+              // Lines pass under these in-chart labels; a card-coloured outline keeps them legible.
+              tick={
+                compact
+                  ? {
+                      fontSize: "0.6875rem",
+                      dy: -7,
+                      stroke: "var(--card)",
+                      strokeWidth: 3,
+                      strokeLinejoin: "round",
+                      paintOrder: "stroke",
+                    }
+                  : undefined
+              }
             />
             <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeOpacity={0.45} />
             <ChartTooltip

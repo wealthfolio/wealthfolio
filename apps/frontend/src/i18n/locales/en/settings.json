@@ -1419,7 +1419,7 @@
       },
       "market_data_write": {
         "label": "Market data — write",
-        "description": "Save reviewed prices (quotes) for existing assets. Requires the holdings read scope."
+        "description": "Save reviewed prices (quotes), refresh or replace an asset's price history, and change how an asset is priced: its symbol, exchange, quote currency, quote mode or data provider. Requires the holdings read scope."
       },
       "spending_read": {
         "label": "View spending",

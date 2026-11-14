@@ -1,4 +1,6 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { CompactAmount } from "@/components/financial/compact-amount";
+import { CARD_LABEL, CATEGORY_CSS_COLORS } from "@/components/financial/styles";
 import { useNumberFormatting } from "@wealthfolio/ui";
 import {
   Collapsible,
@@ -8,11 +10,8 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CompactAmount } from "./compact-amount";
 import { CompositionBar } from "./composition-bar";
 import {
-  CARD_LABEL,
-  CATEGORY_CSS_COLORS,
   deriveChange,
   formatChangePercent,
   hadBalanceBefore,

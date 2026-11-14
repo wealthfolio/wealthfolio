@@ -109,6 +109,9 @@
     "search": "검색 ...",
     "reset": "초기화",
     "columns": "열",
+    "moveColumnUp": "{{column}} 위로 이동",
+    "moveColumnDown": "{{column}} 아래로 이동",
+    "resetColumnOrder": "열 순서 초기화",
     "sortAsc": "오름차순",
     "sortDesc": "내림차순",
     "hide": "숨기기"

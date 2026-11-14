@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use wealthfolio_core::errors::{AGENT_SCOPE_DEPENDENCY, AGENT_SCOPE_UNKNOWN};
 
 /// A single granted or required permission scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -106,10 +107,13 @@ pub fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, St
     }
     let mut set = AgentScopeSet::new();
     for scope in requested {
-        set.insert(AgentScope::parse(scope).ok_or_else(|| format!("Unknown scope: {scope}"))?);
+        set.insert(
+            AgentScope::parse(scope)
+                .ok_or_else(|| format!("{AGENT_SCOPE_UNKNOWN}: Unknown scope: {scope}"))?,
+        );
     }
     if let Some(error) = set.dependency_error() {
-        return Err(error);
+        return Err(format!("{AGENT_SCOPE_DEPENDENCY}: {error}"));
     }
     Ok(set.iter().map(|scope| scope.as_str().to_string()).collect())
 }

@@ -109,6 +109,9 @@
     "search": "搜索 ...",
     "reset": "重置",
     "columns": "列",
+    "moveColumnUp": "上移{{column}}",
+    "moveColumnDown": "下移{{column}}",
+    "resetColumnOrder": "重置列顺序",
     "sortAsc": "升序",
     "sortDesc": "降序",
     "hide": "隐藏"

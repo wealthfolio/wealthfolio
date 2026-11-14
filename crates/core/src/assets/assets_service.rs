@@ -25,7 +25,9 @@ use super::{
     asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_known_exchange,
     AssetResolutionInput, AssetResolutionOutput,
 };
-use crate::errors::{DatabaseError, Error, Result};
+use crate::errors::{
+    DatabaseError, Error, Result, ValidationError, ASSET_IDENTITY_CONFLICT_PREFIX,
+};
 
 // Import mic_to_currency for resolving exchange trading currencies
 use wealthfolio_market_data::{
@@ -2313,15 +2315,25 @@ impl AssetServiceTrait for AssetService {
         payload: UpdateAssetProfile,
     ) -> Result<Asset> {
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
+        // An asset stays on its side: investments are held in accounts, and
+        // alternative assets count toward net worth on their own.
+        if payload
+            .kind
+            .as_ref()
+            .is_some_and(|kind| kind.is_alternative() != existing_asset.kind.is_alternative())
+        {
+            return Err(Error::Validation(ValidationError::InvalidInput(
+                "An asset can't move between investments and personal assets such as \
+                 properties and vehicles. Create a new asset instead."
+                    .to_string(),
+            )));
+        }
         let preview = self.normalize_profile_update(&existing_asset, payload)?;
         if preview.conflicting_asset.is_some() {
-            return Err(Error::ConstraintViolation(
-                concat!(
-                    "ASSET_IDENTITY_CONFLICT: An asset with this identity already exists. ",
-                    "Your changes were not saved."
-                )
-                .to_string(),
-            ));
+            return Err(Error::ConstraintViolation(format!(
+                "{ASSET_IDENTITY_CONFLICT_PREFIX} An asset with this identity already exists. \
+                 Your changes were not saved."
+            )));
         }
         let payload = preview.profile;
 
@@ -4366,6 +4378,48 @@ mod tests {
         assert_eq!(asset.instrument_exchange_mic.as_deref(), Some("21XX"));
         assert_eq!(asset.instrument_key.as_deref(), Some("EQUITY:ABC.ZZ@21XX"));
         assert_eq!(asset.provider_config, None);
+    }
+
+    #[tokio::test]
+    async fn an_asset_cannot_change_between_investment_and_alternative() {
+        let profile = |kind: AssetKind| UpdateAssetProfile {
+            name: Some("Holding".to_string()),
+            display_code: Some("HOLD".to_string()),
+            notes: String::new(),
+            kind: Some(kind),
+            quote_mode: Some(QuoteMode::Manual),
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: None,
+            instrument_symbol: None,
+            instrument_exchange_mic: None,
+            provider_config: None,
+            metadata: None,
+        };
+        for (from, to, allowed) in [
+            (AssetKind::Investment, AssetKind::Property, false),
+            (AssetKind::Property, AssetKind::Investment, false),
+            (AssetKind::PrivateEquity, AssetKind::Other, false),
+            (AssetKind::Investment, AssetKind::PrivateEquity, true),
+            (AssetKind::Property, AssetKind::Vehicle, true),
+        ] {
+            let existing = Asset {
+                id: "holding".to_string(),
+                kind: from.clone(),
+                name: Some("Holding".to_string()),
+                display_code: Some("HOLD".to_string()),
+                is_active: true,
+                quote_mode: QuoteMode::Manual,
+                quote_ccy: "USD".to_string(),
+                ..Default::default()
+            };
+            let service = test_asset_service(vec![existing], TestQuoteService::default());
+
+            let updated = service
+                .update_asset_profile("holding", profile(to.clone()))
+                .await;
+
+            assert_eq!(updated.is_ok(), allowed, "{from:?} -> {to:?}: {updated:?}");
+        }
     }
 
     #[tokio::test]

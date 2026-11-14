@@ -6,6 +6,7 @@
 #[cfg(feature = "device-sync")]
 use std::future::Future;
 use std::sync::Arc;
+use wealthfolio_core::errors::PublicError;
 use wealthfolio_core::settings::SettingsServiceTrait;
 
 use axum::{
@@ -148,6 +149,27 @@ fn token_lifecycle_config() -> Option<TokenLifecycleConfig> {
     let auth_url = connect_auth_url()?;
     let api_key = connect_auth_api_key()?;
     Some(TokenLifecycleConfig::new(auth_url, api_key))
+}
+
+/// The Connect client reports a cloud refusal as
+/// `Unexpected("API error 403: CODE: …")`; keep the wrapper at the start so the
+/// reviewed codes in it can be recognised.
+fn connect_refusal(error: wealthfolio_core::Error) -> String {
+    match error {
+        wealthfolio_core::Error::Unexpected(message) => message,
+        other => other.to_string(),
+    }
+}
+
+/// Cloud refusals the app acts on (subscription, plan, rate limit) keep their
+/// reviewed code; any other Connect failure stays internal.
+fn connect_error(error: wealthfolio_core::Error) -> ApiError {
+    let message = connect_refusal(error);
+    if PublicError::from_control_message(&message).is_some() {
+        ApiError::Forbidden(message)
+    } else {
+        ApiError::Internal(message)
+    }
 }
 
 /// Create a ConnectApiClient with a fresh access token
@@ -672,7 +694,7 @@ async fn sync_broker_data(
     let connections = client
         .list_connections()
         .await
-        .map_err(|error| ApiError::Forbidden(error.to_string()))?;
+        .map_err(|error| ApiError::Forbidden(connect_refusal(error)))?;
     info!("[Connect] Starting broker data sync (non-blocking)...");
 
     // Spawn background task to perform the sync
@@ -795,10 +817,7 @@ async fn get_user_info(
 
     let client = create_connect_client(&state).await?;
 
-    let user_info = client
-        .get_user_info()
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user_info = client.get_user_info().await.map_err(connect_error)?;
 
     Ok(Json(user_info))
 }
@@ -1313,6 +1332,68 @@ mod tests {
             updated_at: None,
             name: None,
         }
+    }
+
+    #[tokio::test]
+    async fn connect_refusals_keep_their_codes_through_the_client() {
+        use axum::response::IntoResponse;
+        // The cloud as it answers a canceled subscription and a rate limit.
+        let cloud = axum::Router::new()
+            .route(
+                "/api/v1/sync/brokerage/connections",
+                axum::routing::get(|| async {
+                    (
+                        StatusCode::FORBIDDEN,
+                        axum::Json(serde_json::json!({
+                            "code": "SUBSCRIPTION_CANCELED", "message": "Subscription required"
+                        })),
+                    )
+                }),
+            )
+            .route(
+                "/api/v1/user/me",
+                axum::routing::get(|| async {
+                    (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        axum::Json(serde_json::json!({
+                            "error": "rate_limited", "message": "Please try again in 60 seconds."
+                        })),
+                    )
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, cloud).await.unwrap() });
+        let client = ConnectApiClient::new(&url, "synthetic-token").unwrap();
+
+        let error_code = |response: axum::response::Response| async move {
+            let status = response.status();
+            let body = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            (status, json["errorCode"].as_str().unwrap().to_string())
+        };
+        // Manual broker sync.
+        let refusal = client.list_connections().await.unwrap_err();
+        let response = ApiError::Forbidden(connect_refusal(refusal)).into_response();
+        assert_eq!(
+            error_code(response).await,
+            (StatusCode::FORBIDDEN, "SUBSCRIPTION_REQUIRED".to_string())
+        );
+        // Profile refresh.
+        let refusal = client.get_user_info().await.unwrap_err();
+        assert_eq!(
+            error_code(connect_error(refusal).into_response()).await,
+            (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED".to_string())
+        );
+        server.abort();
+
+        let other = wealthfolio_core::Error::Unexpected("Request failed: connection reset".into());
+        assert_eq!(
+            connect_error(other).into_response().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 
     #[tokio::test]

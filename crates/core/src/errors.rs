@@ -43,19 +43,45 @@ impl PublicError {
         )
     }
 
-    /// Recover only reviewed control outcomes from legacy string boundaries.
-    /// Device-sync's API wrapper is accepted; diagnostic suffixes are discarded.
+    /// Recover only reviewed control outcomes and refusals from legacy string
+    /// boundaries. The cloud API wrappers are accepted: device sync's
+    /// "API error (403): CODE: …" and Connect's "API error 403: CODE: …" or,
+    /// without a code, "API error 429 (…)". Diagnostic suffixes are discarded.
     pub fn from_control_message(message: &str) -> Option<Self> {
-        let message = if let Some(api) = message.strip_prefix("API error (") {
+        let (status, message) = if let Some(api) = message.strip_prefix("API error (") {
             let (status, message) = api.split_once("): ")?;
-            if status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit()) {
+            (Some(status), message)
+        } else if let Some(api) = message.strip_prefix("API error ") {
+            let (status, rest) = (api.get(..3)?, api.get(3..)?);
+            if !(rest.is_empty() || rest.starts_with([':', ' '])) {
                 return None;
             }
-            message
+            (Some(status), rest.strip_prefix(": ").unwrap_or_default())
         } else {
-            message
+            (None, message)
         };
-        match message.split(':').next()? {
+        if status.is_some_and(|status| {
+            status.len() != 3 || !status.bytes().all(|byte| byte.is_ascii_digit())
+        }) {
+            return None;
+        }
+        let code = message.split(':').next()?;
+        // Connect and sync answer every subscription denial with its own
+        // SUBSCRIPTION_* code; the app treats them alike.
+        if code == "BACKUP_SUBSCRIPTION_REQUIRED"
+            || code.strip_prefix("SUBSCRIPTION_").is_some_and(|reason| {
+                !reason.is_empty()
+                    && reason
+                        .bytes()
+                        .all(|byte| byte.is_ascii_uppercase() || byte == b'_')
+            })
+        {
+            return Some(Self::new(
+                "SUBSCRIPTION_REQUIRED",
+                "An active subscription is required.",
+            ));
+        }
+        match code {
             "PROFILE_BUSY"
             | "Profile operations are running. Wait for them to finish and try again."
             | "Connect account change is in progress. Try again." => Some(Self::new(
@@ -81,6 +107,34 @@ impl PublicError {
                 "BACKUP_MANUAL_LIMIT",
                 "The daily manual backup limit has been reached.",
             )),
+            ADDON_MANIFEST_MISSING => Some(Self::new(
+                ADDON_MANIFEST_MISSING,
+                "The add-on ZIP file has no manifest.json.",
+            )),
+            ADDON_MAIN_FILE_MISSING => Some(Self::new(
+                ADDON_MAIN_FILE_MISSING,
+                "The add-on ZIP file doesn't contain the main file its manifest names.",
+            )),
+            ADDON_NEEDS_NEWER_VERSION => Some(Self::new(
+                ADDON_NEEDS_NEWER_VERSION,
+                "This add-on needs a newer version of Wealthfolio.",
+            )),
+            AGENT_SCOPE_UNKNOWN => Some(Self::new(
+                AGENT_SCOPE_UNKNOWN,
+                "A requested scope is not recognized.",
+            )),
+            AGENT_SCOPE_DEPENDENCY => Some(Self::new(
+                AGENT_SCOPE_DEPENDENCY,
+                "A write scope needs its matching read, draft or suggest scope.",
+            )),
+            "PLAN_UPGRADE_REQUIRED" => Some(Self::new(
+                "PLAN_UPGRADE_REQUIRED",
+                "Upgrade your plan to use this feature.",
+            )),
+            _ if status == Some("429") => Some(Self::new(
+                "RATE_LIMITED",
+                "Too many requests. Wait a minute and try again.",
+            )),
             _ => None,
         }
     }
@@ -102,6 +156,14 @@ impl PublicError {
 impl Error {
     pub fn public_error(&self) -> PublicError {
         match self {
+            Self::SecretTooLarge => PublicError::new(
+                crate::secrets::SECRET_TOO_LARGE,
+                "This secret is too large to store. Reduce its size and try again.",
+            ),
+            Self::SecretStoreUnavailable => PublicError::new(
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+                "Secure credential storage is unavailable or full. Check your system credential store or restart Wealthfolio, then try again.",
+            ),
             // LoanError is a closed enum of stable codes, with no user data.
             Self::Validation(ValidationError::Loan(error)) => PublicError {
                 error_code: error.to_string(),
@@ -117,7 +179,31 @@ impl Error {
             Self::Validation(ValidationError::CustomProviderInUse) => PublicError::new(
                 "custom_provider_in_use", "Change the provider for affected assets or remove their symbol mappings before deleting it.",
             ),
+            // A closed refusal with fixed text: the forms explain it.
+            Self::Validation(ValidationError::AlternativeAssetNotInAccount) => PublicError::new(
+                "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT",
+                crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+            ),
             Self::Validation(_) => PublicError::invalid_input(),
+            // The activity form names this refusal; only the static text is compared.
+            Self::Activity(ActivityError::InvalidData(message))
+                if message == QUOTE_CURRENCY_REQUIRED_MESSAGE =>
+            {
+                PublicError::new(
+                    "QUOTE_CURRENCY_REQUIRED",
+                    "Quote currency is required. Select the symbol again from the search results.",
+                )
+            }
+            // The asset editor names this refusal; the code is fixed by core,
+            // so only the static message below leaves the process.
+            Self::ConstraintViolation(message)
+                if message.starts_with(ASSET_IDENTITY_CONFLICT_PREFIX) =>
+            {
+                PublicError::new(
+                    "ASSET_IDENTITY_CONFLICT",
+                    "An asset with this identity already exists. Your changes were not saved.",
+                )
+            }
             Self::ConstraintViolation(_)
             | Self::Database(
                 DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
@@ -129,6 +215,23 @@ impl Error {
         }
     }
 }
+
+/// Prefix of the core refusal raised when an asset profile edit would collide
+/// with another asset's identity (symbol, exchange, instrument type).
+pub const ASSET_IDENTITY_CONFLICT_PREFIX: &str = "ASSET_IDENTITY_CONFLICT:";
+
+/// The activity refusal for a security saved without a quote currency.
+pub const QUOTE_CURRENCY_REQUIRED_MESSAGE: &str =
+    "Quote currency is required. Please re-select the symbol.";
+
+// Refusals that add-on packages and agent token scopes raise as text start
+// with one of these codes and a colon. `PublicError::from_control_message`
+// gives each a fixed public message.
+pub const ADDON_MANIFEST_MISSING: &str = "ADDON_MANIFEST_MISSING";
+pub const ADDON_MAIN_FILE_MISSING: &str = "ADDON_MAIN_FILE_MISSING";
+pub const ADDON_NEEDS_NEWER_VERSION: &str = "ADDON_NEEDS_NEWER_VERSION";
+pub const AGENT_SCOPE_UNKNOWN: &str = "AGENT_SCOPE_UNKNOWN";
+pub const AGENT_SCOPE_DEPENDENCY: &str = "AGENT_SCOPE_DEPENDENCY";
 
 /// Type alias for Result using our Error type.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -190,6 +293,12 @@ pub enum Error {
 
     #[error("Secret store error: {0}")]
     Secret(String),
+
+    #[error("Secret exceeds the storage size limit")]
+    SecretTooLarge,
+
+    #[error("Secure credential storage is unavailable")]
+    SecretStoreUnavailable,
 
     #[error("Unexpected error: {0}")]
     Unexpected(String),
@@ -316,6 +425,10 @@ pub enum ValidationError {
     #[error("Change the provider for affected assets or remove their symbol mappings before deleting it.")]
     CustomProviderInUse,
 
+    /// A save would put an alternative asset in an account.
+    #[error("{}", crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT)]
+    AlternativeAssetNotInAccount,
+
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]
     Loan(#[from] crate::assets::loan::LoanError),
@@ -392,6 +505,23 @@ mod public_error_tests {
     use super::*;
 
     #[test]
+    fn secret_refusals_have_stable_public_codes() {
+        for (error, code) in [
+            (Error::SecretTooLarge, crate::secrets::SECRET_TOO_LARGE),
+            (
+                Error::SecretStoreUnavailable,
+                crate::secrets::SECRET_STORE_UNAVAILABLE,
+            ),
+        ] {
+            assert_eq!(error.public_error().error_code, code);
+            let wrapped = anyhow::Error::new(error).context("FAKE-KEY private-credential-name");
+            let public = PublicError::from_error(wrapped.as_ref());
+            assert_eq!(public.error_code, code);
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
+    }
+
+    #[test]
     fn legacy_control_codes_discard_private_suffixes_and_reject_unknown_codes() {
         let private = "FAKE-KEY-2531 /private/portfolio.db account_balance";
         for code in [
@@ -401,6 +531,11 @@ mod public_error_tests {
             "PROFILE_STALE",
             "PROFILE_BUSY",
             "CONNECT_REBIND_REQUIRED",
+            ADDON_MANIFEST_MISSING,
+            ADDON_MAIN_FILE_MISSING,
+            ADDON_NEEDS_NEWER_VERSION,
+            AGENT_SCOPE_UNKNOWN,
+            AGENT_SCOPE_DEPENDENCY,
         ] {
             for message in [
                 format!("{code}: {private}"),
@@ -459,6 +594,99 @@ mod public_error_tests {
         assert_eq!(
             PublicError::from_error(wrapped.as_ref()).error_code,
             "invalid_input"
+        );
+    }
+
+    #[test]
+    fn connect_api_errors_keep_subscription_plan_and_rate_limit_codes() {
+        let private = "request_id=FAKE-KEY-2531 /private/portfolio.db";
+        for (message, code) in [
+            (
+                format!("API error 403: SUBSCRIPTION_CANCELED: Subscription required ({private})"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error (403): BACKUP_SUBSCRIPTION_REQUIRED: {private}"),
+                Some("SUBSCRIPTION_REQUIRED"),
+            ),
+            (
+                format!("API error 403: PLAN_UPGRADE_REQUIRED: Upgrade ({private})"),
+                Some("PLAN_UPGRADE_REQUIRED"),
+            ),
+            (format!("API error 429 ({private})"), Some("RATE_LIMITED")),
+            (
+                format!("API error 429: RATE_LIMITED: Too many requests ({private})"),
+                Some("RATE_LIMITED"),
+            ),
+            (format!("API error (429): {private}"), Some("RATE_LIMITED")),
+            (format!("API error 403: SUBSCRIPTION_: {private}"), None),
+            (
+                format!("API error 403: SUBSCRIPTION_canceled: {private}"),
+                None,
+            ),
+            (format!("API error 401: UNAUTHORIZED: {private}"), None),
+            (format!("API error 4290: {private}"), None),
+            (format!("{private}: API error 429"), None),
+        ] {
+            let public = PublicError::from_control_message(&message);
+            assert_eq!(
+                public.as_ref().map(|public| public.error_code.as_str()),
+                code,
+                "{message}"
+            );
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+        }
+    }
+
+    #[test]
+    fn a_missing_quote_currency_keeps_its_public_code() {
+        let public = Error::Activity(ActivityError::InvalidData(
+            QUOTE_CURRENCY_REQUIRED_MESSAGE.to_string(),
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "QUOTE_CURRENCY_REQUIRED");
+
+        // Other invalid activity data stays generic.
+        let other = Error::Activity(ActivityError::InvalidData(format!(
+            "{QUOTE_CURRENCY_REQUIRED_MESSAGE} FAKE-KEY-2531"
+        )))
+        .public_error();
+        assert_eq!(other.error_code, "internal_error");
+        assert!(!serde_json::to_string(&other).unwrap().contains("FAKE-KEY"));
+    }
+
+    #[test]
+    fn asset_identity_conflict_keeps_its_public_code_without_details() {
+        let public = Error::ConstraintViolation(format!(
+            "{ASSET_IDENTITY_CONFLICT_PREFIX} FAKE-KEY-2531 /private/portfolio.db"
+        ))
+        .public_error();
+        assert_eq!(public.error_code, "ASSET_IDENTITY_CONFLICT");
+        let json = serde_json::to_string(&public).unwrap();
+        assert!(
+            !json.contains("FAKE-KEY") && !json.contains("/private"),
+            "{json}"
+        );
+
+        // Only the leading code counts; other constraint failures stay generic.
+        let other = Error::ConstraintViolation("UNIQUE failed: ASSET_IDENTITY_CONFLICT:".into());
+        assert_eq!(other.public_error().error_code, "conflict");
+    }
+
+    #[test]
+    fn public_errors_explain_an_alternative_asset_refusal() {
+        let error = Error::Validation(ValidationError::AlternativeAssetNotInAccount).public_error();
+        assert_eq!(error.error_code, "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            error.message,
+            crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+        // Desktop commands that return String errors pass the code.
+        assert_eq!(
+            String::from(Error::Validation(
+                ValidationError::AlternativeAssetNotInAccount
+            )),
+            "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT"
         );
     }
 

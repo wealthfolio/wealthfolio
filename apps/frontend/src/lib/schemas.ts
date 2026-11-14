@@ -247,6 +247,11 @@ export const importActivitySchema = z
     /** Labelled lines that add up to `fee` and `tax` (commission, stamp
      * duty, ...). Stored in the activity's `metadata.charges`. */
     charges: z.array(activityChargeSchema).optional(),
+    /** The source's own ID for the row. A row with one is a duplicate of an
+     * activity imported with the same ID into the same account. */
+    sourceRecordId: z.string().optional(),
+    /** Details the source keeps with the row, stored in the activity's metadata. */
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .refine(
     (data) => {

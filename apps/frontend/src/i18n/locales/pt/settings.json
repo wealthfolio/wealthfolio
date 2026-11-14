@@ -1500,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Dados de mercado: gravar",
-        "description": "Salvar preços (cotações) revisados de ativos existentes. Requer o escopo de posições (leitura)."
+        "description": "Salvar preços (cotações) revisados, atualizar ou substituir o histórico de preços de um ativo e mudar como ele é cotado: símbolo, bolsa, moeda de cotação, modo de cotação ou provedor de dados. Requer o escopo de posições (leitura)."
       },
       "spending_read": {
         "label": "Ver despesas",

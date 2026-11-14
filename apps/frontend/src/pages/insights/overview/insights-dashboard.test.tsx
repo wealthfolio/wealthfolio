@@ -342,7 +342,7 @@ describe("insights dashboard editing", () => {
       expect(screen.getByRole("button", { name: "insights:customize.edit" })).toBeTruthy(),
     );
     expect(state.updateSettings.mock.calls[0][0].insightsOverviewLayout).toMatchObject({
-      version: 6,
+      version: 7,
       hiddenWidgets: ["regions"],
     });
     view.unmount();

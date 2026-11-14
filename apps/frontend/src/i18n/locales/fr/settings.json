@@ -1500,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Données de marché — écrire",
-        "description": "Enregistrer des cours révisés pour des actifs existants. Nécessite la portée positions (lecture)."
+        "description": "Enregistrer des cours révisés, actualiser ou remplacer l'historique des cours d'un actif et modifier sa cotation : symbole, bourse, devise de cotation, mode de cotation ou fournisseur de données. Nécessite la portée positions (lecture)."
       },
       "spending_read": {
         "label": "Consulter les dépenses",

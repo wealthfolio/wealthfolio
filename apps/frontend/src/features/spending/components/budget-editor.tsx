@@ -999,7 +999,11 @@ function AddCategoryRow({
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger render={trigger} />
-          <SheetContent side="bottom" showCloseButton={false} className="rounded-t-2xl p-0 pb-6">
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            className="mx-1 rounded-t-4xl p-0 pb-6"
+          >
             {/* iOS-style drag indicator — backdrop tap and swipe-down dismiss the sheet */}
             <div className="flex justify-center pt-2 pb-1">
               <div className="bg-muted-foreground/30 h-1 w-10 rounded-full" />

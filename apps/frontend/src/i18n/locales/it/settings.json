@@ -1500,7 +1500,7 @@
       },
       "market_data_write": {
         "label": "Dati di mercato — scrittura",
-        "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
+        "description": "Salva prezzi (quotazioni) revisionati, aggiorna o sostituisce lo storico prezzi di un asset e cambia come viene quotato: simbolo, borsa, valuta di quotazione, modalità di quotazione o provider di dati. Richiede l'ambito posizioni (lettura)."
       },
       "spending_read": {
         "label": "Visualizza spese",

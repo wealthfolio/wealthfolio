@@ -297,23 +297,26 @@ async fn mcp_pat_lifecycle() {
     .await;
     assert_eq!(status, 400);
 
-    // Unknown scopes are rejected.
-    let (status, _) = create_pat(
+    // Unknown scopes are rejected, with a code API clients can act on.
+    let (status, body) = create_pat(
         &server,
         &cookie,
         serde_json::json!({ "name": "bad scope", "scopes": ["accounts:read", "bogus:scope"] }),
     )
     .await;
     assert_eq!(status, 400);
+    assert_eq!(body["errorCode"], "AGENT_SCOPE_UNKNOWN", "{body}");
+    assert!(!body.to_string().contains("bogus"), "{body}");
 
     // activities:write without activities:draft is rejected (dependency).
-    let (status, _) = create_pat(
+    let (status, body) = create_pat(
         &server,
         &cookie,
         serde_json::json!({ "name": "write only", "scopes": ["activities:write"] }),
     )
     .await;
     assert_eq!(status, 400);
+    assert_eq!(body["errorCode"], "AGENT_SCOPE_DEPENDENCY", "{body}");
 
     // classification:write without classification:suggest is rejected (dependency).
     let (status, _) = create_pat(

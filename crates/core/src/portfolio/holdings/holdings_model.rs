@@ -8,6 +8,9 @@ use std::collections::VecDeque;
 use crate::assets::{AssetClassifications, AssetKind, InstrumentType};
 use crate::portfolio::snapshot::Lot;
 
+/// Synthetic instrument IDs for account cash, rather than persisted assets.
+pub const CASH_INSTRUMENT_ID_PREFIX: &str = "cash:";
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum HoldingType {

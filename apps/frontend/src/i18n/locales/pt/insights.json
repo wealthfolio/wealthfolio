@@ -152,7 +152,15 @@
     "portfolio_share": "Parcela do valor da carteira, incluindo o saldo em caixa",
     "largest": "Maior posição",
     "top_five": "Cinco maiores posições",
-    "concentration_unavailable": "A concentração exige posições com valores positivos e uma carteira sem posições vendidas."
+    "concentration_unavailable": "A concentração exige posições com valores positivos e uma carteira sem posições vendidas.",
+    "holdings": "Posições",
+    "holdings_count_one": "{{count}} posição",
+    "holdings_count_many": "{{count}} posições",
+    "holdings_count_other": "{{count}} posições",
+    "other_holdings_one": "{{count}} outra posição",
+    "other_holdings_many": "{{count}} outras posições",
+    "other_holdings_other": "{{count}} outras posições",
+    "holdings_unavailable": "O gráfico de posições requer valores positivos e uma carteira sem posições vendidas."
   },
   "customize": {
     "edit": "Personalizar",

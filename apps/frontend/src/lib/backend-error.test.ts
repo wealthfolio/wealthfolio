@@ -24,6 +24,17 @@ afterEach(async () => {
 
 describe("public backend errors", () => {
   it.each([
+    ["SECRET_TOO_LARGE", "secretTooLarge"],
+    ["SECRET_STORE_UNAVAILABLE", "secretStoreUnavailable"],
+  ] as const)("localizes %s without trusting private backend text", async (code, key) => {
+    const error = backendError({ errorCode: code, message: privateMessage });
+    expect(error?.errorCode).toBe(code);
+    const translations = createInstance();
+    await translations.init({ lng: "fr", resources: { fr: { common: fr } } });
+    expect(backendErrorText(error, translations.t)).toBe(fr.backendErrors[key]);
+    expect(backendErrorText(error, translations.t)).not.toContain("FAKE-KEY");
+  });
+  it.each([
     "Profile operations are running. Wait for them to finish and try again.",
     "Connect account change is in progress. Try again.",
     `PROFILE_BUSY: ${privateMessage}`,
@@ -74,6 +85,29 @@ describe("public backend errors", () => {
       expect(String(error)).not.toContain("FAKE-KEY");
     },
   );
+  it.each([
+    ["ADDON_MANIFEST_MISSING", "addonManifestMissing"],
+    ["ADDON_MAIN_FILE_MISSING", "addonMainFileMissing"],
+    ["ADDON_NEEDS_NEWER_VERSION", "addonNeedsNewerVersion"],
+    ["QUOTE_CURRENCY_REQUIRED", "quoteCurrencyRequired"],
+    ["ALTERNATIVE_ASSET_NOT_IN_ACCOUNT", "alternativeAssetNotInAccount"],
+  ] as const)("names the refusal the user can act on (%s)", async (errorCode, key) => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: "en",
+      resources: { en: { common: en }, ar: { common: ar } },
+    });
+    // The web envelope and the code desktop commands send.
+    for (const cause of [{ errorCode, message: privateMessage }, errorCode]) {
+      const error = backendError(cause);
+      expect(error?.errorCode).toBe(errorCode);
+      expect(backendErrorText(error, i18n.t)).toBe(en.backendErrors[key]);
+      expect(String(error)).not.toContain("FAKE-KEY");
+    }
+    await i18n.changeLanguage("ar");
+    expect(backendErrorText(errorCode, i18n.t)).toBe(ar.backendErrors[key]);
+  });
+
   it.each([false, true])("retains only the reviewed outcome metadata (%s)", (outcomeUnknown) => {
     const error = backendError({
       message: privateMessage,
@@ -109,6 +143,11 @@ describe("public backend errors", () => {
     await globalI18n.changeLanguage("fr");
     expect(error.message).toBe(fr.backendErrors.providerUnavailable);
     expect(error.errorCode).toBe("provider_unavailable");
+  });
+  it("shows only the translated message when a view turns the error into text", () => {
+    const error = new BackendError("provider_unavailable");
+    expect(String(error)).toBe(en.backendErrors.providerUnavailable);
+    expect(`${error}`).toBe(en.backendErrors.providerUnavailable);
   });
   it("preserves loan refusal behavior and translations without exposing unknown diagnostics", async () => {
     const i18n = createInstance();

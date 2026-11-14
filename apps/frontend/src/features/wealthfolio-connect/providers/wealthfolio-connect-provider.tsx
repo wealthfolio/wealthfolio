@@ -872,7 +872,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         logger.error("Failed to fetch user info from API.");
         const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
         const rateLimited =
-          requestedUserInfo && /\bAPI error (\d{3})\b/.exec(message)?.[1] === "429";
+          requestedUserInfo &&
+          (backendError(err)?.errorCode === "RATE_LIMITED" ||
+            /\bAPI error (\d{3})\b/.exec(message)?.[1] === "429");
         if (rateLimited) {
           const retryAt = performance.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
           userInfoRetryAtRef.current = retryAt;

@@ -416,6 +416,38 @@ describe("Cloud session lifecycle", () => {
     expect(result.current.isConnected).toBe(true);
   });
 
+  it("backs off after the web server reports a Connect rate limit", async () => {
+    const now = performance.now();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(now);
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    const profile = result.current.userInfo;
+
+    installProfileSession({ profileId: "test", scopeId: "scope-test" });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ code: 429, errorCode: "RATE_LIMITED", message: "FAKE-KEY-2531" }),
+            { status: 429, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+    );
+    mocks.getUserInfo.mockImplementationOnce(() => webInvoke("get_user_info"));
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.userInfo).toBe(profile);
+    expect(result.current.error).not.toContain("FAKE-KEY");
+
+    const calls = mocks.getUserInfo.mock.calls.length;
+    clock.mockReturnValue(now + 59_999);
+    await act(() => result.current.refetchUserInfo());
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+    vi.unstubAllGlobals();
+  });
+
   it("keeps the profile when a local session check fails during cooldown", async () => {
     const { result } = await setup();
     await act(() => result.current.signInWithEmail("A", "password"));

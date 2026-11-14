@@ -173,8 +173,9 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
     /// * `asset_id` - The ID of the alternative asset to delete
     ///
     /// # Returns
-    /// Ok(()) on success
-    async fn delete_alternative_asset(&self, asset_id: &str) -> Result<()>;
+    /// The withdrawals that paid the deleted loan, as they were before it
+    /// untagged them; they stay in their accounts.
+    async fn delete_alternative_asset(&self, asset_id: &str) -> Result<Vec<Activity>>;
 
     /// Updates an asset's metadata (for linking/unlinking liabilities).
     ///

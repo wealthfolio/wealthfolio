@@ -152,7 +152,15 @@
     "portfolio_share": "Proporción del valor de la cartera, incluido el efectivo",
     "largest": "Mayor posición",
     "top_five": "Cinco mayores posiciones",
-    "concentration_unavailable": "La concentración requiere posiciones con valor positivo y una cartera sin posiciones cortas."
+    "concentration_unavailable": "La concentración requiere posiciones con valor positivo y una cartera sin posiciones cortas.",
+    "holdings": "Posiciones",
+    "holdings_count_one": "{{count}} posición",
+    "holdings_count_many": "{{count}} posiciones",
+    "holdings_count_other": "{{count}} posiciones",
+    "other_holdings_one": "{{count}} otra posición",
+    "other_holdings_many": "{{count}} otras posiciones",
+    "other_holdings_other": "{{count}} otras posiciones",
+    "holdings_unavailable": "El gráfico de posiciones requiere valores positivos y una cartera sin posiciones cortas."
   },
   "customize": {
     "edit": "Personalizar",

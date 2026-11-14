@@ -150,7 +150,7 @@ export function DatePickerInput({
       <Group
         className={cn(
           "dark:bg-input/30 border-input bg-input-bg h-input-height flex w-full flex-nowrap items-center whitespace-nowrap rounded-md border px-3 py-1 text-sm",
-          "has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-ring has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2",
+          "has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-ring has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 pointer-coarse:has-[input:focus-visible]:-outline-offset-2",
           disabled && "cursor-not-allowed opacity-50",
           appearance === "row" &&
             "h-auto min-h-14 overflow-visible! rounded-none border-0 bg-transparent px-0 text-base dark:bg-transparent",

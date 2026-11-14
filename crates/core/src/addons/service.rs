@@ -11,6 +11,7 @@ use super::addon_traits::AddonServiceTrait;
 use super::models::*;
 use super::network::{perform_addon_network_request, AddonNetworkRequest, AddonNetworkResponse};
 use super::storage_repository::AddonStorageRepositoryTrait;
+use crate::errors::{ADDON_MAIN_FILE_MISSING, ADDON_MANIFEST_MISSING, ADDON_NEEDS_NEWER_VERSION};
 
 // Constants
 pub const ADDON_STORE_API_BASE_URL: &str = "https://wealthfolio.app/api/addons";
@@ -949,7 +950,9 @@ fn extract_addon_zip_archive(zip_data: Vec<u8>) -> Result<ExtractedAddonArchive,
     let metadata = if let Some(manifest_content) = manifest_json {
         parse_manifest_json_metadata(&manifest_content)?
     } else {
-        return Err("ZIP addon must contain a manifest.json file with addon metadata".to_string());
+        return Err(format!(
+            "{ADDON_MANIFEST_MISSING}: ZIP addon must contain a manifest.json file with addon metadata"
+        ));
     };
 
     // Now set the is_main flag correctly based on the metadata.main path
@@ -962,7 +965,7 @@ fn extract_addon_zip_archive(zip_data: Vec<u8>) -> Result<ExtractedAddonArchive,
     let main_file_found = files.iter().any(|f| f.is_main);
     if !main_file_found {
         return Err(format!(
-            "Main addon file '{}' not found. Available files: {}",
+            "{ADDON_MAIN_FILE_MISSING}: Main addon file '{}' not found. Available files: {}",
             main_file,
             files
                 .iter()
@@ -1118,7 +1121,7 @@ fn enforce_min_wealthfolio_version(manifest: &AddonManifest) -> Result<(), Strin
         }
         if !version_meets_minimum(HOST_WEALTHFOLIO_VERSION, required) {
             return Err(format!(
-                "Addon requires Wealthfolio {} or newer, but this version is {}. Update Wealthfolio to use this addon.",
+                "{ADDON_NEEDS_NEWER_VERSION}: Addon requires Wealthfolio {} or newer, but this version is {}. Update Wealthfolio to use this addon.",
                 required, HOST_WEALTHFOLIO_VERSION
             ));
         }

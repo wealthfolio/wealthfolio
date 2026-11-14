@@ -18,10 +18,11 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { HoldingsMobileFilterSheet } from "./holdings-mobile-filter-sheet";
+import { CashHoldingsSheet } from "./cash-holdings-sheet";
 import {
   compareCashFirst,
   DEFAULT_HOLDINGS_VISIBILITY,
@@ -90,6 +91,13 @@ export const HoldingsTableMobile = ({
   const { isBalanceHidden } = useBalancePrivacy();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [cashCurrency, setCashCurrency] = useState<string | null>(null);
+  const cashHolding = holdings.find(
+    (holding) => holding.holdingType === HoldingType.CASH && holding.localCurrency === cashCurrency,
+  );
+  useEffect(() => {
+    if (!cashHolding) setCashCurrency(null);
+  }, [cashHolding]);
 
   // Internal state for uncontrolled mode
   const [internalSortBy, setInternalSortBy] = useState<"symbol" | "marketValue">("marketValue");
@@ -288,7 +296,22 @@ export const HoldingsTableMobile = ({
                 </div>
               </div>
             );
-            return isNavigable ? (
+            return isCash ? (
+              <button
+                key={holding.id}
+                type="button"
+                onClick={() => setCashCurrency(holding.localCurrency)}
+                aria-label={t("holdings:details_for", {
+                  name: t("holdings:cash_with_currency", { currency: holding.localCurrency }),
+                })}
+                className={cn(
+                  cardSurfaceClassName,
+                  "hover:bg-muted/50 focus-visible:ring-ring block w-full p-3 text-start outline-none transition-colors focus-visible:ring-2",
+                )}
+              >
+                {content}
+              </button>
+            ) : isNavigable ? (
               <Link
                 key={holding.id}
                 to={`/holdings/${encodeURIComponent(assetId)}`}
@@ -317,6 +340,15 @@ export const HoldingsTableMobile = ({
           </div>
         )}
       </div>
+
+      {cashHolding && (
+        <CashHoldingsSheet
+          currency={cashHolding.localCurrency}
+          accountFilter={accountFilter}
+          accounts={accounts}
+          onClose={() => setCashCurrency(null)}
+        />
+      )}
 
       {/* Filter Sheet */}
       <HoldingsMobileFilterSheet

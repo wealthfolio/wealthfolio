@@ -468,6 +468,34 @@ function addonActivityUpdate(input: ActivityUpdate): ActivityUpdate {
   ) as unknown as ActivityUpdate;
 }
 
+// An addon's import rows reach the host with their source record ID behind
+// `addon:<id>:` and their metadata under `addons[<id>]`. ID matching is scoped
+// to the addon, and its metadata can't set the keys Wealthfolio reads.
+// Returned rows remove the host namespace; IDs are trimmed and blanks omitted.
+function addonImportRows(addonId: string) {
+  const prefix = `addon:${addonId}:`;
+  const toHost = ({ sourceRecordId, metadata, ...row }: ActivityImport): ActivityImport => {
+    const id = sourceRecordId?.trim();
+    return {
+      ...row,
+      ...(id ? { sourceRecordId: `${prefix}${id}` } : {}),
+      ...(metadata == null ? {} : { metadata: { addons: { [addonId]: metadata } } }),
+    };
+  };
+  const fromHost = ({ sourceRecordId, metadata, ...row }: ActivityImport): ActivityImport => {
+    const addons = metadata?.addons as Record<string, unknown> | undefined;
+    const own = addons?.[addonId] as Record<string, unknown> | undefined;
+    return {
+      ...row,
+      ...(sourceRecordId?.startsWith(prefix)
+        ? { sourceRecordId: sourceRecordId.slice(prefix.length) }
+        : {}),
+      ...(own == null ? {} : { metadata: own }),
+    };
+  };
+  return { toHost, fromHost };
+}
+
 function guardNamespace<T extends Record<string, unknown>>(
   namespace: T,
   category: string,
@@ -523,6 +551,7 @@ export function createSDKHostAPIBridge(
     trace: (message: string) => internalAPI.logTrace(`[${prefix}] ${message}`),
     debug: (message: string) => internalAPI.logDebug(`[${prefix}] ${message}`),
   });
+  const importRows = addonImportRows(addonId || "unknown-addon");
 
   const toSDKGoal = (goal: Goal): SDKGoal => {
     const targetAmount = goal.targetAmount ?? goal.summaryTargetAmount ?? 0;
@@ -641,9 +670,18 @@ export function createSDKHostAPIBridge(
           ...(request.deleteIds === undefined ? {} : { deleteIds: request.deleteIds }),
         });
       },
-      import: (activities: ActivityImport[]) => internalAPI.importActivities({ activities }),
-      checkImport: (activities: ActivityImport[]) =>
-        internalAPI.checkActivitiesImport({ activities }),
+      import: async (activities: ActivityImport[]) => {
+        const result = await internalAPI.importActivities({
+          activities: activities.map(importRows.toHost),
+        });
+        return { ...result, activities: result.activities.map(importRows.fromHost) };
+      },
+      checkImport: async (activities: ActivityImport[]) =>
+        (
+          await internalAPI.checkActivitiesImport({
+            activities: activities.map(importRows.toHost),
+          })
+        ).map(importRows.fromHost),
       getImportMapping: internalAPI.getAccountImportMapping,
       saveImportMapping: internalAPI.saveAccountImportMapping,
       getTransferPair: internalAPI.getTransferPairForActivity,

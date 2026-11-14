@@ -1,18 +1,18 @@
 import { createElement, type ReactNode } from "react";
 import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@/test/render";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@/test/render";
 import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAlternativeAssetQueries,
   useAlternativeAssetMutations,
 } from "./use-alternative-asset-mutations";
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), toast: vi.fn() }));
+const mocks = vi.hoisted(() => ({ update: vi.fn(), updateValuation: vi.fn(), toast: vi.fn() }));
 vi.mock("@/adapters", () => ({
   createAlternativeAsset: vi.fn(),
-  updateAlternativeAssetValuation: vi.fn(),
+  updateAlternativeAssetValuation: mocks.updateValuation,
   updateAlternativeAssetMetadata: mocks.update,
   deleteAlternativeAsset: vi.fn(),
   linkLiability: vi.fn(),
@@ -49,6 +49,31 @@ describe("alternative asset query invalidation", () => {
     });
   });
 
+  it("refreshes holdings views but leaves account values and performance alone", async () => {
+    const invalidateQueries = vi.fn((_: { queryKey: string[] }) => Promise.resolve());
+    await invalidateAlternativeAssetQueries({ invalidateQueries } as unknown as QueryClient);
+
+    const keys = invalidateQueries.mock.calls.map(([{ queryKey }]) => queryKey[0]);
+    expect(keys).toContain(QueryKeys.QUOTE_HISTORY);
+    // An account that holds one values it in its holdings views.
+    for (const key of [
+      QueryKeys.HOLDINGS,
+      QueryKeys.PORTFOLIO_ALLOCATIONS,
+      QueryKeys.HOLDINGS_BY_ALLOCATION,
+      QueryKeys.ALLOCATION_TARGET_DRIFT,
+    ]) {
+      expect(keys).toContain(key);
+    }
+    for (const key of [
+      QueryKeys.ACCOUNTS,
+      QueryKeys.HISTORY_VALUATION,
+      QueryKeys.PERFORMANCE_HISTORY,
+      QueryKeys.PERFORMANCE_SUMMARY,
+    ]) {
+      expect(keys).not.toContain(key);
+    }
+  });
+
   it("refreshes health status without waiting for the health check", async () => {
     const healthCheck = new Promise<void>(() => undefined);
     const invalidateQueries = vi.fn(({ queryKey }: { queryKey: string[] }) =>
@@ -61,6 +86,40 @@ describe("alternative asset query invalidation", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [QueryKeys.HEALTH_STATUS],
     });
+  });
+});
+
+describe("updating a value", () => {
+  it("reloads the asset's value history", async () => {
+    mocks.updateValuation.mockResolvedValueOnce({
+      quoteId: "q2",
+      valuationDate: "2026-11-01",
+      value: "460000",
+    });
+    // Nothing goes stale on its own here, as with the app's five-minute window.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const loadHistory = vi.fn().mockResolvedValue([]);
+    const { result } = renderHook(
+      () => {
+        useQuery({ queryKey: [QueryKeys.QUOTE_HISTORY, "house"], queryFn: loadHistory });
+        return useAlternativeAssetMutations();
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(loadHistory).toHaveBeenCalledTimes(1));
+
+    await act(() =>
+      result.current.updateValuationMutation.mutateAsync({
+        assetId: "house",
+        request: { value: "460000", date: "2026-11-01" },
+      }),
+    );
+
+    expect(loadHistory).toHaveBeenCalledTimes(2);
   });
 });
 

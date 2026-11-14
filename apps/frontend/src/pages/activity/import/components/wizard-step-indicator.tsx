@@ -26,9 +26,11 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
 
   return (
     <div className="@container w-full">
-      {/* Compact rail; share a row with its title on wider cards to leave room in short windows. */}
+      {/* Compact rail; share a row with its title on wider cards to leave room in short windows.
+          The 4px inset there keeps the current step's 3px ring inside the rail, which clips.
+          max-w-85 is important: up to 1024px the mobile reset's max-width would stretch it. */}
       <div className="@lg:flex @lg:items-center @lg:justify-center @lg:gap-3 @min-[72rem]:hidden">
-        <div className="mx-auto flex w-full max-w-85 items-center px-5 py-3 @lg:mx-0 @lg:min-w-0 @lg:flex-1 @lg:p-0">
+        <div className="mx-auto flex w-full max-w-85! items-center px-5 py-3 @lg:mx-0 @lg:-my-1 @lg:min-w-0 @lg:flex-1 @lg:p-1">
           {steps.map((step, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = step.id === currentStep;

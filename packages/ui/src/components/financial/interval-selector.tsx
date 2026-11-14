@@ -153,8 +153,7 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
           "pointer-events-none relative z-30 flex w-full overflow-x-auto overflow-y-hidden",
           "touch-pan-x snap-x snap-mandatory overscroll-x-contain scroll-smooth",
           "px-2 md:px-0",
-          "[&::-webkit-scrollbar]:hidden",
-          "[scrollbar-width:none]",
+          "scrollbar-hide",
           "[-webkit-overflow-scrolling:touch]",
         )}
       >

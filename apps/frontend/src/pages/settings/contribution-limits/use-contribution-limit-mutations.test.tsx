@@ -1,6 +1,8 @@
+import { shouldInvalidateAfterPortfolioUpdate } from "@/lib/query-invalidation";
 import { QueryKeys } from "@/lib/query-keys";
 import type { ContributionLimit } from "@/lib/types";
-import { act, renderHook } from "@/test/render";
+import { act, render, renderHook } from "@/test/render";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,9 +52,10 @@ describe("contribution limit cache invalidation", () => {
       ];
       const limitsKey = [QueryKeys.CONTRIBUTION_LIMITS];
       const detailsKey = [QueryKeys.CONTRIBUTION_LIMIT_DETAILS, limit.id];
-      for (const key of [settingsKey, accountCardKey, limitsKey, detailsKey]) {
+      for (const key of [settingsKey, accountCardKey, detailsKey]) {
         client.setQueryData(key, {});
       }
+      client.setQueryData(limitsKey, [limit]);
       client.setQueryData([QueryKeys.ACCOUNTS, false], []);
       const wrapper = ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -112,5 +115,140 @@ describe("contribution limit cache invalidation", () => {
 
     expect(adapters.calculateDepositsForLimit).not.toHaveBeenCalled();
     expect(fetchDetails).not.toHaveBeenCalled();
+  });
+
+  function renderLimitCards() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    const kept: ContributionLimit = { ...limit, id: "kept", groupName: "Kept" };
+    client.setQueryData([QueryKeys.CONTRIBUTION_LIMITS], [limit, kept]);
+    for (const id of [limit.id, kept.id]) {
+      client.setQueryData([QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, id], {
+        total: 0,
+        baseCurrency: "USD",
+        byAccount: {},
+      });
+    }
+    // Each list refresh is held until the test resolves it.
+    let resolveList: (limits: ContributionLimit[]) => void = () => undefined;
+    const fetchLimits = vi.fn(
+      () =>
+        new Promise<ContributionLimit[]>((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    adapters.calculateDepositsForLimit.mockImplementation(async (id: string) => {
+      if (id === limit.id) throw new Error("Limit not found");
+      return { total: 0, baseCurrency: "USD", byAccount: {} };
+    });
+    const view: { mutations?: ReturnType<typeof useContributionLimitMutations> } = {};
+    function Card({ id }: { id: string }) {
+      useContributionLimitProgress(id);
+      return null;
+    }
+    function List() {
+      view.mutations = useContributionLimitMutations();
+      const { data } = useQuery({
+        queryKey: [QueryKeys.CONTRIBUTION_LIMITS],
+        queryFn: fetchLimits,
+      });
+      return (
+        <>
+          {data?.map((item) => (
+            <Card key={item.id} id={item.id} />
+          ))}
+        </>
+      );
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <List />
+      </QueryClientProvider>,
+    );
+    // The server's portfolio-update-complete event; it settles only once the
+    // held list refresh does, so it is not awaited here.
+    const portfolioUpdateEnds = () =>
+      act(async () => {
+        void client.invalidateQueries({
+          predicate: (query) => shouldInvalidateAfterPortfolioUpdate(query.queryKey),
+        });
+      });
+    return {
+      client,
+      kept,
+      view,
+      portfolioUpdateEnds,
+      resolveList: (l: ContributionLimit[]) => resolveList(l),
+    };
+  }
+
+  it.each(["after the delete answers", "before the delete answers"] as const)(
+    "does not refetch a deleted card's progress when the portfolio update ends %s",
+    async (timing) => {
+      const { kept, view, portfolioUpdateEnds, resolveList } = renderLimitCards();
+      let answerDelete: () => void = () => undefined;
+      adapters.deleteContributionLimit.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            answerDelete = resolve;
+          }),
+      );
+
+      let deleted: Promise<void> | undefined;
+      await act(async () => {
+        deleted = view.mutations?.deleteContributionLimitMutation.mutateAsync(limit.id);
+        // React Query notifies on the next tick; the server's event comes later.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      if (timing === "before the delete answers") await portfolioUpdateEnds();
+      await act(async () => {
+        answerDelete();
+        await deleted;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      if (timing === "after the delete answers") await portfolioUpdateEnds();
+      await act(async () => resolveList([kept]));
+
+      expect(adapters.calculateDepositsForLimit).not.toHaveBeenCalledWith(limit.id);
+      expect(vi.mocked(toast)).not.toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      );
+    },
+  );
+
+  it("shows the server's list again when a delete fails, without a limit deleted meanwhile", async () => {
+    const { client, kept, view, resolveList } = renderLimitCards();
+    let failA: () => void = () => undefined;
+    adapters.deleteContributionLimit.mockImplementation((id: string) =>
+      id === limit.id
+        ? new Promise<void>((_, reject) => {
+            failA = () => reject(new Error("offline"));
+          })
+        : Promise.resolve(),
+    );
+
+    // Delete A, and B while A is pending; B succeeds, then A fails.
+    let deletingA: Promise<void> | undefined;
+    await act(async () => {
+      deletingA = view.mutations?.deleteContributionLimitMutation
+        .mutateAsync(limit.id)
+        .catch(() => undefined);
+      await view.mutations?.deleteContributionLimitMutation.mutateAsync(kept.id);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      failA();
+      await deletingA;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(client.getQueryData([QueryKeys.CONTRIBUTION_LIMITS])).toEqual([]);
+    await act(async () => resolveList([limit]));
+
+    expect(client.getQueryData([QueryKeys.CONTRIBUTION_LIMITS])).toEqual([limit]);
+    expect(adapters.calculateDepositsForLimit).not.toHaveBeenCalledWith(kept.id);
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
   });
 });

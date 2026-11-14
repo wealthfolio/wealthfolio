@@ -147,7 +147,13 @@
     "portfolio_share": "Anteil am Portfoliowert einschließlich Barbestand",
     "largest": "Größte Position",
     "top_five": "Die fünf größten Positionen",
-    "concentration_unavailable": "Die Konzentration erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen."
+    "concentration_unavailable": "Die Konzentration erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen.",
+    "holdings": "Positionen",
+    "holdings_count_one": "{{count}} Position",
+    "holdings_count_other": "{{count}} Positionen",
+    "other_holdings_one": "{{count}} weitere Position",
+    "other_holdings_other": "{{count}} weitere Positionen",
+    "holdings_unavailable": "Das Positionsdiagramm erfordert positive Positionswerte und ein Portfolio ohne Short-Positionen."
   },
   "customize": {
     "edit": "Anpassen",

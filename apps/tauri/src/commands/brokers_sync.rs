@@ -4,6 +4,7 @@ use crate::profiles::ConnectAccess;
 use log::{debug, error, info};
 use std::sync::Arc;
 use tauri::AppHandle;
+use wealthfolio_core::errors::PublicError;
 
 use crate::context::ServiceContext;
 use crate::events::{BROKER_SYNC_COMPLETE, BROKER_SYNC_ERROR, BROKER_SYNC_START};
@@ -103,6 +104,17 @@ impl SyncProgressReporter for TauriProgressReporter {
 // Broker Sync Commands
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Cloud refusals the app acts on (subscription, plan, rate limit) are sent as
+/// their reviewed code alone; other failures keep their text. The Connect
+/// client reports a refusal as `Unexpected("API error 403: CODE: …")`.
+fn connect_error(error: wealthfolio_core::Error) -> String {
+    let message = match error {
+        wealthfolio_core::Error::Unexpected(message) => message,
+        other => other.to_string(),
+    };
+    PublicError::from_control_message(&message).map_or(message, |public| public.error_code)
+}
+
 /// Sync broker data from the cloud API (non-blocking with SSE events).
 /// Returns immediately after triggering the sync. Results are delivered via events:
 /// - `broker:sync-start` - emitted when sync begins
@@ -119,7 +131,7 @@ pub async fn sync_broker_data(app: AppHandle, state: ConnectAccess) -> Result<()
 
     // The first real protected operation preserves synchronous rejection. Its
     // result belongs to this run and is passed into the background worker.
-    let connections = client.list_connections().await.map_err(|e| e.to_string())?;
+    let connections = client.list_connections().await.map_err(connect_error)?;
 
     info!("[Connect] Starting broker data sync ...");
 
@@ -332,7 +344,7 @@ pub async fn get_user_info(state: ConnectAccess) -> Result<UserInfo, String> {
         Ok(user_info) => Ok(user_info),
         Err(e) => {
             error!("Failed to get user info: {}", e);
-            Err(e.to_string())
+            Err(connect_error(e))
         }
     }
 }
@@ -440,3 +452,26 @@ pub async fn save_broker_sync_profile_rules(
 // ─────────────────────────────────────────────────────────────────────────────
 // Foreground Sync Command
 // ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::connect_error;
+    use wealthfolio_core::Error;
+
+    #[test]
+    fn connect_refusals_reach_the_app_as_their_code() {
+        for (message, expected) in [
+            (
+                "API error 403: SUBSCRIPTION_CANCELED: Subscription required (request_id=r)",
+                "SUBSCRIPTION_REQUIRED",
+            ),
+            ("API error 429 (request_id=r)", "RATE_LIMITED"),
+        ] {
+            assert_eq!(connect_error(Error::Unexpected(message.into())), expected);
+        }
+        assert_eq!(
+            connect_error(Error::Unexpected("Request failed: reset".into())),
+            "Request failed: reset"
+        );
+    }
+}

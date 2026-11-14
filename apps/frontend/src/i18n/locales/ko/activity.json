@@ -967,6 +967,8 @@
       "decimalAuto": "자동 감지",
       "decimalPeriod": "마침표 (.)",
       "decimalComma": "쉼표 (,)",
+      "numberFormatWarningTitle": "숫자 형식을 확인하세요",
+      "numberFormatWarningDescription": "일부 열의 숫자 형식이 모호하거나 서로 다릅니다({{columns}}). 값을 확인하거나 업로드 단계의 분석 설정에서 소수점 구분 기호를 선택하세요.",
       "summaryDelimiter": "구분자: {{value}}",
       "summaryDate": "날짜: {{value}}",
       "summaryDecimal": "소수점: {{value}}",

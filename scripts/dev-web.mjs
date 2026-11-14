@@ -126,7 +126,10 @@ function shutdownAndExit(code = 0) {
 process.on("SIGINT", () => shutdownAndExit(130));
 process.on("SIGTERM", () => shutdownAndExit(143));
 
-// Start backend and Vite
+// Start backend and Vite. `--server-only` skips Vite: the server then serves
+// the built app from WF_STATIC_DIR, as the E2E runner uses it.
 process.env.WF_ENABLE_VITE_PROXY = "true";
 spawnNamed("server", "cargo", ["run", "--manifest-path", "apps/server/Cargo.toml"]);
-spawnNamed("vite", "pnpm", ["--filter", "frontend", "dev"]);
+if (!process.argv.includes("--server-only")) {
+  spawnNamed("vite", "pnpm", ["--filter", "frontend", "dev"]);
+}
