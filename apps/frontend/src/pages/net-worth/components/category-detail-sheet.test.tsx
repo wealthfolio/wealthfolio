@@ -6,7 +6,7 @@ import { CategoryDetailSheet } from "./category-detail-sheet";
 import { liabilityDetailPath, type SelectedCategory } from "./utils";
 
 vi.mock("./category-trend-chart", () => ({ CategoryTrendChart: () => null }));
-vi.mock("./compact-amount", () => ({
+vi.mock("@/components/financial/compact-amount", () => ({
   CompactAmount: ({ value }: { value: number }) => <span>{value}</span>,
 }));
 

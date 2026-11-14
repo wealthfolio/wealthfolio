@@ -1,3 +1,4 @@
+import { CATEGORY_CSS_COLORS } from "@/components/financial/styles";
 import { useNumberFormatting } from "@wealthfolio/ui";
 import {
   Tooltip,
@@ -6,7 +7,7 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
 import { useMemo } from "react";
-import { CATEGORY_CSS_COLORS, type ParsedNetWorth } from "./utils";
+import type { ParsedNetWorth } from "./utils";
 
 /** Slim stacked bar of asset composition (% of assets). The breakdown rows below act as its legend. */
 export function CompositionBar({ data, className }: { data: ParsedNetWorth; className?: string }) {

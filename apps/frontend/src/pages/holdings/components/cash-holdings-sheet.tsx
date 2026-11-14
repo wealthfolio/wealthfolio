@@ -1,12 +1,12 @@
 import { getAssetHoldingsScope } from "@/adapters";
+import { CategoryAvatar } from "@/components/financial/category-avatar";
+import { CompactAmount } from "@/components/financial/compact-amount";
+import { CARD_LABEL } from "@/components/financial/styles";
 import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { CASH_INSTRUMENT_ID_PREFIX, HoldingType } from "@/lib/constants";
 import { sumAmounts } from "@/lib/monetary-value";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, AccountScope } from "@/lib/types";
-import { CategoryAvatar } from "@/pages/net-worth/components/category-avatar";
-import { CompactAmount } from "@/pages/net-worth/components/compact-amount";
-import { CARD_LABEL } from "@/pages/net-worth/components/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Icons, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
