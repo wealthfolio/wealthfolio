@@ -123,7 +123,10 @@ test("create an account, open it from Settings and from the Dashboard", async ({
   await row.click();
   await expect.poll(() => pathOf(page)).toBe(`/accounts/${account.id}`);
   await expect(accountHeader).toHaveText(name);
-  await expect(page.getByText("No holdings yet").locator("visible=true")).toBeVisible();
+  // Shown once the new account's first recalculation finishes.
+  await expect(page.getByText("No holdings yet").locator("visible=true")).toBeVisible({
+    timeout: 60_000,
+  });
   await backButton(page).click();
   await expect.poll(() => pathOf(page)).toBe("/settings/accounts");
   await expect(row).toBeVisible();
@@ -204,6 +207,21 @@ test("dashboard and Insights show an account's value", async ({ page }) => {
     currency: "CAD",
   });
   await deposit(page, account.id, 1234.5, "CAD", "2026-01-05T15:00:00.000Z");
+  // The deposit is valued by a recalculation that runs after it is saved.
+  await expect
+    .poll(
+      async () =>
+        (
+          await api<{ summary: { totalValueBase: number } }>(
+            page,
+            "POST",
+            "/valuations/current/query",
+            { filter: { type: "account", accountId: account.id } },
+          )
+        ).summary.totalValueBase,
+      { timeout: 60_000 },
+    )
+    .toBe(1234.5);
 
   await gotoAppPath(page, "/dashboard");
   await expect(page.getByRole("link", { name: new RegExp(`^${account.name}\\b`) })).toContainText(
