@@ -12,6 +12,8 @@ tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
 zeroize = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
 # Internal crates
 wealthfolio-market-data = { workspace = true }
 wealthfolio-core = { workspace = true }
@@ -90,8 +92,18 @@ tauri-plugin-mobile-share = "0.1.2"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSNotification", "NSDistributedNotificationCenter", "NSOperation", "NSString", "block2"] }
 block2 = "0.6"
+# Direct dep for LAContext (class!, msg_send!, runtime::Bool) used in biometric.rs.
+objc2 = "0.6"
 
 apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
+# Standard Keychain password APIs for the biometric bypass token.
+security-framework = { version = "3.7" }
+# Raw Security framework sys types used in biometric.rs for kSecAttrAccessControl
+# (kSecClass, kSecAttrService, kSecAttrAccount, kSecValueData, SecItemAdd, etc.).
+security-framework-sys = { version = "2" }
+# Core Foundation types (CFMutableDictionary, CFString, CFData) used in biometric.rs
+# to build the SecItemAdd query dict with kSecAttrAccessControl attached.
+core-foundation = { version = "0.10" }
 
 [target.'cfg(target_os = "ios")'.dependencies.apple-native-keyring-store]
 version = "1.0.2"

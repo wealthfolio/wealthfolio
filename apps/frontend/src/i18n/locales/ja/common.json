@@ -371,6 +371,14 @@
     "welcome": "ようこそ、{{name}}",
     "continue": "続ける",
     "lockFailed": "ロックを完了できませんでした",
+    "biometricUnlocking": "確認中…",
+    "unlockWithTouchId": "Touch IDでロック解除",
+    "touchId": "Touch ID",
+    "touchIdEnabled": "このプロフィールでTouch IDが有効になっています。",
+    "touchIdDisabled": "指紋でこのプロフィールをロック解除します。",
+    "disableTouchId": "無効にする",
+    "enableTouchId": "有効にする",
+    "restoreWithTouchId": "Touch IDでアクセスを復元",
     "connectionFailed": "接続が中断されました",
     "signInAgain": "再ログイン",
     "startupFailed": "Wealthfolio を開けませんでした",
@@ -500,7 +508,12 @@
       "duplicateAccount": "このConnectアカウントはすでに別のプロフィールにリンクされています。そのプロフィールに切り替えてください。",
       "accountMismatch": "このプロフィールに最初にリンクされたConnectアカウントでログインしてください。",
       "teamChanged": "世帯が変更されました。続行するにはWealthfolio Connectに再接続してください。",
-      "rebind": "Wealthfolio Connectに再接続して、このプロフィールのアカウントと世帯を確認してください。"
+      "rebind": "Wealthfolio Connectに再接続して、このプロフィールのアカウントと世帯を確認してください。",
+      "biometricCheckFailed": "Touch IDの利用可能状態を確認できませんでした。Wealthfolioを再起動して再試行してください。",
+      "biometricUnavailable": "Touch IDは使用できません。システム設定 → Touch IDとパスコードで指紋を追加してください。",
+      "biometricStoreFailed": "Touch IDトークンを保存できませんでした。デバイスにパスコードが設定されているか確認してください。",
+      "biometricNotEnrolled": "Touch IDが使用できなくなりました。パスワードを使用してロック解除してください。",
+      "biometricNotEnrolledNoPassword": "Touch IDのデータが失われました。Touch IDで認証して、このプロフィールへのアクセスを回復してください。"
     }
   },
   "remove": "削除",

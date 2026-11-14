@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getPlatform as getPlatformApi,
   isTauri,
@@ -14,6 +14,7 @@ function defaultCapabilities(): PlatformCapabilities {
     connect_sync: true,
     device_sync: true,
     cloud_sync: true,
+    biometric_lock: false,
   };
 }
 
@@ -29,19 +30,44 @@ export interface UsePlatformResult {
   isWeb: boolean;
   isTauri: boolean;
   loading: boolean;
+  /**
+   * `true` when `getPlatform()` rejected and the platform info is a user-agent
+   * fallback (capabilities all default to false). Callers should not treat this
+   * the same as a confirmed "feature not supported" response.
+   */
+  error: boolean;
+  /**
+   * Re-fetch platform capabilities from the backend, bypassing the module-level
+   * cache. Use this after the user may have changed system settings (e.g. enrolled
+   * a fingerprint in System Settings → Touch ID) so the UI reflects the new state.
+   */
+  refetch: () => void;
 }
 
 // Cache platform info to avoid multiple invocations
 let cachedPlatform: PlatformInfo | null = null;
+// true when the cached platform info is a user-agent fallback (getPlatform() rejected)
+let cachedPlatformError = false;
 
 export function usePlatform(): UsePlatformResult {
   const [platform, setPlatform] = useState<PlatformInfo | null>(cachedPlatform);
   const [loading, setLoading] = useState(!cachedPlatform);
+  const [platformError, setPlatformError] = useState(cachedPlatformError);
+  // Incrementing this counter clears the cache and re-triggers the fetch effect.
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  const refetch = useCallback(() => {
+    cachedPlatform = null;
+    cachedPlatformError = false;
+    setLoading(true);
+    setRefetchTrigger((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     // If we already have cached platform info, use it
     if (cachedPlatform) {
       setPlatform(cachedPlatform);
+      setPlatformError(cachedPlatformError);
       setLoading(false);
       return;
     }
@@ -51,25 +77,36 @@ export function usePlatform(): UsePlatformResult {
       getPlatformApi()
         .then((info) => {
           cachedPlatform = info;
+          cachedPlatformError = false;
           setPlatform(info);
+          setPlatformError(false);
           setLoading(false);
         })
         .catch((error) => {
           console.error("Failed to get platform info:", error);
-          // Fallback detection based on user agent
+          // Fallback detection based on user agent — capabilities default to false.
+          // Track the error so callers can distinguish "confirmed unavailable" from
+          // "unknown due to fetch failure".
           const fallbackInfo = detectPlatformFromUserAgent();
           cachedPlatform = fallbackInfo;
+          cachedPlatformError = true;
           setPlatform(fallbackInfo);
+          setPlatformError(true);
           setLoading(false);
         });
     } else {
       // We're in web environment, use user agent detection
       const webPlatform = detectPlatformFromUserAgent();
       cachedPlatform = webPlatform;
+      cachedPlatformError = false;
       setPlatform(webPlatform);
+      setPlatformError(false);
       setLoading(false);
     }
-  }, []);
+    // refetchTrigger is intentionally included: clearing the cache and bumping
+    // it re-runs this effect so a fresh platform query replaces the stale data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetchTrigger]);
 
   const isWeb = isWebEnv;
 
@@ -85,6 +122,8 @@ export function usePlatform(): UsePlatformResult {
     isWeb,
     isTauri,
     loading,
+    error: platformError,
+    refetch,
   };
 }
 

@@ -12,6 +12,7 @@ import { isNativeAuthPending } from "./auth-bridge";
 import { isWeb, listenPortfolioUpdateStart } from "@/adapters";
 import { Button, Icons, Input, Label } from "@wealthfolio/ui";
 import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
+import { usePlatform } from "@/hooks/use-platform";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
 import {
   profileCommand,
@@ -39,6 +40,10 @@ const PROFILE_ACTIVITY_INTERVAL_MS = 30_000;
 const MIN_PASSWORD_LENGTH = 4;
 const MAX_PASSWORD_LENGTH = 128;
 const PASSWORD_LENGTH_ERROR = "PROFILE_PASSWORD_LENGTH";
+const BIOMETRIC_NOT_ENROLLED_ERROR = "PROFILE_BIOMETRIC_NOT_ENROLLED";
+// Returned by evaluate_biometric when LAErrorBiometryNotAvailable/NotEnrolled (codes 6 or 7):
+// biometrics are not set up on this Mac. Distinct from the keychain-token-missing case above.
+const BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR = "BIOMETRIC_NOT_ENROLLED";
 // Idle expiry reaches an untouched screen only by the server ending the event
 // stream. Hold it open for every admitted route, not just AppLayout ones.
 const keepEventStreamOpen = () => undefined;
@@ -85,10 +90,19 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const [copiedRecovery, setCopiedRecovery] = useState<string>();
   const [covered, setCovered] = useState(false);
   const sessionScope = state?.session?.scopeId;
-  const profileProtected = state?.profiles.find(
-    (profile) => profile.id === state.session?.profileId,
-  )?.lockEnabled;
+  const activeProfile = state?.profiles.find((profile) => profile.id === state.session?.profileId);
+  // A profile is "protected" if it has either a password lock or biometric lock active.
+  const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const { platform, loading: platformLoading, error: platformLoadError, refetch: refetchPlatform } = usePlatform();
+  // Three-state: null = not yet known (loading or fetch failed); true/false = confirmed.
+  // Loading and fetch-error must not be coerced to the same false as "confirmed unavailable"
+  // so callers can decide whether to disable-and-explain vs. disable-and-wait.
+  const biometricAvailable: boolean | null =
+    platformLoading || platformLoadError
+      ? null
+      : !isWeb && (platform?.capabilities?.biometric_lock ?? false);
   const lock = useCallback(
     async (preserveAuth = false, nextIntent: "lock" | "switch" = "lock") => {
       if (working.current) return;
@@ -348,11 +362,12 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       phase === "locked" &&
-      (mode === "choose" || (mode === "unlock" && !selected?.lockEnabled))
+      (mode === "choose" ||
+        (mode === "unlock" && !selected?.lockEnabled && !selected?.biometricEnabled))
     ) {
       heading.current?.focus();
     }
-  }, [phase, mode, selected?.lockEnabled]);
+  }, [phase, mode, selected?.lockEnabled, selected?.biometricEnabled]);
 
   useEffect(() => {
     if (passwordInvalid && !busy) {
@@ -389,7 +404,8 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     setProof("");
     setError("");
     setMode("unlock");
-    if (!profile.lockEnabled) {
+    // Auto-unlock only if neither password nor biometric protection is active.
+    if (!profile.lockEnabled && !profile.biometricEnabled) {
       void run(() => unlock(profile.id, ""));
     }
   }
@@ -430,6 +446,68 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     setPhase("opening");
     // A fresh JS world is required even when reopening the same profile.
     reloadApplication({ dashboard: intent.current === "switch" });
+  }
+  async function unlockWithBiometric(id: string) {
+    const target = selected?.id === id ? selected : state?.profiles.find((p) => p.id === id);
+    if (target) setSelected(target);
+    if (mode !== "create" && !reducedMotion)
+      await new Promise((resolve) => setTimeout(resolve, PROFILE_SELECTION_MS));
+    try {
+      await profileCommand<ProfileSession>("unlock_with_biometric", {
+        profileId: id,
+      });
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes("BIOMETRIC_CANCELLED")) {
+        // User dismissed the Touch ID prompt — stay on the unlock screen silently.
+        return;
+      }
+      if (msg === BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR) {
+        // Hardware biometrics are unavailable (LAErrorBiometryNotAvailable/NotEnrolled).
+        // Treat the same as biometricAvailable === false: show the unavailable message.
+        setError(BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR);
+        return;
+      }
+      if (msg.includes("PROFILE_BIOMETRIC_NOT_ENROLLED")) {
+        // The keychain token for this profile is missing despite a successful
+        // Touch ID challenge — enrolment for this profile was lost.
+        setError(BIOMETRIC_NOT_ENROLLED_ERROR);
+        return;
+      }
+      setError(msg.replace(/^Error:\s*/, ""));
+      return;
+    }
+    if (target) rememberOpeningProfile(target);
+    setPhase("opening");
+    reloadApplication({ dashboard: intent.current === "switch" });
+  }
+  /**
+   * Recovery flow for biometric-only profiles whose keychain token has been lost.
+   *
+   * Presents a Touch ID challenge to authenticate the user, then disables biometric
+   * lock on the profile (since the token cannot be recovered). Once the profile is
+   * unprotected it is opened immediately without requiring a password or recovery code.
+   */
+  async function restoreWithTouchId() {
+    if (!selected || biometricBusy) return;
+    setBiometricBusy(true);
+    setError("");
+    try {
+      await profileCommand("disable_biometric_lock", {
+        profileId: selected.id,
+        proof: null,
+      });
+    } catch (err) {
+      setBiometricBusy(false);
+      const msg = String(err);
+      if (!msg.includes("BIOMETRIC_CANCELLED")) {
+        setError(msg.replace(/^Error:\s*/, ""));
+      }
+      return;
+    }
+    // Profile is now unprotected — open it. `run` manages the busy state from here.
+    setBiometricBusy(false);
+    void run(() => unlock(selected.id, ""));
   }
   async function deleteProfile(
     confirmation: string,
@@ -572,7 +650,10 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         if (passwordManagement && (password || removePassword)) {
           const code = await profileCommand<string | null>(
             "set_profile_password",
-            { proof: proof || null, password: removePassword ? null : password || null },
+            {
+              proof: proof || null,
+              password: removePassword ? null : password || null,
+            },
             true,
           );
           setRecovery(code ?? undefined);
@@ -580,7 +661,11 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           setCovered(true);
           if (!code) {
             await profileCommand("lock_profile", { preserveAuth: false });
-            if (selected) await unlock(selected.id, "", { ...selected, lockEnabled: false });
+            if (selected)
+              await unlock(selected.id, "", {
+                ...selected,
+                lockEnabled: false,
+              });
           }
         } else reloadApplication();
       }
@@ -617,7 +702,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         error={error ? profileErrorMessage(error, t) : undefined}
         message={
           closeFailed
-            ? t("profiles.lockFailed", { defaultValue: "Couldn’t finish locking" })
+            ? t("profiles.lockFailed", {
+                defaultValue: "Couldn’t finish locking",
+              })
             : phase === "closing"
               ? t("profiles.locking", { defaultValue: "Locking Wealthfolio…" })
               : errorCode === "PROFILE_CONNECTION_FAILED" || errorCode === "PROFILE_AUTH_REQUIRED"
@@ -691,7 +778,13 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const isRecoveryView = Boolean(recovery) || mode === "recover";
   const recoveryCodeInvalid = mode === "recover" && error.includes("PROFILE_PASSWORD_INVALID");
   const formError =
-    error && error !== PASSWORD_LENGTH_ERROR && !recoveryCodeInvalid && !deleteOpen ? (
+    error &&
+    error !== PASSWORD_LENGTH_ERROR &&
+    // BIOMETRIC_NOT_ENROLLED has its own specific alert below the Touch ID button;
+    // suppress the generic formError so the same failure isn't shown twice.
+    error !== BIOMETRIC_NOT_ENROLLED_ERROR &&
+    !recoveryCodeInvalid &&
+    !deleteOpen ? (
       <p
         id="profile-form-error"
         role="alert"
@@ -1009,6 +1102,107 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   ))}
               </AnimatePresence>
             </div>
+            {mode === "unlock" && selected?.biometricEnabled && (
+              <div className="mx-auto max-w-xs space-y-3">
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={busy || biometricBusy || biometricAvailable !== true}
+                  onClick={() => {
+                    if (!selected) return;
+                    setBiometricBusy(true);
+                    void run(() => unlockWithBiometric(selected.id)).finally(() =>
+                      setBiometricBusy(false),
+                    );
+                  }}
+                >
+                  <Icons.Fingerprint className="me-2 size-4" />
+                  {biometricBusy
+                    ? t("profiles.biometricUnlocking", {
+                        defaultValue: "Verifying…",
+                      })
+                    : t("profiles.unlockWithTouchId", {
+                        defaultValue: "Unlock with Touch ID",
+                      })}
+                </Button>
+                {/* platformLoadError: getPlatform() failed — biometric availability is unknown. */}
+                {platformLoadError && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {t("profiles.errors.biometricCheckFailed", {
+                      defaultValue:
+                        "Could not check Touch ID availability. Restart Wealthfolio to try again.",
+                    })}
+                  </p>
+                )}
+                {/* biometricAvailable === false: confirmed unavailable at startup (hardware absent
+                    or no fingerprint enrolled). null: still loading/fetch error — no message yet.
+                    BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR: detected at runtime during an unlock
+                    attempt (fingerprints removed after the page loaded). Both cases show the same
+                    unavailable message. Suppress it when the token-missing error is showing.
+                    The Retry button re-checks availability in case the user just enrolled a
+                    fingerprint in System Settings → Touch ID & Password. */}
+                {(biometricAvailable === false ||
+                  error === BIOMETRIC_HARDWARE_NOT_ENROLLED_ERROR) &&
+                  error !== BIOMETRIC_NOT_ENROLLED_ERROR && (
+                    <div className="space-y-2">
+                      <p role="alert" className="text-destructive text-sm">
+                        {t("profiles.errors.biometricUnavailable", {
+                          defaultValue:
+                            "Touch ID is not available. Please add a fingerprint in System Settings → Touch ID & Password.",
+                        })}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={busy || biometricBusy || platformLoading}
+                        onClick={() => refetchPlatform()}
+                      >
+                        {platformLoading
+                          ? t("profiles.biometricChecking", { defaultValue: "Checking…" })
+                          : t("profiles.retryTouchId", { defaultValue: "Retry Touch ID" })}
+                      </Button>
+                    </div>
+                  )}
+                {/* Token-missing error for a profile that also has a password: tell the user
+                    to use their password instead. */}
+                {error === BIOMETRIC_NOT_ENROLLED_ERROR && selected?.lockEnabled && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {t("profiles.errors.biometricNotEnrolled", {
+                      defaultValue: "Touch ID is no longer available. Use your password to unlock.",
+                    })}
+                  </p>
+                )}
+                {/* Token-missing error for a biometric-only profile: offer a Touch ID–authenticated
+                    recovery that disables biometric lock so the profile can be opened. */}
+                {error === BIOMETRIC_NOT_ENROLLED_ERROR && !selected?.lockEnabled && (
+                  <div className="space-y-2">
+                    <p role="alert" className="text-destructive text-sm">
+                      {t("profiles.errors.biometricNotEnrolledNoPassword", {
+                        defaultValue:
+                          "Touch ID data was lost. Authenticate with Touch ID to restore access to this profile.",
+                      })}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={busy || biometricBusy}
+                      onClick={() => void restoreWithTouchId()}
+                    >
+                      <Icons.Fingerprint className="me-2 size-4" />
+                      {biometricBusy
+                        ? t("profiles.biometricUnlocking", { defaultValue: "Verifying…" })
+                        : t("profiles.restoreWithTouchId", {
+                            defaultValue: "Restore Access with Touch ID",
+                          })}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             {mode === "unlock" && selected?.lockEnabled && (
               <form
                 key={selected.id}
@@ -1026,7 +1220,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   aria-describedby={
                     passwordInvalid
                       ? "profile-password-error"
-                      : error
+                      : error && error !== BIOMETRIC_NOT_ENROLLED_ERROR
                         ? "profile-form-error"
                         : undefined
                   }
@@ -1186,6 +1380,84 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             {isProfileEditor && <ProfileAvatarPicker value={avatar} onChange={setAvatar} />}
             {formActions}
             {formError}
+            {mode === "manage" && biometricAvailable === true && (
+              <section className="space-y-3 border-t pt-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <h2 className="font-medium">
+                      {t("profiles.touchId", { defaultValue: "Touch ID" })}
+                    </h2>
+                    <p className="text-muted-foreground text-sm">
+                      {selected?.biometricEnabled
+                        ? t("profiles.touchIdEnabled", {
+                            defaultValue: "Touch ID is enabled for this profile.",
+                          })
+                        : t("profiles.touchIdDisabled", {
+                            defaultValue: "Unlock this profile with your fingerprint.",
+                          })}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={selected?.biometricEnabled ? "outline" : "secondary"}
+                    disabled={busy || biometricBusy}
+                    onClick={async () => {
+                      if (!selected) return;
+                      setBiometricBusy(true);
+                      try {
+                        if (selected.biometricEnabled) {
+                          await profileCommand("disable_biometric_lock", {
+                            profileId: selected.id,
+                            proof: proof || null,
+                          });
+                          setSelected({ ...selected, biometricEnabled: false });
+                          setState((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  profiles: current.profiles.map((p) =>
+                                    p.id === selected.id ? { ...p, biometricEnabled: false } : p,
+                                  ),
+                                }
+                              : current,
+                          );
+                        } else {
+                          await profileCommand("enable_biometric_lock", {
+                            profileId: selected.id,
+                            proof: proof || null,
+                          });
+                          setSelected({ ...selected, biometricEnabled: true });
+                          setState((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  profiles: current.profiles.map((p) =>
+                                    p.id === selected.id ? { ...p, biometricEnabled: true } : p,
+                                  ),
+                                }
+                              : current,
+                          );
+                        }
+                      } catch (err) {
+                        setError(String(err).replace(/^Error:\s*/, ""));
+                      } finally {
+                        setBiometricBusy(false);
+                      }
+                    }}
+                  >
+                    {biometricBusy
+                      ? t("profiles.saving", { defaultValue: "Saving…" })
+                      : selected?.biometricEnabled
+                        ? t("profiles.disableTouchId", {
+                            defaultValue: "Disable",
+                          })
+                        : t("profiles.enableTouchId", {
+                            defaultValue: "Enable",
+                          })}
+                  </Button>
+                </div>
+              </section>
+            )}
             {mode === "manage" && (
               <section className="border-destructive/25 space-y-2 border-t pt-6">
                 <h2 className="font-medium">{t("profiles.delete")}</h2>

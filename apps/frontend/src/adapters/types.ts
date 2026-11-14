@@ -224,6 +224,8 @@ export interface PlatformCapabilities {
   connect_sync: boolean;
   device_sync: boolean;
   cloud_sync: boolean;
+  /** Touch ID / Face ID unlock is supported on this platform (macOS only). */
+  biometric_lock?: boolean;
 }
 
 export interface PlatformInfo {

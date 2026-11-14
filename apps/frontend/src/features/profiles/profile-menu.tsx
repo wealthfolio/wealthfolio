@@ -70,7 +70,7 @@ export function ProfileMenu({ collapsed = false }: { collapsed?: boolean }) {
             {singleProfile ? <Icons.Plus className="size-4" /> : <Icons.Users className="size-4" />}
             {t(singleProfile ? "profiles.add" : "profiles.switch")}
           </DropdownMenuItem>
-          {profile.lockEnabled && (
+          {(profile.lockEnabled || profile.biometricEnabled) && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="h-11 gap-3" onClick={lockProfile}>
