@@ -887,11 +887,26 @@ body.qr-scan-active > .qr-overlay {
     overflow-wrap: break-word;
   }
 
-  /* Ensure grid and flex containers don't overflow */
+  /* Ensure grid and flex containers don't overflow. `clip`, not `hidden`: hidden
+     forces overflow-y to compute as `auto`, which turns every flex row with a few
+     pixels of vertical overflow into a scroll container and paints a scrollbar
+     track in it wherever the platform always shows them. */
   .grid,
   .flex {
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  /* As scroll containers these items had a zero automatic minimum size, so long
+     text or a scroll area inside one shrank to its flex or grid track. `clip`
+     does not do that, so set it here. In the base layer, so min-w-* and min-h-*
+     utilities still win. */
+  @layer base {
+    .grid,
+    .flex {
+      min-width: 0;
+      min-height: 0;
+    }
   }
 
   /* Centred dialogs and side sheets size themselves with max-w-* utilities.
@@ -921,16 +936,6 @@ body.qr-scan-active > .qr-overlay {
   .aui-root,
   .aui-root .flex,
   .aui-root .grid {
-    overflow-x: visible;
-  }
-
-  /* The .flex/.grid rule above sets overflow-x, which per spec forces the other
-     axis to compute as `auto` — so every flex row becomes a scroll container and
-     paints an empty scrollbar track wherever the platform always shows them.
-     The spending card list is bare rows on the page background, where those
-     tracks are plainly visible, so it opts out the same way. */
-  .spending-activity-list .flex,
-  .spending-activity-list .grid {
     overflow-x: visible;
   }
 
