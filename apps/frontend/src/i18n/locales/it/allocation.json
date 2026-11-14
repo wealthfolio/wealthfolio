@@ -87,7 +87,8 @@
     "buildFromScratch": "Crea da zero",
     "exampleWeights": "Pesi di esempio",
     "exampleDescription": "Usali come punto di partenza quantitativo, poi rivedi e modifica i pesi.",
-    "disclosure": "Solo pesi di esempio. Non sono raccomandazioni e Wealthfolio non ha valutato se sono adatti a te."
+    "disclosure": "Solo pesi di esempio. Non sono raccomandazioni e Wealthfolio non ha valutato se sono adatti a te.",
+    "equalWeight": "Peso uguale"
   },
   "mode": {
     "enableSellsTip": "Consenti le riduzioni nelle impostazioni di questo obiettivo per usare «Ribilancia»."
@@ -170,7 +171,12 @@
     "suggestedTargetName": "Obiettivo {{name}}",
     "customFallback": "Personalizzato",
     "deleteDialogTitle": "Eliminare l'obiettivo?",
-    "deleteDialogDescription": "Questo eliminerà definitivamente “{{name}}” e tutti i suoi pesi obiettivo. Questa azione non può essere annullata."
+    "deleteDialogDescription": "Questo eliminerà definitivamente “{{name}}” e tutti i suoi pesi obiettivo. Questa azione non può essere annullata.",
+    "individualSecurities": "Titoli singoli",
+    "individualSecuritiesNote": "Un peso per titolo. Liquidità e attività alternative non sono incluse.",
+    "security": "Titolo",
+    "targetTypeFixed": "Il tipo di allocazione non può essere modificato dopo la creazione dell'obiettivo. Crea un nuovo obiettivo per usare un altro tipo.",
+    "noSecuritiesFound": "Nessun titolo trovato in questo ambito. Aggiungi posizioni prima di creare un obiettivo per titoli singoli."
   },
   "scope": {
     "allAccounts": "Tutti i conti",
@@ -541,6 +547,10 @@
     "industry_many": "industrie",
     "category_one": "categoria",
     "region_many": "regioni",
-    "category_many": "categorie"
+    "category_many": "categorie",
+    "security": "titoli",
+    "security_one": "titolo",
+    "security_many": "titoli",
+    "security_other": "titoli"
   }
 }

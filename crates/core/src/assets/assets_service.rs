@@ -2869,12 +2869,18 @@ impl AssetServiceTrait for AssetService {
             );
         }
 
-        // 2. Reassign all activities from UNKNOWN to resolved
+        // 2. Move allocation target weights first: if this fails, nothing has
+        // moved yet, and a retried merge finds no weights left to move.
+        self.asset_repository
+            .reassign_allocation_target_weights(unknown_asset_id, resolved_asset_id)
+            .await?;
+
+        // 3. Reassign all activities from UNKNOWN to resolved
         let activities_migrated = activity_repository
             .reassign_asset(unknown_asset_id, resolved_asset_id)
             .await?;
 
-        // 3. Deactivate the UNKNOWN asset
+        // 4. Deactivate the UNKNOWN asset
         if let Err(e) = self.asset_repository.deactivate(unknown_asset_id).await {
             warn!(
                 "Failed to deactivate UNKNOWN asset {}: {}",
@@ -2882,14 +2888,14 @@ impl AssetServiceTrait for AssetService {
             );
         }
 
-        // 4. Emit assets_merged domain event
+        // 5. Emit assets_merged domain event
         self.event_sink.emit(DomainEvent::assets_merged(
             unknown_asset_id.to_string(),
             resolved_asset_id.to_string(),
             activities_migrated,
         ));
 
-        // 5. Emit activities_changed to trigger recalculation for affected accounts
+        // 6. Emit activities_changed to trigger recalculation for affected accounts
         if activities_migrated > 0 {
             let asset_ids = vec![unknown_asset_id.to_string(), resolved_asset_id.to_string()];
             self.event_sink.emit(DomainEvent::activities_changed(
@@ -3869,6 +3875,14 @@ mod tests {
 
         async fn copy_user_metadata(&self, _source_id: &str, _target_id: &str) -> Result<()> {
             unimplemented!()
+        }
+
+        async fn reassign_allocation_target_weights(
+            &self,
+            _source_id: &str,
+            _target_id: &str,
+        ) -> Result<()> {
+            Ok(())
         }
 
         async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {

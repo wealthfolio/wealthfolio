@@ -4003,6 +4003,14 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
+        async fn reassign_allocation_target_weights(
+            &self,
+            _source_id: &str,
+            _target_id: &str,
+        ) -> Result<()> {
+            Ok(())
+        }
+
         async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {
             unimplemented!("unused in this test")
         }
@@ -4084,6 +4092,14 @@ mod tests {
 
         async fn copy_user_metadata(&self, _source_id: &str, _target_id: &str) -> Result<()> {
             unimplemented!("unused in this test")
+        }
+
+        async fn reassign_allocation_target_weights(
+            &self,
+            _source_id: &str,
+            _target_id: &str,
+        ) -> Result<()> {
+            Ok(())
         }
 
         async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {

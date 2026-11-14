@@ -80,7 +80,8 @@
     "buildFromScratch": "从零开始构建",
     "exampleWeights": "示例权重",
     "exampleDescription": "用作量化起点，然后审阅并编辑权重。",
-    "disclosure": "仅为示例权重。它们不构成建议，Wealthfolio 也未评估其是否适合您。"
+    "disclosure": "仅为示例权重。它们不构成建议，Wealthfolio 也未评估其是否适合您。",
+    "equalWeight": "等权重"
   },
   "mode": {
     "enableSellsTip": "请在此目标的设置中允许减少，才能使用“再平衡”。"
@@ -162,7 +163,12 @@
     "suggestedTargetName": "{{name}} 目标",
     "customFallback": "自定义",
     "deleteDialogTitle": "删除目标？",
-    "deleteDialogDescription": "此操作将永久删除“{{name}}”及其所有目标权重。此操作无法撤销。"
+    "deleteDialogDescription": "此操作将永久删除“{{name}}”及其所有目标权重。此操作无法撤销。",
+    "individualSecurities": "单个证券",
+    "individualSecuritiesNote": "每个证券设置一个权重。不包括现金和另类资产。",
+    "security": "证券",
+    "targetTypeFixed": "目标创建后无法更改配置类型。如需使用其他类型，请创建新目标。",
+    "noSecuritiesFound": "此范围内未找到证券。请先添加持仓，再创建单个证券目标。"
   },
   "scope": {
     "allAccounts": "全部账户",
@@ -505,6 +511,8 @@
     "region_other": "地区",
     "category_other": "类别",
     "assetClass_other": "资产类别",
-    "industry_other": "行业"
+    "industry_other": "行业",
+    "security": "证券",
+    "security_other": "证券"
   }
 }

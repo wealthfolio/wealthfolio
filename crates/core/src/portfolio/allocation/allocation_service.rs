@@ -9,6 +9,7 @@ use rust_decimal_macros::dec;
 
 use crate::accounts::AccountServiceTrait;
 use crate::errors::Result;
+use crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID;
 use crate::portfolio::holdings::{Holding, HoldingSummary, HoldingType, HoldingsServiceTrait};
 use crate::taxonomies::{AssetTaxonomyAssignment, Category, TaxonomyServiceTrait};
 
@@ -94,6 +95,17 @@ pub trait AllocationServiceTrait: Send + Sync {
         account_ids: &[String],
         base_currency: &str,
         taxonomy_id: &str,
+        aggregated_account_id: &str,
+    ) -> Result<TaxonomyHoldingContributions>;
+
+    /// Returns one contribution row per security holding, keyed by asset id.
+    ///
+    /// Asset allocation targets do not depend on a taxonomy, so this skips
+    /// category assignments entirely and excludes cash and alternative assets.
+    async fn get_security_holding_contributions_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
         aggregated_account_id: &str,
     ) -> Result<TaxonomyHoldingContributions>;
 }
@@ -1314,6 +1326,74 @@ impl AllocationServiceTrait for AllocationService {
         )
         .await
     }
+
+    async fn get_security_holding_contributions_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+    ) -> Result<TaxonomyHoldingContributions> {
+        let overrides = self.load_cash_overrides(account_ids);
+        let holdings = self
+            .get_holdings_for_allocation(
+                account_ids,
+                base_currency,
+                aggregated_account_id,
+                &overrides,
+            )
+            .await?;
+
+        let mut contributions = Vec::new();
+        for holding in holdings
+            .iter()
+            .filter(|holding| holding.holding_type == HoldingType::Security)
+        {
+            let (asset_id, symbol, name) = Self::holding_display(holding);
+            contributions.push(HoldingAllocationContribution {
+                id: format!("{}:{}", holding.id, asset_id),
+                holding_id: holding.id.clone(),
+                asset_id: asset_id.clone(),
+                account_id: holding.account_id.clone(),
+                source_account_ids: holding.source_account_ids.clone(),
+                symbol,
+                name: name.clone(),
+                exchange_mic: holding
+                    .instrument
+                    .as_ref()
+                    .and_then(|instrument| instrument.exchange_mic.clone()),
+                instrument_type: holding
+                    .instrument
+                    .as_ref()
+                    .and_then(|instrument| instrument.instrument_type.clone()),
+                holding_type: holding.holding_type.clone(),
+                quantity: holding.quantity,
+                category_id: asset_id,
+                category_name: name,
+                category_color: "#808080".to_string(),
+                value: holding.market_value.base.ok_or_else(|| {
+                    crate::Error::HoldingsUnavailable("allocation valuation is incomplete".into())
+                })?,
+            });
+        }
+
+        contributions.sort_by(|a, b| {
+            b.value
+                .cmp(&a.value)
+                .then_with(|| a.holding_id.cmp(&b.holding_id))
+        });
+        let total_value: Decimal = contributions
+            .iter()
+            .map(|contribution| contribution.value)
+            .sum();
+
+        Ok(TaxonomyHoldingContributions {
+            taxonomy_id: INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string(),
+            taxonomy_name: "Individual securities".to_string(),
+            total_value,
+            currency: base_currency.to_string(),
+            contributions,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1370,6 +1450,42 @@ mod tests {
             _: &str,
         ) -> Result<Vec<Holding>> {
             unimplemented!()
+        }
+        async fn get_holding(&self, _: &str, _: &str, _: &str) -> Result<Option<Holding>> {
+            unimplemented!()
+        }
+        async fn holdings_from_snapshot(
+            &self,
+            _: &crate::portfolio::snapshot::AccountStateSnapshot,
+            _: &str,
+        ) -> Result<Vec<Holding>> {
+            unimplemented!()
+        }
+    }
+
+    struct StaticHoldings {
+        holdings: Vec<Holding>,
+    }
+
+    #[async_trait]
+    impl HoldingsServiceTrait for StaticHoldings {
+        async fn get_holdings(&self, _: &str, _: &str) -> Result<Vec<Holding>> {
+            Ok(self.holdings.clone())
+        }
+        async fn get_asset_lot_view(
+            &self,
+            _: &str,
+            _: bool,
+        ) -> Result<Vec<crate::lots::AssetLotView>> {
+            unimplemented!()
+        }
+        async fn get_holdings_for_accounts(
+            &self,
+            _: &[String],
+            _: &str,
+            _: &str,
+        ) -> Result<Vec<Holding>> {
+            Ok(self.holdings.clone())
         }
         async fn get_holding(&self, _: &str, _: &str, _: &str) -> Result<Option<Holding>> {
             unimplemented!()
@@ -3297,5 +3413,35 @@ mod tests {
             .find(|c| c.category_id == "FIXED_INCOME");
         assert!(fi.is_some(), "all sources agree → FIXED_INCOME");
         assert_eq!(fi.unwrap().value, dec!(10000));
+    }
+    #[tokio::test]
+    async fn security_contributions_exclude_cash_and_alternative_assets() {
+        let mut alternative = make_holding("property", dec!(5000));
+        alternative.holding_type = HoldingType::AlternativeAsset;
+        let service = AllocationService::new(
+            Arc::new(StaticHoldings {
+                holdings: vec![
+                    make_holding("aaa", dec!(6000)),
+                    make_holding("bbb", dec!(4000)),
+                    make_cash_holding("USD", dec!(1000)),
+                    alternative,
+                ],
+            }),
+            Arc::new(NoopTaxonomies),
+        );
+
+        let contributions = service
+            .get_security_holding_contributions_for_accounts(&["acc".to_string()], "USD", "acc")
+            .await
+            .unwrap();
+
+        assert_eq!(contributions.total_value, dec!(10000));
+        assert_eq!(contributions.contributions.len(), 2);
+        assert!(contributions
+            .contributions
+            .iter()
+            .all(|contribution| contribution.holding_type == HoldingType::Security));
+        assert_eq!(contributions.contributions[0].category_id, "aaa");
+        assert_eq!(contributions.contributions[1].category_id, "bbb");
     }
 }

@@ -365,3 +365,76 @@ fn runtime_prunes_lists_while_migration_preserves_them() {
         }
     }
 }
+
+fn seed_asset_targets(conn: &rusqlite::Connection) {
+    conn.execute_batch(
+        "INSERT INTO assets(id,kind,is_active,quote_mode,quote_ccy,created_at,updated_at)
+            VALUES ('asset-a','INVESTMENT',1,'MARKET','USD','2026-11-01','2026-11-01');
+         INSERT INTO allocation_targets(id,name,scope_type,scope_id,target_type) VALUES
+            ('asset-target-delete','Delete','account','delete','asset'),
+            ('asset-target-keep','Keep','account','keep','asset');
+         INSERT INTO allocation_target_asset_weights(id,target_id,asset_id,target_bps) VALUES
+            ('asset-weight-delete','asset-target-delete','asset-a',10000),
+            ('asset-weight-keep','asset-target-keep','asset-a',10000);",
+    )
+    .unwrap();
+}
+
+fn assert_asset_targets_cleaned(conn: &rusqlite::Connection) {
+    assert_eq!(
+        count(conn, "allocation_targets WHERE id='asset-target-delete'"),
+        0
+    );
+    assert_eq!(
+        count(
+            conn,
+            "allocation_target_asset_weights WHERE id='asset-weight-delete'"
+        ),
+        0
+    );
+    assert_eq!(
+        count(conn, "allocation_targets WHERE id='asset-target-keep'"),
+        1
+    );
+    assert_eq!(
+        count(
+            conn,
+            "allocation_target_asset_weights WHERE id='asset-weight-keep'"
+        ),
+        1
+    );
+    assert_eq!(count(conn, "pragma_foreign_key_check"), 0);
+}
+
+#[tokio::test]
+async fn local_delete_removes_asset_targets_and_weights() {
+    let (_dir, access, conn) = fixture();
+    seed_asset_targets(&conn);
+    let pool = access.create_pool().unwrap();
+    let writer = spawn_writer((*pool).clone()).unwrap();
+    let repo = AccountRepository::new(pool, writer);
+    assert_eq!(repo.delete("delete").await.unwrap(), 1);
+    assert_asset_targets_cleaned(&conn);
+}
+
+#[tokio::test]
+async fn remote_delete_removes_asset_targets_and_weights() {
+    let (_dir, access, conn) = fixture();
+    seed_asset_targets(&conn);
+    let pool = access.create_pool().unwrap();
+    let writer = spawn_writer((*pool).clone()).unwrap();
+    let repo = AppSyncRepository::new(pool, writer);
+    repo.apply_remote_event_lww(
+        SyncEntity::Account,
+        "delete".into(),
+        SyncOperation::Delete,
+        "delete-event".into(),
+        "2026-11-03T00:00:00Z".into(),
+        1,
+        serde_json::json!({}),
+    )
+    .await
+    .unwrap();
+    assert_asset_targets_cleaned(&conn);
+    assert_eq!(count(&conn, "sync_outbox"), 0);
+}

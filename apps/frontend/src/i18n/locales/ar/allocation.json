@@ -103,7 +103,12 @@
     "unallocated": "{{value}} غير مخصص",
     "under": "نقص {{value}}",
     "unlock": "فتح القفل",
-    "wholeShares": "وحدات كاملة"
+    "wholeShares": "وحدات كاملة",
+    "individualSecurities": "أوراق مالية فردية",
+    "individualSecuritiesNote": "وزن واحد لكل ورقة مالية. لا يشمل النقد والأصول البديلة.",
+    "security": "ورقة مالية",
+    "targetTypeFixed": "لا يمكن تغيير نوع التوزيع بعد إنشاء الهدف. أنشئ هدفاً جديداً لاستخدام نوع آخر.",
+    "noSecuritiesFound": "لم يتم العثور على أوراق مالية في هذا النطاق. أضف مراكز قبل إنشاء هدف للأوراق المالية الفردية."
   },
   "eligibleHoldings": {
     "noMatches": "لا توجد ورقة مالية مطابقة.",
@@ -162,7 +167,8 @@
     "disclosure": "أوزان على سبيل المثال فقط. ليست توصيات، ولم يقيّم Wealthfolio مدى ملاءمتها لك.",
     "exampleDescription": "استخدمها نقطة بداية كمية، ثم راجع الأوزان وعدّلها.",
     "exampleWeights": "أوزان مثال",
-    "noCurrentHoldings": "لا توجد حيازات حالية"
+    "noCurrentHoldings": "لا توجد حيازات حالية",
+    "equalWeight": "وزن متساوٍ"
   },
   "result": {
     "cashRemaining": "النقد المتبقي"
@@ -598,6 +604,13 @@
     "category_few": "فئات",
     "category_many": "فئة",
     "category_two": "فئتان",
-    "category_zero": "فئات"
+    "category_zero": "فئات",
+    "security": "أوراق مالية",
+    "security_zero": "أوراق مالية",
+    "security_one": "ورقة مالية",
+    "security_two": "ورقتان ماليتان",
+    "security_few": "أوراق مالية",
+    "security_many": "ورقة مالية",
+    "security_other": "ورقة مالية"
   }
 }

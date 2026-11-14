@@ -65,7 +65,11 @@ export function TargetRailsCard({
     if (selectorRef.current) selectorRef.current.scrollLeft = 0;
   }, [selectedTargetId, direction]);
   const selectedTarget = targets.find((target) => target.id === selectedTargetId) ?? null;
-  const { data: taxonomy } = useTaxonomy(selectedTarget?.taxonomyId ?? null);
+  // An asset target names no taxonomy: its drift rows already carry names and the sentinel id
+  // must never be loaded.
+  const { data: taxonomy } = useTaxonomy(
+    selectedTarget && selectedTarget.targetType !== "asset" ? selectedTarget.taxonomyId : null,
+  );
   const resolvedDriftReport = driftReport
     ? resolveDriftReportCategories(driftReport, taxonomy?.categories)
     : null;

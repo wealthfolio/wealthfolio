@@ -5,6 +5,7 @@ use rust_decimal_macros::dec;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::assets::{Asset, AssetServiceTrait};
 use crate::errors::Result as CoreResult;
 use crate::portfolio::allocation::{AllocationServiceTrait, TaxonomyHoldingContributions};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
@@ -12,10 +13,19 @@ use crate::taxonomies::TaxonomyServiceTrait;
 
 use super::cash::{deployable_cash_from_contributions, is_deployable_cash_category, tracked_cash};
 use super::model::{
-    AllocationTarget, AllocationTargetWeight, DriftHoldingRow, DriftHoldingsReport, DriftReport,
-    DriftRow, DriftStatus, ScopeType,
+    AllocationTarget, AllocationTargetAssetWeight, AllocationTargetWeight, DriftHoldingRow,
+    DriftHoldingsReport, DriftReport, DriftRow, DriftStatus, ScopeType, TargetType,
 };
 use super::target_service::AllocationTargetServiceTrait;
+
+fn asset_display_name(asset: &Asset) -> String {
+    asset
+        .name
+        .clone()
+        .filter(|name| !name.trim().is_empty())
+        .or_else(|| asset.instrument_symbol.clone())
+        .unwrap_or_else(|| asset.id.clone())
+}
 
 #[derive(Debug, Clone)]
 struct CategoryCurrent {
@@ -50,6 +60,7 @@ pub struct DriftService {
     allocation_service: Arc<dyn AllocationServiceTrait>,
     holdings_service: Option<Arc<dyn HoldingsServiceTrait>>,
     taxonomy_service: Option<Arc<dyn TaxonomyServiceTrait>>,
+    asset_service: Option<Arc<dyn AssetServiceTrait>>,
 }
 
 impl DriftService {
@@ -62,6 +73,7 @@ impl DriftService {
             allocation_service,
             holdings_service: None,
             taxonomy_service: None,
+            asset_service: None,
         }
     }
 
@@ -70,6 +82,13 @@ impl DriftService {
         holdings_service: Arc<dyn HoldingsServiceTrait>,
     ) -> Self {
         self.holdings_service = Some(holdings_service);
+        self
+    }
+
+    /// Provide the asset service so asset target rows that currently hold
+    /// nothing can show the asset name instead of its raw id.
+    pub fn with_asset_service(mut self, asset_service: Arc<dyn AssetServiceTrait>) -> Self {
+        self.asset_service = Some(asset_service);
         self
     }
 
@@ -97,6 +116,23 @@ impl DriftService {
                 .collect(),
             _ => HashMap::new(),
         }
+    }
+
+    fn asset_meta_for_weights(
+        &self,
+        weights: &[AllocationTargetAssetWeight],
+    ) -> CoreResult<HashMap<String, (String, String)>> {
+        let Some(service) = self.asset_service.as_ref() else {
+            return Ok(HashMap::new());
+        };
+        weights
+            .iter()
+            .map(|weight| {
+                let asset = service.get_asset_by_id(&weight.asset_id)?;
+                let name = asset_display_name(&asset);
+                Ok((weight.asset_id.clone(), (name, "#94a3b8".to_string())))
+            })
+            .collect()
     }
 
     fn target_and_weights(
@@ -154,21 +190,22 @@ impl DriftService {
 
     fn build_drift_rows(
         target: &AllocationTarget,
-        weights: &[AllocationTargetWeight],
+        weights: &[(&str, i32, bool)],
         contributions: &TaxonomyHoldingContributions,
         category_meta: &HashMap<String, (String, String)>,
     ) -> Vec<DriftRow> {
         let total_value = contributions.total_value;
         let current_by_category = Self::current_by_category(contributions);
         let bps_scale = dec!(10000);
+        let is_asset_target = target.target_type == TargetType::Asset;
 
         let mut rows: Vec<DriftRow> = weights
             .iter()
-            .map(|weight| {
-                let current = current_by_category.get(weight.category_id.as_str());
+            .map(|(category_id, target_bps, is_required)| {
+                let current = current_by_category.get(*category_id);
                 let current_value = current.map(|current| current.value).unwrap_or_default();
                 let current_bps = Self::current_bps(current_value, total_value);
-                let target_bps = weight.target_bps;
+                let target_bps = *target_bps;
                 let drift_bps = current_bps - target_bps;
 
                 let target_value = if total_value > Decimal::ZERO {
@@ -192,20 +229,20 @@ impl DriftService {
                 };
 
                 DriftRow {
-                    category_id: weight.category_id.clone(),
+                    category_id: (*category_id).to_string(),
                     category_name: current
                         .map(|current| current.name.clone())
                         .or_else(|| {
                             category_meta
-                                .get(weight.category_id.as_str())
+                                .get(*category_id)
                                 .map(|(name, _)| name.clone())
                         })
-                        .unwrap_or_else(|| weight.category_id.clone()),
+                        .unwrap_or_else(|| (*category_id).to_string()),
                     color: current
                         .map(|current| current.color.clone())
                         .or_else(|| {
                             category_meta
-                                .get(weight.category_id.as_str())
+                                .get(*category_id)
                                 .map(|(_, color)| color.clone())
                         })
                         .unwrap_or_else(|| "#94a3b8".to_string()),
@@ -217,26 +254,30 @@ impl DriftService {
                     value_delta,
                     effective_band_bps: effective_band,
                     status,
-                    is_required: weight.is_required,
+                    is_required: *is_required,
                     is_zero_current: current_value == Decimal::ZERO,
-                    is_cash: is_deployable_cash_category(&target.taxonomy_id, &weight.category_id),
+                    is_cash: !is_asset_target
+                        && is_deployable_cash_category(&target.taxonomy_id, category_id),
                 }
             })
             .filter(|row| row.is_required || row.current_value > Decimal::ZERO)
             .collect();
 
-        let targeted_ids: HashSet<&str> = weights
-            .iter()
-            .map(|weight| weight.category_id.as_str())
-            .collect();
+        let targeted_ids: HashSet<&str> = weights.iter().map(|(id, _, _)| *id).collect();
 
         for (category_id, current) in current_by_category {
             if targeted_ids.contains(category_id.as_str()) {
                 continue;
             }
+            // A security whose long and short positions cancel out is held at
+            // zero: not a gap to report.
+            if is_asset_target && current.value == Decimal::ZERO {
+                continue;
+            }
 
             let current_bps = Self::current_bps(current.value, total_value);
-            let is_cash = is_deployable_cash_category(&target.taxonomy_id, &category_id);
+            let is_cash =
+                !is_asset_target && is_deployable_cash_category(&target.taxonomy_id, &category_id);
             rows.push(DriftRow {
                 category_id,
                 category_name: current.name,
@@ -270,13 +311,13 @@ impl DriftService {
     fn build_drift_holdings_report(
         target_id: &str,
         base_currency: &str,
-        weights: &[AllocationTargetWeight],
+        weights: &[(&str, i32, bool)],
         contributions: &TaxonomyHoldingContributions,
     ) -> DriftHoldingsReport {
         let total_value = contributions.total_value;
         let target_bps_by_category: HashMap<&str, i32> = weights
             .iter()
-            .map(|weight| (weight.category_id.as_str(), weight.target_bps))
+            .map(|(id, target_bps, _)| (*id, *target_bps))
             .collect();
         let mut current_value_by_category: HashMap<String, Decimal> = HashMap::new();
         for contribution in &contributions.contributions {
@@ -365,18 +406,63 @@ impl DriftService {
         include_holdings: bool,
     ) -> CoreResult<DriftReport> {
         let (target, weights) = self.target_and_weights(target_id)?;
-        let contributions = self
-            .allocation_service
-            .get_holding_contributions_for_taxonomy_for_accounts(
-                account_ids,
-                base_currency,
-                &target.taxonomy_id,
-                aggregated_account_id,
-            )
-            .await?;
+        let is_asset_target = target.target_type == TargetType::Asset;
+        let asset_weights = if is_asset_target {
+            self.target_service
+                .list_asset_weights_for_target(target_id)?
+        } else {
+            Vec::new()
+        };
+        let display_weights: Vec<(&str, i32, bool)> = if is_asset_target {
+            asset_weights
+                .iter()
+                .map(|weight| {
+                    (
+                        weight.asset_id.as_str(),
+                        weight.target_bps,
+                        weight.is_required,
+                    )
+                })
+                .collect()
+        } else {
+            weights
+                .iter()
+                .map(|weight| {
+                    (
+                        weight.category_id.as_str(),
+                        weight.target_bps,
+                        weight.is_required,
+                    )
+                })
+                .collect()
+        };
 
-        let category_meta = self.category_meta_for_taxonomy(&target.taxonomy_id);
-        let rows = Self::build_drift_rows(&target, &weights, &contributions, &category_meta);
+        let contributions = if is_asset_target {
+            self.allocation_service
+                .get_security_holding_contributions_for_accounts(
+                    account_ids,
+                    base_currency,
+                    aggregated_account_id,
+                )
+                .await?
+        } else {
+            self.allocation_service
+                .get_holding_contributions_for_taxonomy_for_accounts(
+                    account_ids,
+                    base_currency,
+                    &target.taxonomy_id,
+                    aggregated_account_id,
+                )
+                .await?
+        };
+
+        let category_meta = if is_asset_target {
+            self.asset_meta_for_weights(&asset_weights)?
+        } else {
+            self.category_meta_for_taxonomy(&target.taxonomy_id)
+        };
+        let rows =
+            Self::build_drift_rows(&target, &display_weights, &contributions, &category_meta);
         let max_drift_bps = rows
             .iter()
             .filter(|row| Self::is_gap_row(row))
@@ -386,9 +472,16 @@ impl DriftService {
         let out_of_band_count = rows.iter().filter(|row| Self::is_gap_row(row)).count();
         let scope_type = ScopeType::try_from(target.scope_type.as_str()).unwrap_or(ScopeType::All);
         let holdings = include_holdings.then(|| {
-            Self::build_drift_holdings_report(target_id, base_currency, &weights, &contributions)
+            Self::build_drift_holdings_report(
+                target_id,
+                base_currency,
+                &display_weights,
+                &contributions,
+            )
         });
 
+        // Asset targets use a sentinel taxonomy with no cash categories, so they
+        // fall through to tracked cash from holdings.
         let deployable_cash = if let Some(cash) =
             deployable_cash_from_contributions(&target.taxonomy_id, &contributions)
         {
@@ -463,9 +556,9 @@ mod tests {
         PortfolioAllocations, TaxonomyAllocation, TaxonomyHoldingContributions,
     };
     use crate::portfolio::allocation_targets::model::{
-        AllocationTarget, AllocationTargetWeight, BandType, NewAllocationTarget,
-        NewAllocationTargetWeight, RebalanceGoal, SaveAllocationTargetResult, ScopeType,
-        TriggerType,
+        AllocationTarget, AllocationTargetAssetWeight, AllocationTargetWeight, BandType,
+        NewAllocationTarget, NewAllocationTargetAssetWeight, NewAllocationTargetWeight,
+        RebalanceGoal, SaveAllocationTargetResult, ScopeType, TargetType, TriggerType,
     };
     use crate::portfolio::holdings::{Holding, HoldingType, MonetaryValue};
     use async_trait::async_trait;
@@ -480,6 +573,7 @@ mod tests {
             scope_type: ScopeType::All,
             scope_id: None,
             taxonomy_id: "asset_classes".to_string(),
+            target_type: TargetType::Category,
             trigger_type: TriggerType::Threshold,
             drift_band_bps,
             band_type: BandType::Absolute,
@@ -604,6 +698,19 @@ mod tests {
         }
     }
 
+    fn asset_weight(asset_id: &str, target_bps: i32) -> AllocationTargetAssetWeight {
+        AllocationTargetAssetWeight {
+            id: format!("asset-weight-{asset_id}"),
+            target_id: "p1".to_string(),
+            asset_id: asset_id.to_string(),
+            target_bps,
+            is_locked: false,
+            is_required: true,
+            created_at: "2026-01-01".to_string(),
+            updated_at: "2026-01-01".to_string(),
+        }
+    }
+
     fn cash_contribution(category_id: &str, value: Decimal) -> HoldingAllocationContribution {
         HoldingAllocationContribution {
             id: format!("cash:{category_id}:0"),
@@ -719,6 +826,7 @@ mod tests {
     struct MockTargetService {
         target: AllocationTarget,
         weights: Vec<AllocationTargetWeight>,
+        asset_weights: Vec<AllocationTargetAssetWeight>,
     }
 
     #[async_trait]
@@ -734,6 +842,12 @@ mod tests {
             _target_id: &str,
         ) -> CoreResult<Vec<AllocationTargetWeight>> {
             Ok(self.weights.clone())
+        }
+        fn list_asset_weights_for_target(
+            &self,
+            _target_id: &str,
+        ) -> CoreResult<Vec<AllocationTargetAssetWeight>> {
+            Ok(self.asset_weights.clone())
         }
         async fn create_target(&self, _input: NewAllocationTarget) -> CoreResult<AllocationTarget> {
             unimplemented!()
@@ -763,6 +877,7 @@ mod tests {
             _id: Option<String>,
             _input: NewAllocationTarget,
             _weights: Vec<NewAllocationTargetWeight>,
+            _asset_weights: Vec<NewAllocationTargetAssetWeight>,
         ) -> CoreResult<SaveAllocationTargetResult> {
             unimplemented!()
         }
@@ -833,6 +948,14 @@ mod tests {
         ) -> CoreResult<TaxonomyHoldingContributions> {
             Ok(self.contributions.clone())
         }
+        async fn get_security_holding_contributions_for_accounts(
+            &self,
+            _account_ids: &[String],
+            _base_currency: &str,
+            _aggregated_account_id: &str,
+        ) -> CoreResult<TaxonomyHoldingContributions> {
+            Ok(self.contributions.clone())
+        }
     }
 
     struct MockHoldingsService {
@@ -888,7 +1011,11 @@ mod tests {
     ) -> DriftService {
         let contributions = contributions_from_allocations(&target.taxonomy_id, &allocations);
         DriftService::new(
-            Arc::new(MockTargetService { target, weights }),
+            Arc::new(MockTargetService {
+                target,
+                weights,
+                asset_weights: vec![],
+            }),
             Arc::new(MockAllocationService {
                 allocations,
                 contributions,
@@ -903,7 +1030,11 @@ mod tests {
         contributions: TaxonomyHoldingContributions,
     ) -> DriftService {
         DriftService::new(
-            Arc::new(MockTargetService { target, weights }),
+            Arc::new(MockTargetService {
+                target,
+                weights,
+                asset_weights: vec![],
+            }),
             Arc::new(MockAllocationService {
                 allocations,
                 contributions,
@@ -919,7 +1050,11 @@ mod tests {
     ) -> DriftService {
         let contributions = contributions_from_allocations(&target.taxonomy_id, &allocations);
         DriftService::new(
-            Arc::new(MockTargetService { target, weights }),
+            Arc::new(MockTargetService {
+                target,
+                weights,
+                asset_weights: vec![],
+            }),
             Arc::new(MockAllocationService {
                 allocations,
                 contributions,
@@ -1262,6 +1397,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn asset_target_holdings_split_target_across_rows_of_one_asset() {
+        let mut target = base_target(500);
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id =
+            crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let mut row_one = holding_contribution("asset-A", dec!(300));
+        row_one.id = "asset-A:acc-1".to_string();
+        let mut row_two = holding_contribution("asset-A", dec!(100));
+        row_two.id = "asset-A:acc-2".to_string();
+        let contributions = TaxonomyHoldingContributions {
+            taxonomy_id: "asset".to_string(),
+            taxonomy_name: "Asset".to_string(),
+            total_value: dec!(1000),
+            currency: "USD".to_string(),
+            contributions: vec![row_one, row_two, holding_contribution("asset-C", dec!(600))],
+        };
+        let service = DriftService::new(
+            Arc::new(MockTargetService {
+                target,
+                weights: vec![],
+                asset_weights: vec![asset_weight("asset-A", 4000)],
+            }),
+            Arc::new(MockAllocationService {
+                allocations: PortfolioAllocations::default(),
+                contributions,
+            }),
+        );
+
+        let report = service
+            .get_drift_report_with_holdings_for_target("p1", &["acc".to_string()], "USD", "acc")
+            .await
+            .unwrap();
+        let rows = report.holdings.unwrap().rows;
+
+        let asset_a_targets: Vec<Decimal> = rows
+            .iter()
+            .filter(|row| row.category_id == "asset-A")
+            .map(|row| row.target_pct.unwrap())
+            .collect();
+        assert_eq!(asset_a_targets.len(), 2);
+        assert_eq!(asset_a_targets.iter().copied().sum::<Decimal>(), dec!(40));
+        let row_one = rows.iter().find(|row| row.id == "asset-A:acc-1").unwrap();
+        assert_eq!(row_one.target_pct, Some(dec!(30)));
+        let untargeted = rows
+            .iter()
+            .find(|row| row.category_id == "asset-C")
+            .unwrap();
+        assert_eq!(untargeted.target_pct, Some(Decimal::ZERO));
+    }
+
+    #[tokio::test]
     async fn drift_report_can_embed_holding_rows_from_same_contributions() {
         let svc = make_service_with_contributions(
             base_target(500),
@@ -1582,5 +1768,96 @@ mod tests {
         assert_eq!(big.effective_band_bps, 1200);
         // SMALL: 4000 * 2000 / 10000 = 800; max(800, 100) = 800
         assert_eq!(small.effective_band_bps, 800);
+    }
+    #[tokio::test]
+    async fn asset_target_drift_uses_direct_weights_and_untargeted_securities() {
+        let mut target = base_target(500);
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id =
+            crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let asset_weights = vec![asset_weight("asset-A", 6000), asset_weight("asset-B", 4000)];
+        let contributions = TaxonomyHoldingContributions {
+            taxonomy_id: "asset".to_string(),
+            taxonomy_name: "Asset".to_string(),
+            total_value: dec!(1000),
+            currency: "USD".to_string(),
+            contributions: vec![
+                holding_contribution("asset-A", dec!(500)),
+                holding_contribution("asset-B", dec!(300)),
+                holding_contribution("asset-C", dec!(200)),
+                // A long and a short that cancel out.
+                holding_contribution("asset-D", dec!(100)),
+                holding_contribution("asset-D", dec!(-100)),
+            ],
+        };
+        let service = DriftService::new(
+            Arc::new(MockTargetService {
+                target,
+                weights: vec![],
+                asset_weights,
+            }),
+            Arc::new(MockAllocationService {
+                allocations: PortfolioAllocations::default(),
+                contributions,
+            }),
+        );
+
+        let report = service
+            .get_drift_report_for_target("p1", &["acc".to_string()], "USD", "acc")
+            .await
+            .unwrap();
+
+        let rows = report
+            .rows
+            .iter()
+            .map(|row| {
+                (
+                    row.category_id.as_str(),
+                    (row.target_bps, row.current_bps, row.status.clone()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        assert_eq!(rows["asset-A"], (6000, 5000, DriftStatus::Underweight));
+        assert_eq!(rows["asset-B"], (4000, 3000, DriftStatus::Underweight));
+        assert_eq!(rows["asset-C"], (0, 2000, DriftStatus::NotTargeted));
+        assert!(!rows.contains_key("asset-D"));
+        assert_eq!(report.total_value, dec!(1000));
+    }
+
+    #[tokio::test]
+    async fn asset_target_drift_fails_when_a_weighted_asset_cannot_be_loaded() {
+        let mut target = base_target(500);
+        target.target_type = TargetType::Asset;
+        target.taxonomy_id =
+            crate::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID.to_string();
+        let service = DriftService::new(
+            Arc::new(MockTargetService {
+                target,
+                weights: vec![],
+                asset_weights: vec![asset_weight("asset-A", 6000), asset_weight("asset-B", 4000)],
+            }),
+            Arc::new(MockAllocationService {
+                allocations: PortfolioAllocations::default(),
+                contributions: TaxonomyHoldingContributions {
+                    taxonomy_id: "asset".to_string(),
+                    taxonomy_name: "Asset".to_string(),
+                    total_value: dec!(1000),
+                    currency: "USD".to_string(),
+                    contributions: vec![holding_contribution("asset-A", dec!(1000))],
+                },
+            }),
+        )
+        // The asset service knows asset-A but not asset-B.
+        .with_asset_service(
+            crate::portfolio::allocation_targets::target_service::tests::MockAssetService::with_asset(
+                "asset-A",
+                crate::assets::AssetKind::Investment,
+            ),
+        );
+
+        assert!(service
+            .get_drift_report_for_target("p1", &["acc".to_string()], "USD", "acc")
+            .await
+            .is_err());
     }
 }

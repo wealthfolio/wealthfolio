@@ -1595,6 +1595,23 @@ impl AllocationServiceTrait for MockAllocationService {
             contributions: Vec::new(),
         })
     }
+
+    async fn get_security_holding_contributions_for_accounts(
+        &self,
+        _account_ids: &[String],
+        base_currency: &str,
+        _aggregated_account_id: &str,
+    ) -> CoreResult<TaxonomyHoldingContributions> {
+        Ok(TaxonomyHoldingContributions {
+            taxonomy_id:
+                wealthfolio_core::portfolio::allocation_targets::INDIVIDUAL_SECURITIES_TAXONOMY_ID
+                    .to_string(),
+            taxonomy_name: "Individual securities".to_string(),
+            total_value: rust_decimal::Decimal::ZERO,
+            currency: base_currency.to_string(),
+            contributions: Vec::new(),
+        })
+    }
 }
 
 /// Mock income service for testing.

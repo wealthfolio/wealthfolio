@@ -597,17 +597,18 @@ async fn build_context(
         pool.clone(),
         writer.clone(),
     ));
-    let allocation_target_service = Arc::new(AllocationTargetService::new(
-        allocation_target_repository,
-        taxonomy_service.clone(),
-    ));
+    let allocation_target_service = Arc::new(
+        AllocationTargetService::new(allocation_target_repository, taxonomy_service.clone())
+            .with_asset_service(asset_service.clone()),
+    );
     let drift_service = Arc::new(
         DriftService::new(
             allocation_target_service.clone(),
             allocation_service.clone(),
         )
         .with_holdings_service(holdings_service.clone())
-        .with_taxonomy_service(taxonomy_service.clone()),
+        .with_taxonomy_service(taxonomy_service.clone())
+        .with_asset_service(asset_service.clone()),
     );
     let allocation_worksheet_service = Arc::new(AllocationWorksheetService::new(
         allocation_target_service.clone(),

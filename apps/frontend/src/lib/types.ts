@@ -2881,12 +2881,19 @@ export type RebalanceTo = "nearest_band" | "exact_target";
 
 export type BandType = "absolute" | "hybrid";
 
+/** A category target weights taxonomy categories; an asset target weights individual securities. */
+export type TargetType = "category" | "asset";
+
+/** Taxonomy id stored on asset targets. It names no real taxonomy, so never load it. */
+export const INDIVIDUAL_SECURITIES_TAXONOMY_ID = "__individual_securities__";
+
 export interface AllocationTarget {
   id: string;
   name: string;
   scopeType: TargetScopeType;
   scopeId?: string | null;
   taxonomyId: string;
+  targetType: TargetType;
   triggerType: TriggerType;
   driftBandBps: number;
   bandType: BandType;
@@ -2906,6 +2913,7 @@ export interface NewAllocationTarget {
   scopeType: TargetScopeType;
   scopeId?: string | null;
   taxonomyId: string;
+  targetType?: TargetType;
   triggerType: TriggerType;
   driftBandBps: number;
   bandType?: BandType;
@@ -2936,9 +2944,28 @@ export interface NewAllocationTargetWeight {
   isRequired: boolean;
 }
 
+export interface AllocationTargetAssetWeight {
+  id: string;
+  targetId: string;
+  assetId: string;
+  targetBps: number;
+  isLocked: boolean;
+  isRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewAllocationTargetAssetWeight {
+  assetId: string;
+  targetBps: number;
+  isLocked: boolean;
+  isRequired: boolean;
+}
+
 export interface SaveAllocationTargetResult {
   target: AllocationTarget;
   weights: AllocationTargetWeight[];
+  assetWeights: AllocationTargetAssetWeight[];
 }
 
 export type ConstraintSubjectType = "asset" | "account" | "category";

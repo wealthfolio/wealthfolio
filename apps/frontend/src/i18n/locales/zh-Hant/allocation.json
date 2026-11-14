@@ -83,7 +83,8 @@
     "buildFromScratch": "從頭建立",
     "exampleWeights": "範例權重",
     "exampleDescription": "作為量化起點使用，之後再檢視並編輯權重。",
-    "disclosure": "僅為範例權重。這些不是建議，Wealthfolio 也未評估是否適合你。"
+    "disclosure": "僅為範例權重。這些不是建議，Wealthfolio 也未評估是否適合你。",
+    "equalWeight": "等權重"
   },
   "mode": {
     "enableSellsTip": "請在此目標的設定中允許減少，才能使用「再平衡」。"
@@ -165,7 +166,12 @@
     "suggestedTargetName": "{{name}} 目標",
     "customFallback": "自訂",
     "deleteDialogTitle": "刪除目標？",
-    "deleteDialogDescription": "此操作將永久刪除「{{name}}」及其所有目標權重。此操作無法復原。"
+    "deleteDialogDescription": "此操作將永久刪除「{{name}}」及其所有目標權重。此操作無法復原。",
+    "individualSecurities": "個別證券",
+    "individualSecuritiesNote": "每檔證券設定一個權重。不包括現金和另類資產。",
+    "security": "證券",
+    "targetTypeFixed": "目標建立後無法變更配置類型。如需使用其他類型，請建立新目標。",
+    "noSecuritiesFound": "此範圍內找不到證券。請先新增持倉，再建立個別證券目標。"
   },
   "scope": {
     "allAccounts": "全部帳戶",
@@ -522,6 +528,9 @@
     "region_one": "地區",
     "industry_one": "行業",
     "industry_other": "行業",
-    "category_one": "類別"
+    "category_one": "類別",
+    "security": "證券",
+    "security_other": "證券",
+    "security_one": "證券"
   }
 }

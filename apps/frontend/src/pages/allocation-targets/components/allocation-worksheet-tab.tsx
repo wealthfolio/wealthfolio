@@ -291,6 +291,7 @@ function buildPositions(
   taxonomyId: string,
   assignmentsByAsset: Map<string, AssetTaxonomyAssignment[]>,
   taxonomyCategories: TaxonomyCategory[],
+  isAssetTarget = false,
 ): WorksheetPosition[] {
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const categoryById = new Map(taxonomyCategories.map((category) => [category.id, category]));
@@ -356,15 +357,23 @@ function buildPositions(
     if (positions.has(assetId)) continue;
     const asset = assetById.get(assetId);
     if (!asset) continue;
-    const assignments = (assignmentsByAsset.get(assetId) ?? []).filter(
-      (assignment) => assignment.taxonomyId === taxonomyId && assignment.weight > 0,
-    );
-    const assignedWeight = assignments.reduce((sum, assignment) => sum + assignment.weight, 0);
-    const categoryExposures: PositionCategoryExposure[] = assignments.map((assignment) => ({
-      categoryId: assignment.categoryId,
-      categoryName: categoryById.get(assignment.categoryId)?.name ?? assignment.categoryId,
-      weightBps: assignment.weight,
-    }));
+    const symbol = asset.displayCode ?? asset.instrumentSymbol ?? asset.name ?? asset.id;
+    // For an asset target each security is its own category, whatever its classification.
+    const assignments = isAssetTarget
+      ? []
+      : (assignmentsByAsset.get(assetId) ?? []).filter(
+          (assignment) => assignment.taxonomyId === taxonomyId && assignment.weight > 0,
+        );
+    const assignedWeight = isAssetTarget
+      ? 10_000
+      : assignments.reduce((sum, assignment) => sum + assignment.weight, 0);
+    const categoryExposures: PositionCategoryExposure[] = isAssetTarget
+      ? [{ categoryId: assetId, categoryName: symbol, weightBps: 10_000 }]
+      : assignments.map((assignment) => ({
+          categoryId: assignment.categoryId,
+          categoryName: categoryById.get(assignment.categoryId)?.name ?? assignment.categoryId,
+          weightBps: assignment.weight,
+        }));
     if (assignedWeight < 10_000) {
       categoryExposures.push({
         categoryId: UNCLASSIFIED_CATEGORY_ID,
@@ -374,7 +383,7 @@ function buildPositions(
     }
     positions.set(assetId, {
       assetId,
-      symbol: asset.displayCode ?? asset.instrumentSymbol ?? asset.name ?? asset.id,
+      symbol,
       name: asset.name ?? asset.displayCode ?? asset.instrumentSymbol ?? asset.id,
       value: 0,
       quantity: 0,
@@ -763,7 +772,9 @@ export function AllocationWorksheetTab({
   const syncPrice = useSyncMarketDataMutation(true);
   const exchangeRates = useExchangeRates();
   const { assets, isLoading: assetsLoading } = useAssets();
-  const taxonomy = useTaxonomy(profile?.taxonomyId ?? null);
+  // An asset target names no taxonomy: its sentinel id must never be loaded.
+  const isAssetTarget = profile?.targetType === "asset";
+  const taxonomy = useTaxonomy(isAssetTarget ? null : (profile?.taxonomyId ?? null));
   const categoryLabel = (categoryId: string, name: string) =>
     worksheetCategoryLabel(t, profile?.taxonomyId ?? "", categoryId, name);
   const { accounts: holdingAccounts, isLoading: accountsLoading } = useAccounts({
@@ -920,6 +931,7 @@ export function AllocationWorksheetTab({
     queries: addedAssetIds.map((assetId) => ({
       queryKey: QueryKeys.assetTaxonomyAssignments(assetId),
       queryFn: () => getAssetTaxonomyAssignments(assetId),
+      enabled: !isAssetTarget,
     })),
   });
   const assignmentSourceVersion = addedAssignmentQueries
@@ -967,6 +979,7 @@ export function AllocationWorksheetTab({
           profile.taxonomyId,
           assignmentsByAsset,
           taxonomy.data?.categories ?? [],
+          isAssetTarget,
         )
       : [];
   const positionByAsset = new Map(positions.map((position) => [position.assetId, position]));

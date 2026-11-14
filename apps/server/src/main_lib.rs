@@ -721,7 +721,8 @@ async fn initialize_profile_state(
         wealthfolio_core::portfolio::allocation_targets::AllocationTargetService::new(
             allocation_target_repository,
             taxonomy_service.clone(),
-        ),
+        )
+        .with_asset_service(asset_service.clone()),
     );
     let drift_service: Arc<
         dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait + Send + Sync,
@@ -731,7 +732,8 @@ async fn initialize_profile_state(
             allocation_service.clone(),
         )
         .with_holdings_service(holdings_service.clone())
-        .with_taxonomy_service(taxonomy_service.clone()),
+        .with_taxonomy_service(taxonomy_service.clone())
+        .with_asset_service(asset_service.clone()),
     );
     let allocation_worksheet_service: Arc<
         dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait

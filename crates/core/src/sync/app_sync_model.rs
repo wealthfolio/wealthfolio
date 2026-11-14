@@ -76,6 +76,8 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     "allocation_targets",
     // Depends on: allocation_targets, taxonomy_categories.
     "allocation_target_weights",
+    // Depends on: allocation_targets, assets.
+    "allocation_target_asset_weights",
     // Depends on: allocation_targets.
     "allocation_target_constraints",
 ];
@@ -131,6 +133,7 @@ pub enum SyncEntity {
     PortfolioAccount,
     AllocationTarget,
     AllocationTargetWeight,
+    AllocationTargetAssetWeight,
     AllocationTargetConstraint,
     // Spending module (wealthfolio-spending crate). Prefixed with `Spending*`
     // because the bare names (`Event`, `EventType`, `CategorizationRule`)
@@ -220,6 +223,7 @@ impl SyncEntity {
             | SyncEntity::Portfolio
             | SyncEntity::AllocationTarget
             | SyncEntity::AllocationTargetWeight
+            | SyncEntity::AllocationTargetAssetWeight
             | SyncEntity::AllocationTargetConstraint
             | SyncEntity::SpendingActivitySplit
             | SyncEntity::SpendingEvent
@@ -480,6 +484,7 @@ mod tests {
             SyncEntity::PortfolioAccount,
             SyncEntity::AllocationTarget,
             SyncEntity::AllocationTargetWeight,
+            SyncEntity::AllocationTargetAssetWeight,
             SyncEntity::AllocationTargetConstraint,
             SyncEntity::SpendingSetting,
             SyncEntity::AppPreference,
@@ -526,6 +531,7 @@ mod tests {
             "\"portfolio_account\"",
             "\"allocation_target\"",
             "\"allocation_target_weight\"",
+            "\"allocation_target_asset_weight\"",
             "\"allocation_target_constraint\"",
             "\"spending_setting\"",
             "\"app_preference\"",
