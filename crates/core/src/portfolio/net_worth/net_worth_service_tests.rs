@@ -3614,3 +3614,36 @@ async fn missing_fx_stored_unavailable_account_valuations_bypass_conversion() {
     assert_eq!(current.net_worth, dec!(0));
     assert!(history.iter().all(|p| p.net_worth == dec!(0)));
 }
+
+#[tokio::test]
+async fn missing_fx_preserves_quote_age_without_adding_unconverted_values() {
+    let quoted = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    for kind in [AssetKind::Property, AssetKind::Liability] {
+        for age in [50, 200] {
+            let (_, fx) = real_fx();
+            let service = aed_service(
+                vec![],
+                vec![create_test_asset("foreign", kind.clone(), "COP")],
+                vec![],
+                vec![create_test_quote("foreign", dec!(330000000), quoted, "COP")],
+                vec![],
+                fx,
+            );
+            let result = service
+                .get_net_worth(quoted + chrono::Duration::days(age))
+                .await
+                .unwrap();
+            assert_eq!(result.value_status, ValuationStatus::Unavailable);
+            assert_eq!(result.net_worth, Decimal::ZERO);
+            assert_eq!(result.oldest_valuation_date, Some(quoted));
+            assert_eq!(
+                result.stale_assets.len(),
+                usize::from(age > STALENESS_THRESHOLD_DAYS)
+            );
+            if age > STALENESS_THRESHOLD_DAYS {
+                assert_eq!(result.stale_assets[0].asset_id, "foreign");
+                assert_eq!(result.stale_assets[0].days_stale, age);
+            }
+        }
+    }
+}

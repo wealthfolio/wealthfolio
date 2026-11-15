@@ -397,6 +397,7 @@ impl NetWorthService {
     /// no market data to keep up to date.
     fn calculate_staleness(
         valuations: &[ValuationInfo],
+        unconverted_dates: &[(String, Option<String>, NaiveDate)],
         reference_date: NaiveDate,
     ) -> (Option<NaiveDate>, Vec<StaleAssetInfo>) {
         // Exclude cash-like balances (no market data to update) and paid-off
@@ -409,19 +410,26 @@ impl NetWorthService {
                 !(v.is_cash_like
                     || (v.category == AssetCategory::Liability && v.market_value_base.is_zero()))
             })
+            .map(|v| (&v.asset_id, &v.name, v.valuation_date))
+            // A failed conversion does not erase the quote's identity or age.
+            .chain(
+                unconverted_dates
+                    .iter()
+                    .map(|(id, name, date)| (id, name, *date)),
+            )
             .collect();
 
-        let oldest_date = trackable_valuations.iter().map(|v| v.valuation_date).min();
+        let oldest_date = trackable_valuations.iter().map(|(_, _, date)| *date).min();
 
         let stale_assets: Vec<StaleAssetInfo> = trackable_valuations
             .iter()
-            .filter_map(|v| {
-                let days_stale = (reference_date - v.valuation_date).num_days();
+            .filter_map(|(id, name, date)| {
+                let days_stale = (reference_date - *date).num_days();
                 if days_stale > STALENESS_THRESHOLD_DAYS {
                     Some(StaleAssetInfo {
-                        asset_id: v.asset_id.clone(),
-                        name: v.name.clone(),
-                        valuation_date: v.valuation_date,
+                        asset_id: (*id).clone(),
+                        name: (*name).clone(),
+                        valuation_date: *date,
                         days_stale,
                     })
                 } else {
@@ -521,6 +529,7 @@ impl NetWorthService {
         let mut valuations: Vec<ValuationInfo> = Vec::new();
         let mut value_status = ValuationStatus::Complete;
         let mut missing_fx = Vec::new();
+        let mut unconverted_dates = Vec::new();
 
         // Process each account's snapshot
         for (account_id, snapshot) in &snapshots {
@@ -665,6 +674,11 @@ impl NetWorthService {
                                 "Failed to calculate market value for {}: {}. Value unavailable.",
                                 asset_id, e
                             );
+                            unconverted_dates.push((
+                                asset_id.clone(),
+                                asset_name.clone(),
+                                valuation_date,
+                            ));
                             missing_fx.push(FxConversionIssue {
                                 item_id: asset_id.clone(),
                                 from_currency: normalized_currency.to_string(),
@@ -803,7 +817,9 @@ impl NetWorthService {
         for asset in alternative_assets {
             // Skip if this asset was already processed via a snapshot position
             // (in case there's overlap)
-            if valuations.iter().any(|v| v.asset_id == asset.id) {
+            if valuations.iter().any(|v| v.asset_id == asset.id)
+                || unconverted_dates.iter().any(|(id, _, _)| id == &asset.id)
+            {
                 continue;
             }
 
@@ -866,6 +882,15 @@ impl NetWorthService {
                         "Failed to convert alternative asset {} value to base currency: {}. Value unavailable.",
                         asset.id, e
                     );
+                    unconverted_dates.push((
+                        asset.id.clone(),
+                        asset
+                            .name
+                            .clone()
+                            .filter(|name| !name.is_empty())
+                            .or_else(|| asset.display_code.clone()),
+                        valuation_date,
+                    ));
                     missing_fx.push(FxConversionIssue {
                         item_id: asset.id.clone(),
                         from_currency: normalized_currency.to_string(),
@@ -900,7 +925,8 @@ impl NetWorthService {
         let net_worth = assets.total - liabilities.total;
 
         // Calculate staleness
-        let (oldest_valuation_date, stale_assets) = Self::calculate_staleness(&valuations, date);
+        let (oldest_valuation_date, stale_assets) =
+            Self::calculate_staleness(&valuations, &unconverted_dates, date);
 
         debug!(
             "Net worth calculation complete: assets={}, liabilities={}, net_worth={}",
