@@ -495,6 +495,9 @@ mod tests {
         created_pairs: Mutex<Vec<(String, String, String)>>,
         saved_rates: Mutex<Vec<ExchangeRate>>,
         historical_rates: Mutex<Vec<ExchangeRate>>,
+        /// Rejects new FX assets whose codes are not upper case, as the SQLite
+        /// repository does.
+        upper_case_only: bool,
     }
 
     #[async_trait]
@@ -559,6 +562,12 @@ mod tests {
             to_currency: &str,
             source: &str,
         ) -> Result<String> {
+            if let Some(code) = [from_currency, to_currency]
+                .into_iter()
+                .find(|code| self.upper_case_only && code.to_uppercase() != *code)
+            {
+                return Err(FxError::InvalidCurrencyCode(code.to_string()).into());
+            }
             self.created_pairs.lock().unwrap().push((
                 from_currency.to_string(),
                 to_currency.to_string(),
@@ -983,7 +992,10 @@ mod tests {
     }
 
     fn pivot_service(rates: Vec<ExchangeRate>) -> (Arc<MockFxRepository>, FxService) {
-        let repo = Arc::new(MockFxRepository::default());
+        let repo = Arc::new(MockFxRepository {
+            upper_case_only: true,
+            ..Default::default()
+        });
         *repo.historical_rates.lock().unwrap() = rates;
         let service = FxService::new(repo.clone());
         service.initialize().unwrap();
@@ -1068,5 +1080,50 @@ mod tests {
             vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
         );
         assert_eq!(created(&repo), sorted(wanted));
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_upper_cases_pairs_stored_as_entered() {
+        // Older versions stored some FX pairs in the case they were entered.
+        let (repo, service) = pivot_service(vec![]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("cop", "aed")], "usd")
+            .await
+            .unwrap();
+
+        assert_eq!(wanted, vec![pair("COP", "USD"), pair("USD", "AED")]);
+        assert_eq!(created(&repo), sorted(wanted));
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_normalizes_minor_units_before_upper_casing() {
+        // GBp (pence) is quoted through GBP, not a currency called "GBP" by accident.
+        let (repo, service) = pivot_service(vec![]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("GBp", "AED")], "USD")
+            .await
+            .unwrap();
+
+        assert_eq!(wanted, vec![pair("GBP", "USD"), pair("USD", "AED")]);
+        assert_eq!(created(&repo), sorted(wanted));
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_registers_the_other_legs_when_one_fails() {
+        // `ç` has no ASCII upper case, so the repository rejects `çOP/USD`.
+        let (repo, service) = pivot_service(vec![]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("çop", "AED"), pair("COP", "EUR")], "USD")
+            .await
+            .unwrap();
+
+        assert_eq!(wanted.len(), 4);
+        assert_eq!(
+            created(&repo),
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
+        );
     }
 }

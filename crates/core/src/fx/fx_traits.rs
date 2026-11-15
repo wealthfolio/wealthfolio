@@ -1,3 +1,4 @@
+use super::currency::normalize_currency_code;
 use super::fx_model::{
     ExchangeRate, ExchangeRateDateQuery, ExchangeRateDateResult, NewExchangeRate,
 };
@@ -130,31 +131,39 @@ pub trait FxServiceTrait: Send + Sync {
     ///
     /// Providers do not quote every cross (Yahoo has no `COPAED=X`), and
     /// nothing else would register the legs. Returns the pivot pairs it
-    /// asked for, deduplicated, in the order first needed.
+    /// asked for, deduplicated, in the order first needed, with canonical
+    /// codes. A leg that fails to register is logged and does not stop the
+    /// others.
     async fn ensure_pivot_fx_pairs(
         &self,
         pairs: Vec<(String, String)>,
         pivot: &str,
     ) -> Result<Vec<(String, String)>> {
+        // Older versions stored some FX pairs as entered (`cop/AED`), while new
+        // FX assets need upper-case codes. Normalize before upper-casing, so a
+        // minor unit such as `GBp` maps to its major currency rather than to a
+        // different code.
+        let canonical = |code: &str| normalize_currency_code(code.trim()).to_ascii_uppercase();
+        let pivot = canonical(pivot);
         let mut wanted: Vec<(String, String)> = Vec::new();
         for (from, to) in pairs {
+            let (from, to) = (canonical(&from), canonical(&to));
             if from == to || from == pivot || to == pivot || from.is_empty() || to.is_empty() {
                 continue;
             }
             if self.get_latest_exchange_rate(&from, &to).is_ok() {
                 continue;
             }
-            for leg in [
-                (from.clone(), pivot.to_string()),
-                (pivot.to_string(), to.clone()),
-            ] {
+            for leg in [(from.clone(), pivot.clone()), (pivot.clone(), to.clone())] {
                 if !wanted.contains(&leg) {
                     wanted.push(leg);
                 }
             }
         }
-        if !wanted.is_empty() {
-            self.ensure_fx_pairs(wanted.clone()).await?;
+        for (from, to) in &wanted {
+            if let Err(error) = self.register_currency_pair(from, to).await {
+                log::warn!("Failed to register FX pivot pair {from}/{to}: {error}");
+            }
         }
         Ok(wanted)
     }
