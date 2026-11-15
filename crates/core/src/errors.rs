@@ -194,6 +194,12 @@ impl Error {
                     "Quote currency is required. Select the symbol again from the search results.",
                 )
             }
+            // An expected refusal, not a fault: clients can skip the row. The
+            // existing activity's id stays out of the public message.
+            Self::Activity(ActivityError::Duplicate { .. }) => PublicError::new(
+                "DUPLICATE_ACTIVITY",
+                "A matching activity already exists, so this one was not saved.",
+            ),
             // The asset editor names this refusal; the code is fixed by core,
             // so only the static message below leaves the process.
             Self::ConstraintViolation(message)
@@ -653,6 +659,20 @@ mod public_error_tests {
         .public_error();
         assert_eq!(other.error_code, "internal_error");
         assert!(!serde_json::to_string(&other).unwrap().contains("FAKE-KEY"));
+    }
+
+    #[test]
+    fn a_duplicate_activity_has_its_own_public_code_without_the_existing_id() {
+        for existing_activity_id in [Some("FAKE-KEY-2531".to_string()), None] {
+            let error = Error::Activity(ActivityError::Duplicate {
+                existing_activity_id,
+            });
+            let public = error.public_error();
+            assert_eq!(public.error_code, "DUPLICATE_ACTIVITY");
+            assert!(!serde_json::to_string(&public).unwrap().contains("FAKE-KEY"));
+            // Desktop commands that return String errors pass the code.
+            assert_eq!(String::from(error), "DUPLICATE_ACTIVITY");
+        }
     }
 
     #[test]

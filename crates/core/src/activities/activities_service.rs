@@ -1578,15 +1578,10 @@ impl ActivityService {
     }
 
     fn duplicate_activity_error(existing_activity_id: Option<&str>) -> crate::errors::Error {
-        let message = if let Some(activity_id) = existing_activity_id {
-            format!(
-                "Duplicate activity detected. A matching activity already exists (id: {}).",
-                activity_id
-            )
-        } else {
-            "Duplicate activity detected. A matching activity already exists.".to_string()
-        };
-        ActivityError::InvalidData(message).into()
+        ActivityError::Duplicate {
+            existing_activity_id: existing_activity_id.map(str::to_string),
+        }
+        .into()
     }
 
     fn map_duplicate_idempotency_violation(err: crate::errors::Error) -> crate::errors::Error {
@@ -10420,5 +10415,30 @@ mod reviewed_import_metadata_tests {
             import_with_metadata("MYCO", Some("EQUITY"), Some("USD"), None, Some("MANUAL"));
 
         assert!(ActivityService::reviewed_import_asset_metadata_is_sufficient(&activity));
+    }
+}
+
+#[cfg(test)]
+mod duplicate_idempotency_violation_tests {
+    use super::ActivityService;
+    use crate::errors::{DatabaseError, Error};
+
+    #[test]
+    fn a_unique_violation_on_the_idempotency_key_is_a_public_duplicate_refusal() {
+        for error in [
+            DatabaseError::UniqueViolation(
+                "UNIQUE constraint failed: activities.idempotency_key".into(),
+            ),
+            DatabaseError::Internal("UNIQUE constraint failed: activities.idempotency_key".into()),
+        ] {
+            let mapped = ActivityService::map_duplicate_idempotency_violation(Error::from(error));
+            assert_eq!(mapped.public_error().error_code, "DUPLICATE_ACTIVITY");
+        }
+
+        // Other unique violations keep their generic conflict code.
+        let other = ActivityService::map_duplicate_idempotency_violation(Error::from(
+            DatabaseError::UniqueViolation("UNIQUE constraint failed: assets.id".into()),
+        ));
+        assert_eq!(other.public_error().error_code, "conflict");
     }
 }

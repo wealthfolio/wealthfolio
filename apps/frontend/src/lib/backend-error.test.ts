@@ -90,6 +90,7 @@ describe("public backend errors", () => {
     ["ADDON_MAIN_FILE_MISSING", "addonMainFileMissing"],
     ["ADDON_NEEDS_NEWER_VERSION", "addonNeedsNewerVersion"],
     ["QUOTE_CURRENCY_REQUIRED", "quoteCurrencyRequired"],
+    ["DUPLICATE_ACTIVITY", "duplicateActivity"],
     ["ALTERNATIVE_ASSET_NOT_IN_ACCOUNT", "alternativeAssetNotInAccount"],
   ] as const)("names the refusal the user can act on (%s)", async (errorCode, key) => {
     const i18n = createInstance();
