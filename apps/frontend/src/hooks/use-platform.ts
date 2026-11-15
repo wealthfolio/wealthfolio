@@ -105,7 +105,6 @@ export function usePlatform(): UsePlatformResult {
     }
     // refetchTrigger is intentionally included: clearing the cache and bumping
     // it re-runs this effect so a fresh platform query replaces the stale data.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refetchTrigger]);
 
   const isWeb = isWebEnv;
