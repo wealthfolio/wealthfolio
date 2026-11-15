@@ -95,7 +95,12 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const profileProtected = activeProfile?.lockEnabled || activeProfile?.biometricEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const { platform, loading: platformLoading, error: platformLoadError, refetch: refetchPlatform } = usePlatform();
+  const {
+    platform,
+    loading: platformLoading,
+    error: platformLoadError,
+    refetch: refetchPlatform,
+  } = usePlatform();
   // Three-state: null = not yet known (loading or fetch failed); true/false = confirmed.
   // Loading and fetch-error must not be coerced to the same false as "confirmed unavailable"
   // so callers can decide whether to disable-and-explain vs. disable-and-wait.

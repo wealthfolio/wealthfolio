@@ -812,7 +812,11 @@ impl ProfileRegistry {
             .find(|p| p.id == id && !self.is_deleting(id))
             .ok_or(ProfileError::NotFound)?;
         let record = self.read_lock(profile)?;
-        Ok((record.biometric_verifier, profile.biometric_enabled, profile.never_protected))
+        Ok((
+            record.biometric_verifier,
+            profile.biometric_enabled,
+            profile.never_protected,
+        ))
     }
 
     /// Restore a previously-saved biometric state.
@@ -1039,9 +1043,7 @@ impl ProfileRegistry {
             // failed enrollment. If the primary write never succeeded this is a
             // no-op; if it succeeded but the backup write failed this rolls back
             // the primary so neither file shows biometric_enabled = true.
-            if let Err(restore_err) =
-                atomic_write(&self.root.join(REGISTRY_FILE), &old_encoded)
-            {
+            if let Err(restore_err) = atomic_write(&self.root.join(REGISTRY_FILE), &old_encoded) {
                 log::error!(
                     "Failed to restore registry file for profile {id} after backup write \
                      failure ({e}): {restore_err}"
