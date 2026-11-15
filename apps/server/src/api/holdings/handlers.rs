@@ -29,10 +29,10 @@ use wealthfolio_core::{
 use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppState};
 
 use super::dto::{
-    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsQuery,
-    AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult, CurrentValuationBody,
-    DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery, HoldingItemQuery,
-    HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
+    AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsFilterBody,
+    AssetHoldingsQuery, AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult,
+    CurrentValuationBody, DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery,
+    HoldingItemQuery, HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
     SaveManualHoldingsRequest, SnapshotDateQuery, SnapshotInfo, SnapshotsQuery, SymbolCheckResult,
 };
 use super::mappers::{parse_date, parse_date_optional};
@@ -258,30 +258,52 @@ pub async fn get_asset_holdings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AssetHoldingsQuery>,
 ) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &q.asset_id, None)
+        .await
+        .map(Json)
+}
+
+pub async fn get_asset_holdings_for_scope(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(body): Json<AssetHoldingsFilterBody>,
+) -> ApiResult<Json<HoldingsListResponse>> {
+    load_asset_holdings_scope(state.as_ref(), &body.asset_id, Some(&body.filter))
+        .await
+        .map(Json)
+}
+
+async fn load_asset_holdings_scope(
+    state: &AppState,
+    asset_id: &str,
+    filter: Option<&AccountScope>,
+) -> ApiResult<HoldingsListResponse> {
     let base = state
         .base_currency
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let accounts = state.account_service.get_active_accounts()?;
-
-    let ids = accounts
-        .into_iter()
-        .filter(|account| {
-            wealthfolio_core::accounts::account_supports_portfolio_scope(
-                account,
-                AccountPurpose::Holdings,
-            )
-        })
-        .map(|account| account.id)
-        .collect::<Vec<_>>();
-    Ok(Json(
+    let ids = if let Some(filter) = filter {
+        let resolved = resolve_scope(filter, state)?;
+        holdings_account_ids(state, &resolved.account_ids)?
+    } else {
         state
-            .holdings_service
-            .get_asset_holdings_scope(&ids, &q.asset_id, &base)
-            .await?
-            .into(),
-    ))
+            .account_service
+            .get_active_accounts()?
+            .into_iter()
+            .filter(|account| {
+                wealthfolio_core::accounts::account_supports_portfolio_scope(
+                    account,
+                    AccountPurpose::Holdings,
+                )
+            })
+            .map(|account| account.id)
+            .collect::<Vec<_>>()
+    };
+    Ok(state
+        .holdings_service
+        .get_asset_holdings_scope(&ids, asset_id, &base)
+        .await?
+        .into())
 }
 
 pub async fn get_asset_lots(

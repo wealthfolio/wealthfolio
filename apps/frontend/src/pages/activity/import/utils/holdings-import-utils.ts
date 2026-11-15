@@ -12,6 +12,11 @@ import {
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import { getDateFnsPattern } from "./date-format-options";
+import {
+  analyzeNumericColumn,
+  resolveNumericDecimalSeparator,
+  type NumericColumnAnalysis,
+} from "./numeric-format";
 
 export const CASH_SYMBOL = "$CASH";
 
@@ -56,6 +61,29 @@ export interface ParseOptions {
   decimalSeparator: string;
   thousandsSeparator: string;
   defaultCurrency: string;
+}
+
+/** Use the same first matching headers and required rows as the holdings grid. */
+export function analyzeHoldingsNumericColumns(
+  headers: string[],
+  rows: string[][],
+  mapping: Record<string, string>,
+  parseOptions: ParseOptions,
+): Record<string, NumericColumnAnalysis> {
+  const requiredIndexes = [HoldingsFormat.DATE, HoldingsFormat.SYMBOL, HoldingsFormat.QUANTITY].map(
+    (field) => headers.indexOf(mapping[field]),
+  );
+  const visibleRows = rows.filter((row) => requiredIndexes.every((index) => row[index]?.trim()));
+  return Object.fromEntries(
+    [HoldingsFormat.QUANTITY, HoldingsFormat.AVG_COST].map((field) => [
+      field,
+      analyzeNumericColumn(
+        visibleRows.map((row) => row[headers.indexOf(mapping[field])]),
+        parseOptions.decimalSeparator,
+        parseOptions.thousandsSeparator,
+      ),
+    ]),
+  );
 }
 
 export interface HoldingsRowResolution {
@@ -126,18 +154,11 @@ export function parseNumericValue(
     normalized = normalized.slice(1, -1);
   }
 
-  const lastComma = normalized.lastIndexOf(",");
-  const lastDot = normalized.lastIndexOf(".");
-  let resolvedDecimal = decimalSeparator;
-  if (decimalSeparator === "auto") {
-    if (lastComma !== -1 && lastDot !== -1) {
-      resolvedDecimal = lastComma > lastDot ? "," : ".";
-    } else if (lastComma !== -1) {
-      resolvedDecimal = ",";
-    } else {
-      resolvedDecimal = ".";
-    }
-  }
+  const resolvedDecimal = resolveNumericDecimalSeparator(
+    normalized,
+    decimalSeparator,
+    thousandsSeparator,
+  );
 
   let cleaned = normalized.replace(/[^\d.,+-]/g, "");
 
@@ -367,6 +388,7 @@ function parseHoldingsSnapshotsInternal(
   preserveInvalidRows: boolean,
 ): HoldingsSnapshotInput[] {
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseOptions;
+  const numericColumns = analyzeHoldingsNumericColumns(headers, rows, mapping, parseOptions);
 
   const dateHeader = mapping[HoldingsFormat.DATE];
   const symbolHeader = mapping[HoldingsFormat.SYMBOL];
@@ -396,8 +418,16 @@ function parseHoldingsSnapshotsInternal(
     const currency = currencyIndex >= 0 ? row[currencyIndex]?.trim() : defaultCurrency;
 
     const normalizedDate = parseDateToYMD(rawDate, dateFormat, dateOrder);
-    const parsedQuantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
-    const parsedAvgCost = parseNumericValue(rawAvgCost, decimalSeparator, thousandsSeparator);
+    const parsedQuantity = parseNumericValue(
+      rawQuantity,
+      numericColumns[HoldingsFormat.QUANTITY]?.decimalSeparator ?? decimalSeparator,
+      thousandsSeparator,
+    );
+    const parsedAvgCost = parseNumericValue(
+      rawAvgCost,
+      numericColumns[HoldingsFormat.AVG_COST]?.decimalSeparator ?? decimalSeparator,
+      thousandsSeparator,
+    );
 
     if (!preserveInvalidRows && (!normalizedDate || !rawSymbol || !parsedQuantity)) continue;
 

@@ -9,8 +9,8 @@ pub(crate) mod tests {
         ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
     };
     use crate::assets::{
-        normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
-        resolve_import_quote_ccy_precedence, Asset, AssetKind,
+        canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
+        parse_symbol_with_exchange_suffix, resolve_import_quote_ccy_precedence, Asset, AssetKind,
         AssetResolutionInput as ImportAssetResolutionInput, AssetResolutionOutput,
         AssetServiceTrait, InstrumentType, NewAsset, ProviderProfile, QuoteCcyResolutionSource,
         QuoteMode, UpdateAssetProfile,
@@ -124,6 +124,7 @@ pub(crate) mod tests {
         assets: Arc<Mutex<Vec<Asset>>>,
         get_asset_by_id_error: Arc<Mutex<Option<String>>>,
         resolve_import_asset_input_batches: Arc<Mutex<Vec<Vec<ImportAssetResolutionInput>>>>,
+        ensure_asset_input_batches: Arc<Mutex<Vec<Vec<crate::assets::AssetSpec>>>>,
     }
 
     impl MockAssetService {
@@ -132,6 +133,7 @@ pub(crate) mod tests {
                 assets: Arc::new(Mutex::new(Vec::new())),
                 get_asset_by_id_error: Arc::new(Mutex::new(None)),
                 resolve_import_asset_input_batches: Arc::new(Mutex::new(Vec::new())),
+                ensure_asset_input_batches: Arc::new(Mutex::new(Vec::new())),
             }
         }
 
@@ -210,10 +212,37 @@ pub(crate) mod tests {
             }
             // Mirror the real service: a missing asset is created minimally,
             // with the kind the activity resolved.
-            let mut created =
-                create_test_asset(asset_id, context_currency.as_deref().unwrap_or("USD"));
-            if let Some(kind) = metadata.and_then(|metadata| metadata.kind) {
-                created.kind = kind;
+            let requested_quote_ccy = metadata.as_ref().and_then(|metadata| {
+                normalize_quote_ccy_code(metadata.requested_quote_ccy.as_deref())
+            });
+            let mut created = create_test_asset(
+                asset_id,
+                requested_quote_ccy
+                    .as_deref()
+                    .or(context_currency.as_deref())
+                    .unwrap_or("USD"),
+            );
+            if let Some(metadata) = metadata {
+                if let Some(kind) = metadata.kind {
+                    created.kind = kind;
+                }
+                let canonical = canonicalize_market_identity(
+                    metadata.instrument_type.clone(),
+                    metadata
+                        .instrument_symbol
+                        .as_deref()
+                        .or(metadata.display_code.as_deref()),
+                    metadata.instrument_exchange_mic.as_deref(),
+                    Some(&created.quote_ccy),
+                );
+                created.instrument_type = metadata.instrument_type;
+                created.instrument_symbol = canonical.instrument_symbol;
+                created.instrument_exchange_mic = canonical
+                    .instrument_exchange_mic
+                    .or(metadata.instrument_exchange_mic);
+                created.display_code = canonical.display_code.or(metadata.display_code);
+                created.quote_ccy = canonical.quote_ccy.unwrap_or(created.quote_ccy);
+                created.metadata = metadata.asset_metadata;
             }
             self.assets.lock().unwrap().push(created.clone());
             Ok(created)
@@ -245,6 +274,10 @@ pub(crate) mod tests {
             mut specs: Vec<crate::assets::AssetSpec>,
             _activity_repository: &dyn crate::activities::ActivityRepositoryTrait,
         ) -> Result<crate::assets::EnsureAssetsResult> {
+            self.ensure_asset_input_batches
+                .lock()
+                .unwrap()
+                .push(specs.clone());
             let mut result = crate::assets::EnsureAssetsResult::default();
             let mut assets = self.assets.lock().unwrap();
 
@@ -5196,7 +5229,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn grid_edit_bare_crypto_pair_change_recalculates_custom_total() {
+    async fn grid_edit_bare_crypto_pair_change_moves_asset_and_keeps_custom_total() {
         let updated = save_grid_symbol_edit(
             create_test_asset_with_instrument(
                 "asset-btc",
@@ -5215,8 +5248,8 @@ pub(crate) mod tests {
         .await;
 
         assert_ne!(updated.asset_id.as_deref(), Some("asset-btc"));
-        assert_eq!(updated.amount, Some(dec!(10)));
-        assert!(updated.needs_review);
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
     }
 
     #[tokio::test]
@@ -5299,6 +5332,509 @@ pub(crate) mod tests {
         assert_eq!(updated.asset_id.as_deref(), Some("legacy-option"));
         assert_eq!(updated.amount, Some(dec!(12)));
         assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_resending_stored_listing_keeps_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-shop",
+                "SHOP",
+                Some("XNYS"),
+                Some(InstrumentType::Equity),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-shop".to_string()),
+                symbol: Some("SHOP".to_string()),
+                exchange_mic: Some("XNYS".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.asset_id.as_deref(), Some("asset-shop"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_exchange_change_to_unheld_listing_keeps_custom_total() {
+        // Search returns `SHOP.TO` as `SHOP` on XTSE: the same instrument on
+        // another listing. The row moves to that listing's asset and keeps
+        // its custom total, as a currency-only correction does.
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-shop",
+                "SHOP",
+                Some("XNYS"),
+                Some(InstrumentType::Equity),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-shop".to_string()),
+                symbol: Some("SHOP".to_string()),
+                exchange_mic: Some("XTSE".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("CAD".to_string()),
+                quote_mode: Some("MARKET".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-shop"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_listing_with_display_code_only_keeps_custom_total() {
+        let mut stored_asset = create_test_asset_with_instrument(
+            "asset-shop",
+            "SHOP",
+            Some("XNYS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        stored_asset.instrument_symbol = None;
+        let updated = save_grid_symbol_edit(
+            stored_asset,
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-shop".to_string()),
+                symbol: Some("SHOP".to_string()),
+                exchange_mic: Some("XTSE".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("CAD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-shop"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn grid_edit_padded_option_symbol_keeps_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-opt",
+                "AAPL  260619C00150000",
+                None,
+                Some(InstrumentType::Option),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-opt".to_string()),
+                symbol: Some("AAPL  260619C00150000".to_string()),
+                instrument_type: Some("OPTION".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn listing_correction_with_trade_edit_uses_resolved_multiplier() {
+        for resolution in ["picked", "picked-display", "found", "new"] {
+            for edit in ["listing", "quantity", "price"] {
+                let symbol = "AAPL260619C00150000";
+                let stored_asset = create_test_asset_with_instrument(
+                    "stored-option",
+                    symbol,
+                    Some("XNAS"),
+                    Some(InstrumentType::Option),
+                    "USD",
+                );
+                let mut assets = vec![stored_asset];
+                if resolution != "new" {
+                    let mut replacement = create_test_asset_with_instrument(
+                        "replacement-option",
+                        symbol,
+                        Some("XNYS"),
+                        Some(InstrumentType::Option),
+                        "USD",
+                    );
+                    replacement.metadata = crate::assets::build_option_metadata(symbol, dec!(10));
+                    if resolution == "picked-display" {
+                        replacement.instrument_symbol = None;
+                    }
+                    assets.push(replacement);
+                }
+                let mut existing =
+                    create_stored_activity("listing-edit", "acc-final", Some("stored-option"));
+                existing.quantity = Some(dec!(1));
+                existing.unit_price = Some(dec!(10));
+                existing.fee = Some(dec!(0));
+                existing.amount = Some(dec!(1200));
+                let service = final_total_service("USD", assets, Some(existing));
+                let mut update = create_test_activity_update(
+                    "listing-edit",
+                    "acc-final",
+                    Some(AssetResolutionInput {
+                        id: match resolution {
+                            "picked" | "picked-display" => Some("replacement-option".to_string()),
+                            "found" => Some("stored-option".to_string()),
+                            _ => None,
+                        },
+                        symbol: Some(symbol.to_string()),
+                        exchange_mic: Some("XNYS".to_string()),
+                        instrument_type: Some("OPTION".to_string()),
+                        quote_ccy: Some("USD".to_string()),
+                        ..Default::default()
+                    }),
+                    "USD",
+                );
+                update.quantity = Some(Some(if edit == "quantity" { dec!(2) } else { dec!(1) }));
+                update.unit_price = Some(Some(if edit == "price" { dec!(20) } else { dec!(10) }));
+                update.amount = None;
+                update.metadata = Some(r#"{"contract_multiplier": 10}"#.to_string());
+
+                let updated = service.update_activity(update).await.expect("listing edit");
+                assert_ne!(updated.asset_id.as_deref(), Some("stored-option"));
+                assert_eq!(
+                    updated.amount,
+                    Some(if edit == "listing" {
+                        dec!(1200)
+                    } else {
+                        dec!(200)
+                    }),
+                    "{resolution} / {edit}"
+                );
+                assert_eq!(
+                    updated.needs_review,
+                    edit != "listing",
+                    "{resolution} / {edit}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn raw_fx_pair_correction_keeps_custom_total() {
+        for symbol in ["EUR/GBP", "EURGBP=X"] {
+            let updated = save_grid_symbol_edit(
+                create_test_asset_with_instrument(
+                    "asset-eur",
+                    "EUR",
+                    None,
+                    Some(InstrumentType::Fx),
+                    "USD",
+                ),
+                dec!(12),
+                AssetResolutionInput {
+                    id: Some("asset-eur".to_string()),
+                    symbol: Some(symbol.to_string()),
+                    instrument_type: Some("FX".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await;
+
+            assert_ne!(updated.asset_id.as_deref(), Some("asset-eur"));
+            assert_eq!(updated.amount, Some(dec!(12)), "{symbol}");
+            assert!(!updated.needs_review, "{symbol}");
+        }
+    }
+
+    #[tokio::test]
+    async fn grid_edit_crypto_quote_change_keeps_custom_total() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-btc",
+                "BTC",
+                None,
+                Some(InstrumentType::Crypto),
+                "USD",
+            ),
+            dec!(12),
+            AssetResolutionInput {
+                id: Some("asset-btc".to_string()),
+                symbol: Some("BTC".to_string()),
+                instrument_type: Some("CRYPTO".to_string()),
+                quote_ccy: Some("EUR".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-btc"));
+        assert_eq!(updated.amount, Some(dec!(12)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn currency_only_edit_resending_pair_identity_keeps_asset_and_custom_total() {
+        for (instrument_type, symbol) in
+            [(InstrumentType::Crypto, "BTC"), (InstrumentType::Fx, "EUR")]
+        {
+            let assets = ["USD", "EUR"]
+                .into_iter()
+                .map(|currency| {
+                    create_test_asset_with_instrument(
+                        &format!("pair-{currency}"),
+                        symbol,
+                        None,
+                        Some(instrument_type.clone()),
+                        currency,
+                    )
+                })
+                .collect();
+            let mut existing =
+                create_stored_activity("currency-edit", "acc-final", Some("pair-USD"));
+            existing.quantity = Some(dec!(1));
+            existing.unit_price = Some(dec!(10));
+            existing.fee = Some(dec!(0));
+            existing.amount = Some(dec!(12));
+            let service = final_total_service("USD", assets, Some(existing));
+            let mut update = create_test_activity_update(
+                "currency-edit",
+                "acc-final",
+                Some(AssetResolutionInput {
+                    id: Some("pair-USD".to_string()),
+                    symbol: Some(symbol.to_string()),
+                    instrument_type: Some(instrument_type.as_db_str().to_string()),
+                    ..Default::default()
+                }),
+                "EUR",
+            );
+            update.unit_price = Some(Some(dec!(10)));
+            update.amount = None;
+
+            let updated = service
+                .update_activity(update)
+                .await
+                .expect("currency edit");
+
+            assert_eq!(updated.asset_id.as_deref(), Some("pair-USD"));
+            assert_eq!(updated.currency, "EUR");
+            assert_eq!(updated.amount, Some(dec!(12)));
+            assert!(!updated.needs_review);
+        }
+    }
+
+    #[tokio::test]
+    async fn unresolved_fx_replacement_with_blank_currencies_respects_pair_or_account_currency() {
+        for (symbol, currency, amount) in [
+            ("EUR/USD", "USD", dec!(10.12)),
+            ("EURUSD=X", "USD", dec!(10.12)),
+            ("EUR", "JPY", dec!(10)),
+        ] {
+            let asset = create_test_asset_with_instrument(
+                "aapl",
+                "AAPL",
+                Some("XNAS"),
+                Some(InstrumentType::Equity),
+                "USD",
+            );
+            let mut existing = create_stored_activity("fx-edit", "acc-final", Some("aapl"));
+            existing.quantity = Some(dec!(1));
+            existing.unit_price = Some(dec!(10.1234));
+            existing.fee = Some(dec!(0));
+            existing.amount = Some(dec!(12));
+            let service = final_total_service("JPY", vec![asset], Some(existing));
+            let mut update = create_test_activity_update(
+                "fx-edit",
+                "acc-final",
+                Some(AssetResolutionInput {
+                    symbol: Some(symbol.to_string()),
+                    instrument_type: Some("FX".to_string()),
+                    ..Default::default()
+                }),
+                "",
+            );
+            update.unit_price = Some(Some(dec!(10.1234)));
+            update.amount = None;
+
+            let updated = service
+                .update_activity(update)
+                .await
+                .expect("FX replacement");
+
+            assert_ne!(updated.asset_id.as_deref(), Some("aapl"), "{symbol}");
+            assert_eq!(updated.currency, currency, "{symbol}");
+            assert_eq!(updated.amount, Some(amount), "{symbol}");
+            assert!(updated.needs_review, "{symbol}");
+        }
+    }
+
+    #[tokio::test]
+    async fn conflicting_crypto_quote_field_uses_pair_quote_on_create_update_and_import() {
+        for surface in ["create", "update", "import"] {
+            let account = create_test_account("acc-final", "USD");
+            let account_service = Arc::new(MockAccountService::new());
+            account_service.add_account(account.clone());
+            let asset_service = Arc::new(MockAssetService::new());
+            asset_service.add_asset(create_test_asset_with_instrument(
+                "btc-usd",
+                "BTC",
+                None,
+                Some(InstrumentType::Crypto),
+                "USD",
+            ));
+            let repository = Arc::new(MockActivityRepository::new());
+            let mut existing = create_stored_activity("stored-btc", "acc-final", Some("btc-usd"));
+            existing.quantity = Some(dec!(1));
+            existing.unit_price = Some(dec!(10));
+            existing.fee = Some(dec!(0));
+            existing.amount = Some(dec!(12));
+            repository.add_activity(existing);
+            let service = ActivityService::new(
+                repository,
+                account_service,
+                asset_service.clone(),
+                Arc::new(MockFxService::new()),
+                Arc::new(MockQuoteService),
+            );
+            let mut activity = statement_buy("pair-quote", None, dec!(0));
+            activity.asset = Some(AssetResolutionInput {
+                id: Some("btc-usd".to_string()),
+                symbol: Some("BTC-EUR".to_string()),
+                instrument_type: Some("CRYPTO".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            });
+            activity.quantity = Some(dec!(1));
+            activity.unit_price = Some(dec!(10));
+            activity.currency = "EUR".to_string();
+
+            let asset_id = match surface {
+                "create" => {
+                    service
+                        .create_activity(activity)
+                        .await
+                        .expect("create pair")
+                        .asset_id
+                }
+                "update" => {
+                    let mut update = create_test_activity_update(
+                        "stored-btc",
+                        "acc-final",
+                        activity.asset,
+                        "EUR",
+                    );
+                    update.unit_price = Some(Some(dec!(10)));
+                    update.amount = None;
+                    let updated = service.update_activity(update).await.expect("update pair");
+                    assert_eq!(updated.amount, Some(dec!(12)));
+                    assert!(!updated.needs_review);
+                    updated.asset_id
+                }
+                _ => {
+                    let result = service
+                        .prepare_activities_for_import(vec![activity], &account)
+                        .await
+                        .expect("prepare pair import");
+                    assert!(result.errors.is_empty(), "{:?}", result.errors);
+                    let batches = asset_service.ensure_asset_input_batches.lock().unwrap();
+                    let spec = &batches[0][0];
+                    assert_eq!(spec.quote_ccy, "EUR");
+                    assert_eq!(spec.requested_quote_ccy.as_deref(), Some("EUR"));
+                    result.prepared[0].resolved_asset_id.clone()
+                }
+            };
+            assert_ne!(asset_id.as_deref(), Some("btc-usd"), "{surface}");
+            let asset = asset_service
+                .get_asset_by_id(asset_id.as_deref().expect("resolved asset"))
+                .expect("pair asset");
+            assert_eq!(asset.quote_ccy, "EUR", "{surface}");
+        }
+    }
+
+    #[tokio::test]
+    async fn grid_paste_of_other_crypto_pair_over_stored_id_moves_to_that_pair() {
+        // Pasting `BTC-EUR` over a saved BTC/USD row: the pair names its quote
+        // currency even when no quote currency field is sent. The row moves to
+        // BTC/EUR and, as a listing correction, keeps its custom total.
+        for instrument_type in [None, Some("CRYPTO".to_string())] {
+            let updated = save_grid_symbol_edit(
+                create_test_asset_with_instrument(
+                    "asset-btc",
+                    "BTC",
+                    None,
+                    Some(InstrumentType::Crypto),
+                    "USD",
+                ),
+                dec!(12),
+                AssetResolutionInput {
+                    id: Some("asset-btc".to_string()),
+                    symbol: Some("BTC-EUR".to_string()),
+                    instrument_type: instrument_type.clone(),
+                    ..Default::default()
+                },
+            )
+            .await;
+
+            assert_ne!(
+                updated.asset_id.as_deref(),
+                Some("asset-btc"),
+                "{instrument_type:?}"
+            );
+            assert_eq!(updated.amount, Some(dec!(12)), "{instrument_type:?}");
+            assert!(!updated.needs_review, "{instrument_type:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn type_only_change_to_option_uses_option_multiplier() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-aapl",
+                "AAPL",
+                Some("XNAS"),
+                Some(InstrumentType::Equity),
+                "USD",
+            ),
+            dec!(10),
+            AssetResolutionInput {
+                id: Some("asset-aapl".to_string()),
+                symbol: Some("AAPL".to_string()),
+                instrument_type: Some("OPTION".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-aapl"));
+        assert_eq!(updated.amount, Some(dec!(1000)));
+    }
+
+    #[tokio::test]
+    async fn type_only_change_from_option_drops_option_multiplier() {
+        let updated = save_grid_symbol_edit(
+            create_test_asset_with_instrument(
+                "asset-opt",
+                "AAPL260619C00150000",
+                None,
+                Some(InstrumentType::Option),
+                "USD",
+            ),
+            dec!(1000),
+            AssetResolutionInput {
+                id: Some("asset-opt".to_string()),
+                symbol: Some("AAPL260619C00150000".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                quote_ccy: Some("USD".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_ne!(updated.asset_id.as_deref(), Some("asset-opt"));
+        assert_eq!(updated.amount, Some(dec!(10)));
     }
 
     #[tokio::test]
@@ -8737,6 +9273,67 @@ pub(crate) mod tests {
 
         assert_eq!(created.asset_id.as_deref(), Some("SEC:AAPL:XNAS"));
         assert_eq!(asset_service.get_assets().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_create_crypto_pair_with_other_pair_id_drops_the_id() {
+        // A `BTC-EUR` row carrying the id of a stored BTC/USD asset names
+        // another pair: the id is not kept.
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-btc",
+            "BTC",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        ));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let created = activity_service
+            .create_activity(NewActivity {
+                id: Some("activity-btc-eur".to_string()),
+                account_id: "acc-1".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("asset-btc".to_string()),
+                    symbol: Some("BTC-EUR".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(dec!(1)),
+                unit_price: Some(dec!(10)),
+                currency: "EUR".to_string(),
+                fee: Some(dec!(0)),
+                tax: None,
+                amount: None,
+                status: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+                needs_review: None,
+                source_system: None,
+                source_record_id: None,
+                source_group_id: None,
+                idempotency_key: None,
+                import_run_id: None,
+            })
+            .await
+            .expect("create BTC-EUR activity");
+
+        assert_ne!(created.asset_id.as_deref(), Some("asset-btc"));
+        let asset = asset_service
+            .get_asset_by_id(created.asset_id.as_deref().expect("asset id"))
+            .expect("created asset");
+        assert_eq!(asset.quote_ccy, "EUR");
     }
 
     /// The save path is where a synced activity's asset identity is really decided,
@@ -22443,5 +23040,278 @@ pub(crate) mod tests {
                 .contains("Fee lines must add up to the fee total"),
             "{error}"
         );
+    }
+
+    // ── Alternative assets count toward net worth, never in an account ──────
+
+    fn alternative_assets_service() -> (
+        ActivityService,
+        Arc<MockAssetService>,
+        Arc<MockActivityRepository>,
+        Arc<RecordingQuoteService>,
+    ) {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        let mut barn = create_test_asset("barn", "USD");
+        barn.kind = AssetKind::Property;
+        barn.display_code = Some("BARN".to_string());
+        barn.name = Some("Old Barn".to_string());
+        asset_service.add_asset(barn);
+        let quote_service = Arc::new(RecordingQuoteService::default());
+        let service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            quote_service.clone(),
+        );
+        (service, asset_service, activity_repository, quote_service)
+    }
+
+    fn transfer_in(asset: AssetResolutionInput) -> NewActivity {
+        NewActivity {
+            id: None,
+            account_id: "acc-1".to_string(),
+            asset: Some(asset),
+            activity_type: "TRANSFER_IN".to_string(),
+            subtype: None,
+            activity_date: "2026-10-02".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(400000)),
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        }
+    }
+
+    fn manual_asset(symbol: &str, kind: &str) -> AssetResolutionInput {
+        AssetResolutionInput {
+            symbol: Some(symbol.to_string()),
+            kind: Some(kind.to_string()),
+            name: Some(symbol.to_string()),
+            quote_mode: Some("MANUAL".to_string()),
+            quote_ccy: Some("USD".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn an_account_refuses_alternative_assets_and_takes_custom_investments() {
+        let (service, asset_service, activity_repository, quote_service) =
+            alternative_assets_service();
+
+        // An existing property, picked by ID, and a new asset named as one.
+        for asset in [
+            AssetResolutionInput {
+                id: Some("barn".to_string()),
+                ..Default::default()
+            },
+            manual_asset("COTTAGE", "PROPERTY"),
+        ] {
+            let refused = service
+                .create_activity(transfer_in(asset))
+                .await
+                .expect_err("an alternative asset is refused");
+            assert!(
+                refused
+                    .to_string()
+                    .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{refused}"
+            );
+        }
+        assert!(activity_repository.get_activities().unwrap().is_empty());
+        assert!(quote_service.updated_quotes().is_empty(), "nothing priced");
+        assert!(
+            asset_service
+                .assets
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|asset| asset.display_code.as_deref() != Some("COTTAGE")),
+            "no property created"
+        );
+
+        // A custom asset an account holds is an investment.
+        let created = service
+            .create_activity(transfer_in(manual_asset("PRIVCO", "OTHER")))
+            .await
+            .expect("a custom investment is taken");
+        let asset_id = created.asset_id.expect("linked asset");
+        let kind = asset_service
+            .assets
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|asset| asset.id == asset_id)
+            .map(|asset| asset.kind.clone());
+        assert_eq!(kind, Some(AssetKind::Investment));
+    }
+
+    #[tokio::test]
+    async fn an_activity_that_holds_an_alternative_asset_cannot_be_saved_again() {
+        let (service, _, activity_repository, _) = alternative_assets_service();
+        activity_repository.add_activity(create_stored_activity("old", "acc-1", Some("barn")));
+
+        let refused = service
+            .update_activity(create_test_activity_update(
+                "old",
+                "acc-1",
+                Some(AssetResolutionInput {
+                    id: Some("barn".to_string()),
+                    ..Default::default()
+                }),
+                "USD",
+            ))
+            .await
+            .expect_err("saving it again is refused");
+        assert!(
+            refused
+                .to_string()
+                .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+            "{refused}"
+        );
+    }
+
+    fn alternative_import_row(asset_id: Option<&str>, symbol: &str) -> ActivityImport {
+        ActivityImport {
+            id: None,
+            date: "2026-10-02".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(400000)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(400000)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MANUAL".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: asset_id.map(str::to_string),
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn import_review_and_import_refuse_an_alternative_asset() {
+        let (service, _, activity_repository, _) = alternative_assets_service();
+
+        let reviewed = service
+            .check_activities_import(vec![alternative_import_row(Some("barn"), "BARN")])
+            .await
+            .expect("review runs");
+        assert!(!reviewed[0].is_valid);
+        let errors = reviewed[0].errors.clone().unwrap_or_default();
+        assert_eq!(
+            errors.get("symbol").map(Vec::as_slice),
+            Some([crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string()].as_slice())
+        );
+
+        // A row that names the property by ID alone links it at import.
+        let imported = service
+            .import_activities(vec![alternative_import_row(Some("barn"), "")])
+            .await;
+        match imported {
+            Ok(result) => assert_eq!(result.summary.imported, 0),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{error}"
+            ),
+        }
+        assert!(activity_repository.get_activities().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn broker_sync_keeps_alternative_asset_rows_as_unlinked_drafts() {
+        let (service, asset_service, _, quote_service) = alternative_assets_service();
+        // An older property an activity created with a listing.
+        let mut shed = create_test_asset_with_instrument(
+            "shed",
+            "SHED",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        shed.kind = AssetKind::Property;
+        shed.instrument_key = Some("EQUITY:SHED".to_string());
+        asset_service.add_asset(shed);
+        let synced = |asset: AssetResolutionInput| NewActivity {
+            source_system: Some("SNAPTRADE".to_string()),
+            ..transfer_in(asset)
+        };
+
+        let result = service
+            .prepare_activities_for_sync(
+                vec![
+                    synced(manual_asset("COTTAGE", "PROPERTY")),
+                    synced(AssetResolutionInput {
+                        id: Some("barn".to_string()),
+                        ..Default::default()
+                    }),
+                    synced(AssetResolutionInput {
+                        symbol: Some("SHED".to_string()),
+                        instrument_type: Some("EQUITY".to_string()),
+                        quote_ccy: Some("USD".to_string()),
+                        ..Default::default()
+                    }),
+                ],
+                &create_test_account("acc-1", "USD"),
+            )
+            .await
+            .expect("sync preparation runs");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.prepared.len(), 3);
+        for prepared in &result.prepared {
+            assert_eq!(prepared.resolved_asset_id, None);
+            assert_eq!(prepared.activity.status, Some(ActivityStatus::Draft));
+            assert_eq!(prepared.activity.needs_review, Some(true));
+        }
+        assert!(
+            asset_service
+                .get_assets()
+                .unwrap()
+                .iter()
+                .all(|asset| asset.display_code.as_deref() != Some("COTTAGE")),
+            "no property created"
+        );
+        assert!(quote_service.updated_quotes().is_empty(), "nothing priced");
     }
 }

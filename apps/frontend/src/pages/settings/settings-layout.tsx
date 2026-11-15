@@ -221,8 +221,9 @@ export default function SettingsLayout() {
           <div className="lg:flex lg:gap-10">
             {/* Uncapped, the sidebar makes the page scroll past short content, taking a
                 self-scrolling table's header out of view (Securities). Fit it below its
-                sticky offset and let it scroll instead. */}
-            <aside className="hidden w-60 shrink-0 lg:sticky lg:top-24 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:self-start lg:overflow-y-auto">
+                sticky offset and let it scroll instead, with a thin scrollbar where
+                platforms always draw one. */}
+            <aside className="hidden w-60 shrink-0 lg:sticky lg:top-24 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:scrollbar-thin lg:flex-col lg:self-start lg:overflow-y-auto">
               <div className="space-y-6">
                 {sections.map((section) => (
                   <div key={section.title} className="space-y-2">

@@ -119,6 +119,47 @@ fn normalize_expands_full_data_set_to_health_status() {
 }
 
 #[test]
+fn default_allowlist_includes_spending_read_tools() {
+    for tool in [
+        "get_spending_context",
+        "search_spending_transactions",
+        "get_budget",
+        "list_spending_events",
+        "get_spending_report",
+        "get_spending_insight",
+        "get_event_spending_summaries",
+    ] {
+        assert!(
+            DEFAULT_TOOLS_ALLOWLIST.contains(&tool),
+            "DEFAULT_TOOLS_ALLOWLIST missing Spending read tool {tool}",
+        );
+    }
+}
+
+#[test]
+fn normalize_never_grants_spending_to_a_saved_allowlist() {
+    // A saved allowlist predates the Spending card, so the user never chose to
+    // share Spending data. Even the full legacy data set must not imply it.
+    let tools = normalize_tools_allowlist(Some(vec![
+        "get_accounts".to_string(),
+        "get_holdings".to_string(),
+        "search_activities".to_string(),
+        "get_performance".to_string(),
+        "get_income".to_string(),
+        "get_asset_allocation".to_string(),
+        "get_valuation_history".to_string(),
+        "get_goals".to_string(),
+    ]))
+    .unwrap();
+    assert!(
+        !tools
+            .iter()
+            .any(|tool| tool.contains("spending") || tool == "get_budget"),
+        "{tools:?}",
+    );
+}
+
+#[test]
 fn normalize_preserves_none_and_empty() {
     assert!(normalize_tools_allowlist(None).is_none());
     assert_eq!(

@@ -45,7 +45,7 @@ const fileExtension = (fileName: string): string | null => {
   return extension && extension !== fileName ? extension : null;
 };
 
-const toBase64 = (bytes: Uint8Array): string => {
+export const toBase64 = (bytes: Uint8Array): string => {
   let binary = "";
   const chunkSize = 0x8000;
 

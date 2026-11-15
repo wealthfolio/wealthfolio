@@ -104,6 +104,19 @@ const DATA_ACCESS_OPTIONS = [
     descriptionKey: "ai:providerSettings.dataAccess.transactionsDescription",
   },
   {
+    toolIds: [
+      "get_spending_context",
+      "search_spending_transactions",
+      "get_budget",
+      "list_spending_events",
+      "get_spending_report",
+      "get_spending_insight",
+      "get_event_spending_summaries",
+    ],
+    labelKey: "ai:providerSettings.dataAccess.spendingLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.spendingDescription",
+  },
+  {
     toolIds: ["get_performance"],
     labelKey: "ai:providerSettings.dataAccess.performanceLabel",
     descriptionKey: "ai:providerSettings.dataAccess.performanceDescription",

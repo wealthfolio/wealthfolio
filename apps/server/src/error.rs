@@ -121,6 +121,8 @@ impl IntoResponse for ApiError {
         };
         let status = match &self {
             ApiError::Core(e) => match e {
+                CoreError::SecretTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                CoreError::SecretStoreUnavailable => StatusCode::SERVICE_UNAVAILABLE,
                 CoreError::ConstraintViolation(_)
                 | CoreError::Database(
                     DatabaseError::UniqueViolation(_) | DatabaseError::ForeignKeyViolation(_),
@@ -229,6 +231,16 @@ mod tests {
     #[tokio::test]
     async fn response_bodies_do_not_expose_internal_error_text() {
         let cases = [
+            (
+                ApiError::Core(CoreError::SecretTooLarge),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "SECRET_TOO_LARGE",
+            ),
+            (
+                ApiError::Core(CoreError::SecretStoreUnavailable),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "SECRET_STORE_UNAVAILABLE",
+            ),
             (
                 ApiError::Core(CoreError::Database(DatabaseError::QueryFailed(
                     PRIVATE.into(),

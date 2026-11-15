@@ -23,7 +23,10 @@
 //! - A patch that changes neither the amount nor the economics never changes
 //!   review state. A currency-only edit is deliberately not an economics
 //!   change: it is a label correction on real data, and re-deriving from
-//!   qty x price would replace an already-correct total.
+//!   qty x price would replace an already-correct total. The same holds for
+//!   a listing correction - another exchange or crypto quote currency for
+//!   the same symbol and instrument type: the row moves to that asset and
+//!   keeps its total.
 //! - `unit_price`, `amount`, `fee`, and `tax` are all denominated in the
 //!   activity currency. The asset quote currency belongs to market valuation,
 //!   not transaction arithmetic; only the resolved asset multiplier affects
@@ -234,7 +237,8 @@ struct UpdateTradeFacts {
     /// The patch swaps the instrument - by a different resolved id, or by a
     /// bare symbol that names something other than the current asset. An
     /// economics change even though `get_symbol_id()` may be empty (bare
-    /// symbols resolve later, in prepare).
+    /// symbols resolve later, in prepare). Another listing of the same
+    /// symbol and instrument type is not a swap.
     replaces_asset: bool,
 }
 
@@ -699,49 +703,72 @@ impl ActivityService {
             activity.get_exchange_mic().map(str::to_string),
             submitted_instrument_type.as_ref(),
         );
-        let quote_ccy = Self::normalize_quote_ccy(activity.get_quote_ccy());
-        // Options and bonds are looked up the way prepare resolves them, so an
-        // alias of the stored asset keeps it and an existing replacement is
-        // priced with its own multiplier.
-        let looks_up_existing = matches!(
+        let mut quote_ccy = Self::submitted_quote_ccy(
+            activity.get_symbol_code(),
             submitted_instrument_type.as_ref(),
-            Some(InstrumentType::Bond | InstrumentType::Option)
+            Self::normalize_quote_ccy(activity.get_quote_ccy()).as_deref(),
         );
+        if submitted_instrument_type == Some(InstrumentType::Fx) {
+            quote_ccy = canonicalize_market_identity(
+                submitted_instrument_type.clone(),
+                activity.get_symbol_code(),
+                None,
+                quote_ccy.as_deref(),
+            )
+            .quote_ccy;
+        }
+        // The row's asset is resolved the way prepare resolves it, so a patch
+        // that moves the row to another asset uses that asset's multiplier.
+        // A listing correction alone preserves the stored total.
         let resolved_asset_id = match activity.get_symbol_id() {
             Some(asset_id)
                 if Some(asset_id) != existing.asset_id.as_deref() || existing_asset.is_none() =>
             {
                 Some(asset_id.to_string())
             }
-            None if !looks_up_existing => None,
-            // The stored id (the grid sends it next to a newly picked symbol),
-            // or an option or bond symbol without an id: prepare keeps the
-            // stored asset only while the submitted identity still names it.
-            _ => existing_asset
-                .as_ref()
-                .filter(|asset| {
-                    Self::asset_matches_submitted_identity(
-                        asset,
-                        normalized_symbol.as_deref(),
-                        exchange_mic.as_deref(),
-                        submitted_instrument_type.as_ref(),
-                        quote_ccy.as_deref(),
-                    )
-                })
-                .map(|asset| asset.id.clone())
-                .or_else(|| {
-                    normalized_symbol
-                        .as_deref()
-                        .filter(|_| looks_up_existing)
-                        .and_then(|symbol| {
-                            self.find_existing_asset_id(
-                                symbol,
-                                exchange_mic.as_deref(),
-                                submitted_instrument_type.as_ref(),
-                                quote_ccy.as_deref(),
-                            )
+            submitted_id => {
+                // The stored id (the grid sends it next to a newly picked
+                // symbol) is kept only while the submitted identity still
+                // names it.
+                let stored_asset_id = submitted_id
+                    .and(existing_asset.as_ref())
+                    .filter(|asset| {
+                        Self::asset_matches_submitted_identity(
+                            asset,
+                            normalized_symbol.as_deref(),
+                            exchange_mic.as_deref(),
+                            submitted_instrument_type.as_ref(),
+                            quote_ccy.as_deref(),
+                        )
+                    })
+                    .map(|asset| asset.id.clone());
+                // An accepted id keeps its pair currency when only the
+                // activity currency changes, as preparation does.
+                if matches!(
+                    submitted_instrument_type.as_ref(),
+                    Some(InstrumentType::Crypto | InstrumentType::Fx)
+                ) {
+                    quote_ccy = quote_ccy
+                        .or_else(|| {
+                            stored_asset_id
+                                .as_ref()
+                                .and(existing_asset.as_ref())
+                                .map(|asset| asset.quote_ccy.clone())
                         })
-                }),
+                        .or_else(|| Some(self.update_activity_currency(activity)));
+                }
+                normalized_symbol
+                    .as_deref()
+                    .and_then(|symbol| {
+                        self.find_existing_asset_id(
+                            symbol,
+                            exchange_mic.as_deref(),
+                            submitted_instrument_type.as_ref(),
+                            quote_ccy.as_deref(),
+                        )
+                    })
+                    .or(stored_asset_id)
+            }
         };
         if let Some(asset_id) = resolved_asset_id.as_deref() {
             if Some(asset_id) == existing.asset_id.as_deref() {
@@ -764,7 +791,17 @@ impl ActivityService {
                 is_crypto: is_crypto_asset(asset.as_ref()),
                 existing_is_crypto,
                 quote_ccy: asset.as_ref().map(|asset| asset.quote_ccy.clone()),
-                replaces_asset: true,
+                replaces_asset: !asset.as_ref().is_some_and(|asset| {
+                    Self::names_same_instrument(
+                        existing_asset.as_ref(),
+                        asset
+                            .instrument_symbol
+                            .as_deref()
+                            .or(asset.display_code.as_deref()),
+                        asset.instrument_type.as_ref(),
+                        asset.instrument_exchange_mic.as_deref(),
+                    )
+                }),
             };
         }
         let patch_symbol = activity
@@ -772,56 +809,48 @@ impl ActivityService {
             .map(str::trim)
             .filter(|symbol| !symbol.is_empty());
         if let Some(symbol) = patch_symbol {
-            // A bare symbol resolves (or is created) later, in prepare;
-            // whether it replaces the instrument is decided here by name so
-            // the swap counts as an economics change even without an id.
-            let names_current_asset = existing_asset.as_ref().is_some_and(|asset| {
-                asset
-                    .display_code
-                    .as_deref()
-                    .is_some_and(|code| code.eq_ignore_ascii_case(symbol))
-                    || asset
-                        .instrument_symbol
-                        .as_deref()
-                        .is_some_and(|code| code.eq_ignore_ascii_case(symbol))
-            });
-            if !names_current_asset {
-                let option_metadata = Self::custom_option_multiplier(activity.metadata.as_deref())
-                    .and_then(|multiplier| {
-                        crate::assets::build_option_metadata(
-                            normalized_symbol.as_deref().unwrap_or(symbol),
-                            multiplier,
-                        )
-                    });
-                let unit_multiplier = crate::assets::contract_multiplier_from_asset_metadata(
-                    submitted_instrument_type.as_ref(),
-                    option_metadata.as_ref(),
-                );
-                // A blank currency is filled from the replacement asset when
-                // the update is prepared; find an existing asset's quote
-                // currency with the same local lookup the save uses.
-                let quote_ccy = Self::normalize_quote_ccy(activity.get_quote_ccy()).or_else(|| {
-                    if !activity.currency.trim().is_empty() {
-                        return None;
-                    }
-                    let (base_symbol, suffix_mic) =
-                        parse_symbol_with_known_exchange(symbol, activity.get_exchange_mic());
-                    let exchange_mic = activity.get_exchange_mic().or(suffix_mic);
-                    self.asset_service.existing_quote_ccy_by_symbol(
-                        base_symbol,
-                        exchange_mic,
-                        submitted_instrument_type.as_ref(),
+            // No existing asset matches the submitted identity, so prepare
+            // creates one: price it from the patch's instrument facts.
+            let option_metadata = Self::custom_option_multiplier(activity.metadata.as_deref())
+                .and_then(|multiplier| {
+                    crate::assets::build_option_metadata(
+                        normalized_symbol.as_deref().unwrap_or(symbol),
+                        multiplier,
                     )
                 });
-                return UpdateTradeFacts {
-                    unit_multiplier,
-                    existing_unit_multiplier,
-                    is_crypto: submitted_instrument_type == Some(InstrumentType::Crypto),
-                    existing_is_crypto,
-                    quote_ccy,
-                    replaces_asset: true,
-                };
-            }
+            let unit_multiplier = crate::assets::contract_multiplier_from_asset_metadata(
+                submitted_instrument_type.as_ref(),
+                option_metadata.as_ref(),
+            );
+            // A blank currency is filled from the replacement asset when
+            // the update is prepared; find an existing asset's quote
+            // currency with the same local lookup the save uses.
+            let quote_ccy = quote_ccy.or_else(|| {
+                if !activity.currency.trim().is_empty() {
+                    return None;
+                }
+                let (base_symbol, suffix_mic) =
+                    parse_symbol_with_known_exchange(symbol, activity.get_exchange_mic());
+                let exchange_mic = activity.get_exchange_mic().or(suffix_mic);
+                self.asset_service.existing_quote_ccy_by_symbol(
+                    base_symbol,
+                    exchange_mic,
+                    submitted_instrument_type.as_ref(),
+                )
+            });
+            return UpdateTradeFacts {
+                unit_multiplier,
+                existing_unit_multiplier,
+                is_crypto: submitted_instrument_type == Some(InstrumentType::Crypto),
+                existing_is_crypto,
+                quote_ccy,
+                replaces_asset: !Self::names_same_instrument(
+                    existing_asset.as_ref(),
+                    normalized_symbol.as_deref(),
+                    submitted_instrument_type.as_ref(),
+                    exchange_mic.as_deref(),
+                ),
+            };
         }
         UpdateTradeFacts {
             unit_multiplier: existing_unit_multiplier,
@@ -831,6 +860,62 @@ impl ActivityService {
             quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
             replaces_asset: false,
         }
+    }
+
+    /// Whether a symbol and instrument type name the stored asset's
+    /// instrument on any listing, so moving to that asset - another exchange
+    /// or crypto quote currency - is a correction, not a different trade.
+    fn names_same_instrument(
+        existing_asset: Option<&crate::assets::Asset>,
+        symbol: Option<&str>,
+        instrument_type: Option<&InstrumentType>,
+        exchange_mic: Option<&str>,
+    ) -> bool {
+        existing_asset.is_some_and(|existing| {
+            if existing.instrument_type.is_none()
+                || existing.instrument_type.as_ref() != instrument_type
+            {
+                return false;
+            }
+            let normalize_symbol = |symbol: Option<&str>, mic: Option<&str>| {
+                let (symbol, mic) = Self::submitted_lookup_identity(
+                    symbol,
+                    mic.map(str::to_string),
+                    instrument_type,
+                );
+                canonicalize_market_identity(
+                    instrument_type.cloned(),
+                    symbol.as_deref(),
+                    mic.as_deref(),
+                    None,
+                )
+                .instrument_symbol
+            };
+            normalize_symbol(
+                existing
+                    .instrument_symbol
+                    .as_deref()
+                    .or(existing.display_code.as_deref()),
+                existing.instrument_exchange_mic.as_deref(),
+            )
+            .zip(normalize_symbol(symbol, exchange_mic))
+            .is_some_and(|(stored, submitted)| stored == submitted)
+        })
+    }
+
+    /// The activity currency prepare resolves for an update: the submitted
+    /// one, else the account's, else the base currency.
+    fn update_activity_currency(&self, activity: &ActivityUpdate) -> String {
+        if !activity.currency.trim().is_empty() {
+            return activity.currency.clone();
+        }
+        let account_currency = self
+            .account_service
+            .get_account(&activity.account_id)
+            .map(|account| account.currency)
+            .unwrap_or_default();
+        let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
+        resolve_currency(&[&account_currency, &base_ccy])
     }
 
     /// The currency an update's cash is in. A blank currency is filled from
@@ -1858,6 +1943,18 @@ impl ActivityService {
 
     fn invalid_activity_data(message: impl Into<String>) -> Error {
         ActivityError::InvalidData(message.into()).into()
+    }
+
+    /// Refuses an alternative asset kind: alternative assets count toward net
+    /// worth on their own, so an account never holds one. A custom asset an
+    /// account holds is an investment.
+    fn refuse_alternative_kind(kind: Option<&AssetKind>) -> Result<()> {
+        match kind {
+            Some(kind) if kind.is_alternative() => Err(Error::Validation(
+                crate::errors::ValidationError::AlternativeAssetNotInAccount,
+            )),
+            _ => Ok(()),
+        }
     }
 
     fn internal_transfer_metadata() -> Option<String> {
@@ -4467,6 +4564,21 @@ impl ActivityService {
         (normalized_symbol, exchange_mic)
     }
 
+    /// The quote currency a submitted asset names: a crypto pair's own quote
+    /// (`BTC-EUR`) wins, as it does when the asset is created; otherwise the
+    /// submitted quote currency.
+    fn submitted_quote_ccy(
+        symbol: Option<&str>,
+        instrument_type: Option<&InstrumentType>,
+        quote_ccy_input: Option<&str>,
+    ) -> Option<String> {
+        symbol
+            .filter(|_| instrument_type == Some(&InstrumentType::Crypto))
+            .and_then(parse_crypto_pair_symbol)
+            .map(|(_, quote)| quote)
+            .or_else(|| quote_ccy_input.map(str::to_string))
+    }
+
     fn resolved_submitted_asset_id(
         &self,
         submitted_asset_id: Option<&str>,
@@ -4695,8 +4807,14 @@ impl ActivityService {
             .as_ref()
             .map(Self::kind_from_instrument_type)
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
+        // Refused before any asset is created for the activity.
+        Self::refuse_alternative_kind(effective_kind.as_ref())?;
 
-        // Normalize symbol + MIC using payload/suffix only (no live lookup for user save paths).
+        let quote_ccy_input = Self::submitted_quote_ccy(
+            symbol.as_deref(),
+            effective_instrument_type.as_ref(),
+            quote_ccy_input.as_deref(),
+        );
         let is_crypto = effective_instrument_type.as_ref() == Some(&InstrumentType::Crypto);
         let is_option = effective_instrument_type.as_ref() == Some(&InstrumentType::Option);
         let is_non_security_instrument = matches!(
@@ -4787,14 +4905,7 @@ impl ActivityService {
         // Use pair quote for crypto/FX; otherwise resolve from payload and existing data:
         // explicit input -> existing asset -> MIC fallback -> activity/account.
         let mut quote_ccy_for_asset = quote_ccy_input.clone();
-        let asset_currency = if is_crypto {
-            symbol
-                .as_deref()
-                .and_then(parse_crypto_pair_symbol)
-                .map(|(_, quote)| quote)
-                .or_else(|| quote_ccy_input.clone())
-                .unwrap_or_else(|| currency.clone())
-        } else if is_non_security_instrument {
+        let asset_currency = if is_non_security_instrument {
             quote_ccy_input.clone().unwrap_or(currency.clone())
         } else {
             let existing_asset_quote_ccy = self
@@ -4949,6 +5060,9 @@ impl ActivityService {
                     )
                     .await?
             };
+            // An existing alternative asset, picked by ID or matched by symbol,
+            // is refused before the activity writes anything to it.
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified (for existing assets that need mode change)
             if let Some(ref mode) = quote_mode {
@@ -5295,8 +5409,14 @@ impl ActivityService {
             .as_ref()
             .map(Self::kind_from_instrument_type)
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
+        // Refused before any asset is created for the activity.
+        Self::refuse_alternative_kind(effective_kind.as_ref())?;
 
-        let is_crypto = effective_instrument_type.as_ref() == Some(&InstrumentType::Crypto);
+        let quote_ccy_input = Self::submitted_quote_ccy(
+            symbol.as_deref(),
+            effective_instrument_type.as_ref(),
+            quote_ccy_input.as_deref(),
+        );
         let is_non_security_instrument = matches!(
             effective_instrument_type.as_ref(),
             Some(InstrumentType::Crypto | InstrumentType::Fx)
@@ -5357,15 +5477,11 @@ impl ActivityService {
 
         let quote_lookup_symbol = normalized_symbol_for_lookup.clone().unwrap_or_default();
         let mut quote_ccy_for_asset = quote_ccy_input.clone();
-        let asset_currency = if is_crypto {
-            symbol
-                .as_deref()
-                .and_then(parse_crypto_pair_symbol)
-                .map(|(_, quote)| quote)
-                .or_else(|| quote_ccy_input.clone())
+        let asset_currency = if is_non_security_instrument {
+            quote_ccy_input
+                .clone()
+                .or_else(|| self.existing_asset_quote_ccy_by_id(submitted_asset_id.as_deref()))
                 .unwrap_or_else(|| currency.clone())
-        } else if is_non_security_instrument {
-            quote_ccy_input.clone().unwrap_or(currency.clone())
         } else {
             let existing_asset_quote_ccy = self
                 .existing_asset_quote_ccy_by_id(submitted_asset_id.as_deref())
@@ -5505,6 +5621,9 @@ impl ActivityService {
                     )
                     .await?
             };
+            // An existing alternative asset, picked by ID or matched by symbol,
+            // is refused before the activity writes anything to it.
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified
             if let Some(ref mode) = quote_mode {
@@ -5738,7 +5857,11 @@ impl ActivityService {
                 _ => None,
             });
 
-        // Crypto/FX assets don't have exchange MICs — clear any that leaked from frontend/suffix
+        let quote_ccy_input = Self::submitted_quote_ccy(
+            Some(base_symbol),
+            instrument_type.as_ref(),
+            quote_ccy_input.as_deref(),
+        );
         let is_crypto = instrument_type.as_ref() == Some(&InstrumentType::Crypto);
         let is_non_security = matches!(
             instrument_type.as_ref(),
@@ -5784,10 +5907,7 @@ impl ActivityService {
         // For crypto, use the quote currency from the pair if available
         let mut quote_ccy_for_asset = quote_ccy_input.clone();
         let asset_currency = if is_crypto {
-            parse_crypto_pair_symbol(base_symbol)
-                .map(|(_, quote)| quote)
-                .or_else(|| quote_ccy_input.clone())
-                .unwrap_or_else(|| currency.clone())
+            quote_ccy_input.clone().unwrap_or_else(|| currency.clone())
         } else {
             let existing_asset_quote_ccy = self
                 .existing_asset_quote_ccy_by_id(submitted_asset_id.as_deref())
@@ -6318,9 +6438,28 @@ impl ActivityService {
                 activities_with_status.push(activity);
                 continue;
             }
+            let existing_asset = existing_id
+                .as_deref()
+                .and_then(|id| self.asset_service.get_asset_by_id(id).ok());
+            // Alternative assets count toward net worth on their own, so a row
+            // can't put one in an account; review shows why before import.
+            if effective_kind.is_alternative()
+                || existing_asset
+                    .as_ref()
+                    .is_some_and(|asset| asset.kind.is_alternative())
+            {
+                activity.is_valid = false;
+                Self::add_activity_error(
+                    &mut activity,
+                    "symbol",
+                    crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+                );
+                activities_with_status.push(activity);
+                continue;
+            }
             if let Some(ref id) = existing_id {
                 activity.asset_id = Some(id.clone());
-                if let Ok(asset) = self.asset_service.get_asset_by_id(id) {
+                if let Some(asset) = existing_asset {
                     activity.symbol_name = asset.name;
                     asset_currency = Some(asset.quote_ccy.clone());
                     if activity.quote_mode.is_none() {
@@ -9467,6 +9606,22 @@ impl ActivityService {
                 )
                 .await
             {
+                Ok(Some(spec)) if spec.kind.is_alternative() => {
+                    // Refused before ensure_assets could create it in the account.
+                    if mode.is_sync() {
+                        warn!(
+                            "Broker sync activity at index {} names an alternative asset and will be imported for review",
+                            idx
+                        );
+                        sync_review_indices.insert(idx);
+                    } else {
+                        result.errors.push((
+                            idx,
+                            crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
+                        ));
+                    }
+                    activity_asset_map.push(None);
+                }
                 Ok(Some(spec)) => {
                     // Use spec.id if available, or instrument_key for mapping
                     let map_key = spec.id.clone().or_else(|| spec.instrument_key());
@@ -9526,6 +9681,31 @@ impl ActivityService {
                     );
                     *entry = None;
                 }
+            }
+        }
+
+        // An existing alternative asset matched by ID or symbol: alternative
+        // assets count toward net worth on their own, never in an account.
+        for (idx, entry) in activity_asset_map.iter_mut().enumerate() {
+            let alternative = entry
+                .as_ref()
+                .and_then(|asset_id| ensure_result.assets.get(asset_id))
+                .is_some_and(|asset| asset.kind.is_alternative());
+            if !alternative {
+                continue;
+            }
+            *entry = None;
+            if mode.is_sync() {
+                warn!(
+                    "Broker sync activity at index {} matched an alternative asset and will be imported for review",
+                    idx
+                );
+                sync_review_indices.insert(idx);
+            } else {
+                result.errors.push((
+                    idx,
+                    crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT.to_string(),
+                ));
             }
         }
 

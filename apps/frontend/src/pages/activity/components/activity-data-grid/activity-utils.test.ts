@@ -251,7 +251,7 @@ describe("activity-utils", () => {
       expect(savedAsset(row)).toEqual({ symbol: "RY", exchangeMic: "XNAS" });
     });
 
-    it("sends a saved row's picked id and type, but not the picked asset, with a pasted symbol", () => {
+    it("sends a saved row's stored id, but not the picked id and type, with a pasted symbol", () => {
       const row = editSymbol(
         pickedAapl({
           id: "existing-1",
@@ -265,14 +265,27 @@ describe("activity-utils", () => {
         }),
         "TD",
       );
-      // The id and type main sends, so the server prices the update as on main.
-      // It then drops the id because it does not match TD.
+      // The server drops the stored id because it does not name TD.
       expect(savedAsset(row)).toEqual({
-        id: "SEC:AAPL:XNAS",
+        id: "OPT:AAPL250117C00150000",
         symbol: "TD",
         exchangeMic: "XNAS",
-        instrumentType: "EQUITY",
       });
+    });
+
+    it("does not send a saved row's stored instrument type with a pasted symbol", () => {
+      // With CRYPTO, the server would create KO as a crypto asset.
+      const savedBtc = toLocalTransaction(
+        createMockTransaction({
+          id: "existing-btc",
+          assetId: "CRYPTO:BTC",
+          assetSymbol: "BTC",
+          instrumentType: "CRYPTO",
+        }),
+      );
+      const row = editSymbol(savedBtc, "KO");
+      expect(row.instrumentType).toBeUndefined();
+      expect(savedAsset(row)).toEqual({ id: "CRYPTO:BTC", symbol: "KO" });
     });
 
     it("keeps an instrument type the user set on a saved row", () => {
@@ -306,7 +319,7 @@ describe("activity-utils", () => {
       expect(row).toMatchObject({ instrumentType: "OPTION", pendingInstrumentType: "OPTION" });
     });
 
-    it("keeps a duplicate's copied instrument type, but not one picked on it", () => {
+    it("drops a duplicate's copied instrument type, but not one the user set", () => {
       // As handleDuplicate copies a saved option row.
       const duplicate: LocalTransaction = {
         ...toLocalTransaction(
@@ -315,11 +328,10 @@ describe("activity-utils", () => {
         id: "temp-duplicate",
         isNew: true,
       };
-      expect(editSymbol(duplicate, "AAPL250117C00160000").instrumentType).toBe("OPTION");
+      expect(editSymbol(duplicate, "AAPL250117C00160000").instrumentType).toBeUndefined();
 
-      const row = editSymbol({ ...duplicate, ...aaplPick }, "MSFT");
-      expect(row.instrumentType).toBeUndefined();
-      expect(savedAsset(row)).toEqual({ symbol: "MSFT", exchangeMic: "XNAS" });
+      const userSet = edit(duplicate, "instrumentType", "OPTION");
+      expect(editSymbol(userSet, "AAPL250117C00160000").instrumentType).toBe("OPTION");
     });
 
     it("keeps the pick and the values around it when only the case changes", () => {
