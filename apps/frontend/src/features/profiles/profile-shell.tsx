@@ -147,6 +147,20 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("wealthfolio:auth-pending", update);
   }, []);
 
+  // Re-check biometric availability when the window regains focus (e.g. after
+  // the user visits System Settings → Touch ID & Password to enrol a fingerprint).
+  // Only refetch when the last check failed or confirmed unavailability, so a
+  // healthy app does not hit the backend on every focus event.
+  useEffect(() => {
+    const handleFocus = () => {
+      if (biometricAvailable === false || platformLoadError) {
+        refetchPlatform();
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [biometricAvailable, platformLoadError, refetchPlatform]);
+
   useEffect(() => {
     let cancelled = false;
     let inFlight = false;
@@ -666,11 +680,19 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           setCovered(true);
           if (!code) {
             await profileCommand("lock_profile", { preserveAuth: false });
-            if (selected)
-              await unlock(selected.id, "", {
-                ...selected,
-                lockEnabled: false,
-              });
+            if (selected) {
+              // After removing the password a profile that still has Touch ID
+              // enabled is biometric-only. Using empty-password unlock would
+              // fail and incorrectly reset lockEnabled=true in the error handler.
+              if (selected.biometricEnabled && !selected.lockEnabled) {
+                await unlockWithBiometric(selected.id);
+              } else {
+                await unlock(selected.id, "", {
+                  ...selected,
+                  lockEnabled: false,
+                });
+              }
+            }
           }
         } else reloadApplication();
       }
@@ -1130,14 +1152,30 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                         defaultValue: "Unlock with Touch ID",
                       })}
                 </Button>
-                {/* platformLoadError: getPlatform() failed — biometric availability is unknown. */}
+                {/* platformLoadError: getPlatform() failed — biometric availability is unknown.
+                    Provide a retry action so the user can re-check without restarting the app,
+                    e.g. after granting permissions or returning from System Settings. */}
                 {platformLoadError && (
-                  <p role="alert" className="text-destructive text-sm">
-                    {t("profiles.errors.biometricCheckFailed", {
-                      defaultValue:
-                        "Could not check Touch ID availability. Restart Wealthfolio to try again.",
-                    })}
-                  </p>
+                  <div className="space-y-2">
+                    <p role="alert" className="text-destructive text-sm">
+                      {t("profiles.errors.biometricCheckFailed", {
+                        defaultValue:
+                          "Could not check Touch ID availability. Restart Wealthfolio to try again.",
+                      })}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={busy || biometricBusy || platformLoading}
+                      onClick={() => refetchPlatform()}
+                    >
+                      {platformLoading
+                        ? t("profiles.biometricChecking", { defaultValue: "Checking…" })
+                        : t("profiles.retryTouchId", { defaultValue: "Retry Touch ID" })}
+                    </Button>
+                  </div>
                 )}
                 {/* biometricAvailable === false: confirmed unavailable at startup (hardware absent
                     or no fingerprint enrolled). null: still loading/fetch error — no message yet.
@@ -1431,17 +1469,13 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                             profileId: selected.id,
                             proof: proof || null,
                           });
-                          setSelected({ ...selected, biometricEnabled: true });
-                          setState((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  profiles: current.profiles.map((p) =>
-                                    p.id === selected.id ? { ...p, biometricEnabled: true } : p,
-                                  ),
-                                }
-                              : current,
-                          );
+                          // The profile is now biometric-protected. Revoke the current
+                          // session (which was opened without Touch ID) and reload so the
+                          // user re-opens the profile through biometric unlock, establishing
+                          // a session that reflects the new protection level.
+                          revokeProfileSession();
+                          setCovered(true);
+                          reloadApplication();
                         }
                       } catch (err) {
                         setError(String(err).replace(/^Error:\s*/, ""));

@@ -1003,10 +1003,22 @@ impl ProfileRegistry {
             .map_err(storage_error)?
             .to_string();
         // Preserve the previous verifier so we can roll back the lock record if the
-        // registry save fails after write_lock already committed the new verifier.
+        // registry save fails after write_lock already committed the new verifier,
+        // or if write_lock itself fails after partially persisting the new verifier.
         let old_verifier = record.biometric_verifier.clone();
         record.biometric_verifier = Some(verifier);
-        self.write_lock(&profile, &record)?;
+        if let Err(e) = self.write_lock(&profile, &record) {
+            // The write may have partially persisted the new verifier; attempt to
+            // restore the previous one before propagating the error.
+            record.biometric_verifier = old_verifier;
+            if let Err(restore_err) = self.write_lock(&profile, &record) {
+                log::error!(
+                    "Failed to restore biometric verifier for profile {id} after lock \
+                     write failure ({e}): {restore_err}"
+                );
+            }
+            return Err(e);
+        }
         let mut next = data.clone();
         let entry = next
             .profiles
@@ -1069,6 +1081,9 @@ impl ProfileRegistry {
         if record.verifier.is_some() {
             self.verify_record(&profile, &mut record, proof)?;
         }
+        // Retain the existing verifier so we can restore it if the registry write
+        // fails after the lock record has already been cleared.
+        let old_verifier = record.biometric_verifier.clone();
         record.biometric_verifier = None;
         self.write_lock(&profile, &record)?;
         let mut next = data.clone();
@@ -1083,7 +1098,19 @@ impl ProfileRegistry {
         // *previous* (biometric-enabled) state to the backup, leaving the backup
         // inconsistent with the now-missing token.
         let encoded = serde_json::to_vec_pretty(&next).map_err(storage_error)?;
-        atomic_write(&self.root.join(REGISTRY_FILE), &encoded)?;
+        if let Err(e) = atomic_write(&self.root.join(REGISTRY_FILE), &encoded) {
+            // The lock record no longer has a verifier; restore it so the lock
+            // file stays consistent with the keychain token, which the caller
+            // only removes after a successful return.
+            record.biometric_verifier = old_verifier;
+            if let Err(restore_err) = self.write_lock(&profile, &record) {
+                log::error!(
+                    "Failed to restore biometric verifier for profile {id} after registry \
+                     write failure ({e}): {restore_err}"
+                );
+            }
+            return Err(e);
+        }
         atomic_write(&self.root.join(REGISTRY_BACKUP), &encoded)?;
         *data = next;
         Ok(())
