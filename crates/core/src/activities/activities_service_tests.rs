@@ -1378,6 +1378,9 @@ pub(crate) mod tests {
         activities: Arc<Mutex<Vec<Activity>>>,
         /// Accounts whose rows `get_activities` leaves out, as storage does.
         archived_accounts: Arc<Mutex<HashSet<String>>>,
+        /// Writes fail as SQLite does when another writer stored the same
+        /// idempotency key after the service's duplicate check.
+        idempotency_conflict_on_write: Arc<std::sync::atomic::AtomicBool>,
     }
 
     impl MockActivityRepository {
@@ -1387,6 +1390,23 @@ pub(crate) mod tests {
 
         fn add_activity(&self, activity: Activity) {
             self.activities.lock().unwrap().push(activity);
+        }
+
+        fn fail_writes_with_idempotency_conflict(&self) {
+            self.idempotency_conflict_on_write
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn idempotency_conflict(&self) -> Result<()> {
+            if self
+                .idempotency_conflict_on_write
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(Error::Database(DatabaseError::UniqueViolation(
+                    "UNIQUE constraint failed: activities.idempotency_key".to_string(),
+                )));
+            }
+            Ok(())
         }
 
         fn archive_account(&self, account_id: &str) {
@@ -1726,6 +1746,7 @@ pub(crate) mod tests {
             activity_id: String,
             counterpart_id: Option<String>,
         ) -> Result<(Activity, Activity)> {
+            self.idempotency_conflict()?;
             // Restore the snapshot on failure, like the SQLite transaction.
             let snapshot = self.activities.lock().unwrap().clone();
             let result = async {
@@ -1789,6 +1810,7 @@ pub(crate) mod tests {
             &self,
             _activities: Vec<NewActivity>,
         ) -> Result<Vec<Activity>> {
+            self.idempotency_conflict()?;
             let mut stored = self.activities.lock().unwrap();
             let mut created = Vec::new();
             for new_activity in _activities {
@@ -15481,6 +15503,36 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn convert_to_internal_transfer_reports_a_racing_duplicate_leg() {
+        let withdrawal = create_cash_transfer_activity(
+            "withdrawal",
+            "acc-join",
+            ACTIVITY_TYPE_WITHDRAWAL,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        let (service, repository) = convert_test_service(
+            vec![withdrawal],
+            &[("acc-join", "CAD"), ("acc-cibc", "CAD")],
+        );
+        repository.fail_writes_with_idempotency_conflict();
+
+        let err = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "withdrawal".to_string(),
+                counterpart_activity_id: None,
+                counterpart_account_id: Some("acc-cibc".to_string()),
+                counterpart_amount: None,
+                split_review: None,
+            })
+            .await
+            .expect_err("a leg stored meanwhile is a duplicate");
+
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
+    }
+
+    #[tokio::test]
     async fn convert_to_internal_transfer_creates_the_other_leg() {
         let mut withdrawal = create_cash_transfer_activity(
             "withdrawal",
@@ -16918,6 +16970,68 @@ pub(crate) mod tests {
         assert_eq!(result.summary.imported, 1);
         assert_eq!(result.summary.duplicates, 0);
         assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_import_reports_a_racing_duplicate_as_duplicate() {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-1", "GBP"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.fail_writes_with_idempotency_conflict();
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let row = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "VWRL".to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(100)),
+            currency: "GBP".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(100)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: Some("Vanguard FTSE All-World".to_string()),
+            exchange_mic: Some("XLON".to_string()),
+            quote_ccy: Some("GBP".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
+        };
+
+        let err = activity_service
+            .import_activities(vec![row])
+            .await
+            .expect_err("a row stored meanwhile is a duplicate");
+
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
     }
 
     #[tokio::test]

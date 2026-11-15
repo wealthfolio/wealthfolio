@@ -7670,7 +7670,8 @@ impl ActivityServiceTrait for ActivityService {
                 source.id.clone(),
                 counterpart.map(|counterpart| counterpart.id),
             )
-            .await?;
+            .await
+            .map_err(Self::map_duplicate_idempotency_violation)?;
 
         let mut account_ids: HashSet<String> = HashSet::new();
         let mut asset_ids: HashSet<String> = HashSet::new();
@@ -8961,6 +8962,7 @@ impl ActivityServiceTrait for ActivityService {
                 .activity_repository
                 .create_activities_returning(insertable_new_activities)
                 .await
+                .map_err(Self::map_duplicate_idempotency_violation)
             {
                 Ok(rows) => rows,
                 Err(e) => {
