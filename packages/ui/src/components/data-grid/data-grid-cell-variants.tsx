@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Calendar } from "../ui/calendar";
 import { Checkbox } from "../ui/checkbox";
+import { DateField, DateSegment } from "../ui/datefield-rac";
 import {
   Command,
   CommandEmpty,
@@ -19,7 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Skeleton } from "../ui/skeleton";
 import { Textarea } from "../ui/textarea";
 import { Icons } from "../ui/icons";
-import { fromDate, getLocalTimeZone, toCalendarDateTime } from "@internationalized/date";
+import { type CalendarDate, fromDate, getLocalTimeZone, parseDate, toCalendarDateTime } from "@internationalized/date";
+import { DateInput as DateInputRac, useLocale } from "react-aria-components";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -1472,6 +1474,16 @@ function toDateInputString(date: Date | string | undefined): string {
   return `${year}-${month}-${day}`;
 }
 
+// YYYY-MM-DD string to the react-aria value of the date-input editor.
+function toCalendarDate(value: string): CalendarDate | null {
+  if (!value) return null;
+  try {
+    return parseDate(value);
+  } catch {
+    return null;
+  }
+}
+
 // Helper to get date-only timestamp (midnight) for comparison
 function getDateOnlyTimestamp(value: Date | string | undefined): number | null {
   if (!value) return null;
@@ -1498,7 +1510,13 @@ export function DateInputCell<TData>({
   const formatting = useDateFormatting();
   const initialValue = cell.getValue() as Date | string | undefined;
   const [value, setValue] = React.useState(() => toDateInputString(initialValue));
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  // The editor is react-aria's date field rather than <input type="date">: browsers
+  // render native date inputs in their own UI locale, ignoring the formatting region,
+  // so the day/month order while editing could differ from the displayed date.
+  const { direction } = useLocale();
+  const columnDef = cell.column.columnDef;
+  const columnLabel = columnDef.meta?.label ?? (typeof columnDef.header === "string" ? columnDef.header : columnId);
+  const calendarValue = React.useMemo(() => toCalendarDate(value), [value]);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Compare by date-only timestamp instead of reference for Date objects
@@ -1530,8 +1548,8 @@ export function DateInputCell<TData>({
     tableMeta?.onCellEditingStop?.();
   }, [tableMeta, rowIndex, columnId, value, initialValue, readOnly]);
 
-  const onChange = React.useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(event.target.value);
+  const onChange = React.useCallback((date: CalendarDate | null) => {
+    setValue(date ? date.toString() : "");
   }, []);
 
   // Track previous editing state to detect when editing stops
@@ -1607,13 +1625,6 @@ export function DateInputCell<TData>({
     [isEditing, isFocused, initialValue, tableMeta, rowIndex, columnId, value],
   );
 
-  React.useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
   return (
     <DataGridCellWrapper<TData>
       ref={containerRef}
@@ -1632,14 +1643,19 @@ export function DateInputCell<TData>({
       onKeyDown={onWrapperKeyDown}
     >
       {isEditing ? (
-        <input
-          ref={inputRef}
-          type="date"
-          value={value}
+        <DateField
+          aria-label={columnLabel}
+          autoFocus
+          granularity="day"
+          value={calendarValue}
           onChange={onChange}
           onBlur={onBlur}
-          className="w-full border-none bg-transparent p-0 text-sm outline-none"
-        />
+          className="w-full"
+        >
+          <DateInputRac dir={direction} className="flex w-full items-center text-sm outline-none">
+            {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
+          </DateInputRac>
+        </DateField>
       ) : (
         <span data-slot="grid-cell-content">
           {value ? formatting.formatCalendarDate(value, { dateStyle: "short" }) : ""}
