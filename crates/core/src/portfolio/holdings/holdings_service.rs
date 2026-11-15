@@ -2680,6 +2680,7 @@ mod tests {
         const ASSET_ID: &str = "cad-stock";
 
         include!("holdings_health_tests.rs");
+        include!("holdings_income_parity_tests.rs");
 
         struct Fixture {
             now: chrono::DateTime<Utc>,
