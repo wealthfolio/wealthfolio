@@ -33,7 +33,7 @@ function isAddonSvgIconUrl(icon: string) {
  */
 function AddonSvgIcon({ url, className }: { url: string; className: string }) {
   // Percent-encode the characters that would end or break a quoted CSS url(),
-  // and `#`, which would cut a raw SVG such as `fill="#000"` short.
+  // and `#`, which would cut a raw SVG with a hex fill short.
   const safeUrl = url.replace(/["\\\n\r#]/g, encodeURIComponent);
   const mask = `url("${safeUrl}") center / contain no-repeat`;
   return (
