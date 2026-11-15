@@ -522,6 +522,27 @@ describe("Russian plural output", () => {
     expect(i18n.t("sync:status.daysAgo", { count })).toContain(`${count} ${day}`);
   });
 
+  // One family, one noun number: «типа событий», never «типа события» next to «типов событий».
+  it.each([
+    [1, "1 тип события"],
+    [2, "2 типа событий"],
+    [5, "5 типов событий"],
+    [21, "21 тип события"],
+    [1.5, "1,5 типа событий"],
+  ])("agrees the event-type counter of the spending card for %s", (count, expected) => {
+    expect(i18n.t("ai:spendingCards.eventTypesCount", { count }).replace(".", ",")).toBe(expected);
+  });
+
+  // The spending cards say the same as the spending pages for the same empty states.
+  it.each([
+    ["ai:spendingCards.contextNoAccounts", "Отслеживание расходов включено, но счета не выбраны"],
+    ["ai:spendingCards.noSpending", "Нет расходов за этот период."],
+    ["ai:spendingCards.noEvents", "Нет событий за этот период."],
+    ["ai:spendingCards.noPayee", "Без получателя"],
+  ])("words %s as the spending pages do", (key, expected) => {
+    expect(allStrings.get(key)).toBe(expected);
+  });
+
   // English `_one` of these families has no number ("Outdated exchange rate"), but Russian `one`
   // is also 21 and 31.
   const countless = [...englishStrings.keys()].filter((key) => {
