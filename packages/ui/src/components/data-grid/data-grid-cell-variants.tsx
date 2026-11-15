@@ -29,6 +29,7 @@ import {
   DatePicker as RacDatePicker,
   Dialog as RacDialog,
   Group as RacGroup,
+  I18nProvider,
   Popover as RacPopover,
   useLocale,
 } from "react-aria-components";
@@ -1523,8 +1524,12 @@ export function DateInputCell<TData>({
   // The editor is react-aria's date picker rather than <input type="date">: browsers
   // render native date inputs in their own UI locale, ignoring the formatting region,
   // so the day/month order while editing could differ from the displayed date.
+  // The provider's react-aria locale is the interface language with the formatting
+  // region (es-US is day-first, en-US month-first), so the field gets the formatting
+  // locale itself; the calendar keeps the interface language.
   const { t } = useTranslation();
-  const { direction } = useLocale();
+  const { direction, locale: interfaceLocale } = useLocale();
+  const { locale: formattingLocale } = useLocalizationSettings();
   const portalScopeProps = usePortalScopeProps();
   const columnDef = cell.column.columnDef;
   const columnLabel = columnDef.meta?.label ?? (typeof columnDef.header === "string" ? columnDef.header : columnId);
@@ -1675,38 +1680,42 @@ export function DateInputCell<TData>({
       onKeyDown={onWrapperKeyDown}
     >
       {isEditing ? (
-        <RacDatePicker
-          aria-label={columnLabel}
-          autoFocus
-          granularity="day"
-          value={calendarValue}
-          onChange={onChange}
-          onBlur={onBlur}
-          onOpenChange={onCalendarOpenChange}
-          className="w-full"
-        >
-          <RacGroup className="flex w-full items-center gap-1">
-            <DateInputRac dir={direction} className="flex min-w-0 flex-1 items-center text-sm outline-none">
-              {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
-            </DateInputRac>
-            <RacButton
-              aria-label={t("ui:datePicker.pick", "Pick a date")}
-              className="text-muted-foreground/80 hover:text-foreground focus-visible:outline-ring flex size-5 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:outline-2"
-            >
-              <Icons.CalendarIcon size={14} />
-            </RacButton>
-          </RacGroup>
-          <RacPopover
-            {...portalScopeProps}
-            className="bg-background text-popover-foreground z-50 rounded-lg border shadow-lg outline-hidden"
-            offset={4}
+        <I18nProvider locale={formattingLocale}>
+          <RacDatePicker
+            aria-label={columnLabel}
+            autoFocus
+            granularity="day"
+            value={calendarValue}
+            onChange={onChange}
+            onBlur={onBlur}
+            onOpenChange={onCalendarOpenChange}
+            className="w-full"
           >
-            {/* data-grid-popover keeps the grid from treating clicks here as outside clicks. */}
-            <RacDialog data-grid-popover="" className="max-h-[inherit] overflow-auto p-2 outline-none">
-              <RacCalendar />
-            </RacDialog>
-          </RacPopover>
-        </RacDatePicker>
+            <RacGroup className="flex w-full items-center gap-1">
+              <DateInputRac dir={direction} className="flex min-w-0 flex-1 items-center text-sm outline-none">
+                {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
+              </DateInputRac>
+              <RacButton
+                aria-label={t("ui:datePicker.pick", "Pick a date")}
+                className="text-muted-foreground/80 hover:text-foreground focus-visible:outline-ring flex size-5 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:outline-2"
+              >
+                <Icons.CalendarIcon size={14} />
+              </RacButton>
+            </RacGroup>
+            <RacPopover
+              {...portalScopeProps}
+              className="bg-background text-popover-foreground z-50 rounded-lg border shadow-lg outline-hidden"
+              offset={4}
+            >
+              {/* data-grid-popover keeps the grid from treating clicks here as outside clicks. */}
+              <RacDialog data-grid-popover="" className="max-h-[inherit] overflow-auto p-2 outline-none">
+                <I18nProvider locale={interfaceLocale}>
+                  <RacCalendar />
+                </I18nProvider>
+              </RacDialog>
+            </RacPopover>
+          </RacDatePicker>
+        </I18nProvider>
       ) : (
         <span data-slot="grid-cell-content">
           {value ? formatting.formatCalendarDate(value, { dateStyle: "short" }) : ""}

@@ -75,6 +75,21 @@ describe("DateInputCell formatting region", () => {
     expect(segmentValues()).toEqual([1, 11, 2026]);
   });
 
+  it("edits in the formatting region's order when the interface language differs", async () => {
+    // es-US is day-first, en-US month-first: the field must match the displayed date.
+    const user = userEvent.setup();
+    renderCell({ locale: "en-US", uiLocale: "es", isEditing: true });
+
+    expect(segmentValues()).toEqual([1, 11, 2026]);
+
+    // The calendar keeps the interface language.
+    await user.click(screen.getByRole("button", { name: /^Pick a date/ }));
+    const calendar = await screen.findByRole("dialog");
+    expect(
+      within(calendar).getByRole("button", { name: /20 de enero de 2026/i }),
+    ).toBeInTheDocument();
+  });
+
   it("saves the edited day when the editor loses focus", async () => {
     const user = userEvent.setup();
     const onDataUpdate = vi.fn();
