@@ -23,12 +23,14 @@ pub struct HoldingsRead {
     /// Requested accounts and their transitive transfer counterparties, plus
     /// split rows for held assets (including splits recorded in other accounts).
     pub activities: Vec<Activity>,
+    /// Captured FX history, consumed when HoldingsService builds its converter.
     pub fx_rates: Vec<ExchangeRate>,
     pub lots: Vec<LotRecord>,
     pub accounts_with_open_lots: HashSet<String>,
     pub disposals: Vec<LotDisposal>,
     pub markers: Vec<ProjectionMarker>,
     pub issues: Vec<ActivityIssue>,
+    /// Latest stored valuation day for each requested account, when present.
     pub last_valued: HashMap<String, NaiveDate>,
     pub base_currency: String,
     pub timezone: String,
