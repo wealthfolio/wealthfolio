@@ -1028,6 +1028,8 @@
       "decimalAuto": "Определить автоматически",
       "decimalPeriod": "Точка (.)",
       "decimalComma": "Запятая (,)",
+      "numberFormatWarningTitle": "Проверка форматов чисел",
+      "numberFormatWarningDescription": "В некоторых столбцах неоднозначные или конфликтующие форматы чисел ({{columns}}). Проверьте эти значения или выберите десятичный разделитель в настройках разбора на шаге загрузки.",
       "summaryDelimiter": "Разделитель: {{value}}",
       "summaryDate": "Дата: {{value}}",
       "summaryDecimal": "Десятичный: {{value}}",
