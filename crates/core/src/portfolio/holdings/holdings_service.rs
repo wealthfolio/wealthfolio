@@ -318,7 +318,7 @@ impl HoldingsService {
                 ids.retain(|id| read.could_hold_asset(id, &asset_id));
             }
             read.carry_observed_splits()?;
-            let converter = Arc::new(CurrencyConverter::new(read.fx_rates.clone())?);
+            let converter = Arc::new(CurrencyConverter::new(std::mem::take(&mut read.fx_rates))?);
             let mut scope = HoldingsScope::default();
             for id in &ids {
                 if let Some(reason_code) = read.unavailable_reason(id) {
