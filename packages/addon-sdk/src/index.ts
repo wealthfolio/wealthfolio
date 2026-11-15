@@ -112,7 +112,7 @@ export { HOST_DEPENDENCIES } from './host-dependencies';
 
 // Sidebar icon names (see SidebarItemConfig.icon)
 export { ADDON_ICON_NAMES } from './icons';
-export type { AddonIconName } from './icons';
+export type { AddonIcon, AddonIconName, AddonSvgIconUrl } from './icons';
 
 // Addon translations (implemented by the host sandbox)
 export { registerTranslations, useAddonTranslation } from './i18n';
