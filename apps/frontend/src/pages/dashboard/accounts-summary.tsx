@@ -1,5 +1,7 @@
 "use client";
 
+import { isValuationComplete } from "@/lib/valuation";
+
 import { calculatePerformanceSummaries, performanceSummaryScopeKey } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
@@ -518,8 +520,8 @@ export const AccountsSummary = React.memo(
 
         return {
           accountName: acc.name,
-          isBaseUnavailable: valuation.valueStatus === "unavailable",
-          isAccountUnavailable: valuation.accountValueStatus === "unavailable",
+          isBaseUnavailable: !isValuationComplete(valuation.valueStatus),
+          isAccountUnavailable: !isValuationComplete(valuation.accountValueStatus),
           totalValueBaseCurrency,
           baseCurrency,
           totalGainLossAmountBaseCurrency: gainLossBaseCurrency,

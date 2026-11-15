@@ -179,43 +179,46 @@ describe("DashboardContent", () => {
     } as unknown as ReturnType<typeof useCurrentValuation>);
   }
 
-  it("does not show a known subtotal as a complete investment balance", () => {
-    mockUseSettingsContext.mockReturnValue({
-      settings: { baseCurrency: "AED" },
-    } as unknown as ReturnType<typeof useSettingsContext>);
-    mockCurrentValuation(20);
-    const previous = mockUseCurrentValuation({ type: "all" });
-    mockUseCurrentValuation.mockReturnValue({
-      ...previous,
-      currentValuation: {
-        ...previous.currentValuation!,
-        summary: {
-          ...previous.currentValuation!.summary,
-          valueStatus: "unavailable",
-          missingFx: [],
+  it.each(["unavailable", "partialUnpriced"] as const)(
+    "does not show an incomplete %s subtotal as an investment balance",
+    (status) => {
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "AED" },
+      } as unknown as ReturnType<typeof useSettingsContext>);
+      mockCurrentValuation(20);
+      const previous = mockUseCurrentValuation({ type: "all" });
+      mockUseCurrentValuation.mockReturnValue({
+        ...previous,
+        currentValuation: {
+          ...previous.currentValuation!,
+          summary: {
+            ...previous.currentValuation!.summary,
+            valueStatus: status,
+            missingFx: [],
+          },
         },
-      },
-    });
-    mockUseHoldings.mockReturnValue({
-      holdings: [],
-      isLoading: false,
-      error: null,
-    } as unknown as ReturnType<typeof useHoldings>);
-    mockUseValuationHistory.mockReturnValue({
-      valuationHistory: [],
-      isLoading: false,
-      error: null,
-    } as unknown as ReturnType<typeof useValuationHistory>);
-    mockUseQuery.mockReturnValue({ isLoading: false, data: null } as unknown as ReturnType<
-      typeof useQuery
-    >);
-    render(<DashboardContent />);
-    expect(screen.getByText("balance:N/A")).toBeInTheDocument();
-    expect(screen.queryByText("balance:20")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Total unavailable: some values could not be converted."),
-    ).toBeInTheDocument();
-  });
+      });
+      mockUseHoldings.mockReturnValue({
+        holdings: [],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useHoldings>);
+      mockUseValuationHistory.mockReturnValue({
+        valuationHistory: [],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useValuationHistory>);
+      mockUseQuery.mockReturnValue({ isLoading: false, data: null } as unknown as ReturnType<
+        typeof useQuery
+      >);
+      render(<DashboardContent />);
+      expect(screen.getByText("balance:N/A")).toBeInTheDocument();
+      expect(screen.queryByText("balance:20")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Total unavailable: some prices or exchange rates are missing."),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("does not pass backend performance warnings to dashboard header notices", () => {
     mockCurrentValuation(125);

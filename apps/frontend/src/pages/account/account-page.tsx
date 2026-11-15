@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
@@ -650,7 +651,7 @@ const AccountPage = () => {
     currentAccountValuation?.warnings ?? liveCurrentValuation?.summary.warnings;
   const isCurrentValuationUnavailable =
     !isCurrentValuationLoading &&
-    (currentAccountValuation?.accountValueStatus === "unavailable" ||
+    (!isValuationComplete(currentAccountValuation?.accountValueStatus) ||
       (!currentAccountValuation && Boolean(currentValuationError)));
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
   const gainLossCurrencyToDisplay =

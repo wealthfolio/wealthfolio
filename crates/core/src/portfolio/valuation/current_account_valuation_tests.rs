@@ -881,3 +881,49 @@ fn zero_balances_do_not_require_fx_or_invalidate_an_empty_account() {
     assert_eq!(result.summary.total_value_base, Decimal::ZERO);
     assert!(result.summary.missing_fx.is_empty());
 }
+
+#[test]
+fn unpriced_positions_remain_distinct_from_missing_fx() {
+    let accounts = [account("usd", "USD")];
+    for cash in [dec!(0), dec!(100)] {
+        let snapshots = HashMap::from([(
+            "usd".into(),
+            snapshot(
+                "usd",
+                "USD",
+                HashMap::from([(
+                    "unpriced".into(),
+                    position("usd", "unpriced", dec!(10), "USD", false),
+                )]),
+                HashMap::from([("USD".into(), cash)]),
+            ),
+        )]);
+        let assets = HashMap::from([("unpriced".into(), asset("unpriced", AssetKind::Investment))]);
+        let result = calculate_current_valuation_response_from_snapshots(
+            "all",
+            &accounts,
+            &snapshots,
+            &assets,
+            &HashMap::new(),
+            "USD",
+            Utc::now(),
+            true,
+            |_, _| Decimal::ONE,
+        );
+        assert_eq!(
+            result.summary.value_status,
+            if cash.is_zero() {
+                ValuationStatus::Unavailable
+            } else {
+                ValuationStatus::PartialUnpriced
+            }
+        );
+        assert_eq!(result.summary.total_value_base, cash);
+        assert!(result.summary.missing_fx.is_empty());
+        assert!(result
+            .summary
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("market prices")));
+    }
+}

@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { ValuationNotice } from "@/components/valuation-notice";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
@@ -145,17 +146,15 @@ export function DashboardContent({
     retry: 1,
   });
 
-  const gainLossAmount =
-    portfolioCurrentValuation?.summary.valueStatus === "unavailable"
-      ? null
-      : performancePeriodPnl(portfolioPerformance);
-  const simpleReturn =
-    portfolioCurrentValuation?.summary.valueStatus === "unavailable"
-      ? null
-      : performanceSummaryReturn(portfolioPerformance);
+  const gainLossAmount = !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)
+    ? null
+    : performancePeriodPnl(portfolioPerformance);
+  const simpleReturn = !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)
+    ? null
+    : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
     !isCurrentValuationLoading &&
-    (portfolioCurrentValuation?.summary.valueStatus === "unavailable" ||
+    (!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) ||
       (!portfolioCurrentValuation && Boolean(currentValuationError)));
   const portfolioSourceDataAsOf =
     portfolioCurrentValuation?.summary.sourceDataAsOf ??
@@ -168,7 +167,7 @@ export function DashboardContent({
       valuationHistory
         // A day the engine could not fully convert carries a partial value;
         // it is not plotted rather than drawn as if it were complete.
-        ?.filter((item) => item.valueStatus !== "unavailable")
+        ?.filter((item) => isValuationComplete(item.valueStatus))
         .map((item) => ({
           date: item.valuationDate,
           totalValue: item.totalValueBase,
@@ -231,8 +230,8 @@ export function DashboardContent({
             <PrivacyToggle variant="ghost" />
             <HealthStatusIndicator />
           </div>
-          {portfolioCurrentValuation?.summary.valueStatus === "unavailable" && (
-            <ValuationNotice issues={portfolioCurrentValuation.summary.missingFx} />
+          {!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) && (
+            <ValuationNotice issues={portfolioCurrentValuation?.summary.missingFx} />
           )}
           <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (
@@ -288,7 +287,7 @@ export function DashboardContent({
         }}
       >
         <div className="h-70">
-          {valuationHistory?.some((point) => point.valueStatus === "unavailable") ? (
+          {valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ? (
             <div className="px-4">
               <ValuationNotice history />
             </div>

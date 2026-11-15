@@ -362,6 +362,8 @@ where
     let mut cash_local_totals: HashMap<String, Decimal> = HashMap::new();
     let mut summary_warnings = Vec::new();
     let mut account_warnings = Vec::new();
+    let mut has_known_base_value = false;
+    let mut has_known_account_value = false;
 
     let account_fx_rate = latest_rate(&account.currency, base_currency).into();
     valuation.fx_rate_to_base = account_fx_rate
@@ -396,6 +398,8 @@ where
             normalized_cash_currency,
             base_currency,
         );
+        has_known_account_value |= !normalized_amount.is_zero() && account_value.is_some();
+        has_known_base_value |= !normalized_amount.is_zero() && base_value.is_some();
         valuation.cash_balance += account_value.unwrap_or_default();
         valuation.cash_balance_base += base_value.unwrap_or_default();
 
@@ -429,8 +433,12 @@ where
                 "Skipping current valuation for position {} in account {} because asset metadata is missing",
                 asset_id, account.id
             );
-            valuation.value_status = ValuationStatus::Unavailable;
-            valuation.account_value_status = ValuationStatus::Unavailable;
+            valuation.value_status = valuation
+                .value_status
+                .combine(ValuationStatus::PartialUnpriced);
+            valuation.account_value_status = valuation
+                .account_value_status
+                .combine(ValuationStatus::PartialUnpriced);
             summary_warnings.push(MISSING_ASSET_WARNING.to_string());
             account_warnings.push(MISSING_ASSET_WARNING.to_string());
             continue;
@@ -447,8 +455,12 @@ where
                 "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
                 asset_id, account.id
             );
-            valuation.value_status = ValuationStatus::Unavailable;
-            valuation.account_value_status = ValuationStatus::Unavailable;
+            valuation.value_status = valuation
+                .value_status
+                .combine(ValuationStatus::PartialUnpriced);
+            valuation.account_value_status = valuation
+                .account_value_status
+                .combine(ValuationStatus::PartialUnpriced);
             summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
             account_warnings.push(MISSING_QUOTE_WARNING.to_string());
             continue;
@@ -473,7 +485,7 @@ where
             normalized_quote_currency,
             base_currency,
         );
-        valuation.investment_market_value += converted_amount(
+        let market_value_account = converted_amount(
             market_value_quote,
             &mut account_warnings,
             &mut valuation.account_value_status,
@@ -482,14 +494,24 @@ where
             latest_rate,
             normalized_quote_currency,
             &account.currency,
-        )
-        .unwrap_or_default();
+        );
+        has_known_account_value |= market_value_account.is_some();
+        has_known_base_value |= market_value_base.is_some();
+        valuation.investment_market_value += market_value_account.unwrap_or_default();
         valuation.investment_market_value_base += market_value_base.unwrap_or_default();
         if let Some(value) = market_value_base {
             add_total(&mut currency_base_totals, normalized_quote_currency, value);
         }
     }
 
+    if valuation.value_status == ValuationStatus::PartialUnpriced && !has_known_base_value {
+        valuation.value_status = ValuationStatus::Unavailable;
+    }
+    if valuation.account_value_status == ValuationStatus::PartialUnpriced
+        && !has_known_account_value
+    {
+        valuation.account_value_status = ValuationStatus::Unavailable;
+    }
     valuation.total_value = valuation.cash_balance + valuation.investment_market_value;
     valuation.total_value_base =
         valuation.cash_balance_base + valuation.investment_market_value_base;

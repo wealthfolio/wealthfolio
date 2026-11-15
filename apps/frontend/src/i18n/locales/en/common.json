@@ -1,6 +1,6 @@
 {
   "valuation_history_incomplete": "Some historical values are unavailable. Changes cannot be calculated for this period.",
-  "valuation_incomplete": "Total unavailable: some values could not be converted.",
+  "valuation_incomplete": "Total unavailable: some prices or exchange rates are missing.",
   "known_subtotal": "Known subtotal (excludes unavailable values)",
   "periodReturn": "{{period}} · Return",
   "currentValue": "Current value",

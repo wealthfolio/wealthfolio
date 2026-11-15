@@ -1,6 +1,6 @@
 {
   "valuation_history_incomplete": "Alcuni valori storici non sono disponibili. Non è possibile calcolare le variazioni per questo periodo.",
-  "valuation_incomplete": "Totale non disponibile: alcuni valori non sono stati convertiti.",
+  "valuation_incomplete": "Totale non disponibile: mancano alcuni prezzi o tassi di cambio.",
   "known_subtotal": "Subtotale noto (esclude i valori non disponibili)",
   "periodReturn": "Rendimento {{period}}",
   "currentValue": "Valore attuale",

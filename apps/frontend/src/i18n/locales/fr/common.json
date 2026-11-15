@@ -1,6 +1,6 @@
 {
   "valuation_history_incomplete": "Certaines valeurs historiques sont indisponibles. Les variations ne peuvent pas être calculées pour cette période.",
-  "valuation_incomplete": "Total indisponible : certaines valeurs n’ont pas pu être converties.",
+  "valuation_incomplete": "Total indisponible : certains cours ou taux de change sont manquants.",
   "known_subtotal": "Sous-total connu (hors valeurs indisponibles)",
   "periodReturn": "Rendement {{period}}",
   "currentValue": "Valeur actuelle",

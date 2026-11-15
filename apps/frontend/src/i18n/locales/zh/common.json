@@ -1,6 +1,6 @@
 {
   "valuation_history_incomplete": "部分历史数值不可用，无法计算此期间的变化。",
-  "valuation_incomplete": "部分数值无法换算，合计暂不可用。",
+  "valuation_incomplete": "部分价格或汇率缺失，合计暂不可用。",
   "known_subtotal": "已知小计（不含不可用数值）",
   "periodReturn": "{{period}}回报",
   "currentValue": "当前价值",

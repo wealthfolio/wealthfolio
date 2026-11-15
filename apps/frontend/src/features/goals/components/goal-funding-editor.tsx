@@ -1,3 +1,4 @@
+import { isValuationComplete } from "@/lib/valuation";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 import type { NumberFormatting } from "@wealthfolio/ui";
@@ -160,7 +161,7 @@ export function GoalFundingEditor({
       const valuation = currentValuation?.accounts.find((v) => v.accountId === accountId);
       if (
         !valuation ||
-        valuation.valueStatus === "unavailable" ||
+        !isValuationComplete(valuation.valueStatus) ||
         !Number.isFinite(valuation.totalValueBase)
       )
         return null;
