@@ -121,4 +121,41 @@ pub trait FxServiceTrait: Send + Sync {
     /// Registers multiple FX pairs in batch.
     /// Pairs are (from_currency, to_currency).
     async fn ensure_fx_pairs(&self, pairs: Vec<(String, String)>) -> Result<()>;
+
+    /// For each registered pair that has no conversion path at all (no direct
+    /// rate and no route through other stored rates), registers `from/pivot`
+    /// and `pivot/to`. The converter already routes through any stored pairs,
+    /// so once those two have rates, `from -> to` converts through the pivot
+    /// while a direct rate, when it exists, still wins as the shorter path.
+    ///
+    /// Providers do not quote every cross (Yahoo has no `COPAED=X`), and
+    /// nothing else would register the legs. Returns the pivot pairs it
+    /// asked for, deduplicated, in the order first needed.
+    async fn ensure_pivot_fx_pairs(
+        &self,
+        pairs: Vec<(String, String)>,
+        pivot: &str,
+    ) -> Result<Vec<(String, String)>> {
+        let mut wanted: Vec<(String, String)> = Vec::new();
+        for (from, to) in pairs {
+            if from == to || from == pivot || to == pivot || from.is_empty() || to.is_empty() {
+                continue;
+            }
+            if self.get_latest_exchange_rate(&from, &to).is_ok() {
+                continue;
+            }
+            for leg in [
+                (from.clone(), pivot.to_string()),
+                (pivot.to_string(), to.clone()),
+            ] {
+                if !wanted.contains(&leg) {
+                    wanted.push(leg);
+                }
+            }
+        }
+        if !wanted.is_empty() {
+            self.ensure_fx_pairs(wanted.clone()).await?;
+        }
+        Ok(wanted)
+    }
 }

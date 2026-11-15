@@ -970,4 +970,103 @@ mod tests {
         assert!(results[1].rate.is_none());
         assert!(results[1].error.is_some());
     }
+
+    fn stored_rate(from: &str, to: &str, rate: &str) -> ExchangeRate {
+        ExchangeRate {
+            id: format!("FX:{from}/{to}"),
+            from_currency: from.to_string(),
+            to_currency: to.to_string(),
+            rate: rate.parse().unwrap(),
+            source: DATA_SOURCE_YAHOO.to_string(),
+            timestamp: crate::utils::clock::now() - chrono::Duration::days(1),
+        }
+    }
+
+    fn pivot_service(rates: Vec<ExchangeRate>) -> (Arc<MockFxRepository>, FxService) {
+        let repo = Arc::new(MockFxRepository::default());
+        *repo.historical_rates.lock().unwrap() = rates;
+        let service = FxService::new(repo.clone());
+        service.initialize().unwrap();
+        (repo, service)
+    }
+
+    /// Pairs passed to `create_fx_asset`, sorted: registration takes them as a set.
+    fn created(repo: &MockFxRepository) -> Vec<(String, String)> {
+        let mut pairs: Vec<(String, String)> = repo
+            .created_pairs
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(from, to, _)| (from.clone(), to.clone()))
+            .collect();
+        pairs.sort();
+        pairs
+    }
+
+    fn sorted(mut pairs: Vec<(String, String)>) -> Vec<(String, String)> {
+        pairs.sort();
+        pairs
+    }
+
+    fn pair(from: &str, to: &str) -> (String, String) {
+        (from.to_string(), to.to_string())
+    }
+
+    /// Yahoo has no COPAED=X: a COP account under an AED base gets its rate
+    /// through USD once COP/USD and USD/AED exist.
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_registers_both_legs_for_a_pair_without_rates() {
+        let (repo, service) = pivot_service(vec![]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("COP", "AED")], "USD")
+            .await
+            .unwrap();
+
+        assert_eq!(wanted, vec![pair("COP", "USD"), pair("USD", "AED")]);
+        assert_eq!(created(&repo), sorted(wanted));
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_leaves_pairs_that_already_convert() {
+        // A direct rate, and a pair that already converts through stored legs.
+        let (repo, service) = pivot_service(vec![
+            stored_rate("EUR", "AED", "4.2"),
+            stored_rate("COP", "USD", "0.00025"),
+            stored_rate("USD", "AED", "3.6725"),
+        ]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(vec![pair("EUR", "AED"), pair("COP", "AED")], "USD")
+            .await
+            .unwrap();
+
+        assert!(wanted.is_empty());
+        assert!(created(&repo).is_empty());
+        assert_eq!(
+            service.get_latest_exchange_rate("COP", "AED").unwrap(),
+            "0.00025".parse::<Decimal>().unwrap() * "3.6725".parse::<Decimal>().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn ensure_pivot_fx_pairs_asks_for_each_leg_once() {
+        // COP has no rate against anything; COP/USD serves both of its pairs.
+        let (repo, service) = pivot_service(vec![stored_rate("USD", "AED", "3.6725")]);
+
+        let wanted = service
+            .ensure_pivot_fx_pairs(
+                vec![pair("COP", "AED"), pair("COP", "EUR"), pair("USD", "COP")],
+                "USD",
+            )
+            .await
+            .unwrap();
+
+        // USD/COP is itself a pivot leg: it is the pair to sync, not to route.
+        assert_eq!(
+            wanted,
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
+        );
+        assert_eq!(created(&repo), sorted(wanted));
+    }
 }
