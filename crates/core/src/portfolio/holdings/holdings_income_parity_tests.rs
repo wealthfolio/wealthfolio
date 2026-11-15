@@ -6,8 +6,6 @@ mod income_parity {
     use crate::activities::ActivityRepositoryTrait;
     use crate::portfolio::coordinator::rows;
     use crate::portfolio::projection::ActivityIssueKind;
-    use std::collections::BTreeSet;
-    use wealthfolio_portfolio_engine::{model::ActivityId, Engine};
 
     fn income(kind: &str, amount: Decimal, currency: &str) -> Activity {
         test_income_activity(
@@ -60,18 +58,8 @@ mod income_parity {
             projections: fixture.store.clone(),
         };
         let as_of = fixture.now.date_naive();
-        let raw = sources
-            .load_for_measure(&ids, currency, "UTC", as_of)
-            .unwrap();
-        let engine = Engine::new(raw).unwrap();
-        let rejected: BTreeSet<ActivityId> = fixture
-            .store
-            .activity_issues(&ids)
-            .unwrap()
-            .into_iter()
-            .filter(|i| i.kind == ActivityIssueKind::Rejected)
-            .map(|i| i.activity_id.into())
-            .collect();
+        let engine = rows::measure_engine(&sources, &ids, currency, "UTC", as_of).unwrap();
+        let rejected = rows::stored_rejections(&sources, &engine).unwrap();
         let mut lots = Vec::new();
         let mut disposals = Vec::new();
         for id in &ids {
@@ -248,7 +236,7 @@ mod income_parity {
     }
 
     #[tokio::test]
-    #[ignore = "Known engine gap: priced_events treats GBp as GBP before minor-unit conversion"]
+    #[ignore = "Existing GBP performance attribution bug: priced_events treats GBp as GBP (100x)"]
     async fn income_parity_normalizes_minor_units() {
         let accounts = vec![account("account", "GBP", TrackingMode::Transactions)];
         let fixture = Fixture::with_quote(
