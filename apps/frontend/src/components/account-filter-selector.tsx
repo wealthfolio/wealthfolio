@@ -139,7 +139,6 @@ function AccountScopeCommand({
   commandClassName,
   listClassName,
   itemClassName,
-  groupClassName,
   footerClassName,
   portfoliosOnly = false,
   showAddPortfolio = false,
@@ -154,7 +153,6 @@ function AccountScopeCommand({
   commandClassName?: string;
   listClassName?: string;
   itemClassName?: string;
-  groupClassName?: string;
   footerClassName?: string;
   portfoliosOnly?: boolean;
   showAddPortfolio?: boolean;
@@ -171,7 +169,7 @@ function AccountScopeCommand({
       <CommandList className={listClassName}>
         <CommandEmpty>{t("common:component.no_results")}</CommandEmpty>
 
-        <CommandGroup className={groupClassName}>
+        <CommandGroup>
           <CommandItem className={itemClassName} onSelect={() => onSelect({ type: "all" })}>
             <IconTile icon={Icons.Wallet} />
             <span className="min-w-0 flex-1 truncate">{t("common:component.all_accounts")}</span>
@@ -182,7 +180,7 @@ function AccountScopeCommand({
         </CommandGroup>
 
         {portfolios.length > 0 && (
-          <CommandGroup heading={t("common:component.portfolios")} className={groupClassName}>
+          <CommandGroup heading={t("common:component.portfolios")}>
             {portfolios.map((p) => (
               <CommandItem
                 key={p.id}
@@ -207,7 +205,7 @@ function AccountScopeCommand({
         )}
 
         {!portfoliosOnly && accounts.length > 0 && (
-          <CommandGroup heading={t("common:component.accounts")} className={groupClassName}>
+          <CommandGroup heading={t("common:component.accounts")}>
             {accounts.map((a) => {
               const checked = isAccountChecked(value, a.id);
               return (
