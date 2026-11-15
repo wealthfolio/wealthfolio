@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { DateInputCell } from "@wealthfolio/ui/components/data-grid/data-grid-cell-variants";
@@ -14,18 +14,20 @@ function renderCell({
   uiLocale,
   isEditing = false,
   onDataUpdate = vi.fn(),
+  onCellEditingStop = vi.fn(),
 }: {
   locale: string;
   uiLocale?: string;
   isEditing?: boolean;
   onDataUpdate?: NonNullable<TableMeta<TestRow>["onDataUpdate"]>;
+  onCellEditingStop?: NonNullable<TableMeta<TestRow>["onCellEditingStop"]>;
 }) {
   const value = new Date(2026, 0, 11);
   const cell = {
     getValue: () => value,
     column: { columnDef: { header: "Date" } },
   } as unknown as Cell<TestRow, unknown>;
-  const tableMeta: TableMeta<TestRow> = { onDataUpdate };
+  const tableMeta: TableMeta<TestRow> = { onDataUpdate, onCellEditingStop };
 
   const result = render(
     <FormattingProvider locale={locale} uiLocale={uiLocale}>
@@ -45,7 +47,7 @@ function renderCell({
     </FormattingProvider>,
   );
 
-  return { ...result, onDataUpdate };
+  return { ...result, onDataUpdate, onCellEditingStop };
 }
 
 function segmentValues() {
@@ -87,5 +89,18 @@ describe("DateInputCell formatting region", () => {
     expect(update.value.getFullYear()).toBe(2026);
     expect(update.value.getMonth()).toBe(0);
     expect(update.value.getDate()).toBe(12);
+  });
+
+  it("picks a day from the calendar and ends the edit", async () => {
+    const user = userEvent.setup();
+    const onCellEditingStop = vi.fn();
+    renderCell({ locale: "es-ES", uiLocale: "es", isEditing: true, onCellEditingStop });
+
+    await user.click(screen.getByRole("button", { name: /^Pick a date/ }));
+    const calendar = await screen.findByRole("dialog");
+    await user.click(within(calendar).getByRole("button", { name: /20 de enero de 2026/i }));
+
+    expect(onCellEditingStop).toHaveBeenCalledTimes(1);
+    expect(segmentValues()).toEqual([20, 1, 2026]);
   });
 });
