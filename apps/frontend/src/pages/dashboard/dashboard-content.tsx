@@ -146,12 +146,12 @@ export function DashboardContent({
     retry: 1,
   });
 
-  const gainLossAmount = !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)
-    ? null
-    : performancePeriodPnl(portfolioPerformance);
-  const simpleReturn = !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)
-    ? null
-    : performanceSummaryReturn(portfolioPerformance);
+  const hasIncompleteHistory =
+    valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
+  const hasIncompletePeriod =
+    !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) || hasIncompleteHistory;
+  const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
+  const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
     !isCurrentValuationLoading &&
     (!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) ||
@@ -167,8 +167,8 @@ export function DashboardContent({
       valuationHistory
         // A day the engine could not fully convert carries a partial value;
         // it is not plotted rather than drawn as if it were complete.
-        ?.filter((item) => isValuationComplete(item.valueStatus))
-        .map((item) => ({
+        ?.map((item) => ({
+          isUnavailable: !isValuationComplete(item.valueStatus),
           date: item.valuationDate,
           totalValue: item.totalValueBase,
           netContribution: item.netContributionBase,
@@ -287,19 +287,18 @@ export function DashboardContent({
         }}
       >
         <div className="h-70">
-          {valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ? (
+          <HistoryChart
+            data={chartData}
+            isLoading={isValuationHistoryLoading}
+            scaleMode="fit-visible"
+            minDomainSpanRatio={chartMinDomainSpanRatio}
+            netContributionMaxDomainSpanRatio={chartNetContributionMaxDomainSpanRatio}
+            color="var(--investments)"
+          />
+          {hasIncompleteHistory && (
             <div className="px-4">
               <ValuationNotice history />
             </div>
-          ) : (
-            <HistoryChart
-              data={chartData}
-              isLoading={isValuationHistoryLoading}
-              scaleMode="fit-visible"
-              minDomainSpanRatio={chartMinDomainSpanRatio}
-              netContributionMaxDomainSpanRatio={chartNetContributionMaxDomainSpanRatio}
-              color="var(--investments)"
-            />
           )}
           {valuationHistory && chartData.length > 0 && (
             <div className="flex w-full justify-center">

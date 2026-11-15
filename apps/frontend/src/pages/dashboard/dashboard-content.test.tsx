@@ -220,6 +220,42 @@ describe("DashboardContent", () => {
     },
   );
 
+  it("keeps history gaps visible without reporting growth across an incomplete period", () => {
+    mockCurrentValuation(125);
+    mockUseSettingsContext.mockReturnValue({
+      settings: { baseCurrency: "USD" },
+    } as unknown as ReturnType<typeof useSettingsContext>);
+    mockUseHoldings.mockReturnValue({
+      holdings: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useHoldings>);
+    mockUseValuationHistory.mockReturnValue({
+      valuationHistory: [
+        { valuationDate: "2026-05-30", totalValueBase: 100, valueStatus: "complete" },
+        { valuationDate: "2026-05-31", totalValueBase: 0, valueStatus: "unavailable" },
+        { valuationDate: "2026-06-01", totalValueBase: 125, valueStatus: "complete" },
+      ],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useValuationHistory>);
+    mockUseQuery.mockReturnValue({
+      isLoading: false,
+      data: {
+        summary: { amountStatus: "complete", percentStatus: "complete", amount: 25, percent: 0.25 },
+      },
+    } as unknown as ReturnType<typeof useQuery>);
+    render(<DashboardContent />);
+    expect(screen.getByText("balance:125")).toBeInTheDocument();
+    expect(screen.queryByText("gain-amount:25")).not.toBeInTheDocument();
+    expect(screen.queryByText("gain-percent:0.25")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Some historical values are unavailable. Changes cannot be calculated for this period.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("does not pass backend performance warnings to dashboard header notices", () => {
     mockCurrentValuation(125);
     mockUseHoldings.mockReturnValue({

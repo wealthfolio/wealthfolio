@@ -107,10 +107,25 @@ fn compute_goal_value_from_shares(
 fn require_funding_valuations(
     rules: &[GoalFundingRule],
     valuations: &AccountValuationMap,
+    account_service: &dyn AccountServiceTrait,
 ) -> Result<()> {
-    if rules
+    let missing: Vec<String> = rules
         .iter()
-        .any(|rule| rule.share_percent > 0.0 && !valuations.contains_key(&rule.account_id))
+        .filter(|rule| rule.share_percent > 0.0 && !valuations.contains_key(&rule.account_id))
+        .map(|rule| rule.account_id.clone())
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    // An excluded account still contributes zero, as before. Only an eligible
+    // account omitted for incomplete valuation must make this goal unavailable.
+    let accounts = account_service
+        .get_accounts_by_ids(&missing)?
+        .into_iter()
+        .filter(|account| account.is_active && !account.is_archived)
+        .collect();
+    if !crate::portfolio::valuation::filter_current_valuation_accounts(Some(&missing), accounts)
+        .is_empty()
     {
         return Err(Error::Unexpected(
             "A funding account value is unavailable; check missing exchange rates or prices".into(),
@@ -690,7 +705,7 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         }
         let rules = self.load_counted_funding_rules(&goal)?;
         if !has_frozen_goal_value(&goal) {
-            require_funding_valuations(&rules, valuations)?;
+            require_funding_valuations(&rules, valuations, self.account_service.as_ref())?;
         }
         let current = compute_summary_current_value(&goal, &rules, valuations);
         let mut update = GoalSummaryUpdate {
@@ -801,7 +816,7 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         normalize_retirement_plan_ages(&mut retirement_plan, as_of);
         validate_retirement_plan(&retirement_plan)?;
 
-        require_funding_valuations(&funding_rules, valuation_map)?;
+        require_funding_valuations(&funding_rules, valuation_map, self.account_service.as_ref())?;
         let current_portfolio = compute_goal_value_from_shares(&funding_rules, valuation_map);
         let bucket_balances = compute_tax_bucket_balances(&funding_rules, valuation_map);
 
@@ -1258,7 +1273,11 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         let funding_rules = self.goal_repo.load_funding_rules(goal_id)?;
 
         if !has_frozen_goal_value(&goal) {
-            require_funding_valuations(&funding_rules, valuation_map)?;
+            require_funding_valuations(
+                &funding_rules,
+                valuation_map,
+                self.account_service.as_ref(),
+            )?;
         }
         let current_value = compute_summary_current_value(&goal, &funding_rules, valuation_map);
 
@@ -2781,19 +2800,18 @@ mod tests {
         )));
         use crate::fx::FxServiceTrait;
         fx.initialize().unwrap();
-        let service = GoalService::new(
-            repo,
-            Arc::new(MockAccountService {
-                accounts: Mutex::new(facts.accounts),
-            }),
-        )
-        .with_valuation_services(GoalValuationServices {
-            snapshots: snapshot_service,
-            assets,
-            quotes,
-            fx,
-            base_currency: Arc::new(RwLock::new(facts.base_currency)),
+        let account_service = Arc::new(MockAccountService {
+            accounts: Mutex::new(facts.accounts),
         });
+        let service = GoalService::new(repo, account_service.clone()).with_valuation_services(
+            GoalValuationServices {
+                snapshots: snapshot_service,
+                assets,
+                quotes,
+                fx,
+                base_currency: Arc::new(RwLock::new(facts.base_currency)),
+            },
+        );
         let values = service.current_valuation_map().await.unwrap();
         assert!(values.contains_key(&account_id));
         assert!(!values.contains_key("unrelated-cop"));
@@ -2813,6 +2831,33 @@ mod tests {
             summary.summary_current_value,
             values.get(&account_id).copied()
         );
+        for (active, archived) in [(true, true), (false, false)] {
+            {
+                let mut accounts = account_service.accounts.lock().unwrap();
+                let excluded = accounts
+                    .iter_mut()
+                    .find(|account| account.id == "unrelated-cop")
+                    .unwrap();
+                excluded.is_active = active;
+                excluded.is_archived = archived;
+            }
+            let summary = service
+                .refresh_goal_summary("incomplete-goal")
+                .await
+                .unwrap();
+            assert_eq!(
+                summary.summary_current_value,
+                Some(0.0),
+                "intentionally excluded funding accounts contribute zero"
+            );
+            assert!(service
+                .compute_save_up_overview(
+                    "incomplete-goal",
+                    &service.current_valuation_map().await.unwrap()
+                )
+                .await
+                .is_ok());
+        }
     }
 
     #[tokio::test]

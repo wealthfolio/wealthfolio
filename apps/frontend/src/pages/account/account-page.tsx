@@ -665,14 +665,13 @@ const AccountPage = () => {
     if (!valuationHistory) return [];
     // A day the engine could not fully convert carries a partial value; it
     // is not plotted rather than drawn as if it were complete.
-    return valuationHistory
-      .filter((valuation) => valuation.valueStatus !== "unavailable")
-      .map((valuation: AccountValuation) => ({
-        date: valuation.valuationDate,
-        totalValue: valuation.totalValue,
-        netContribution: valuation.netContribution,
-        currency: valuation.accountCurrency,
-      }));
+    return valuationHistory.map((valuation: AccountValuation) => ({
+      isUnavailable: !isValuationComplete(valuation.valueStatus),
+      date: valuation.valuationDate,
+      totalValue: valuation.totalValue,
+      netContribution: valuation.netContribution,
+      currency: valuation.accountCurrency,
+    }));
   }, [valuationHistory]);
 
   const isLoading = isAccountsLoading || isValuationHistoryLoading;
