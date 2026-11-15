@@ -596,6 +596,8 @@ impl QuoteServiceTrait for MockMarketDataRepository {
 
 struct MockFxService {
     dated_rates: HashMap<NaiveDate, Decimal>,
+    /// Currencies with no rate to any other currency.
+    missing_currencies: HashSet<String>,
     #[allow(dead_code)]
     base_currency: String,
 }
@@ -605,6 +607,7 @@ impl MockFxService {
         Self {
             base_currency: base_currency.to_string(),
             dated_rates: HashMap::new(),
+            missing_currencies: HashSet::new(),
         }
     }
 }
@@ -650,6 +653,13 @@ impl FxServiceTrait for MockFxService {
         if from_currency == to_currency {
             return Ok(amount);
         }
+        if self.missing_currencies.contains(from_currency)
+            || self.missing_currencies.contains(to_currency)
+        {
+            return Err(
+                crate::fx::FxError::RateNotFound(format!("{from_currency}/{to_currency}")).into(),
+            );
+        }
         // For testing, use 1:1 conversion
         Ok(amount)
     }
@@ -663,6 +673,13 @@ impl FxServiceTrait for MockFxService {
     ) -> Result<Decimal> {
         if from_currency == to_currency {
             return Ok(amount);
+        }
+        if self.missing_currencies.contains(from_currency)
+            || self.missing_currencies.contains(to_currency)
+        {
+            return Err(
+                crate::fx::FxError::RateNotFound(format!("{from_currency}/{to_currency}")).into(),
+            );
         }
         Ok(amount * self.dated_rates.get(&date).copied().unwrap_or(dec!(1)))
     }
@@ -3312,4 +3329,92 @@ async fn undated_manual_principal_uses_the_settings_timezone() {
             .total_liabilities,
         dec!(100)
     );
+}
+
+/// An FX service with no rate for COP, as when the provider has no COP pair.
+fn fx_without_cop() -> Arc<dyn FxServiceTrait> {
+    let mut fx = MockFxService::new("USD");
+    fx.missing_currencies.insert("COP".to_string());
+    Arc::new(fx)
+}
+
+#[tokio::test]
+async fn alternative_asset_without_a_rate_is_left_out_not_counted_one_to_one() {
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let home = create_test_asset("PROP-home", AssetKind::Property, "USD");
+    let finca = create_test_asset("PROP-finca", AssetKind::Property, "COP");
+    let quotes = vec![
+        create_test_quote("PROP-home", dec!(450000), date, "USD"),
+        // 330 million COP is about 80,000 USD; counted 1:1 it would be 330 million.
+        create_test_quote("PROP-finca", dec!(330000000), date, "COP"),
+    ];
+    let service = create_net_worth_service_with_fx(
+        vec![],
+        vec![home, finca],
+        vec![],
+        quotes,
+        vec![],
+        fx_without_cop(),
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "properties"), dec!(450000));
+    assert_eq!(result.net_worth, dec!(450000));
+}
+
+#[tokio::test]
+async fn cash_without_a_rate_is_left_out_not_counted_one_to_one() {
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let account = create_test_account("acc1", account_types::CASH, "COP");
+    let mut cash = HashMap::new();
+    cash.insert("COP".to_string(), dec!(5000000));
+    cash.insert("USD".to_string(), dec!(1200));
+    let service = create_net_worth_service_with_fx(
+        vec![account],
+        vec![],
+        vec![create_test_snapshot("acc1", vec![], cash)],
+        vec![],
+        vec![],
+        fx_without_cop(),
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "cash"), dec!(1200));
+    assert_eq!(result.net_worth, dec!(1200));
+}
+
+#[tokio::test]
+async fn history_leaves_out_alternative_asset_values_without_a_rate() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let d2 = NaiveDate::from_ymd_opt(2024, 1, 16).unwrap();
+    let home = create_test_asset("PROP-home", AssetKind::Property, "USD");
+    let finca = create_test_asset("PROP-finca", AssetKind::Property, "COP");
+    let quotes = vec![
+        create_test_quote("PROP-home", dec!(450000), d1, "USD"),
+        create_test_quote("PROP-finca", dec!(330000000), d1, "COP"),
+        create_test_quote("PROP-finca", dec!(331000000), d2, "COP"),
+    ];
+    let service = create_net_worth_service_with_fx(
+        vec![],
+        vec![home, finca],
+        vec![],
+        quotes,
+        vec![],
+        fx_without_cop(),
+    );
+
+    let history = service.get_net_worth_history(d1, d2).await.unwrap();
+
+    assert!(!history.is_empty());
+    for point in &history {
+        assert_eq!(
+            point.alternative_assets_value,
+            dec!(450000),
+            "{}",
+            point.date
+        );
+        assert_eq!(point.net_worth, dec!(450000), "{}", point.date);
+    }
 }

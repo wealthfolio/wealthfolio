@@ -221,28 +221,30 @@ impl NetWorthService {
         Ok(converted.round_dp(DECIMAL_PRECISION))
     }
 
+    /// `None` when there is no rate: an amount in another currency is never
+    /// counted as if it were already in the base currency.
     fn convert_cash_balance_to_base(
         &self,
         amount: Decimal,
         currency: &str,
         base_currency: &str,
         date: NaiveDate,
-    ) -> Decimal {
+    ) -> Option<Decimal> {
         if currency == base_currency {
-            return amount;
+            return Some(amount);
         }
 
         match self
             .fx_service
             .convert_currency_for_date(amount, currency, base_currency, date)
         {
-            Ok(value) => value,
+            Ok(value) => Some(value),
             Err(error) => {
                 warn!(
-                    "Failed to convert cash {} {} to {}: {}. Using unconverted.",
-                    amount, currency, base_currency, error
+                    "Failed to convert cash in {} to {}: {}. Leaving it out of net worth.",
+                    currency, base_currency, error
                 );
-                amount
+                None
             }
         }
     }
@@ -647,10 +649,10 @@ impl NetWorthService {
                         Ok(v) => v,
                         Err(e) => {
                             warn!(
-                                "Failed to calculate market value for {}: {}. Using local value.",
+                                "Failed to calculate market value for {}: {}. Leaving it out of net worth.",
                                 asset_id, e
                             );
-                            position.quantity * price * position.contract_multiplier
+                            continue;
                         }
                     };
 
@@ -675,12 +677,14 @@ impl NetWorthService {
                         if amount.is_zero() {
                             acc
                         } else {
-                            acc + self.convert_cash_balance_to_base(
-                                amount,
-                                currency,
-                                &base_currency,
-                                date,
-                            )
+                            acc + self
+                                .convert_cash_balance_to_base(
+                                    amount,
+                                    currency,
+                                    &base_currency,
+                                    date,
+                                )
+                                .unwrap_or(Decimal::ZERO)
                         }
                     })
                     .round_dp(DECIMAL_PRECISION);
@@ -716,9 +720,12 @@ impl NetWorthService {
                     continue;
                 }
 
-                let cash_base = self
-                    .convert_cash_balance_to_base(amount, currency, &base_currency, date)
-                    .round_dp(DECIMAL_PRECISION);
+                let Some(cash_base) =
+                    self.convert_cash_balance_to_base(amount, currency, &base_currency, date)
+                else {
+                    continue;
+                };
+                let cash_base = cash_base.round_dp(DECIMAL_PRECISION);
 
                 // Long-closed accounts keep residual balances around 1e-15 that
                 // are non-zero yet round to nothing; skip them so the Cash
@@ -826,10 +833,10 @@ impl NetWorthService {
                 Ok(v) => v,
                 Err(e) => {
                     warn!(
-                        "Failed to convert alternative asset {} value to base currency: {}. Using local value.",
+                        "Failed to convert alternative asset {} value to base currency: {}. Leaving it out of net worth.",
                         asset.id, e
                     );
-                    price
+                    continue;
                 }
             };
 
@@ -1010,13 +1017,20 @@ impl NetWorthService {
                 .cloned()
                 .unwrap_or_else(|| base_currency.clone());
 
-            // Convert to base currency
+            // Convert to base currency. Without a rate the quote is left out:
+            // the asset keeps its last converted value, or none yet.
             let value_base = if asset_currency == base_currency {
                 quote.close
             } else {
-                self.fx_service
-                    .convert_currency_for_date(quote.close, &asset_currency, &base_currency, date)
-                    .unwrap_or(quote.close)
+                match self.fx_service.convert_currency_for_date(
+                    quote.close,
+                    &asset_currency,
+                    &base_currency,
+                    date,
+                ) {
+                    Ok(value) => value,
+                    Err(_) => continue,
+                }
             };
 
             quotes_by_date
@@ -1055,7 +1069,7 @@ impl NetWorthService {
                 let (normalized_price, normalized_currency) =
                     normalize_amount(price, &quote_currency);
                 let value_base = if normalized_currency == base_currency {
-                    normalized_price
+                    Some(normalized_price)
                 } else {
                     self.fx_service
                         .convert_currency_for_date(
@@ -1064,9 +1078,11 @@ impl NetWorthService {
                             &base_currency,
                             history_seed_date,
                         )
-                        .unwrap_or(normalized_price)
+                        .ok()
                 };
-                initial_asset_values.insert(asset.id.clone(), value_base);
+                if let Some(value_base) = value_base {
+                    initial_asset_values.insert(asset.id.clone(), value_base);
+                }
             }
         }
 
@@ -1256,13 +1272,15 @@ impl NetWorthService {
                 {
                     let (value, currency) = normalize_amount(value, &asset.quote_ccy);
                     let converted = if currency == base_currency {
-                        value
+                        Some(value)
                     } else {
                         self.fx_service
                             .convert_currency_for_date(value, currency, &base_currency, date)
-                            .unwrap_or(value)
+                            .ok()
                     };
-                    current_asset_values.insert(asset.id.clone(), converted);
+                    if let Some(converted) = converted {
+                        current_asset_values.insert(asset.id.clone(), converted);
+                    }
                 }
             }
 
@@ -1270,13 +1288,15 @@ impl NetWorthService {
                 if date >= *origin {
                     let (value, currency) = normalize_amount(*principal, &asset.quote_ccy);
                     let converted = if currency == base_currency {
-                        value
+                        Some(value)
                     } else {
                         self.fx_service
                             .convert_currency_for_date(value, currency, &base_currency, date)
-                            .unwrap_or(value)
+                            .ok()
                     };
-                    current_asset_values.insert(asset.id.clone(), converted);
+                    if let Some(converted) = converted {
+                        current_asset_values.insert(asset.id.clone(), converted);
+                    }
                 }
             }
 
