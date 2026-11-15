@@ -7084,6 +7084,8 @@ pub(crate) mod tests {
             "error should clearly explain duplicate detection: {}",
             err
         );
+        // Clients get a specific refusal, not the generic internal error.
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
     }
 
     #[tokio::test]
