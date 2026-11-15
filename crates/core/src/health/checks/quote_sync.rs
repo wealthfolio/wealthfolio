@@ -5,13 +5,15 @@
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 
-use crate::assets::{AssetServiceTrait, QuoteMode};
+use crate::assets::{Asset, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
+use crate::fx::FxServiceTrait;
 use crate::health::model::{
     AffectedItem, DiagnosticDomain, Evidence, FixAction, HealthCategory, HealthDiagnostic,
     HealthEntityRef, HealthIssue, NavigateAction, Severity,
 };
 use crate::health::traits::{HealthCheck, HealthContext};
+use crate::portfolio::coordinator::fx_pair_of;
 use crate::quotes::QuoteServiceTrait;
 
 /// Data about an asset with sync errors.
@@ -40,11 +42,13 @@ pub struct QuoteSyncErrorInfo {
 /// * `asset_service` - The asset service for looking up asset symbols
 /// * `holding_market_values` - Map of asset_id -> market_value from current holdings
 /// * `latest_quote_times` - Map of asset_id -> last quote timestamp (to detect never-synced assets)
+/// * `fx_service` - When given, FX pairs it converts without a quote of their own are left out
 pub fn gather_quote_sync_errors(
     quote_service: &dyn QuoteServiceTrait,
     asset_service: &dyn AssetServiceTrait,
     holding_market_values: &HashMap<String, f64>,
     latest_quote_times: &HashMap<String, chrono::DateTime<chrono::Utc>>,
+    fx_service: Option<&dyn FxServiceTrait>,
 ) -> Vec<QuoteSyncErrorInfo> {
     // Get sync states with errors
     let sync_states_with_errors = match quote_service.get_sync_states_with_errors() {
@@ -68,10 +72,37 @@ pub fn gather_quote_sync_errors(
         Err(_) => return Vec::new(),
     };
 
-    // Build a map of asset_id -> (symbol, quote_mode)
-    let asset_map: HashMap<String, (String, QuoteMode)> = all_assets
+    let failing_assets: Vec<Asset> = all_assets
         .into_iter()
         .filter(|a| asset_ids_set.contains(&a.id))
+        .collect();
+
+    let converted_fx_ids: HashSet<String> = match fx_service {
+        Some(fx_service) => {
+            let fx_ids: Vec<String> = failing_assets
+                .iter()
+                .filter(|a| fx_pair_of(a).is_some())
+                .map(|a| a.id.clone())
+                .collect();
+            let quoted_ids: HashSet<String> = if fx_ids.is_empty() {
+                HashSet::new()
+            } else {
+                match quote_service.get_latest_quotes(&fx_ids) {
+                    Ok(quotes) => quotes.into_keys().collect(),
+                    // Unknown quote history: keep reporting the pairs.
+                    Err(_) => fx_ids.into_iter().collect(),
+                }
+            };
+            fx_pairs_converted_without_quotes(&failing_assets, &quoted_ids, |from, to| {
+                fx_service.get_latest_exchange_rate(from, to).is_ok()
+            })
+        }
+        None => HashSet::new(),
+    };
+
+    // Build a map of asset_id -> (symbol, quote_mode)
+    let asset_map: HashMap<String, (String, QuoteMode)> = failing_assets
+        .into_iter()
         .map(|a| {
             (
                 a.id.clone(),
@@ -93,6 +124,10 @@ pub fn gather_quote_sync_errors(
             if quote_mode == QuoteMode::Manual {
                 return None;
             }
+            // Skip FX pairs that convert through other rates without a quote of their own
+            if converted_fx_ids.contains(&s.asset_id) {
+                return None;
+            }
 
             let market_value = holding_market_values
                 .get(&s.asset_id)
@@ -110,6 +145,27 @@ pub fn gather_quote_sync_errors(
                 has_synced_before,
             })
         })
+        .collect()
+}
+
+/// IDs of the FX pairs among `assets` that have never returned a quote of
+/// their own, yet `converts(from, to)` still finds a rate for them through
+/// other stored pairs. Providers do not quote every cross (Yahoo has no
+/// `AEDCOP=X`); once the pivot legs through USD have rates, the direct pair's
+/// failures no longer leave any conversion without a rate, so they are not a
+/// data problem. A pair that returned quotes before stays reported: its
+/// failure may leave the converter on an old direct rate.
+fn fx_pairs_converted_without_quotes(
+    assets: &[Asset],
+    quoted_ids: &HashSet<String>,
+    converts: impl Fn(&str, &str) -> bool,
+) -> HashSet<String> {
+    assets
+        .iter()
+        .filter(|a| !quoted_ids.contains(&a.id))
+        .filter_map(|a| fx_pair_of(a).map(|(from, to)| (a, from, to)))
+        .filter(|(_, from, to)| converts(from, to))
+        .map(|(a, _, _)| a.id.clone())
         .collect()
 }
 
@@ -385,7 +441,80 @@ fn compute_data_hash(asset_ids: &[String], severity: Severity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assets::AssetKind;
     use crate::health::model::HealthConfig;
+
+    fn fx_asset(id: &str, from: &str, to: &str) -> Asset {
+        Asset {
+            id: id.to_string(),
+            kind: AssetKind::Fx,
+            instrument_symbol: Some(from.to_string()),
+            quote_ccy: to.to_string(),
+            ..Default::default()
+        }
+    }
+
+    /// Converts COP and AED both ways, as the converter does through
+    /// COP/USD and USD/AED, and nothing else.
+    fn converts_through_usd(from: &str, to: &str) -> bool {
+        matches!((from, to), ("COP", "AED") | ("AED", "COP"))
+    }
+
+    fn ids(values: &[&str]) -> HashSet<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    /// Yahoo has no COPAED=X or AEDCOP=X. Once the USD legs have rates the
+    /// direct pairs' failures leave no conversion without a rate.
+    #[test]
+    fn test_unquoted_fx_pairs_that_convert_through_other_rates_are_left_out() {
+        let assets = vec![
+            fx_asset("fx-cop-aed", "COP", "AED"),
+            fx_asset("fx-aed-cop", "AED", "COP"),
+        ];
+
+        let left_out =
+            fx_pairs_converted_without_quotes(&assets, &HashSet::new(), converts_through_usd);
+
+        assert_eq!(left_out, ids(&["fx-cop-aed", "fx-aed-cop"]));
+    }
+
+    #[test]
+    fn test_unquoted_fx_pair_without_any_conversion_stays_reported() {
+        let assets = vec![fx_asset("fx-xof-aed", "XOF", "AED")];
+
+        let left_out =
+            fx_pairs_converted_without_quotes(&assets, &HashSet::new(), converts_through_usd);
+
+        assert!(left_out.is_empty());
+    }
+
+    /// A pair that returned quotes before may leave the converter on its old
+    /// direct rate, so its failures still matter.
+    #[test]
+    fn test_fx_pair_that_returned_quotes_before_stays_reported() {
+        let assets = vec![fx_asset("fx-cop-aed", "COP", "AED")];
+
+        let left_out =
+            fx_pairs_converted_without_quotes(&assets, &ids(&["fx-cop-aed"]), converts_through_usd);
+
+        assert!(left_out.is_empty());
+    }
+
+    #[test]
+    fn test_non_fx_asset_stays_reported() {
+        let assets = vec![Asset {
+            id: "sec-badsym".to_string(),
+            kind: AssetKind::Investment,
+            instrument_symbol: Some("COP".to_string()),
+            quote_ccy: "AED".to_string(),
+            ..Default::default()
+        }];
+
+        let left_out = fx_pairs_converted_without_quotes(&assets, &HashSet::new(), |_, _| true);
+
+        assert!(left_out.is_empty());
+    }
 
     #[test]
     fn test_no_errors_no_issues() {

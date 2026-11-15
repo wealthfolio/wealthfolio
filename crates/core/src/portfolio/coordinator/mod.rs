@@ -43,7 +43,7 @@ pub use persist::{valuation_rows, WindowCadence};
 const FX_PIVOT_CURRENCY: &str = "USD";
 
 /// The (base, quote) currencies of an FX asset.
-fn fx_pair_of(asset: &Asset) -> Option<(String, String)> {
+pub(crate) fn fx_pair_of(asset: &Asset) -> Option<(String, String)> {
     if asset.kind != AssetKind::Fx {
         return None;
     }

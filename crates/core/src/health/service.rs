@@ -25,6 +25,7 @@ use crate::activities::{
 };
 use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
+use crate::fx::FxServiceTrait;
 use crate::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
@@ -78,6 +79,9 @@ pub struct HealthService {
     projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
     /// Net worth, whose stale valuations are reported when wired by the host.
     net_worth: Option<Arc<dyn NetWorthServiceTrait>>,
+    /// FX conversion, which tells which failing FX pairs convert without a
+    /// quote of their own, when wired by the host.
+    fx: Option<Arc<dyn FxServiceTrait>>,
 }
 
 fn is_price_staleness_candidate(
@@ -103,6 +107,7 @@ impl HealthService {
             transfer_integrity_check: TransferIntegrityCheck::new(),
             projection_freshness: None,
             net_worth: None,
+            fx: None,
         }
     }
 
@@ -118,6 +123,13 @@ impl HealthService {
     /// Reports manually valued assets that Net worth lists as stale.
     pub fn with_net_worth(mut self, net_worth: Arc<dyn NetWorthServiceTrait>) -> Self {
         self.net_worth = Some(net_worth);
+        self
+    }
+
+    /// Leaves out quote sync failures of FX pairs that never returned a quote
+    /// but convert through other rates, such as through USD.
+    pub fn with_fx(mut self, fx: Arc<dyn FxServiceTrait>) -> Self {
+        self.fx = Some(fx);
         self
     }
 
@@ -139,6 +151,7 @@ impl HealthService {
             transfer_integrity_check: TransferIntegrityCheck::new(),
             projection_freshness: None,
             net_worth: None,
+            fx: None,
         }
     }
 
@@ -447,6 +460,7 @@ impl HealthService {
             asset_service.as_ref(),
             &holding_mv_map,
             &latest_quote_times,
+            self.fx.as_deref(),
         );
 
         // Gather FX pairs from holdings where local_currency != base_currency
