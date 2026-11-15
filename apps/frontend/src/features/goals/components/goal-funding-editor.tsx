@@ -158,7 +158,12 @@ export function GoalFundingEditor({
     (accountId: string, percent: number): string | null => {
       if (isBalanceHidden) return null;
       const valuation = currentValuation?.accounts.find((v) => v.accountId === accountId);
-      if (!valuation || !Number.isFinite(valuation.totalValueBase)) return null;
+      if (
+        !valuation ||
+        valuation.valueStatus === "unavailable" ||
+        !Number.isFinite(valuation.totalValueBase)
+      )
+        return null;
       return amountFormatting.formatCompactAmount(
         (valuation.totalValueBase * percent) / 100,
         valuation.baseCurrency,

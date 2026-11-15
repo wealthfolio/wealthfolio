@@ -1133,6 +1133,12 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             .accounts
             .into_iter()
             .map(|v| {
+                if !v.value_status.is_complete() {
+                    return Err(crate::errors::Error::Unexpected(
+                        "Goal account value is unavailable; check missing exchange rates or prices"
+                            .into(),
+                    ));
+                }
                 let total = v
                     .total_value_base
                     .to_f64()

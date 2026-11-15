@@ -1,4 +1,7 @@
 {
+  "valuation_history_incomplete": "一部の過去の値が不明なため、この期間の変動を計算できません。",
+  "valuation_incomplete": "一部の値を換算できないため、合計を表示できません。",
+  "known_subtotal": "算出可能な小計（不明な値を除く）",
   "periodReturn": "{{period}}のリターン",
   "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",

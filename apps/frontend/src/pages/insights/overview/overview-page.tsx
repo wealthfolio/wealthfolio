@@ -440,6 +440,7 @@ export function OverviewPage({
             <ValueWidget
               metric="value"
               data={valueStrip}
+              isUnavailable={currentValuation?.summary.valueStatus === "unavailable"}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -448,6 +449,7 @@ export function OverviewPage({
             <ValueWidget
               metric="cash"
               data={valueStrip}
+              isUnavailable={currentValuation?.summary.valueStatus === "unavailable"}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -456,6 +458,7 @@ export function OverviewPage({
             <ValueWidget
               metric="invested"
               data={valueStrip}
+              isUnavailable={currentValuation?.summary.valueStatus === "unavailable"}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -464,6 +467,7 @@ export function OverviewPage({
             <ValueWidget
               metric="bookCost"
               data={valueStrip}
+              isUnavailable={currentValuation?.summary.valueStatus === "unavailable"}
               currency={baseCurrency}
               isLoading={isLoading}
             />
@@ -472,6 +476,7 @@ export function OverviewPage({
             <ValueWidget
               metric="pnl"
               data={valueStrip}
+              isUnavailable={currentValuation?.summary.valueStatus === "unavailable"}
               currency={baseCurrency}
               isLoading={isLoading}
             />

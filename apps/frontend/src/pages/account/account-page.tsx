@@ -519,6 +519,7 @@ const AccountPage = () => {
 
     return {
       ...currentValuation,
+      valueStatus: currentAccountValuation.accountValueStatus ?? currentValuation.valueStatus,
       accountCurrency: currentAccountValuation.accountCurrency,
       baseCurrency: currentAccountValuation.baseCurrency,
       cashBalance: currentAccountValuation.cashBalance,
@@ -648,7 +649,9 @@ const AccountPage = () => {
   const displayedValuationNotices =
     currentAccountValuation?.warnings ?? liveCurrentValuation?.summary.warnings;
   const isCurrentValuationUnavailable =
-    !isCurrentValuationLoading && !currentAccountValuation && Boolean(currentValuationError);
+    !isCurrentValuationLoading &&
+    (currentAccountValuation?.accountValueStatus === "unavailable" ||
+      (!currentAccountValuation && Boolean(currentValuationError)));
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
   const gainLossCurrencyToDisplay =
     selectedIntervalCode === "ALL" && !isHoldingsMode

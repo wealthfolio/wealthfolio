@@ -121,7 +121,8 @@ const num = (value: number | undefined | null): number =>
 
 /** Parse the raw history response, treating missing or non-finite values as zero. */
 export function parseHistory(history: NetWorthHistoryPoint[] | undefined): ParsedHistoryPoint[] {
-  if (!history) return [];
+  if (!history || history.some((point) => point.valueStatus && point.valueStatus !== "complete"))
+    return [];
   return history.map((point) => {
     const breakdown: Record<string, number> = {};
     for (const [key, value] of Object.entries(point.breakdown ?? {})) {

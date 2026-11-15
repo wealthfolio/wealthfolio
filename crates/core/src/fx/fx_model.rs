@@ -154,3 +154,13 @@ mod tests {
         );
     }
 }
+
+/// A nonzero item whose value could not be converted. Amounts returned alongside
+/// these issues are known subtotals, never complete totals.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FxConversionIssue {
+    pub item_id: String,
+    pub from_currency: String,
+    pub to_currency: String,
+}

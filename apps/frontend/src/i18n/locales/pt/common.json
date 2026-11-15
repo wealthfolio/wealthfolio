@@ -1,4 +1,7 @@
 {
+  "valuation_history_incomplete": "Alguns valores históricos estão indisponíveis. Não é possível calcular as alterações neste período.",
+  "valuation_incomplete": "Total indisponível: alguns valores não puderam ser convertidos.",
+  "known_subtotal": "Subtotal conhecido (exclui valores indisponíveis)",
   "periodReturn": "Retorno {{period}}",
   "currentValue": "Valor atual",
   "app_name": "Wealthfolio",
