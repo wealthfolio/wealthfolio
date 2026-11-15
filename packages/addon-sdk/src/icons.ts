@@ -109,8 +109,8 @@ export type AddonIconName = (typeof ADDON_ICON_NAMES)[number];
  *
  * The host uses the SVG only as a CSS mask, so only its shape (alpha) counts:
  * the icon takes the sidebar's text color in both themes, and scripts or
- * external references inside the SVG never run. URLs longer than 8 KB render
- * the fallback icon.
+ * external references inside the SVG never run. URLs longer than 8,192
+ * characters render the fallback icon.
  */
 export type AddonSvgIconUrl = `data:image/svg+xml${string}`;
 

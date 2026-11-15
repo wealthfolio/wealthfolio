@@ -9,8 +9,8 @@ and this project adheres to
 ### Added
 
 - Sidebar `icon` also accepts an SVG data URL (`data:image/svg+xml,...`) of up
-  to 8 KB. The host draws its shape as a single-color mask in the sidebar text
-  color. New types: `AddonIcon`, `AddonSvgIconUrl`.
+  to 8,192 characters. The host draws its shape as a single-color mask in the
+  sidebar text color. New types: `AddonIcon`, `AddonSvgIconUrl`.
 
 ## [3.13.1] - 2026-11-18
 

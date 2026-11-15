@@ -22,12 +22,13 @@ describe("addon icon registry", () => {
 
 describe("addon SVG data URL icons", () => {
   const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#000"/></svg>';
 
-  it("draws a data URL as a mask with quotes encoded", () => {
+  it("draws a data URL as a mask with quotes and # encoded", () => {
     const { container } = render(resolveNavigationIcon(`data:image/svg+xml,${svg}`, "h-5 w-5"));
     const span = container.querySelector("span");
     expect(span?.getAttribute("style")).toContain("%22http://www.w3.org/2000/svg%22");
+    expect(span?.getAttribute("style")).toContain("fill=%22%23000%22");
     expect(container.querySelector("svg")).toBeNull();
   });
 
