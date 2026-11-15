@@ -285,8 +285,9 @@ ctx.onDisable(() => {
 ```
 
 `icon` (here and in `contributes.links.sidebar`) also accepts an SVG data URL
-for a custom logo, up to 8 KB. The host uses only the SVG's shape and fills it
-with the sidebar text color, so fills and colors inside the SVG are ignored:
+for a custom logo, up to 8,192 characters. The host uses only the SVG's shape
+and fills it with the sidebar text color, so fills and colors inside the SVG are
+ignored:
 
 ```typescript
 icon: `data:image/svg+xml,${encodeURIComponent(logoSvg)}`,

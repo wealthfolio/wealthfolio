@@ -32,8 +32,9 @@ function isAddonSvgIconUrl(icon: string) {
  * the sidebar text color in both themes like the built-in icons.
  */
 function AddonSvgIcon({ url, className }: { url: string; className: string }) {
-  // Percent-encode the characters that would end or break a quoted CSS url().
-  const safeUrl = url.replace(/["\\\n\r]/g, encodeURIComponent);
+  // Percent-encode the characters that would end or break a quoted CSS url(),
+  // and `#`, which would cut a raw SVG such as `fill="#000"` short.
+  const safeUrl = url.replace(/["\\\n\r#]/g, encodeURIComponent);
   const mask = `url("${safeUrl}") center / contain no-repeat`;
   return (
     <span
