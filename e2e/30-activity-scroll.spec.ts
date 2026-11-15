@@ -1,11 +1,21 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./fixtures";
+import { restoreSpendingSettings, useSpendingAccounts, type SpendingSettings } from "./api";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 const api = `${BASE_URL}/api/v1`;
 
+// Spending is pointed at each test's own account; put the worker's settings back
+// after it for the next spec.
+let previousSpending: SpendingSettings | undefined;
+test.afterEach(async ({ page }) => {
+  if (previousSpending) await restoreSpendingSettings(page, previousSpending);
+  previousSpending = undefined;
+});
+
 async function createPortfolio(page: Page) {
   await completeOnboardingIfNeeded(page);
   const runId = Date.now().toString(36);
+  const symbol = `DESKSCROLL${runId.toUpperCase()}`;
   const accountResponse = await page.request.post(`${api}/accounts`, {
     data: {
       name: `Desktop scroll ${runId}`,
@@ -50,7 +60,7 @@ async function createPortfolio(page: Page) {
       unitPrice: 100,
       asset: {
         name: "Desktop scroll asset",
-        symbol: `DESKSCROLL${runId.toUpperCase()}`,
+        symbol,
         kind: "INVESTMENT",
         quoteCcy: "USD",
         quoteMode: "MANUAL",
@@ -74,7 +84,7 @@ async function createPortfolio(page: Page) {
       { timeout: 60_000 },
     )
     .toBe(true);
-  return { accountId, assetId };
+  return { accountId, assetId, symbol };
 }
 
 async function scrollNearBottom(container: Locator) {
@@ -122,16 +132,22 @@ test.use({ viewport: { width: 1280, height: 600 } });
 for (const context of ["asset", "account"] as const) {
   test(`desktop ${context} activities preserve page scroll when mounted`, async ({ page }) => {
     test.setTimeout(120_000);
-    const { accountId, assetId } = await createPortfolio(page);
+    const { accountId, assetId, symbol } = await createPortfolio(page);
     await gotoAppPath(
       page,
       context === "asset" ? `/holdings/${assetId}` : `/accounts/${accountId}`,
     );
     const activities = page.getByRole("button", { name: "Activities", exact: true });
     await expect(activities).toBeVisible();
-    await expect(
-      page.getByText(context === "asset" ? "Book value" : "Holdings", { exact: true }).first(),
-    ).toBeVisible();
+    if (context === "asset") {
+      await expect(page.getByText("Book value", { exact: true }).first()).toBeVisible();
+    } else {
+      // The account page is only tall enough to scroll once its holdings rows
+      // are in, and its performance grid replaces a skeleton of another
+      // height when it loads; wait for both before measuring the page.
+      await expect(page.getByText(symbol, { exact: true })).toBeVisible();
+      await expect(page.getByText("Time Weighted Return", { exact: true })).toBeVisible();
+    }
     const container = page.locator("[data-page-scroll-container]");
     const offset = await scrollNearBottom(container);
     // Keep the real response pending long enough to observe the loading layout.
@@ -175,10 +191,7 @@ test("Spending preserves scroll during selection and mobile tab switching", asyn
     });
     expect(activity.ok(), await activity.text()).toBeTruthy();
   }
-  const settings = await page.request.put(`${api}/spending/settings`, {
-    data: { enabled: true, accountIds: [accountId] },
-  });
-  expect(settings.ok()).toBeTruthy();
+  previousSpending = await useSpendingAccounts(page, [accountId]);
   await gotoAppPath(page, "/activities?tab=spending");
   // Rows sharing a timestamp list newest-created first, so the last one is on top.
   await expect(page.getByText("Scroll expense 30", { exact: true })).toBeVisible({

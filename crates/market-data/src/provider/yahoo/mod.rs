@@ -87,10 +87,9 @@ pub struct YahooProvider {
 impl YahooProvider {
     /// Create a new Yahoo Finance provider.
     pub async fn new() -> Result<Self, MarketDataError> {
-        let client = wealthfolio_http::client_builder()
+        let client = crate::provider::http_client_builder()
             .https_only(true)
             .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),

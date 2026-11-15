@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 import fixtures from "../crates/core/src/assets/loan/fixtures.json" with { type: "json" };
 

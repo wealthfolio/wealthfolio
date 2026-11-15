@@ -4,7 +4,7 @@ import { once } from "node:events";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
 import { stopServer } from "./e2e-server.mjs";
-import { waitForBackend, waitForServer } from "./run-e2e.mjs";
+import { splitWorkersArg, waitForBackend, waitForServer } from "./run-e2e.mjs";
 
 const BACKEND_URL = "http://127.0.0.1:8188";
 const runningServer = { exitCode: null };
@@ -51,31 +51,68 @@ const HANDOFF = `
   ], { stdio: "inherit" });
 `;
 
+const stopsTheChild = async (t) => {
+  const server = spawn(process.execPath, ["-e", HANDOFF], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  let childPid;
+  try {
+    const [output] = await once(server.stdout, "data", { signal: t.signal });
+    childPid = Number(String(output).trim());
+    const stopped = await Promise.race([
+      stopServer(server, "SIGINT").then(() => true),
+      setTimeout(5000, false, { ref: false }),
+    ]);
+    assert.equal(stopped, true);
+    assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+  } finally {
+    for (const pid of [childPid, server.pid].filter(Boolean)) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // already stopped
+      }
+    }
+  }
+};
+
 test(
   "stopping a server reaches a child its launcher doesn't signal",
   { skip: process.platform === "win32", timeout: 10_000 },
+  stopsTheChild,
+);
+
+test(
+  "stopping a server reaches that child on Linux without ps",
+  { skip: process.platform !== "linux", timeout: 10_000 },
   async (t) => {
-    const server = spawn(process.execPath, ["-e", HANDOFF], {
-      stdio: ["ignore", "pipe", "inherit"],
-    });
-    let childPid;
+    const path = process.env.PATH;
+    // An empty PATH leaves `ps` unfound; the server is spawned by absolute path.
+    process.env.PATH = "";
     try {
-      const [output] = await once(server.stdout, "data", { signal: t.signal });
-      childPid = Number(String(output).trim());
-      const stopped = await Promise.race([
-        stopServer(server, "SIGINT").then(() => true),
-        setTimeout(5000, false, { ref: false }),
-      ]);
-      assert.equal(stopped, true);
-      assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+      await stopsTheChild(t);
     } finally {
-      for (const pid of [childPid, server.pid].filter(Boolean)) {
-        try {
-          process.kill(pid, "SIGKILL");
-        } catch {
-          // already stopped
-        }
-      }
+      if (path === undefined) delete process.env.PATH;
+      else process.env.PATH = path;
     }
   },
 );
+
+test("a --workers argument sets the server count and leaves the rest", () => {
+  assert.deepEqual(splitWorkersArg(["--workers", "2", "e2e/a.spec.ts"]), {
+    workers: 2,
+    rest: ["e2e/a.spec.ts"],
+  });
+  assert.deepEqual(splitWorkersArg(["--workers=3", "--headed"]), {
+    workers: 3,
+    rest: ["--headed"],
+  });
+  assert.deepEqual(splitWorkersArg(["-j", "1"]), { workers: 1, rest: [] });
+  assert.deepEqual(splitWorkersArg(["--ui"]), { workers: undefined, rest: ["--ui"] });
+});
+
+test("a worker count that isn't a whole number is rejected", () => {
+  for (const args of [["--workers=50%"], ["--workers", "50%"], ["-j", "2.5"], ["--workers"]]) {
+    assert.throws(() => splitWorkersArg(args), /--workers takes a whole number of workers/);
+  }
+});

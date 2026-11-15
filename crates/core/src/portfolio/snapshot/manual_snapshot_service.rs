@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::accounts::Account;
 use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode};
-use crate::errors::{Error, Result};
+use crate::errors::{DatabaseError, Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::{
     validate_snapshot_write_date, AccountStateSnapshot, Position, SnapshotServiceTrait,
@@ -273,6 +273,38 @@ impl ManualSnapshotService {
             request.source.as_str(),
             user_today(parse_user_timezone_or_default(&self.timezone)),
         )?;
+
+        // Alternative assets count toward net worth on their own, never in an
+        // account. Checked for every holding before anything is written, on
+        // the asset saving would use: the one named by ID, or else the stored
+        // one its listing matches, read without changing anything.
+        for holding in &request.positions {
+            if holding.quantity.is_zero() {
+                continue;
+            }
+            let by_id = match holding.asset_id.as_deref().filter(|id| !id.is_empty()) {
+                // Only a missing asset falls through to the listing, as in
+                // get_or_create_minimal_asset; any other read error aborts the
+                // save, so the check never passes on a failed lookup.
+                Some(asset_id) => match self.asset_service.get_asset_by_id(asset_id) {
+                    Ok(asset) => Some(asset),
+                    Err(Error::Database(DatabaseError::NotFound(_))) => None,
+                    Err(error) => return Err(error),
+                },
+                None => None,
+            };
+            let asset = by_id.or_else(|| {
+                self.asset_service.find_asset_by_listing(
+                    &holding.asset_metadata(),
+                    Some(holding.currency.as_str()),
+                )
+            });
+            if asset.is_some_and(|asset| asset.kind.is_alternative()) {
+                return Err(Error::Validation(
+                    ValidationError::AlternativeAssetNotInAccount,
+                ));
+            }
+        }
 
         let mut positions: HashMap<String, Position> = HashMap::new();
         let mut asset_ids: Vec<String> = Vec::new();
@@ -558,7 +590,9 @@ mod tests {
     use super::*;
     use crate::accounts::{Account, AccountRepositoryTrait};
     use crate::activities::ActivityRepositoryTrait;
-    use crate::assets::{Asset, AssetRepositoryTrait, AssetService};
+    use crate::assets::{
+        Asset, AssetRepositoryTrait, AssetService, ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
+    };
     use crate::fx::FxService;
     use crate::portfolio::snapshot::{SnapshotRepositoryTrait, SnapshotService};
     use crate::test_support::in_memory::{
@@ -601,8 +635,32 @@ mod tests {
         Arc<InMemoryQuoteService>,
         Arc<InMemorySnapshotRepository>,
     ) {
+        service_for_kind(quotes, AssetKind::Investment)
+    }
+
+    fn service_for_kind(
+        quotes: Vec<Quote>,
+        kind: AssetKind,
+    ) -> (
+        ManualSnapshotService,
+        Arc<InMemoryQuoteService>,
+        Arc<InMemorySnapshotRepository>,
+    ) {
+        service_with(quotes, kind, Vec::new())
+    }
+
+    fn service_with(
+        quotes: Vec<Quote>,
+        kind: AssetKind,
+        other_assets: Vec<Asset>,
+    ) -> (
+        ManualSnapshotService,
+        Arc<InMemoryQuoteService>,
+        Arc<InMemorySnapshotRepository>,
+    ) {
         let asset = Asset {
             id: ASSET_ID.to_string(),
+            kind,
             display_code: Some("MANUAL".to_string()),
             quote_mode: QuoteMode::Manual,
             quote_ccy: "USD".to_string(),
@@ -615,9 +673,11 @@ mod tests {
             is_active: true,
             ..Default::default()
         };
-        let quote_service = Arc::new(InMemoryQuoteService::new(quotes, vec![asset.clone()]));
+        let mut assets = vec![asset];
+        assets.extend(other_assets);
+        let quote_service = Arc::new(InMemoryQuoteService::new(quotes, assets.clone()));
         let asset_repo: Arc<dyn AssetRepositoryTrait> =
-            Arc::new(InMemoryAssetRepository::new(vec![asset]));
+            Arc::new(InMemoryAssetRepository::new(assets));
         let asset_service = Arc::new(
             AssetService::new(asset_repo, quote_service.clone()).expect("asset service builds"),
         );
@@ -680,6 +740,73 @@ mod tests {
             .collect();
         closes.sort();
         closes
+    }
+
+    #[tokio::test]
+    async fn an_alternative_asset_is_refused_and_nothing_is_written() {
+        let date = day("2026-01-15");
+        for kind in [AssetKind::Property, AssetKind::Liability] {
+            let (service, quotes, snapshots) = service_for_kind(Vec::new(), kind.clone());
+
+            let refused = service
+                .save_manual_snapshot(request(date))
+                .await
+                .expect_err("an account never holds an alternative asset");
+
+            assert!(
+                refused
+                    .to_string()
+                    .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{kind:?}: {refused}"
+            );
+            assert!(closes(&quotes).is_empty(), "{kind:?}: no price written");
+            assert!(stored(&snapshots).is_empty(), "{kind:?}: no snapshot saved");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_holding_whose_listing_matches_an_alternative_asset_is_refused() {
+        // An alternative asset an activity created with a listing, before
+        // accounts refused them; a symbol-only holding would reuse it.
+        let cottage = Asset {
+            id: "cottage".to_string(),
+            kind: AssetKind::Property,
+            display_code: Some("COTTAGE".to_string()),
+            instrument_symbol: Some("COTTAGE".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_key: Some("EQUITY:COTTAGE".to_string()),
+            quote_mode: QuoteMode::Manual,
+            quote_ccy: "USD".to_string(),
+            is_active: true,
+            ..Default::default()
+        };
+        let date = day("2026-01-15");
+        // Symbol only, and an ID no asset has: saving falls through to the
+        // listing in both cases, so the check does too.
+        for asset_id in [None, Some("no-such-asset".to_string())] {
+            let (service, quotes, snapshots) =
+                service_with(Vec::new(), AssetKind::Investment, vec![cottage.clone()]);
+            let mut holding = request(date);
+            holding.positions[0].asset_id = asset_id.clone();
+            holding.positions[0].symbol = "COTTAGE".to_string();
+
+            let refused = service
+                .save_manual_snapshot(holding)
+                .await
+                .expect_err("the matched alternative asset is refused");
+
+            assert!(
+                refused
+                    .to_string()
+                    .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+                "{asset_id:?}: {refused}"
+            );
+            assert!(closes(&quotes).is_empty(), "{asset_id:?}: no price written");
+            assert!(
+                stored(&snapshots).is_empty(),
+                "{asset_id:?}: no snapshot saved"
+            );
+        }
     }
 
     #[tokio::test]

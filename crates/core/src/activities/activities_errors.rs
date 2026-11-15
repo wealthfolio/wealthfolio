@@ -10,6 +10,15 @@ pub enum ActivityError {
     NotFound(String),
     #[error("Invalid data: {0}")]
     InvalidData(String),
+    /// A write matched an activity that already exists. The id stays out of
+    /// public errors; it is kept for diagnostics and per-row bulk results.
+    #[error(
+        "Duplicate activity detected. A matching activity already exists{}.",
+        existing_activity_id.as_deref().map(|id| format!(" (id: {id})")).unwrap_or_default()
+    )]
+    Duplicate {
+        existing_activity_id: Option<String>,
+    },
     #[error("Asset error: {0}")]
     AssetError(String),
     #[error("Currency exchange error: {0}")]

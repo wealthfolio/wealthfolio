@@ -2,15 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
+  tauriInvoke: vi.fn(),
+  isMobileRuntime: vi.fn(),
   saveAppDataFileViaPicker: vi.fn(),
 }));
 
 vi.mock("./core", () => ({
   invoke: mocks.invoke,
+  tauriInvoke: mocks.tauriInvoke,
 }));
 
 vi.mock("./files", () => ({
   saveAppDataFileViaPicker: mocks.saveAppDataFileViaPicker,
+  isMobileRuntime: mocks.isMobileRuntime,
 }));
 
 import { exportDataFile } from "./exports";
@@ -18,6 +22,7 @@ import { exportDataFile } from "./exports";
 describe("tauri exportDataFile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isMobileRuntime.mockResolvedValue(true);
   });
 
   it("saves backend-created pending exports through the picker", async () => {

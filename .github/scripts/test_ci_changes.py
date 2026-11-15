@@ -22,6 +22,9 @@ class ChangeDetectionTests(unittest.TestCase):
     def test_connect_defaults_cover_every_consumer(self):
         self.assert_jobs(["config/connect.defaults.json"], "frontend", "rust", "formatting", "android", "ios", "addon_sandbox")
 
+    def test_timeout_policy_covers_every_consumer(self):
+        self.assert_jobs(["config/timeouts.json"], "frontend", "rust", "formatting", "android", "ios", "addon_sandbox")
+
     def test_native_paths(self):
         for path in ["apps/tauri/src/lib.rs", "Cargo.lock", "Cargo.toml", ".cargo/config.toml"]:
             with self.subTest(path=path):

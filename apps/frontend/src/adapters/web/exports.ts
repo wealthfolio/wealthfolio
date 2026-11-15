@@ -4,6 +4,7 @@ import { exportOptionsQuery } from "./export-options";
 import { notifyUnauthorized } from "@/lib/auth-token";
 import type { DataExportResult } from "../types";
 import { API_PREFIX } from "./core";
+import { invokeTimeoutMs } from "../invoke-timeout";
 
 const fallbackFileName = (data: ExportTarget, format: ExportedFileFormat): string => {
   const currentDate = new Date().toISOString().split("T")[0];
@@ -53,6 +54,7 @@ export const exportDataFile = async (
   const response = await profileFetch(url, {
     method: "GET",
     credentials: "same-origin",
+    signal: AbortSignal.timeout(invokeTimeoutMs("export_data_file")),
   });
 
   if (response.status === 401) {

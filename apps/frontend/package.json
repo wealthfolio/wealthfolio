@@ -39,8 +39,8 @@
     "themes:check": "node scripts/theme-generate.mjs --check"
   },
   "dependencies": {
-    "@assistant-ui/react": "^0.11.58",
-    "@assistant-ui/react-markdown": "^0.11.10",
+    "@assistant-ui/react": "^0.15.36",
+    "@assistant-ui/react-markdown": "^0.14.26",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/rubik": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",

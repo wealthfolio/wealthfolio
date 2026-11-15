@@ -52,7 +52,6 @@ const DEBT_ALLOCATION: &str = r#"[{"name":"bond","weight":1}]"#;
 const NAV_ALL_URL: &str = "https://portal.amfiindia.com/spages/NAVAll.txt";
 const HISTORY_URL: &str = "https://www.amfiindia.com/api/nav-history";
 const REPORT_URL: &str = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long a downloaded `NAVAll.txt` is reused, so a sync's funds share one copy.
 const NAV_ALL_TTL: Duration = Duration::from_secs(60 * 60);
 /// Days per history request. AMFI rejects spans of 1,825 days or more, and a
@@ -294,8 +293,7 @@ impl AmfiProvider {
     }
 
     fn with_urls(urls: Urls) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
         let request_limiter = RateLimiter::new();

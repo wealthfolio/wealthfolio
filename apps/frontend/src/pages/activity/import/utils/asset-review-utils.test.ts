@@ -5,6 +5,7 @@ import type { ImportAssetPreviewItem, ImportMappingData } from "@/lib/types";
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import {
+  buildImportAssetCandidateFromDraft,
   canProceedFromAssetReviewStep,
   holdingsImportHasAssets,
   type AssetReviewProceedInput,
@@ -48,7 +49,7 @@ function createHoldingsMapping(
 
 function previewItem(overrides: Partial<ImportAssetPreviewItem> = {}): ImportAssetPreviewItem {
   return {
-    key: "AAPL::EQUITY::::::",
+    key: buildImportAssetCandidateFromDraft(createDraft())!.key,
     status: "EXISTING_ASSET",
     resolutionSource: "market_data",
     ...overrides,
@@ -170,7 +171,7 @@ describe("canProceedFromAssetReviewStep", () => {
         proceedInput({
           isHoldingsMode: true,
           parsedRowCount: 3,
-          assetPreviewError: "Network error",
+          assetPreviewError: { kind: "network" },
         }),
       ),
     ).toBe(false);
@@ -201,6 +202,31 @@ describe("canProceedFromAssetReviewStep", () => {
         proceedInput({
           draftActivities: [createDraft()],
           assetPreviewItems: [previewItem({ status: "EXISTING_ASSET" })],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("blocks a partial preview even when every returned item is resolved", () => {
+    expect(
+      canProceedFromAssetReviewStep(
+        proceedInput({
+          draftActivities: [createDraft(), createDraft({ rowIndex: 1, symbol: "MSFT" })],
+          assetPreviewItems: [previewItem()],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("allows manually merged candidates covered by the same existing asset", () => {
+    expect(
+      canProceedFromAssetReviewStep(
+        proceedInput({
+          draftActivities: [
+            createDraft({ assetId: "apple" }),
+            createDraft({ rowIndex: 1, symbol: "APPLE", assetId: "apple" }),
+          ],
+          assetPreviewItems: [previewItem({ assetId: "apple" })],
         }),
       ),
     ).toBe(true);

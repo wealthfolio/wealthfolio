@@ -164,8 +164,7 @@ pub struct FinnhubProvider {
 impl FinnhubProvider {
     /// Create a new Finnhub provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(Duration::from_secs(30))
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 

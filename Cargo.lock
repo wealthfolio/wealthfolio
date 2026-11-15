@@ -8776,6 +8776,8 @@ version = "3.13.0"
 dependencies = [
  "rcgen",
  "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-rustls",
  "webpki-root-certs",

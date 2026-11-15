@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { ToolCallPart, ToolFallback } from "./tool-fallback";
 
 const registeredCards = vi.hoisted(() => ({
-  tools: {} as Record<string, unknown[]>,
+  toolUIs: {} as Record<string, { render: unknown }[]>,
 }));
 
 vi.mock("@assistant-ui/react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@assistant-ui/react")>()),
-  useAssistantState: (select: (state: { tools: typeof registeredCards }) => unknown) =>
+  useAuiState: (select: (state: { tools: typeof registeredCards }) => unknown) =>
     select({ tools: registeredCards }),
 }));
 
@@ -47,9 +47,9 @@ describe("ToolFallback", () => {
 });
 
 describe("ToolCallPart", () => {
-  registeredCards.tools = {
-    get_performance: [() => <p>Performance card</p>],
-    import_csv: [() => <p>Import card</p>],
+  registeredCards.toolUIs = {
+    get_performance: [{ render: () => <p>Performance card</p> }],
+    import_csv: [{ render: () => <p>Import card</p> }],
   };
 
   it("renders a call's registered card", () => {

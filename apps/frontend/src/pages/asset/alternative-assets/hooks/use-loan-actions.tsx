@@ -9,7 +9,6 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { LoanAction, PaymentAllocation } from "@/adapters/shared/alternative-assets";
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { useQuoteMutations } from "../../hooks/use-quote-mutations";
 import { invalidateAlternativeAssetQueries } from "./use-alternative-asset-mutations";
 import { useLoanCalculation, useLoanToday } from "./use-loan-calculation";
 import {
@@ -69,9 +68,7 @@ export function useLoanActions(
   const loanOriginationDate =
     typeof metadata.origination_date === "string" ? metadata.origination_date : undefined;
   const queryClient = useQueryClient();
-  const { invalidateQuoteQueries } = useQuoteMutations(assetId);
-  const refresh = () =>
-    Promise.all([invalidateAlternativeAssetQueries(queryClient), invalidateQuoteQueries()]);
+  const refresh = () => invalidateAlternativeAssetQueries(queryClient);
   // The backend checks each action against the stored loan and applies it in one transaction.
   const run = async (action: LoanAction) => {
     try {

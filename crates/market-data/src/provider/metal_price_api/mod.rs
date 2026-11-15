@@ -76,14 +76,10 @@ pub struct MetalPriceApiProvider {
     api_key: String,
 }
 
-/// Default HTTP request timeout
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-
 impl MetalPriceApiProvider {
     /// Create a new Metal Price API provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 

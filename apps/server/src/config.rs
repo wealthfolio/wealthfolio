@@ -65,10 +65,8 @@ impl Config {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
-        let timeout_ms: u64 = std::env::var("WF_REQUEST_TIMEOUT_MS")
-            .unwrap_or_else(|_| "300000".into())
-            .parse()
-            .unwrap_or(300000);
+        let request_timeout =
+            ordinary_request_timeout(std::env::var("WF_REQUEST_TIMEOUT_MS").ok().as_deref());
         let static_dir = std::env::var("WF_STATIC_DIR").unwrap_or_else(|_| "dist".into());
         let raw_secret_key = load_secret_key(
             std::env::var_os("WF_SECRET_KEY"),
@@ -191,7 +189,7 @@ impl Config {
             database_key,
             db_encryption_required,
             cors_allow,
-            request_timeout: Duration::from_millis(timeout_ms),
+            request_timeout,
             static_dir,
             addons_root,
             raw_secret_key,
@@ -290,11 +288,35 @@ pub(crate) fn load_secret_key(
     decode_secret_key(&value).with_context(|| format!("Invalid {source}"))
 }
 
+fn ordinary_request_timeout(value: Option<&str>) -> Duration {
+    let default = wealthfolio_http::timeouts::policy().interactive().server_ms;
+    let millis = value
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|millis| *millis > 0)
+        .unwrap_or(default);
+    Duration::from_millis(millis)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const KEY: &str = "--------------------------------";
+
+    #[test]
+    fn request_timeout_uses_shared_defaults_and_preserves_explicit_overrides() {
+        for value in [None, Some(""), Some("invalid"), Some("0")] {
+            assert_eq!(ordinary_request_timeout(value), Duration::from_secs(45));
+        }
+        assert_eq!(
+            ordinary_request_timeout(Some("300000")),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            ordinary_request_timeout(Some(" 30000 ")),
+            Duration::from_secs(30)
+        );
+    }
 
     #[test]
     fn data_directory_preserves_legacy_configuration_and_resolves_new_roots() {

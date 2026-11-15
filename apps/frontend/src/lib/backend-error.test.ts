@@ -24,6 +24,17 @@ afterEach(async () => {
 
 describe("public backend errors", () => {
   it.each([
+    ["SECRET_TOO_LARGE", "secretTooLarge"],
+    ["SECRET_STORE_UNAVAILABLE", "secretStoreUnavailable"],
+  ] as const)("localizes %s without trusting private backend text", async (code, key) => {
+    const error = backendError({ errorCode: code, message: privateMessage });
+    expect(error?.errorCode).toBe(code);
+    const translations = createInstance();
+    await translations.init({ lng: "fr", resources: { fr: { common: fr } } });
+    expect(backendErrorText(error, translations.t)).toBe(fr.backendErrors[key]);
+    expect(backendErrorText(error, translations.t)).not.toContain("FAKE-KEY");
+  });
+  it.each([
     "Profile operations are running. Wait for them to finish and try again.",
     "Connect account change is in progress. Try again.",
     `PROFILE_BUSY: ${privateMessage}`,
@@ -79,6 +90,8 @@ describe("public backend errors", () => {
     ["ADDON_MAIN_FILE_MISSING", "addonMainFileMissing"],
     ["ADDON_NEEDS_NEWER_VERSION", "addonNeedsNewerVersion"],
     ["QUOTE_CURRENCY_REQUIRED", "quoteCurrencyRequired"],
+    ["DUPLICATE_ACTIVITY", "duplicateActivity"],
+    ["ALTERNATIVE_ASSET_NOT_IN_ACCOUNT", "alternativeAssetNotInAccount"],
   ] as const)("names the refusal the user can act on (%s)", async (errorCode, key) => {
     const i18n = createInstance();
     await i18n.init({

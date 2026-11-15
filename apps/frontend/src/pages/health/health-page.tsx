@@ -412,10 +412,16 @@ export default function HealthPage() {
         }}
         onDismiss={() => {
           if (selectedIssue) {
-            dismissMutation.mutate({
-              issueId: selectedIssue.id,
-              dataHash: selectedIssue.dataHash,
-            });
+            const dismissedId = selectedIssue.id;
+            dismissMutation.mutate(
+              { issueId: dismissedId, dataHash: selectedIssue.dataHash },
+              // A dismissed issue leaves the list, so its sheet closes with it.
+              // Another issue's sheet, opened while this one was saving, stays.
+              {
+                onSuccess: () =>
+                  setSelectedIssue((current) => (current?.id === dismissedId ? null : current)),
+              },
+            );
           }
         }}
         onFix={() => {

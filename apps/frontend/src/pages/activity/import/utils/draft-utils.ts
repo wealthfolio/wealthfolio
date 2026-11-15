@@ -13,6 +13,7 @@ import { type DateOrder, detectDateOrder, tryParseDate } from "@/lib/utils";
 import { isValid, parse, parseISO } from "date-fns";
 import { findMappedActivityType } from "./activity-type-mapping";
 import { getDateFnsPattern } from "./date-format-options";
+import { analyzeMappedNumericColumns, getMappedColumnValue } from "./numeric-format";
 import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instrument-type";
 import { buildImportAssetCandidateKey } from "./asset-review-utils";
 import {
@@ -743,24 +744,22 @@ export function createDraftActivities(
 
   // Get column value — supports fallback columns when mapping is an array
   const getColumnValue = (row: string[], field: ImportFormat): string | undefined => {
-    const csvHeader = fieldMappings[field];
-    if (!csvHeader) return undefined;
-
-    if (Array.isArray(csvHeader)) {
-      for (const h of csvHeader) {
-        const idx = headerIndex[h];
-        if (idx !== undefined) {
-          const val = row[idx]?.trim();
-          if (val) return val;
-        }
-      }
-      return undefined;
-    }
-
-    const idx = headerIndex[csvHeader];
-    if (idx === undefined) return undefined;
-    return row[idx];
+    return getMappedColumnValue(row, headerIndex, fieldMappings[field]);
   };
+  const numericColumns = analyzeMappedNumericColumns(
+    headers,
+    parsedRows.filter(
+      (row, rowIndex) =>
+        !skippedRows.has(rowIndex) &&
+        mapActivityType(getColumnValue(row, ImportFormat.ACTIVITY_TYPE), activityMappings) !==
+          ACTIVITY_SKIP,
+    ),
+    fieldMappings,
+    decimalSeparator,
+    thousandsSeparator,
+  );
+  const decimalFor = (field: ImportFormat) =>
+    numericColumns[field]?.decimalSeparator ?? decimalSeparator;
 
   // Numeric dates are ambiguous per row but usually not per column: one
   // "26/06/2026" among them fixes the day/month order for every other row.
@@ -803,10 +802,14 @@ export function createDraftActivities(
 
     // Parse and normalize values
     const activityDate = parseDateValue(rawDate, dateFormat, dateOrder);
-    const signedAmount = parseSignedNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
+    const signedAmount = parseSignedNumericValue(
+      rawAmount,
+      decimalFor(ImportFormat.AMOUNT),
+      thousandsSeparator,
+    );
     const signedQuantity = parseSignedNumericValue(
       rawQuantity,
-      decimalSeparator,
+      decimalFor(ImportFormat.QUANTITY),
       thousandsSeparator,
     );
     const mappedActivityType = mapActivityType(rawType, activityMappings);
@@ -850,17 +853,29 @@ export function createDraftActivities(
     const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);
     const resolvedInstrumentType =
       normalizedCsvInstrumentType || prefixInstrumentType || mappedInstrumentType;
-    const quantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
-    const unitPrice = parseNumericValue(rawUnitPrice, decimalSeparator, thousandsSeparator);
-    let amount = parseNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
+    const quantity = parseNumericValue(
+      rawQuantity,
+      decimalFor(ImportFormat.QUANTITY),
+      thousandsSeparator,
+    );
+    const unitPrice = parseNumericValue(
+      rawUnitPrice,
+      decimalFor(ImportFormat.UNIT_PRICE),
+      thousandsSeparator,
+    );
+    let amount = parseNumericValue(rawAmount, decimalFor(ImportFormat.AMOUNT), thousandsSeparator);
     const rawCurrencyValue = rawCurrency?.trim();
     const currency = rawCurrencyValue || defaultCurrency;
     const currencySource = rawCurrencyValue ? "csv" : "default";
     const assetResolutionCurrency = rawCurrencyValue || undefined;
-    const fee = parseNumericValue(rawFee, decimalSeparator, thousandsSeparator);
-    let tax = parseNumericValue(rawTax, decimalSeparator, thousandsSeparator);
+    const fee = parseNumericValue(rawFee, decimalFor(ImportFormat.FEE), thousandsSeparator);
+    let tax = parseNumericValue(rawTax, decimalFor(ImportFormat.TAX), thousandsSeparator);
     const comment = rawComment?.trim();
-    const fxRate = parseNumericValue(rawFxRate, decimalSeparator, thousandsSeparator);
+    const fxRate = parseNumericValue(
+      rawFxRate,
+      decimalFor(ImportFormat.FX_RATE),
+      thousandsSeparator,
+    );
     const signedFxSubtype = signedFxTransferType
       ? normalizeSignAwareActivityLabel(rawType)
       : undefined;
