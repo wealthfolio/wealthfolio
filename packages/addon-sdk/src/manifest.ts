@@ -2,7 +2,7 @@
  * Addon manifest and metadata types
  */
 
-import type { AddonIconName } from './icons';
+import type { AddonIcon } from './icons';
 import type { Permission } from './permissions';
 
 export interface AddonNetworkAccess {
@@ -42,8 +42,8 @@ export interface AddonContributedLink {
   route: string;
   /** Human-readable label shown in the host slot */
   label: string;
-  /** Optional host-supported icon name (see {@link AddonIconName}) */
-  icon?: AddonIconName;
+  /** Optional host icon name or custom SVG data URL (see {@link AddonIcon}) */
+  icon?: AddonIcon;
   /** Optional sort order within the slot */
   order?: number;
 }
