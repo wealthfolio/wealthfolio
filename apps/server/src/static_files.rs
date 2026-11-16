@@ -8,7 +8,10 @@ use axum::{
     Router,
 };
 use tower::{service_fn, ServiceExt};
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::{
+    compression::CompressionLayer,
+    services::{ServeDir, ServeFile},
+};
 
 /// Static responses have their own cache policy; API responses are untouched.
 pub fn router(directory: &Path) -> Router {
@@ -26,6 +29,10 @@ pub fn router(directory: &Path) -> Router {
     Router::new()
         .fallback_service(ServeDir::new(directory).fallback(fallback))
         .layer(middleware::from_fn(cache_headers))
+        // The bundle is several MB and every deploy changes its hashes, so remote
+        // clients re-download all of it. Gzip only: tower-http's default Brotli
+        // level is 11, which takes seconds per MB on the fly.
+        .layer(CompressionLayer::new().no_br().no_deflate().no_zstd())
 }
 
 fn is_navigation(request: &Request<Body>) -> bool {
@@ -181,6 +188,37 @@ mod tests {
                 .status(),
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[tokio::test]
+    async fn assets_are_gzipped_when_the_client_accepts_it() {
+        let dir = fixture();
+        fs::write(
+            dir.path().join("assets/big-12345678.js"),
+            "export const x = 1;\n".repeat(500),
+        )
+        .unwrap();
+        let gzipped = router(dir.path())
+            .oneshot(
+                Request::builder()
+                    .uri("/assets/big-12345678.js")
+                    .header(header::ACCEPT_ENCODING, "gzip, deflate, br, zstd")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(gzipped.status(), StatusCode::OK);
+        assert_eq!(gzipped.headers()[header::CONTENT_ENCODING], "gzip");
+        assert_eq!(
+            gzipped.headers()[header::CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
+        );
+        let body = to_bytes(gzipped.into_body(), 1 << 20).await.unwrap();
+        assert!(body.len() < 1000, "{} bytes", body.len());
+
+        let plain = request(router(dir.path()), "/assets/big-12345678.js", "*/*").await;
+        assert!(!plain.headers().contains_key(header::CONTENT_ENCODING));
     }
 
     #[tokio::test]
