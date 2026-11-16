@@ -217,6 +217,16 @@ impl Error {
             Self::Database(DatabaseError::NotFound(_)) => {
                 PublicError::new("not_found", "The requested item was not found.")
             }
+            // Expected states, not faults: holdings are rebuilt for a moment
+            // after each import, and some accounts lack the inputs to value them.
+            Self::HoldingsPending(_) => PublicError::new(
+                "HOLDINGS_PENDING",
+                "Holdings are updating. Try again in a moment.",
+            ),
+            Self::HoldingsUnavailable(_) => PublicError::new(
+                "HOLDINGS_UNAVAILABLE",
+                "Holdings values are unavailable for this account.",
+            ),
             _ => PublicError::internal(),
         }
     }
