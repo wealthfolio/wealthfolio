@@ -780,6 +780,10 @@ impl HealthService {
                         &accounts,
                         &health_activities,
                         effective_timezone,
+                        &option_expiries
+                            .iter()
+                            .map(|expiry| expiry.activity_id.as_str())
+                            .collect(),
                     )),
                     Err(error) => {
                         warn!("Failed to read the engine's activity issues: {}", error)
@@ -1737,6 +1741,7 @@ fn engine_activity_issues(
     accounts: &[Account],
     activities: &[Activity],
     timezone: Option<&str>,
+    reported_elsewhere: &HashSet<&str>,
 ) -> Vec<ConsistencyIssueInfo> {
     let account_names: HashMap<&str, &str> = accounts
         .iter()
@@ -1749,14 +1754,9 @@ fn engine_activity_issues(
     let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
     issues
         .into_iter()
-        // The option expiry check reports expiries recorded against a stock,
-        // with the contract each refers to.
-        .filter(|issue| {
-            !matches!(
-                issue.reason,
-                Some(wealthfolio_portfolio_engine::ActivityReason::OptionExpiryNotOption { .. })
-            )
-        })
+        // Activities another check already reports with its own fix (the
+        // option expiry check) are left to it. Those it missed stay here.
+        .filter(|issue| !reported_elsewhere.contains(issue.activity_id.as_str()))
         .filter_map(|issue| {
             let activity = by_id.get(issue.activity_id.as_str())?;
             let issue_type = match issue.kind {
@@ -3031,6 +3031,7 @@ mod tests {
             std::slice::from_ref(&account),
             &[sell],
             None,
+            &HashSet::new(),
         );
         assert_eq!(infos.len(), 1, "the deleted activity's issue is dropped");
         assert_eq!(
@@ -3061,7 +3062,7 @@ mod tests {
             false,
             ActivityStatus::Posted,
         );
-        let infos = engine_activity_issues(
+        let rejected = || {
             vec![ActivityIssue {
                 activity_id: "exp-1".to_string(),
                 kind: ActivityIssueKind::Rejected,
@@ -3071,12 +3072,33 @@ mod tests {
                         asset: "rgld".to_string(),
                     },
                 ),
-            }],
+            }]
+        };
+
+        // The option expiry check lists the row, with its fix.
+        let infos = engine_activity_issues(
+            rejected(),
+            std::slice::from_ref(&account),
+            std::slice::from_ref(&expiry),
+            None,
+            &HashSet::from(["exp-1"]),
+        );
+        assert!(infos.is_empty());
+
+        // The check listed nothing (e.g. its assets failed to load): the
+        // rejection still shows, so the row never drops out of Health.
+        let infos = engine_activity_issues(
+            rejected(),
             std::slice::from_ref(&account),
             &[expiry],
             None,
+            &HashSet::new(),
         );
-        assert!(infos.is_empty());
+        assert_eq!(infos.len(), 1);
+        assert_eq!(
+            infos[0].issue_type,
+            crate::health::checks::ConsistencyIssueType::RejectedActivity
+        );
     }
 
     // Regression for #1388: activities persisted without a currency (pre-fix CSV
