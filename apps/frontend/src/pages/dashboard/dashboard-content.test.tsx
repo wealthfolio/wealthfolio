@@ -215,8 +215,8 @@ describe("DashboardContent", () => {
       expect(screen.getByText("balance:N/A")).toBeInTheDocument();
       expect(screen.queryByText("balance:20")).not.toBeInTheDocument();
       expect(
-        screen.getByText("Total unavailable: some prices or exchange rates are missing."),
-      ).toBeInTheDocument();
+        screen.queryByText("Total unavailable: some prices or exchange rates are missing."),
+      ).not.toBeInTheDocument();
     },
   );
 
@@ -250,10 +250,10 @@ describe("DashboardContent", () => {
     expect(screen.queryByText("gain-amount:25")).not.toBeInTheDocument();
     expect(screen.queryByText("gain-percent:0.25")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Some historical values are unavailable. Changes cannot be calculated for this period.",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("does not pass backend performance warnings to dashboard header notices", () => {

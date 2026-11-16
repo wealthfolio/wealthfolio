@@ -1,5 +1,4 @@
 {
-  "valuation_history_incomplete": "Einige historische Werte sind nicht verfügbar. Änderungen für diesen Zeitraum können nicht berechnet werden.",
   "valuation_incomplete": "Gesamtwert nicht verfügbar: Einige Kurse oder Wechselkurse fehlen.",
   "known_subtotal": "Bekannte Zwischensumme (ohne nicht verfügbare Werte)",
   "periodReturn": "Rendite {{period}}",

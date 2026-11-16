@@ -1,5 +1,4 @@
 {
-  "valuation_history_incomplete": "一部の過去の値が不明なため、この期間の変動を計算できません。",
   "valuation_incomplete": "一部の価格または為替レートが不明なため、合計を表示できません。",
   "known_subtotal": "算出可能な小計（不明な値を除く）",
   "periodReturn": "{{period}}のリターン",

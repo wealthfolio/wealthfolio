@@ -72,6 +72,7 @@
   },
   "networth": {
     "attention": {
+      "review_valuation": "Bewertungsprobleme prüfen",
       "title": "Handlungsbedarf",
       "update_value": "Wert aktualisieren",
       "update_balance": "Restschuld aktualisieren",

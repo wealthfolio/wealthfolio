@@ -1,5 +1,4 @@
 {
-  "valuation_history_incomplete": "일부 과거 값을 확인할 수 없어 이 기간의 변동을 계산할 수 없습니다.",
   "valuation_incomplete": "일부 가격 또는 환율을 확인할 수 없어 합계를 표시할 수 없습니다.",
   "known_subtotal": "확인된 소계 (확인할 수 없는 값 제외)",
   "periodReturn": "{{period}} 수익률",

@@ -93,10 +93,13 @@ const property: AlternativeAssetHolding = {
 const stale = [
   { assetId: "mortgage", name: "Home mortgage", valuationDate: "2025-01-01", daysStale: 200 },
 ];
-const renderCard = (staleAssets = stale) =>
+const renderCard = (staleAssets = stale, hasIncompleteValuation = false) =>
   render(
     <MemoryRouter>
-      <NetWorthAttention staleAssets={staleAssets} />
+      <NetWorthAttention
+        staleAssets={staleAssets}
+        hasIncompleteValuation={hasIncompleteValuation}
+      />
     </MemoryRouter>,
   );
 
@@ -111,6 +114,23 @@ afterEach(() => {
 });
 
 describe("NetWorthAttention", () => {
+  it("offers one Health Center link for incomplete valuations without other reminders", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([], true);
+    expect(screen.getByRole("region", { name: "Needs attention" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Review valuation issues" })).toHaveAttribute(
+      "href",
+      "/health",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("hides the card when there are no valuation issues or other reminders", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([]);
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
   it("retains history links and distinguishes liability balances from asset values", () => {
     renderCard([...stale, { ...stale[0], assetId: "home", name: "Home" }]);
     expect(screen.getByRole("link", { name: /Update balance/ })).toHaveAttribute(

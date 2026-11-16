@@ -1,4 +1,4 @@
-import { ValuationNotice } from "@/components/valuation-notice";
+import { isValuationComplete } from "@/lib/valuation";
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -146,6 +146,9 @@ export function NetWorthContent() {
 
   const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
   const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
+  const hasIncompleteValuation =
+    !isValuationComplete(netWorthData?.valueStatus) ||
+    (historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false);
 
   const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
   const trailingYearMonthly = useMemo(() => {
@@ -260,9 +263,6 @@ export function NetWorthContent() {
               <PrivacyToggle variant="ghost" />
               <HealthStatusIndicator />
             </div>
-            {netWorthData?.valueStatus && netWorthData.valueStatus !== "complete" && (
-              <ValuationNotice issues={netWorthData.missingFx} />
-            )}
             <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
               {isHistoryLoading ? (
                 <div className="flex items-center gap-3 pt-1">
@@ -368,14 +368,6 @@ export function NetWorthContent() {
           )}
         </div>
 
-        {historyData?.some((point) => point.valueStatus && point.valueStatus !== "complete") && (
-          <div className="px-4 md:px-6">
-            <ValuationNotice
-              history
-              issues={historyData.flatMap((point) => point.missingFx ?? [])}
-            />
-          </div>
-        )}
         {/* Content section */}
         <div className="grow px-4 pt-14 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-12 md:pb-6 lg:px-10 lg:pt-14 lg:pb-8">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
@@ -439,7 +431,10 @@ export function NetWorthContent() {
                 <MomentumCard momentum={momentum} currency={currency} periodLabel={periodLabel} />
               )}
 
-              <NetWorthAttention staleAssets={netWorthData?.staleAssets ?? []} />
+              <NetWorthAttention
+                staleAssets={netWorthData?.staleAssets ?? []}
+                hasIncompleteValuation={hasIncompleteValuation}
+              />
             </div>
           </div>
         </div>

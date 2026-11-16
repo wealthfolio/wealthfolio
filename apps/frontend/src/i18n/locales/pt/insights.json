@@ -76,6 +76,7 @@
   },
   "networth": {
     "attention": {
+      "review_valuation": "Rever problemas de avaliação",
       "title": "Precisa de atenção",
       "update_value": "Atualizar valor",
       "update_balance": "Atualizar saldo",

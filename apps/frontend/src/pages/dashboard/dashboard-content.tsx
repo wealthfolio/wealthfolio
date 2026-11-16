@@ -1,5 +1,4 @@
 import { isValuationComplete } from "@/lib/valuation";
-import { ValuationNotice } from "@/components/valuation-notice";
 import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { calculatePerformanceSummary } from "@/adapters";
@@ -230,9 +229,6 @@ export function DashboardContent({
             <PrivacyToggle variant="ghost" />
             <HealthStatusIndicator />
           </div>
-          {!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) && (
-            <ValuationNotice issues={portfolioCurrentValuation?.summary.missingFx} />
-          )}
           <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (
               <div className="flex items-center gap-3">
@@ -295,11 +291,6 @@ export function DashboardContent({
             netContributionMaxDomainSpanRatio={chartNetContributionMaxDomainSpanRatio}
             color="var(--investments)"
           />
-          {hasIncompleteHistory && (
-            <div className="px-4">
-              <ValuationNotice history />
-            </div>
-          )}
           {valuationHistory && chartData.length > 0 && (
             <div className="flex w-full justify-center">
               <div className="pointer-events-auto relative z-20 flex w-full max-w-screen-sm min-w-0 items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">

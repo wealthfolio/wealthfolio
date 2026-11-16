@@ -19,6 +19,7 @@ const ADD_PROPERTY_OPTION = "__add_property__";
 
 interface NetWorthAttentionCardProps {
   staleAssets: StaleAssetInfo[];
+  hasIncompleteValuation?: boolean;
   holdings: AlternativeAssetHolding[];
   isLinking?: boolean;
   onLink: (liabilityId: string, propertyId: string) => void;
@@ -27,6 +28,7 @@ interface NetWorthAttentionCardProps {
 
 export function NetWorthAttentionCard({
   staleAssets,
+  hasIncompleteValuation = false,
   holdings,
   isLinking,
   onLink,
@@ -42,7 +44,7 @@ export function NetWorthAttentionCard({
       (!holding.metadata?.sub_type || holding.metadata.sub_type === "mortgage") &&
       !holding.linkedAssetId,
   );
-  if (!staleAssets.length && !unlinkedLiabilities.length) return null;
+  if (!staleAssets.length && !unlinkedLiabilities.length && !hasIncompleteValuation) return null;
 
   return (
     <section
@@ -60,6 +62,17 @@ export function NetWorthAttentionCard({
           {t("insights:networth.attention.title")}
         </h3>
       </div>
+      {hasIncompleteValuation && (
+        <div className="ms-9 mt-3">
+          <Link
+            to="/health"
+            className="inline-flex items-center gap-1 text-xs underline underline-offset-4"
+          >
+            {t("insights:networth.attention.review_valuation")}
+            <Icons.ChevronRight className="size-3 shrink-0 rtl:rotate-180" />
+          </Link>
+        </div>
+      )}
       {staleAssets.length > 0 && (
         <div className="ms-9 mt-3">
           <p className="text-muted-foreground text-xs">
@@ -139,7 +152,13 @@ export function NetWorthAttentionCard({
   );
 }
 
-export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo[] }) {
+export function NetWorthAttention({
+  staleAssets,
+  hasIncompleteValuation,
+}: {
+  staleAssets: StaleAssetInfo[];
+  hasIncompleteValuation?: boolean;
+}) {
   const { data: holdings = [], isError } = useAlternativeHoldings();
   const { linkLiabilityMutation: linkLiability } = useAlternativeAssetMutations();
   const [liabilityId, setLiabilityId] = useState<string | null>(null);
@@ -147,6 +166,7 @@ export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo
     <>
       <NetWorthAttentionCard
         staleAssets={staleAssets}
+        hasIncompleteValuation={hasIncompleteValuation}
         holdings={isError ? [] : holdings}
         isLinking={linkLiability.isPending}
         onLink={(liabilityId, targetAssetId) =>
