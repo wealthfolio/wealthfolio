@@ -205,3 +205,42 @@ fn a_transfer_out_realizes_nothing() {
     // NOM-TXF-04: acc-a sends its lot (bought with a fee of 5) at its cost.
     assert_eq!(realized("NOM-TXF-04", "acc-a"), Decimal::ZERO);
 }
+
+#[test]
+fn minor_unit_income_and_tax_are_attributed_in_major_units() {
+    // A dividend of 500 GBp gross with 100 GBp withheld in a GBP portfolio is
+    // GBP 5 of income and GBP 1 of tax: GBp is not GBP, whatever its case.
+    let scenario: Scenario = serde_yaml::from_str(
+        r#"
+id: INLINE-GBP-MINOR-INCOME
+policy: { base_currency: GBP, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc, currency: GBP }
+assets:
+  - { id: vod, quote_ccy: GBp }
+activities:
+  - { id: dep, account: acc, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: buy, account: acc, type: BUY, date: 2025-01-03T10:00:00Z, asset: vod, quantity: 100, unit_price: 2.5, amount: 250, currency: GBP }
+  - { id: div, account: acc, type: DIVIDEND, date: 2025-01-06T10:00:00Z, asset: vod, amount: 400, tax: 100, currency: GBp }
+quotes:
+  - { asset: vod, day: 2025-01-03, close: 250 }
+  - { asset: vod, day: 2025-01-10, close: 250 }
+"#,
+    )
+    .expect("scenario");
+    let pipeline = Pipeline::from_scenario(&scenario);
+    assert!(pipeline.bundle.rejected_activities().is_empty());
+    let body = capture_body(&pipeline, &all_windows(&scenario));
+    for performance in [
+        &body["accounts"]["acc"]["performance"]["all_time"],
+        &body["portfolio"]["all_time"],
+    ] {
+        let attribution = &performance["attribution"];
+        assert_eq!(number(&attribution["income"]), Decimal::from(5));
+        assert_eq!(number(&attribution["taxes"]), Decimal::from(1));
+        assert_eq!(number(&performance["summary"]["amount"]), Decimal::from(4));
+    }
+    let (explained, held) = explained_and_held(&scenario);
+    assert_eq!(held, Decimal::from(1004));
+    assert_eq!(explained, held);
+}
