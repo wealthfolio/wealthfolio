@@ -1,5 +1,6 @@
 //! Captured accounting inputs for one holdings read. Storage captures these
 //! together; core interprets them after the read transaction has ended.
+use std::cell::OnceCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use chrono::NaiveDate;
@@ -193,23 +194,32 @@ impl HoldingsRead {
     /// Marker dependencies include closed positions and transfer counterparties;
     /// limiting these to today's open assets can expose an obsolete lot book.
     pub fn history_pending(&self, account_id: &str, day: NaiveDate) -> bool {
-        let accounts = self.dependency_accounts(account_id);
-        let assets: HashSet<&str> = self
-            .activities
-            .iter()
-            .filter(|a| accounts.contains(&a.account_id))
-            .filter_map(|a| a.asset_id.as_deref())
-            .chain(
-                self.snapshots
+        // Built on first use: with no account or asset marker, neither is read.
+        let accounts = OnceCell::new();
+        let accounts = || accounts.get_or_init(|| self.dependency_accounts(account_id));
+        let assets = OnceCell::new();
+        let assets = || {
+            assets.get_or_init(|| {
+                let accounts = accounts();
+                self.activities
                     .iter()
-                    .filter(|(id, _)| accounts.contains(*id))
-                    .flat_map(|(_, snapshot)| snapshot.positions.keys().map(String::as_str)),
-            )
-            .collect();
+                    .filter(|a| accounts.contains(&a.account_id))
+                    .filter_map(|a| a.asset_id.as_deref())
+                    .chain(
+                        self.snapshots
+                            .iter()
+                            .filter(|(id, _)| accounts.contains(*id))
+                            .flat_map(|(_, snapshot)| {
+                                snapshot.positions.keys().map(String::as_str)
+                            }),
+                    )
+                    .collect::<HashSet<&str>>()
+            })
+        };
         self.markers.iter().any(|marker| match &marker.scope {
             MarkerScope::All | MarkerScope::Fx(_) => true,
-            MarkerScope::Account(id) => accounts.contains(id),
-            MarkerScope::Asset(id) => assets.contains(id.as_str()),
+            MarkerScope::Account(id) => accounts().contains(id),
+            MarkerScope::Asset(id) => assets().contains(id.as_str()),
             MarkerScope::Prices(_) => false,
         }) || self.day_advance_pending(account_id, day)
     }
