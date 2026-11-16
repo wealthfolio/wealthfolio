@@ -2375,8 +2375,10 @@ pub(crate) mod tests {
             Arc::new(MockQuoteService),
         ));
         let snapshots = Arc::new(held(&[("fhsa", "2026-07-17", &[("rgld-c195", 2)])]));
+        // The check's timezone travels in the payload; none is configured.
         let payload = |ids: &[&str]| MatchOptionExpiryContractsPayload {
             activity_ids: ids.iter().map(|id| id.to_string()).collect(),
+            timezone: Some("America/Toronto".to_string()),
         };
 
         let moved = match_option_expiry_contracts(
@@ -2385,7 +2387,7 @@ pub(crate) mod tests {
             asset_service.clone(),
             snapshots.clone(),
             payload(&["exp"]),
-            Some("America/Toronto".to_string()),
+            None,
         )
         .await
         .expect("the expiry has one matching contract");
@@ -2429,7 +2431,7 @@ pub(crate) mod tests {
             asset_service,
             snapshots,
             payload(&["exp"]),
-            Some("America/Toronto".to_string()),
+            None,
         )
         .await;
         assert!(again.is_err());
