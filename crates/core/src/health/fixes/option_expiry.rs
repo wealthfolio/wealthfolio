@@ -34,6 +34,9 @@ pub const MATCH_OPTION_EXPIRY_CONTRACTS_FIX: &str = "match_option_expiry_contrac
 #[serde(rename_all = "camelCase")]
 pub struct MatchOptionExpiryContractsPayload {
     pub activity_ids: Vec<String>,
+    /// The timezone the check matched in; without it, the configured one.
+    #[serde(default)]
+    pub timezone: Option<String>,
 }
 
 /// The option contract an expiry refers to, and the units it ends.
@@ -182,8 +185,9 @@ pub fn find_option_expiries_without_contract(
     let mut held_on: HashMap<(String, NaiveDate), HashMap<String, Decimal>> = HashMap::new();
     let mut infos: Vec<OptionExpiryWithoutContractInfo> = expiries
         .into_iter()
-        .filter_map(|(activity, account, stock)| {
-            let symbol = stock_symbol(stock)?;
+        .map(|(activity, account, stock)| {
+            // A stock without a symbol matches no contract, but is still listed.
+            let symbol = stock_symbol(stock);
             let date = activity_date_in_tz(activity.activity_date, tz);
             let utc_date = activity.activity_date.date_naive();
             let held = held_on
@@ -192,7 +196,8 @@ pub fn find_option_expiries_without_contract(
             let candidates: Vec<ExpiryContract> = contracts
                 .iter()
                 .filter(|(_, underlying, expiration)| {
-                    *underlying == symbol && (*expiration == date || *expiration == utc_date)
+                    symbol.as_deref() == Some(underlying.as_str())
+                        && (*expiration == date || *expiration == utc_date)
                 })
                 .filter(|(asset, _, _)| {
                     !expired.contains(&(account.id.as_str(), asset.id.as_str()))
@@ -206,17 +211,17 @@ pub fn find_option_expiries_without_contract(
                     })
                 })
                 .collect();
-            Some(OptionExpiryWithoutContractInfo {
+            OptionExpiryWithoutContractInfo {
                 activity_id: activity.id.clone(),
                 account_id: account.id.clone(),
                 account_name: account.name.clone(),
                 date,
-                stock_symbol: symbol,
+                stock_symbol: symbol.unwrap_or_else(|| contract_symbol(stock)),
                 candidate_count: candidates.len(),
                 contract: (candidates.len() == 1)
                     .then(|| candidates.into_iter().next())
                     .flatten(),
-            })
+            }
         })
         .collect();
 
@@ -279,6 +284,10 @@ pub async fn match_option_expiry_contracts(
     payload: MatchOptionExpiryContractsPayload,
     timezone: Option<String>,
 ) -> Result<usize> {
+    let timezone = payload
+        .timezone
+        .filter(|tz| !tz.trim().is_empty())
+        .or(timezone);
     let requested: HashSet<String> = payload.activity_ids.into_iter().collect();
     if requested.is_empty() {
         return Err(ActivityError::InvalidData("No option expiries were selected".into()).into());
@@ -629,6 +638,32 @@ pub(crate) mod tests {
             found[0].contract.as_ref().map(|c| c.asset_id.as_str()),
             Some("rgld-c195")
         );
+    }
+
+    #[test]
+    fn lists_a_stock_without_a_symbol_with_no_contract() {
+        let accounts = [account("fhsa", TrackingMode::Transactions)];
+        let activities = [expiry("exp", "fhsa", "nameless", "2026-07-17T21:30:00Z")];
+        let mut all_assets = assets();
+        all_assets.push(Asset {
+            id: "nameless".into(),
+            instrument_type: Some(InstrumentType::Equity),
+            ..Asset::default()
+        });
+        let held = held(&[("fhsa", DAY, &[("rgld-c195", 2)])]);
+
+        let found = find_option_expiries_without_contract(
+            &activities,
+            &accounts,
+            &all_assets,
+            &held,
+            Some("UTC"),
+        );
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].stock_symbol, "nameless");
+        assert_eq!(found[0].contract, None);
+        assert_eq!(found[0].candidate_count, 0);
     }
 
     #[test]

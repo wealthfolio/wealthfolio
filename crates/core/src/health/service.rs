@@ -314,7 +314,10 @@ impl HealthService {
         all_issues.extend(transfer_issues);
 
         // Option expiries recorded against a stock instead of the contract
-        all_issues.extend(self.option_expiry_check.analyze(option_expiries));
+        all_issues.extend(self.option_expiry_check.analyze(
+            option_expiries,
+            effective_timezone(configured_timezone, client_timezone),
+        ));
 
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
@@ -725,7 +728,7 @@ impl HealthService {
             let option_expiries = match asset_service.get_assets() {
                 Ok(assets) => find_option_expiries_without_contract(
                     &health_activities,
-                    &accounts,
+                    &snapshot_health_accounts,
                     &assets,
                     snapshot_service.as_ref(),
                     effective_timezone,

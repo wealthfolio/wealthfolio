@@ -25,7 +25,12 @@ impl OptionExpiryCheck {
     }
 
     /// One issue listing every such expiry, with the contract it would move to.
-    pub fn analyze(&self, expiries: &[OptionExpiryWithoutContractInfo]) -> Vec<HealthIssue> {
+    /// `timezone` is the one the expiries were matched in.
+    pub fn analyze(
+        &self,
+        expiries: &[OptionExpiryWithoutContractInfo],
+        timezone: Option<&str>,
+    ) -> Vec<HealthIssue> {
         if expiries.is_empty() {
             return Vec::new();
         }
@@ -43,13 +48,20 @@ impl OptionExpiryCheck {
             .map(|expiry| expiry.activity_id.clone())
             .collect();
         let mut diagnostic =
-            HealthDiagnostic::new("OPTION_EXPIRY_WITHOUT_CONTRACT", &title, message)
+            HealthDiagnostic::new(
+                "OPTION_EXPIRY_WITHOUT_CONTRACT",
+                "Expiries to link",
+                "Each row shows the contract the expiry moves to and the units it ends. Open a row without one to choose the contract yourself.",
+            )
                 .domain(DiagnosticDomain::Ledger)
                 .severity(Severity::Error);
         diagnostic = if matched.is_empty() {
             diagnostic.navigate(true, NavigateAction::to_activity(&expiries[0].activity_id))
         } else {
-            diagnostic.fix(true, FixAction::match_option_expiry_contracts(matched))
+            diagnostic.fix(
+                true,
+                FixAction::match_option_expiry_contracts(matched, timezone),
+            )
         };
         let affected_items: Vec<AffectedItem> = expiries
             .iter()
@@ -163,17 +175,23 @@ mod tests {
 
     #[test]
     fn offers_the_fix_for_matched_expiries_only() {
-        let issues = OptionExpiryCheck::new().analyze(&[
-            expiry("exp-1", Some("rgld-call"), 1),
-            expiry("exp-2", None, 2),
-        ]);
+        let issues = OptionExpiryCheck::new().analyze(
+            &[
+                expiry("exp-1", Some("rgld-call"), 1),
+                expiry("exp-2", None, 2),
+            ],
+            Some("America/Toronto"),
+        );
         assert_eq!(issues.len(), 1);
         let issue = &issues[0];
         assert_eq!(issue.severity, Severity::Error);
         assert_eq!(issue.affected_count, 2);
         let fix = fix_of(issue).unwrap();
         assert_eq!(fix.id, "match_option_expiry_contracts");
-        assert_eq!(fix.payload, serde_json::json!({ "activityIds": ["exp-1"] }));
+        assert_eq!(
+            fix.payload,
+            serde_json::json!({ "activityIds": ["exp-1"], "timezone": "America/Toronto" })
+        );
         let items = issue.affected_items.as_ref().unwrap();
         assert!(items[0].name.ends_with("→ RGLD260717C00195000 × 2"));
         assert!(items[1].name.ends_with("several contracts fit"));
@@ -181,7 +199,7 @@ mod tests {
 
     #[test]
     fn links_to_the_transaction_when_no_contract_fits() {
-        let issues = OptionExpiryCheck::new().analyze(&[expiry("exp-1", None, 0)]);
+        let issues = OptionExpiryCheck::new().analyze(&[expiry("exp-1", None, 0)], None);
         assert!(fix_of(&issues[0]).is_none());
         assert!(issues[0].affected_items.as_ref().unwrap()[0]
             .name
@@ -190,6 +208,6 @@ mod tests {
 
     #[test]
     fn reports_nothing_without_expiries() {
-        assert!(OptionExpiryCheck::new().analyze(&[]).is_empty());
+        assert!(OptionExpiryCheck::new().analyze(&[], None).is_empty());
     }
 }
