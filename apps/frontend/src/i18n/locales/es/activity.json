@@ -747,6 +747,7 @@
     "err_expiration_required": "La fecha de vencimiento es obligatoria.",
     "err_expiration_invalid": "Introduce una fecha de vencimiento válida.",
     "err_option_type_required": "El tipo de opción es obligatorio.",
+    "err_option_contract_required": "Elija el contrato de opción que venció, no la acción subyacente.",
     "err_multiplier_number": "El multiplicador del contrato debe ser un número.",
     "err_multiplier_gt_zero": "El multiplicador del contrato debe ser mayor que 0.",
     "err_enter_split_ratio": "Introduce un ratio de división.",

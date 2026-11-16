@@ -155,8 +155,8 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
             path: ["assetId"],
             message: msg(
               t,
-              "activity:form.err_option_type_required",
-              "An option asset is required.",
+              "activity:form.err_option_contract_required",
+              "Choose the option contract that expired, not its underlying stock.",
             ),
           });
         }

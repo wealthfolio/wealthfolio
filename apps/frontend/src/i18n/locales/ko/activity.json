@@ -728,6 +728,7 @@
     "err_expiration_required": "만기일은 필수입니다.",
     "err_expiration_invalid": "유효한 만기일을 입력하세요.",
     "err_option_type_required": "옵션 유형은 필수입니다.",
+    "err_option_contract_required": "기초 주식이 아닌 만기된 옵션 계약을 선택하세요.",
     "err_multiplier_number": "계약 승수는 숫자여야 합니다.",
     "err_multiplier_gt_zero": "계약 승수는 0보다 커야 합니다.",
     "err_enter_split_ratio": "분할 비율을 입력해 주세요.",

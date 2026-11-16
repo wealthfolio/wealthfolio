@@ -731,6 +731,7 @@
     "err_expiration_required": "到期日為必填。",
     "err_expiration_invalid": "請輸入有效的到期日。",
     "err_option_type_required": "選擇權類型為必填。",
+    "err_option_contract_required": "請選擇已到期的選擇權合約，而非標的股票。",
     "err_multiplier_number": "合約乘數必須為數字。",
     "err_multiplier_gt_zero": "合約乘數必須大於 0。",
     "err_enter_split_ratio": "請輸入拆股比例。",

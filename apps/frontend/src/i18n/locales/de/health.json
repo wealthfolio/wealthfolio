@@ -162,6 +162,11 @@
       "title_one": "Wechselkurse für {{from}} und {{to}} widersprechen sich",
       "title_other": "Wechselkurse widersprechen sich für {{count}} Währungspaare",
       "message": "Für dieselben Tage sind Kurse in beide Richtungen erfasst, die nicht zusammenpassen. Jede Richtung wird wie erfasst verwendet, sodass eine Umrechnung hin und zurück einen anderen Betrag ergibt. Korrigieren oder entfernen Sie die falschen Kurse."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Optionsverfall ist nicht mit seinem Kontrakt verknüpft",
+      "title_other": "{{count}} Optionsverfälle sind nicht mit ihren Kontrakten verknüpft",
+      "message": "Diese Optionsverfälle nennen die zugrunde liegende Aktie statt des Optionskontrakts, daher bleibt der Kontrakt offen und sein Gewinn oder Verlust wird nicht erfasst. Verknüpfen Sie jeden Verfall mit dem verfallenen Kontrakt."
     }
   },
   "page": {
@@ -203,7 +208,8 @@
     "update_cost_basis": "Kostenbasis aktualisieren",
     "update_value": "Wert aktualisieren",
     "review_transaction": "Transaktion prüfen",
-    "review_entry": "Eintrag prüfen"
+    "review_entry": "Eintrag prüfen",
+    "match_option_expiry_contracts": "Zugeordnete Kontrakte verwenden"
   },
   "updatedAt": "Aktualisiert um {{time}}",
   "healthy": {
@@ -292,6 +298,7 @@
     "return_of_capital_amount_required": "Geben Sie einen Betrag für diese Kapitalrückzahlung ein.",
     "sell_without_position": "Es gibt keine Position in {{asset}} zum Verkaufen. Nur die Auswirkung auf den Barbestand wurde verbucht.",
     "insufficient_quantity": "Diese Transaktion entfernt {{requested}} Einheiten von {{asset}}, es wurden jedoch nur {{held}} gehalten. Die verbleibenden {{excess}} Einheiten haben keine Kostenbasis.",
-    "missing_final_cash": "Diese gebuchte Transaktion hat keinen endgültigen Barbetrag und hat daher den Barbestand nicht verändert."
+    "missing_final_cash": "Diese gebuchte Transaktion hat keinen endgültigen Barbetrag und hat daher den Barbestand nicht verändert.",
+    "option_expiry_not_option": "Dieser Optionsverfall nennt {{asset}}, das kein Optionskontrakt ist, daher hat er nichts verändert. Verknüpfen Sie ihn mit dem verfallenen Kontrakt."
   }
 }

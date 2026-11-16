@@ -162,6 +162,11 @@
       "title_one": "{{from}}と{{to}}の為替レートが一致しません",
       "title_other": "{{count}}組の通貨ペアで為替レートが一致しません",
       "message": "同じ日について両方向のレートが記録されており、互いに一致しません。各方向は記録どおりに使われるため、往復で換算すると金額が変わります。誤ったレートを修正または削除してください。"
+    },
+    "option_expiry_without_contract": {
+      "title_one": "オプション満期が契約に紐付いていません",
+      "title_other": "{{count}}件のオプション満期が契約に紐付いていません",
+      "message": "これらのオプション満期はオプション契約ではなく原資産の株式を指定しているため、契約は未決済のままで損益が記録されていません。各満期を満期を迎えた契約に紐付けてください。"
     }
   },
   "page": {
@@ -203,7 +208,8 @@
     "update_cost_basis": "取得原価を更新",
     "update_value": "評価額を更新",
     "review_transaction": "取引を確認",
-    "review_entry": "記録を確認"
+    "review_entry": "記録を確認",
+    "match_option_expiry_contracts": "一致した契約を使用"
   },
   "updatedAt": "{{time}}に更新",
   "healthy": {
@@ -291,6 +297,7 @@
     "return_of_capital_amount_required": "この資本払戻しの金額を入力してください。",
     "sell_without_position": "売却できる{{asset}}のポジションがありません。現金への影響のみが反映されました。",
     "insufficient_quantity": "この取引は{{asset}}を{{requested}}単位減らしますが、保有は{{held}}単位のみでした。残りの{{excess}}単位には取得原価がありません。",
-    "missing_final_cash": "この計上済み取引には最終現金額がないため、現金残高は変更されませんでした。"
+    "missing_final_cash": "この計上済み取引には最終現金額がないため、現金残高は変更されませんでした。",
+    "option_expiry_not_option": "このオプション満期は{{asset}}を指定していますが、オプション契約ではないため何も変更されませんでした。満期を迎えた契約に紐付けてください。"
   }
 }
