@@ -2175,6 +2175,20 @@ impl Projector<'_> {
         effects: &mut SideEffects,
         run: &mut RunLog,
     ) -> Result<(), ActivityRejection> {
+        // An expiry ends an option contract. Booked against a stock it would
+        // remove shares at zero proceeds, so it changes nothing instead. An
+        // untyped asset may be a legacy option and still books.
+        if self.asset_facts(asset, &event.currency).instrument == InstrumentClass::NotOption {
+            return Err(ActivityRejection::with_reason(
+                format!(
+                    "OPTION_EXPIRY {} names {asset}, which is not an option contract",
+                    event.source
+                ),
+                ActivityReason::OptionExpiryNotOption {
+                    asset: asset.to_string(),
+                },
+            ));
+        }
         let account_id = state.account.clone();
         let account_currency = state.currency.clone();
         let Some(position) = state.positions.get_mut(asset) else {
