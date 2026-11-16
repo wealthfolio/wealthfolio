@@ -72,6 +72,7 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "Missing FX:",
       "review_valuation": "Review valuation issues",
       "title": "Needs attention",
       "update_value": "Update value",

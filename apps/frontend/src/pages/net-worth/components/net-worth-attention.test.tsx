@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AlternativeAssetHolding } from "@/lib/types";
+import type { AlternativeAssetHolding, FxConversionIssue } from "@/lib/types";
 import { NetWorthAttention } from "./net-worth-attention";
 
 const mocks = vi.hoisted(() => ({
@@ -93,12 +93,17 @@ const property: AlternativeAssetHolding = {
 const stale = [
   { assetId: "mortgage", name: "Home mortgage", valuationDate: "2025-01-01", daysStale: 200 },
 ];
-const renderCard = (staleAssets = stale, hasIncompleteValuation = false) =>
+const renderCard = (
+  staleAssets = stale,
+  hasIncompleteValuation = false,
+  missingFx: FxConversionIssue[] = [],
+) =>
   render(
     <MemoryRouter>
       <NetWorthAttention
         staleAssets={staleAssets}
         hasIncompleteValuation={hasIncompleteValuation}
+        missingFx={missingFx}
       />
     </MemoryRouter>,
   );
@@ -114,6 +119,21 @@ afterEach(() => {
 });
 
 describe("NetWorthAttention", () => {
+  it("lists each missing FX pair once and sends its details to Health Center", () => {
+    mocks.holdings.mockReturnValue([]);
+    renderCard([], true, [
+      { itemId: "cash", fromCurrency: "COP", toCurrency: "AED" },
+      { itemId: "property", fromCurrency: "COP", toCurrency: "AED" },
+      { itemId: "history", fromCurrency: "IDR", toCurrency: "AED" },
+    ]);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAccessibleName("Missing FX: COP → AED");
+    expect(links[1]).toHaveAccessibleName("Missing FX: IDR → AED");
+    for (const link of links) expect(link).toHaveAttribute("href", "/health");
+    expect(screen.queryByText("Review valuation issues")).not.toBeInTheDocument();
+  });
+
   it("offers one Health Center link for incomplete valuations without other reminders", () => {
     mocks.holdings.mockReturnValue([]);
     renderCard([], true);

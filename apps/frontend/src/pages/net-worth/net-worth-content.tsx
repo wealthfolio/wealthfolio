@@ -149,6 +149,13 @@ export function NetWorthContent() {
   const hasIncompleteValuation =
     !isValuationComplete(netWorthData?.valueStatus) ||
     (historyData?.some((point) => !isValuationComplete(point.valueStatus)) ?? false);
+  const missingFx = useMemo(
+    () => [
+      ...(netWorthData?.missingFx ?? []),
+      ...(historyData?.flatMap((point) => point.missingFx ?? []) ?? []),
+    ],
+    [netWorthData?.missingFx, historyData],
+  );
 
   const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
   const trailingYearMonthly = useMemo(() => {
@@ -434,6 +441,7 @@ export function NetWorthContent() {
               <NetWorthAttention
                 staleAssets={netWorthData?.staleAssets ?? []}
                 hasIncompleteValuation={hasIncompleteValuation}
+                missingFx={missingFx}
               />
             </div>
           </div>

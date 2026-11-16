@@ -109,7 +109,8 @@ for (const [direction, width, currency] of [
         page.getByTestId("portfolio-balance").filter({ hasText: "N/A" }).last(),
       ).toBeVisible();
       const attention = page.getByRole("region", { name: "Needs attention" });
-      const review = attention.getByRole("link", { name: "Review valuation issues" });
+      const review = attention.getByRole("link", { name: `Missing FX: ${currency} → AED` });
+      await expect(review).toHaveCount(1);
       await expect(review).toHaveAttribute("href", "/health");
       await expect(
         page.getByText(/Total unavailable|Some historical values are unavailable/),
@@ -122,6 +123,10 @@ for (const [direction, width, currency] of [
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
       await page.screenshot({ path: test.info().outputPath("net-worth.png"), fullPage: true });
+      await attention.screenshot({
+        path: test.info().outputPath("attention.png"),
+        animations: "disabled",
+      });
       await review.click();
       await expect(page).toHaveURL(/\/health/);
       await expect(page.getByText(/Missing exchange rate[s]? for/).first()).toBeVisible();
@@ -152,7 +157,9 @@ for (const [direction, width, currency] of [
           .filter({ hasText: width < 768 ? "335K" : "335,000" })
           .last(),
       ).toBeVisible();
-      await expect(page.getByRole("link", { name: "Review valuation issues" })).toHaveCount(0);
+      await expect(
+        page.getByRole("link", { name: /Missing FX:|Review valuation issues/ }),
+      ).toHaveCount(0);
     } finally {
       if (assetId) await api(page, "DELETE", `/alternative-assets/${assetId}`);
       if (accountId) await api(page, "DELETE", `/accounts/${accountId}`);

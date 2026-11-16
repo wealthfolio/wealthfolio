@@ -72,6 +72,7 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "Wechselkurs fehlt:",
       "review_valuation": "Bewertungsprobleme prüfen",
       "title": "Handlungsbedarf",
       "update_value": "Wert aktualisieren",
