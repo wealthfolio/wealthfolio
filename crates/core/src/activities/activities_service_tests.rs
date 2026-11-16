@@ -2276,6 +2276,166 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn test_option_expiry_fix_moves_a_stock_expiry_onto_its_contract() {
+        // #2655: the broker sent the expiry with only the underlying stock and
+        // no units. The fix moves it onto the one contract held that day.
+        use crate::health::fixes::option_expiry::tests::held;
+        use crate::health::fixes::{
+            match_option_expiry_contracts, MatchOptionExpiryContractsPayload,
+        };
+
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("fhsa", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "rgld",
+            "RGLD",
+            Some("XNAS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "rgld-c195",
+            "RGLD260717C00195000",
+            None,
+            Some(InstrumentType::Option),
+            "USD",
+        ));
+        let at: DateTime<Utc> = "2026-07-17T21:30:00Z".parse().unwrap();
+        let mut expiry = create_stored_activity("exp", "fhsa", Some("rgld"));
+        expiry.activity_type = "ADJUSTMENT".to_string();
+        expiry.subtype = Some("OPTION_EXPIRY".to_string());
+        expiry.activity_date = at;
+        expiry.quantity = Some(dec!(0));
+        expiry.unit_price = Some(dec!(0));
+        expiry.amount = Some(dec!(0));
+        expiry.notes = Some("Option expired: RGLD".to_string());
+        expiry.needs_review = true;
+        activity_repository.add_activity(expiry);
+        let mut buy = create_stored_activity("buy", "fhsa", Some("rgld-c195"));
+        buy.activity_date = "2026-07-13T14:17:00Z".parse().unwrap();
+        buy.quantity = Some(dec!(2));
+        buy.unit_price = Some(dec!(2.5));
+        buy.amount = Some(dec!(500));
+        activity_repository.add_activity(buy);
+        // The engine over the stored rows, with the facts the coordinator gives it.
+        let project = || {
+            use crate::portfolio::coordinator::{raw_activity, raw_asset};
+            use wealthfolio_portfolio_engine::model::{Currency, Policy, RawAccount, RawFacts};
+            let raw = RawFacts {
+                policy: Policy::new(
+                    Currency::parse("USD").unwrap(),
+                    chrono_tz::UTC,
+                    NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
+                ),
+                accounts: vec![RawAccount {
+                    id: "fhsa".to_string(),
+                    currency: "USD".to_string(),
+                    account_type: "SECURITIES".to_string(),
+                    tracking_mode: "TRANSACTIONS".to_string(),
+                    is_archived: false,
+                    cost_basis_method: None,
+                }],
+                assets: asset_service
+                    .get_assets()
+                    .unwrap()
+                    .iter()
+                    .map(raw_asset)
+                    .collect(),
+                activities: activity_repository
+                    .get_activities()
+                    .unwrap()
+                    .iter()
+                    .map(raw_activity)
+                    .collect(),
+                quotes: Vec::new(),
+                fx_rates: Vec::new(),
+                observed_snapshots: Vec::new(),
+            };
+            wealthfolio_portfolio_engine::Engine::new(raw)
+                .unwrap()
+                .project()
+                .unwrap()
+        };
+        let before = project();
+        assert!(before
+            .rejected_activities()
+            .iter()
+            .any(|id| id.as_str() == "exp"));
+        assert!(
+            before.disposals.is_empty(),
+            "the stock-keyed expiry closes nothing"
+        );
+        let activity_service = Arc::new(ActivityService::new(
+            activity_repository.clone(),
+            account_service.clone(),
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        ));
+        let snapshots = Arc::new(held(&[("fhsa", "2026-07-17", &[("rgld-c195", 2)])]));
+        let payload = |ids: &[&str]| MatchOptionExpiryContractsPayload {
+            activity_ids: ids.iter().map(|id| id.to_string()).collect(),
+        };
+
+        let moved = match_option_expiry_contracts(
+            activity_service.clone(),
+            account_service.clone(),
+            asset_service.clone(),
+            snapshots.clone(),
+            payload(&["exp"]),
+            Some("America/Toronto".to_string()),
+        )
+        .await
+        .expect("the expiry has one matching contract");
+
+        assert_eq!(moved, 1);
+        let stored = activity_repository.get_activity("exp").unwrap();
+        assert_eq!(stored.asset_id.as_deref(), Some("rgld-c195"));
+        assert_eq!(stored.quantity, Some(dec!(2)));
+        assert_eq!(stored.subtype.as_deref(), Some("OPTION_EXPIRY"));
+        assert_eq!(stored.activity_date, at);
+        assert_eq!(stored.notes.as_deref(), Some("Option expired: RGLD"));
+        assert!(!stored.needs_review);
+
+        // The engine now closes the contracts at zero proceeds: the premium
+        // paid is the realized loss.
+        let after = project();
+        assert!(after.rejected_activities().is_empty());
+        let realized: Decimal = after
+            .disposals
+            .iter()
+            .filter(|disposal| disposal.asset.as_str() == "rgld-c195")
+            .map(|disposal| {
+                assert_eq!(disposal.proceeds, Decimal::ZERO);
+                disposal.realized_pnl
+            })
+            .sum();
+        assert_eq!(realized, dec!(-500));
+        let account = &after.final_state.accounts
+            [&wealthfolio_portfolio_engine::model::AccountId::new("fhsa")];
+        let contract = account
+            .positions
+            .get(&wealthfolio_portfolio_engine::model::AssetId::new(
+                "rgld-c195",
+            ));
+        assert!(contract.is_none_or(|position| position.quantity.is_zero()));
+
+        // Applying again finds nothing left to move.
+        let again = match_option_expiry_contracts(
+            activity_service,
+            account_service,
+            asset_service,
+            snapshots,
+            payload(&["exp"]),
+            Some("America/Toronto".to_string()),
+        )
+        .await;
+        assert!(again.is_err());
+    }
+
+    #[tokio::test]
     async fn test_update_recalculates_trade_in_activity_currency_when_quote_currency_differs() {
         // The patch declares CAD, so its quantity and unit price recalculate a
         // CAD final. The asset's USD quote currency is valuation metadata.

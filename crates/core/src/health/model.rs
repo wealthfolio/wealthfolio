@@ -163,6 +163,16 @@ impl FixAction {
             payload: serde_json::json!(account_ids),
         }
     }
+
+    /// Creates a fix action that moves option expiries recorded against a
+    /// stock onto the contracts they refer to.
+    pub fn match_option_expiry_contracts(activity_ids: Vec<String>) -> Self {
+        Self {
+            id: crate::health::fixes::MATCH_OPTION_EXPIRY_CONTRACTS_FIX.to_string(),
+            label: "Use Matched Contracts".to_string(),
+            payload: serde_json::json!({ "activityIds": activity_ids }),
+        }
+    }
 }
 
 // =============================================================================
