@@ -41,11 +41,12 @@ use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_defau
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
     ConsistencyIssueType, DataConsistencyCheck, FxConflictInfo, FxIntegrityCheck, FxPairInfo,
-    InvalidTransferGroupInfo, LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck,
-    QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo,
-    UnconfiguredAccountInfo, ValuationIssueReason,
+    InvalidTransferGroupInfo, LegacyMigrationInfo, OptionExpiryCheck, PriceStalenessCheck,
+    QuoteSyncCheck, QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail,
+    UnclassifiedAssetInfo, UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
+use super::fixes::{find_option_expiries_without_contract, OptionExpiryWithoutContractInfo};
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
 use super::traits::{HealthContext, HealthDismissalStore, HealthServiceTrait};
 
@@ -74,6 +75,7 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    option_expiry_check: OptionExpiryCheck,
     /// Projection freshness (the coordinator), when wired by the host.
     projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
     /// Net worth, whose stale valuations are reported when wired by the host.
@@ -101,6 +103,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            option_expiry_check: OptionExpiryCheck::new(),
             projection_freshness: None,
             net_worth: None,
         }
@@ -137,6 +140,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            option_expiry_check: OptionExpiryCheck::new(),
             projection_freshness: None,
             net_worth: None,
         }
@@ -180,6 +184,7 @@ impl HealthService {
             client_timezone,
             invalid_transfer_groups,
             &[],
+            &[],
         )
         .await
     }
@@ -204,6 +209,7 @@ impl HealthService {
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
         stale_manual_valuations: &[StaleAssetInfo],
+        option_expiries: &[OptionExpiryWithoutContractInfo],
     ) -> Result<HealthStatus> {
         let config = self.config.read().await.clone();
         let ctx = HealthContext::new(config, base_currency, total_portfolio_value);
@@ -306,6 +312,9 @@ impl HealthService {
             transfer_issues.len()
         );
         all_issues.extend(transfer_issues);
+
+        // Option expiries recorded against a stock instead of the contract
+        all_issues.extend(self.option_expiry_check.analyze(option_expiries));
 
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
@@ -713,6 +722,22 @@ impl HealthService {
                 &health_activities,
                 effective_timezone,
             ));
+            let option_expiries = match asset_service.get_assets() {
+                Ok(assets) => find_option_expiries_without_contract(
+                    &health_activities,
+                    &accounts,
+                    &assets,
+                    snapshot_service.as_ref(),
+                    effective_timezone,
+                ),
+                Err(error) => {
+                    warn!(
+                        "Failed to load assets for the option expiry check: {}",
+                        error
+                    );
+                    Vec::new()
+                }
+            };
             if let Some(freshness) = &projection_freshness {
                 match freshness.stale_accounts() {
                     Ok(stale) => consistency_issues.extend(stale.into_iter().map(|stale| {
@@ -784,10 +809,16 @@ impl HealthService {
                 unconfigured_accounts,
                 invalid_transfer_groups,
                 fx_conflicts,
+                option_expiries,
             ))
         };
-        let (consistency_issues, unconfigured_accounts, invalid_transfer_groups, fx_conflicts) =
-            blocking(move || handle.block_on(gather_history)).await?;
+        let (
+            consistency_issues,
+            unconfigured_accounts,
+            invalid_transfer_groups,
+            fx_conflicts,
+            option_expiries,
+        ) = blocking(move || handle.block_on(gather_history)).await?;
 
         // Run checks with gathered data
         self.run_checks_with_stale_valuations(
@@ -806,6 +837,7 @@ impl HealthService {
             client_timezone,
             &invalid_transfer_groups,
             &stale_manual_valuations,
+            &option_expiries,
         )
         .await
     }
@@ -1714,6 +1746,14 @@ fn engine_activity_issues(
     let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
     issues
         .into_iter()
+        // The option expiry check reports expiries recorded against a stock,
+        // with the contract each refers to.
+        .filter(|issue| {
+            !matches!(
+                issue.reason,
+                Some(wealthfolio_portfolio_engine::ActivityReason::OptionExpiryNotOption { .. })
+            )
+        })
         .filter_map(|issue| {
             let activity = by_id.get(issue.activity_id.as_str())?;
             let issue_type = match issue.kind {
@@ -3001,6 +3041,39 @@ mod tests {
             infos[0].engine_issue.as_ref().map(|i| i.message.as_str()),
             Some("reported")
         );
+    }
+
+    #[test]
+    fn engine_activity_issues_leave_stock_expiries_to_the_option_expiry_check() {
+        let account = health_account(
+            "acc-1",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        let expiry = transfer_activity(
+            "exp-1",
+            "acc-1",
+            "ADJUSTMENT",
+            None,
+            false,
+            ActivityStatus::Posted,
+        );
+        let infos = engine_activity_issues(
+            vec![ActivityIssue {
+                activity_id: "exp-1".to_string(),
+                kind: ActivityIssueKind::Rejected,
+                message: "names a stock".to_string(),
+                reason: Some(
+                    wealthfolio_portfolio_engine::ActivityReason::OptionExpiryNotOption {
+                        asset: "rgld".to_string(),
+                    },
+                ),
+            }],
+            std::slice::from_ref(&account),
+            &[expiry],
+            None,
+        );
+        assert!(infos.is_empty());
     }
 
     // Regression for #1388: activities persisted without a currency (pre-fix CSV
@@ -4516,6 +4589,7 @@ mod tests {
                 None,
                 &[],
                 stale_valuations,
+                &[],
             )
             .await
             .unwrap()
