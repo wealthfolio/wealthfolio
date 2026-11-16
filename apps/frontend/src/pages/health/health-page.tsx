@@ -5,7 +5,7 @@ import {
   useRunHealthChecks,
 } from "@/hooks/use-health";
 import { HOVER_SLOT } from "@/lib/hover-slot";
-import type { HealthCategory, HealthIssue, HealthSeverity } from "@/lib/types";
+import type { FixAction, HealthCategory, HealthIssue, HealthSeverity } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -277,6 +277,17 @@ export default function HealthPage() {
   const runChecksMutation = useRunHealthChecks();
   const dismissMutation = useDismissHealthIssue();
   const fixMutation = useExecuteHealthFix();
+  // A fix that resolves the open issue removes it from the fresh status, so its
+  // sheet closes with it, as after a dismiss.
+  const runFix = (action: FixAction) =>
+    fixMutation.mutate(action, {
+      onSuccess: ({ status }) => {
+        if (!status) return;
+        setSelectedIssue((current) =>
+          current && !status.issues.some((issue) => issue.id === current.id) ? null : current,
+        );
+      },
+    });
 
   const handleRefresh = () => {
     runChecksMutation.mutate();
@@ -426,10 +437,10 @@ export default function HealthPage() {
         }}
         onFix={() => {
           if (selectedIssue?.fixAction) {
-            fixMutation.mutate(selectedIssue.fixAction);
+            runFix(selectedIssue.fixAction);
           }
         }}
-        onRunFixAction={(action) => fixMutation.mutate(action)}
+        onRunFixAction={runFix}
         isDismissing={dismissMutation.isPending}
         isFixing={fixMutation.isPending}
       />
