@@ -9,7 +9,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use log::warn;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -61,8 +61,23 @@ pub struct OptionExpiryWithoutContractInfo {
     pub stock_symbol: String,
     /// The one contract it refers to, when exactly one fits.
     pub contract: Option<ExpiryContract>,
-    /// How many contracts fit; more than one leaves the choice to the user.
-    pub candidate_count: usize,
+    /// Why there is no contract to move it to; the user chooses one.
+    pub no_contract: Option<NoContractReason>,
+}
+
+/// Why an expiry gets no contract to move to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoContractReason {
+    /// No contract on the stock expiring that day was still held.
+    NoneHeld,
+    /// Several contracts fit.
+    Several,
+    /// The one contract that fits is also claimed by another expiry.
+    Shared,
+    /// The contract was traded later that day than the expiry's timestamp.
+    /// Moved as is, the expiry would be applied before that trade and could
+    /// close nothing.
+    TradedAfterExpiry,
 }
 
 /// A posted option expiry whose asset is typed as something other than an
@@ -124,8 +139,8 @@ fn contract_symbol(asset: &Asset) -> String {
 /// expires on the expiry's day (in the user's timezone or in UTC, as brokers
 /// stamp expiries at different times of day), it has no expiry of its own in
 /// the account, and the account still held it at the end of that day. An
-/// expiry gets a contract only when exactly one fits and no other expiry
-/// claims it.
+/// expiry gets a contract only when exactly one fits, no other expiry claims
+/// it, and it has no trade later that day than the expiry.
 pub fn find_option_expiries_without_contract(
     activities: &[Activity],
     accounts: &[Account],
@@ -174,6 +189,26 @@ pub fn find_option_expiries_without_contract(
                 .then_some((activity.account_id.as_str(), asset_id))
         })
         .collect();
+    // When each contract was otherwise traded, by account.
+    let mut traded: HashMap<(&str, &str), Vec<DateTime<Utc>>> = HashMap::new();
+    for activity in activities {
+        let Some(asset_id) = activity.asset_id.as_deref() else {
+            continue;
+        };
+        let is_contract = assets_by_id
+            .get(asset_id)
+            .is_some_and(|asset| asset.is_option());
+        let is_expiry = activity
+            .subtype
+            .as_deref()
+            .is_some_and(|s| s.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY));
+        if is_contract && !is_expiry && activity.status == ActivityStatus::Posted {
+            traded
+                .entry((activity.account_id.as_str(), asset_id))
+                .or_default()
+                .push(activity.activity_date);
+        }
+    }
     let contracts: Vec<(&Asset, String, NaiveDate)> = assets
         .iter()
         .filter_map(|asset| {
@@ -211,16 +246,32 @@ pub fn find_option_expiries_without_contract(
                     })
                 })
                 .collect();
+            let traded_after = candidates.iter().any(|contract| {
+                traded
+                    .get(&(account.id.as_str(), contract.asset_id.as_str()))
+                    .is_some_and(|times| {
+                        times.iter().any(|at| {
+                            *at > activity.activity_date && activity_date_in_tz(*at, tz) == date
+                        })
+                    })
+            });
+            let no_contract = match candidates.len() {
+                0 => Some(NoContractReason::NoneHeld),
+                1 if traded_after => Some(NoContractReason::TradedAfterExpiry),
+                1 => None,
+                _ => Some(NoContractReason::Several),
+            };
             OptionExpiryWithoutContractInfo {
                 activity_id: activity.id.clone(),
                 account_id: account.id.clone(),
                 account_name: account.name.clone(),
                 date,
                 stock_symbol: symbol.unwrap_or_else(|| contract_symbol(stock)),
-                candidate_count: candidates.len(),
-                contract: (candidates.len() == 1)
+                contract: no_contract
+                    .is_none()
                     .then(|| candidates.into_iter().next())
                     .flatten(),
+                no_contract,
             }
         })
         .collect();
@@ -240,6 +291,7 @@ pub fn find_option_expiries_without_contract(
         });
         if shared {
             info.contract = None;
+            info.no_contract = Some(NoContractReason::Shared);
         }
     }
     infos
@@ -589,7 +641,7 @@ pub(crate) mod tests {
         let found = find(&activities, &accounts, &held, "UTC");
 
         assert_eq!(found[0].contract, None);
-        assert_eq!(found[0].candidate_count, 2);
+        assert_eq!(found[0].no_contract, Some(NoContractReason::Several));
     }
 
     #[test]
@@ -606,7 +658,7 @@ pub(crate) mod tests {
 
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].contract, None);
-        assert_eq!(found[0].candidate_count, 0);
+        assert_eq!(found[0].no_contract, Some(NoContractReason::NoneHeld));
     }
 
     #[test]
@@ -621,7 +673,9 @@ pub(crate) mod tests {
         let found = find(&activities, &accounts, &held, "UTC");
 
         assert!(found.iter().all(|info| info.contract.is_none()));
-        assert!(found.iter().all(|info| info.candidate_count == 1));
+        assert!(found
+            .iter()
+            .all(|info| info.no_contract == Some(NoContractReason::Shared)));
     }
 
     #[test]
@@ -634,6 +688,37 @@ pub(crate) mod tests {
         let found = find(&activities, &accounts, &held, "Asia/Tokyo");
 
         assert_eq!(found[0].date, day("2026-07-18"));
+        assert_eq!(
+            found[0].contract.as_ref().map(|c| c.asset_id.as_str()),
+            Some("rgld-c195")
+        );
+    }
+
+    #[test]
+    fn leaves_a_contract_traded_after_the_expiry_that_day_to_the_user() {
+        // A date-only expiry at midnight, then a same-day (0DTE) purchase:
+        // moved as is, the expiry would apply before the purchase and close
+        // nothing, so it is not offered.
+        let accounts = [account("fhsa", TrackingMode::Transactions)];
+        let mut buy = expiry("buy", "fhsa", "rgld-c195", "2026-07-17T15:00:00Z");
+        buy.activity_type = "BUY".to_string();
+        buy.subtype = None;
+        let activities = [expiry("exp", "fhsa", "rgld", "2026-07-17T00:00:00Z"), buy];
+        let held = held(&[("fhsa", DAY, &[("rgld-c195", 1)])]);
+
+        let found = find(&activities, &accounts, &held, "UTC");
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].contract, None);
+        assert_eq!(
+            found[0].no_contract,
+            Some(NoContractReason::TradedAfterExpiry)
+        );
+
+        // Bought the day before, the same contract is matched.
+        let mut earlier = activities.clone();
+        earlier[1].activity_date = "2026-07-16T15:00:00Z".parse().expect("valid instant");
+        let found = find(&earlier, &accounts, &held, "UTC");
         assert_eq!(
             found[0].contract.as_ref().map(|c| c.asset_id.as_str()),
             Some("rgld-c195")
@@ -663,7 +748,7 @@ pub(crate) mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].stock_symbol, "nameless");
         assert_eq!(found[0].contract, None);
-        assert_eq!(found[0].candidate_count, 0);
+        assert_eq!(found[0].no_contract, Some(NoContractReason::NoneHeld));
     }
 
     #[test]

@@ -9,7 +9,7 @@
 use async_trait::async_trait;
 
 use crate::errors::Result;
-use crate::health::fixes::OptionExpiryWithoutContractInfo;
+use crate::health::fixes::{NoContractReason, OptionExpiryWithoutContractInfo};
 use crate::health::model::{
     AffectedItem, DiagnosticDomain, Evidence, FixAction, HealthCategory, HealthDiagnostic,
     HealthEntityRef, HealthIssue, NavigateAction, Severity,
@@ -122,15 +122,22 @@ fn describe(expiry: &OptionExpiryWithoutContractInfo) -> String {
         expiry.date.format("%b %-d, %Y"),
         expiry.account_name
     );
-    match &expiry.contract {
-        Some(contract) => format!(
-            "{base} → {} × {}",
-            contract.symbol,
-            contract.quantity.normalize()
-        ),
-        None if expiry.candidate_count == 0 => format!("{base} · no open contract found"),
-        None => format!("{base} · several contracts fit"),
-    }
+    let reason = match (&expiry.contract, expiry.no_contract) {
+        (Some(contract), _) => {
+            return format!(
+                "{base} → {} × {}",
+                contract.symbol,
+                contract.quantity.normalize()
+            )
+        }
+        (None, Some(NoContractReason::Several)) => "several contracts fit",
+        (None, Some(NoContractReason::Shared)) => "another expiry names the same contract",
+        (None, Some(NoContractReason::TradedAfterExpiry)) => {
+            "the contract was traded after this expiry that day"
+        }
+        (None, Some(NoContractReason::NoneHeld) | None) => "no open contract found",
+    };
+    format!("{base} · {reason}")
 }
 
 #[cfg(test)]
@@ -144,7 +151,7 @@ mod tests {
     fn expiry(
         id: &str,
         contract: Option<&str>,
-        candidates: usize,
+        no_contract: Option<NoContractReason>,
     ) -> OptionExpiryWithoutContractInfo {
         OptionExpiryWithoutContractInfo {
             activity_id: id.to_string(),
@@ -157,7 +164,7 @@ mod tests {
                 symbol: "RGLD260717C00195000".to_string(),
                 quantity: Decimal::from(2),
             }),
-            candidate_count: candidates,
+            no_contract,
         }
     }
 
@@ -177,8 +184,8 @@ mod tests {
     fn offers_the_fix_for_matched_expiries_only() {
         let issues = OptionExpiryCheck::new().analyze(
             &[
-                expiry("exp-1", Some("rgld-call"), 1),
-                expiry("exp-2", None, 2),
+                expiry("exp-1", Some("rgld-call"), None),
+                expiry("exp-2", None, Some(NoContractReason::Several)),
             ],
             Some("America/Toronto"),
         );
@@ -199,7 +206,10 @@ mod tests {
 
     #[test]
     fn links_to_the_transaction_when_no_contract_fits() {
-        let issues = OptionExpiryCheck::new().analyze(&[expiry("exp-1", None, 0)], None);
+        let issues = OptionExpiryCheck::new().analyze(
+            &[expiry("exp-1", None, Some(NoContractReason::NoneHeld))],
+            None,
+        );
         assert!(fix_of(&issues[0]).is_none());
         assert!(issues[0].affected_items.as_ref().unwrap()[0]
             .name
