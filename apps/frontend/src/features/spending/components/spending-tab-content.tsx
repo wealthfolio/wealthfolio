@@ -1440,8 +1440,8 @@ export default function SpendingTabContent({ compareEnabled = false }: SpendingT
         {/* Two columns once the content area, not the window (the sidebar may be open),
             fits the main column beside the 24rem right column; below that the cards
             interleave in one column (order-*). */}
-        <div className="@container grow px-4 pt-24 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-20 md:pb-6 lg:px-10 lg:pt-24 lg:pb-8">
-          <div className="flex flex-col gap-6 @min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20">
+        <div className="@container grow px-4 pt-14 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-12 md:pb-6 lg:px-10 lg:pt-14 lg:pb-8">
+          <div className="flex flex-col gap-6 @min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-12">
             <div className="contents @min-[53rem]:block @min-[53rem]:space-y-6">
               <DashboardCard
                 title={t("spending:tabContent.whereItWent")}
