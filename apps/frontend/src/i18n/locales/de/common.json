@@ -1,6 +1,6 @@
 {
   "valuation_incomplete": "Gesamtwert nicht verfügbar: Einige Kurse oder Wechselkurse fehlen.",
-  "known_subtotal": "Bekannte Zwischensumme (ohne nicht verfügbare Werte)",
+  "known_subtotal": "Bekannte Zwischensumme",
   "periodReturn": "Rendite {{period}}",
   "currentValue": "Aktueller Wert",
   "welcome": "Willkommen",

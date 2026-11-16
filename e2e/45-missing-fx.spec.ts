@@ -1,10 +1,23 @@
-import { expect, test } from "./fixtures";
+import { expect, test, type Page } from "./fixtures";
 import { api, createAccount, deposit, uniqueName, updateSettings } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 interface Valued {
   valueStatus: string;
   missingFx: { itemId: string; fromCurrency: string; toCurrency: string }[];
+}
+
+async function selectRateCurrency(page: Page, label: string, code: string) {
+  const form = page.getByRole("dialog", { name: "Add exchange rate", exact: true });
+  await form.getByRole("combobox", { name: label, exact: true }).click();
+  const picker = page.locator('[data-slot="popover-content"][data-open]');
+  await picker.getByPlaceholder("Search currency...").fill(code);
+  await picker
+    .getByRole("option")
+    .filter({ hasText: `(${code})` })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
 }
 
 // Keep later missing-rate cases independent of earlier cases' recovered FX routes.
@@ -109,6 +122,9 @@ for (const [direction, width, currency] of [
         page.getByTestId("portfolio-balance").filter({ hasText: "N/A" }).last(),
       ).toBeVisible();
       const attention = page.getByRole("region", { name: "Needs attention" });
+      await expect(page.getByText("Known subtotal")).toBeVisible();
+      await expect(page.getByText("0.0%", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("—", { exact: true }).last()).toBeVisible();
       const review = attention.getByRole("link", {
         name: `Missing exchange rate: ${currency} → AED`,
       });
@@ -131,14 +147,85 @@ for (const [direction, width, currency] of [
       });
       await review.click();
       await expect(page).toHaveURL(/\/health/);
-      await expect(page.getByText(/Missing exchange rate[s]? for/).first()).toBeVisible();
-      const rate = await api<{ id: string }>(page, "POST", "/exchange-rates", {
-        fromCurrency: currency,
-        toCurrency: "AED",
-        rate: 0.001,
-        source: "MANUAL",
+      await page.getByText(`Missing exchange rate for ${currency}`, { exact: true }).click();
+      const details = page.getByRole("dialog");
+      const openRates = details.getByRole("link", { name: "Open General Settings", exact: true });
+      await expect(openRates).toHaveAttribute("href", "/settings/general");
+      await details.screenshot({
+        path: test.info().outputPath("health-rate-details.png"),
+        animations: "disabled",
       });
-      rateId = rate.id;
+      await openRates.click();
+      await expect(page).toHaveURL(/\/settings\/general/);
+      await page.getByRole("button", { name: "Add rate", exact: true }).first().click();
+      const form = page.getByRole("dialog", { name: "Add exchange rate", exact: true });
+      await selectRateCurrency(page, "From currency", currency);
+      await selectRateCurrency(page, "To currency", "AED");
+      const rateInput = form.getByRole("textbox", { name: "Exchange rate", exact: true });
+      await rateInput.fill("0.001");
+      const save = form.getByRole("button", { name: "Add exchange rate", exact: true });
+
+      if (width === 1440 && direction === "ltr") {
+        // Simulate a persistence failure at the HTTP boundary; a retry still uses the real API.
+        let failSave: () => void = () => {};
+        const pending = new Promise<void>((resolve) => {
+          failSave = resolve;
+        });
+        await page.route(
+          "**/api/v1/exchange-rates",
+          async (route) => {
+            await pending;
+            await route.fulfill({
+              status: 500,
+              contentType: "application/json",
+              body: JSON.stringify({ message: "Test save failure" }),
+            });
+          },
+          { times: 1 },
+        );
+        const failed = page.waitForResponse(
+          (response) =>
+            response.status() === 500 &&
+            new URL(response.url()).pathname === "/api/v1/exchange-rates",
+        );
+        await save.click();
+        try {
+          await expect(save).toBeDisabled();
+          await expect(rateInput).toBeDisabled();
+          await expect(form.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+          await form.screenshot({
+            path: test.info().outputPath("rate-save-pending.png"),
+            animations: "disabled",
+          });
+        } finally {
+          failSave();
+        }
+        await failed;
+        await expect(save).toBeEnabled();
+        await expect(form).toBeVisible();
+        await expect(rateInput).toHaveValue("0.001");
+        await expect(
+          form.getByRole("combobox", { name: "From currency", exact: true }),
+        ).toContainText(currency);
+        await expect(
+          form.getByRole("combobox", { name: "To currency", exact: true }),
+        ).toContainText("AED");
+        await page.screenshot({
+          path: test.info().outputPath("rate-save-failed.png"),
+          fullPage: true,
+          animations: "disabled",
+        });
+      }
+      const saved = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/v1/exchange-rates",
+      );
+      await save.click();
+      const response = await saved;
+      expect(response.ok()).toBe(true);
+      rateId = (await response.json()).id;
+      await expect(form).not.toBeVisible();
       await expect.poll(async () => (await current()).summary.totalValueBase).toBe(5000);
       await expect.poll(async () => (await netWorth()).valueStatus).toBe("complete");
       expect((await netWorth()).netWorth).toBe(335000);
@@ -162,6 +249,12 @@ for (const [direction, width, currency] of [
       await expect(
         page.getByRole("link", { name: /Missing exchange rate:|Review valuation issues/ }),
       ).toHaveCount(0);
+      await expect(page.getByText("Known subtotal")).toHaveCount(0);
+      await page.screenshot({
+        path: test.info().outputPath("net-worth-recovered.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
     } finally {
       if (assetId) await api(page, "DELETE", `/alternative-assets/${assetId}`);
       if (accountId) await api(page, "DELETE", `/accounts/${accountId}`);

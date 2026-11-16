@@ -392,20 +392,14 @@ export function NetWorthContent() {
                   </div>
                 </DashboardCard>
               ) : parsedData ? (
-                <>
-                  {netWorthData?.valueStatus && netWorthData.valueStatus !== "complete" && (
-                    <p className="text-muted-foreground mb-3 text-sm">
-                      {t("common:known_subtotal")}
-                    </p>
-                  )}
-                  <BreakdownTable
-                    data={parsedData}
-                    history={parsedHistory}
-                    currency={currency}
-                    periodLabel={periodLabel}
-                    onSelect={setSelected}
-                  />
-                </>
+                <BreakdownTable
+                  data={parsedData}
+                  history={parsedHistory}
+                  currency={currency}
+                  periodLabel={periodLabel}
+                  isIncomplete={!isValuationComplete(netWorthData?.valueStatus)}
+                  onSelect={setSelected}
+                />
               ) : (
                 <div
                   className="border-warning-subtle-border rounded-xl border p-6 text-center md:p-8"

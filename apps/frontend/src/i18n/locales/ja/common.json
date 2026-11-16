@@ -1,6 +1,6 @@
 {
   "valuation_incomplete": "一部の価格または為替レートが不明なため、合計を表示できません。",
-  "known_subtotal": "算出可能な小計（不明な値を除く）",
+  "known_subtotal": "確認済みの小計",
   "periodReturn": "{{period}}のリターン",
   "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",

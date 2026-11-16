@@ -1,6 +1,6 @@
 {
   "valuation_incomplete": "Total indisponible : certains cours ou taux de change sont manquants.",
-  "known_subtotal": "Sous-total connu (hors valeurs indisponibles)",
+  "known_subtotal": "Sous-total connu",
   "periodReturn": "Rendement {{period}}",
   "currentValue": "Valeur actuelle",
   "app_name": "Wealthfolio",
