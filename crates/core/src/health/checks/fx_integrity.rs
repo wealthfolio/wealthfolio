@@ -342,9 +342,8 @@ impl FxIntegrityCheck {
     }
 }
 
-/// Builds a structured diagnostic for an FX issue: one evidence row per pair
-/// (pair, rate freshness, affected market value) plus a navigation action to the
-/// market-data settings where rates are managed.
+/// Builds structured FX diagnostics with per-pair evidence and the appropriate
+/// settings action for the issue.
 impl FxIntegrityCheck {
     /// One issue for every pair whose directions disagree.
     pub fn analyze_conflicts(&self, conflicts: &[FxConflictInfo]) -> Vec<HealthIssue> {

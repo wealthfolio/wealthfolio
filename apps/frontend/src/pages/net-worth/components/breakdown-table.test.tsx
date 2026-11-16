@@ -75,6 +75,18 @@ it("preserves true zero changes for a complete flat period", () => {
   expect(screen.getByText("Net Worth")).toBeVisible();
 });
 
+it("leaves a legacy liability change unavailable when the row has no history key", () => {
+  table([point(400, 100, "2026-11-01"), point(400, 100, "2026-11-16")], false, {
+    ...data,
+    liabilities: {
+      total: 100,
+      breakdown: [{ category: "liabilities", name: "Legacy loan", value: 100 }],
+    },
+  });
+  expect(screen.getByText("—")).toBeVisible();
+  expect(screen.getAllByText("0.0%")).toHaveLength(2);
+});
+
 it("preserves New for values first added during a comparable period", () => {
   table([point(0, 0, "2026-11-01"), point(400, 100, "2026-11-16")]);
   expect(screen.getAllByText("New")).toHaveLength(3);

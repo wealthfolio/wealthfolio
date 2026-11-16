@@ -267,7 +267,7 @@ export function BreakdownTable({
                             : 0
                         }
                         change={
-                          canCompare
+                          series.length >= 2
                             ? deriveChange(
                                 series,
                                 true,
