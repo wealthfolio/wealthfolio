@@ -731,6 +731,7 @@
     "err_expiration_required": "Expiration date is required.",
     "err_expiration_invalid": "Enter a valid expiration date.",
     "err_option_type_required": "Option type is required.",
+    "err_option_contract_required": "Choose the option contract that expired, not its underlying stock.",
     "err_multiplier_number": "Contract multiplier must be a number.",
     "err_multiplier_gt_zero": "Contract multiplier must be greater than 0.",
     "err_enter_split_ratio": "Please enter a split ratio.",

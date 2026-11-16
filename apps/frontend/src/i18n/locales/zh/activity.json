@@ -728,6 +728,7 @@
     "err_expiration_required": "到期日为必填项。",
     "err_expiration_invalid": "请输入有效的到期日。",
     "err_option_type_required": "期权类型为必填项。",
+    "err_option_contract_required": "请选择已到期的期权合约，而不是标的股票。",
     "err_multiplier_number": "合约乘数必须为数字。",
     "err_multiplier_gt_zero": "合约乘数必须大于 0。",
     "err_enter_split_ratio": "请输入拆股比例。",

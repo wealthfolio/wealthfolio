@@ -728,6 +728,7 @@
     "err_expiration_required": "満期日は必須です。",
     "err_expiration_invalid": "有効な満期日を入力してください。",
     "err_option_type_required": "オプションタイプは必須です。",
+    "err_option_contract_required": "原資産の株式ではなく、満期を迎えたオプション契約を選択してください。",
     "err_multiplier_number": "契約乗数は数値である必要があります。",
     "err_multiplier_gt_zero": "契約乗数は0より大きい値である必要があります。",
     "err_enter_split_ratio": "分割比率を入力してください。",

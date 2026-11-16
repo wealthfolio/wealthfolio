@@ -330,6 +330,7 @@
     "err_fxrate_positive": "يجب أن يكون سعر الصرف موجبًا.",
     "err_open_or_close": "حدد ما إذا كان هذا يفتح مركزًا أو يغلقه.",
     "err_option_type_required": "نوع الخيار مطلوب.",
+    "err_option_contract_required": "اختر عقد الخيار الذي انتهت صلاحيته، وليس السهم الأساسي.",
     "err_multiplier_number": "يجب أن يكون مضاعف العقد رقمًا.",
     "err_multiplier_gt_zero": "يجب أن يكون مضاعف العقد أكبر من 0.",
     "err_price_gt_zero": "يجب أن يكون السعر أكبر من 0.",

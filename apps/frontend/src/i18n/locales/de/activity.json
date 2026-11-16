@@ -628,6 +628,7 @@
     "err_expiration_required": "Das Verfallsdatum ist erforderlich.",
     "err_expiration_invalid": "Gib ein gültiges Verfallsdatum ein.",
     "err_option_type_required": "Der Optionstyp ist erforderlich.",
+    "err_option_contract_required": "Wählen Sie den verfallenen Optionskontrakt, nicht die zugrunde liegende Aktie.",
     "err_multiplier_number": "Der Kontraktmultiplikator muss eine Zahl sein.",
     "err_multiplier_gt_zero": "Der Kontraktmultiplikator muss größer als 0 sein.",
     "err_enter_split_ratio": "Bitte geben Sie ein Split-Verhältnis ein.",

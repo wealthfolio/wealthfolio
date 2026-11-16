@@ -747,6 +747,7 @@
     "err_expiration_required": "La data di scadenza è obbligatoria.",
     "err_expiration_invalid": "Inserisci una data di scadenza valida.",
     "err_option_type_required": "Il tipo di opzione è obbligatorio.",
+    "err_option_contract_required": "Scegli il contratto di opzione scaduto, non l’azione sottostante.",
     "err_multiplier_number": "Il moltiplicatore del contratto deve essere un numero.",
     "err_multiplier_gt_zero": "Il moltiplicatore del contratto deve essere maggiore di 0.",
     "err_enter_split_ratio": "Inserisci un rapporto di frazionamento.",
