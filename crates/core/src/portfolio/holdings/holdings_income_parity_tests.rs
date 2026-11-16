@@ -236,7 +236,6 @@ mod income_parity {
     }
 
     #[tokio::test]
-    #[ignore = "Existing GBP performance attribution bug: priced_events treats GBp as GBP (100x)"]
     async fn income_parity_normalizes_minor_units() {
         let accounts = vec![account("account", "GBP", TrackingMode::Transactions)];
         let fixture = Fixture::with_quote(
@@ -261,7 +260,6 @@ mod income_parity {
             engine_income(&fixture, &accounts, "CAD").await,
             Some(dec!(2))
         );
-        // This assertion currently fails: the engine returns 100 instead of 1.
         assert_eq!(
             engine_income(&fixture, &accounts, "GBP").await,
             Some(dec!(1))
