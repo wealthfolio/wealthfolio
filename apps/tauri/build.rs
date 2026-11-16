@@ -123,6 +123,10 @@ fn main() {
         }
     }
 
+    // `cfg` here is the build machine (swift-rs is a Mac-only build
+    // dependency); the target check picks the macOS app out of the iOS and
+    // Android builds a Mac also runs.
+    #[cfg(target_os = "macos")]
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         // The macOS app has no Xcode target, so the same Swift bridge comes in
         // as a package (widget-bridge/). macOS 12 is the app's minimum.

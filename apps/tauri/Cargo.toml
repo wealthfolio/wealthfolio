@@ -9,7 +9,11 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 
 [build-dependencies]
 tauri-build = { version = "2.5", features = [] }
+
 # Links the widgets' Swift snapshot bridge into the macOS app (see build.rs).
+# Build dependencies match the machine doing the build, so Linux and Windows
+# builds never compile it.
+[target.'cfg(target_os = "macos")'.build-dependencies]
 swift-rs = { version = "1.0.9", features = ["build"] }
 
 [dependencies]
