@@ -11,6 +11,6 @@ pub use classification_migration::{
 };
 pub use option_expiry::{
     find_option_expiries_without_contract, match_option_expiry_contracts, ExpiryContract,
-    MatchOptionExpiryContractsPayload, OptionExpiryWithoutContractInfo,
+    MatchOptionExpiryContractsPayload, NoContractReason, OptionExpiryWithoutContractInfo,
     MATCH_OPTION_EXPIRY_CONTRACTS_FIX,
 };
