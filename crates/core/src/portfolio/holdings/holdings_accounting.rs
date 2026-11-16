@@ -161,8 +161,8 @@ pub(super) fn scale_lot(lot: &mut crate::portfolio::snapshot::Lot, factor: Decim
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn income_from_activities(
-    activities: &[Activity],
+pub(super) fn income_from_activities<'a>(
+    activities: impl IntoIterator<Item = &'a Activity>,
     rejected: &HashSet<String>,
     currencies: &HashMap<String, String>,
     base: &str,
@@ -212,12 +212,6 @@ pub(super) fn apply_history(
         .filter(|i| i.kind == crate::portfolio::projection::ActivityIssueKind::Rejected)
         .map(|i| i.activity_id.clone())
         .collect();
-    let activities: Vec<Activity> = read
-        .activities
-        .iter()
-        .filter(|a| a.account_id == account_id)
-        .cloned()
-        .collect();
     let currencies: HashMap<String, String> = holdings
         .iter()
         .filter_map(|h| {
@@ -231,7 +225,9 @@ pub(super) fn apply_history(
         .map(|h| h.base_currency.as_str())
         .unwrap_or(&read.base_currency);
     let incomes = income_from_activities(
-        &activities,
+        read.activities
+            .iter()
+            .filter(|a| a.account_id == account_id),
         &rejected,
         &currencies,
         base,
