@@ -109,7 +109,9 @@ for (const [direction, width, currency] of [
         page.getByTestId("portfolio-balance").filter({ hasText: "N/A" }).last(),
       ).toBeVisible();
       const attention = page.getByRole("region", { name: "Needs attention" });
-      const review = attention.getByRole("link", { name: `Missing FX: ${currency} → AED` });
+      const review = attention.getByRole("link", {
+        name: `Missing exchange rate: ${currency} → AED`,
+      });
       await expect(review).toHaveCount(1);
       await expect(review).toHaveAttribute("href", "/health");
       await expect(
@@ -158,7 +160,7 @@ for (const [direction, width, currency] of [
           .last(),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: /Missing FX:|Review valuation issues/ }),
+        page.getByRole("link", { name: /Missing exchange rate:|Review valuation issues/ }),
       ).toHaveCount(0);
     } finally {
       if (assetId) await api(page, "DELETE", `/alternative-assets/${assetId}`);

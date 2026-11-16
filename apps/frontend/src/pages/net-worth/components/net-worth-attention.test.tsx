@@ -128,8 +128,8 @@ describe("NetWorthAttention", () => {
     ]);
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(2);
-    expect(links[0]).toHaveAccessibleName("Missing FX: COP → AED");
-    expect(links[1]).toHaveAccessibleName("Missing FX: IDR → AED");
+    expect(links[0]).toHaveAccessibleName("Missing exchange rate: COP → AED");
+    expect(links[1]).toHaveAccessibleName("Missing exchange rate: IDR → AED");
     for (const link of links) expect(link).toHaveAttribute("href", "/health");
     expect(screen.queryByText("Review valuation issues")).not.toBeInTheDocument();
   });

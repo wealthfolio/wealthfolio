@@ -75,7 +75,7 @@ const SEVERITY_CONFIG: Record<
 
 const CATEGORY_CONFIG: Record<HealthCategory, { label: string; icon: keyof typeof Icons }> = {
   PRICE_STALENESS: { label: "Prices", icon: "TrendingUp" },
-  FX_INTEGRITY: { label: "FX Rates", icon: "ArrowLeftRight" },
+  FX_INTEGRITY: { label: "Exchange Rates", icon: "ArrowLeftRight" },
   CLASSIFICATION: { label: "Categories", icon: "Tag" },
   DATA_CONSISTENCY: { label: "Data", icon: "Database" },
   ACCOUNT_CONFIGURATION: { label: "Accounts", icon: "Settings" },
