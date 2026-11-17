@@ -45,6 +45,7 @@ for (const [direction, width, currency] of [
     let assetId: string | undefined;
     let goalId: string | undefined;
     let rateId: string | undefined;
+    let goalPage: Page | undefined;
     const date = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
     try {
@@ -122,10 +123,13 @@ for (const [direction, width, currency] of [
       await api(page, "PUT", `/goals/${goal.id}/funding`, [
         { accountId: knownAccount.id, sharePercent: 100 },
       ]);
-      expect(
-        (await api<{ summaryCurrentValue: number }>(page, "GET", `/goals/${goal.id}`))
-          .summaryCurrentValue,
-      ).toBe(10000);
+      await expect
+        .poll(
+          async () =>
+            (await api<{ summaryCurrentValue: number }>(page, "GET", `/goals/${goal.id}`))
+              .summaryCurrentValue,
+        )
+        .toBe(10000);
       await api(page, "PUT", `/goals/${goal.id}/funding`, [
         { accountId: account.id, sharePercent: 100 },
       ]);
@@ -326,6 +330,12 @@ for (const [direction, width, currency] of [
           animations: "disabled",
         });
       }
+      // Keep an unavailable goal open to verify the post-write event refreshes
+      // its cached summary, without reloads or an explicit summary-refresh call.
+      goalPage = await page.context().newPage();
+      await goalPage.setViewportSize({ width, height: 1000 });
+      await gotoAppPath(goalPage, `/goals/${goal.id}?dir=${direction}`);
+      await expect(goalPage.getByRole("paragraph").filter({ hasText: /^N\/A$/ })).toBeVisible();
       const saved = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
@@ -346,12 +356,23 @@ for (const [direction, width, currency] of [
           ),
         )
         .toBe(true);
-      const recoveredGoal = await api<{ summaryCurrentValue: number }>(
-        page,
-        "POST",
-        `/goals/${goal.id}/refresh-summary`,
-      );
-      expect(recoveredGoal.summaryCurrentValue).toBe(5000);
+      await expect
+        .poll(
+          async () =>
+            (await api<{ summaryCurrentValue: number | null }>(page, "GET", `/goals/${goal.id}`))
+              .summaryCurrentValue,
+        )
+        .toBe(5000);
+      await expect(goalPage.getByText("N/A", { exact: true })).toHaveCount(0);
+      await expect(goalPage.getByText(/5,000/).first()).toBeVisible();
+      await expect(
+        goalPage.getByRole("link", { name: "Review the details in the Health Center." }),
+      ).toHaveCount(0);
+      await goalPage.screenshot({
+        path: test.info().outputPath("goal-detail-recovered.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
       await gotoAppPath(page, `/goals?dir=${direction}`);
       await expect(
         page.getByRole("link").filter({ hasText: goalTitle }).getByText("N/A", { exact: true }),
@@ -387,6 +408,7 @@ for (const [direction, width, currency] of [
     } finally {
       // Attempt every restore even if a deletion or another restore fails.
       const cleanup = [
+        ...(goalPage ? [() => goalPage?.close()] : []),
         ...(goalId ? [() => api(page, "DELETE", `/goals/${goalId}`)] : []),
         ...(assetId ? [() => api(page, "DELETE", `/alternative-assets/${assetId}`)] : []),
         ...(accountId ? [() => api(page, "DELETE", `/accounts/${accountId}`)] : []),

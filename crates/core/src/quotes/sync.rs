@@ -970,12 +970,33 @@ where
         }
     }
 
+    async fn record_sync_success(&self, asset: &Asset, mode: SyncMode) -> Result<()> {
+        if asset.kind == AssetKind::Fx && matches!(mode, SyncMode::RefetchRecent { .. }) {
+            if let Some(mut state) = self.sync_state_store.get_by_asset_id(&asset.id)? {
+                if state.last_synced_at.is_none() {
+                    // Recent quotes do not complete the initial history request.
+                    // Clear failures while leaving the existing retry marker unset.
+                    state.error_count = 0;
+                    state.last_error = None;
+                    state.updated_at = Utc::now();
+                    return self.sync_state_store.upsert(&state).await.map(|_| ());
+                }
+            }
+        }
+        self.sync_state_store.update_after_sync(&asset.id).await
+    }
+
     /// Sync a single asset according to its sync plan.
     ///
     /// Uses per-asset locking (US-012) to prevent duplicate sync work when multiple
     /// sync triggers occur for the same asset. If a sync is already in progress for
     /// this asset, the call is skipped (not blocked) to keep the system responsive.
-    async fn sync_asset(&self, asset: &Asset, plan: &SymbolSyncPlan) -> AssetSyncResult {
+    async fn sync_asset(
+        &self,
+        asset: &Asset,
+        plan: &SymbolSyncPlan,
+        mode: SyncMode,
+    ) -> AssetSyncResult {
         let asset_id_str = &asset.id;
         let asset_id = AssetId::new(asset_id_str);
 
@@ -1049,8 +1070,7 @@ where
                             //     .await;
 
                             // Update sync state after a successful sync attempt.
-                            if let Err(e) = self.sync_state_store.update_after_sync(&asset.id).await
-                            {
+                            if let Err(e) = self.record_sync_success(asset, mode).await {
                                 warn!("Failed to update sync state for {}: {:?}", asset.id, e);
                             }
 
@@ -1140,8 +1160,7 @@ where
                     &error,
                     plan.suppress_closed_fetch_errors,
                 ) {
-                    if let Err(state_err) = self.sync_state_store.update_after_sync(&asset.id).await
-                    {
+                    if let Err(state_err) = self.record_sync_success(asset, mode).await {
                         warn!(
                             "Failed to update sync state for {}: {:?}",
                             asset.id, state_err
@@ -1190,6 +1209,7 @@ where
     fn execute_sync_plans(
         &self,
         plans: Vec<SymbolSyncPlan>,
+        mode: SyncMode,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SyncResult> + Send + '_>> {
         Box::pin(async move {
             if plans.is_empty() {
@@ -1221,7 +1241,7 @@ where
                     let asset = asset_map.get(&plan.asset_id).cloned();
                     async move {
                         if let Some(asset) = asset {
-                            self.sync_asset(&asset, &plan).await
+                            self.sync_asset(&asset, &plan, mode).await
                         } else {
                             warn!("Asset not found for asset_id: {}", plan.asset_id);
                             AssetSyncResult {
@@ -1808,7 +1828,7 @@ where
         );
 
         // Execute sync and merge with skipped results
-        let mut exec_result = self.execute_sync_plans(plans).await;
+        let mut exec_result = self.execute_sync_plans(plans, mode).await;
         exec_result.skipped += result.skipped;
         exec_result.skipped_reasons.extend(result.skipped_reasons);
         Ok(exec_result)

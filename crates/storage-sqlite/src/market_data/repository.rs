@@ -1646,6 +1646,22 @@ mod tests {
                 repo.writer.clone(),
             )),
         );
+        // A successful recent-only request must not consume the first-history marker.
+        let recent_days =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(2017, 1, 1).unwrap()).num_days();
+        let recent = sync
+            .sync(
+                SyncMode::RefetchRecent { days: recent_days },
+                Some(vec!["COPUSD".into()]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(recent.failed, 0, "{:?}", recent.failures);
+        assert_eq!(recent.quotes_synced, 3);
+        let state = states.get_by_asset_id("COPUSD").unwrap().unwrap();
+        assert_eq!(state.last_synced_at, None);
+        assert_eq!(state.error_count, 0);
+        assert_eq!(state.last_error, None);
         let before = sync.get_sync_plan().unwrap();
         assert_eq!(before.len(), 1);
         assert!(before[0].start_date < NaiveDate::from_ymd_opt(2010, 1, 4).unwrap());
@@ -1663,6 +1679,20 @@ mod tests {
         let after = sync.get_sync_plan().unwrap();
         assert_eq!(after.len(), 1);
         assert!(after[0].start_date > before[0].start_date);
+        let recent_after_history = sync
+            .sync(
+                SyncMode::RefetchRecent { days: recent_days },
+                Some(vec!["COPUSD".into()]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(recent_after_history.quotes_synced, 3);
+        assert!(states
+            .get_by_asset_id("COPUSD")
+            .unwrap()
+            .unwrap()
+            .last_synced_at
+            .is_some());
         let mut failed = states.get_by_asset_id("COPUSD").unwrap().unwrap();
         failed.last_synced_at = None;
         failed.error_count = MAX_SYNC_ERRORS;
