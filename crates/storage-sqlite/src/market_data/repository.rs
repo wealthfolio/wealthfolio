@@ -1601,6 +1601,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn scheduled_fx_sync_retries_initial_history_after_failure() {
+        use wealthfolio_core::quotes::{
+            MarketDataClient, QuoteSyncService, QuoteSyncServiceTrait, QuoteSyncState, SyncMode,
+            SyncStateStore, MAX_SYNC_ERRORS,
+        };
+        let (repo, _temp) = create_test_repository().await;
+        let mut conn = get_connection(&repo.pool).unwrap();
+        diesel::sql_query("UPDATE market_data_providers SET enabled=0")
+            .execute(&mut conn)
+            .unwrap();
+        diesel::sql_query("INSERT INTO assets (id,kind,quote_mode,quote_ccy,instrument_type,instrument_symbol) VALUES ('COPUSD','FX','MARKET','USD','FX','COP')")
+            .execute(&mut conn).unwrap();
+        diesel::sql_query("INSERT INTO accounts (id,name,account_type,currency,is_default,is_active,created_at,updated_at) VALUES ('fx-history','History','CASH','USD',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            .execute(&mut conn).unwrap();
+        diesel::sql_query("INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,created_at,updated_at) VALUES ('fx-history-deposit','fx-history','DEPOSIT','2010-01-04T12:00:00Z','100','USD',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            .execute(&mut conn).unwrap();
+        drop(conn);
+        let repo = Arc::new(repo);
+        let states = Arc::new(crate::market_data::QuoteSyncStateRepository::new(
+            repo.pool.clone(),
+            repo.writer.clone(),
+        ));
+        let mut state = QuoteSyncState::new("COPUSD".into(), "YAHOO".into());
+        state.mark_sync_failed("offline during initial pivot backfill".into());
+        states.upsert(&state).await.unwrap();
+        let client = MarketDataClient::new_with_extra(
+            Arc::new(NoSecrets),
+            vec![],
+            vec![Arc::new(ShortHistoryProvider::default())],
+        )
+        .await
+        .unwrap();
+        let sync = QuoteSyncService::new(
+            Arc::new(tokio::sync::RwLock::new(client)),
+            repo.clone(),
+            states.clone(),
+            Arc::new(crate::assets::AssetRepository::new(
+                repo.pool.clone(),
+                repo.writer.clone(),
+            )),
+            Arc::new(crate::activities::ActivityRepository::new(
+                repo.pool.clone(),
+                repo.writer.clone(),
+            )),
+        );
+        let before = sync.get_sync_plan().unwrap();
+        assert_eq!(before.len(), 1);
+        assert!(before[0].start_date < NaiveDate::from_ymd_opt(2010, 1, 4).unwrap());
+        let result = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(result.failed, 0, "{:?}", result.failures);
+        assert_eq!(result.quotes_synced, 5);
+        assert_eq!(raw_rows(&repo, "COPUSD").len(), 5);
+        assert!(states
+            .get_by_asset_id("COPUSD")
+            .unwrap()
+            .unwrap()
+            .last_synced_at
+            .is_some());
+        // A successful, limited provider history must not trigger full backfills forever.
+        let after = sync.get_sync_plan().unwrap();
+        assert_eq!(after.len(), 1);
+        assert!(after[0].start_date > before[0].start_date);
+        let mut failed = states.get_by_asset_id("COPUSD").unwrap().unwrap();
+        failed.last_synced_at = None;
+        failed.error_count = MAX_SYNC_ERRORS;
+        states.upsert(&failed).await.unwrap();
+        let stopped = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(stopped.quotes_synced, 0);
+        assert_eq!(stopped.skipped, 1);
+    }
+
+    #[tokio::test]
     async fn backfill_execution_preserves_history_then_explicit_reset_replaces_it() {
         use wealthfolio_core::quotes::{
             MarketDataClient, QuoteSyncService, QuoteSyncServiceTrait, SyncMode,

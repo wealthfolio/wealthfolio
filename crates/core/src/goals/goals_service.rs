@@ -104,18 +104,18 @@ fn compute_goal_value_from_shares(
     }
 }
 
-fn require_funding_valuations(
+fn funding_valuations_available(
     rules: &[GoalFundingRule],
     valuations: &AccountValuationMap,
     account_service: &dyn AccountServiceTrait,
-) -> Result<()> {
+) -> Result<bool> {
     let missing: Vec<String> = rules
         .iter()
         .filter(|rule| rule.share_percent > 0.0 && !valuations.contains_key(&rule.account_id))
         .map(|rule| rule.account_id.clone())
         .collect();
     if missing.is_empty() {
-        return Ok(());
+        return Ok(true);
     }
     // An excluded account still contributes zero, as before. Only an eligible
     // account omitted for incomplete valuation must make this goal unavailable.
@@ -124,14 +124,10 @@ fn require_funding_valuations(
         .into_iter()
         .filter(|account| account.is_active && !account.is_archived)
         .collect();
-    if !crate::portfolio::valuation::filter_current_valuation_accounts(Some(&missing), accounts)
-        .is_empty()
-    {
-        return Err(Error::Unexpected(
-            "A funding account value is unavailable; check missing exchange rates or prices".into(),
-        ));
-    }
-    Ok(())
+    Ok(
+        crate::portfolio::valuation::filter_current_valuation_accounts(Some(&missing), accounts)
+            .is_empty(),
+    )
 }
 
 fn has_frozen_goal_value(goal: &Goal) -> bool {
@@ -704,8 +700,23 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
             return Ok(goal);
         }
         let rules = self.load_counted_funding_rules(&goal)?;
-        if !has_frozen_goal_value(&goal) {
-            require_funding_valuations(&rules, valuations, self.account_service.as_ref())?;
+        if !has_frozen_goal_value(&goal)
+            && !funding_valuations_available(&rules, valuations, self.account_service.as_ref())?
+        {
+            self.goal_repo
+                .update_goal_summary_fields(
+                    goal_id,
+                    GoalSummaryUpdate {
+                        summary_target_amount: goal.target_amount,
+                        summary_current_value: None,
+                        summary_progress: None,
+                        projected_completion_date: None,
+                        projected_value_at_target_date: None,
+                        status_health: "not_applicable".into(),
+                    },
+                )
+                .await?;
+            return self.goal_repo.load_goal(goal_id);
         }
         let current = compute_summary_current_value(&goal, &rules, valuations);
         let mut update = GoalSummaryUpdate {
@@ -816,7 +827,16 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         normalize_retirement_plan_ages(&mut retirement_plan, as_of);
         validate_retirement_plan(&retirement_plan)?;
 
-        require_funding_valuations(&funding_rules, valuation_map, self.account_service.as_ref())?;
+        if !funding_valuations_available(
+            &funding_rules,
+            valuation_map,
+            self.account_service.as_ref(),
+        )? {
+            return Err(Error::Unexpected(
+                "A funding account value is unavailable; check missing exchange rates or prices"
+                    .into(),
+            ));
+        }
         let current_portfolio = compute_goal_value_from_shares(&funding_rules, valuation_map);
         let bucket_balances = compute_tax_bucket_balances(&funding_rules, valuation_map);
 
@@ -1272,12 +1292,17 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         let plan = self.goal_repo.load_goal_plan(goal_id)?;
         let funding_rules = self.goal_repo.load_funding_rules(goal_id)?;
 
-        if !has_frozen_goal_value(&goal) {
-            require_funding_valuations(
+        if !has_frozen_goal_value(&goal)
+            && !funding_valuations_available(
                 &funding_rules,
                 valuation_map,
                 self.account_service.as_ref(),
-            )?;
+            )?
+        {
+            return Err(Error::Unexpected(
+                "A funding account value is unavailable; check missing exchange rates or prices"
+                    .into(),
+            ));
         }
         let current_value = compute_summary_current_value(&goal, &funding_rules, valuation_map);
 
@@ -2759,7 +2784,11 @@ mod tests {
         unknown_snapshot.cash_balances =
             HashMap::from([("COP".into(), rust_decimal_macros::dec!(100000))]);
         facts.observed_snapshots.push(unknown_snapshot);
-        let mut incomplete_goal = test_goal("active", None);
+        let mut incomplete_goal = test_goal("active", Some(12345.0));
+        incomplete_goal.summary_progress = Some(0.5);
+        incomplete_goal.projected_completion_date = Some("2027-12-31".into());
+        incomplete_goal.projected_value_at_target_date = Some(25000.0);
+        incomplete_goal.status_health = "on_track".into();
         incomplete_goal.id = "incomplete-goal".into();
         let repo = Arc::new(MockGoalRepository::new(vec![
             test_goal("active", None),
@@ -2815,17 +2844,35 @@ mod tests {
         let values = service.current_valuation_map().await.unwrap();
         assert!(values.contains_key(&account_id));
         assert!(!values.contains_key("unrelated-cop"));
-        assert!(service
+        let unavailable = service
             .refresh_goal_summary("incomplete-goal")
             .await
-            .is_err());
+            .unwrap();
+        assert_eq!(unavailable.summary_current_value, None);
+        let stored = service.goal_repo.load_goal("incomplete-goal").unwrap();
+        assert_eq!(stored.summary_current_value, None);
+        assert_eq!(stored.summary_progress, None);
+        assert_eq!(stored.projected_completion_date, None);
+        assert_eq!(stored.projected_value_at_target_date, None);
+        assert_eq!(stored.status_health, "not_applicable");
         assert!(service
             .compute_save_up_overview("incomplete-goal", &values)
             .await
             .is_err());
         let refreshed = service.refresh_all_goal_summaries().await.unwrap();
-        assert_eq!(refreshed.len(), 1);
-        assert_eq!(refreshed[0].id, "goal-1");
+        assert_eq!(refreshed.len(), 2);
+        assert!(refreshed.iter().any(|goal| goal.id == "goal-1"));
+        assert!(refreshed
+            .iter()
+            .any(|goal| goal.id == "incomplete-goal" && goal.summary_current_value.is_none()));
+        let mut recovered = values.clone();
+        recovered.insert("unrelated-cop".into(), 250.0);
+        service
+            .refresh_summary_with_valuations("incomplete-goal", &recovered)
+            .await
+            .unwrap();
+        let stored = service.goal_repo.load_goal("incomplete-goal").unwrap();
+        assert_eq!(stored.summary_current_value, Some(250.0));
         let summary = service.refresh_goal_summary("goal-1").await.unwrap();
         assert_eq!(
             summary.summary_current_value,

@@ -148,7 +148,9 @@ export function DashboardContent({
   const hasIncompleteHistory =
     valuationHistory?.some((point) => !isValuationComplete(point.valueStatus)) ?? false;
   const hasIncompletePeriod =
-    !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) || hasIncompleteHistory;
+    ((endDate === undefined || endDate >= todayISO) &&
+      !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)) ||
+    hasIncompleteHistory;
   const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
   const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =

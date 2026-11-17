@@ -622,9 +622,10 @@ const AccountPage = () => {
 
   const frontendGainLossAmount = performancePeriodPnl(accountPerformance);
   const frontendSummaryReturn = performanceSummaryReturn(accountPerformance);
-  const allTimeReturnAmount = metricsValuation
-    ? metricsValuation.totalValue - metricsValuation.netContribution
-    : null;
+  const allTimeReturnAmount =
+    metricsValuation && isValuationComplete(metricsValuation.valueStatus)
+      ? metricsValuation.totalValue - metricsValuation.netContribution
+      : null;
   const allTimeSimpleReturn = simpleReturnFromNetContribution(
     allTimeReturnAmount,
     metricsValuation?.netContribution,

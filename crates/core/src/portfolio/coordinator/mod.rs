@@ -358,7 +358,8 @@ impl PortfolioCoordinator {
             None => Ok(SyncResult::default()),
         };
         // Whatever the provider did, the FX converter sees the latest rates.
-        if let Err(error) = self.deps.fx_service.initialize() {
+        let fx_service = self.deps.fx_service.clone();
+        if let Err(error) = blocking(move || fx_service.initialize()).await {
             warn!("Failed to initialize FX service after market sync: {error}");
         }
         self.sync_fx_pivot_pairs().await;
@@ -448,7 +449,8 @@ impl PortfolioCoordinator {
         if let Err(error) = self.deps.sources.quotes.sync(mode, Some(new_ids)).await {
             warn!("Failed to sync FX pivot pairs: {error}");
         }
-        if let Err(error) = self.deps.fx_service.initialize() {
+        let fx_service = self.deps.fx_service.clone();
+        if let Err(error) = blocking(move || fx_service.initialize()).await {
             warn!("Failed to initialize FX service after syncing pivot pairs: {error}");
         }
     }

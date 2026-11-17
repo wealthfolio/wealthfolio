@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./fixtures";
-import { api, createAccount, deposit, uniqueName, updateSettings } from "./api";
+import { api, createAccount, deposit, uniqueName } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 interface Valued {
@@ -38,21 +38,24 @@ for (const [direction, width, currency] of [
       "GET",
       "/providers/settings",
     );
-    for (const provider of providers.filter((provider) => provider.enabled)) {
-      await api(page, "PUT", "/providers/settings", {
-        providerId: provider.id,
-        priority: provider.priority,
-        enabled: false,
-      });
-    }
-    const previous = await updateSettings(page, { baseCurrency: "AED" });
+    // Capture settings before any mutation, including provider setup.
+    const previous = await api<{ baseCurrency: string }>(page, "GET", "/settings");
     let accountId: string | undefined;
     let knownAccountId: string | undefined;
     let assetId: string | undefined;
+    let goalId: string | undefined;
     let rateId: string | undefined;
     const date = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
     try {
+      for (const provider of providers.filter((provider) => provider.enabled)) {
+        await api(page, "PUT", "/providers/settings", {
+          providerId: provider.id,
+          priority: provider.priority,
+          enabled: false,
+        });
+      }
+      await api(page, "PUT", "/settings", { baseCurrency: "AED" });
       const account = await createAccount(page, {
         name: uniqueName(`Missing FX ${currency}`),
         currency,
@@ -109,9 +112,33 @@ for (const [direction, width, currency] of [
       const incompleteHistory = await history();
       expect(incompleteHistory.length).toBeGreaterThan(0);
       expect(incompleteHistory.every((point) => point.valueStatus === "unavailable")).toBe(true);
+      const goalTitle = uniqueName(`${currency} savings goal`);
+      const goal = await api<{ id: string }>(page, "POST", "/goals", {
+        goalType: "home",
+        title: goalTitle,
+        targetAmount: 20000,
+      });
+      goalId = goal.id;
+      await api(page, "PUT", `/goals/${goal.id}/funding`, [
+        { accountId: knownAccount.id, sharePercent: 100 },
+      ]);
+      expect(
+        (await api<{ summaryCurrentValue: number }>(page, "GET", `/goals/${goal.id}`))
+          .summaryCurrentValue,
+      ).toBe(10000);
+      await api(page, "PUT", `/goals/${goal.id}/funding`, [
+        { accountId: account.id, sharePercent: 100 },
+      ]);
+      const unknownGoal = await api<{
+        summaryCurrentValue: number | null;
+        summaryProgress: number | null;
+      }>(page, "GET", `/goals/${goal.id}`);
+      expect(unknownGoal.summaryCurrentValue).toBeNull();
+      expect(unknownGoal.summaryProgress).toBeNull();
       await api(page, "POST", "/health/check");
       await gotoAppPath(page, `/dashboard?dir=${direction}`);
       await expect(page.getByTestId("portfolio-balance").first()).toHaveText("N/A");
+      await expect(page.getByRole("link").filter({ hasText: goalTitle })).toContainText("N/A");
       await expect(
         page.getByRole("status").filter({ hasText: "Total unavailable" }).first(),
       ).toHaveCount(0);
@@ -202,6 +229,30 @@ for (const [direction, width, currency] of [
       }
       await allocationHelp.click();
       await expect(page).toHaveURL(/\/health/);
+      await gotoAppPath(page, `/goals?dir=${direction}`);
+      const goalCard = page.getByRole("link").filter({ hasText: goalTitle });
+      await expect(goalCard.getByText("N/A", { exact: true })).toHaveCount(3);
+      await page.screenshot({
+        path: test.info().outputPath("goals-missing.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      await goalCard.click();
+      if (width < 768) {
+        await expect(page.locator("[data-stack-screen]:visible")).toHaveCount(1);
+      }
+      await expect(page.getByRole("paragraph").filter({ hasText: /^N\/A$/ })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Review the details in the Health Center." }),
+      ).toHaveAttribute("href", "/health");
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await page.screenshot({
+        path: test.info().outputPath("goal-detail-missing.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
       await gotoAppPath(page, `/dashboard?dir=${direction}`);
       await page.getByRole("button", { name: "Net Worth", exact: true }).click();
       await review.click();
@@ -295,6 +346,16 @@ for (const [direction, width, currency] of [
           ),
         )
         .toBe(true);
+      const recoveredGoal = await api<{ summaryCurrentValue: number }>(
+        page,
+        "POST",
+        `/goals/${goal.id}/refresh-summary`,
+      );
+      expect(recoveredGoal.summaryCurrentValue).toBe(5000);
+      await gotoAppPath(page, `/goals?dir=${direction}`);
+      await expect(
+        page.getByRole("link").filter({ hasText: goalTitle }).getByText("N/A", { exact: true }),
+      ).toHaveCount(0);
       // Reload to check the actual adapter responses render after recovery.
       await gotoAppPath(page, `/dashboard?dir=${direction}`);
       await page.getByRole("button", { name: "Investments", exact: true }).click();
@@ -324,18 +385,35 @@ for (const [direction, width, currency] of [
         animations: "disabled",
       });
     } finally {
-      if (assetId) await api(page, "DELETE", `/alternative-assets/${assetId}`);
-      if (accountId) await api(page, "DELETE", `/accounts/${accountId}`);
-      if (knownAccountId) await api(page, "DELETE", `/accounts/${knownAccountId}`);
-      if (rateId) await api(page, "DELETE", `/exchange-rates/${rateId}`);
-      await updateSettings(page, previous);
-      for (const provider of providers.filter((provider) => provider.enabled)) {
-        await api(page, "PUT", "/providers/settings", {
-          providerId: provider.id,
-          priority: provider.priority,
-          enabled: true,
-        });
+      // Attempt every restore even if a deletion or another restore fails.
+      const cleanup = [
+        ...(goalId ? [() => api(page, "DELETE", `/goals/${goalId}`)] : []),
+        ...(assetId ? [() => api(page, "DELETE", `/alternative-assets/${assetId}`)] : []),
+        ...(accountId ? [() => api(page, "DELETE", `/accounts/${accountId}`)] : []),
+        ...(knownAccountId ? [() => api(page, "DELETE", `/accounts/${knownAccountId}`)] : []),
+        ...(rateId ? [() => api(page, "DELETE", `/exchange-rates/${rateId}`)] : []),
+        () => api(page, "PUT", "/settings", { baseCurrency: previous.baseCurrency }),
+        ...providers
+          .filter((provider) => provider.enabled)
+          .map(
+            (provider) => () =>
+              api(page, "PUT", "/providers/settings", {
+                providerId: provider.id,
+                priority: provider.priority,
+                enabled: true,
+              }),
+          ),
+      ];
+      const failures: unknown[] = [];
+      for (const restore of cleanup) {
+        try {
+          await restore();
+        } catch (error) {
+          failures.push(error);
+        }
       }
+      if (failures.length > 0)
+        throw new AggregateError(failures, "Missing-rate test cleanup failed");
     }
   });
 }
