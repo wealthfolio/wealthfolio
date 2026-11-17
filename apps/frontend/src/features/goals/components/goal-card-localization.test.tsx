@@ -42,6 +42,23 @@ describe("GoalCard localization", () => {
 
     expect(screen.getByText(/12,5[\u00a0\u202f ]%/)).toBeInTheDocument();
   });
+  it("shows unavailable savings instead of zero or target met", () => {
+    render(
+      <MemoryRouter>
+        <GoalCard
+          goal={{
+            ...goal,
+            summaryCurrentValue: undefined,
+            summaryProgress: undefined,
+            statusHealth: "not_applicable",
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByText("N/A")).toHaveLength(3);
+    expect(screen.queryByText(/target met/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+  });
   it("does not mark tomorrow's deadline due when UTC has already crossed midnight", () => {
     vi.useFakeTimers();
     try {

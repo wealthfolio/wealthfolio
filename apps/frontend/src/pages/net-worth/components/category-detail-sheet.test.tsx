@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { expect, it, vi } from "vitest";
 import copy from "@/i18n/locales/en/insights.json";
 import { CategoryDetailSheet } from "./category-detail-sheet";
-import { liabilityDetailPath, type SelectedCategory } from "./utils";
+import { liabilityDetailPath, type ParsedHistoryPoint, type SelectedCategory } from "./utils";
 
 vi.mock("./category-trend-chart", () => ({ CategoryTrendChart: () => null }));
 vi.mock("@/components/financial/compact-amount", () => ({
@@ -12,14 +12,18 @@ vi.mock("@/components/financial/compact-amount", () => ({
 
 const viewDetails = copy.networth.category_sheet.view_details;
 
-function renderSheet(selected: SelectedCategory, onOpenChange = vi.fn()) {
+function renderSheet(
+  selected: SelectedCategory,
+  onOpenChange = vi.fn(),
+  history: ParsedHistoryPoint[] = [],
+) {
   render(
     <MemoryRouter>
       <CategoryDetailSheet
         open
         onOpenChange={onOpenChange}
         selected={selected}
-        history={[]}
+        history={history}
         currency="USD"
         periodLabel="1M"
       />
@@ -35,6 +39,36 @@ const liability = (key: string): SelectedCategory => ({
   isLiability: true,
   isInvestment: false,
   children: [],
+});
+
+const historyPoint = (value: number, date: string): ParsedHistoryPoint => ({
+  date,
+  netWorth: -value,
+  totalAssets: 0,
+  totalLiabilities: value,
+  portfolioValue: 0,
+  alternativeAssetsValue: 0,
+  netContribution: 0,
+  breakdown: { "mortgage-1": value },
+});
+
+it.each([{ history: [] }, { history: [historyPoint(100, "2026-11-01")] }])(
+  "shows an unavailable category change without two comparison points ($history.length)",
+  ({ history }) => {
+    renderSheet(liability("mortgage-1"), vi.fn(), history);
+    expect(screen.getByText("—")).toBeVisible();
+    expect(screen.queryByText("0.0%")).not.toBeInTheDocument();
+    expect(screen.getByText("429000")).toBeVisible();
+  },
+);
+
+it("retains zero category changes when a complete period is flat", () => {
+  renderSheet(liability("mortgage-1"), vi.fn(), [
+    historyPoint(100, "2026-11-01"),
+    historyPoint(100, "2026-11-16"),
+  ]);
+  expect(screen.getByText("0.0%")).toBeVisible();
+  expect(screen.getByText("0")).toBeVisible();
 });
 
 it("links a liability to its asset page and a credit card to its account", () => {

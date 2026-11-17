@@ -30,6 +30,7 @@ export function ExchangeRatesSettings() {
     isLoadingRates,
     updateExchangeRate,
     addExchangeRate,
+    isAddingRate,
     deleteExchangeRate,
     isDeletingRate,
   } = useExchangeRates();
@@ -169,18 +170,26 @@ export function ExchangeRatesSettings() {
             <CardTitle className="text-lg">{t("settings:fx_title")}</CardTitle>
             <CardDescription>{t("settings:fx_description")}</CardDescription>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              if (!isAddingRate) setIsAddDialogOpen(open);
+            }}
+          >
             <DialogTrigger render={<Button />}>
               <Icons.PlusCircle className="me-2 h-4 w-4" />
               {t("settings:fx_add")}
             </DialogTrigger>
-            <DialogContent className="overflow-y-auto [--overlay-max-height:90vh]">
+            <DialogContent
+              showCloseButton={!isAddingRate}
+              className="overflow-y-auto [--overlay-max-height:90vh]"
+            >
               <AddExchangeRateForm
                 onSubmit={(newRate) => {
-                  addExchangeRate(newRate);
-                  setIsAddDialogOpen(false);
+                  addExchangeRate(newRate, { onSuccess: () => setIsAddDialogOpen(false) });
                 }}
                 onCancel={() => setIsAddDialogOpen(false)}
+                isSubmitting={isAddingRate}
               />
             </DialogContent>
           </Dialog>

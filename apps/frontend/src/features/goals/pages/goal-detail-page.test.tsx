@@ -19,6 +19,7 @@ const goal: Goal = {
   statusLifecycle: "active",
   statusHealth: "on_track",
   priority: 0,
+  summaryCurrentValue: 1000,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
 } as Goal;
@@ -48,6 +49,9 @@ vi.mock("@/features/goals/retirement-planner/pages/dashboard-page", () => ({
 }));
 vi.mock("@/features/goals/retirement-planner/pages/risk-lab-page", () => ({ default: () => null }));
 vi.mock("../save-up/components/save-up-detail", () => ({ default: () => null }));
+vi.mock("../components/goal-funding-editor", () => ({
+  GoalFundingEditor: () => <button>Change funding</button>,
+}));
 vi.mock("../components/goal-edit-dialog", () => ({ GoalEditDialog: () => null }));
 // The page's actions, as plain buttons.
 vi.mock("@/components/action-palette", () => ({
@@ -143,4 +147,28 @@ it("exports the save-up projection only once the goal has one", async () => {
   expect(csv).toContain('"2026-11-08","1000.00","1000.00","1000.00","5000.00","950.00"');
   expect(csv).toContain('"Goal","Sabbatical"');
   mocks.saveUpOverview = undefined;
+});
+
+it("shows an unavailable goal with a Health Center link and keeps editing accessible", () => {
+  mocks.useDeleteGoal = () => ({ isSuccess: false, isPending: false, mutate: vi.fn() });
+  goal.summaryCurrentValue = undefined;
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/goals/goal-1"]}>
+          <Routes>
+            <Route path="/goals/:goalId" element={<GoalDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change funding" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Review the details in the Health Center." }),
+    ).toHaveAttribute("href", "/health");
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeInTheDocument();
+  } finally {
+    goal.summaryCurrentValue = 1000;
+  }
 });

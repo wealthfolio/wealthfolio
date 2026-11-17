@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "部分價格或匯率缺失，合計暫不可用。",
+  "known_subtotal": "已知小計",
   "periodReturn": "{{period}}報酬",
   "currentValue": "目前價值",
   "app_name": "Wealthfolio",

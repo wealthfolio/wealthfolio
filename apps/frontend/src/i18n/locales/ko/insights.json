@@ -71,6 +71,8 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "환율 누락:",
+      "review_valuation": "평가 문제 확인",
       "title": "확인이 필요한 항목",
       "update_value": "평가액 업데이트",
       "update_balance": "잔액 업데이트",

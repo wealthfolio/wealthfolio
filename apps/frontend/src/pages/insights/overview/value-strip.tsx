@@ -10,6 +10,7 @@ interface ValueWidgetProps {
   data: ValueStripData;
   currency: string;
   isLoading?: boolean;
+  isUnavailable?: boolean;
 }
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -67,7 +68,13 @@ function CurrencyValuePill({
   );
 }
 
-export function ValueWidget({ metric, data, currency, isLoading }: ValueWidgetProps) {
+export function ValueWidget({
+  metric,
+  data,
+  currency,
+  isLoading,
+  isUnavailable,
+}: ValueWidgetProps) {
   const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
@@ -95,6 +102,14 @@ export function ValueWidget({ metric, data, currency, isLoading }: ValueWidgetPr
     );
   }
 
+  if (isUnavailable) {
+    return (
+      <Card className="p-3.5">
+        <p className="text-muted-foreground text-sm">{t("performance:not_available")}</p>
+        <p className="text-muted-foreground text-xs">{t("common:valuation_incomplete")}</p>
+      </Card>
+    );
+  }
   return (
     <Card className="overflow-hidden">
       {metric === "value" && (

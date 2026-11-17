@@ -42,12 +42,15 @@ export function CategoryDetailSheet({
   const trend = selected
     ? history.map((point) => ({ date: point.date, value: point.breakdown[selected.key] ?? 0 }))
     : [];
-  const change = deriveChange(
-    trend.map((t) => t.value),
-    selected?.isLiability ?? false,
-    hadBalanceBefore(history, selected?.firstValueDate),
-  );
-  const sign = Math.abs(change.amount) < 0.005 ? "" : change.amount > 0 ? "+" : "-";
+  const change =
+    trend.length >= 2
+      ? deriveChange(
+          trend.map((t) => t.value),
+          selected?.isLiability ?? false,
+          hadBalanceBefore(history, selected?.firstValueDate),
+        )
+      : null;
+  const sign = !change || Math.abs(change.amount) < 0.005 ? "" : change.amount > 0 ? "+" : "-";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -69,20 +72,26 @@ export function CategoryDetailSheet({
                   <CompactAmount value={selected.value} currency={currency} />
                 </div>
                 <div
-                  className={`mt-0.5 flex items-baseline gap-1.5 text-sm tabular-nums ${toneClass(change.amount)}`}
+                  className={`mt-0.5 flex items-baseline gap-1.5 text-sm tabular-nums ${toneClass(change?.amount ?? 0)}`}
                 >
-                  <span>
-                    {sign}
-                    <CompactAmount value={Math.abs(change.amount)} currency={currency} />
-                  </span>
-                  <span>
-                    {change.percent !== null && sign}
-                    {formatChangePercent(
-                      change,
-                      t("insights:networth.breakdown_table.new"),
-                      formatting,
-                    )}
-                  </span>
+                  {change ? (
+                    <>
+                      <span>
+                        {sign}
+                        <CompactAmount value={Math.abs(change.amount)} currency={currency} />
+                      </span>
+                      <span>
+                        {change.percent !== null && sign}
+                        {formatChangePercent(
+                          change,
+                          t("insights:networth.breakdown_table.new"),
+                          formatting,
+                        )}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                   <span className="text-muted-foreground font-normal">
                     {t("insights:networth.category_sheet.over_period", { period: periodLabel })}
                   </span>
@@ -94,7 +103,7 @@ export function CategoryDetailSheet({
                 <p className={`${CARD_LABEL} pb-2`}>
                   {t("insights:networth.category_sheet.trend_period", { period: periodLabel })}
                 </p>
-                <CategoryTrendChart data={trend} color={toneColor(change.amount)} />
+                <CategoryTrendChart data={trend} color={toneColor(change?.amount ?? 0)} />
               </div>
 
               {/* A liability is one item with a page of its own. */}

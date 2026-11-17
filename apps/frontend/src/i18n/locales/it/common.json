@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "Totale non disponibile: mancano alcuni prezzi o tassi di cambio.",
+  "known_subtotal": "Subtotale noto",
   "periodReturn": "Rendimento {{period}}",
   "currentValue": "Valore attuale",
   "app_name": "Wealthfolio",

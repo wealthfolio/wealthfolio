@@ -1,4 +1,5 @@
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
+import { isValuationComplete } from "@/lib/valuation";
 import { AccountValuation, CurrentValuationSplit, PerformanceResult } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 import { PerformanceGrid } from "@/pages/account/performance-grid";
@@ -166,8 +167,10 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   const performancePnl = performancePeriodPnl(performance);
   const performanceReturn = performanceSummaryReturn(performance);
   const allTimeReturnAmount = valuation.totalValue - valuation.netContribution;
-  const allTimeReturnValue = (
+  const allTimeReturnValue = isValuationComplete(valuation.valueStatus) ? (
     <GainAmount value={allTimeReturnAmount} currency={displayCurrency} className="text-sm" />
+  ) : (
+    <span className="text-muted-foreground text-xs">{t("account:not_available")}</span>
   );
   const unrealizedPnl = valuation.investmentMarketValue - valuation.costBasis;
   const canShowUnrealizedPnl = valuation.basisStatus === "complete";

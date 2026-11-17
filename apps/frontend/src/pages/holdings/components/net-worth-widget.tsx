@@ -208,6 +208,15 @@ export const NetWorthWidget = ({
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
 
+  if (netWorthData?.valueStatus && netWorthData.valueStatus !== "complete") {
+    return (
+      <Card className={cn("p-4", className)}>
+        <p>{t("performance:not_available")}</p>
+        <p className="text-muted-foreground text-sm">{t("common:valuation_incomplete")}</p>
+      </Card>
+    );
+  }
+
   // Loading state
   if (isLoading) {
     return <NetWorthWidgetSkeleton compact={compact} />;

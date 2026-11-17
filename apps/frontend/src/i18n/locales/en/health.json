@@ -88,7 +88,7 @@
     "data_missing_generated_valuation": {
       "title_one": "Generated valuation history is incomplete",
       "title_other": "{{count}} generated valuation rows are missing",
-      "message": "Some holdings snapshot dates do not have generated valuation rows. Rebuild account history after fixing missing prices, manual valuations, or FX rates."
+      "message": "Some holdings snapshot dates do not have generated valuation rows. Rebuild account history after fixing missing prices, manual valuations, or exchange rates."
     },
     "data_incomplete_valuation_value": {
       "title_one": "Valuation coverage is incomplete",
@@ -181,7 +181,7 @@
   },
   "category": {
     "prices": "Prices",
-    "fxRates": "FX Rates",
+    "fxRates": "Exchange Rates",
     "categories": "Categories",
     "data": "Data",
     "accounts": "Accounts",
