@@ -37,12 +37,25 @@ pub struct HoldingsRead {
     pub timezone: String,
 }
 
+/// Pending reason of an account with no calculated holdings to show yet.
+/// Other pending accounts are returned with their last calculated holdings.
+pub const CALCULATION_REQUIRED: &str = "CALCULATION_REQUIRED";
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncompleteHoldingsAccount {
     pub account_id: String,
     pub status: &'static str,
     pub reason_code: &'static str,
+}
+
+impl IncompleteHoldingsAccount {
+    /// The scope left this account's holdings out: it is unavailable, or has
+    /// nothing calculated to show. Other pending accounts are included with
+    /// their last calculated holdings.
+    pub fn withholds_holdings(&self) -> bool {
+        self.status != "pending" || self.reason_code == CALCULATION_REQUIRED
+    }
 }
 
 #[derive(Default, serde::Serialize)]
@@ -66,12 +79,17 @@ impl HoldingsScope {
                 "accounting inputs are missing or invalid".into(),
             ));
         }
-        Err(crate::Error::HoldingsPending(
-            self.incomplete_accounts
-                .into_iter()
-                .map(|a| a.account_id)
-                .collect(),
-        ))
+        let withheld: Vec<String> = self
+            .incomplete_accounts
+            .into_iter()
+            .filter(IncompleteHoldingsAccount::withholds_holdings)
+            .map(|account| account.account_id)
+            .collect();
+        if withheld.is_empty() {
+            // Pending accounts are included with their last calculated holdings.
+            return Ok(self.holdings);
+        }
+        Err(crate::Error::HoldingsPending(withheld))
     }
 }
 
@@ -259,19 +277,31 @@ impl HoldingsRead {
         })
     }
 
+    /// A calculation is due or running for the account. Its last calculated
+    /// holdings stay readable meanwhile; this only reports that they are
+    /// about to be refreshed.
     pub fn position_pending(&self, account_id: &str, day: NaiveDate) -> bool {
-        let observed = self
-            .accounts
-            .iter()
-            .any(|a| a.id == account_id && a.tracking_mode == TrackingMode::Holdings);
-        !observed
-            && (self.history_pending(account_id, day)
-                || self
-                    .snapshots
-                    .get(account_id)
-                    .is_some_and(|s| s.base_currency.is_none())
+        self.accounting_unready(account_id, day)
+            || (!self.is_observed(account_id) && self.history_pending(account_id, day))
+    }
+
+    /// No calculated holdings can be shown yet: the account was never
+    /// valued, or its snapshot predates base-currency provenance, so its
+    /// base amounts could carry another currency's label.
+    pub fn accounting_unready(&self, account_id: &str, day: NaiveDate) -> bool {
+        !self.is_observed(account_id)
+            && (self
+                .snapshots
+                .get(account_id)
+                .is_some_and(|s| s.base_currency.is_none())
                 || (!self.last_valued.contains_key(account_id)
                     && self.has_effective_activities(account_id, day)))
+    }
+
+    fn is_observed(&self, account_id: &str) -> bool {
+        self.accounts
+            .iter()
+            .any(|a| a.id == account_id && a.tracking_mode == TrackingMode::Holdings)
     }
 
     /// Draft, future and rejected rows cannot establish current accounting.

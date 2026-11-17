@@ -193,6 +193,11 @@ export const getHolding = async (accountId: string, assetId: string): Promise<Ho
   return invoke<Holding | null>("get_holding", { accountId, assetId });
 };
 
+/**
+ * Every account's current holdings of an asset, for actions that record
+ * activities (option expiry). Rejects while any account is calculating: its
+ * last holdings may not reflect a recent trade.
+ */
 export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
   const scope = await getAssetHoldingsScope(assetId);
   if (scope.incompleteAccounts.length > 0) throw new Error("Holdings scope is incomplete");

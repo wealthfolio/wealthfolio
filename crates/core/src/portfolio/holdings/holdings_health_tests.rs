@@ -219,3 +219,55 @@ async fn health_missing_fx_keeps_the_base_impact_unknown() {
         .value
         .contains("unknown"));
 }
+
+#[tokio::test]
+async fn health_totals_include_accounts_mid_calculation_but_not_withheld_ones() {
+    use crate::portfolio::snapshot::SnapshotRepositoryTrait;
+    for withheld in [false, true] {
+        let healthy = account("healthy", "CAD", TrackingMode::Transactions);
+        let calculating = account("calculating", "CAD", TrackingMode::Transactions);
+        let accounts = vec![healthy.clone(), calculating.clone()];
+        let fixture = Fixture::new(
+            vec![
+                buy(&healthy.id, "CAD", dec!(100)),
+                buy(&calculating.id, "CAD", dec!(80)),
+            ],
+            Vec::new(),
+        );
+        let _clock = crate::utils::clock::freeze(fixture.now);
+        let (coordinator, holdings, snapshots) = fixture.services(accounts.clone());
+        coordinator
+            .run_job(PortfolioJobRequest::default(), &SilentObserver)
+            .await
+            .unwrap();
+        fixture
+            .store
+            .invalidate(MarkerScope::Account(calculating.id.clone()), GENESIS)
+            .await
+            .unwrap();
+        if withheld {
+            // Nothing calculated is left to show for it.
+            fixture
+                .snapshots
+                .delete_snapshots_by_account_ids(std::slice::from_ref(&calculating.id))
+                .await
+                .unwrap();
+        }
+        let status = fixture
+            .full_health_status(accounts, coordinator, holdings, snapshots, "CAD")
+            .await;
+        let stale_prices = status
+            .issues
+            .iter()
+            .find(|issue| issue.code.as_deref() == Some("price_stale_outdated"))
+            .expect("the fixture's prices are outdated");
+        // An account mid-calculation keeps its last holdings in the total, so
+        // the issue's share of the portfolio stays known; a withheld one
+        // leaves the total unknown.
+        assert_eq!(
+            stale_prices.affected_mv_pct.is_some(),
+            !withheld,
+            "withheld: {withheld}"
+        );
+    }
+}

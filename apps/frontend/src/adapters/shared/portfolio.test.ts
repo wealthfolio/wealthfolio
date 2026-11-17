@@ -9,13 +9,28 @@ it("keeps partial asset rows available to list consumers while strict consumers 
   const scope = {
     holdings: [{ accountId: "healthy", quantity: 2 }],
     incompleteAccounts: [
-      { accountId: "pending", status: "pending", reasonCode: "PROJECTION_PENDING" },
+      { accountId: "pending", status: "pending", reasonCode: "CALCULATION_REQUIRED" },
     ],
   };
   mocks.invoke.mockResolvedValue(scope);
   expect(await getAssetHoldingsScope("asset")).toEqual(scope);
   await expect(getAssetHoldings("asset")).rejects.toThrow("Holdings scope is incomplete");
   expect(mocks.invoke).toHaveBeenCalledWith("get_asset_holdings", { assetId: "asset" });
+});
+
+it("keeps strict consumers waiting for accounts mid-calculation", async () => {
+  mocks.invoke.mockResolvedValue({
+    holdings: [
+      { accountId: "healthy", quantity: 2 },
+      { accountId: "calculating", quantity: 1 },
+    ],
+    incompleteAccounts: [
+      { accountId: "calculating", status: "pending", reasonCode: "PROJECTION_PENDING" },
+    ],
+  });
+  // Option expiry records activities: a recent trade may be missing from
+  // the last calculated holdings.
+  await expect(getAssetHoldings("asset")).rejects.toThrow("Holdings scope is incomplete");
 });
 
 it("keeps the existing complete asset-holdings API for activity and expiry actions", async () => {

@@ -245,7 +245,6 @@ pub(super) fn apply_history(
         })
         .map(|a| a.id.as_str())
         .collect();
-    let pending = read.history_pending(account_id, read.day);
     for holding in holdings {
         if holding.holding_type == HoldingType::Cash {
             holding.income = Some(MonetaryValue::zero());
@@ -289,7 +288,7 @@ pub(super) fn apply_history(
         }
         // An observed cost does not establish a sales history. Retained,
         // compatible recorded sales remain useful, without overriding its basis.
-        if pending || (holding.translate_observed_basis && !has_disposals) {
+        if holding.translate_observed_basis && !has_disposals {
             realized = MonetaryValue::unavailable();
             disposed = MonetaryValue::unavailable();
         }
@@ -311,14 +310,10 @@ pub(super) fn apply_history(
                 .unwrap_or_else(MonetaryValue::unavailable)
         };
         holding.total_gain = Some(unrealized.add(&realized));
-        let income = if pending {
-            MonetaryValue::unavailable()
-        } else {
-            incomes
-                .get(asset_id)
-                .cloned()
-                .unwrap_or_else(MonetaryValue::zero)
-        };
+        let income = incomes
+            .get(asset_id)
+            .cloned()
+            .unwrap_or_else(MonetaryValue::zero);
         holding.income = Some(income);
         refresh_total_return(holding);
     }
