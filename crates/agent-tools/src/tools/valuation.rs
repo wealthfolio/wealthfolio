@@ -4,7 +4,9 @@ use chrono::NaiveDate;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
+use wealthfolio_core::accounts::{
+    account_supports_portfolio_scope, account_supports_purpose, AccountPurpose,
+};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use crate::constants::{DEFAULT_VALUATIONS_DAYS, MAX_VALUATIONS_POINTS};
@@ -152,12 +154,12 @@ impl AgentTool for GetValuationHistory {
         } else {
             let accounts = env
                 .account_service()
-                .get_active_non_archived_accounts()
+                .get_non_archived_accounts()
                 .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
             let account_ids: Vec<String> = accounts
                 .into_iter()
                 .filter(|account| {
-                    account_supports_purpose(&account.account_type, AccountPurpose::Holdings)
+                    account_supports_portfolio_scope(account, AccountPurpose::Holdings)
                 })
                 .map(|account| account.id)
                 .collect();
