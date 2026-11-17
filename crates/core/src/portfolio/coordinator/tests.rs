@@ -1102,6 +1102,27 @@ async fn a_price_change_revalues_from_its_day_only() {
 }
 
 #[tokio::test]
+async fn a_running_job_is_not_reported_as_stale_history() {
+    let scenario = scenario("NOM-TRADE-01");
+    let facts = scenario.facts();
+    let harness = harness(facts.clone()).await;
+    harness
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    let tomorrow = facts.as_of + chrono::Duration::days(1);
+    crate::utils::clock::set_frozen(as_of_instant(tomorrow, &facts.timezone));
+    assert!(!harness.coordinator.stale_accounts().unwrap().is_empty());
+
+    // A job in progress owns those accounts: nothing for the user to rebuild.
+    let running = harness.coordinator.job.lock().await;
+    assert!(harness.coordinator.stale_accounts().unwrap().is_empty());
+    drop(running);
+    assert!(!harness.coordinator.stale_accounts().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn a_new_day_revalues_only_the_new_day() {
     let scenario = scenario("NOM-TRADE-01");
     let facts = scenario.facts();
