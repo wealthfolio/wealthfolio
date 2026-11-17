@@ -1,3 +1,4 @@
+import type { ChargeCategory } from "@/lib/activity-charges";
 import { isStoredTradeAmountCustom } from "@/lib/activity-final-amount";
 import { ActivityType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
@@ -25,4 +26,19 @@ export function hasStoredCustomTradeAmount(activity?: Partial<ActivityDetails>):
     contractMultiplier: activity.assetContractMultiplier,
     currency: activity.currency,
   });
+}
+
+/** The fee and tax totals whose lines the phone form edits for an activity type. */
+export function mobileChargeLineCategories(activityType: string | undefined): ChargeCategory[] {
+  // Interest shows a fee next to the tax here.
+  switch (activityType) {
+    case ActivityType.BUY:
+    case ActivityType.SELL:
+    case ActivityType.INTEREST:
+      return ["fee", "tax"];
+    case ActivityType.DIVIDEND:
+      return ["tax"];
+    default:
+      return [];
+  }
 }

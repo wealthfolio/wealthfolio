@@ -162,6 +162,11 @@
       "title_one": "{{from}} 與 {{to}} 的匯率不一致",
       "title_other": "{{count}} 組幣別對的匯率不一致",
       "message": "同一天在兩個方向都記錄了匯率，但兩者不相符。每個方向都依記錄使用，因此來回換算會得到不同的金額。請更正或刪除錯誤的匯率。"
+    },
+    "option_expiry_without_contract": {
+      "title_one": "選擇權到期紀錄未連結到其合約",
+      "title_other": "{{count}} 筆選擇權到期紀錄未連結到其合約",
+      "message": "這些選擇權到期紀錄指向的是標的股票而非選擇權合約，因此合約仍未平倉，其損益未被記錄。請將每筆到期紀錄連結到已到期的合約。"
     }
   },
   "page": {
@@ -203,7 +208,8 @@
     "update_cost_basis": "更新成本基礎",
     "update_value": "更新估值",
     "review_transaction": "檢查交易",
-    "review_entry": "查看紀錄"
+    "review_entry": "查看紀錄",
+    "match_option_expiry_contracts": "使用相符的合約"
   },
   "updatedAt": "更新於 {{time}}",
   "healthy": {
@@ -292,6 +298,7 @@
     "return_of_capital_amount_required": "請輸入此資本返還的金額。",
     "sell_without_position": "沒有可賣出的{{asset}}部位。僅計入了現金影響。",
     "insufficient_quantity": "此交易減少{{requested}}單位的{{asset}}，但僅持有{{held}}單位。剩餘{{excess}}單位沒有成本基礎。",
-    "missing_final_cash": "此已入帳交易沒有最終現金金額，因此未改變現金餘額。"
+    "missing_final_cash": "此已入帳交易沒有最終現金金額，因此未改變現金餘額。",
+    "option_expiry_not_option": "此選擇權到期紀錄指向的{{asset}}不是選擇權合約，因此沒有任何變更。請將其連結到已到期的合約。"
   }
 }

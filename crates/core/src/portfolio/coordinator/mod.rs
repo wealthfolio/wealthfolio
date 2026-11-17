@@ -36,6 +36,8 @@ use crate::quotes::{MarketSyncMode, SyncMode, SyncResult, DEFAULT_HISTORY_DAYS};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 pub(crate) use facts::raw_activity;
+#[cfg(test)]
+pub(crate) use facts::raw_asset;
 pub use facts::{window_quotes, FactSources, LoadedFacts};
 pub use persist::{valuation_rows, WindowCadence};
 
@@ -628,7 +630,12 @@ impl PortfolioCoordinator {
     /// Accounts whose stored projection is stale: a pending fact marker for
     /// the account (or for everything), or valuations ending before today.
     /// Price markers are left to the next job, which they trigger anyway.
+    /// While a job runs it reports none: the job marks the accounts it is
+    /// rebuilding, and those need no rebuild from the user.
     pub fn stale_accounts(&self) -> Result<Vec<StaleAccount>> {
+        if self.job.try_lock().is_err() {
+            return Ok(Vec::new());
+        }
         let markers = self.deps.projections.pending_markers()?;
         let last_valued = self.deps.projections.last_valued_days()?;
         let today = self.today();

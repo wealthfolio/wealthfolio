@@ -79,12 +79,7 @@ const PASSES = [
 
 // App bugs this sweep finds, by "<pass> <route>", each to fix separately. The
 // test is expected to fail until then.
-const KNOWN_FAILURES: Record<string, string> = {
-  "phone /activities/add":
-    "The Add existing holdings sheet sits 4 px right of the screen's left edge at full width, so its right edge is cut off.",
-  "phone /spending/insights":
-    "The Spending insights chip row is overflow-x-auto, but globals.css's unlayered `.flex { overflow-x: hidden }` overrides it: chips past the screen edge are cut off and can't be swiped to.",
-};
+const KNOWN_FAILURES: Record<string, string> = {};
 
 const MAX_API_DELAY_MS = 750;
 

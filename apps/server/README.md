@@ -16,7 +16,7 @@ Key environment variables
 - `WF_LISTEN_ADDR`: Bind address, default `0.0.0.0:8088`.
 - `WF_DB_PATH`: Path to the SQLite database file (or a directory; if a directory is provided, `app.db` is used inside it). Example: `./db/app.db`.
 - `WF_CORS_ALLOW_ORIGINS`: Comma-separated list of allowed origins for CORS. Example: `http://localhost:1420`.
-- `WF_REQUEST_TIMEOUT_MS`: Request timeout in milliseconds. Default `300000`.
+- `WF_REQUEST_TIMEOUT_MS`: Optional routine-request timeout override in milliseconds. Empty uses `45000` from the [shared timeout policy](../../config/timeouts.json). Heavy, import, and transfer routes keep their classified budgets. Explicit legacy overrides are preserved; values of `60000` or more can outlast the routine client timeout. See the [production timeout matrix](../../docs/self-host/timeouts.md).
 - `WF_STATIC_DIR`: Directory to serve static assets from (the web build output). Default `dist`.
 - `WF_SECRET_KEY`: 32-byte key (required unless `WF_SECRET_KEY_FILE` is set) used to encrypt secrets at rest and sign JWTs. Must decode to exactly 32 bytes.
   Can be provided as:

@@ -22,7 +22,6 @@ use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 const PROVIDER_ID: &str = "OPENFIGI";
 const MAPPING_URL: &str = "https://api.openfigi.com/v3/mapping";
 const SEARCH_URL: &str = "https://api.openfigi.com/v3/search";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Bond-related market sectors in OpenFIGI responses.
 const BOND_MARKET_SECTORS: &[&str] = &["Corp", "Govt", "Mtge", "Muni", "Pfd"];
@@ -71,8 +70,7 @@ impl Default for OpenFigiProvider {
 
 impl OpenFigiProvider {
     pub fn new() -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
         Self { client }

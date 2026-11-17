@@ -170,6 +170,7 @@ function renderWidget(
       type="tool-call"
       addResult={vi.fn()}
       resume={vi.fn()}
+      respondToApproval={vi.fn()}
     />,
     {
       wrapper: ({ children }) => (

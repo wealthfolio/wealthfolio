@@ -250,7 +250,7 @@ export const BulkHoldingsModal = ({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="flex w-full flex-col overflow-hidden p-0 [--overlay-max-height:90dvh] sm:max-w-6xl">
+      <DialogContent className="flex flex-col overflow-hidden p-0 [--overlay-max-height:90dvh] sm:max-w-6xl">
         <DialogHeader className="shrink-0 border-b px-4 py-4 pe-16 text-start sm:px-6 sm:pe-16">
           <DialogTitle>{t("activity:form.bulk_add_existing_title")}</DialogTitle>
           <DialogDescription>{t("activity:form.bulk_add_existing_desc")}</DialogDescription>

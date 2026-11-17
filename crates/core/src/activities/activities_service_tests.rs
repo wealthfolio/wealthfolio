@@ -1378,6 +1378,9 @@ pub(crate) mod tests {
         activities: Arc<Mutex<Vec<Activity>>>,
         /// Accounts whose rows `get_activities` leaves out, as storage does.
         archived_accounts: Arc<Mutex<HashSet<String>>>,
+        /// Writes fail as SQLite does when another writer stored the same
+        /// idempotency key after the service's duplicate check.
+        idempotency_conflict_on_write: Arc<std::sync::atomic::AtomicBool>,
     }
 
     impl MockActivityRepository {
@@ -1387,6 +1390,23 @@ pub(crate) mod tests {
 
         fn add_activity(&self, activity: Activity) {
             self.activities.lock().unwrap().push(activity);
+        }
+
+        fn fail_writes_with_idempotency_conflict(&self) {
+            self.idempotency_conflict_on_write
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn idempotency_conflict(&self) -> Result<()> {
+            if self
+                .idempotency_conflict_on_write
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(Error::Database(DatabaseError::UniqueViolation(
+                    "UNIQUE constraint failed: activities.idempotency_key".to_string(),
+                )));
+            }
+            Ok(())
         }
 
         fn archive_account(&self, account_id: &str) {
@@ -1726,6 +1746,7 @@ pub(crate) mod tests {
             activity_id: String,
             counterpart_id: Option<String>,
         ) -> Result<(Activity, Activity)> {
+            self.idempotency_conflict()?;
             // Restore the snapshot on failure, like the SQLite transaction.
             let snapshot = self.activities.lock().unwrap().clone();
             let result = async {
@@ -1789,6 +1810,7 @@ pub(crate) mod tests {
             &self,
             _activities: Vec<NewActivity>,
         ) -> Result<Vec<Activity>> {
+            self.idempotency_conflict()?;
             let mut stored = self.activities.lock().unwrap();
             let mut created = Vec::new();
             for new_activity in _activities {
@@ -2251,6 +2273,168 @@ pub(crate) mod tests {
             quote_service.updated_quotes().is_empty(),
             "transfer unit_price is book basis and must not be written as a quote"
         );
+    }
+
+    #[tokio::test]
+    async fn test_option_expiry_fix_moves_a_stock_expiry_onto_its_contract() {
+        // #2655: the broker sent the expiry with only the underlying stock and
+        // no units. The fix moves it onto the one contract held that day.
+        use crate::health::fixes::option_expiry::tests::held;
+        use crate::health::fixes::{
+            match_option_expiry_contracts, MatchOptionExpiryContractsPayload,
+        };
+
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("fhsa", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "rgld",
+            "RGLD",
+            Some("XNAS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "rgld-c195",
+            "RGLD260717C00195000",
+            None,
+            Some(InstrumentType::Option),
+            "USD",
+        ));
+        let at: DateTime<Utc> = "2026-07-17T21:30:00Z".parse().unwrap();
+        let mut expiry = create_stored_activity("exp", "fhsa", Some("rgld"));
+        expiry.activity_type = "ADJUSTMENT".to_string();
+        expiry.subtype = Some("OPTION_EXPIRY".to_string());
+        expiry.activity_date = at;
+        expiry.quantity = Some(dec!(0));
+        expiry.unit_price = Some(dec!(0));
+        expiry.amount = Some(dec!(0));
+        expiry.notes = Some("Option expired: RGLD".to_string());
+        expiry.needs_review = true;
+        activity_repository.add_activity(expiry);
+        let mut buy = create_stored_activity("buy", "fhsa", Some("rgld-c195"));
+        buy.activity_date = "2026-07-13T14:17:00Z".parse().unwrap();
+        buy.quantity = Some(dec!(2));
+        buy.unit_price = Some(dec!(2.5));
+        buy.amount = Some(dec!(500));
+        activity_repository.add_activity(buy);
+        // The engine over the stored rows, with the facts the coordinator gives it.
+        let project = || {
+            use crate::portfolio::coordinator::{raw_activity, raw_asset};
+            use wealthfolio_portfolio_engine::model::{Currency, Policy, RawAccount, RawFacts};
+            let raw = RawFacts {
+                policy: Policy::new(
+                    Currency::parse("USD").unwrap(),
+                    chrono_tz::UTC,
+                    NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
+                ),
+                accounts: vec![RawAccount {
+                    id: "fhsa".to_string(),
+                    currency: "USD".to_string(),
+                    account_type: "SECURITIES".to_string(),
+                    tracking_mode: "TRANSACTIONS".to_string(),
+                    is_archived: false,
+                    cost_basis_method: None,
+                }],
+                assets: asset_service
+                    .get_assets()
+                    .unwrap()
+                    .iter()
+                    .map(raw_asset)
+                    .collect(),
+                activities: activity_repository
+                    .get_activities()
+                    .unwrap()
+                    .iter()
+                    .map(raw_activity)
+                    .collect(),
+                quotes: Vec::new(),
+                fx_rates: Vec::new(),
+                observed_snapshots: Vec::new(),
+            };
+            wealthfolio_portfolio_engine::Engine::new(raw)
+                .unwrap()
+                .project()
+                .unwrap()
+        };
+        let before = project();
+        assert!(before
+            .rejected_activities()
+            .iter()
+            .any(|id| id.as_str() == "exp"));
+        assert!(
+            before.disposals.is_empty(),
+            "the stock-keyed expiry closes nothing"
+        );
+        let activity_service = Arc::new(ActivityService::new(
+            activity_repository.clone(),
+            account_service.clone(),
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        ));
+        let snapshots = Arc::new(held(&[("fhsa", "2026-07-17", &[("rgld-c195", 2)])]));
+        // The check's timezone travels in the payload; none is configured.
+        let payload = |ids: &[&str]| MatchOptionExpiryContractsPayload {
+            activity_ids: ids.iter().map(|id| id.to_string()).collect(),
+            timezone: Some("America/Toronto".to_string()),
+        };
+
+        let moved = match_option_expiry_contracts(
+            activity_service.clone(),
+            account_service.clone(),
+            asset_service.clone(),
+            snapshots.clone(),
+            payload(&["exp"]),
+            None,
+        )
+        .await
+        .expect("the expiry has one matching contract");
+
+        assert_eq!(moved, 1);
+        let stored = activity_repository.get_activity("exp").unwrap();
+        assert_eq!(stored.asset_id.as_deref(), Some("rgld-c195"));
+        assert_eq!(stored.quantity, Some(dec!(2)));
+        assert_eq!(stored.subtype.as_deref(), Some("OPTION_EXPIRY"));
+        assert_eq!(stored.activity_date, at);
+        assert_eq!(stored.notes.as_deref(), Some("Option expired: RGLD"));
+        assert!(!stored.needs_review);
+
+        // The engine now closes the contracts at zero proceeds: the premium
+        // paid is the realized loss.
+        let after = project();
+        assert!(after.rejected_activities().is_empty());
+        let realized: Decimal = after
+            .disposals
+            .iter()
+            .filter(|disposal| disposal.asset.as_str() == "rgld-c195")
+            .map(|disposal| {
+                assert_eq!(disposal.proceeds, Decimal::ZERO);
+                disposal.realized_pnl
+            })
+            .sum();
+        assert_eq!(realized, dec!(-500));
+        let account = &after.final_state.accounts
+            [&wealthfolio_portfolio_engine::model::AccountId::new("fhsa")];
+        let contract = account
+            .positions
+            .get(&wealthfolio_portfolio_engine::model::AssetId::new(
+                "rgld-c195",
+            ));
+        assert!(contract.is_none_or(|position| position.quantity.is_zero()));
+
+        // Applying again finds nothing left to move.
+        let again = match_option_expiry_contracts(
+            activity_service,
+            account_service,
+            asset_service,
+            snapshots,
+            payload(&["exp"]),
+            None,
+        )
+        .await;
+        assert!(again.is_err());
     }
 
     #[tokio::test]
@@ -7084,6 +7268,8 @@ pub(crate) mod tests {
             "error should clearly explain duplicate detection: {}",
             err
         );
+        // Clients get a specific refusal, not the generic internal error.
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
     }
 
     #[tokio::test]
@@ -11391,6 +11577,7 @@ pub(crate) mod tests {
                     isin: Some("ca82509l1076".to_string()),
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 },
                 ImportAssetCandidate {
                     key: "shop-2".to_string(),
@@ -11404,6 +11591,7 @@ pub(crate) mod tests {
                     isin: Some("CA82509L1077".to_string()),
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 },
             ])
             .await
@@ -11448,6 +11636,7 @@ pub(crate) mod tests {
                 isin: None,
                 provider_id: None,
                 provider_symbol: None,
+                name: None,
             }])
             .await
             .expect("preview should succeed");
@@ -11497,6 +11686,7 @@ pub(crate) mod tests {
                 isin: None,
                 provider_id: Some("METAL_PRICE_API".to_string()),
                 provider_symbol: Some("XAU-1KG".to_string()),
+                name: None,
             }])
             .await
             .expect("preview should succeed");
@@ -12101,6 +12291,7 @@ pub(crate) mod tests {
             isin: None,
             provider_id: provider_id.map(str::to_string),
             provider_symbol: provider_id.map(|_| symbol.to_string()),
+            name: None,
         }
     }
 
@@ -15479,6 +15670,36 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn convert_to_internal_transfer_reports_a_racing_duplicate_leg() {
+        let withdrawal = create_cash_transfer_activity(
+            "withdrawal",
+            "acc-join",
+            ACTIVITY_TYPE_WITHDRAWAL,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        let (service, repository) = convert_test_service(
+            vec![withdrawal],
+            &[("acc-join", "CAD"), ("acc-cibc", "CAD")],
+        );
+        repository.fail_writes_with_idempotency_conflict();
+
+        let err = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "withdrawal".to_string(),
+                counterpart_activity_id: None,
+                counterpart_account_id: Some("acc-cibc".to_string()),
+                counterpart_amount: None,
+                split_review: None,
+            })
+            .await
+            .expect_err("a leg stored meanwhile is a duplicate");
+
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
+    }
+
+    #[tokio::test]
     async fn convert_to_internal_transfer_creates_the_other_leg() {
         let mut withdrawal = create_cash_transfer_activity(
             "withdrawal",
@@ -16916,6 +17137,68 @@ pub(crate) mod tests {
         assert_eq!(result.summary.imported, 1);
         assert_eq!(result.summary.duplicates, 0);
         assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_import_reports_a_racing_duplicate_as_duplicate() {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-1", "GBP"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.fail_writes_with_idempotency_conflict();
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let row = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "VWRL".to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(100)),
+            currency: "GBP".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(100)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: Some("Vanguard FTSE All-World".to_string()),
+            exchange_mic: Some("XLON".to_string()),
+            quote_ccy: Some("GBP".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+            charges: None,
+            source_record_id: None,
+            metadata: None,
+        };
+
+        let err = activity_service
+            .import_activities(vec![row])
+            .await
+            .expect_err("a row stored meanwhile is a duplicate");
+
+        assert_eq!(err.public_error().error_code, "DUPLICATE_ACTIVITY");
     }
 
     #[tokio::test]

@@ -177,6 +177,22 @@ describe("localized financial input typing", () => {
 });
 
 describe("localized financial input paste", () => {
+  it.each(["readOnly", "disabled"] as const)("blocks pastes into %s money inputs", (state) => {
+    const onValueChange = vi.fn();
+    render(
+      <MoneyInput
+        value={100}
+        readOnly={state === "readOnly"}
+        disabled={state === "disabled"}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    expect(paste("$1,234.56")).toBe(false);
+    expect(screen.getByRole("textbox")).toHaveValue("100");
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["1234.56", 1234.56],
     ["1,234.56", 1234.56],

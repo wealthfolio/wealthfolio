@@ -1578,15 +1578,10 @@ impl ActivityService {
     }
 
     fn duplicate_activity_error(existing_activity_id: Option<&str>) -> crate::errors::Error {
-        let message = if let Some(activity_id) = existing_activity_id {
-            format!(
-                "Duplicate activity detected. A matching activity already exists (id: {}).",
-                activity_id
-            )
-        } else {
-            "Duplicate activity detected. A matching activity already exists.".to_string()
-        };
-        ActivityError::InvalidData(message).into()
+        ActivityError::Duplicate {
+            existing_activity_id: existing_activity_id.map(str::to_string),
+        }
+        .into()
     }
 
     fn map_duplicate_idempotency_violation(err: crate::errors::Error) -> crate::errors::Error {
@@ -4141,6 +4136,7 @@ impl ActivityService {
                     asset_id: None,
                     provider_id: None,
                     provider_symbol: None,
+                    name: None,
                 }
             })
             .collect();
@@ -6083,6 +6079,7 @@ impl ActivityService {
             asset_id: activity.asset_id.clone(),
             provider_id: None,
             provider_symbol: None,
+            name: None,
         }
         .reviewed_metadata_is_sufficient()
     }
@@ -6162,6 +6159,7 @@ impl ActivityService {
                     asset_id: a.asset_id.clone(),
                     provider_id: a.provider_id.clone(),
                     provider_symbol: a.provider_symbol.clone(),
+                    name: None,
                 })
             })
             .collect();
@@ -7675,7 +7673,8 @@ impl ActivityServiceTrait for ActivityService {
                 source.id.clone(),
                 counterpart.map(|counterpart| counterpart.id),
             )
-            .await?;
+            .await
+            .map_err(Self::map_duplicate_idempotency_violation)?;
 
         let mut account_ids: HashSet<String> = HashSet::new();
         let mut asset_ids: HashSet<String> = HashSet::new();
@@ -8330,6 +8329,7 @@ impl ActivityServiceTrait for ActivityService {
                     asset_id: None,
                     provider_id: candidate.provider_id.clone(),
                     provider_symbol: candidate.provider_symbol.clone(),
+                    name: candidate.name.clone(),
                 }
             })
             .collect();
@@ -8966,6 +8966,7 @@ impl ActivityServiceTrait for ActivityService {
                 .activity_repository
                 .create_activities_returning(insertable_new_activities)
                 .await
+                .map_err(Self::map_duplicate_idempotency_violation)
             {
                 Ok(rows) => rows,
                 Err(e) => {
@@ -10420,5 +10421,30 @@ mod reviewed_import_metadata_tests {
             import_with_metadata("MYCO", Some("EQUITY"), Some("USD"), None, Some("MANUAL"));
 
         assert!(ActivityService::reviewed_import_asset_metadata_is_sufficient(&activity));
+    }
+}
+
+#[cfg(test)]
+mod duplicate_idempotency_violation_tests {
+    use super::ActivityService;
+    use crate::errors::{DatabaseError, Error};
+
+    #[test]
+    fn a_unique_violation_on_the_idempotency_key_is_a_public_duplicate_refusal() {
+        for error in [
+            DatabaseError::UniqueViolation(
+                "UNIQUE constraint failed: activities.idempotency_key".into(),
+            ),
+            DatabaseError::Internal("UNIQUE constraint failed: activities.idempotency_key".into()),
+        ] {
+            let mapped = ActivityService::map_duplicate_idempotency_violation(Error::from(error));
+            assert_eq!(mapped.public_error().error_code, "DUPLICATE_ACTIVITY");
+        }
+
+        // Other unique violations keep their generic conflict code.
+        let other = ActivityService::map_duplicate_idempotency_violation(Error::from(
+            DatabaseError::UniqueViolation("UNIQUE constraint failed: assets.id".into()),
+        ));
+        assert_eq!(other.public_error().error_code, "conflict");
     }
 }

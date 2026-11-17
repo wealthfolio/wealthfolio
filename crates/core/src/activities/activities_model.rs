@@ -1604,6 +1604,9 @@ pub struct ImportAssetCandidate {
     pub provider_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_symbol: Option<String>,
+    /// Instrument name from the import file, used when no provider names a new asset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -37,6 +37,7 @@ describe("activity reason translations", () => {
     ["SELL_WITHOUT_POSITION", { asset: "aapl" }],
     ["INSUFFICIENT_QUANTITY", { asset: "aapl", requested: "15", held: "10", excess: "5" }],
     ["MISSING_FINAL_CASH", undefined],
+    ["OPTION_EXPIRY_NOT_OPTION", { asset: "rgld" }],
   ] as const)("translates %s", async (code, params) => {
     const result = translateActivityReason(
       await translator(),

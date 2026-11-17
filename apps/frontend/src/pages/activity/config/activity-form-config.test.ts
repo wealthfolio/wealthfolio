@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ActivityType, InstrumentType } from "@/lib/constants";
+import { ActivityType, InstrumentType, METADATA_CONTRACT_MULTIPLIER } from "@/lib/constants";
 import { mapActivityTypeToPicker } from "../utils/activity-form-utils";
 import { feeFormSchema } from "../components/forms/fee-form";
 import { taxFormSchema } from "../components/forms/tax-form";
@@ -53,6 +53,78 @@ describe("charge defaults", () => {
       expect(charged.tax).toBe(2);
     },
   );
+});
+
+describe("fee and tax lines", () => {
+  // Payloads are typed per form; only the line-bearing ones carry metadata.
+  const metadataOf = (payload: object) => (payload as { metadata?: unknown }).metadata;
+
+  const stored = {
+    fee: "9.99",
+    tax: "1.5",
+    metadata: {
+      charges: [
+        { category: "fee", label: "Commission", amount: "8.00" },
+        { category: "fee", label: "Exchange fee", amount: "1.99" },
+        { category: "tax", label: "Stamp duty", amount: "1.50" },
+      ],
+    },
+  };
+
+  it.each(["BUY", "SELL"] as const)("opens and saves a %s's lines", (type) => {
+    const config = ACTIVITY_FORM_CONFIG[type];
+    const defaults = config.getDefaults(stored, []);
+    expect(defaults).toMatchObject({
+      feeLines: [
+        { label: "Commission", amount: 8 },
+        { label: "Exchange fee", amount: 1.99 },
+      ],
+      taxLines: [{ label: "Stamp duty", amount: 1.5 }],
+      hadChargeLines: true,
+    });
+
+    expect(metadataOf(config.toPayload(defaults as never))).toEqual({
+      charges: [
+        { category: "fee", label: "Commission", amount: "8" },
+        { category: "fee", label: "Exchange fee", amount: "1.99" },
+        { category: "tax", label: "Stamp duty", amount: "1.5" },
+      ],
+    });
+    expect(
+      metadataOf(config.toPayload({ ...defaults, feeLines: [], taxLines: [] } as never)),
+    ).toEqual({ charges: null });
+  });
+
+  it("saves an option's lines next to its contract multiplier", () => {
+    const payload = ACTIVITY_FORM_CONFIG.BUY.toPayload({
+      symbolInstrumentType: InstrumentType.OPTION,
+      contractMultiplier: 10,
+      fee: 1,
+      feeLines: [{ label: "Commission", amount: 1 }],
+    } as never);
+    expect(metadataOf(payload)).toEqual({
+      [METADATA_CONTRACT_MULTIPLIER]: 10,
+      charges: [{ category: "fee", label: "Commission", amount: "1" }],
+    });
+  });
+
+  it.each(["DIVIDEND", "INTEREST"] as const)(
+    "leaves a %s's fee lines alone, having no fee field",
+    (type) => {
+      const config = ACTIVITY_FORM_CONFIG[type];
+      const defaults = config.getDefaults(stored, []);
+      expect(defaults).toMatchObject({ chargeLinesLocked: true });
+      expect(defaults).not.toHaveProperty("taxLines");
+      expect(config.toPayload(defaults as never)).not.toHaveProperty("metadata");
+    },
+  );
+
+  it.each(["BUY", "DIVIDEND"] as const)("sends no metadata for a %s without lines", (type) => {
+    const config = ACTIVITY_FORM_CONFIG[type];
+    expect(config.toPayload(config.getDefaults({ tax: "1" }, []) as never)).not.toHaveProperty(
+      "metadata",
+    );
+  });
 });
 
 describe("cash transfer defaults", () => {

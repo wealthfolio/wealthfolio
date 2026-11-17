@@ -567,6 +567,7 @@ fn plan_position(
         asset_id: None,
         provider_id: None,
         provider_symbol: None,
+        name: None,
     };
     if !reviewed.reviewed_metadata_is_sufficient() {
         errors.push(format!(

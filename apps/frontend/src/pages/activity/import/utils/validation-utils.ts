@@ -1,4 +1,4 @@
-import { looksLikeIsin } from "@/lib/isin";
+import { looksLikeIsin, parseIsin } from "@/lib/isin";
 import { looksLikeOccSymbol, normalizeOptionSymbol } from "@/lib/occ-symbol";
 import { findMappedActivityType } from "./activity-type-mapping";
 import { splitInstrumentPrefixedSymbol } from "./instrument-type";
@@ -20,6 +20,20 @@ export function validateTickerSymbol(symbol: string): boolean {
     looksLikeIsin(normalized) ||
     cusipRegex.test(upper)
   );
+}
+
+/**
+ * The ISIN to resolve a row's asset by when its Symbol value isn't a symbol, such as
+ * a fund name, but its ISIN column holds a valid ISIN. Undefined otherwise, including
+ * when Symbol is blank or already a valid symbol.
+ */
+export function isinFallbackSymbol(
+  symbol: string | undefined,
+  isin: string | undefined,
+): string | undefined {
+  const trimmedSymbol = symbol?.trim();
+  if (!trimmedSymbol || !isin || validateTickerSymbol(trimmedSymbol)) return undefined;
+  return parseIsin(isin) ? isin.trim().toUpperCase() : undefined;
 }
 
 export { findMappedActivityType };

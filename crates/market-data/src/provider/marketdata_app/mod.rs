@@ -30,9 +30,6 @@ use crate::resolver::ResolverChain;
 const BASE_URL: &str = "https://api.marketdata.app/v1";
 const PROVIDER_ID: &str = "MARKETDATA_APP";
 
-/// Default HTTP request timeout
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-
 /// Response from the candles endpoint for historical data.
 #[derive(Debug, Deserialize)]
 struct CandlesResponse {
@@ -87,8 +84,7 @@ pub struct MarketDataAppProvider {
 impl MarketDataAppProvider {
     /// Create a new MarketData.app provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
