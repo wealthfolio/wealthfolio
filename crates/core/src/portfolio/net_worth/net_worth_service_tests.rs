@@ -597,6 +597,9 @@ impl QuoteServiceTrait for MockMarketDataRepository {
 struct MockFxService {
     dated_rates: HashMap<NaiveDate, Decimal>,
     failed_dates: HashSet<NaiveDate>,
+    database_failed_dates: HashSet<NaiveDate>,
+    missing_pairs: RwLock<HashSet<(String, String)>>,
+    conversion_calls: std::sync::Mutex<Vec<(String, String, NaiveDate)>>,
     #[allow(dead_code)]
     base_currency: String,
 }
@@ -607,6 +610,9 @@ impl MockFxService {
             base_currency: base_currency.to_string(),
             dated_rates: HashMap::new(),
             failed_dates: HashSet::new(),
+            database_failed_dates: HashSet::new(),
+            missing_pairs: RwLock::new(HashSet::new()),
+            conversion_calls: std::sync::Mutex::new(Vec::new()),
         }
     }
 }
@@ -663,8 +669,26 @@ impl FxServiceTrait for MockFxService {
         to_currency: &str,
         date: NaiveDate,
     ) -> Result<Decimal> {
+        self.conversion_calls.lock().unwrap().push((
+            from_currency.to_string(),
+            to_currency.to_string(),
+            date,
+        ));
         if from_currency == to_currency {
             return Ok(amount);
+        }
+        if self.database_failed_dates.contains(&date) {
+            return Err(
+                crate::errors::DatabaseError::QueryFailed("injected failure".into()).into(),
+            );
+        }
+        if self
+            .missing_pairs
+            .read()
+            .unwrap()
+            .contains(&(from_currency.to_string(), to_currency.to_string()))
+        {
+            return Err(crate::fx::FxError::RateNotFound("injected missing pair".into()).into());
         }
         if self.failed_dates.contains(&date) {
             return Err(crate::fx::FxError::ConversionError("injected failure".into()).into());
@@ -3367,6 +3391,146 @@ fn aed_service(
         Arc::new(MockValuationRepository::new(vals)),
         fx,
     )
+}
+
+#[tokio::test]
+async fn net_worth_history_memoizes_missing_pairs_only_within_each_request() {
+    let [d1, d2, d3] = dates();
+    let mut fx = MockFxService::new("AED");
+    fx.dated_rates = HashMap::from([(d1, dec!(0.001)), (d2, dec!(0.002)), (d3, dec!(0.003))]);
+    *fx.missing_pairs.write().unwrap() =
+        HashSet::from([("COP".into(), "AED".into()), ("JPY".into(), "AED".into())]);
+    let fx = Arc::new(fx);
+    let mut loan = create_test_asset("loan", AssetKind::Liability, "COP");
+    loan.metadata = Some(json!({"original_amount":"50000","origination_date":d1.to_string()}));
+    let service = aed_service(
+        vec![],
+        vec![
+            create_test_asset("home", AssetKind::Property, "COP"),
+            create_test_asset("car", AssetKind::Vehicle, "COP"),
+            create_test_asset("other", AssetKind::Property, "JPY"),
+            create_test_asset("healthy", AssetKind::Property, "EUR"),
+            create_test_asset("local", AssetKind::Property, "AED"),
+            loan,
+        ],
+        vec![],
+        vec![
+            create_test_quote("home", dec!(100000), d1, "COP"),
+            create_test_quote("car", dec!(200000), d1, "COP"),
+            create_test_quote("other", dec!(300000), d1, "JPY"),
+            create_test_quote("healthy", dec!(100000), d1, "EUR"),
+            create_test_quote("local", dec!(1000), d1, "AED"),
+        ],
+        vec![],
+        fx.clone(),
+    );
+
+    // Each request looks up each missing pair once, shared across items and days.
+    for _ in 0..2 {
+        fx.conversion_calls.lock().unwrap().clear();
+        let history = service.get_net_worth_history(d1, d3).await.unwrap();
+        assert_eq!(history.len(), 3);
+        for (index, point) in history.iter().enumerate() {
+            assert_eq!(point.value_status, ValuationStatus::Unavailable);
+            assert_eq!(
+                point.net_worth,
+                dec!(1100) + dec!(100) * Decimal::from(index)
+            );
+            assert_eq!(
+                point
+                    .missing_fx
+                    .iter()
+                    .map(|issue| issue.item_id.as_str())
+                    .collect::<HashSet<_>>(),
+                HashSet::from(["home", "car", "other", "loan"])
+            );
+        }
+        let calls = fx.conversion_calls.lock().unwrap();
+        assert_eq!(calls.len(), 5);
+        for (currency, expected) in [("COP", 1), ("JPY", 1), ("EUR", 3)] {
+            assert_eq!(
+                calls
+                    .iter()
+                    .filter(|(from, to, _)| from == currency && to == "AED")
+                    .count(),
+                expected,
+                "{currency}"
+            );
+        }
+    }
+
+    // Newly available rates are used on the next request, on each point's date.
+    fx.missing_pairs.write().unwrap().clear();
+    fx.conversion_calls.lock().unwrap().clear();
+    let history = service.get_net_worth_history(d1, d3).await.unwrap();
+    assert_eq!(fx.conversion_calls.lock().unwrap().len(), 15);
+    for (index, point) in history.iter().enumerate() {
+        assert_eq!(point.value_status, ValuationStatus::Complete);
+        assert!(point.missing_fx.is_empty());
+        assert_eq!(
+            point.net_worth,
+            dec!(1650) + dec!(650) * Decimal::from(index)
+        );
+    }
+}
+
+#[tokio::test]
+async fn net_worth_history_retries_database_errors_on_later_dates() {
+    let [d1, d2, d3] = dates();
+    let mut fx = MockFxService::new("AED");
+    fx.database_failed_dates.insert(d1);
+    fx.dated_rates = HashMap::from([(d2, dec!(0.002)), (d3, dec!(0.003))]);
+    let fx = Arc::new(fx);
+    let service = aed_service(
+        vec![],
+        vec![create_test_asset("home", AssetKind::Property, "COP")],
+        vec![],
+        vec![create_test_quote("home", dec!(100000), d1, "COP")],
+        vec![],
+        fx.clone(),
+    );
+
+    let history = service.get_net_worth_history(d1, d3).await.unwrap();
+    assert_eq!(fx.conversion_calls.lock().unwrap().len(), 3);
+    assert_eq!(history[0].value_status, ValuationStatus::Unavailable);
+    assert_eq!(history[0].missing_fx.len(), 1);
+    for (point, expected) in history[1..].iter().zip([dec!(200), dec!(300)]) {
+        assert_eq!(point.net_worth, expected);
+        assert_eq!(point.value_status, ValuationStatus::Complete);
+        assert!(point.missing_fx.is_empty());
+    }
+}
+
+#[tokio::test]
+async fn net_worth_history_zero_values_do_not_require_even_a_known_missing_pair() {
+    let [d1, d2, d3] = dates();
+    let fx = Arc::new(MockFxService::new("AED"));
+    fx.missing_pairs
+        .write()
+        .unwrap()
+        .insert(("COP".into(), "AED".into()));
+    let service = aed_service(
+        vec![],
+        vec![create_test_asset("home", AssetKind::Property, "COP")],
+        vec![],
+        vec![
+            create_test_quote("home", dec!(0), d1, "COP"),
+            create_test_quote("home", dec!(100000), d2, "COP"),
+            create_test_quote("home", dec!(0), d3, "COP"),
+        ],
+        vec![],
+        fx.clone(),
+    );
+
+    let history = service.get_net_worth_history(d1, d3).await.unwrap();
+    assert_eq!(history.len(), 3);
+    assert_eq!(fx.conversion_calls.lock().unwrap().len(), 1);
+    assert_eq!(history[1].value_status, ValuationStatus::Unavailable);
+    for point in [&history[0], &history[2]] {
+        assert_eq!(point.net_worth, dec!(0));
+        assert_eq!(point.value_status, ValuationStatus::Complete);
+        assert!(point.missing_fx.is_empty());
+    }
 }
 
 #[tokio::test]

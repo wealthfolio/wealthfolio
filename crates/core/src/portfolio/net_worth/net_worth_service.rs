@@ -16,9 +16,9 @@ use crate::accounts::{account_types, is_liability_account_type, AccountRepositor
 use crate::assets::loan::{manual_loan_principal, LoanPayment};
 use crate::assets::{AlternativeAssetRepositoryTrait, Asset, AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use crate::fx::currency::normalize_amount;
-use crate::fx::{FxConversionIssue, FxServiceTrait};
+use crate::fx::{FxConversionIssue, FxError, FxServiceTrait};
 use crate::portfolio::coordinator::blocking;
 use crate::portfolio::snapshot::SnapshotServiceTrait;
 use crate::portfolio::valuation::{
@@ -1274,6 +1274,10 @@ impl NetWorthService {
         let mut current_credit_card_liabilities = initial_credit_card_liabilities.clone();
 
         let mut history: Vec<NetWorthHistoryPoint> = Vec::new();
+        // Nearest-date FX routing is date-independent. Reuse confirmed misses
+        // across items and days, but retry other errors and all pairs next request.
+        // For cached pairs, newly added rates take effect on the next request.
+        let mut missing_rate_pairs = HashSet::new();
 
         for date in all_dates {
             // Update portfolio state if we have data for this date
@@ -1335,15 +1339,37 @@ impl NetWorthService {
             let mut missing_fx = Vec::new();
             let mut converted_asset_values = HashMap::new();
             for (id, (amount, currency)) in &current_asset_values {
-                if let Some(value) = self.convert_value_to_base(
-                    *amount,
-                    currency,
-                    &base_currency,
-                    date,
-                    id,
-                    &mut missing_fx,
-                ) {
+                let value = if amount.is_zero() || currency == &base_currency {
+                    Some(*amount)
+                } else {
+                    let pair = (currency.clone(), base_currency.clone());
+                    if missing_rate_pairs.contains(&pair) {
+                        None
+                    } else {
+                        match self.fx_service.convert_currency_for_date(
+                            *amount,
+                            currency,
+                            &base_currency,
+                            date,
+                        ) {
+                            Ok(value) => Some(value),
+                            Err(error) => {
+                                if matches!(error, Error::Fx(FxError::RateNotFound(_))) {
+                                    missing_rate_pairs.insert(pair);
+                                }
+                                None
+                            }
+                        }
+                    }
+                };
+                if let Some(value) = value {
                     converted_asset_values.insert(id.clone(), value);
+                } else {
+                    missing_fx.push(FxConversionIssue {
+                        item_id: id.clone(),
+                        from_currency: currency.clone(),
+                        to_currency: base_currency.clone(),
+                    });
                 }
             }
             let mut value_status = current_portfolio.status;
