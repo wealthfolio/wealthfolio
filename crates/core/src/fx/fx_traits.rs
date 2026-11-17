@@ -1,5 +1,6 @@
+use super::currency::normalize_currency_code;
 use super::fx_model::{
-    ExchangeRate, ExchangeRateDateQuery, ExchangeRateDateResult, NewExchangeRate,
+    ExchangeRate, ExchangeRateDateQuery, ExchangeRateDateResult, ExchangeRateInfo, NewExchangeRate,
 };
 use crate::errors::Result;
 use crate::quotes::Quote;
@@ -50,6 +51,15 @@ pub trait FxServiceTrait: Send + Sync {
         days: i64,
     ) -> Result<Vec<ExchangeRate>>;
     fn get_latest_exchange_rate(&self, from_currency: &str, to_currency: &str) -> Result<Decimal>;
+    /// Resolves the same rate as conversion, with quote freshness when supported.
+    /// Implementations without timestamp metadata still report availability.
+    fn get_latest_exchange_rate_info(&self, from: &str, to: &str) -> Result<ExchangeRateInfo> {
+        self.get_latest_exchange_rate(from, to)
+            .map(|rate| ExchangeRateInfo {
+                rate,
+                oldest_quote_time: None,
+            })
+    }
     fn get_exchange_rate_for_date(
         &self,
         from_currency: &str,
@@ -135,25 +145,27 @@ pub trait FxServiceTrait: Send + Sync {
         pairs: Vec<(String, String)>,
         pivot: &str,
     ) -> Result<Vec<(String, String)>> {
+        let canonical = |code: &str| normalize_currency_code(code.trim()).to_ascii_uppercase();
+        let pivot = canonical(pivot);
         let mut wanted: Vec<(String, String)> = Vec::new();
         for (from, to) in pairs {
+            let (from, to) = (canonical(&from), canonical(&to));
             if from == to || from == pivot || to == pivot || from.is_empty() || to.is_empty() {
                 continue;
             }
             if self.get_latest_exchange_rate(&from, &to).is_ok() {
                 continue;
             }
-            for leg in [
-                (from.clone(), pivot.to_string()),
-                (pivot.to_string(), to.clone()),
-            ] {
+            for leg in [(from.clone(), pivot.clone()), (pivot.clone(), to.clone())] {
                 if !wanted.contains(&leg) {
                     wanted.push(leg);
                 }
             }
         }
-        if !wanted.is_empty() {
-            self.ensure_fx_pairs(wanted.clone()).await?;
+        for (from, to) in &wanted {
+            if let Err(error) = self.register_currency_pair(from, to).await {
+                log::warn!("Failed to register FX pivot pair {from}/{to}: {error}");
+            }
         }
         Ok(wanted)
     }

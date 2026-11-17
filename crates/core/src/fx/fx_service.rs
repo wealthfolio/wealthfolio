@@ -1,6 +1,6 @@
 use super::currency_converter::CurrencyConverter;
 use super::fx_errors::FxError;
-use super::fx_model::{ExchangeRate, NewExchangeRate};
+use super::fx_model::{ExchangeRate, ExchangeRateInfo, NewExchangeRate};
 use super::fx_traits::{FxRepositoryTrait, FxServiceTrait};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -310,6 +310,33 @@ impl FxServiceTrait for FxService {
         Ok(source_multiplier * base_rate * target_multiplier)
     }
 
+    fn get_latest_exchange_rate_info(&self, from: &str, to: &str) -> Result<ExchangeRateInfo> {
+        let (from, to, source_multiplier, target_multiplier) =
+            Self::normalize_currency_pair(from, to);
+        let multiplier = source_multiplier * target_multiplier;
+        if from == to {
+            return Ok(ExchangeRateInfo {
+                rate: multiplier,
+                oldest_quote_time: None,
+            });
+        }
+        if let Ok(converter_lock) = self.converter.read() {
+            if let Some(converter) = &*converter_lock {
+                if let Ok(mut info) =
+                    converter.get_rate_info(from, to, crate::utils::clock::now().date_naive())
+                {
+                    info.rate *= multiplier;
+                    return Ok(info);
+                }
+            }
+        }
+        let rate = self.load_latest_exchange_rate(from, to)?;
+        Ok(ExchangeRateInfo {
+            rate: rate.rate * multiplier,
+            oldest_quote_time: Some(rate.timestamp),
+        })
+    }
+
     fn get_exchange_rate_for_date(
         &self,
         from_currency: &str,
@@ -495,6 +522,7 @@ mod tests {
         created_pairs: Mutex<Vec<(String, String, String)>>,
         saved_rates: Mutex<Vec<ExchangeRate>>,
         historical_rates: Mutex<Vec<ExchangeRate>>,
+        upper_case_only: bool,
     }
 
     #[async_trait]
@@ -559,6 +587,12 @@ mod tests {
             to_currency: &str,
             source: &str,
         ) -> Result<String> {
+            if let Some(code) = [from_currency, to_currency]
+                .into_iter()
+                .find(|code| self.upper_case_only && code.to_uppercase() != *code)
+            {
+                return Err(FxError::InvalidCurrencyCode(code.to_string()).into());
+            }
             self.created_pairs.lock().unwrap().push((
                 from_currency.to_string(),
                 to_currency.to_string(),
@@ -982,7 +1016,10 @@ mod tests {
     }
 
     fn pivot_service(rates: Vec<ExchangeRate>) -> (Arc<MockFxRepository>, FxService) {
-        let repo = Arc::new(MockFxRepository::default());
+        let repo = Arc::new(MockFxRepository {
+            upper_case_only: true,
+            ..Default::default()
+        });
         *repo.historical_rates.lock().unwrap() = rates;
         let service = FxService::new(repo.clone());
         service.initialize().unwrap();
@@ -1067,5 +1104,53 @@ mod tests {
             vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
         );
         assert_eq!(created(&repo), sorted(wanted));
+    }
+    #[tokio::test]
+    async fn pivot_registration_canonicalizes_legacy_codes_and_minor_units() {
+        let (repo, service) = pivot_service(vec![]);
+        let pairs = service
+            .ensure_pivot_fx_pairs(vec![pair(" cop ", "aed"), pair("GBp", "AED")], "usd")
+            .await
+            .unwrap();
+        assert_eq!(
+            pairs,
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("GBP", "USD")]
+        );
+        assert_eq!(created(&repo), sorted(pairs));
+    }
+
+    #[tokio::test]
+    async fn pivot_registration_failure_does_not_stop_other_legs() {
+        let (repo, service) = pivot_service(vec![]);
+        let pairs = service
+            .ensure_pivot_fx_pairs(vec![pair("çop", "AED"), pair("COP", "EUR")], "USD")
+            .await
+            .unwrap();
+        assert_eq!(pairs.len(), 4);
+        assert_eq!(
+            created(&repo),
+            vec![pair("COP", "USD"), pair("USD", "AED"), pair("USD", "EUR")]
+        );
+    }
+
+    #[test]
+    fn latest_rate_info_matches_units_and_repository_fallback() {
+        use crate::test_support::in_memory::InMemoryFxRepository;
+        let quote = stored_rate("GBP", "USD", "1.25");
+        let service = FxService::new(Arc::new(InMemoryFxRepository::new(vec![quote.clone()])));
+        // The uninitialized converter still uses the existing repository fallback.
+        let info = service.get_latest_exchange_rate_info("GBp", "USD").unwrap();
+        assert_eq!(
+            info.rate,
+            service.get_latest_exchange_rate("GBp", "USD").unwrap()
+        );
+        assert_eq!(info.oldest_quote_time, Some(quote.timestamp));
+        assert_eq!(
+            service
+                .get_latest_exchange_rate_info("GBp", "GBP")
+                .unwrap()
+                .oldest_quote_time,
+            None
+        );
     }
 }

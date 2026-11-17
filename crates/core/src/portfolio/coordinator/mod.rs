@@ -446,8 +446,20 @@ impl PortfolioCoordinator {
         let mode = SyncMode::BackfillHistory {
             days: DEFAULT_HISTORY_DAYS,
         };
-        if let Err(error) = self.deps.sources.quotes.sync(mode, Some(new_ids)).await {
-            warn!("Failed to sync FX pivot pairs: {error}");
+        match self.deps.sources.quotes.sync(mode, Some(new_ids)).await {
+            Ok(result) if !result.is_success() => {
+                let failed: Vec<&str> = result
+                    .errors
+                    .iter()
+                    .map(|error| error.asset_id.as_str())
+                    .collect();
+                warn!(
+                    "History backfill failed for {} FX pivot pair(s): {failed:?}",
+                    result.failed
+                );
+            }
+            Ok(_) => {}
+            Err(error) => warn!("Failed to sync FX pivot pairs: {error}"),
         }
         let fx_service = self.deps.fx_service.clone();
         if let Err(error) = blocking(move || fx_service.initialize()).await {

@@ -1008,7 +1008,8 @@ async fn initialize_profile_state(
     let health_service: Arc<dyn HealthServiceTrait + Send + Sync> = Arc::new(
         HealthService::new(health_dismissal_repository)
             .with_projection_freshness(portfolio_coordinator.clone())
-            .with_net_worth(net_worth_service.clone()),
+            .with_net_worth(net_worth_service.clone())
+            .with_fx(fx_service.clone()),
     );
 
     // AI chat repository for thread/message persistence

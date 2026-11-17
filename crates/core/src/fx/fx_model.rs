@@ -24,6 +24,14 @@ pub struct ExchangeRate {
     pub timestamp: DateTime<Utc>,
 }
 
+/// A resolved conversion and the oldest quote used along its selected route.
+/// The timestamp is absent for same-currency units or implementations without quote metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExchangeRateInfo {
+    pub rate: Decimal,
+    pub oldest_quote_time: Option<DateTime<Utc>>,
+}
+
 impl ExchangeRate {
     /// Converts this exchange rate into a Quote for database storage.
     /// `self.id` must be the asset UUID.
