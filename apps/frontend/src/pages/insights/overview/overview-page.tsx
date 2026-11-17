@@ -485,6 +485,7 @@ export function OverviewPage({
           accounts: (
             <DrillableAccountChart
               isLoading={isLoading}
+              isUnavailable={!isValuationComplete(currentValuation?.summary.valueStatus)}
               accountIds={filteredAccountIds}
               accountValuations={currentValuation?.accounts}
             />

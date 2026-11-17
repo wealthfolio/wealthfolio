@@ -47,6 +47,7 @@ for (const [direction, width, currency] of [
     }
     const previous = await updateSettings(page, { baseCurrency: "AED" });
     let accountId: string | undefined;
+    let knownAccountId: string | undefined;
     let assetId: string | undefined;
     let rateId: string | undefined;
     const date = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
@@ -59,6 +60,13 @@ for (const [direction, width, currency] of [
       });
       accountId = account.id;
       await deposit(page, account.id, 5_000_000, currency, `${date}T12:00:00Z`);
+      const knownAccount = await createAccount(page, {
+        name: uniqueName("AED savings"),
+        currency: "AED",
+        accountType: "CASH",
+      });
+      knownAccountId = knownAccount.id;
+      await deposit(page, knownAccount.id, 10_000, "AED", `${date}T12:00:00Z`);
       const property = await api<{ assetId: string }>(page, "POST", "/alternative-assets", {
         kind: "property",
         name: uniqueName(`${currency} property`),
@@ -145,6 +153,57 @@ for (const [direction, width, currency] of [
         path: test.info().outputPath("attention.png"),
         animations: "disabled",
       });
+      // A known AED balance must not turn into 100% when a foreign account is unknown.
+      await gotoAppPath(page, `/insights?dir=${direction}`);
+      const accountAllocation = page.locator('[data-widget-id="accounts"]');
+      await expect(accountAllocation.getByText("N/A", { exact: true })).toBeVisible();
+      await expect(accountAllocation.locator(".recharts-surface")).toHaveCount(0);
+      await accountAllocation.screenshot({
+        path: test.info().outputPath("account-allocation-missing.png"),
+        animations: "disabled",
+      });
+      await page.screenshot({
+        path: test.info().outputPath("account-allocation-missing-page.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      const allocationHelp = accountAllocation.getByRole("link", {
+        name: "Open Health Center for Account Allocation issue",
+      });
+      await expect(allocationHelp).toHaveAttribute("href", "/health");
+      if (width === 1440) {
+        await allocationHelp.hover();
+        const hint = page.getByRole("tooltip");
+        await expect(hint).toContainText("some prices or exchange rates are missing");
+        await allocationHelp.focus();
+        await expect(hint).toContainText("Review the details in the Health Center");
+        const cardBounds = await accountAllocation.boundingBox();
+        const hintBounds = await hint.boundingBox();
+        expect(cardBounds).not.toBeNull();
+        expect(hintBounds).not.toBeNull();
+        if (cardBounds && hintBounds) {
+          const x = Math.min(cardBounds.x, hintBounds.x);
+          const y = Math.min(cardBounds.y, hintBounds.y);
+          await page.screenshot({
+            path: test.info().outputPath("account-allocation-hint.png"),
+            animations: "disabled",
+            clip: {
+              x,
+              y,
+              width: Math.max(cardBounds.x + cardBounds.width, hintBounds.x + hintBounds.width) - x,
+              height:
+                Math.max(cardBounds.y + cardBounds.height, hintBounds.y + hintBounds.height) - y,
+            },
+          });
+        }
+      }
+      await allocationHelp.click();
+      await expect(page).toHaveURL(/\/health/);
+      await gotoAppPath(page, `/dashboard?dir=${direction}`);
+      await page.getByRole("button", { name: "Net Worth", exact: true }).click();
       await review.click();
       await expect(page).toHaveURL(/\/health/);
       await page.getByText(`Missing exchange rate for ${currency}`, { exact: true }).click();
@@ -228,22 +287,23 @@ for (const [direction, width, currency] of [
       await expect(form).not.toBeVisible();
       await expect.poll(async () => (await current()).summary.totalValueBase).toBe(5000);
       await expect.poll(async () => (await netWorth()).valueStatus).toBe("complete");
-      expect((await netWorth()).netWorth).toBe(335000);
+      expect((await netWorth()).netWorth).toBe(345000);
       await expect
         .poll(async () =>
           (await history()).every(
-            (point) => point.valueStatus === "complete" && point.netWorth === 335000,
+            (point) => point.valueStatus === "complete" && point.netWorth === 345000,
           ),
         )
         .toBe(true);
       // Reload to check the actual adapter responses render after recovery.
       await gotoAppPath(page, `/dashboard?dir=${direction}`);
-      await expect(page.getByTestId("portfolio-balance-value").first()).toContainText("5,000");
+      await page.getByRole("button", { name: "Investments", exact: true }).click();
+      await expect(page.getByTestId("portfolio-balance-value").first()).toContainText("15,000");
       await page.getByRole("button", { name: "Net Worth", exact: true }).click();
       await expect(
         page
           .getByTestId("portfolio-balance-value")
-          .filter({ hasText: width < 768 ? "335K" : "335,000" })
+          .filter({ hasText: width < 768 ? "345K" : "345,000" })
           .last(),
       ).toBeVisible();
       await expect(
@@ -255,9 +315,18 @@ for (const [direction, width, currency] of [
         fullPage: true,
         animations: "disabled",
       });
+      await gotoAppPath(page, `/insights?dir=${direction}`);
+      await expect(accountAllocation.locator(".recharts-surface")).toBeVisible();
+      await expect(accountAllocation.getByText("N/A", { exact: true })).toHaveCount(0);
+      await expect(allocationHelp).toHaveCount(0);
+      await accountAllocation.screenshot({
+        path: test.info().outputPath("account-allocation-recovered.png"),
+        animations: "disabled",
+      });
     } finally {
       if (assetId) await api(page, "DELETE", `/alternative-assets/${assetId}`);
       if (accountId) await api(page, "DELETE", `/accounts/${accountId}`);
+      if (knownAccountId) await api(page, "DELETE", `/accounts/${knownAccountId}`);
       if (rateId) await api(page, "DELETE", `/exchange-rates/${rateId}`);
       await updateSettings(page, previous);
       for (const provider of providers.filter((provider) => provider.enabled)) {
