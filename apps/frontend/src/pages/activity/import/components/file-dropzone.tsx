@@ -280,7 +280,7 @@ export const FileDropzone = ({
                   {t("activity:import.upload.orDrop")}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  {t("activity:import.upload.csvOnly")}
+                  {t("activity:import.upload.csvOrExcel")}
                 </p>
               </motion.div>
             )}

@@ -161,6 +161,8 @@ function CsvPreviewTabs({
 }) {
   const { t } = useTranslation();
   const [csvLines, setCsvLines] = useState<CSVLine[] | null>(null);
+  // An Excel file is binary, so only its parsed rows can be shown.
+  const hasRawText = !/\.xlsx$/i.test(file.name);
 
   const handleTabChange = useCallback(
     (value: string) => {
@@ -187,14 +189,16 @@ function CsvPreviewTabs({
                 {t("activity:import.upload.rows", { count: rows.length })}
               </span>
             </div>
-            <TabsList className="bg-secondary flex space-x-1 rounded-full p-1">
-              <TabsTrigger className="h-8 rounded-full px-2 text-sm" value="parsed">
-                {t("activity:import.upload.parsed")}
-              </TabsTrigger>
-              <TabsTrigger className="h-8 rounded-full px-2 text-sm" value="raw">
-                {t("activity:import.upload.rawFile")}
-              </TabsTrigger>
-            </TabsList>
+            {hasRawText && (
+              <TabsList className="bg-secondary flex space-x-1 rounded-full p-1">
+                <TabsTrigger className="h-8 rounded-full px-2 text-sm" value="parsed">
+                  {t("activity:import.upload.parsed")}
+                </TabsTrigger>
+                <TabsTrigger className="h-8 rounded-full px-2 text-sm" value="raw">
+                  {t("activity:import.upload.rawFile")}
+                </TabsTrigger>
+              </TabsList>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -997,11 +1001,16 @@ export function UploadStep() {
               file={state.file}
               onFileChange={handleFileSelect}
               isLoading={isPending}
-              accept=".csv"
+              accept=".csv,.xlsx"
               isValid={!hasParseErrors}
               error={parseError}
             />
           </div>
+          {state.file && parseError && (
+            <p role="alert" className="text-destructive text-xs">
+              {parseError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1031,7 +1040,13 @@ export function UploadStep() {
 
       {/* CSV Preview */}
       {state.file && state.headers.length > 0 && (
-        <CsvPreviewTabs file={state.file} headers={state.headers} rows={state.parsedRows} />
+        <CsvPreviewTabs
+          // A new file starts on its parsed rows, without the last file's raw text.
+          key={`${state.file.name}:${state.file.size}:${state.file.lastModified}`}
+          file={state.file}
+          headers={state.headers}
+          rows={state.parsedRows}
+        />
       )}
     </div>
   );

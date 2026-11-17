@@ -14,6 +14,7 @@ mod csv_parser;
 mod idempotency;
 mod import_run_model;
 mod transfer_pairs;
+mod xlsx_reader;
 
 #[cfg(test)]
 pub(crate) mod activities_service_tests;

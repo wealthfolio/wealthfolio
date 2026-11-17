@@ -1176,8 +1176,8 @@
     },
     "upload": {
       "clickToUpload": "انقر للرفع",
-      "csvOnly": "CSV فقط",
-      "csvPreview": "معاينة CSV",
+      "csvOrExcel": "CSV أو Excel (.xlsx)",
+      "csvPreview": "معاينة الملف",
       "failedToParse": "تعذر تحليل ملف CSV",
       "failedToReparse": "تعذرت إعادة تحليل CSV",
       "noAccountSelected": "لم يتم تحديد حساب",
@@ -1197,7 +1197,7 @@
       "selectAccountHelp": "اختر الحساب الافتراضي للأنشطة المستوردة. إذا كان ملف CSV يتضمن عمود Account بمعرّفات حسابات صالحة، فستكون لها الأولوية لكل صف.",
       "selectFormat": "اختر التنسيق",
       "showingFirstRows": "عرض أول {{max}} من أصل {{total}} من الصفوف",
-      "uploadCsv": "رفع ملف CSV",
+      "uploadCsv": "رفع ملف",
       "uploadCsvHelp": "بعد الرفع، تحقق مجددًا من إعدادات التحليل أدناه — تأكد من أن الفاصل وتنسيق التاريخ والصفوف المراد تخطيها تطابق ملفك."
     },
     "validationAlert": {

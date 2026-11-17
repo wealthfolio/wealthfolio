@@ -468,6 +468,6 @@ pub async fn parse_csv(
         .parse_csv(&content, &config)
         .map_err(|e| {
             debug!("CSV parse error: {}", e);
-            e.to_string()
+            String::from(e)
         })
 }

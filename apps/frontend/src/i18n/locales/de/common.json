@@ -707,6 +707,8 @@
     "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus.",
     "duplicateActivity": "Eine passende Aktivität ist bereits vorhanden, daher wurde diese nicht gespeichert.",
     "alternativeAssetNotInAccount": "Immobilien, Fahrzeuge, Sammlerstücke, Edelmetalle, Verbindlichkeiten und andere persönliche Vermögenswerte zählen eigenständig zum Nettovermögen und können nicht in einem Konto gehalten werden. Um einen eigenen Vermögenswert in einem Konto zu halten, fügen Sie ihn als Investition hinzu.",
-    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut."
+    "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut.",
+    "spreadsheetPasswordProtected": "Diese Tabelle ist passwortgeschützt. Speichern Sie eine Kopie ohne Passwort und importieren Sie diese Kopie.",
+    "spreadsheetUnreadable": "Diese Tabelle kann nicht gelesen werden. Speichern Sie sie als Excel-Arbeitsmappe (.xlsx) oder CSV-Datei und versuchen Sie es erneut."
   }
 }

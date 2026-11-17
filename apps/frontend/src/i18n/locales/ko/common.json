@@ -696,6 +696,8 @@
     "quoteCurrencyRequired": "호가 통화가 필요합니다. 검색 결과에서 심볼을 다시 선택하세요.",
     "duplicateActivity": "일치하는 활동이 이미 있어 이 활동은 저장되지 않았습니다.",
     "alternativeAssetNotInAccount": "부동산, 차량, 수집품, 귀금속, 부채 등 개인 자산은 순자산에 별도로 반영되며 계좌에 보유할 수 없습니다. 맞춤 자산을 계좌에 보유하려면 투자로 추가하세요.",
-    "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요."
+    "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요.",
+    "spreadsheetPasswordProtected": "이 스프레드시트는 암호로 보호되어 있습니다. 암호 없이 사본을 저장한 뒤 그 사본을 가져오세요.",
+    "spreadsheetUnreadable": "이 스프레드시트를 읽을 수 없습니다. Excel 통합 문서(.xlsx) 또는 CSV 파일로 저장한 뒤 다시 시도하세요."
   }
 }

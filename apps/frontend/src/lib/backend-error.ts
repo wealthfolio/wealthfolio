@@ -33,6 +33,8 @@ const ERROR_KEYS: Record<string, string> = {
   QUOTE_CURRENCY_REQUIRED: "common:backendErrors.quoteCurrencyRequired",
   DUPLICATE_ACTIVITY: "common:backendErrors.duplicateActivity",
   ALTERNATIVE_ASSET_NOT_IN_ACCOUNT: "common:backendErrors.alternativeAssetNotInAccount",
+  SPREADSHEET_PASSWORD_PROTECTED: "common:backendErrors.spreadsheetPasswordProtected",
+  SPREADSHEET_UNREADABLE: "common:backendErrors.spreadsheetUnreadable",
   SUBSCRIPTION_REQUIRED: "connect:subscription.syncPausedDescription",
   PLAN_UPGRADE_REQUIRED: "connect:upgrade.title",
   RATE_LIMITED: "common:backendErrors.rateLimited",

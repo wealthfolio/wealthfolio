@@ -25,3 +25,25 @@ it("bounds multipart CSV parsing without changing its content or profile scope",
   expect(body.get("file")).toBe(file);
   expect(JSON.parse(body.get("config") as string)).toEqual(config);
 });
+
+it("passes a spreadsheet refusal on as its code", async () => {
+  installProfileSession({ profileId: "test", scopeId: "scope-test" });
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          errorCode: "SPREADSHEET_PASSWORD_PROTECTED",
+          message: "This spreadsheet is password-protected.",
+        }),
+        { status: 400, headers: { "content-type": "application/json" } },
+      ),
+    ),
+  );
+  const file = new File([new Uint8Array([0xd0, 0xcf, 0x11, 0xe0])], "statement.xlsx");
+
+  await expect(parseCsv(file, {})).rejects.toMatchObject({
+    errorCode: "SPREADSHEET_PASSWORD_PROTECTED",
+  });
+});

@@ -47,6 +47,7 @@ csv = "1.4.0"
 chardetng = "1.0"
 encoding_rs = "0.8"
 zip = "9.2.1"
+calamine = { version = "0.38", features = ["dates"] }
 jsonpath-rust = "0.7"
 scraper = "0.27"
 sha2 = "0.11"

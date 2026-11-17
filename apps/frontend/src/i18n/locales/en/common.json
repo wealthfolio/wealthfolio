@@ -707,6 +707,8 @@
     "quoteCurrencyRequired": "Quote currency is required. Select the symbol again from the search results.",
     "duplicateActivity": "A matching activity already exists, so this one was not saved.",
     "alternativeAssetNotInAccount": "Properties, vehicles, collectibles, precious metals, liabilities and other personal assets count toward net worth on their own and can't be held in an account. To hold a custom asset in an account, add it as an investment.",
-    "rateLimited": "Too many requests. Wait a minute and try again."
+    "rateLimited": "Too many requests. Wait a minute and try again.",
+    "spreadsheetPasswordProtected": "This spreadsheet is password-protected. Save a copy without a password and import that copy.",
+    "spreadsheetUnreadable": "This spreadsheet can't be read. Save it as an Excel workbook (.xlsx) or a CSV file and try again."
   }
 }

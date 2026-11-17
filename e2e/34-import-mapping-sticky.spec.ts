@@ -39,7 +39,7 @@ async function openActivityPreview(page: Page, csv: string) {
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
   });
-  await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10_000 });
   await page.getByRole("button", { name: /Configure Mapping/i }).click();
 
   const table = page.getByRole("tabpanel", { name: "Activity Preview" }).locator("table");

@@ -696,6 +696,8 @@
     "quoteCurrencyRequired": "需要报价货币。请从搜索结果中重新选择代码。",
     "duplicateActivity": "已存在相同的活动，因此未保存此活动。",
     "alternativeAssetNotInAccount": "房产、车辆、收藏品、贵金属、负债和其他个人资产单独计入净资产，不能在账户中持有。要在账户中持有自定义资产，请将其添加为投资。",
-    "rateLimited": "请求过多。请稍等一分钟后重试。"
+    "rateLimited": "请求过多。请稍等一分钟后重试。",
+    "spreadsheetPasswordProtected": "此电子表格受密码保护。请保存一份不带密码的副本，然后导入该副本。",
+    "spreadsheetUnreadable": "无法读取此电子表格。请将其另存为 Excel 工作簿 (.xlsx) 或 CSV 文件后重试。"
   }
 }

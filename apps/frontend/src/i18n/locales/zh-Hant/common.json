@@ -707,6 +707,8 @@
     "quoteCurrencyRequired": "需要報價幣別。請從搜尋結果中重新選擇代號。",
     "duplicateActivity": "已存在相同的活動，因此未儲存此活動。",
     "alternativeAssetNotInAccount": "房產、車輛、收藏品、貴金屬、負債和其他個人資產單獨計入淨資產，不能在帳戶中持有。要在帳戶中持有自訂資產，請將其新增為投資。",
-    "rateLimited": "請求過多。請稍候一分鐘後再試一次。"
+    "rateLimited": "請求過多。請稍候一分鐘後再試一次。",
+    "spreadsheetPasswordProtected": "此試算表受密碼保護。請儲存一份不含密碼的副本，然後匯入該副本。",
+    "spreadsheetUnreadable": "無法讀取此試算表。請將其另存為 Excel 活頁簿 (.xlsx) 或 CSV 檔案後再試一次。"
   }
 }

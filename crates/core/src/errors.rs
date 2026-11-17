@@ -184,6 +184,14 @@ impl Error {
                 "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT",
                 crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT,
             ),
+            // Closed refusals with fixed text: the upload step shows them.
+            Self::Validation(ValidationError::SpreadsheetPasswordProtected) => PublicError::new(
+                SPREADSHEET_PASSWORD_PROTECTED,
+                SPREADSHEET_PASSWORD_PROTECTED_MESSAGE,
+            ),
+            Self::Validation(ValidationError::SpreadsheetUnreadable) => {
+                PublicError::new(SPREADSHEET_UNREADABLE, SPREADSHEET_UNREADABLE_MESSAGE)
+            }
             Self::Validation(_) => PublicError::invalid_input(),
             // The activity form names this refusal; only the static text is compared.
             Self::Activity(ActivityError::InvalidData(message))
@@ -225,6 +233,14 @@ impl Error {
 /// Prefix of the core refusal raised when an asset profile edit would collide
 /// with another asset's identity (symbol, exchange, instrument type).
 pub const ASSET_IDENTITY_CONFLICT_PREFIX: &str = "ASSET_IDENTITY_CONFLICT:";
+
+/// Import refusals for spreadsheet files the reader can't open.
+pub const SPREADSHEET_PASSWORD_PROTECTED: &str = "SPREADSHEET_PASSWORD_PROTECTED";
+pub const SPREADSHEET_PASSWORD_PROTECTED_MESSAGE: &str =
+    "This spreadsheet is password-protected. Import a copy saved without a password.";
+pub const SPREADSHEET_UNREADABLE: &str = "SPREADSHEET_UNREADABLE";
+pub const SPREADSHEET_UNREADABLE_MESSAGE: &str =
+    "This spreadsheet can't be read. Save it as an .xlsx workbook or a CSV file and try again.";
 
 /// The activity refusal for a security saved without a quote currency.
 pub const QUOTE_CURRENCY_REQUIRED_MESSAGE: &str =
@@ -434,6 +450,14 @@ pub enum ValidationError {
     /// A save would put an alternative asset in an account.
     #[error("{}", crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT)]
     AlternativeAssetNotInAccount,
+
+    /// An import file is an encrypted Excel workbook.
+    #[error("{SPREADSHEET_PASSWORD_PROTECTED_MESSAGE}")]
+    SpreadsheetPasswordProtected,
+
+    /// An import file looks like a spreadsheet but isn't a readable .xlsx workbook.
+    #[error("{SPREADSHEET_UNREADABLE_MESSAGE}")]
+    SpreadsheetUnreadable,
 
     /// A loan action refused by the loan rules; the message is a stable code.
     #[error("{0}")]

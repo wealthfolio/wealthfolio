@@ -49,7 +49,7 @@ async function proceedThroughImportWizard(page: Page, csvPath: string, accountNa
   await page.waitForTimeout(1000);
 
   // Preview should appear
-  await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
   return true;
 }
@@ -133,7 +133,7 @@ test.describe("CSV Import Wizard", () => {
     await fileInput.setInputFiles(SEMICOLON_CSV);
     await page.waitForTimeout(1000);
 
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
     // Open Parse Settings and set delimiter to semicolon
     const parseSettingsTrigger = page.getByText("Parse Settings");
@@ -198,7 +198,7 @@ test.describe("CSV Import Wizard", () => {
     await fileInput.setInputFiles(DUPLICATE_CSV);
     await page.waitForTimeout(1000);
 
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
     // Reset delimiter to Comma in case previous test changed it to Semicolon
     const parseSettingsTrigger = page.getByText("Parse Settings");
@@ -268,7 +268,7 @@ test.describe("CSV Import Wizard", () => {
     await fileInput.setInputFiles(HAPPY_PATH_CSV);
     await page.waitForTimeout(1000);
 
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
 
     const continueBtn = page.getByRole("button", { name: /Configure Mapping/i });
     await expect(continueBtn).toBeEnabled({ timeout: 5000 });

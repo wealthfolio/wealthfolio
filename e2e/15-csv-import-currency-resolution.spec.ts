@@ -89,7 +89,7 @@ test.describe("CSV import currency resolution", () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(KWEB_NO_CURRENCY_CSV);
 
-    await expect(page.getByText("CSV Preview")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("File Preview")).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/1 row/i)).toBeVisible({ timeout: 5000 });
 
     await page.getByRole("button", { name: /Configure Mapping/i }).click();

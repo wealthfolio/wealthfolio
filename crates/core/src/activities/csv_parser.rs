@@ -6,6 +6,7 @@
 use csv::{ReaderBuilder, Terminator};
 use serde::{Deserialize, Serialize};
 
+use super::xlsx_reader;
 use crate::errors::{Error, ValidationError};
 use crate::Result;
 
@@ -137,15 +138,20 @@ impl ParseError {
     }
 }
 
-/// Parses CSV content with the given configuration.
+/// Parses CSV content with the given configuration. An Excel (.xlsx) file is
+/// read into the same rows; delimiter, quote and encoding settings don't apply.
 ///
 /// # Arguments
-/// * `content` - Raw bytes of the CSV file
+/// * `content` - Raw bytes of the CSV or .xlsx file
 /// * `config` - Parsing configuration options
 ///
 /// # Returns
 /// A `ParsedCsvResult` containing headers, rows, detected config, and any errors.
 pub fn parse_csv(content: &[u8], config: &ParseConfig) -> Result<ParsedCsvResult> {
+    if xlsx_reader::is_spreadsheet(content) {
+        return parse_spreadsheet(content, config);
+    }
+
     let mut errors = Vec::new();
 
     // Handle UTF-8 BOM and convert to string
@@ -177,6 +183,47 @@ pub fn parse_csv(content: &[u8], config: &ParseConfig) -> Result<ParsedCsvResult
         errors,
         row_count,
     })
+}
+
+/// Parses the first worksheet of an .xlsx file with the row settings of `config`.
+fn parse_spreadsheet(content: &[u8], config: &ParseConfig) -> Result<ParsedCsvResult> {
+    let mut errors = Vec::new();
+    let records = xlsx_reader::read_xlsx_rows(content, spreadsheet_decimal_separator(config))?;
+
+    // The delimiter and quote settings stay as given: they apply to the next CSV.
+    let mut detected_config = config.clone();
+    detected_config.has_header_row = Some(config.has_header());
+    detected_config.header_row_index = Some(config.header_index());
+    detected_config.skip_top_rows = Some(config.top_skip());
+    detected_config.skip_bottom_rows = Some(config.bottom_skip());
+    detected_config.skip_empty_rows = Some(config.skip_empty());
+
+    let (headers, rows) = shape_records(records, config, &mut errors)?;
+    let row_count = rows.len();
+
+    Ok(ParsedCsvResult {
+        headers,
+        rows,
+        detected_config,
+        errors,
+        row_count,
+    })
+}
+
+/// The decimal separator the import reads numbers with. A number cell is written
+/// with it, so a template saved for comma decimals doesn't read `1234.5` as 12345.
+/// Mirrors `analyzeNumericColumn` in the frontend: an explicit decimal separator
+/// wins, then a thousands separator implies the other one.
+fn spreadsheet_decimal_separator(config: &ParseConfig) -> char {
+    match (
+        config.decimal_separator.as_deref(),
+        config.thousands_separator.as_deref(),
+    ) {
+        (Some(","), _) => ',',
+        (Some("."), _) => '.',
+        (_, Some(".")) => ',',
+        _ => '.',
+    }
 }
 
 /// Detects the encoding of raw bytes.
@@ -286,11 +333,6 @@ fn parse_csv_content(
     errors: &mut Vec<ParseError>,
 ) -> Result<(Vec<String>, Vec<Vec<String>>)> {
     let quote_byte = config.quote_byte();
-    let skip_top = config.top_skip();
-    let skip_bottom = config.bottom_skip();
-    let skip_empty = config.skip_empty();
-    let has_header = config.has_header();
-    let header_index = config.header_index();
 
     // Build CSV reader
     let mut reader = ReaderBuilder::new()
@@ -324,6 +366,22 @@ fn parse_csv_content(
             "CSV file is empty or contains no valid records".to_string(),
         )));
     }
+
+    shape_records(all_records, config, errors)
+}
+
+/// Applies the skip and header settings to a file's records, then pads or trims
+/// each data row to the header's width.
+fn shape_records(
+    all_records: Vec<Vec<String>>,
+    config: &ParseConfig,
+    errors: &mut Vec<ParseError>,
+) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let skip_top = config.top_skip();
+    let skip_bottom = config.bottom_skip();
+    let skip_empty = config.skip_empty();
+    let has_header = config.has_header();
+    let header_index = config.header_index();
 
     // Skip top rows
     let start_index = skip_top;
