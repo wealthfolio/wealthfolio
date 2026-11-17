@@ -149,7 +149,7 @@
       "close": [16, 30],
       "providers": {
         "YAHOO": { "suffix": ".L", "codes": ["LSE", "IOB"] },
-        "ALPHA_VANTAGE": { "suffix": ".LON", "currency": "GBP" }
+        "ALPHA_VANTAGE": { "suffix": ".LON" }
       }
     },
     {
