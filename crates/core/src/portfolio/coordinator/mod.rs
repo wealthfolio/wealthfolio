@@ -551,7 +551,12 @@ impl PortfolioCoordinator {
     /// Accounts whose stored projection is stale: a pending fact marker for
     /// the account (or for everything), or valuations ending before today.
     /// Price markers are left to the next job, which they trigger anyway.
+    /// While a job runs it reports none: the job marks the accounts it is
+    /// rebuilding, and those need no rebuild from the user.
     pub fn stale_accounts(&self) -> Result<Vec<StaleAccount>> {
+        if self.job.try_lock().is_err() {
+            return Ok(Vec::new());
+        }
         let markers = self.deps.projections.pending_markers()?;
         let last_valued = self.deps.projections.last_valued_days()?;
         let today = self.today();
