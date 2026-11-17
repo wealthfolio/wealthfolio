@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sql_query;
-use diesel::sql_types::{Integer, Text};
+use diesel::sql_types::{Integer, Nullable, Text};
 use diesel::sqlite::Sqlite;
 use diesel::sqlite::SqliteConnection;
 use std::collections::{HashMap, HashSet};
@@ -34,6 +34,51 @@ const SOURCE_PRIORITY_CASE: &str =
 // function SQL (`ROW_NUMBER() OVER (... ORDER BY ...)`).
 const SOURCE_PRIORITY_CASE_Q: &str =
     "CASE q.source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 3 ELSE 2 END";
+
+/// Inserts provider quotes, updating a stored row for the same asset, day and
+/// source (or the same id) only when a value differs. Fourteen binds per row, in `QuoteDB`
+/// column order.
+fn upsert_provider_quotes_sql(rows: usize) -> String {
+    const COLUMNS: &str = "id, asset_id, day, source, open, high, low, close, adjclose, \
+        volume, currency, notes, created_at, timestamp";
+    const VALUE_COLUMNS: [&str; 9] = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "adjclose",
+        "volume",
+        "currency",
+        "notes",
+        "timestamp",
+    ];
+    let values = vec!["(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"; rows].join(", ");
+    let set = VALUE_COLUMNS
+        .iter()
+        .chain(&["created_at"])
+        .map(|column| format!("{column} = excluded.{column}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let changed = VALUE_COLUMNS
+        .iter()
+        .map(|column| format!("quotes.{column} IS NOT excluded.{column}"))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    // A stored row that keeps its id under another day or source is moved,
+    // as REPLACE did, rather than failing the batch on the primary key.
+    let moved = format!(
+        "asset_id = excluded.asset_id, day = excluded.day, source = excluded.source, {set}"
+    );
+    let moved_or_changed = format!(
+        "quotes.asset_id IS NOT excluded.asset_id OR quotes.day IS NOT excluded.day \
+         OR quotes.source IS NOT excluded.source OR {changed}"
+    );
+    format!(
+        "INSERT INTO quotes ({COLUMNS}) VALUES {values} \
+         ON CONFLICT (asset_id, day, source) DO UPDATE SET {set} WHERE {changed} \
+         ON CONFLICT (id) DO UPDATE SET {moved} WHERE {moved_or_changed}"
+    )
+}
 
 /// The best quote of each of an asset's two latest days, ordered by asset and
 /// then latest day first, for one placeholder per requested asset. Index
@@ -325,11 +370,34 @@ impl QuoteStore for MarketDataRepository {
                     .into_iter()
                     .partition(|row| row.source.eq_ignore_ascii_case("MANUAL"));
 
+                // A provider row that matches the stored one is left untouched:
+                // rewriting it would fire the projection triggers, so every
+                // sync's overlap window would recalculate unchanged history.
                 for chunk in provider_rows.chunks(1_000) {
-                    total_upserted += diesel::replace_into(quotes_dsl::quotes)
-                        .values(chunk)
+                    let mut query =
+                        sql_query(upsert_provider_quotes_sql(chunk.len())).into_boxed::<Sqlite>();
+                    for row in chunk {
+                        query = query
+                            .bind::<Text, _>(row.id.clone())
+                            .bind::<Text, _>(row.asset_id.clone())
+                            .bind::<Text, _>(row.day.clone())
+                            .bind::<Text, _>(row.source.clone())
+                            .bind::<Nullable<Text>, _>(row.open.clone())
+                            .bind::<Nullable<Text>, _>(row.high.clone())
+                            .bind::<Nullable<Text>, _>(row.low.clone())
+                            .bind::<Text, _>(row.close.clone())
+                            .bind::<Nullable<Text>, _>(row.adjclose.clone())
+                            .bind::<Nullable<Text>, _>(row.volume.clone())
+                            .bind::<Text, _>(row.currency.clone())
+                            .bind::<Nullable<Text>, _>(row.notes.clone())
+                            .bind::<Text, _>(row.created_at.clone())
+                            .bind::<Text, _>(row.timestamp.clone());
+                    }
+                    query
                         .execute(tx.conn())
                         .map_err(StorageError::QueryFailed)?;
+                    // Unchanged rows count as accepted, as they did with REPLACE.
+                    total_upserted += chunk.len();
                 }
 
                 for row in manual_rows {
@@ -2150,6 +2218,100 @@ mod tests {
             .expect("get_latest_quote should succeed");
         assert_eq!(latest.data_source, "YAHOO");
         assert_eq!(latest.close, Decimal::from(180));
+    }
+
+    /// Open projection markers as (scope, dirty_from).
+    fn markers(repo: &MarketDataRepository) -> Vec<(String, Option<String>)> {
+        #[derive(QueryableByName)]
+        struct Row {
+            #[diesel(sql_type = Text)]
+            scope: String,
+            #[diesel(sql_type = diesel::sql_types::Nullable<Text>)]
+            dirty_from: Option<String>,
+        }
+        sql_query("SELECT scope, dirty_from FROM projection_state WHERE dirty_from IS NOT NULL ORDER BY scope")
+            .load::<Row>(&mut get_connection(&repo.pool).unwrap())
+            .unwrap()
+            .into_iter()
+            .map(|row| (row.scope, row.dirty_from))
+            .collect()
+    }
+
+    fn clear_markers(repo: &MarketDataRepository) {
+        sql_query("DELETE FROM projection_state")
+            .execute(&mut get_connection(&repo.pool).unwrap())
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn rewriting_unchanged_provider_quotes_marks_nothing() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset = "STEADY";
+        insert_test_asset(&repo, asset);
+        let first = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        let batch = |closes: &[i64]| -> Vec<Quote> {
+            closes
+                .iter()
+                .enumerate()
+                .map(|(i, close)| {
+                    quote_with_source(
+                        asset,
+                        first + chrono::Duration::days(i as i64),
+                        "YAHOO",
+                        Decimal::from(*close),
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(repo.upsert_quotes(&batch(&[10, 11, 12])).await.unwrap(), 3);
+        clear_markers(&repo);
+
+        // A sync's overlap window returns the same rows (with a newer
+        // created_at): nothing is written, so nothing needs recalculating.
+        assert_eq!(repo.upsert_quotes(&batch(&[10, 11, 12])).await.unwrap(), 3);
+        assert!(markers(&repo).is_empty());
+
+        // A corrected close and a new day are written and mark from the
+        // earliest day they change.
+        assert_eq!(
+            repo.upsert_quotes(&batch(&[10, 15, 12, 13])).await.unwrap(),
+            4
+        );
+        assert_eq!(
+            markers(&repo),
+            vec![(format!("q:{asset}"), Some("2024-06-04".to_string()))]
+        );
+        let rows = raw_rows(&repo, asset);
+        let closes: Vec<&str> = rows.iter().map(|row| row.close.as_str()).collect();
+        assert_eq!(closes, ["10", "15", "12", "13"]);
+        assert_eq!(rows.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn a_provider_quote_keeping_its_id_moves_the_stored_row() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset = "MOVED";
+        insert_test_asset(&repo, asset);
+        let first = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        let stored = quote_with_source(asset, first, "YAHOO", Decimal::from(10));
+        repo.upsert_quotes(std::slice::from_ref(&stored))
+            .await
+            .unwrap();
+        clear_markers(&repo);
+
+        // Same id, corrected to the next day: updated in place, as REPLACE did.
+        let mut corrected =
+            quote_with_source(asset, first.succ_opt().unwrap(), "YAHOO", Decimal::from(11));
+        corrected.id = stored.id.clone();
+        assert_eq!(repo.upsert_quotes(&[corrected]).await.unwrap(), 1);
+        let rows = raw_rows(&repo, asset);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, stored.id);
+        assert_eq!(rows[0].day, "2024-06-04");
+        assert_eq!(
+            markers(&repo),
+            vec![(format!("q:{asset}"), Some("2024-06-03".to_string()))]
+        );
     }
 
     #[tokio::test]
