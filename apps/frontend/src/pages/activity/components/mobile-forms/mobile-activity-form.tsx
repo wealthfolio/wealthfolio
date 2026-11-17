@@ -972,12 +972,10 @@ export function MobileActivityForm({
       setCurrentStep(initialStep);
     } catch (error) {
       if (isActivityEditCancelled(error)) return;
-      toast.error(t("activity:mobile_form.save_failed"), {
-        description: extractErrorMessage(error, t),
-      });
-      logger.error(
-        `Mobile Activity Form Submit Error: ${JSON.stringify({ error, formValues: form.getValues() })}`,
-      );
+      const message = extractErrorMessage(error, t);
+      toast.error(t("activity:mobile_form.save_failed"), { description: message });
+      // The form values are the user's financial data; keep them out of the log.
+      logger.error(`Mobile Activity Form Submit Error (${data.activityType}): ${message}`);
       return;
     }
   };
