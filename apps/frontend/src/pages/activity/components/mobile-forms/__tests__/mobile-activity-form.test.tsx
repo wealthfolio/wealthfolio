@@ -1,4 +1,5 @@
 import { ActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
+import { logger } from "@/adapters";
 import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
@@ -778,4 +779,22 @@ it("keeps a mobile edit open without a failure toast when split review is cancel
   expect(close).not.toHaveBeenCalled();
   expect(screen.getByTestId("details-step")).toBeInTheDocument();
   errorToast.mockRestore();
+});
+
+it("logs why a mobile save failed without the values entered", async () => {
+  noopMutation.mutateAsync.mockReset().mockRejectedValue(new Error("Save rejected"));
+  const logError = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+  const user = userEvent.setup();
+  renderForm({ ...activity(ActivityType.DEPOSIT), amount: "1234.56", fee: "7.89" });
+  await user.type(screen.getByLabelText("Record notes"), "Private note");
+  await user.click(screen.getByRole("button", { name: "Update Activity" }));
+
+  await waitFor(() => expect(logError).toHaveBeenCalled());
+  const logged = logError.mock.calls.map(([message]) => message).join("\n");
+  expect(logged).toContain("Save rejected");
+  expect(logged).toContain(ActivityType.DEPOSIT);
+  for (const entered of ["1234.56", "7.89", "Private note", "acc_1"]) {
+    expect(logged).not.toContain(entered);
+  }
+  logError.mockRestore();
 });

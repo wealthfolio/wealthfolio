@@ -150,9 +150,8 @@ export const calculatePerformanceSummary = async ({
   const response = await invoke<PerformanceResult>("calculate_performance_summary", args);
 
   if (!response || typeof response !== "object" || !response.scope?.id) {
-    logger.error(
-      `Invalid data received from calculate_performance_summary. Response: ${JSON.stringify(response)}`,
-    );
+    // The response can hold portfolio values; keep them out of the log.
+    logger.error("Invalid data received from calculate_performance_summary: missing scope id.");
     throw new Error("Received invalid performance summary data from backend.");
   }
 

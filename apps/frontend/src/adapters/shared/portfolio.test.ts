@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { getAssetHoldings, getAssetHoldingsScope } from "./portfolio";
+import { calculatePerformanceSummary, getAssetHoldings, getAssetHoldingsScope } from "./portfolio";
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("./platform", () => ({ invoke: mocks.invoke, logger: {} }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), logger: { error: vi.fn() } }));
+vi.mock("./platform", () => ({ invoke: mocks.invoke, logger: mocks.logger }));
 beforeEach(() => mocks.invoke.mockReset());
 
 it("keeps partial asset rows available to list consumers while strict consumers reject them", async () => {
@@ -46,4 +46,14 @@ it("passes a reporting scope through the existing asset-holdings command", async
     assetId: "cash:GBP",
     filter: { type: "portfolio", portfolioId: "pf" },
   });
+});
+
+it("rejects a performance summary without a scope and keeps its values out of the log", async () => {
+  mocks.logger.error.mockReset();
+  mocks.invoke.mockResolvedValue({ totalValue: 98765.43, scope: {} });
+  await expect(calculatePerformanceSummary({ itemType: "account", itemId: "a" })).rejects.toThrow(
+    "Received invalid performance summary data from backend.",
+  );
+  expect(mocks.logger.error).toHaveBeenCalledOnce();
+  expect(String(mocks.logger.error.mock.calls[0][0])).not.toContain("98765.43");
 });
