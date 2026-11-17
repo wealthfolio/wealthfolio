@@ -85,30 +85,36 @@ describe("useHoldings", () => {
     vi.clearAllMocks();
   });
 
-  it.each(["pending", "unavailable"] as const)(
-    "retains healthy rows and distinguishes %s from complete scope",
-    async (status) => {
+  it.each([
+    // A running calculation keeps the account's last holdings in the scope.
+    ["pending", "PROJECTION_PENDING", true],
+    // Never calculated: its holdings are left out until the first run.
+    ["pending", "CALCULATION_REQUIRED", false],
+    ["unavailable", "PROJECTION_FAILED", false],
+  ] as const)(
+    "retains healthy rows; %s (%s) is complete: %s",
+    async (status, reasonCode, complete) => {
       const healthy = { id: "healthy", quantity: 1 } as Holding;
       mocks.getHoldingsList.mockResolvedValue({
         holdings: [healthy],
-        incompleteAccounts: [{ accountId: "other", status, reasonCode: "test" }],
+        incompleteAccounts: [{ accountId: "other", status, reasonCode }],
       });
       const { result } = renderHook(() => useHoldings({ type: "all" }), {
         wrapper: createWrapper(),
       });
       await waitFor(() => expect(result.current.holdings).toEqual([healthy]));
-      expect(result.current.isComplete).toBe(false);
+      expect(result.current.isComplete).toBe(complete);
       expect(result.current.isUpdating).toBe(status === "pending");
       expect(result.current.isLoading).toBe(false);
       expect(result.current.isError).toBe(status === "unavailable");
     },
   );
 
-  it("does not probe closed positions or claim empty when the open scope is pending", async () => {
+  it("does not probe closed positions or claim empty before the first calculation", async () => {
     mocks.getHoldingsList.mockResolvedValue({
       holdings: [],
       incompleteAccounts: [
-        { accountId: "account-1", status: "pending", reasonCode: "PROJECTION_PENDING" },
+        { accountId: "account-1", status: "pending", reasonCode: "CALCULATION_REQUIRED" },
       ],
     });
     const { result } = renderHook(

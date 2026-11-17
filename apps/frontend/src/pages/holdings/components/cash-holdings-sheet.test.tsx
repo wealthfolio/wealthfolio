@@ -132,7 +132,7 @@ it("keeps partial rows but withholds totals for incomplete accounts", async () =
   const pending: IncompleteHoldingsAccount = {
     accountId: "b",
     status: "pending",
-    reasonCode: "PROJECTION_PENDING",
+    reasonCode: "CALCULATION_REQUIRED",
   };
   vi.mocked(getAssetHoldingsScope).mockResolvedValue(results([cash("a", 75)], [pending]));
   mount();
@@ -140,6 +140,20 @@ it("keeps partial rows but withholds totals for incomplete accounts", async () =
   expect(screen.getByRole("status")).toHaveTextContent("Some account calculations are incomplete.");
   expect(screen.getByLabelText("Total")).toHaveTextContent("—");
   expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+});
+it("totals accounts mid-calculation from their last balances", async () => {
+  const calculating: IncompleteHoldingsAccount = {
+    accountId: "b",
+    status: "pending",
+    reasonCode: "PROJECTION_PENDING",
+  };
+  vi.mocked(getAssetHoldingsScope).mockResolvedValue(
+    results([cash("a", 75), cash("b", 25)], [calculating]),
+  );
+  mount();
+  await screen.findByRole("link", { name: /Brokerage/ });
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Total")).toHaveTextContent("$100");
 });
 it("shows failed reads without a total and retries the single scoped request", async () => {
   vi.mocked(getAssetHoldingsScope).mockRejectedValueOnce(new Error("Unavailable"));

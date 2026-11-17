@@ -27,7 +27,7 @@ use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
 use crate::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
-use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
+use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait, IncompleteHoldingsAccount};
 use crate::portfolio::net_worth::{NetWorthServiceTrait, StaleAssetInfo};
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
@@ -374,7 +374,12 @@ impl HealthService {
         let scope = holdings_service
             .get_holdings_by_account_scope(&account_ids, base_currency)
             .await?;
-        let mut total_portfolio_value = scope.incomplete_accounts.is_empty().then_some(0.0);
+        // Accounts mid-calculation contribute their last holdings to the total.
+        let mut total_portfolio_value = (!scope
+            .incomplete_accounts
+            .iter()
+            .any(IncompleteHoldingsAccount::withholds_holdings))
+        .then_some(0.0);
         // Track FX pairs needed: (from_currency, to_currency) → affected market value
         let mut fx_pair_mv: HashMap<(String, String), Option<f64>> = HashMap::new();
 
