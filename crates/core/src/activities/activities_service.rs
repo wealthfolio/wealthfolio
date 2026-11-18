@@ -79,8 +79,9 @@ use crate::assets::loan::LOAN_PAYMENT_TAG_KEY;
 use crate::assets::{
     canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
     parse_symbol_with_known_exchange, resolve_bond_aliases, resolve_import_quote_ccy_precedence,
-    resolve_quote_ccy_precedence, AssetKind, AssetResolutionInput as ImportAssetResolutionInput,
-    AssetServiceTrait, AssetSpec, InstrumentType, QuoteCcyResolutionSource, QuoteMode,
+    resolve_quote_ccy_precedence, Asset, AssetKind,
+    AssetResolutionInput as ImportAssetResolutionInput, AssetServiceTrait, AssetSpec,
+    InstrumentType, QuoteCcyResolutionSource, QuoteMode,
 };
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -4149,25 +4150,42 @@ impl ActivityService {
             .collect()
     }
 
-    /// Upper-case tickers of securities held without an exchange. Broker sync
-    /// doesn't search for a listing for these: the user cleared the exchange or
-    /// none was ever known, and a search can file a private fund such as
-    /// Fidelity's `OAA1` under an unrelated company's listing.
-    fn tickers_held_without_exchange(&self) -> HashSet<String> {
-        self.asset_service
+    /// Upper-case tickers broker sync doesn't search a listing for: a
+    /// market-priced equity has no exchange and no asset of that ticker is on a
+    /// listing. The user cleared the exchange or none was ever known, and a
+    /// search can file a private fund such as Fidelity's `OAA1` under an
+    /// unrelated company's listing.
+    fn tickers_kept_without_exchange(&self) -> HashSet<String> {
+        let ticker = |asset: &Asset| {
+            asset
+                .instrument_symbol
+                .as_deref()
+                .map(|symbol| symbol.trim().to_uppercase())
+                .filter(|symbol| !symbol.is_empty())
+        };
+        let has_exchange = |asset: &Asset| {
+            asset
+                .instrument_exchange_mic
+                .as_deref()
+                .is_some_and(|mic| !mic.trim().is_empty())
+        };
+        let equities: Vec<Asset> = self
+            .asset_service
             .get_assets()
             .unwrap_or_default()
             .into_iter()
-            .filter(|asset| {
-                asset.instrument_type == Some(InstrumentType::Equity)
-                    && asset
-                        .instrument_exchange_mic
-                        .as_deref()
-                        .is_none_or(|mic| mic.trim().is_empty())
-            })
-            .filter_map(|asset| asset.instrument_symbol.or(asset.display_code))
-            .map(|symbol| symbol.trim().to_uppercase())
-            .filter(|symbol| !symbol.is_empty())
+            .filter(|asset| asset.instrument_type == Some(InstrumentType::Equity))
+            .collect();
+        let listed: HashSet<String> = equities
+            .iter()
+            .filter(|asset| has_exchange(asset))
+            .filter_map(ticker)
+            .collect();
+        equities
+            .iter()
+            .filter(|asset| !has_exchange(asset) && asset.quote_mode == QuoteMode::Market)
+            .filter_map(ticker)
+            .filter(|symbol| !listed.contains(symbol))
             .collect()
     }
 
@@ -9516,7 +9534,7 @@ impl ActivityService {
 
         // 1. Batch resolve symbols → MICs when live resolution is enabled.
         let symbol_mic_cache: HashMap<String, Option<String>> = if mode.allows_live_resolution() {
-            let held_without_exchange = self.tickers_held_without_exchange();
+            let kept_without_exchange = self.tickers_kept_without_exchange();
             let symbols_to_resolve: HashSet<SymbolResolutionKey> = activities
                 .iter()
                 .filter_map(|a| {
@@ -9532,7 +9550,7 @@ impl ActivityService {
                     if !has_mic
                         && !is_cash
                         && !is_non_security_instrument
-                        && !held_without_exchange.contains(&symbol.trim().to_uppercase())
+                        && !kept_without_exchange.contains(&symbol.trim().to_uppercase())
                     {
                         Some((symbol.to_string(), account_currency.clone(), None))
                     } else {
