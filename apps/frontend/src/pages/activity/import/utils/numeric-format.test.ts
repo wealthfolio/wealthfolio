@@ -311,6 +311,34 @@ describe("activity column parsing", () => {
   });
 });
 
+describe("exponents followed by a sign", () => {
+  it.each(["1.5E3-", "1E3-", "1.5E3+", "1E3 -"])("does not read %s", (value) => {
+    expect(parseSignedNumericValue(value, "auto", "auto")).toBeUndefined();
+    expect(parseNumericValue(value, "auto", "auto")).toBeUndefined();
+    expect(parseHoldingsNumericValue(value, "auto", "auto")).toBeUndefined();
+  });
+
+  it("still reads an exponent followed by a word", () => {
+    expect(Number(parseSignedNumericValue("1E3 each", "auto", "auto"))).toBe(1000);
+  });
+
+  it("does not import a trailing minus as a deposit", () => {
+    const [draft] = createDraftActivities(
+      [["2026-01-15", "TRANSFER", "1.5E3-"]],
+      ["Date", "Type", "Amount"],
+      {
+        ...mapping,
+        fieldMappings: { date: "Date", activityType: "Type", amount: "Amount" },
+        activityMappings: { DEPOSIT: ["TRANSFER"] },
+      },
+      parseConfig,
+      "account-1",
+    );
+    expect(draft.status).toBe("error");
+    expect(draft.errors?.amount).toBeDefined();
+  });
+});
+
 describe("holdings column parsing", () => {
   it.each([
     ["EUR 12,50", "12.50"],

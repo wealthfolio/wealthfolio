@@ -24,7 +24,7 @@ export function parseSignedNumericValue(
 
   let mantissa = normalized;
   let exponent = "";
-  const exponentMatch = /[\d.,][eE]([+-]?\d+)[^\d]*$/.exec(normalized);
+  const exponentMatch = /[\d.,][eE]([+-]?\d+)[^\d+-]*$/.exec(normalized);
   if (exponentMatch) {
     mantissa = normalized.slice(0, exponentMatch.index + 1);
     exponent = exponentMatch[1];
