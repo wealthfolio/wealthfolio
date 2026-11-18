@@ -14,12 +14,16 @@ const NUMERIC_FIELDS: string[] = [
   ImportFormat.FX_RATE,
 ];
 
-/** Drops a currency label around a number: "US$1,500", "Rs. 1,500", "1,500 usd". */
+/**
+ * Drops a currency label around a number: "US$1,500", "Rs. 1,500", "1,500 usd".
+ * A dot after one or two letters ends an abbreviation ("Rs.100"); after a three-letter
+ * code it can start the decimals ("USD.50").
+ */
 export function stripCurrencyLabel(value: string): string {
   return value
     .trim()
     .replace(
-      /^([+-]?)\s*\p{Sc}*\s*(?:\p{L}{1,3}(?:\.(?=\s|\d+[.,]\d))?\s*)?\p{Sc}*\s*(?=[+-]?[\d.,])/u,
+      /^([+-]?)\s*\p{Sc}*\s*(?:(?:\p{L}{1,2}\.?|\p{L}{3}(?:\.(?=\s|\d+[.,]\d))?)\s*)?\p{Sc}*\s*(?=[+-]?[\d.,])/u,
       "$1",
     )
     .replace(/([\d.,])\s*\p{Sc}*\s*\p{L}{1,3}\.?$/u, "$1");

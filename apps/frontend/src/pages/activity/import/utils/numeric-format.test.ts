@@ -28,6 +28,25 @@ describe("numbers with currency labels and lakh grouping", () => {
   });
 
   it.each([
+    ["Rs.100", "100"],
+    ["Rs.1500", "1500"],
+    ["RS.100", "100"],
+    ["kr.100", "100"],
+    ["Fr.100", "100"],
+    ["-Rs.100", "100"],
+  ])("reads the dot in %s as part of the abbreviation", (value, expected) => {
+    expect(parseNumericValue(value, "auto", "auto")).toBe(expected);
+    expect(parseHoldingsNumericValue(value, "auto", "auto")?.replace("-", "")).toBe(expected);
+  });
+
+  it("still asks about a column whose only separators are ambiguous after Rs.100", () => {
+    expect(analyzeNumericColumn(["Rs.100", "1,000"], "auto", "auto")).toEqual({
+      decimalSeparator: "auto",
+      issue: "ambiguous",
+    });
+  });
+
+  it.each([
     [["US$1,500", "C$2,000.50"], "."],
     [["Rs. 1,500", "2,000.50 usd"], "."],
     [["R$ 1.500,25", "R$ 2.000,00"], ","],
