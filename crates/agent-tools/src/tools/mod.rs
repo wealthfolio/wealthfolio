@@ -5,6 +5,7 @@
 //! snapshots in `crates/ai/tests/`).
 
 pub mod account_changes;
+pub(crate) mod account_scope;
 pub mod accounts;
 pub mod activities;
 pub mod activity_deletions;

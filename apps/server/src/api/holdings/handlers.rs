@@ -37,7 +37,8 @@ use super::dto::{
 };
 use super::mappers::{parse_date, parse_date_optional};
 
-fn resolve_scope(
+/// Resolves a scope to the accounts whose holdings it reports.
+fn resolve_holdings_scope(
     filter: &AccountScope,
     state: &AppState,
 ) -> Result<ResolvedAccountScope, crate::error::ApiError> {
@@ -48,7 +49,7 @@ fn resolve_scope(
         .clone();
     state
         .portfolio_service
-        .resolve_account_scope(filter, &base)
+        .resolve_account_scope_for_purpose(filter, &base, AccountPurpose::Holdings)
         .map_err(crate::error::ApiError::from)
 }
 
@@ -135,14 +136,14 @@ async fn load_holdings_scope_for_filter(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(filter, state)?;
-    let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(filter, state)?;
+    let account_ids = &resolved.account_ids;
     if account_ids.is_empty() {
         return Ok(HoldingsScope::default());
     }
     Ok(state
         .holdings_service
-        .get_holdings_scope(&account_ids, &base, &resolved.scope_id, include_closed)
+        .get_holdings_scope(account_ids, &base, &resolved.scope_id, include_closed)
         .await?)
 }
 
@@ -283,8 +284,7 @@ async fn load_asset_holdings_scope(
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
     let ids = if let Some(filter) = filter {
-        let resolved = resolve_scope(filter, state)?;
-        holdings_account_ids(state, &resolved.account_ids)?
+        resolve_holdings_scope(filter, state)?.account_ids
     } else {
         state
             .account_service
@@ -363,8 +363,8 @@ pub async fn get_historical_valuations_for_scope(
                 .map_err(|e| anyhow::anyhow!("Invalid endDate: {}", e))
         })
         .transpose()?;
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let vals = if account_ids.is_empty() {
         Vec::new()
     } else if account_ids.len() == 1 {
@@ -376,7 +376,7 @@ pub async fn get_historical_valuations_for_scope(
             .valuation_service
             .get_historical_valuation_totals_for_accounts(
                 &resolved.scope_id,
-                &account_ids,
+                account_ids,
                 &resolved.base_currency,
                 start,
                 end,
@@ -464,8 +464,8 @@ pub async fn get_portfolio_allocations(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let allocations = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -474,7 +474,7 @@ pub async fn get_portfolio_allocations(
     } else {
         state
             .allocation_service
-            .get_portfolio_allocations_for_accounts(&account_ids, &base, &resolved.scope_id)
+            .get_portfolio_allocations_for_accounts(account_ids, &base, &resolved.scope_id)
             .await?
     };
     Ok(Json(allocations))
@@ -489,8 +489,8 @@ pub async fn get_holdings_by_allocation(
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_holdings_scope(&body.filter, &state)?;
+    let account_ids = &resolved.account_ids;
     let result = if account_ids.len() == 1 {
         state
             .allocation_service
@@ -505,7 +505,7 @@ pub async fn get_holdings_by_allocation(
         state
             .allocation_service
             .get_holdings_by_allocation_for_accounts(
-                &account_ids,
+                account_ids,
                 &base,
                 &body.taxonomy_id,
                 &body.category_id,
