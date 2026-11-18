@@ -319,6 +319,44 @@ describe("holdings column parsing", () => {
     expect(parseHoldingsNumericValue(input, "auto", "auto")).toBe(expected);
   });
 
+  it.each([
+    ["1E3", 1000],
+    ["1e3", 1000],
+    ["1.5E3", 1500],
+    ["2.5e2", 250],
+    ["1E+3", 1000],
+    ["1.5E+06", 1500000],
+    ["1.25E1", 12.5],
+    ["1.5E-3", 0.0015],
+    ["1,5E3", 1500],
+    ["-1E3", -1000],
+    ["(1E3)", -1000],
+    ["$1E3", 1000],
+  ])("reads the exponent in %s", (input, expected) => {
+    expect(Number(parseHoldingsNumericValue(input, "auto", "auto"))).toBe(expected);
+  });
+
+  it("does not read an exponent too large to be a number", () => {
+    expect(parseHoldingsNumericValue("1E400", "auto", "auto")).toBeUndefined();
+  });
+
+  it("keeps exponents in validation and the final snapshot", () => {
+    const rows = [
+      ["2026-01-15", "TEST", "1E3", "1.5E+2"],
+      ["2026-01-15", "$CASH", "2.5E3", ""],
+    ];
+    const fieldMappings = { date: "Date", symbol: "Symbol", quantity: "Quantity", avgCost: "Cost" };
+    const headers = ["Date", "Symbol", "Quantity", "Cost"];
+    const snapshots = parseHoldingsSnapshots(headers, rows, fieldMappings, parseConfig);
+
+    expect(Number(snapshots[0].positions[0].quantity)).toBe(1000);
+    expect(Number(snapshots[0].positions[0].avgCost)).toBe(150);
+    expect(snapshots[0].cashBalances).toEqual({ USD: "2500" });
+    expect(parseHoldingsSnapshotsForValidation(headers, rows, fieldMappings, parseConfig)).toEqual(
+      snapshots,
+    );
+  });
+
   it("matches the first duplicate header used by the holdings parser", () => {
     const snapshots = parseHoldingsSnapshots(
       ["Date", "Symbol", "Quantity", "Quantity"],
