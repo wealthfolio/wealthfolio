@@ -12,12 +12,8 @@ import {
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 import { getDateFnsPattern } from "./date-format-options";
-import {
-  analyzeNumericColumn,
-  resolveNumericDecimalSeparator,
-  type NumericColumnAnalysis,
-  stripCurrencyLabel,
-} from "./numeric-format";
+import { analyzeNumericColumn, type NumericColumnAnalysis } from "./numeric-format";
+import { parseSignedNumericValue as parseNumericValue } from "./review-draft-utils";
 
 export const CASH_SYMBOL = "$CASH";
 
@@ -140,63 +136,7 @@ export function buildHoldingsRowResolutionMap(
   return resolutions;
 }
 
-export function parseNumericValue(
-  value: string | undefined,
-  decimalSeparator: string,
-  thousandsSeparator: string,
-): string | undefined {
-  if (!value || value.trim() === "") return undefined;
-
-  let normalized = value.trim();
-  let isNegative = false;
-
-  if (normalized.startsWith("(") && normalized.endsWith(")")) {
-    isNegative = true;
-    normalized = normalized.slice(1, -1);
-  }
-  normalized = stripCurrencyLabel(normalized);
-
-  const resolvedDecimal = resolveNumericDecimalSeparator(
-    normalized,
-    decimalSeparator,
-    thousandsSeparator,
-  );
-
-  let cleaned = normalized.replace(/[^\d.,+-]/g, "");
-
-  if (thousandsSeparator !== "none" && thousandsSeparator !== "auto") {
-    cleaned = cleaned.replace(new RegExp(`\\${thousandsSeparator}`, "g"), "");
-  } else {
-    const defaultThousands = resolvedDecimal === "," ? "." : ",";
-    cleaned = cleaned.replace(new RegExp(`\\${defaultThousands}`, "g"), "");
-  }
-
-  if (resolvedDecimal === ",") {
-    const parts = cleaned.split(",");
-    if (parts.length > 1) {
-      const decimalPart = parts.pop() ?? "";
-      cleaned = `${parts.join("")}.${decimalPart}`;
-    }
-  } else {
-    const parts = cleaned.split(".");
-    if (parts.length > 1) {
-      const decimalPart = parts.pop() ?? "";
-      cleaned = `${parts.join("")}.${decimalPart}`;
-    }
-  }
-
-  let candidate = cleaned;
-  if (isNegative && candidate && !candidate.startsWith("-")) {
-    candidate = `-${candidate}`;
-  }
-
-  if (candidate === "" || candidate === "-" || candidate === "+") {
-    return undefined;
-  }
-
-  const numericCheck = Number(candidate);
-  return Number.isFinite(numericCheck) ? candidate : undefined;
-}
+export { parseNumericValue };
 
 export interface DateColumnAnalysis {
   /** Day/month order resolved from the column, if it carries the evidence. */
