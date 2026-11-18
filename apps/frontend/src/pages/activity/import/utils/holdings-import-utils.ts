@@ -16,6 +16,7 @@ import {
   analyzeNumericColumn,
   resolveNumericDecimalSeparator,
   type NumericColumnAnalysis,
+  stripCurrencyLabel,
 } from "./numeric-format";
 
 export const CASH_SYMBOL = "$CASH";
@@ -153,6 +154,7 @@ export function parseNumericValue(
     isNegative = true;
     normalized = normalized.slice(1, -1);
   }
+  normalized = stripCurrencyLabel(normalized);
 
   const resolvedDecimal = resolveNumericDecimalSeparator(
     normalized,
