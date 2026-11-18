@@ -4408,6 +4408,7 @@ mod tests {
             (AssetKind::Investment, AssetKind::Property, false),
             (AssetKind::Property, AssetKind::Investment, false),
             (AssetKind::PrivateEquity, AssetKind::Other, false),
+            (AssetKind::Other, AssetKind::Investment, false),
             (AssetKind::Investment, AssetKind::PrivateEquity, true),
             (AssetKind::Property, AssetKind::Vehicle, true),
         ] {
