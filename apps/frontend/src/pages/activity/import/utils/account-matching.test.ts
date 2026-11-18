@@ -64,6 +64,14 @@ describe("autoMatchAccountMappings", () => {
     });
   });
 
+  it("matches names whose apostrophes differ only in style", () => {
+    const owned = [makeAccount({ id: "acc-401k", name: "Wife\u2019s 401k" })];
+
+    expect(autoMatchAccountMappings(["Wife's 401k"], owned, {})).toEqual({
+      "Wife's 401k": "acc-401k",
+    });
+  });
+
   it("matches account ids and broker account numbers", () => {
     expect(autoMatchAccountMappings(["acc-2", "z12345"], accounts, {})).toEqual({
       "acc-2": "acc-2",

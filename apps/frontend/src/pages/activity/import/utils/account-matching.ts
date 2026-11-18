@@ -5,7 +5,11 @@ import type { Account } from "@/lib/types";
  * trimmed, with runs of whitespace collapsed.
  */
 function normalizeAccountKey(value: string): string {
-  return value.toLowerCase().trim().replace(/\s+/g, " ");
+  return value
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 /**
