@@ -120,4 +120,60 @@ describe.each(["ltr", "rtl"] as const)("AssetReviewStep (%s)", (direction) => {
       }
     },
   );
+
+  it.each([
+    ["Mark Custom", "a row"],
+    ["Mark All Custom", "every row"],
+  ])("keeps a fund's name when %s marks %s custom", async (buttonName) => {
+    const dispatch = vi.fn();
+    const row: DraftActivity = {
+      rowIndex: 0,
+      isEdited: false,
+      rawRow: [],
+      activityDate: "2026-01-01",
+      activityType: "BUY",
+      symbol: "INF999Z01A19",
+      symbolName: "Made Up Direct Growth Fund",
+      currency: "INR",
+      accountId: "account-1",
+      status: "valid",
+      errors: {},
+      warnings: {},
+    };
+    const candidate = buildImportAssetCandidateFromDraft(row)!;
+    useImportContext.mockReturnValue({
+      dispatch,
+      previewAssets: vi.fn(),
+      state: {
+        draftActivities: [row],
+        assetPreviewItems: [
+          { key: candidate.key, status: "NEEDS_FIXING", resolutionSource: "missing_exchange" },
+        ],
+        isPreviewingAssets: false,
+        parseConfig: { defaultCurrency: "INR" },
+      },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <DirectionProvider direction={direction}>
+        <QueryClientProvider client={client}>
+          <AssetReviewStep />
+        </QueryClientProvider>
+      </DirectionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SET_PENDING_IMPORT_ASSET",
+        payload: expect.objectContaining({
+          draft: expect.objectContaining({
+            name: "Made Up Direct Growth Fund",
+            displayCode: "INF999Z01A19",
+          }),
+        }),
+      }),
+    );
+  });
 });
