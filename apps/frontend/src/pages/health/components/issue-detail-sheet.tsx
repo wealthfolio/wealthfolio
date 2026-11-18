@@ -526,7 +526,8 @@ export function IssueDetailSheet({
           </p>
         </SheetHeader>
 
-        <ScrollArea className="min-h-0 flex-1">
+        {/* The content fits the sheet, so long evidence rows wrap instead of widening it. */}
+        <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-content]]:w-full [&_[data-slot=scroll-area-content]]:min-w-0!">
           <div className={cn("space-y-6", !isMobile && "pe-4")}>
             {!hasDiagnostics && issue.affectedItems && issue.affectedItems.length > 0 && (
               <div className="space-y-3">
@@ -689,7 +690,9 @@ export function IssueDetailSheet({
                                 const row = (
                                   <div className="flex items-center justify-between gap-3 px-3 py-2">
                                     <div className="min-w-0">
-                                      <p className="truncate text-sm">{evidenceRow.label}</p>
+                                      <p className="text-sm break-words whitespace-normal">
+                                        {evidenceRow.label}
+                                      </p>
                                       <div className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                                         {evidenceRow.activityIssue ? (
                                           <span className="break-all">
@@ -698,7 +701,11 @@ export function IssueDetailSheet({
                                             })}
                                           </span>
                                         ) : (
-                                          evidenceRow.value && <span>{evidenceRow.value}</span>
+                                          evidenceRow.value && (
+                                            <span className="min-w-0 break-words">
+                                              {evidenceRow.value}
+                                            </span>
+                                          )
                                         )}
                                         {evidenceRow.detail && (
                                           <span className="font-mono tabular-nums">
