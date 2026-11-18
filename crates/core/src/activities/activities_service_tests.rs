@@ -539,17 +539,23 @@ pub(crate) mod tests {
                         .activity_currency
                         .clone()
                         .filter(|currency| has_market_hint && !currency.trim().is_empty());
+                    // The last resort is still the activity's currency.
+                    let terminal_currency = input
+                        .activity_currency
+                        .clone()
+                        .filter(|currency| !currency.trim().is_empty())
+                        .unwrap_or_else(|| input.account_currency.clone());
                     let (quote_ccy, quote_ccy_source) = resolve_import_quote_ccy_precedence(
                         explicit_quote_ccy.as_deref().or(pair_quote.as_deref()),
                         existing_quote_ccy.as_deref(),
                         activity_quote_ccy.as_deref(),
                         provider_quote_ccy.as_deref(),
                         mic_quote_ccy.as_deref(),
-                        Some(input.account_currency.as_str()),
+                        Some(terminal_currency.as_str()),
                     )
                     .unwrap_or_else(|| {
                         (
-                            input.account_currency.clone(),
+                            terminal_currency.clone(),
                             QuoteCcyResolutionSource::TerminalFallback,
                         )
                     });
@@ -3919,6 +3925,15 @@ pub(crate) mod tests {
         }
     }
 
+    /// Every prepared row links to `asset_id`, so a test can't pass with the
+    /// asset created but the activities left unlinked.
+    fn assert_linked_to(result: &PrepareActivitiesResult, asset_id: &str) {
+        assert!(!result.prepared.is_empty());
+        for prepared in &result.prepared {
+            assert_eq!(prepared.activity.get_symbol_id(), Some(asset_id));
+        }
+    }
+
     fn broker_buy(account_id: &str, symbol: &str, currency: &str) -> NewActivity {
         NewActivity {
             id: None,
@@ -3985,6 +4000,7 @@ pub(crate) mod tests {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1);
+        assert_linked_to(&result, &assets[0].id);
         assert_eq!(assets[0].instrument_exchange_mic, None);
         assert_eq!(assets[0].quote_ccy, "USD");
         assert_eq!(assets[0].instrument_key.as_deref(), Some("EQUITY:OAA1"));
@@ -4005,6 +4021,7 @@ pub(crate) mod tests {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1);
+        assert_linked_to(&result, &assets[0].id);
         assert_eq!(
             assets[0].instrument_key.as_deref(),
             Some("EQUITY:OAA1@XSTU")
@@ -4032,13 +4049,10 @@ pub(crate) mod tests {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1, "{assets:?}");
+        assert_linked_to(&result, &assets[0].id);
         assert_eq!(
             assets[0].instrument_key.as_deref(),
             Some("EQUITY:OAA1@XSTU")
-        );
-        assert_eq!(
-            result.prepared[0].activity.get_symbol_id(),
-            result.prepared[1].activity.get_symbol_id()
         );
     }
 
@@ -4059,6 +4073,7 @@ pub(crate) mod tests {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1);
+        assert_linked_to(&result, &assets[0].id);
         assert_eq!(
             assets[0].instrument_key.as_deref(),
             Some("EQUITY:OAA1@XSTU")

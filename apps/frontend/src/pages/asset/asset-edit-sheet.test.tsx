@@ -392,6 +392,20 @@ describe("AssetEditSheet exchange", () => {
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    expect(mutateAsync.mock.calls.at(-1)![0]).toMatchObject({ instrumentExchangeMic: "XSTU" });
+    expect(mutateAsync.mock.calls.at(-1)![0]).toMatchObject({
+      name: "Renamed",
+      instrumentExchangeMic: "XSTU",
+    });
+  });
+
+  it("leaves the exchange out when an asset without one is saved untouched", async () => {
+    renderSheet(buildAsset());
+    setInputValue(screen.getByRole("textbox", { name: /^name$/i }), "Renamed");
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    const payload = mutateAsync.mock.calls.at(-1)![0];
+    expect(payload).toMatchObject({ name: "Renamed" });
+    expect(payload.instrumentExchangeMic).toBeUndefined();
   });
 });

@@ -1264,7 +1264,9 @@ impl UpdateAssetProfile {
             quote_ccy: Some(asset.quote_ccy.clone()),
             instrument_type: asset.instrument_type.clone(),
             instrument_symbol: asset.instrument_symbol.clone(),
-            instrument_exchange_mic: Some(asset.instrument_exchange_mic.clone()),
+            // Omitted when the snapshot has none, so a metadata write never
+            // clears an exchange stored since.
+            instrument_exchange_mic: asset.instrument_exchange_mic.clone().map(Some),
             provider_config: asset.provider_config.clone(),
             metadata: Some(metadata),
         }
