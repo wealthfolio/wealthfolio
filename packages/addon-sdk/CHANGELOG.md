@@ -4,6 +4,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Sidebar `icon` also accepts an SVG data URL (`data:image/svg+xml,...`) of up
+  to 8,192 characters. The host draws its shape as a single-color mask in the
+  sidebar text color. New types: `AddonIcon`, `AddonSvgIconUrl`.
+
 ## [3.13.0] - 2026-11-11
 
 ### Added
