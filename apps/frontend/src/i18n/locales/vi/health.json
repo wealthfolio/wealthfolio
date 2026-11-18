@@ -161,6 +161,11 @@
     "price_manual_valuation_stale": {
       "title_other": "Định giá chưa được cập nhật cho {{count}} tài sản",
       "message": "Một số tài sản định giá thủ công chưa được cập nhật trong hơn {{days}} ngày, do đó giá trị tài sản ròng của bạn có thể đã cũ."
+    },
+    "option_expiry_without_contract": {
+      "title_one": "Ngày hết hạn quyền chọn không liên kết với hợp đồng",
+      "title_other": "{{count}} ngày hết hạn quyền chọn không liên kết với hợp đồng",
+      "message": "Các ngày hết hạn quyền chọn này gọi tên cổ phiếu cơ sở thay vì hợp đồng quyền chọn, vì vậy hợp đồng vẫn mở và khoản lãi hoặc lỗ không được ghi nhận. Hãy liên kết từng ngày hết hạn với hợp đồng đã hết hạn."
     }
   },
   "page": {
@@ -202,7 +207,8 @@
     "update_cost_basis": "Update Cost Basis",
     "review_transaction": "Review Transaction",
     "review_entry": "Review entry",
-    "update_value": "Cập nhật giá trị"
+    "update_value": "Cập nhật giá trị",
+    "match_option_expiry_contracts": "Sử dụng hợp đồng đã khớp"
   },
   "updatedAt": "Đã cập nhật {{time}}",
   "healthy": {
@@ -291,6 +297,7 @@
     "return_of_capital_amount_required": "Nhập số tiền cho khoản hoàn vốn này.",
     "sell_without_position": "Không có vị thế trong {{asset}} để bán. Chỉ áp dụng hiệu ứng tiền mặt.",
     "insufficient_quantity": "Giao dịch này giảm {{requested}} đơn vị {{asset}}, nhưng chỉ nắm giữ {{held}}. {{excess}} đơn vị còn lại không có giá vốn.",
-    "missing_final_cash": "Giao dịch đã ghi nhận này không có số tiền mặt cuối cùng, do đó không làm thay đổi số dư tiền mặt."
+    "missing_final_cash": "Giao dịch đã ghi nhận này không có số tiền mặt cuối cùng, do đó không làm thay đổi số dư tiền mặt.",
+    "option_expiry_not_option": "Ngày hết hạn quyền chọn này gọi tên {{asset}}, không phải là hợp đồng quyền chọn, vì vậy không có thay đổi gì. Hãy liên kết nó với hợp đồng đã hết hạn."
   }
 }

@@ -710,7 +710,19 @@
     "err_conversion_same_asset": "Lỗi: Chuyển đổi cùng loại tài sản",
     "label_amount_before_tax": "Số tiền trước thuế",
     "sell_all": "Bán tất cả",
-    "err_charges_exceed_amount_before_tax": "Thuế và phí không thể lớn hơn số tiền trước thuế."
+    "err_charges_exceed_amount_before_tax": "Thuế và phí không thể lớn hơn số tiền trước thuế.",
+    "break_down_charge": "Chi tiết phí/thuế",
+    "add_charge_line": "Thêm dòng phí",
+    "remove_charge_line": "Xóa dòng",
+    "charge_line_label": "Tên phí/thuế",
+    "charge_line_amount": "Số tiền",
+    "placeholder_fee_line": "ví dụ: Phí môi giới",
+    "placeholder_tax_line": "ví dụ: Thuế tem",
+    "err_option_contract_required": "Chọn hợp đồng quyền chọn đã hết hạn, không phải cổ phiếu cơ sở.",
+    "err_charge_label_required": "Nhập tên phí.",
+    "err_charge_amount_required": "Nhập số tiền.",
+    "err_charge_lines_total": "Hãy chia nhỏ tổng số tiền này.",
+    "err_charge_lines_precision": "Tổng số tiền quá chính xác. Sử dụng số tiền nhỏ hơn hoặc ít chữ số thập phân hơn."
   },
   "datagrid": {
     "pagination": {
@@ -916,7 +928,9 @@
       "summarySkipTop_one": "Bỏ qua dòng đầu: {{count}}",
       "summarySkipTop_other": "Bỏ qua dòng đầu: {{count}}",
       "summarySkipBottom_one": "Bỏ qua dòng cuối: {{count}}",
-      "summarySkipBottom_other": "Bỏ qua dòng cuối: {{count}}"
+      "summarySkipBottom_other": "Bỏ qua dòng cuối: {{count}}",
+      "numberFormatWarningTitle": "Kiểm tra định dạng số",
+      "numberFormatWarningDescription": "Một số cột có định dạng số mơ hồ hoặc xung đột ({{columns}}). Kiểm tra các giá trị này hoặc chọn dấu phân cách thập phân trong Cài đặt phân tích ở bước Tải lên."
     },
     "template": {
       "label": "Mẫu",
@@ -1201,7 +1215,34 @@
       "editDialogDescription": "Điều chỉnh chi tiết tài sản đã phân giải. Chỉnh sửa chỉ áp dụng cho lần nhập này.",
       "createDialogDescription": "Tạo tài sản mới và liên kết các dòng này ngay lập tức.",
       "useEditedAsset": "Sử dụng tài sản đã chỉnh sửa",
-      "createAsset": "Tạo tài sản"
+      "createAsset": "Tạo tài sản",
+      "transactionCount_one": "{{count}} giao dịch",
+      "transactionCount_other": "{{count}} giao dịch",
+      "checkingTitle": "Đang khớp tài sản",
+      "checkingDescription": "Đang kiểm tra tài sản duy nhất so với tài sản hiện có và các nhà cung cấp dữ liệu thị trường đã bật.",
+      "slowTitle": "Việc khớp tài sản đang mất nhiều thời gian hơn bình thường",
+      "slowDescription": "Chúng tôi vẫn đang chờ kết quả. Bạn có thể tiếp tục chờ hoặc quay lại phần ánh xạ.",
+      "checked": "Tài sản đã kiểm tra: {{completed}} / {{total}}",
+      "elapsed": "Đã trôi qua: {{seconds}} giây",
+      "savedDescription": "Không có hoạt động hoặc vị thế nào được nhập. Tệp và các ánh xạ của bạn đã được giữ lại.",
+      "retryRemaining": "Kiểm tra các tài sản còn lại ({{remaining}})",
+      "timeoutTitle": "Việc khớp tài sản đã hết thời gian chờ",
+      "timeoutDescription": "Yêu cầu đã kết thúc trước khi tất cả kết quả được trả về. Các kết quả khớp đã hoàn thành được giữ lại. Hãy thử lại với các tài sản còn lại.",
+      "networkTitle": "Không thể kết nối với máy chủ",
+      "networkDescription": "Kiểm tra kết nối và thử lại. Các kết quả khớp đã hoàn thành được giữ lại.",
+      "providerTitle": "Dữ liệu thị trường không khả dụng",
+      "providerDescription": "Một nhà cung cấp dữ liệu thị trường không khả dụng. Hãy thử lại sau. Các kết quả khớp đã hoàn thành được giữ lại.",
+      "tooLargeTitle": "Yêu cầu tài sản quá lớn",
+      "tooLargeDescription": "Máy chủ hoặc proxy đã từ chối yêu cầu này vì quá lớn. Hãy thử tệp CSV nhỏ hơn hoặc kiểm tra giới hạn kích thước yêu cầu.",
+      "failedDescription": "Chúng tôi không thể hoàn tất việc kiểm tra tài sản. Các kết quả khớp đã hoàn thành được giữ lại. Hãy thử lại với các tài sản còn lại.",
+      "continueCheckingTitle": "Tiếp tục khớp tài sản",
+      "partialDescription": "Các kết quả khớp đã hoàn thành được giữ lại. Kiểm tra các tài sản còn lại trước khi tiếp tục.",
+      "editingPaused": "Bạn có thể chỉnh sửa các kết quả khớp đã hoàn thành khi việc kiểm tra kết thúc.",
+      "technicalDetails": "Chi tiết kỹ thuật",
+      "selfHostedHelp": "Đối với thiết lập tự lưu trữ (self-hosted), hãy kiểm tra kết nối máy chủ, các nhà cung cấp đã bật, cũng như giới hạn yêu cầu và thời gian chờ của reverse-proxy.",
+      "copyDiagnostics": "Sao chép chẩn đoán",
+      "copied": "Đã sao chép chẩn đoán. Nội dung tệp và giá trị tài chính đã được loại trừ.",
+      "copyFailed": "Không thể sao chép. Bạn có thể chọn và sao chép chi tiết ở trên."
     },
     "holdings": {
       "columns": "Cột",

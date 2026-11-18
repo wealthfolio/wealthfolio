@@ -71,12 +71,14 @@
   },
   "networth": {
     "attention": {
-      "title": "Cần chú ý",
+      "missing_fx": "Thiếu tỷ giá hối đoái:",
+      "review_valuation": "Xem xét các vấn đề định giá",
+      "title": "Chú ý",
       "update_value": "Cập nhật giá trị",
       "update_balance": "Cập nhật số dư",
-      "link_property": "Liên kết bất động sản với {{name}}",
-      "add_property": "Thêm bất động sản cho {{name}}",
-      "link_explanation": "Liên kết một bất động sản hiện có không làm thay đổi giá trị tài sản ròng của bạn."
+      "link_property": "Liên kết tài sản: {{name}}",
+      "add_property": "Thêm tài sản: {{name}}",
+      "link_explanation": "Giải thích về liên kết"
     },
     "failed_to_load": "Không thể tải giá trị tài sản ròng",
     "days_ago": "{{count}} ngày trước",
@@ -136,17 +138,23 @@
     "days_ago_other": "{{count}} ngày trước"
   },
   "highlights": {
-    "movers": "Biến động mạnh nhất",
-    "concentration": "Độ tập trung",
-    "daily": "Biến động trong ngày · vị thế hiện tại",
-    "rank_by": "Xếp hạng biến động ngày theo",
+    "holdings": "Vị thế nắm giữ",
+    "holdings_count_one": "{{count}} vị thế",
+    "holdings_count_other": "{{count}} vị thế",
+    "other_holdings_one": "{{count}} vị thế khác",
+    "other_holdings_other": "{{count}} vị thế khác",
+    "holdings_unavailable": "Biểu đồ vị thế cần các giá trị vị thế dương và danh mục không có vị thế bán khống.",
+    "movers": "Di chuyển",
+    "concentration": "Tập trung",
+    "daily": "Hàng ngày",
+    "rank_by": "Xếp hạng theo",
     "gainers": "Tăng giá",
     "losers": "Giảm giá",
-    "no_moves": "Không có biến động nào có sẵn dữ liệu.",
-    "portfolio_share": "Tỷ trọng trong danh mục, bao gồm tiền mặt",
-    "largest": "Vị thế lớn nhất",
-    "top_five": "Top 5 vị thế lớn nhất",
-    "concentration_unavailable": "Độ tập trung cần giá trị vị thế dương và một danh mục không có vị thế bán khống."
+    "no_moves": "Không có thay đổi",
+    "portfolio_share": "Tỷ trọng danh mục",
+    "largest": "Lớn nhất",
+    "top_five": "Top 5",
+    "concentration_unavailable": "Thông tin tập trung không khả dụng"
   },
   "customize": {
     "edit": "Tùy chỉnh",
