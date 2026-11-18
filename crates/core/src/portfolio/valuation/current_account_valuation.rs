@@ -7,12 +7,12 @@ use crate::{
     accounts::{account_supports_portfolio_scope, Account, AccountPurpose, AccountServiceTrait},
     assets::{Asset, AssetServiceTrait, InstrumentType},
     errors::Result,
-    fx::{currency::normalize_amount, FxServiceTrait},
+    fx::{currency::normalize_amount, FxConversionIssue, FxServiceTrait},
     portfolio::{
         snapshot::{AccountStateSnapshot, SnapshotServiceTrait},
         valuation::{
             CurrentAccountValuation, CurrentValuationResponse, CurrentValuationSplit,
-            CurrentValuationSummary,
+            CurrentValuationSummary, ValuationStatus,
         },
     },
     quotes::{LatestQuotePair, QuoteServiceTrait},
@@ -23,8 +23,7 @@ const MISSING_ASSET_WARNING: &str =
     "Some asset details are missing, so this value may be incomplete.";
 const MISSING_QUOTE_WARNING: &str =
     "Some market prices are missing, so this value may be incomplete.";
-const MISSING_FX_WARNING: &str =
-    "Some exchange rates are missing, so this value may be approximate.";
+const MISSING_FX_WARNING: &str = "Some exchange rates are missing, so the total is unavailable.";
 
 pub struct CurrentAccountValuationService<'a> {
     account_service: &'a dyn AccountServiceTrait,
@@ -209,6 +208,8 @@ where
     R: Into<CurrentValuationRate>,
 {
     let mut summary = CurrentValuationSummary {
+        value_status: ValuationStatus::Complete,
+        missing_fx: Vec::new(),
         scope_id: scope_id.to_string(),
         base_currency: base_currency.to_string(),
         cash_balance_base: Decimal::ZERO,
@@ -248,6 +249,17 @@ where
             },
         };
 
+        summary.value_status = summary
+            .value_status
+            .combine(computation.valuation.value_status);
+        summary.missing_fx.extend(
+            computation
+                .valuation
+                .missing_fx
+                .iter()
+                .filter(|issue| issue.to_currency == base_currency)
+                .cloned(),
+        );
         summary.cash_balance_base += computation.valuation.cash_balance_base;
         summary.investment_market_value_base += computation.valuation.investment_market_value_base;
         summary.total_value_base += computation.valuation.total_value_base;
@@ -272,6 +284,8 @@ where
         cash_base_totals,
         summary.cash_balance_base,
     );
+    summary.missing_fx.sort();
+    summary.missing_fx.dedup();
     summary.warnings.sort();
     summary.warnings.dedup();
 
@@ -348,6 +362,8 @@ where
     let mut cash_local_totals: HashMap<String, Decimal> = HashMap::new();
     let mut summary_warnings = Vec::new();
     let mut account_warnings = Vec::new();
+    let mut has_known_base_value = false;
+    let mut has_known_account_value = false;
 
     let account_fx_rate = latest_rate(&account.currency, base_currency).into();
     valuation.fx_rate_to_base = account_fx_rate
@@ -362,31 +378,43 @@ where
     for (cash_currency, amount) in &snapshot.cash_balances {
         let (normalized_amount, normalized_cash_currency) =
             normalize_amount(*amount, cash_currency);
-        let account_value = normalized_amount
-            * rate_for(
-                &mut account_warnings,
-                latest_rate,
-                normalized_cash_currency,
-                &account.currency,
-            );
-        let base_value = normalized_amount
-            * rate_for(
-                &mut summary_warnings,
-                latest_rate,
-                normalized_cash_currency,
-                base_currency,
-            );
-        valuation.cash_balance += account_value;
-        valuation.cash_balance_base += base_value;
+        let account_value = converted_amount(
+            normalized_amount,
+            &mut account_warnings,
+            &mut valuation.account_value_status,
+            &mut valuation.missing_fx,
+            &format!("CASH:{}:{}", account.id, normalized_cash_currency),
+            latest_rate,
+            normalized_cash_currency,
+            &account.currency,
+        );
+        let base_value = converted_amount(
+            normalized_amount,
+            &mut summary_warnings,
+            &mut valuation.value_status,
+            &mut valuation.missing_fx,
+            &format!("CASH:{}:{}", account.id, normalized_cash_currency),
+            latest_rate,
+            normalized_cash_currency,
+            base_currency,
+        );
+        has_known_account_value |= !normalized_amount.is_zero() && account_value.is_some();
+        has_known_base_value |= !normalized_amount.is_zero() && base_value.is_some();
+        valuation.cash_balance += account_value.unwrap_or_default();
+        valuation.cash_balance_base += base_value.unwrap_or_default();
 
         if !normalized_amount.is_zero() {
             holdings_count += 1;
             add_total(
                 &mut currency_base_totals,
                 normalized_cash_currency,
-                base_value,
+                base_value.unwrap_or_default(),
             );
-            add_total(&mut cash_base_totals, normalized_cash_currency, base_value);
+            add_total(
+                &mut cash_base_totals,
+                normalized_cash_currency,
+                base_value.unwrap_or_default(),
+            );
             add_total(
                 &mut cash_local_totals,
                 normalized_cash_currency,
@@ -405,6 +433,12 @@ where
                 "Skipping current valuation for position {} in account {} because asset metadata is missing",
                 asset_id, account.id
             );
+            valuation.value_status = valuation
+                .value_status
+                .combine(ValuationStatus::PartialUnpriced);
+            valuation.account_value_status = valuation
+                .account_value_status
+                .combine(ValuationStatus::PartialUnpriced);
             summary_warnings.push(MISSING_ASSET_WARNING.to_string());
             account_warnings.push(MISSING_ASSET_WARNING.to_string());
             continue;
@@ -421,6 +455,12 @@ where
                 "Missing latest quote for asset {} in account {}. Current market value treated as zero.",
                 asset_id, account.id
             );
+            valuation.value_status = valuation
+                .value_status
+                .combine(ValuationStatus::PartialUnpriced);
+            valuation.account_value_status = valuation
+                .account_value_status
+                .combine(ValuationStatus::PartialUnpriced);
             summary_warnings.push(MISSING_QUOTE_WARNING.to_string());
             account_warnings.push(MISSING_QUOTE_WARNING.to_string());
             continue;
@@ -435,29 +475,43 @@ where
             normalize_amount(quote_pair.latest.close, &quote_pair.latest.currency);
         let market_value_quote =
             normalized_price * position.quantity * position.contract_multiplier;
-        let market_value_base = market_value_quote
-            * rate_for(
-                &mut summary_warnings,
-                latest_rate,
-                normalized_quote_currency,
-                base_currency,
-            );
-
-        valuation.investment_market_value += market_value_quote
-            * rate_for(
-                &mut account_warnings,
-                latest_rate,
-                normalized_quote_currency,
-                &account.currency,
-            );
-        valuation.investment_market_value_base += market_value_base;
-        add_total(
-            &mut currency_base_totals,
+        let market_value_base = converted_amount(
+            market_value_quote,
+            &mut summary_warnings,
+            &mut valuation.value_status,
+            &mut valuation.missing_fx,
+            asset_id,
+            latest_rate,
             normalized_quote_currency,
-            market_value_base,
+            base_currency,
         );
+        let market_value_account = converted_amount(
+            market_value_quote,
+            &mut account_warnings,
+            &mut valuation.account_value_status,
+            &mut valuation.missing_fx,
+            asset_id,
+            latest_rate,
+            normalized_quote_currency,
+            &account.currency,
+        );
+        has_known_account_value |= market_value_account.is_some();
+        has_known_base_value |= market_value_base.is_some();
+        valuation.investment_market_value += market_value_account.unwrap_or_default();
+        valuation.investment_market_value_base += market_value_base.unwrap_or_default();
+        if let Some(value) = market_value_base {
+            add_total(&mut currency_base_totals, normalized_quote_currency, value);
+        }
     }
 
+    if valuation.value_status == ValuationStatus::PartialUnpriced && !has_known_base_value {
+        valuation.value_status = ValuationStatus::Unavailable;
+    }
+    if valuation.account_value_status == ValuationStatus::PartialUnpriced
+        && !has_known_account_value
+    {
+        valuation.account_value_status = ValuationStatus::Unavailable;
+    }
     valuation.total_value = valuation.cash_balance + valuation.investment_market_value;
     valuation.total_value_base =
         valuation.cash_balance_base + valuation.investment_market_value_base;
@@ -465,6 +519,8 @@ where
     summary_warnings.dedup();
     account_warnings.sort();
     account_warnings.dedup();
+    valuation.missing_fx.sort();
+    valuation.missing_fx.dedup();
     valuation.warnings = account_warnings;
 
     AccountValuationComputation {
@@ -477,16 +533,41 @@ where
     }
 }
 
-fn rate_for<F, R>(warnings: &mut Vec<String>, latest_rate: &mut F, from: &str, to: &str) -> Decimal
+#[allow(clippy::too_many_arguments)]
+fn converted_amount<F, R>(
+    amount: Decimal,
+    warnings: &mut Vec<String>,
+    status: &mut ValuationStatus,
+    issues: &mut Vec<FxConversionIssue>,
+    item_id: &str,
+    latest_rate: &mut F,
+    from: &str,
+    to: &str,
+) -> Option<Decimal>
 where
     F: FnMut(&str, &str) -> R,
     R: Into<CurrentValuationRate>,
 {
-    let lookup = latest_rate(from, to).into();
-    if let Some(warning) = lookup.warning {
-        warnings.push(warning);
+    if amount.is_zero() || from == to {
+        return Some(amount);
     }
-    lookup.rate
+    let lookup = latest_rate(from, to).into();
+    if lookup.warning.is_some() || lookup.rate <= Decimal::ZERO {
+        warnings.push(
+            lookup
+                .warning
+                .unwrap_or_else(|| MISSING_FX_WARNING.to_string()),
+        );
+        *status = ValuationStatus::Unavailable;
+        issues.push(FxConversionIssue {
+            item_id: item_id.to_string(),
+            from_currency: from.to_string(),
+            to_currency: to.to_string(),
+        });
+        None
+    } else {
+        Some(amount * lookup.rate)
+    }
 }
 
 fn zero_current_account_valuation(
@@ -495,6 +576,9 @@ fn zero_current_account_valuation(
     calculated_at: DateTime<Utc>,
 ) -> CurrentAccountValuation {
     CurrentAccountValuation {
+        value_status: ValuationStatus::Complete,
+        account_value_status: ValuationStatus::Complete,
+        missing_fx: Vec::new(),
         account_id: account.id.clone(),
         account_currency: account.currency.clone(),
         base_currency: base_currency.to_string(),
@@ -552,6 +636,8 @@ fn empty_current_valuation_response(
 ) -> CurrentValuationResponse {
     CurrentValuationResponse {
         summary: CurrentValuationSummary {
+            value_status: ValuationStatus::Complete,
+            missing_fx: Vec::new(),
             scope_id: scope_id.to_string(),
             base_currency: base_currency.to_string(),
             cash_balance_base: Decimal::ZERO,
@@ -712,10 +798,10 @@ impl<'a> FxRateCache<'a> {
             Ok(rate) => (rate, None),
             Err(error) => {
                 warn!(
-                    "Falling back to FX rate 1 while calculating current valuation from {} to {}: {}",
+                    "Exchange rate unavailable while calculating current valuation from {} to {}: {}",
                     from, to, error
                 );
-                (Decimal::ONE, Some(MISSING_FX_WARNING.to_string()))
+                (Decimal::ZERO, Some(MISSING_FX_WARNING.to_string()))
             }
         };
         let latest_rate = CurrentValuationRate { rate, warning };

@@ -823,6 +823,230 @@ async fn mcp_call_tool(
     result["result"]["structuredContent"].clone()
 }
 
+#[tokio::test]
+async fn mcp_valuation_history_includes_inactive_accounts() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "history reader", "scopes": ["holdings:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+
+    // Seed stored history directly so the read test does not depend on a
+    // background rebuild or market data.
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let db_path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    assert!(db_path.is_file());
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(db_path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    db.execute_batch(
+        "INSERT INTO accounts (id, name, currency, is_active, is_archived) VALUES
+            ('inactive', 'Inactive account', 'USD', false, false),
+            ('archived', 'Archived account', 'USD', false, true);
+         INSERT INTO daily_account_valuation (
+            id, account_id, valuation_date, account_currency, base_currency,
+            fx_rate_to_base, cash_balance, investment_market_value, total_value,
+            cost_basis, net_contribution, cash_balance_base, total_value_base
+         ) VALUES
+            ('inactive-history', 'inactive', '2026-04-01', 'USD', 'USD',
+             '1', '125', '0', '125', '0', '0', '125', '125'),
+            ('archived-history', 'archived', '2026-04-01', 'USD', 'USD',
+             '1', '50', '0', '50', '0', '0', '50', '50');",
+    )
+    .unwrap();
+
+    let result = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_valuation_history",
+        serde_json::json!({ "startDate": "2026-04-01", "endDate": "2026-04-01" }),
+    )
+    .await;
+    let valuations = result["valuations"].as_array().unwrap();
+    assert_eq!(valuations.len(), 1, "{result}");
+    assert_eq!(valuations[0]["date"], "2026-04-01");
+    assert_eq!(valuations[0]["totalValue"], 125.0);
+}
+
+/// Portfolio-wide holdings, allocation and cash reads include an inactive
+/// account, as the app's screens do.
+#[tokio::test]
+async fn mcp_portfolio_reads_include_inactive_accounts() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, asset_id, fund_pat, fund_session) = fund_holding_session(&server, &cookie).await;
+    let account_id = account["id"].as_str().unwrap();
+    // Leave cash in the account, so the cash read has a balance to list.
+    api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": account_id, "activityType": "DEPOSIT", "amount": "5",
+            "activityDate": "2026-07-27T12:00:00Z", "currency": "EUR"
+        }),
+    )
+    .await;
+    await_valuation(
+        &server,
+        &fund_pat,
+        &fund_session,
+        &account,
+        "2026-08-31",
+        25.0,
+    )
+    .await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "reader", "scopes": ["holdings:read", "accounts:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+    api_put(
+        &server,
+        &cookie,
+        &format!("accounts/{account_id}"),
+        serde_json::json!({
+            "id": account_id, "name": "Statement", "accountType": "SECURITIES",
+            "isDefault": false, "isActive": false, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+
+    let holdings = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_holdings",
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(
+        holdings["holdings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|holding| holding["assetId"] == asset_id.as_str()),
+        "{holdings}"
+    );
+
+    let allocation = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_asset_allocation",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(allocation["totalValue"], 25.0, "{allocation}");
+
+    let cash = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_cash_balances",
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(
+        cash["accounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|summary| summary["accountId"] == account_id),
+        "{cash}"
+    );
+}
+
+/// The portfolio-wide cash read covers the accounts the app's cash view
+/// does. A credit card has no holdings calculation, so it reads as pending
+/// on its own; left in the portfolio-wide read, it hid the cash total.
+#[tokio::test]
+async fn mcp_cash_balances_leave_out_credit_cards() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let card = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Card", "accountType": "CREDIT_CARD", "currency": "USD",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+    let card_id = card["id"].as_str().unwrap();
+    api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": card_id, "activityType": "WITHDRAWAL", "amount": "7",
+            "activityDate": "2026-07-27T12:00:00Z", "currency": "USD"
+        }),
+    )
+    .await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "reader", "scopes": ["accounts:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let alone = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_cash_balances",
+        serde_json::json!({ "accountId": card_id }),
+    )
+    .await;
+    assert_eq!(alone["accounts"][0]["accountId"], card_id, "{alone}");
+    assert_eq!(alone["accounts"][0]["status"], "pending", "{alone}");
+
+    let all = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_cash_balances",
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(
+        !all["accounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|summary| summary["accountId"] == card_id),
+        "{all}"
+    );
+    assert!(all["grandTotalBase"].is_number(), "{all}");
+}
+
 /// #2534: an agent creates an account and updates it after a preview. A name
 /// clash and a credit card in HOLDINGS mode are refused, the currency is fixed
 /// after creation, and fields left out of an update keep their stored values.

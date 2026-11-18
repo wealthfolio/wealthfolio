@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/co
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { isHoldingsScopeReady } from "@/lib/holdings-scope";
 
 interface CashHoldingsSheetProps {
   currency: string;
@@ -48,7 +49,8 @@ export function CashHoldingsSheet({
     queryKey: [QueryKeys.ASSET_HOLDINGS, assetId, accountFilter],
     queryFn: () => getAssetHoldingsScope(assetId, accountFilter),
   });
-  const isComplete = scope !== undefined && !isError && scope.incompleteAccounts.length === 0;
+  const isComplete =
+    scope !== undefined && !isError && isHoldingsScopeReady(scope.incompleteAccounts);
   const balancesByAccount = new Map<string, CashAccountBalance>();
   for (const row of scope?.holdings ?? []) {
     if (row.holdingType !== HoldingType.CASH || row.localCurrency !== currency) continue;

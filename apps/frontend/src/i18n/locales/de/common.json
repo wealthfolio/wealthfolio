@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "Gesamtwert nicht verfügbar: Einige Kurse oder Wechselkurse fehlen.",
+  "known_subtotal": "Bekannte Zwischensumme",
   "periodReturn": "Rendite {{period}}",
   "currentValue": "Aktueller Wert",
   "welcome": "Willkommen",
@@ -705,6 +707,7 @@
     "addonMainFileMissing": "Die ZIP-Datei des Add-ons enthält nicht die Hauptdatei, die im Manifest angegeben ist.",
     "addonNeedsNewerVersion": "Dieses Add-on erfordert eine neuere Version von Wealthfolio. Aktualisieren Sie Wealthfolio und versuchen Sie es erneut.",
     "quoteCurrencyRequired": "Eine Kurswährung ist erforderlich. Wählen Sie das Symbol erneut aus den Suchergebnissen aus.",
+    "duplicateActivity": "Eine passende Aktivität ist bereits vorhanden, daher wurde diese nicht gespeichert.",
     "alternativeAssetNotInAccount": "Immobilien, Fahrzeuge, Sammlerstücke, Edelmetalle, Verbindlichkeiten und andere persönliche Vermögenswerte zählen eigenständig zum Nettovermögen und können nicht in einem Konto gehalten werden. Um einen eigenen Vermögenswert in einem Konto zu halten, fügen Sie ihn als Investition hinzu.",
     "rateLimited": "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut."
   }

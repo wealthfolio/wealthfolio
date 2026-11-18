@@ -40,6 +40,7 @@ use std::sync::{Arc, RwLock};
 use super::holdings_accounting::{apply_history, snapshot_cost, translate};
 use super::{
     HoldingsRead, HoldingsScope, HoldingsValuationServiceTrait, IncompleteHoldingsAccount,
+    CALCULATION_REQUIRED,
 };
 
 #[async_trait]
@@ -318,7 +319,7 @@ impl HoldingsService {
                 ids.retain(|id| read.could_hold_asset(id, &asset_id));
             }
             read.carry_observed_splits()?;
-            let converter = Arc::new(CurrencyConverter::new(read.fx_rates.clone())?);
+            let converter = Arc::new(CurrencyConverter::new(std::mem::take(&mut read.fx_rates))?);
             let mut scope = HoldingsScope::default();
             for id in &ids {
                 if let Some(reason_code) = read.unavailable_reason(id) {
@@ -329,6 +330,22 @@ impl HoldingsService {
                     });
                     continue;
                 }
+                // A due or running calculation does not hide the account: its
+                // last calculated holdings are returned and it is reported as
+                // pending until the job's completion refreshes the read.
+                let pending =
+                    read.position_pending(id, read.day)
+                        .then(|| IncompleteHoldingsAccount {
+                            account_id: id.clone(),
+                            status: "pending",
+                            reason_code: if read.accounting_unready(id, read.day) {
+                                CALCULATION_REQUIRED
+                            } else if read.day_advance_pending(id, read.day) {
+                                "DAY_ADVANCE_PENDING"
+                            } else {
+                                "PROJECTION_PENDING"
+                            },
+                        });
                 match Self::prepare_read(
                     &read,
                     &converter,
@@ -338,16 +355,17 @@ impl HoldingsService {
                     detail_asset.as_deref(),
                     aggregate,
                 ) {
-                    Ok(holdings) => scope.holdings.extend(holdings),
-                    Err(CoreError::HoldingsPending(_)) => {
+                    Ok(holdings) => {
+                        scope.holdings.extend(holdings);
+                        scope.incomplete_accounts.extend(pending);
+                    }
+                    // Nothing to show for an account whose calculation is due:
+                    // report its holdings as withheld until it runs.
+                    Err(_) if pending.is_some() => {
                         scope.incomplete_accounts.push(IncompleteHoldingsAccount {
                             account_id: id.clone(),
                             status: "pending",
-                            reason_code: if read.day_advance_pending(id, read.day) {
-                                "DAY_ADVANCE_PENDING"
-                            } else {
-                                "PROJECTION_PENDING"
-                            },
+                            reason_code: CALCULATION_REQUIRED,
                         })
                     }
                     Err(_) => scope.incomplete_accounts.push(IncompleteHoldingsAccount {
@@ -386,7 +404,13 @@ impl HoldingsService {
             } else {
                 holdings
             };
-            if !scope.incomplete_accounts.is_empty() {
+            // Weights need every account's holdings; accounts only waiting for
+            // a calculation are included with their last ones.
+            if scope
+                .incomplete_accounts
+                .iter()
+                .any(IncompleteHoldingsAccount::withholds_holdings)
+            {
                 for holding in &mut scope.holdings {
                     holding.weight = None;
                 }
@@ -418,7 +442,7 @@ impl HoldingsService {
         lots_asset: Option<&str>,
         aggregate: bool,
     ) -> Result<Vec<Holding>> {
-        if read.position_pending(account_id, read.day) {
+        if read.accounting_unready(account_id, read.day) {
             return Err(CoreError::HoldingsPending(vec![account_id.to_string()]));
         }
         if read.unavailable_accounts.contains(account_id) {
@@ -2680,6 +2704,7 @@ mod tests {
         const ASSET_ID: &str = "cad-stock";
 
         include!("holdings_health_tests.rs");
+        include!("holdings_income_parity_tests.rs");
 
         struct Fixture {
             now: chrono::DateTime<Utc>,
@@ -2921,7 +2946,13 @@ mod tests {
             MonetaryValue::new(local, base)
         }
 
-        async fn assert_pending(holdings: &HoldingsService, account: &str, base: &str) {
+        /// No calculation can be shown yet (never valued, or a snapshot without
+        /// base-currency provenance): holdings are withheld until it runs.
+        async fn assert_calculation_required(
+            holdings: &HoldingsService,
+            account: &str,
+            base: &str,
+        ) {
             assert!(matches!(
                 holdings.get_holdings(account, base).await,
                 Err(CoreError::HoldingsPending(_))
@@ -2937,6 +2968,36 @@ mod tests {
             assert!(scope.holdings.is_empty());
             assert_eq!(scope.incomplete_accounts.len(), 1);
             assert_eq!(scope.incomplete_accounts[0].status, "pending");
+            assert_eq!(
+                scope.incomplete_accounts[0].reason_code,
+                CALCULATION_REQUIRED
+            );
+        }
+
+        /// A calculation is due: the account keeps returning its last
+        /// calculated holdings and is reported as pending until it finishes.
+        async fn assert_pending(holdings: &HoldingsService, account: &str, base: &str) {
+            assert!(!holdings
+                .get_holdings(account, base)
+                .await
+                .unwrap()
+                .is_empty());
+            assert!(holdings
+                .get_holding(account, ASSET_ID, base)
+                .await
+                .unwrap()
+                .is_some());
+            let scope = holdings
+                .get_holdings_scope(&[account.to_string()], base, account, false)
+                .await
+                .unwrap();
+            assert!(!scope.holdings.is_empty());
+            assert_eq!(scope.incomplete_accounts.len(), 1);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+            assert_ne!(
+                scope.incomplete_accounts[0].reason_code,
+                CALCULATION_REQUIRED
+            );
         }
 
         #[tokio::test]
@@ -2993,6 +3054,12 @@ mod tests {
                 .store
                 .mark(MarkerScope::Account(account.id.clone()), GENESIS);
             assert_pending(&holdings, &account.id, "CAD").await;
+            // Until the edit is calculated, the account shows its last
+            // calculation whole: cost 100 at price 110, not a mix with 120.
+            assert_eq!(
+                holding(&holdings, &account.id).await.unrealized_gain,
+                Some(money(dec!(10), dec!(10)))
+            );
 
             // Save the real new snapshot, then fail before the real lot-book commit.
             fixture.store.fail_next_completion();
@@ -3220,6 +3287,61 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn pending_account_keeps_its_realized_gain_and_income() {
+            let account = account("cad-account", "CAD", TrackingMode::Transactions);
+            let mut purchase = buy(&account.id, "CAD", dec!(100));
+            purchase.quantity = Some(dec!(2));
+            purchase.amount = Some(dec!(200));
+            let mut sale = test_income_activity(
+                "sale",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_SELL,
+                dec!(110),
+                "CAD",
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            );
+            sale.quantity = Some(dec!(1));
+            sale.unit_price = Some(dec!(110));
+            let dividend = test_income_activity(
+                "dividend",
+                &account.id,
+                Some(ASSET_ID),
+                ACTIVITY_TYPE_DIVIDEND,
+                dec!(7),
+                "CAD",
+                NaiveDate::from_ymd_opt(2025, 1, 4).unwrap(),
+            );
+            let fixture = Fixture::new(vec![purchase, sale, dividend], Vec::new());
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![account.clone()]);
+            run(&coordinator).await;
+            let calculated = holding(&holdings, &account.id).await;
+            assert_eq!(calculated.realized_gain, Some(money(dec!(10), dec!(10))));
+            assert_eq!(calculated.income, Some(money(dec!(7), dec!(7))));
+            assert!(calculated.total_return.is_some());
+
+            // While a calculation is due the account keeps all of these.
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(account.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            assert_pending(&holdings, &account.id, "CAD").await;
+            let pending = holding(&holdings, &account.id).await;
+            assert_eq!(pending.realized_gain, calculated.realized_gain);
+            assert_eq!(pending.income, calculated.income);
+            assert_eq!(pending.total_return, calculated.total_return);
+            assert_eq!(pending.total_return_pct, calculated.total_return_pct);
+
+            run(&coordinator).await;
+            assert_eq!(
+                holding(&holdings, &account.id).await.total_return,
+                calculated.total_return
+            );
+        }
+
+        #[tokio::test]
         async fn issue_2487_base_currency_change_keeps_realized_gain_currency() {
             let account = account("cad-account", "CAD", TrackingMode::Transactions);
             let mut purchase = buy(&account.id, "CAD", dec!(100));
@@ -3347,7 +3469,7 @@ mod tests {
             use crate::portfolio::snapshot::SnapshotRepositoryTrait;
             fixture.snapshots.save_snapshots(&[legacy]).await.unwrap();
             fixture.store.mark(MarkerScope::All, GENESIS);
-            assert_pending(&holdings, &account.id, "CAD").await;
+            assert_calculation_required(&holdings, &account.id, "CAD").await;
             run(&coordinator).await;
             for holding in both_reads(&holdings, &account.id, "CAD").await {
                 assert_eq!(holding.cost_basis, Some(money(dec!(100), dec!(200))));
@@ -3865,7 +3987,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn issue_2487_pending_account_keeps_healthy_peers_without_complete_weights() {
+        async fn issue_2487_pending_account_keeps_its_last_holdings_beside_healthy_peers() {
             let first = account("first", "CAD", TrackingMode::Transactions);
             let second = account("second", "CAD", TrackingMode::Transactions);
             let fixture = Fixture::new(
@@ -3889,13 +4011,61 @@ mod tests {
                 .unwrap();
             assert_eq!(scope.incomplete_accounts.len(), 1);
             assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+            // The pending account keeps its last calculated position in the
+            // total, so weights still cover the whole scope.
             let security = scope
                 .holdings
                 .iter()
                 .find(|holding| holding.holding_type == HoldingType::Security)
                 .unwrap();
-            assert_eq!(security.quantity, dec!(1));
-            assert_eq!(security.cost_basis, Some(money(dec!(80), dec!(80))));
+            assert_eq!(security.quantity, dec!(2));
+            assert_eq!(security.cost_basis, Some(money(dec!(180), dec!(180))));
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.weight.is_some()));
+            assert!(!scope.require_complete().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn pending_account_with_nothing_to_show_is_withheld_from_strict_reads() {
+            let first = account("first", "CAD", TrackingMode::Transactions);
+            let second = account("second", "CAD", TrackingMode::Transactions);
+            let fixture = Fixture::new(
+                vec![
+                    buy(&first.id, "CAD", dec!(100)),
+                    buy(&second.id, "CAD", dec!(80)),
+                ],
+                Vec::new(),
+            );
+            let _clock = crate::utils::clock::freeze(fixture.now);
+            let (coordinator, holdings, _) = fixture.services(vec![first.clone(), second.clone()]);
+            run(&coordinator).await;
+            // Its calculation is due and its last snapshot is gone: the read has
+            // nothing calculated to return for it.
+            use crate::portfolio::snapshot::SnapshotRepositoryTrait;
+            fixture
+                .snapshots
+                .delete_snapshots_by_account_ids(std::slice::from_ref(&first.id))
+                .await
+                .unwrap();
+            fixture
+                .store
+                .invalidate(MarkerScope::Account(first.id.clone()), GENESIS)
+                .await
+                .unwrap();
+            let scope = holdings
+                .get_holdings_scope(&[first.id.clone(), second.id.clone()], "CAD", "all", false)
+                .await
+                .unwrap();
+            assert_eq!(scope.incomplete_accounts.len(), 1);
+            assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+            assert_eq!(
+                scope.incomplete_accounts[0].reason_code,
+                CALCULATION_REQUIRED
+            );
             assert!(scope
                 .holdings
                 .iter()
@@ -3932,7 +4102,7 @@ mod tests {
                 .invalidate(MarkerScope::Account(account.id.clone()), GENESIS)
                 .await
                 .unwrap();
-            assert_pending(&holdings, &account.id, "CAD").await;
+            assert_calculation_required(&holdings, &account.id, "CAD").await;
             run(&coordinator).await;
             assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
         }
@@ -4023,8 +4193,17 @@ mod tests {
                 .get_asset_holdings_scope(&ids, "cash:CAD", "CAD")
                 .await
                 .unwrap();
-            assert_eq!(partial.holdings.len(), 1);
-            assert_eq!(partial.holdings[0].account_id, second.id);
+            // The pending account keeps its last calculated cash row.
+            assert_eq!(partial.holdings.len(), 2);
+            assert_eq!(
+                partial
+                    .holdings
+                    .iter()
+                    .map(|row| row.market_value.local.unwrap())
+                    .sum::<Decimal>(),
+                dec!(-180)
+            );
+            assert_eq!(partial.incomplete_accounts.len(), 1);
             assert_eq!(partial.incomplete_accounts[0].account_id, first.id);
             assert_eq!(partial.incomplete_accounts[0].status, "pending");
         }
@@ -4133,8 +4312,13 @@ mod tests {
                 .get_asset_holdings_scope(&ids, ASSET_ID, "CAD")
                 .await
                 .unwrap();
-            assert_eq!(scope.holdings.len(), 1);
-            assert_eq!(scope.holdings[0].account_id, second.id);
+            // Both accounts keep a row; the pending one shows its last calculation.
+            assert_eq!(scope.holdings.len(), 2);
+            assert!(scope
+                .holdings
+                .iter()
+                .all(|holding| holding.quantity == dec!(1) && ids.contains(&holding.account_id)));
+            assert_eq!(scope.incomplete_accounts.len(), 1);
             assert_eq!(scope.incomplete_accounts[0].account_id, first.id);
             assert_eq!(scope.incomplete_accounts[0].status, "pending");
         }
@@ -4383,10 +4567,19 @@ mod tests {
             assert!(fixture.store.pending_markers().unwrap().is_empty());
             drop(clock);
             let _clock = crate::utils::clock::freeze(fixture.now + chrono::Duration::days(1));
-            assert!(matches!(
-                holdings.get_holdings(&account.id, "CAD").await,
-                Err(CoreError::HoldingsPending(_))
-            ));
+            // The buy that became due waits for the update the frontend asks
+            // for; meanwhile the account shows its last calculation.
+            assert_eq!(holding(&holdings, &account.id).await.quantity, dec!(1));
+            let scope = holdings
+                .get_holdings_scope(std::slice::from_ref(&account.id), "CAD", &account.id, false)
+                .await
+                .unwrap();
+            assert_eq!(scope.incomplete_accounts.len(), 1);
+            assert_eq!(scope.incomplete_accounts[0].status, "pending");
+            assert_eq!(
+                scope.incomplete_accounts[0].reason_code,
+                "DAY_ADVANCE_PENDING"
+            );
             run(&coordinator).await;
             let result = holding(&holdings, &account.id).await;
             assert_eq!(result.quantity, dec!(2));

@@ -16,12 +16,19 @@ import {
   Empty,
   EmptyHeader,
   EmptyDescription,
+  Icons,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@wealthfolio/ui";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 interface DrillableAccountChartProps {
   isLoading?: boolean;
+  isUnavailable?: boolean;
   accountIds?: string[];
   accountValuations?: AccountValueSource[];
   onAccountClick?: (accountId: string, accountName: string) => void;
@@ -34,11 +41,13 @@ interface DrillableAccountChartProps {
  */
 export function DrillableAccountChart({
   isLoading: isLoadingProp,
+  isUnavailable,
   accountIds,
   accountValuations,
   onAccountClick,
 }: DrillableAccountChartProps) {
   const { t } = useTranslation();
+  const unavailableHintId = useId();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const [activeIndex, setActiveIndex] = useState(0);
@@ -211,7 +220,7 @@ export function DrillableAccountChart({
         )}
       </CardHeader>
       <CardContent className="px-5 pt-0 pb-5">
-        {data.length > 0 ? (
+        {!isUnavailable && data.length > 0 ? (
           <DonutChart
             data={data}
             activeIndex={activeIndex}
@@ -222,7 +231,33 @@ export function DrillableAccountChart({
         ) : (
           <Empty>
             <EmptyHeader>
-              <EmptyDescription>{t("holdings:no_account_data")}</EmptyDescription>
+              <EmptyDescription className="flex items-center justify-center">
+                {t(isUnavailable ? "performance:not_available" : "holdings:no_account_data")}
+                {isUnavailable && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to="/health"
+                            aria-label={t("common:component.open_health_center_for", {
+                              label: t("holdings:account_allocation"),
+                            })}
+                            aria-describedby={unavailableHintId}
+                            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex size-8 items-center justify-center rounded-full focus-visible:outline-2"
+                          />
+                        }
+                      >
+                        <Icons.Info className="size-3.5" aria-hidden="true" />
+                      </TooltipTrigger>
+                      <TooltipContent id={unavailableHintId} role="tooltip">
+                        <p>{t("common:valuation_incomplete")}</p>
+                        <p>{t("common:notifications.review_the_details_in_the_health_center")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}

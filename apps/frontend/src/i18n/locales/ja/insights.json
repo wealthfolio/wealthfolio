@@ -71,6 +71,8 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "為替レートなし：",
+      "review_valuation": "評価の問題を確認",
       "title": "確認が必要な項目",
       "update_value": "評価額を更新",
       "update_balance": "残高を更新",

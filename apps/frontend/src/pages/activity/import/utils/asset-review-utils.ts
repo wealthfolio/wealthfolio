@@ -10,6 +10,7 @@ import type {
   SymbolSearchResult,
 } from "@/lib/types";
 import type { DraftActivity } from "../context";
+import type { AssetPreviewError } from "./asset-preview-error";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
 
 export function applyAssetResolution(
@@ -187,7 +188,35 @@ export function buildImportAssetCandidateFromDraft(
     isin: draft.isin,
     providerId: draft.providerId,
     providerSymbol: draft.providerSymbol,
+    name: draft.symbolName,
   };
+}
+
+export function getImportAssetCandidates(drafts: DraftActivity[]): ImportAssetCandidate[] {
+  const candidates = new Map<string, ImportAssetCandidate>();
+  for (const draft of drafts) {
+    const candidate = buildImportAssetCandidateFromDraft(draft);
+    if (candidate && !candidates.has(candidate.key)) candidates.set(candidate.key, candidate);
+  }
+  return [...candidates.values()];
+}
+
+/** Manual searches may merge two candidate rows onto one existing asset. */
+export function getUnreviewedAssetCandidates(
+  drafts: DraftActivity[],
+  items: ImportAssetPreviewItem[],
+): ImportAssetCandidate[] {
+  const checkedKeys = new Set(items.map((item) => item.key));
+  const existingIds = new Set(
+    items.filter((item) => item.status === "EXISTING_ASSET").map((item) => item.assetId),
+  );
+  for (const draft of drafts) {
+    if (draft.assetId && existingIds.has(draft.assetId)) {
+      const candidate = buildImportAssetCandidateFromDraft(draft);
+      if (candidate) checkedKeys.add(candidate.key);
+    }
+  }
+  return getImportAssetCandidates(drafts).filter((candidate) => !checkedKeys.has(candidate.key));
 }
 
 export function buildNewAssetFromSearchResult(
@@ -337,7 +366,7 @@ export interface AssetReviewProceedInput {
   parsedRowCount: number;
   draftActivities: DraftActivity[];
   isPreviewingAssets: boolean;
-  assetPreviewError: string | null;
+  assetPreviewError: AssetPreviewError | null;
   assetPreviewItems: ImportAssetPreviewItem[];
 }
 
@@ -376,6 +405,7 @@ export function canProceedFromAssetReviewStep({
 
   return (
     assetPreviewItems.length > 0 &&
+    getUnreviewedAssetCandidates(draftActivities, assetPreviewItems).length === 0 &&
     assetPreviewItems.every((item) => item.status !== "NEEDS_FIXING")
   );
 }

@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "一部の価格または為替レートが不明なため、合計を表示できません。",
+  "known_subtotal": "確認済みの小計",
   "periodReturn": "{{period}}のリターン",
   "currentValue": "現在の評価額",
   "app_name": "Wealthfolio",
@@ -694,6 +696,7 @@
     "addonMainFileMissing": "アドオンの ZIP ファイルに、マニフェストで指定されたメインファイルがありません。",
     "addonNeedsNewerVersion": "このアドオンには新しいバージョンの Wealthfolio が必要です。Wealthfolio を更新してから、もう一度お試しください。",
     "quoteCurrencyRequired": "建値通貨が必要です。検索結果から銘柄コードを選び直してください。",
+    "duplicateActivity": "同じ内容のアクティビティがすでにあるため、このアクティビティは保存されませんでした。",
     "alternativeAssetNotInAccount": "不動産、車両、コレクション品、貴金属、負債などの個人資産は純資産に個別に計上され、口座で保有することはできません。カスタム資産を口座で保有するには、投資として追加してください。",
     "rateLimited": "リクエストが多すぎます。1 分ほど待ってから、もう一度お試しください。"
   }

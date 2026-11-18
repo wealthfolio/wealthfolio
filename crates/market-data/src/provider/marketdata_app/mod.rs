@@ -19,7 +19,6 @@ use reqwest::Client;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::SymbolResolver;
 use std::time::Duration;
 
 use crate::errors::MarketDataError;
@@ -29,9 +28,6 @@ use crate::resolver::ResolverChain;
 
 const BASE_URL: &str = "https://api.marketdata.app/v1";
 const PROVIDER_ID: &str = "MARKETDATA_APP";
-
-/// Default HTTP request timeout
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Response from the candles endpoint for historical data.
 #[derive(Debug, Deserialize)]
@@ -87,8 +83,7 @@ pub struct MarketDataAppProvider {
 impl MarketDataAppProvider {
     /// Create a new MarketData.app provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(REQUEST_TIMEOUT)
+        let client = crate::provider::http_client_builder()
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
@@ -141,16 +136,6 @@ impl MarketDataAppProvider {
                 provider: PROVIDER_ID.to_string(),
                 message: e.to_string(),
             })
-    }
-
-    /// Get the currency: prefer exchange metadata, fall back to asset's quote_ccy.
-    fn get_currency(context: &QuoteContext) -> String {
-        let chain = ResolverChain::new();
-        chain
-            .get_currency(&PROVIDER_ID.into(), context)
-            .or_else(|| context.currency_hint.clone())
-            .map(|c| c.to_string())
-            .unwrap_or_else(|| "USD".to_string())
     }
 
     fn historical_candles_url(symbol: &str, start: &str, end: &str) -> String {
@@ -247,7 +232,7 @@ impl MarketDataProvider for MarketDataAppProvider {
                 message: format!("Failed to convert price {} to Decimal", mid_price),
             }
         })?;
-        let currency = Self::get_currency(context);
+        let currency = ResolverChain::new().quote_currency(&PROVIDER_ID.into(), context);
 
         Ok(Quote::new(
             timestamp,
@@ -301,7 +286,7 @@ impl MarketDataProvider for MarketDataAppProvider {
             return Err(MarketDataError::NoDataForRange);
         }
 
-        let currency = Self::get_currency(context);
+        let currency = ResolverChain::new().quote_currency(&PROVIDER_ID.into(), context);
 
         // Build quotes from parallel arrays, filtering out invalid prices
         let mut quotes = Vec::with_capacity(closes.len());
@@ -395,28 +380,7 @@ impl MarketDataProvider for MarketDataAppProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::borrow::Cow;
     use std::sync::Arc;
-
-    fn create_test_fx_context(
-        currency_hint: Option<&'static str>,
-        quote: &'static str,
-    ) -> QuoteContext {
-        use crate::models::InstrumentId;
-
-        QuoteContext {
-            instrument: InstrumentId::Fx {
-                base: Cow::Borrowed("EUR"),
-                quote: Cow::Borrowed(quote),
-            },
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: currency_hint.map(Cow::Borrowed),
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        }
-    }
 
     #[test]
     fn test_provider_id() {
@@ -450,19 +414,6 @@ mod tests {
         assert_eq!(rate.requests_per_minute, 100);
         assert_eq!(rate.max_concurrency, 10);
         assert_eq!(rate.min_delay, Duration::from_millis(100));
-    }
-
-    #[test]
-    fn test_get_currency_prefers_resolver_over_hint() {
-        // FX resolver returns the quote currency ("CAD"), which takes priority over hint
-        let context = create_test_fx_context(Some("TWD"), "CAD");
-        assert_eq!(MarketDataAppProvider::get_currency(&context), "CAD");
-    }
-
-    #[test]
-    fn test_get_currency_falls_back_to_resolver_when_hint_missing() {
-        let context = create_test_fx_context(None, "CAD");
-        assert_eq!(MarketDataAppProvider::get_currency(&context), "CAD");
     }
 
     #[test]

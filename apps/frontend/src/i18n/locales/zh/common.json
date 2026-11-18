@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "部分价格或汇率缺失，合计暂不可用。",
+  "known_subtotal": "已知小计",
   "periodReturn": "{{period}}回报",
   "currentValue": "当前价值",
   "app_name": "Wealthfolio",
@@ -694,6 +696,7 @@
     "addonMainFileMissing": "插件 ZIP 文件中没有其清单指定的主文件。",
     "addonNeedsNewerVersion": "此插件需要更新版本的 Wealthfolio。请更新 Wealthfolio 后重试。",
     "quoteCurrencyRequired": "需要报价货币。请从搜索结果中重新选择代码。",
+    "duplicateActivity": "已存在相同的活动，因此未保存此活动。",
     "alternativeAssetNotInAccount": "房产、车辆、收藏品、贵金属、负债和其他个人资产单独计入净资产，不能在账户中持有。要在账户中持有自定义资产，请将其添加为投资。",
     "rateLimited": "请求过多。请稍等一分钟后重试。"
   }

@@ -1,5 +1,5 @@
 use crate::accounts::{account_supports_purpose, Account, AccountPurpose, AccountServiceTrait};
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use crate::goals::goals_model::{
     AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
     GoalSummariesUpdated, GoalSummaryUpdate, GoalUpdate, NewGoal,
@@ -102,6 +102,39 @@ fn compute_goal_value_from_shares(
     } else {
         value
     }
+}
+
+fn funding_valuations_available(
+    rules: &[GoalFundingRule],
+    valuations: &AccountValuationMap,
+    account_service: &dyn AccountServiceTrait,
+) -> Result<bool> {
+    let missing: Vec<String> = rules
+        .iter()
+        .filter(|rule| rule.share_percent > 0.0 && !valuations.contains_key(&rule.account_id))
+        .map(|rule| rule.account_id.clone())
+        .collect();
+    if missing.is_empty() {
+        return Ok(true);
+    }
+    // An excluded account still contributes zero, as before. Only an eligible
+    // account omitted for incomplete valuation must make this goal unavailable.
+    let accounts = account_service
+        .get_accounts_by_ids(&missing)?
+        .into_iter()
+        .filter(|account| account.is_active && !account.is_archived)
+        .collect();
+    Ok(
+        crate::portfolio::valuation::filter_current_valuation_accounts(Some(&missing), accounts)
+            .is_empty(),
+    )
+}
+
+fn has_frozen_goal_value(goal: &Goal) -> bool {
+    matches!(
+        goal.status_lifecycle.as_str(),
+        GOAL_LIFECYCLE_ACHIEVED | GOAL_LIFECYCLE_ARCHIVED
+    ) && goal.summary_current_value.is_some()
 }
 
 fn build_account_share_totals(rules: &[GoalFundingRule]) -> HashMap<String, f64> {
@@ -667,6 +700,24 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
             return Ok(goal);
         }
         let rules = self.load_counted_funding_rules(&goal)?;
+        if !has_frozen_goal_value(&goal)
+            && !funding_valuations_available(&rules, valuations, self.account_service.as_ref())?
+        {
+            self.goal_repo
+                .update_goal_summary_fields(
+                    goal_id,
+                    GoalSummaryUpdate {
+                        summary_target_amount: goal.target_amount,
+                        summary_current_value: None,
+                        summary_progress: None,
+                        projected_completion_date: None,
+                        projected_value_at_target_date: None,
+                        status_health: "not_applicable".into(),
+                    },
+                )
+                .await?;
+            return self.goal_repo.load_goal(goal_id);
+        }
         let current = compute_summary_current_value(&goal, &rules, valuations);
         let mut update = GoalSummaryUpdate {
             summary_target_amount: goal.target_amount,
@@ -776,6 +827,16 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         normalize_retirement_plan_ages(&mut retirement_plan, as_of);
         validate_retirement_plan(&retirement_plan)?;
 
+        if !funding_valuations_available(
+            &funding_rules,
+            valuation_map,
+            self.account_service.as_ref(),
+        )? {
+            return Err(Error::Unexpected(
+                "A funding account value is unavailable; check missing exchange rates or prices"
+                    .into(),
+            ));
+        }
         let current_portfolio = compute_goal_value_from_shares(&funding_rules, valuation_map);
         let bucket_balances = compute_tax_bucket_balances(&funding_rules, valuation_map);
 
@@ -1132,6 +1193,9 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         response
             .accounts
             .into_iter()
+            // Keep only exact values. A missing entry is unavailable, not zero;
+            // each goal validates only the accounts its positive shares use.
+            .filter(|v| v.value_status.is_complete())
             .map(|v| {
                 let total = v
                     .total_value_base
@@ -1167,7 +1231,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         if goals.is_empty() {
             return Ok(Vec::new());
         }
-        // A missing/invalid base total aborts the batch rather than understating balances.
+        // Incomplete accounts are omitted; each goal validates its own funding scope.
         let valuations = self.current_valuation_map().await?;
         let mut refreshed = Vec::new();
         for goal in goals {
@@ -1228,6 +1292,18 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         let plan = self.goal_repo.load_goal_plan(goal_id)?;
         let funding_rules = self.goal_repo.load_funding_rules(goal_id)?;
 
+        if !has_frozen_goal_value(&goal)
+            && !funding_valuations_available(
+                &funding_rules,
+                valuation_map,
+                self.account_service.as_ref(),
+            )?
+        {
+            return Err(Error::Unexpected(
+                "A funding account value is unavailable; check missing exchange rates or prices"
+                    .into(),
+            ));
+        }
         let current_value = compute_summary_current_value(&goal, &funding_rules, valuation_map);
 
         // Parse settings from plan if it exists
@@ -2681,11 +2757,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn summary_valuations_use_stored_snapshots_quotes_and_fx_without_provider_fetches() {
+    async fn summary_valuations_isolate_unrelated_missing_fx_without_provider_fetches() {
         use crate::portfolio::snapshot::SnapshotRepositoryTrait;
         use crate::test_support::in_memory::*;
         use crate::test_support::scenario::{as_of_instant, load_all_scenarios};
-        let facts = load_all_scenarios()
+        let mut facts = load_all_scenarios()
             .into_iter()
             .map(|scenario| scenario.facts())
             .find(|facts| {
@@ -2696,7 +2772,32 @@ mod tests {
             })
             .expect("an observed holdings fixture");
         let _clock = crate::utils::clock::freeze(as_of_instant(facts.as_of, &facts.timezone));
-        let repo = Arc::new(MockGoalRepository::new(vec![test_goal("active", None)]));
+        let mut unrelated = facts.accounts[0].clone();
+        unrelated.id = "unrelated-cop".into();
+        unrelated.currency = "COP".into();
+        facts.accounts.push(unrelated);
+        let mut unknown_snapshot = facts.observed_snapshots[0].clone();
+        unknown_snapshot.id = "unrelated-snapshot".into();
+        unknown_snapshot.account_id = "unrelated-cop".into();
+        unknown_snapshot.currency = "COP".into();
+        unknown_snapshot.positions.clear();
+        unknown_snapshot.cash_balances =
+            HashMap::from([("COP".into(), rust_decimal_macros::dec!(100000))]);
+        facts.observed_snapshots.push(unknown_snapshot);
+        let mut incomplete_goal = test_goal("active", Some(12345.0));
+        incomplete_goal.summary_progress = Some(0.5);
+        incomplete_goal.projected_completion_date = Some("2027-12-31".into());
+        incomplete_goal.projected_value_at_target_date = Some(25000.0);
+        incomplete_goal.status_health = "on_track".into();
+        incomplete_goal.id = "incomplete-goal".into();
+        let repo = Arc::new(MockGoalRepository::new(vec![
+            test_goal("active", None),
+            incomplete_goal,
+        ]));
+        repo.set_funding_rules(
+            "incomplete-goal",
+            vec![share_rule("incomplete-goal", "unrelated-cop", 100.0)],
+        );
         let account_id = facts.observed_snapshots[0].account_id.clone();
         repo.set_funding_rules("goal-1", vec![share_rule("goal-1", &account_id, 100.0)]);
         // These doubles panic on provider/sync methods. Real services may only use stored data.
@@ -2728,26 +2829,82 @@ mod tests {
         )));
         use crate::fx::FxServiceTrait;
         fx.initialize().unwrap();
-        let service = GoalService::new(
-            repo,
-            Arc::new(MockAccountService {
-                accounts: Mutex::new(facts.accounts),
-            }),
-        )
-        .with_valuation_services(GoalValuationServices {
-            snapshots: snapshot_service,
-            assets,
-            quotes,
-            fx,
-            base_currency: Arc::new(RwLock::new(facts.base_currency)),
+        let account_service = Arc::new(MockAccountService {
+            accounts: Mutex::new(facts.accounts),
         });
+        let service = GoalService::new(repo, account_service.clone()).with_valuation_services(
+            GoalValuationServices {
+                snapshots: snapshot_service,
+                assets,
+                quotes,
+                fx,
+                base_currency: Arc::new(RwLock::new(facts.base_currency)),
+            },
+        );
         let values = service.current_valuation_map().await.unwrap();
         assert!(values.contains_key(&account_id));
+        assert!(!values.contains_key("unrelated-cop"));
+        let unavailable = service
+            .refresh_goal_summary("incomplete-goal")
+            .await
+            .unwrap();
+        assert_eq!(unavailable.summary_current_value, None);
+        let stored = service.goal_repo.load_goal("incomplete-goal").unwrap();
+        assert_eq!(stored.summary_current_value, None);
+        assert_eq!(stored.summary_progress, None);
+        assert_eq!(stored.projected_completion_date, None);
+        assert_eq!(stored.projected_value_at_target_date, None);
+        assert_eq!(stored.status_health, "not_applicable");
+        assert!(service
+            .compute_save_up_overview("incomplete-goal", &values)
+            .await
+            .is_err());
+        let refreshed = service.refresh_all_goal_summaries().await.unwrap();
+        assert_eq!(refreshed.len(), 2);
+        assert!(refreshed.iter().any(|goal| goal.id == "goal-1"));
+        assert!(refreshed
+            .iter()
+            .any(|goal| goal.id == "incomplete-goal" && goal.summary_current_value.is_none()));
+        let mut recovered = values.clone();
+        recovered.insert("unrelated-cop".into(), 250.0);
+        service
+            .refresh_summary_with_valuations("incomplete-goal", &recovered)
+            .await
+            .unwrap();
+        let stored = service.goal_repo.load_goal("incomplete-goal").unwrap();
+        assert_eq!(stored.summary_current_value, Some(250.0));
         let summary = service.refresh_goal_summary("goal-1").await.unwrap();
         assert_eq!(
             summary.summary_current_value,
             values.get(&account_id).copied()
         );
+        for (active, archived) in [(true, true), (false, false)] {
+            {
+                let mut accounts = account_service.accounts.lock().unwrap();
+                let excluded = accounts
+                    .iter_mut()
+                    .find(|account| account.id == "unrelated-cop")
+                    .unwrap();
+                excluded.is_active = active;
+                excluded.is_archived = archived;
+            }
+            let summary = service
+                .refresh_goal_summary("incomplete-goal")
+                .await
+                .unwrap();
+            assert_eq!(
+                summary.summary_current_value,
+                Some(0.0),
+                "intentionally excluded funding accounts contribute zero"
+            );
+            assert!(service
+                .compute_save_up_overview(
+                    "incomplete-goal",
+                    &service.current_valuation_map().await.unwrap()
+                )
+                .await
+                .is_ok());
+        }
     }
 
     #[tokio::test]

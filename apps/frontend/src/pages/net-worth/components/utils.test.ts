@@ -44,6 +44,16 @@ function point(overrides: Partial<ParsedHistoryPoint>): ParsedHistoryPoint {
 }
 
 describe("net worth utils", () => {
+  it("does not derive growth by bridging incomplete history", () => {
+    expect(
+      parseHistory([
+        rawPoint({ netWorth: 100 }),
+        rawPoint({ date: "2024-01-02", valueStatus: "unavailable", netWorth: 100000 }),
+        rawPoint({ date: "2024-01-03", netWorth: 120 }),
+      ]),
+    ).toEqual([]);
+  });
+
   it("parses history and breakdown values into finite numbers", () => {
     const parsed = parseHistory([
       rawPoint({

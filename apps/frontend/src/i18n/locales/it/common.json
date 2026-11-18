@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "Totale non disponibile: mancano alcuni prezzi o tassi di cambio.",
+  "known_subtotal": "Subtotale noto",
   "periodReturn": "Rendimento {{period}}",
   "currentValue": "Valore attuale",
   "app_name": "Wealthfolio",
@@ -722,6 +724,7 @@
     "addonMainFileMissing": "Il file ZIP del componente aggiuntivo non contiene il file principale indicato nel suo manifest.",
     "addonNeedsNewerVersion": "Questo componente aggiuntivo richiede una versione più recente di Wealthfolio. Aggiorna Wealthfolio e riprova.",
     "quoteCurrencyRequired": "La valuta di quotazione è obbligatoria. Seleziona di nuovo il simbolo dai risultati di ricerca.",
+    "duplicateActivity": "Esiste già un'attività corrispondente, quindi questa non è stata salvata.",
     "alternativeAssetNotInAccount": "Immobili, veicoli, oggetti da collezione, metalli preziosi, passività e altri asset personali contano a parte nel patrimonio netto e non possono essere detenuti in un conto. Per detenere un asset personalizzato in un conto, aggiungilo come investimento.",
     "rateLimited": "Troppe richieste. Attendi un minuto e riprova."
   }

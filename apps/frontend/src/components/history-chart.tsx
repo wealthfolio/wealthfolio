@@ -19,6 +19,8 @@ import {
 import { getAutomaticHistoryChartScale, type HistoryChartScaleMode } from "./history-chart-scale";
 
 export interface HistoryChartData {
+  /** An unknown value must form a gap, never a zero or a line between neighbours. */
+  isUnavailable?: boolean;
   date: string;
   totalValue: number;
   netContribution: number;
@@ -88,7 +90,7 @@ const CustomTooltip = ({
   const tvPayload = totalValueData?.payload;
   const ncPayload = netContributionData?.payload;
 
-  if (!tvPayload) {
+  if (!tvPayload || tvPayload.isUnavailable) {
     return null;
   }
 
@@ -137,7 +139,7 @@ const CustomTooltip = ({
 };
 
 export function HistoryChart({
-  data,
+  data: sourceData,
   isLoading,
   snapshotDates,
   markerLabels,
@@ -160,6 +162,14 @@ export function HistoryChart({
   const id = useId();
   const fillGradientId = `historyFill-${id}`;
   const strokeGradientId = `historyStroke-${id}`;
+  const data = useMemo(() => sourceData.filter((point) => !point.isUnavailable), [sourceData]);
+  const plotData = useMemo(
+    () =>
+      sourceData.map((point) =>
+        point.isUnavailable ? { ...point, totalValue: null, netContribution: null } : point,
+      ),
+    [sourceData],
+  );
   const scaleConfig = useMemo(
     () =>
       getAutomaticHistoryChartScale(data, {
@@ -267,7 +277,7 @@ export function HistoryChart({
   return (
     <ChartContainer config={chartConfig} className="h-full w-full" data-no-swipe-drag>
       <AreaChart
-        data={data}
+        data={plotData}
         stackOffset="sign"
         style={{
           cursor: showMarkers && isChartHovered && hoveredMarker ? "pointer" : undefined,
@@ -363,7 +373,7 @@ export function HistoryChart({
         <Area
           animationDuration={300}
           animationEasing="ease-out"
-          connectNulls={true}
+          connectNulls={false}
           type="monotone"
           dataKey="totalValue"
           stroke={`url(#${strokeGradientId})`}
@@ -383,7 +393,7 @@ export function HistoryChart({
           <Area
             animationDuration={300}
             animationEasing="ease-out"
-            connectNulls={true}
+            connectNulls={false}
             type="monotone"
             dataKey="netContribution"
             stroke="var(--muted-foreground)"

@@ -76,6 +76,8 @@
   },
   "networth": {
     "attention": {
+      "missing_fx": "Taxa de câmbio em falta:",
+      "review_valuation": "Rever problemas de avaliação",
       "title": "Precisa de atenção",
       "update_value": "Atualizar valor",
       "update_balance": "Atualizar saldo",

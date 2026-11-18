@@ -5,8 +5,8 @@ use crate::activities::ActivityDB;
 use crate::assets::AssetDB;
 use crate::fx::FxRepository;
 use crate::schema::{
-    accounts, activities, app_settings, assets, holdings_snapshots, lot_disposals, lots,
-    projection_state,
+    accounts, activities, app_settings, assets, daily_account_valuation, holdings_snapshots,
+    lot_disposals, lots, projection_state,
 };
 use wealthfolio_core::accounts::Account;
 use wealthfolio_core::activities::Activity;
@@ -172,7 +172,19 @@ pub(super) fn read(
             }
         }
         let markers = load_markers(conn)?;
-        let last_valued = load_last_valued(conn)?;
+        // Each MAX uses the existing (account_id, valuation_date) index instead
+        // of scanning the entire portfolio's valuation history on every read.
+        let mut last_valued = HashMap::new();
+        for account_id in requested {
+            let day: Option<String> = daily_account_valuation::table
+                .filter(daily_account_valuation::account_id.eq(account_id))
+                .select(diesel::dsl::max(daily_account_valuation::valuation_date))
+                .first(conn)
+                .map_err(StorageError::from)?;
+            if let Some(day) = day.as_deref().and_then(parse_day) {
+                last_valued.insert(account_id.clone(), day);
+            }
+        }
         let failed_accounts = projection_state::table
             .filter(projection_state::scope.eq_any(&closure))
             .filter(projection_state::dirty_from.is_not_null())

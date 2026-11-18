@@ -156,6 +156,24 @@ describe("AccountMetrics", () => {
     expect(screen.getByText("value:CAD:34")).toBeInTheDocument();
   });
 
+  it.each(["unavailable", "partialUnpriced"] as const)(
+    "withholds all-time return for a %s known subtotal",
+    (valueStatus) => {
+      render(
+        <AccountMetrics
+          valuation={createValuation({
+            totalValue: 20,
+            netContribution: 100,
+            valueStatus,
+          })}
+        />,
+      );
+      expect(screen.getByText("All-time Return")).toBeInTheDocument();
+      expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText("gain-amount:-80")).not.toBeInTheDocument();
+    },
+  );
+
   it("does not show unrealized P&L when cost basis is incomplete", () => {
     render(
       <AccountMetrics

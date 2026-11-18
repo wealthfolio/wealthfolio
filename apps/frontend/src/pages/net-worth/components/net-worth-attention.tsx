@@ -8,6 +8,7 @@ import { useAlternativeHoldings } from "@/hooks/use-alternative-assets";
 import {
   AlternativeAssetKind,
   type AlternativeAssetHolding,
+  type FxConversionIssue,
   type StaleAssetInfo,
 } from "@/lib/types";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components/alternative-asset-quick-add-modal";
@@ -19,6 +20,8 @@ const ADD_PROPERTY_OPTION = "__add_property__";
 
 interface NetWorthAttentionCardProps {
   staleAssets: StaleAssetInfo[];
+  hasIncompleteValuation?: boolean;
+  missingFx?: FxConversionIssue[];
   holdings: AlternativeAssetHolding[];
   isLinking?: boolean;
   onLink: (liabilityId: string, propertyId: string) => void;
@@ -27,12 +30,17 @@ interface NetWorthAttentionCardProps {
 
 export function NetWorthAttentionCard({
   staleAssets,
+  hasIncompleteValuation = false,
+  missingFx = [],
   holdings,
   isLinking,
   onLink,
   onAddProperty,
 }: NetWorthAttentionCardProps) {
   const { t } = useTranslation();
+  const missingFxPairs = [
+    ...new Set(missingFx.map((issue) => `${issue.fromCurrency} → ${issue.toCurrency}`)),
+  ];
   const properties = holdings.filter((holding) => holding.kind.toLowerCase() === "property");
   // Older quick-add records can lack a type even when the form displayed Mortgage.
   // Offer the optional property action for those records without inferring their type.
@@ -42,7 +50,13 @@ export function NetWorthAttentionCard({
       (!holding.metadata?.sub_type || holding.metadata.sub_type === "mortgage") &&
       !holding.linkedAssetId,
   );
-  if (!staleAssets.length && !unlinkedLiabilities.length) return null;
+  if (
+    !staleAssets.length &&
+    !unlinkedLiabilities.length &&
+    !hasIncompleteValuation &&
+    !missingFxPairs.length
+  )
+    return null;
 
   return (
     <section
@@ -60,6 +74,28 @@ export function NetWorthAttentionCard({
           {t("insights:networth.attention.title")}
         </h3>
       </div>
+      {(hasIncompleteValuation || missingFxPairs.length > 0) && (
+        <div className="ms-9 mt-3 space-y-1.5">
+          {(missingFxPairs.length > 0 ? missingFxPairs : [null]).map((pair) => (
+            <Link
+              key={pair ?? "valuation"}
+              to="/health"
+              className="flex w-fit items-center gap-1 text-xs underline underline-offset-4"
+            >
+              <span>
+                {pair ? (
+                  <>
+                    {t("insights:networth.attention.missing_fx")} <bdi>{pair}</bdi>
+                  </>
+                ) : (
+                  t("insights:networth.attention.review_valuation")
+                )}
+              </span>
+              <Icons.ChevronRight className="size-3 shrink-0 rtl:rotate-180" />
+            </Link>
+          ))}
+        </div>
+      )}
       {staleAssets.length > 0 && (
         <div className="ms-9 mt-3">
           <p className="text-muted-foreground text-xs">
@@ -139,7 +175,15 @@ export function NetWorthAttentionCard({
   );
 }
 
-export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo[] }) {
+export function NetWorthAttention({
+  staleAssets,
+  hasIncompleteValuation,
+  missingFx,
+}: {
+  staleAssets: StaleAssetInfo[];
+  hasIncompleteValuation?: boolean;
+  missingFx?: FxConversionIssue[];
+}) {
   const { data: holdings = [], isError } = useAlternativeHoldings();
   const { linkLiabilityMutation: linkLiability } = useAlternativeAssetMutations();
   const [liabilityId, setLiabilityId] = useState<string | null>(null);
@@ -147,6 +191,8 @@ export function NetWorthAttention({ staleAssets }: { staleAssets: StaleAssetInfo
     <>
       <NetWorthAttentionCard
         staleAssets={staleAssets}
+        hasIncompleteValuation={hasIncompleteValuation}
+        missingFx={missingFx}
         holdings={isError ? [] : holdings}
         isLinking={linkLiability.isPending}
         onLink={(liabilityId, targetAssetId) =>

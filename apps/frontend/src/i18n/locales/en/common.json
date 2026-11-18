@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "Total unavailable: some prices or exchange rates are missing.",
+  "known_subtotal": "Known subtotal",
   "periodReturn": "{{period}} · Return",
   "currentValue": "Current value",
   "app_name": "Wealthfolio",
@@ -705,6 +707,7 @@
     "addonMainFileMissing": "The add-on ZIP file doesn't contain the main file its manifest names.",
     "addonNeedsNewerVersion": "This add-on needs a newer version of Wealthfolio. Update Wealthfolio, then try again.",
     "quoteCurrencyRequired": "Quote currency is required. Select the symbol again from the search results.",
+    "duplicateActivity": "A matching activity already exists, so this one was not saved.",
     "alternativeAssetNotInAccount": "Properties, vehicles, collectibles, precious metals, liabilities and other personal assets count toward net worth on their own and can't be held in an account. To hold a custom asset in an account, add it as an investment.",
     "rateLimited": "Too many requests. Wait a minute and try again."
   }

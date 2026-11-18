@@ -69,7 +69,9 @@ pub use service::HealthService;
 
 // Re-export fix types
 pub use fixes::{
-    get_migration_status, migrate_legacy_classifications, MigrationResult, MigrationStatus,
+    get_migration_status, match_option_expiry_contracts, migrate_legacy_classifications,
+    MatchOptionExpiryContractsPayload, MigrationResult, MigrationStatus,
+    MATCH_OPTION_EXPIRY_CONTRACTS_FIX,
 };
 
 // Re-export data gathering functions from checks

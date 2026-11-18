@@ -18,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@wealthfolio/ui/components/ui/dialog";
 import {
   Form,
@@ -49,6 +48,7 @@ import {
   getCurrencyDisplayLabel,
   getQuoteUnitCurrency,
   MoneyInput,
+  Spinner,
   worldCurrencies,
 } from "@wealthfolio/ui";
 
@@ -72,9 +72,14 @@ interface ExchangeRateFormData {
 interface AddExchangeRateFormProps {
   onSubmit: (newRate: Omit<ExchangeRate, "id">) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
-export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormProps) {
+export function AddExchangeRateForm({
+  onSubmit,
+  onCancel,
+  isSubmitting = false,
+}: AddExchangeRateFormProps) {
   const { t, i18n } = useTranslation();
   const currencyLabel = (code: string) => {
     const currency = worldCurrencies.find((item) => item.value === code);
@@ -142,6 +147,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
   const isManualSource = selectedSource === "MANUAL";
 
   const handleSubmit = (data: ExchangeRateFormData) => {
+    if (isSubmitting) return;
     onSubmit({
       fromCurrency: data.fromCurrency,
       toCurrency: data.toCurrency,
@@ -279,7 +285,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
           <DialogDescription>{t("settings:fx_add_subtitle")}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-10 p-4">
+        <fieldset disabled={isSubmitting} className="grid gap-10 p-4">
           {renderCurrencyField("fromCurrency")}
           {renderCurrencyField("toCurrency")}
 
@@ -346,14 +352,19 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
               )}
             />
           )}
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <DialogTrigger render={<Button variant="outline" onClick={onCancel} />}>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             {t("common:cancel")}
-          </DialogTrigger>
-          <Button type="submit">
-            <Icons.Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+            aria-label={t("settings:fx_add_title")}
+          >
+            {isSubmitting ? <Spinner className="h-4 w-4" /> : <Icons.Plus className="h-4 w-4" />}
             <span className="hidden sm:ms-2 sm:inline">{t("settings:fx_add_title")}</span>
           </Button>
         </DialogFooter>

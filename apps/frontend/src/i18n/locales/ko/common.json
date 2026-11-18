@@ -1,4 +1,6 @@
 {
+  "valuation_incomplete": "일부 가격 또는 환율을 확인할 수 없어 합계를 표시할 수 없습니다.",
+  "known_subtotal": "확인된 소계",
   "periodReturn": "{{period}} 수익률",
   "currentValue": "현재 가치",
   "app_name": "Wealthfolio",
@@ -694,6 +696,7 @@
     "addonMainFileMissing": "애드온 ZIP 파일에 매니페스트가 지정한 메인 파일이 없습니다.",
     "addonNeedsNewerVersion": "이 애드온에는 최신 버전의 Wealthfolio가 필요합니다. Wealthfolio를 업데이트한 후 다시 시도하세요.",
     "quoteCurrencyRequired": "호가 통화가 필요합니다. 검색 결과에서 심볼을 다시 선택하세요.",
+    "duplicateActivity": "일치하는 활동이 이미 있어 이 활동은 저장되지 않았습니다.",
     "alternativeAssetNotInAccount": "부동산, 차량, 수집품, 귀금속, 부채 등 개인 자산은 순자산에 별도로 반영되며 계좌에 보유할 수 없습니다. 맞춤 자산을 계좌에 보유하려면 투자로 추가하세요.",
     "rateLimited": "요청이 너무 많습니다. 1분 후에 다시 시도하세요."
   }
