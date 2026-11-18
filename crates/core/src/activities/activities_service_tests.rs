@@ -1936,25 +1936,14 @@ pub(crate) mod tests {
 
         fn get_activity_bounds_for_assets(
             &self,
-            asset_ids: &[String],
+            _asset_ids: &[String],
         ) -> Result<
             std::collections::HashMap<
                 String,
                 (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>),
             >,
         > {
-            let activities = self.activities.lock().unwrap();
-            Ok(asset_ids
-                .iter()
-                .filter_map(|asset_id| {
-                    let day = activities
-                        .iter()
-                        .find(|activity| activity.asset_id.as_deref() == Some(asset_id))?
-                        .activity_date
-                        .date_naive();
-                    Some((asset_id.clone(), (Some(day), Some(day))))
-                })
-                .collect())
+            Ok(std::collections::HashMap::new())
         }
 
         fn get_holdings_snapshot_bounds_for_assets(
@@ -23348,7 +23337,6 @@ pub(crate) mod tests {
         let asset_service = Arc::new(MockAssetService::new());
         let activity_repository = Arc::new(MockActivityRepository::new());
         account_service.add_account(create_test_account("acc-1", "USD"));
-        account_service.add_account(create_test_account("acc-2", "USD"));
         let mut barn = create_test_asset("barn", "USD");
         barn.kind = AssetKind::Property;
         barn.display_code = Some("BARN".to_string());
@@ -23478,119 +23466,6 @@ pub(crate) mod tests {
                 .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
             "{refused}"
         );
-    }
-
-    fn with_custom_other_asset(asset_service: &MockAssetService) {
-        let mut fund = create_test_asset("legacy-fund", "USD");
-        fund.kind = AssetKind::Other;
-        fund.display_code = Some("LEGACY".to_string());
-        asset_service.add_asset(fund);
-    }
-
-    fn legacy_fund() -> AssetResolutionInput {
-        AssetResolutionInput {
-            id: Some("legacy-fund".to_string()),
-            ..Default::default()
-        }
-    }
-
-    /// Until 3.11 a custom "Other" asset bought in an account was stored with
-    /// the OTHER kind, and those assets kept it.
-    #[tokio::test]
-    async fn an_account_keeps_using_a_custom_other_asset_it_already_holds() {
-        let (service, asset_service, activity_repository, _) = alternative_assets_service();
-        with_custom_other_asset(&asset_service);
-        activity_repository.add_activity(create_stored_activity(
-            "old-buy",
-            "acc-1",
-            Some("legacy-fund"),
-        ));
-
-        service
-            .create_activity(transfer_in(legacy_fund()))
-            .await
-            .expect("a new activity on the held asset is saved");
-        service
-            .update_activity(create_test_activity_update(
-                "old-buy",
-                "acc-1",
-                Some(legacy_fund()),
-                "USD",
-            ))
-            .await
-            .expect("the existing activity can be edited");
-
-        let reviewed = service
-            .check_activities_import(vec![alternative_import_row(Some("legacy-fund"), "LEGACY")])
-            .await
-            .expect("review runs");
-        assert!(reviewed[0].is_valid, "{:?}", reviewed[0].errors);
-
-        // The holding can move to another account, as it could before.
-        let mut moved = transfer_in(legacy_fund());
-        moved.account_id = "acc-2".to_string();
-        service
-            .create_activity(moved)
-            .await
-            .expect("a held custom asset can move between accounts");
-    }
-
-    #[tokio::test]
-    async fn a_held_custom_other_asset_imports_by_its_symbol_alone() {
-        let (service, asset_service, activity_repository, _) = alternative_assets_service();
-        with_custom_other_asset(&asset_service);
-        activity_repository.add_activity(create_stored_activity(
-            "old-buy",
-            "acc-1",
-            Some("legacy-fund"),
-        ));
-
-        let reviewed = service
-            .check_activities_import(vec![alternative_import_row(None, "LEGACY")])
-            .await
-            .expect("review runs");
-        assert!(reviewed[0].is_valid, "{:?}", reviewed[0].errors);
-    }
-
-    /// The Buy form sends the picked asset's ID with a symbol that doesn't match it.
-    #[tokio::test]
-    async fn an_other_asset_picked_by_id_with_another_symbol_is_not_recreated() {
-        let (service, asset_service, activity_repository, _) = alternative_assets_service();
-        with_custom_other_asset(&asset_service);
-
-        let refused = service
-            .create_activity(transfer_in(AssetResolutionInput {
-                id: Some("legacy-fund".to_string()),
-                symbol: Some("OTHER".to_string()),
-                ..Default::default()
-            }))
-            .await
-            .expect_err("no new investment is made from a net worth item");
-        assert!(
-            refused
-                .to_string()
-                .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
-            "{refused}"
-        );
-        assert!(activity_repository.get_activities().unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn an_other_asset_no_account_holds_stays_out_of_accounts() {
-        let (service, asset_service, activity_repository, _) = alternative_assets_service();
-        with_custom_other_asset(&asset_service);
-
-        let refused = service
-            .create_activity(transfer_in(legacy_fund()))
-            .await
-            .expect_err("a net worth item is not pulled into an account");
-        assert!(
-            refused
-                .to_string()
-                .contains(crate::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
-            "{refused}"
-        );
-        assert!(activity_repository.get_activities().unwrap().is_empty());
     }
 
     fn alternative_import_row(asset_id: Option<&str>, symbol: &str) -> ActivityImport {

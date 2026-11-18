@@ -1952,70 +1952,6 @@ impl ActivityService {
         }
     }
 
-    /// Whether an account may hold this stored asset. Alternative assets count
-    /// toward net worth on their own, so an account never takes one, with one
-    /// exception: until 3.11 a custom "Other" asset bought in an account was
-    /// stored with the `OTHER` kind. Those positions keep their kind, so an
-    /// `OTHER` asset with account history stays usable in any account, which
-    /// lets a holding move between accounts as it could before.
-    fn account_may_hold_asset(&self, asset: &crate::assets::Asset) -> Result<bool> {
-        if !asset.kind.is_alternative() {
-            return Ok(true);
-        }
-        if asset.kind != AssetKind::Other {
-            return Ok(false);
-        }
-        let ids = [asset.id.clone()];
-        let has_dates = |bounds: HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>| {
-            bounds
-                .values()
-                .any(|(first, last)| first.is_some() || last.is_some())
-        };
-        Ok(has_dates(
-            self.activity_repository
-                .get_activity_bounds_for_assets(&ids)?,
-        ) || has_dates(
-            self.activity_repository
-                .get_holdings_snapshot_bounds_for_assets(&ids)?,
-        ))
-    }
-
-    /// Refuses a stored asset an account can't hold.
-    fn refuse_alternative_asset(&self, asset: &crate::assets::Asset) -> Result<()> {
-        if self.account_may_hold_asset(asset)? {
-            return Ok(());
-        }
-        Err(Error::Validation(
-            crate::errors::ValidationError::AlternativeAssetNotInAccount,
-        ))
-    }
-
-    /// Refuses an asset picked by ID that an account can't hold, even when the
-    /// submitted symbol no longer matches it and a new asset would be created.
-    fn refuse_submitted_alternative_asset(&self, asset_id: Option<&str>) -> Result<()> {
-        let Some(asset_id) = asset_id.map(str::trim).filter(|id| !id.is_empty()) else {
-            return Ok(());
-        };
-        match self.asset_service.get_asset_by_id(asset_id) {
-            Ok(asset) => self.refuse_alternative_asset(&asset),
-            Err(_) => Ok(()),
-        }
-    }
-
-    /// Whether an import spec names a stored `OTHER` asset an account may keep using.
-    fn spec_names_usable_other_asset(&self, spec: &AssetSpec) -> Result<bool> {
-        if spec.kind != AssetKind::Other {
-            return Ok(false);
-        }
-        let Some(asset_id) = spec.id.as_deref() else {
-            return Ok(false);
-        };
-        match self.asset_service.get_asset_by_id(asset_id) {
-            Ok(asset) => self.account_may_hold_asset(&asset),
-            Err(_) => Ok(false),
-        }
-    }
-
     fn internal_transfer_metadata() -> Option<String> {
         Some(
             serde_json::json!({
@@ -4869,12 +4805,6 @@ impl ActivityService {
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
         // Refused before any asset is created for the activity.
         Self::refuse_alternative_kind(effective_kind.as_ref())?;
-        self.refuse_submitted_alternative_asset(
-            activity
-                .asset
-                .as_ref()
-                .and_then(|asset| asset.id.as_deref()),
-        )?;
 
         let quote_ccy_input = Self::submitted_quote_ccy(
             symbol.as_deref(),
@@ -5128,7 +5058,7 @@ impl ActivityService {
             };
             // An existing alternative asset, picked by ID or matched by symbol,
             // is refused before the activity writes anything to it.
-            self.refuse_alternative_asset(&asset)?;
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified (for existing assets that need mode change)
             if let Some(ref mode) = quote_mode {
@@ -5477,12 +5407,6 @@ impl ActivityService {
             .or_else(|| inferred.as_ref().map(|(kind, _)| kind.clone()));
         // Refused before any asset is created for the activity.
         Self::refuse_alternative_kind(effective_kind.as_ref())?;
-        self.refuse_submitted_alternative_asset(
-            activity
-                .asset
-                .as_ref()
-                .and_then(|asset| asset.id.as_deref()),
-        )?;
 
         let quote_ccy_input = Self::submitted_quote_ccy(
             symbol.as_deref(),
@@ -5695,7 +5619,7 @@ impl ActivityService {
             };
             // An existing alternative asset, picked by ID or matched by symbol,
             // is refused before the activity writes anything to it.
-            self.refuse_alternative_asset(&asset)?;
+            Self::refuse_alternative_kind(Some(&asset.kind))?;
 
             // Update asset quote mode if specified
             if let Some(ref mode) = quote_mode {
@@ -6517,15 +6441,11 @@ impl ActivityService {
                 .and_then(|id| self.asset_service.get_asset_by_id(id).ok());
             // Alternative assets count toward net worth on their own, so a row
             // can't put one in an account; review shows why before import.
-            let refused_existing = match existing_asset.as_ref() {
-                Some(asset) => !self.account_may_hold_asset(asset)?,
-                None => false,
-            };
-            let usable_other = !refused_existing
-                && existing_asset
+            if effective_kind.is_alternative()
+                || existing_asset
                     .as_ref()
-                    .is_some_and(|asset| asset.kind == AssetKind::Other);
-            if (effective_kind.is_alternative() && !usable_other) || refused_existing {
+                    .is_some_and(|asset| asset.kind.is_alternative())
+            {
                 activity.is_valid = false;
                 Self::add_activity_error(
                     &mut activity,
@@ -9677,7 +9597,7 @@ impl ActivityService {
                 }
             }
 
-            let built_spec = self
+            match self
                 .build_asset_spec(
                     activity,
                     account,
@@ -9685,15 +9605,9 @@ impl ActivityService {
                     mode,
                     &mut quote_ccy_cache,
                 )
-                .await;
-            let refused_spec = match &built_spec {
+                .await
+            {
                 Ok(Some(spec)) if spec.kind.is_alternative() => {
-                    !self.spec_names_usable_other_asset(spec)?
-                }
-                _ => false,
-            };
-            match built_spec {
-                Ok(Some(_)) if refused_spec => {
                     // Refused before ensure_assets could create it in the account.
                     if mode.is_sync() {
                         warn!(
@@ -9774,13 +9688,10 @@ impl ActivityService {
         // An existing alternative asset matched by ID or symbol: alternative
         // assets count toward net worth on their own, never in an account.
         for (idx, entry) in activity_asset_map.iter_mut().enumerate() {
-            let alternative = match entry
+            let alternative = entry
                 .as_ref()
                 .and_then(|asset_id| ensure_result.assets.get(asset_id))
-            {
-                Some(asset) => !self.account_may_hold_asset(asset)?,
-                None => false,
-            };
+                .is_some_and(|asset| asset.kind.is_alternative());
             if !alternative {
                 continue;
             }
