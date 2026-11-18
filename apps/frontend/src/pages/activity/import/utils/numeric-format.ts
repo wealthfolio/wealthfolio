@@ -14,9 +14,9 @@ const NUMERIC_FIELDS: string[] = [
   ImportFormat.FX_RATE,
 ];
 
-/** Some number formats write negatives with U+2212 instead of a hyphen. */
+/** Number formats and word processors can write a negative with a dash instead of a hyphen. */
 export function normalizeMinusSign(value: string): string {
-  return value.trim().replace(/−/g, "-");
+  return value.trim().replace(/[‐-—−﹣－]/g, "-");
 }
 
 /**
