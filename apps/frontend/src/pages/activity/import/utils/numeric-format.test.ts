@@ -8,6 +8,51 @@ import {
 } from "./holdings-import-utils";
 import { analyzeMappedNumericColumns, analyzeNumericColumn } from "./numeric-format";
 
+describe("numbers with currency labels and lakh grouping", () => {
+  it.each([
+    ["US$1,500", "1500"],
+    ["C$1,500", "1500"],
+    ["Rs. 1,500", "1500"],
+    ["1,500 usd", "1500"],
+    ["-US$2,000.50", "2000.50"],
+  ])("reads %s with a point decimal", (value, expected) => {
+    expect(parseNumericValue(value, ".", "auto")).toBe(expected);
+  });
+
+  it.each([
+    ["USD.50", ".50"],
+    ["EUR.99", ".99"],
+    ["Rs.1,500", "1500"],
+  ])("keeps the decimal point after a label in %s", (value, expected) => {
+    expect(parseNumericValue(value, ".", "auto")).toBe(expected);
+  });
+
+  it.each([
+    [["US$1,500", "C$2,000.50"], "."],
+    [["Rs. 1,500", "2,000.50 usd"], "."],
+    [["R$ 1.500,25", "R$ 2.000,00"], ","],
+    [["kr. 100", "12,50", "1.000"], ","],
+    [["$USD 12,50", "1.000"], ","],
+  ])("resolves the column from labelled values %j", (values, decimalSeparator) => {
+    expect(analyzeNumericColumn(values, "auto", "auto")).toEqual({ decimalSeparator });
+  });
+
+  it.each([["US$1,500"], ["C$1,500"], ["Rs. 1,500"], ["1,500 usd"]])(
+    "reports %s alone as ambiguous instead of guessing a decimal comma",
+    (value) => {
+      expect(analyzeNumericColumn([value], "auto", "auto").issue).toBe("ambiguous");
+    },
+  );
+
+  it.each([
+    ["1,23,456", "123456"],
+    ["12,34,567.50", "1234567.50"],
+    ["1,00,00,000", "10000000"],
+  ])("reads lakh grouping in %s", (value, expected) => {
+    expect(parseNumericValue(value, "auto", "auto")).toBe(expected);
+  });
+});
+
 describe("numeric column detection", () => {
   it.each([
     [["1,000", "$25.50"], "."],

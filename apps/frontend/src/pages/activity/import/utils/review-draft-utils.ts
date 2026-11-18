@@ -1,6 +1,6 @@
 import { ActivityType } from "@/lib/constants";
 import { isAssetBackedIncomeSubtype } from "@/lib/activity-utils";
-import { resolveNumericDecimalSeparator } from "./numeric-format";
+import { resolveNumericDecimalSeparator, stripCurrencyLabel } from "./numeric-format";
 
 /**
  * Parse a numeric value from a string, handling various formats.
@@ -20,6 +20,7 @@ export function parseSignedNumericValue(
     isNegative = true;
     normalized = normalized.slice(1, -1);
   }
+  normalized = stripCurrencyLabel(normalized);
 
   let mantissa = normalized;
   let exponent = "";
