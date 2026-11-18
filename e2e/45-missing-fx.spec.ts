@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./fixtures";
 import { api, createAccount, deposit, uniqueName } from "./api";
-import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 interface Valued {
   valueStatus: string;
@@ -20,7 +20,26 @@ async function selectRateCurrency(page: Page, label: string, code: string) {
   await expect(picker).toHaveCount(0);
 }
 
-// Keep later missing-rate cases independent of earlier cases' recovered FX routes.
+let profileToDelete: { id: string; name: string } | undefined;
+
+// While a second profile exists, the server refuses requests that name no profile,
+// so the specs after this one need it gone, even when this test times out.
+test.afterEach(async ({ page }) => {
+  if (!profileToDelete) return;
+  const { id, name } = profileToDelete;
+  profileToDelete = undefined;
+  // A crashed page can't navigate, and the profile must still be deleted.
+  await page.goto("about:blank").catch(() => undefined);
+  const session = await api<{ scopeId: string }>(page, "POST", "/profiles/unlock_profile", {
+    profileId: id,
+  });
+  const deleted = await page.request.post(`${BASE_URL}/api/v1/profiles/delete_profile`, {
+    headers: { "x-wf-profile-scope": session.scopeId },
+    data: { profileId: id, confirmation: name },
+  });
+  expect(deleted.ok(), await deleted.text()).toBe(true);
+});
+
 for (const [direction, width, currency] of [
   ["ltr", 1440, "COP"],
   ["rtl", 1440, "CLP"],
@@ -33,18 +52,23 @@ for (const [direction, width, currency] of [
     test.setTimeout(180_000);
     await page.setViewportSize({ width, height: 1000 });
     await completeOnboardingIfNeeded(page);
+    // Recovery is checked on whole-portfolio totals, and Health names the currency only
+    // when it is the one missing, so other specs' accounts can't share this database.
+    const profileName = `Missing FX ${currency}`;
+    const profile = await api<{ id: string }>(page, "POST", "/profiles/create_profile", {
+      name: profileName,
+      avatarId: "clay-bot-animated",
+    });
+    profileToDelete = { id: profile.id, name: profileName };
+    const session = await api<{ scopeId: string }>(page, "POST", "/profiles/unlock_profile", {
+      profileId: profile.id,
+    });
+    await page.context().setExtraHTTPHeaders({ "x-wf-profile-scope": session.scopeId });
     const providers = await api<{ id: string; priority: number; enabled: boolean }[]>(
       page,
       "GET",
       "/providers/settings",
     );
-    // Capture settings before any mutation, including provider setup.
-    const previous = await api<{ baseCurrency: string }>(page, "GET", "/settings");
-    let accountId: string | undefined;
-    let knownAccountId: string | undefined;
-    let assetId: string | undefined;
-    let goalId: string | undefined;
-    let rateId: string | undefined;
     let goalPage: Page | undefined;
     const date = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
@@ -56,29 +80,32 @@ for (const [direction, width, currency] of [
           enabled: false,
         });
       }
-      await api(page, "PUT", "/settings", { baseCurrency: "AED" });
+      await api(page, "PUT", "/settings", {
+        onboardingCompleted: true,
+        language: "en",
+        timezone: "UTC",
+        baseCurrency: "AED",
+        autoUpdateCheckEnabled: false,
+      });
       const account = await createAccount(page, {
         name: uniqueName(`Missing FX ${currency}`),
         currency,
         accountType: "CASH",
       });
-      accountId = account.id;
       await deposit(page, account.id, 5_000_000, currency, `${date}T12:00:00Z`);
       const knownAccount = await createAccount(page, {
         name: uniqueName("AED savings"),
         currency: "AED",
         accountType: "CASH",
       });
-      knownAccountId = knownAccount.id;
       await deposit(page, knownAccount.id, 10_000, "AED", `${date}T12:00:00Z`);
-      const property = await api<{ assetId: string }>(page, "POST", "/alternative-assets", {
+      await api(page, "POST", "/alternative-assets", {
         kind: "property",
         name: uniqueName(`${currency} property`),
         currency,
         currentValue: "330000000",
         valueDate: date,
       });
-      assetId = property.assetId;
       const current = () =>
         api<{ summary: Valued & { totalValueBase: number }; accounts: { totalValue: number }[] }>(
           page,
@@ -119,7 +146,6 @@ for (const [direction, width, currency] of [
         title: goalTitle,
         targetAmount: 20000,
       });
-      goalId = goal.id;
       await api(page, "PUT", `/goals/${goal.id}/funding`, [
         { accountId: knownAccount.id, sharePercent: 100 },
       ]);
@@ -344,7 +370,6 @@ for (const [direction, width, currency] of [
       await save.click();
       const response = await saved;
       expect(response.ok()).toBe(true);
-      rateId = (await response.json()).id;
       await expect(form).not.toBeVisible();
       await expect.poll(async () => (await current()).summary.totalValueBase).toBe(5000);
       await expect.poll(async () => (await netWorth()).valueStatus).toBe("complete");
@@ -406,36 +431,7 @@ for (const [direction, width, currency] of [
         animations: "disabled",
       });
     } finally {
-      // Attempt every restore even if a deletion or another restore fails.
-      const cleanup = [
-        ...(goalPage ? [() => goalPage?.close()] : []),
-        ...(goalId ? [() => api(page, "DELETE", `/goals/${goalId}`)] : []),
-        ...(assetId ? [() => api(page, "DELETE", `/alternative-assets/${assetId}`)] : []),
-        ...(accountId ? [() => api(page, "DELETE", `/accounts/${accountId}`)] : []),
-        ...(knownAccountId ? [() => api(page, "DELETE", `/accounts/${knownAccountId}`)] : []),
-        ...(rateId ? [() => api(page, "DELETE", `/exchange-rates/${rateId}`)] : []),
-        () => api(page, "PUT", "/settings", { baseCurrency: previous.baseCurrency }),
-        ...providers
-          .filter((provider) => provider.enabled)
-          .map(
-            (provider) => () =>
-              api(page, "PUT", "/providers/settings", {
-                providerId: provider.id,
-                priority: provider.priority,
-                enabled: true,
-              }),
-          ),
-      ];
-      const failures: unknown[] = [];
-      for (const restore of cleanup) {
-        try {
-          await restore();
-        } catch (error) {
-          failures.push(error);
-        }
-      }
-      if (failures.length > 0)
-        throw new AggregateError(failures, "Missing-rate test cleanup failed");
+      await goalPage?.close();
     }
   });
 }
