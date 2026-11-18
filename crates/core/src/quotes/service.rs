@@ -793,15 +793,6 @@ pub trait QuoteServiceTrait: Send + Sync {
 }
 
 /// Unified quote service implementation.
-/// Whether symbol search offers this existing asset. Search finds what an
-/// account can hold or a chart can compare: not FX pairs, and not alternative
-/// assets, which count toward net worth on their own. `OTHER` stays listed:
-/// custom holdings bought before 3.11 keep that kind, and the activity save
-/// decides whether the account may hold the asset.
-fn symbol_search_offers(asset: &Asset) -> bool {
-    asset.kind != AssetKind::Fx && (!asset.is_alternative() || asset.kind == AssetKind::Other)
-}
-
 pub struct QuoteService<Q, S, PS, A, R>
 where
     Q: QuoteStore,
@@ -1008,6 +999,13 @@ where
             currency: import.currency.clone(),
             notes: None,
         })
+    }
+
+    /// Whether symbol search offers this existing asset. Search finds what an
+    /// account can hold or a chart can compare: not FX pairs, and not
+    /// alternative assets, which count toward net worth on their own.
+    fn searchable(asset: &Asset) -> bool {
+        asset.kind != AssetKind::Fx && !asset.is_alternative()
     }
 
     /// Convert an existing Asset to a SymbolSearchResult for search results.
@@ -1671,7 +1669,7 @@ where
         // 3. Convert existing assets to SymbolSearchResult with is_existing flag
         let mut existing_summaries: Vec<SymbolSearchResult> = existing_assets
             .iter()
-            .filter(|a| symbol_search_offers(a))
+            .filter(|a| Self::searchable(a))
             .map(|asset| Self::asset_to_quote_summary(asset))
             .collect();
         let mut existing_asset_ids: HashSet<String> = existing_summaries
@@ -1684,7 +1682,7 @@ where
             let existing_asset = instrument_key_from_search_result(&result)
                 .and_then(|key| self.asset_repo.find_by_instrument_key(&key).ok().flatten());
 
-            if let Some(asset) = existing_asset.filter(symbol_search_offers) {
+            if let Some(asset) = existing_asset.filter(Self::searchable) {
                 if search_result_matches_query(&result, query) {
                     exact_asset_ids.insert(asset.id.clone());
                 }
@@ -3040,21 +3038,6 @@ pub(crate) fn fill_missing_quotes(
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn symbol_search_offers_custom_other_assets_but_no_other_alternative_kind() {
-        let offered = |kind: AssetKind| {
-            super::symbol_search_offers(&Asset {
-                kind,
-                ..Default::default()
-            })
-        };
-        assert!(offered(AssetKind::Investment));
-        assert!(offered(AssetKind::Other));
-        assert!(!offered(AssetKind::Property));
-        assert!(!offered(AssetKind::Liability));
-        assert!(!offered(AssetKind::Fx));
-    }
-
     use super::*;
     use crate::activities::{
         Activity, ActivityBulkMutationResult, ActivityRepositoryTrait, ActivityUpdate,
