@@ -6749,6 +6749,65 @@ pub(crate) mod tests {
             .contains("DEPOSIT activities are not supported for credit card accounts"));
     }
 
+    /// A card holds no deposits, so a payment saved as a refund/credit is
+    /// reclassified straight to TRANSFER_IN and back, with the same transfer
+    /// metadata handling as a deposit (#2740).
+    #[tokio::test]
+    async fn credit_card_refund_and_payment_reclassify_both_ways() {
+        let account_service = Arc::new(MockAccountService::new());
+        let mut account = create_test_account("card-1", "USD");
+        account.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(account);
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        activity_service
+            .create_activity(NewActivity {
+                subtype: Some("REFUND".to_string()),
+                ..create_test_cash_create("card-payment", "card-1", "CREDIT", "USD")
+            })
+            .await
+            .expect("credit cards accept CREDIT");
+
+        let mut update = create_test_activity_update("card-payment", "card-1", None, "USD");
+        update.activity_type = "TRANSFER_IN".to_string();
+        update.quantity = None;
+        update.unit_price = None;
+        update.fee = None;
+        update.amount = None;
+        let payment = activity_service
+            .update_activity(update.clone())
+            .await
+            .expect("a card refund becomes a payment");
+        assert_eq!(payment.activity_type, "TRANSFER_IN");
+        assert_eq!(payment.subtype, None);
+        assert_eq!(payment.amount, Some(dec!(100)));
+        assert_eq!(
+            payment
+                .metadata
+                .as_ref()
+                .and_then(|m| m.pointer("/flow/is_external")),
+            Some(&json!(true))
+        );
+
+        update.activity_type = "CREDIT".to_string();
+        let refund = activity_service
+            .update_activity(update)
+            .await
+            .expect("a card payment becomes a refund again");
+        assert_eq!(refund.activity_type, "CREDIT");
+        assert_eq!(refund.amount, Some(dec!(100)));
+        assert!(refund
+            .metadata
+            .as_ref()
+            .and_then(|m| m.pointer("/flow/is_external"))
+            .is_none());
+    }
+
     /// A security transfer on a card account: TRANSFER_IN/OUT with an asset.
     fn create_test_card_security_transfer(id: &str, activity_type: &str) -> NewActivity {
         NewActivity {

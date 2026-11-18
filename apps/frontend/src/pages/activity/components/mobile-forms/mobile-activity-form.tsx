@@ -1128,6 +1128,9 @@ export function MobileActivityForm({
             <div className="p-4">
               <CashActivityReclassification
                 activity={activity}
+                accountType={
+                  accounts.find((account) => account.value === activity?.accountId)?.accountType
+                }
                 onSuccess={onClose}
                 disabled={isLoading}
               />
