@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { DateInputCell } from "@wealthfolio/ui/components/data-grid/data-grid-cell-variants";
@@ -29,7 +29,7 @@ function renderCell({
   } as unknown as Cell<TestRow, unknown>;
   const tableMeta: TableMeta<TestRow> = { onDataUpdate, onCellEditingStop };
 
-  const result = render(
+  const cellWith = (editing: boolean) => (
     <FormattingProvider locale={locale} uiLocale={uiLocale}>
       <DateInputCell
         cell={cell}
@@ -37,17 +37,23 @@ function renderCell({
         rowIndex={0}
         columnId="date"
         rowHeight="short"
-        isEditing={isEditing}
+        isEditing={editing}
         isFocused={false}
         isSelected={false}
         isSearchMatch={false}
         isActiveSearchMatch={false}
         readOnly={false}
       />
-    </FormattingProvider>,
+    </FormattingProvider>
   );
+  const result = render(cellWith(isEditing));
 
-  return { ...result, onDataUpdate, onCellEditingStop };
+  return {
+    ...result,
+    onDataUpdate,
+    onCellEditingStop,
+    stopEditing: () => result.rerender(cellWith(false)),
+  };
 }
 
 function segmentValues() {
@@ -136,6 +142,49 @@ describe("DateInputCell formatting region", () => {
     await user.keyboard(keys);
 
     expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  describe("31 April entered without key events", () => {
+    const enterImpossibleDate = () => {
+      const enter = (segment: HTMLElement, data: string) =>
+        act(() => {
+          segment.focus();
+          segment.dispatchEvent(
+            new InputEvent("beforeinput", {
+              data,
+              inputType: "insertText",
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        });
+      const [day, month] = screen.getAllByRole("spinbutton");
+      enter(month, "4");
+      enter(day, "3");
+      enter(day, "1");
+    };
+
+    it("is not saved when the field loses focus", async () => {
+      const user = userEvent.setup();
+      const onDataUpdate = vi.fn();
+      renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+      enterImpossibleDate();
+      await user.click(document.body);
+
+      expect(onDataUpdate).not.toHaveBeenCalled();
+    });
+
+    it("is not saved when the grid ends the edit on mouse down", () => {
+      const onDataUpdate = vi.fn();
+      const { stopEditing } = renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+      enterImpossibleDate();
+      fireEvent.pointerDown(document.body);
+      stopEditing();
+
+      expect(onDataUpdate).not.toHaveBeenCalled();
+    });
   });
 
   describe("on iOS, where segments are text boxes without a numeric value", () => {
