@@ -7,6 +7,7 @@ use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
 use wealthfolio_core::assets::InstrumentType;
 use wealthfolio_core::holdings::Holding;
 
+use super::account_scope::portfolio_account_ids;
 use crate::constants::MAX_HOLDINGS;
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -251,17 +252,7 @@ impl AgentTool for GetHoldings {
                     .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?
             }
         } else {
-            let accounts = env
-                .account_service()
-                .get_active_non_archived_accounts()
-                .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
-            let account_ids: Vec<String> = accounts
-                .into_iter()
-                .filter(|account| {
-                    account_supports_purpose(&account.account_type, AccountPurpose::Holdings)
-                })
-                .map(|account| account.id)
-                .collect();
+            let account_ids = portfolio_account_ids(env.as_ref(), AccountPurpose::Holdings)?;
             env.holdings_service()
                 .get_holdings_for_accounts(&account_ids, &base_currency, "all")
                 .await

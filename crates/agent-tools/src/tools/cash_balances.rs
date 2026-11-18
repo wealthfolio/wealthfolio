@@ -6,10 +6,12 @@
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use wealthfolio_core::accounts::AccountPurpose;
 use wealthfolio_core::holdings::IncompleteHoldingsAccount;
 
+use super::account_scope::portfolio_account_ids;
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
@@ -106,7 +108,7 @@ impl AgentTool for GetCashBalances {
 
         let accounts = env
             .account_service()
-            .get_active_non_archived_accounts()
+            .get_non_archived_accounts()
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
 
         let mut account_map: HashMap<String, (String, String)> = accounts
@@ -118,7 +120,17 @@ impl AgentTool for GetCashBalances {
         let target_ids: Vec<String> = if let Some(target_account_id) = target_account_id {
             vec![target_account_id.to_string()]
         } else {
-            accounts.iter().map(|a| a.id.clone()).collect()
+            // The app's cash view covers the accounts that hold investments;
+            // keep the account list's order for the output.
+            let in_scope: HashSet<String> =
+                portfolio_account_ids(env.as_ref(), AccountPurpose::Holdings)?
+                    .into_iter()
+                    .collect();
+            accounts
+                .iter()
+                .filter(|a| in_scope.contains(&a.id))
+                .map(|a| a.id.clone())
+                .collect()
         };
         if let Some(account_id) = target_account_id {
             if !account_map.contains_key(account_id) {
