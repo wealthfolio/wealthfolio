@@ -11,7 +11,6 @@
   "error_calculating": "Erreur lors du calcul des données de performance",
   "not_available": "N/D",
   "not_plotted": "Non tracé",
-  "reference": "Référence",
   "unknown": "Inconnu",
   "remove_item": "Retirer {{name}}",
   "time_period": "Période",
@@ -55,33 +54,59 @@
     "holdings": "Mode avoirs"
   },
   "exclusion": {
-    "holdings_not_mwr": "Le rendement pondéré par les flux (MWR) est indisponible en mode positions seules, car les flux de trésorerie des transactions ne sont pas suivis.",
+    "holdings_not_mwr": "Le MWR n'est pas disponible sur tout l'historique d'un compte suivi par positions, car les dépôts et retraits n'y sont pas suivis.",
     "no_data": "Les données de performance ne sont pas disponibles pour cette sélection.",
-    "no_series": "Aucune série de graphique n'est disponible pour cette période.",
-    "holdings_not_twr": "Les comptes en mode avoirs utilisent le rendement en valeur et ne sont pas tracés avec le TWR.",
-    "transaction_not_value": "Les comptes en mode transactions utilisent le TWR et ne sont pas tracés avec le rendement en valeur.",
     "no_overlap": "Aucune date de graphique commune avec l'élément sélectionné."
   },
   "comparison_notice": {
-    "different_methods": "Des méthodes de rendement différentes ne peuvent pas partager le même graphique. Sélectionnez une pastille grisée pour changer le mode du graphique.",
     "not_enough_overlap": "Ces éléments sélectionnés n'ont pas suffisamment de dates de graphique communes avec le graphique actif.",
+    "missing_return": "Ces éléments sélectionnés n'ont pas de rendement pour cette méthode et cette période.",
     "not_plotted_count_one": "{{count}} élément sélectionné n'est pas tracé",
     "not_plotted_count_other": "{{count}} éléments sélectionnés ne sont pas tracés",
     "not_plotted_count_many": "{{count}} éléments sélectionnés ne sont pas tracés"
+  },
+  "return_view": {
+    "twr": "Pondéré dans le temps",
+    "money_weighted": "Pondéré par l'argent",
+    "return_on_cost": "Retour sur investissement (ROI)",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "La performance de vos placements, comme si vous n'aviez jamais ajouté ni retiré d'argent. Utile pour comparer avec un indice.",
+    "money_weighted_explainer": "Ce que votre argent a réellement rapporté, compte tenu du moment où vous l'avez ajouté ou retiré.",
+    "return_on_cost_explainer": "Votre gain par rapport à ce que vous avez payé pour vos positions.",
+    "method_label": "Méthode de rendement",
+    "trigger_label": "{{method}} {{value}} : voir les deux méthodes et changer",
+    "chosen_unavailable": "{{method}} n'est pas disponible ici.",
+    "reason": {
+      "mixed_twr": "Non disponible pour les portefeuilles qui mélangent des comptes suivis par positions et par transactions.",
+      "holdings_full_history": "Non disponible sur tout l'historique d'un compte suivi par positions, car ses dépôts et retraits ne sont pas enregistrés.",
+      "roi_holdings_only": "Le ROI s'applique aux comptes suivis par positions, sur tout leur historique.",
+      "unknown_flow": "Un dépôt ou un retrait de cette période n'a pas de montant connu.",
+      "no_capital": "Aucun montant n'a été investi en moyenne sur cette période.",
+      "coverage": "Certaines positions n'ont pas de prix au début ou à la fin de cette période.",
+      "not_enough_history": "Historique insuffisant sur cette période.",
+      "mixed_coverage": "Certains comptes de ce portefeuille n'ont pas de gain ou de montant investi à additionner."
+    }
   },
   "metric": {
     "return": "Rendement",
     "time_weighted_return": "Rendement pondéré dans le temps",
     "time_weighted_short": "Pondéré dans le temps",
+    "twr_short": "TWR",
     "money_weighted_return": "Rendement pondéré par l'argent",
     "money_weighted_short": "Pondéré par l'argent",
     "mwr_short": "MWR",
     "annualized_mwr": "MWR annualisé",
     "ann_mwr_short": "MWR ann.",
-    "value_return": "Rendement en valeur",
-    "value_return_short": "Rendement en valeur",
+    "annualized_twr": "TWR annualisé",
+    "ann_twr_short": "TWR ann.",
+    "return_on_cost": "Retour sur investissement (ROI)",
+    "return_on_cost_short": "ROI",
     "price_return": "Rendement du prix",
     "price_return_short": "Rendement du prix",
+    "benchmark_money_weighted": "Pondéré par l'argent (vos dépôts)",
+    "benchmark_money_weighted_short": "Avec vos dépôts",
     "volatility": "Volatilité",
     "max_drawdown": "Perte maximale",
     "max_drawdown_short": "Perte max.",
@@ -98,7 +123,8 @@
   },
   "empty": {
     "title": "Aucune donnée de performance",
-    "description": "Sélectionnez des comptes pour comparer leur performance dans le temps."
+    "description": "Sélectionnez des comptes pour comparer leur performance dans le temps.",
+    "no_curve": "Cette sélection a un rendement, mais pas de graphique pour cette période."
   },
   "attribution": {
     "partial_data": "Données partielles",
@@ -127,12 +153,12 @@
     "distributions_desc": "Liquidités retirées du compte"
   },
   "metric_info": {
-    "time_weighted_return": "Le rendement pondéré dans le temps (TWR) mesure la performance des placements en éliminant l’effet des dépôts et retraits. Pour les périodes de moins d’un an, le rendement de la période sélectionnée est affiché ; à partir d’un an, il est annualisé lorsque cette valeur est disponible.",
-    "money_weighted_return": "Le rendement pondéré par l’argent (MWR) mesure la performance en tenant compte du montant et de la date des flux de trésorerie externes. Il est calculé avec IRR/XIRR ; pour les périodes d’un an ou plus, le XIRR annualisé est l’affichage de référence.",
-    "irr": "Le taux de rendement interne (IRR) mesure la performance pondérée par le montant et la date des flux de trésorerie externes. Pour les périodes d’un an ou plus, le XIRR annualisé est l’affichage de référence.",
+    "time_weighted_return": "Le rendement pondéré dans le temps (TWR) montre la performance de vos placements, comme si vous n'aviez jamais ajouté ni retiré d'argent. Utilisez-le pour comparer avec un indice. À partir d'un an, il est aussi affiché en taux annuel.",
+    "money_weighted_return": "Le rendement pondéré par l'argent (MWR) montre ce que votre argent a réellement rapporté, compte tenu du moment où vous l'avez ajouté ou retiré : le gain divisé par le montant moyen investi. À partir d'un an, il est aussi affiché en taux annuel.",
     "simple_return": "Le rendement simple compare le gain ou la perte totale aux apports nets. Il est cumulatif et n’est pas pondéré dans le temps.",
-    "value_return": "Le rendement en valeur mesure la variation de la valeur du compte sur la période sélectionnée lorsque les flux de trésorerie par transaction ne sont pas disponibles.",
+    "return_on_cost": "Le retour sur investissement (ROI) compare votre gain à ce que vous avez payé pour vos positions. Les comptes suivis par positions l'utilisent sur tout leur historique, car les dépôts et retraits n'y sont pas suivis.",
     "price_return": "Le rendement du cours mesure la variation du cours du titre sélectionné sur la période sélectionnée.",
+    "benchmark_money_weighted": "Le rendement pondéré par l'argent de l'indice si vos propres dépôts et retraits y avaient été faits aux mêmes dates : ce que votre argent y aurait rapporté. Prix uniquement, sans effet de change.",
     "volatility": "La volatilité mesure la dispersion des rendements d’un placement. Une volatilité élevée signifie que sa valeur peut varier fortement sur une courte période. Elle est annualisée à partir des rendements quotidiens calendaires.",
     "max_drawdown": "La perte maximale représente la plus forte diminution en pourcentage entre un sommet et un creux ultérieur de la valeur du portefeuille sur la période indiquée. Elle exprime le risque de baisse.",
     "annualized_return": "Le rendement annualisé est le taux composé annuel moyen de la période sélectionnée. Il ne correspond pas au gain ou à la perte totale cumulée.",

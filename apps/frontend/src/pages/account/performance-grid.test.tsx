@@ -15,10 +15,10 @@ import { PerformanceGrid } from "./performance-grid";
 vi.mock("@/components/metric-display", () => ({
   HOLDINGS_MODE_MAX_DRAWDOWN_INFO_KEY: "performance:metric_info.holdings_max_drawdown",
   HOLDINGS_MODE_VOLATILITY_INFO_KEY: "performance:metric_info.holdings_volatility",
-  IRR_RETURN_INFO_KEY: "performance:metric_info.irr",
   MAX_DRAWDOWN_INFO_KEY: "performance:metric_info.max_drawdown",
+  MONEY_WEIGHTED_RETURN_INFO_KEY: "performance:metric_info.money_weighted_return",
+  RETURN_ON_COST_INFO_KEY: "performance:metric_info.return_on_cost",
   TIME_WEIGHTED_RETURN_INFO_KEY: "performance:metric_info.time_weighted_return",
-  VALUE_RETURN_INFO_KEY: "performance:metric_info.value_return",
   VOLATILITY_INFO_KEY: "performance:metric_info.volatility",
   MetricDisplay: ({
     label,
@@ -40,14 +40,12 @@ function performanceResult(overrides: Partial<PerformanceResult> = {}): Performa
   return {
     scope: { id: "account-1", currency: "USD" },
     period: { startDate: "2026-06-01", endDate: "2026-06-30" },
-    mode: "valueReturn",
+    // A holdings account over its full history whose book basis is incomplete:
+    // the engine reports every return unavailable with its reason.
     returns: {
-      twr: null,
-      annualizedTwr: null,
-      irr: null,
-      annualizedIrr: null,
-      valueReturn: 0.42,
-      annualizedValueReturn: null,
+      twr: { unavailableReason: "TWR unavailable for holdings-only scopes." },
+      moneyWeighted: { unavailableReason: "MWR unavailable for holdings-only scopes." },
+      returnOnCost: { unavailableReason: "Book basis is incomplete." },
     },
     attribution: {
       contributions: 0,
@@ -69,16 +67,12 @@ function performanceResult(overrides: Partial<PerformanceResult> = {}): Performa
     basisStatus: "partialUnknown",
     summary: {
       amount: null,
-      percent: null,
-      method: "valueReturn",
       basis: "bookBasis",
       quality: "partial",
       amountStatus: "unavailable",
-      percentStatus: "unavailable",
       basisStatus: "partialUnknown",
       reasons: ["Book basis is incomplete."],
     },
-    series: [],
     isHoldingsMode: true,
     ...overrides,
   };
@@ -99,7 +93,7 @@ describe("PerformanceGrid", () => {
     const original = structuredClone(performance);
     render(
       <I18nextProvider i18n={i18n}>
-        <PerformanceGrid performance={performance} isHoldingsMode />
+        <PerformanceGrid performance={performance} isHoldingsMode isAllTime />
       </I18nextProvider>,
     );
     expect(screen.getByTestId(`metric-${zhAccount.volatility}`)).toHaveTextContent(
@@ -109,7 +103,7 @@ describe("PerformanceGrid", () => {
     expect(screen.getByTestId(`metric-${zhAccount.max_drawdown}`)).toHaveTextContent(
       zhPerformance.metric_info.holdings_max_drawdown,
     );
-    expect(screen.getByTestId(`metric-${zhAccount.metric.value_return}`)).toHaveTextContent(
+    expect(screen.getByTestId(`metric-${zhAccount.metric.return_on_cost}`)).toHaveTextContent(
       "Book basis is incomplete.",
     );
     await act(() => i18n.changeLanguage("en"));
@@ -119,11 +113,93 @@ describe("PerformanceGrid", () => {
     expect(performance).toEqual(original);
   });
 
-  it("does not show raw holdings value return when summary percent is unavailable", () => {
-    render(<PerformanceGrid performance={performanceResult()} isHoldingsMode />);
+  it("shows the engine's reason when a holdings return on cost is unavailable", () => {
+    render(<PerformanceGrid performance={performanceResult()} isHoldingsMode isAllTime />);
 
-    expect(screen.getByTestId("metric-Value Return")).toHaveTextContent(
-      "Value Return:N/A::=:Book basis is incomplete.",
+    expect(screen.getByTestId("metric-Return on Investment (ROI)")).toHaveTextContent(
+      "Return on Investment (ROI):N/A::=:Book basis is incomplete.",
+    );
+  });
+
+  it("shows return on cost over a holdings account's full history", () => {
+    render(
+      <PerformanceGrid
+        performance={performanceResult({
+          returns: {
+            twr: { unavailableReason: "TWR unavailable for holdings-only scopes." },
+            moneyWeighted: { unavailableReason: "MWR unavailable." },
+            returnOnCost: { period: 0.42 },
+          },
+        })}
+        isHoldingsMode
+        isAllTime
+      />,
+    );
+
+    expect(screen.getByTestId("metric-Return on Investment (ROI)")).toHaveTextContent(
+      "Return on Investment (ROI):0.42",
+    );
+  });
+
+  it("shows a holdings account's time-weighted return for a dated period", () => {
+    render(
+      <PerformanceGrid
+        performance={performanceResult({
+          returns: {
+            twr: { period: 0.07 },
+            moneyWeighted: { period: 0.06 },
+            returnOnCost: { unavailableReason: "Return on cost applies to full history." },
+          },
+        })}
+        isHoldingsMode
+      />,
+    );
+
+    expect(screen.getByTestId("metric-Time Weighted Return")).toHaveTextContent(
+      "Time Weighted Return:0.07",
+    );
+  });
+
+  it("keeps a dated holdings period on TWR, with its own reason, when TWR is unavailable", () => {
+    render(
+      <PerformanceGrid
+        performance={performanceResult({
+          returns: {
+            twr: {
+              unavailableReason: "TWR unavailable because valuation coverage is unavailable.",
+            },
+            moneyWeighted: { unavailableReason: "MWR unavailable." },
+            returnOnCost: {
+              unavailableReason: "ROI applies to holdings accounts over their full history.",
+            },
+          },
+        })}
+        isHoldingsMode
+      />,
+    );
+
+    expect(screen.getByTestId("metric-Time Weighted Return")).toHaveTextContent(
+      "TWR unavailable because valuation coverage is unavailable.",
+    );
+  });
+
+  it("follows the chosen method for a dated holdings period", () => {
+    render(
+      <PerformanceGrid
+        performance={performanceResult({
+          returns: {
+            twr: { period: 0.07 },
+            moneyWeighted: { period: 0.06 },
+            returnOnCost: { unavailableReason: "ROI applies to full history." },
+          },
+        })}
+        isHoldingsMode
+        returnView="moneyWeighted"
+      />,
+    );
+
+    expect(screen.getByTestId("metric-Money-Weighted Return")).toHaveTextContent(
+      "Money-Weighted Return:0.06",
     );
   });
 
@@ -131,27 +207,21 @@ describe("PerformanceGrid", () => {
     render(
       <PerformanceGrid
         performance={performanceResult({
-          mode: "timeWeighted",
           period: { startDate: "2020-04-14", endDate: "2026-06-22" },
           returns: {
-            twr: 1.9751,
-            annualizedTwr: 0.1927,
-            irr: 2.7434,
-            annualizedIrr: 0.2241,
-            valueReturn: null,
-            annualizedValueReturn: null,
+            twr: { period: 1.9751, annualized: 0.1927 },
+            moneyWeighted: { period: 2.7434, annualized: 0.2241 },
+            returnOnCost: {},
           },
           summary: {
             amount: 75_000,
-            percent: 1.9751,
-            method: "timeWeighted",
             basis: "marketValue",
             quality: "ok",
             amountStatus: "complete",
-            percentStatus: "complete",
             basisStatus: "complete",
             reasons: [],
           },
+          isHoldingsMode: false,
         })}
       />,
     );
@@ -161,25 +231,22 @@ describe("PerformanceGrid", () => {
     expect(screen.getByTestId("metric-Annualized TWR")).toHaveTextContent(
       "Hover the value to see cumulative TWR.",
     );
-    expect(screen.getByTestId("metric-Annualized IRR")).toHaveTextContent(
-      "Annualized IRR:0.2241::Period IRR=2.7434",
+    expect(screen.getByTestId("metric-Annualized MWR")).toHaveTextContent(
+      "Annualized MWR:0.2241::Cumulative MWR=2.7434",
     );
   });
 
-  it("keeps period TWR and IRR as primary values for shorter periods without annualized rows", () => {
+  it("keeps period TWR and MWR as primary values for shorter periods without annualized rows", () => {
     render(
       <PerformanceGrid
         performance={performanceResult({
-          mode: "timeWeighted",
           period: { startDate: "2026-01-01", endDate: "2026-06-30" },
           returns: {
-            twr: 0.12,
-            annualizedTwr: 0.25,
-            irr: 0.14,
-            annualizedIrr: 0.29,
-            valueReturn: null,
-            annualizedValueReturn: null,
+            twr: { period: 0.12, annualized: 0.25 },
+            moneyWeighted: { period: 0.14, annualized: 0.29 },
+            returnOnCost: {},
           },
+          isHoldingsMode: false,
         })}
       />,
     );
@@ -187,6 +254,8 @@ describe("PerformanceGrid", () => {
     expect(screen.getByTestId("metric-Time Weighted Return")).toHaveTextContent(
       "Time Weighted Return:0.12::=",
     );
-    expect(screen.getByTestId("metric-IRR")).toHaveTextContent("IRR:0.14::=");
+    expect(screen.getByTestId("metric-Money-Weighted Return")).toHaveTextContent(
+      "Money-Weighted Return:0.14::=",
+    );
   });
 });

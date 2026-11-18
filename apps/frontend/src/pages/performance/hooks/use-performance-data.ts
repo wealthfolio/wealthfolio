@@ -1,18 +1,27 @@
 import { calculatePerformanceHistory } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
-import { PerformanceResult, TrackedItem } from "@/lib/types";
+import type { AccountScope, PerformanceResult, TrackedItem } from "@/lib/types";
 import { keepPreviousData, useQueries, type UseQueryResult } from "@tanstack/react-query";
 import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { useTranslation } from "react-i18next";
+import { performanceViewSeries } from "@/lib/performance";
 import { earliestPerformanceStartDate } from "../performance-chart-series";
 
 /** The first date of the earliest series among the loaded results. */
 function earliestSeriesDate(queries: UseQueryResult<PerformanceResult>[]): string | undefined {
-  const firstDates = queries.flatMap((query) =>
-    query.isSuccess && query.data.series.length ? [query.data.series[0].date] : [],
-  );
+  const firstDates = queries.flatMap((query) => {
+    if (!query.isSuccess) return [];
+    // A holdings account over its full history has no curve; its period
+    // still says where it starts.
+    const first =
+      performanceViewSeries(query.data, "twr")[0]?.date ??
+      performanceViewSeries(query.data, "moneyWeighted")[0]?.date ??
+      query.data.period?.startDate ??
+      undefined;
+    return first ? [first] : [];
+  });
   return firstDates.length
     ? firstDates.reduce((earliest, date) => (date < earliest ? date : earliest))
     : undefined;
@@ -38,10 +47,13 @@ export function useCalculatePerformanceHistory({
   selectedItems,
   dateRange,
   trackingMode,
+  benchmarkScope,
 }: {
   selectedItems: TrackedItem[];
   dateRange: DateRange | undefined;
   trackingMode?: "HOLDINGS" | "TRANSACTIONS";
+  /** Benchmarks replay this scope's deposits and withdrawals for their money-weighted view. */
+  benchmarkScope?: AccountScope;
 }) {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
@@ -64,7 +76,7 @@ export function useCalculatePerformanceHistory({
     itemStartDate: string | undefined,
     itemEnabled: boolean,
   ) => {
-    const accountFilter = item.type === "account" ? item.accountScope : undefined;
+    const accountFilter = item.type === "account" ? item.accountScope : benchmarkScope;
 
     return {
       queryKey: [

@@ -80,7 +80,9 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
     )
     .toBe(0);
   if (!history) throw new Error("Performance history was not returned");
-  expect(history.mode).toBe("valueReturn");
+  // A mixed scope has no time-weighted return; its money-weighted one stands in.
+  expect(history.returns.twr.period ?? null).toBeNull();
+  expect(history.returns.moneyWeighted.period).not.toBeUndefined();
   expect(history.isMixedTrackingMode).toBe(true);
   expect(history.summary?.amountStatus).toBe("complete");
   expect(["complete", "notApplicable"]).toContain(history.summary?.basisStatus);
@@ -94,7 +96,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
   expect(boundedResponse.ok(), await boundedResponse.text()).toBeTruthy();
   const bounded: PerformanceResult = await boundedResponse.json();
   expect(bounded.summary?.amount).toBe(0);
-  expect(bounded.series).toHaveLength(0);
+  expect(bounded.returns.moneyWeighted.series ?? []).toHaveLength(0);
   expect(bounded.dataQuality.warnings).toContain(SERIES_WARNING);
   const summaryResponse = await page.request.post(`${BASE_URL}/api/v1/performance/summary`, {
     headers,
@@ -150,7 +152,7 @@ test("complete mixed-scope P&L stays unmarked on desktop/mobile in LTR/RTL", asy
       await page.keyboard.press("Escape");
       await expect(dialog).not.toBeVisible();
       await page
-        .getByRole("button", { name: /calculation notes? for value(?: return)?$/i })
+        .getByRole("button", { name: /calculation notes? for money-weighted(?: return)?$/i })
         .click();
       await expect(page.getByText(SERIES_WARNING, { exact: true })).toBeVisible();
       await page.keyboard.press("Escape");

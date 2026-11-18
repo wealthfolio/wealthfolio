@@ -30,15 +30,16 @@ function createWrapper() {
   };
 }
 
-function performanceResult(
-  dates: string[],
-  mode: PerformanceResult["mode"] = "timeWeighted",
-): PerformanceResult {
+function performanceResult(dates: string[]): PerformanceResult {
+  const series = dates.map((date) => ({ date, value: 0 }));
   return {
     scope: { id: "scope", currency: "USD" },
     period: { startDate: dates[0] ?? null, endDate: dates.at(-1) ?? null },
-    mode,
-    returns: { twr: 0, annualizedTwr: 0, irr: null, annualizedIrr: null, valueReturn: 0 },
+    returns: {
+      twr: { period: 0, annualized: 0, series },
+      moneyWeighted: { period: 0, series },
+      returnOnCost: {},
+    },
     attribution: {
       contributions: 0,
       distributions: 0,
@@ -52,7 +53,6 @@ function performanceResult(
     },
     risk: { volatility: 0, maxDrawdown: 0 },
     dataQuality: { status: "ok", warnings: [], notApplicableReasons: [] },
-    series: dates.map((date) => ({ date, value: 0 })),
     isHoldingsMode: false,
     isMixedTrackingMode: false,
   };
@@ -71,13 +71,12 @@ describe("useCalculatePerformanceHistory", () => {
     mocks.calculatePerformanceHistory.mockResolvedValue({
       scope: { id: "portfolio:all", currency: "USD" },
       period: { startDate: "2026-03-09", endDate: "2026-03-10" },
-      mode: "timeWeighted",
       returns: {
-        twr: 0,
-        annualizedTwr: 0,
-        irr: null,
-        annualizedIrr: null,
-        valueReturn: 0,
+        // Return data starts on a later date than requested start to ensure
+        // the hook does not mutate the query start date.
+        twr: { period: 0, annualized: 0, series: [{ date: "2026-03-09", value: 0 }] },
+        moneyWeighted: {},
+        returnOnCost: {},
       },
       attribution: {
         contributions: 0,
@@ -103,9 +102,6 @@ describe("useCalculatePerformanceHistory", () => {
         warnings: [],
         notApplicableReasons: [],
       },
-      // Return data starts on a later date than requested start to ensure
-      // the hook does not mutate the query start date.
-      series: [{ date: "2026-03-09", value: 0 }],
       isHoldingsMode: false,
       isMixedTrackingMode: false,
     });
@@ -297,10 +293,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
   function benchmarkFrom(inception: string) {
     const quotes = days(inception, TODAY, true);
     return (startDate?: string) =>
-      performanceResult(
-        quotes.filter((date) => date >= (startDate ?? YEAR_AGO)),
-        "symbolPriceBased",
-      );
+      performanceResult(quotes.filter((date) => date >= (startDate ?? YEAR_AGO)));
   }
 
   function deferred() {
@@ -393,7 +386,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     await waitFor(() => expect(symbolStarts()).toEqual(["2023-03-28"]));
     expect(result.current.isLoading).toBe(true);
 
-    benchmark.resolve(performanceResult(["2023-03-28", "2023-03-29"], "symbolPriceBased"));
+    benchmark.resolve(performanceResult(["2023-03-28", "2023-03-29"]));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data.map((item) => item?.id)).toEqual(["acc-1", "^GSPC"]);
     expect(loadingByRender.indexOf(false)).toBe(loadingByRender.length - 1);
@@ -442,12 +435,44 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^NDX",
       "acc-2",
     ]);
-    expect(result.current.queries.map((query) => query.data?.series[0]?.date)).toEqual([
-      "2023-03-28",
-      "2023-03-28",
-      "2023-03-28",
-      "2024-01-02",
-    ]);
+    expect(
+      result.current.queries.map((query) => query.data?.returns.twr.series?.[0]?.date),
+    ).toEqual(["2023-03-28", "2023-03-28", "2023-03-28", "2024-01-02"]);
+  });
+
+  it("starts all-time benchmarks where a curveless holdings account starts", async () => {
+    // A holdings account over its full history has no curve, only its period.
+    const holdings = performanceResult([]);
+    holdings.period = { startDate: "2022-01-03", endDate: TODAY };
+    backend({ "acc-1": holdings, "^GSPC": benchmarkFrom("2020-01-01") });
+    const { result } = renderHistory([ACCOUNT, BENCHMARK]);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(symbolStarts()).toEqual(["2022-01-03"]);
+  });
+
+  it("asks benchmarks to replay the selected scope's money, and accounts their own scope", async () => {
+    backend({
+      "acc-1": performanceResult(["2023-03-28", "2023-03-29"]),
+      "^GSPC": benchmarkFrom("2020-01-01"),
+    });
+    const scope = { type: "accounts" as const, accountIds: ["acc-1"] };
+    const { result } = renderHook(
+      () =>
+        useCalculatePerformanceHistory({
+          selectedItems: [ACCOUNT, BENCHMARK],
+          dateRange: undefined,
+          benchmarkScope: scope,
+        }),
+      { wrapper: createWrapper() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const calls = mocks.calculatePerformanceHistory.mock.calls as unknown[][];
+    const symbolCall = calls.find(([itemType]) => itemType === "symbol");
+    const accountCall = calls.find(([itemType]) => itemType === "account");
+    expect(symbolCall?.[5]).toEqual(scope);
+    expect(accountCall?.[5]).toBeUndefined();
   });
 
   it("hides a benchmark's earlier result while it waits for an added account", async () => {
@@ -466,7 +491,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     account.resolve(performanceResult(["2023-03-28", "2023-03-29"]));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
-    expect(benchmark?.series[0]?.date).toBe("2023-03-28");
+    expect(benchmark?.returns.twr.series?.[0]?.date).toBe("2023-03-28");
   });
 
   it("hides a benchmark's earlier error while it waits for an added account", async () => {
@@ -515,7 +540,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     expect(symbolStarts()).toEqual(["2025-10-08", "2023-03-28"]);
     expect(result.current.allTimeFrom).toEqual(new Date(2023, 2, 28));
     const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
-    expect(benchmark?.series[0]?.date).toBe("2023-03-28");
+    expect(benchmark?.returns.twr.series?.[0]?.date).toBe("2023-03-28");
   });
 
   it("reuses the cached all-time results when switching back to ALL", async () => {
@@ -533,7 +558,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
 
     expect(symbolStarts()).toEqual(["2023-03-28", "2025-10-08"]);
     const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
-    expect(benchmark?.series[0]?.date).toBe("2023-03-28");
+    expect(benchmark?.returns.twr.series?.[0]?.date).toBe("2023-03-28");
   });
 
   it.each([

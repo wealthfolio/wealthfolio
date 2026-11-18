@@ -1076,6 +1076,7 @@ export interface Settings {
   /** Formatting regions for amounts in specific currencies, keyed by currency code. */
   currencyFormattingRegions?: Record<string, string>;
   baseCurrency: string;
+  /** Return method shown across the app; legacy "valueReturn" reads as money-weighted. */
   defaultReturnMetric: "twr" | "irr" | "valueReturn";
   timezone: string;
   onboardingCompleted: boolean;
@@ -1444,14 +1445,12 @@ export interface ReturnData {
 export interface PerformanceResult {
   scope: PerformanceScopeDescriptor;
   period: PerformancePeriod;
-  mode: ReturnMethod;
   returns: PerformanceReturns;
   attribution: PerformanceAttribution;
   risk: PerformanceRisk;
   dataQuality: PerformanceDataQuality;
   basisStatus?: BasisStatus;
   summary?: PerformanceSummary;
-  series: ReturnData[];
   isHoldingsMode?: boolean;
   isMixedTrackingMode?: boolean;
 }
@@ -1468,8 +1467,6 @@ export interface PerformancePeriod {
   endDate?: string | null;
 }
 
-export type ReturnMethod = "timeWeighted" | "valueReturn" | "symbolPriceBased" | "notApplicable";
-
 export type BasisStatus = "complete" | "partialUnknown" | "unknown" | "notApplicable";
 
 export type PerformanceSummaryBasis = "marketValue" | "bookBasis" | "mixed" | "notApplicable";
@@ -1478,26 +1475,35 @@ export type PerformanceSummaryStatus = "complete" | "unavailable";
 
 export interface PerformanceSummary {
   amount?: number | null;
-  percent?: number | null;
-  method: ReturnMethod;
   basis: PerformanceSummaryBasis;
   quality: PerformanceDataQuality["status"];
   amountStatus: PerformanceSummaryStatus;
-  percentStatus: PerformanceSummaryStatus;
   basisStatus: BasisStatus;
   reasons: string[];
 }
 
-export interface PerformanceReturns {
-  twr?: number | null;
-  annualizedTwr?: number | null;
-  /** Selected-period money-weighted return derived from annualized XIRR. */
-  irr?: number | null;
-  /** Annualized XIRR using dated cash flows. */
-  annualizedIrr?: number | null;
-  valueReturn?: number | null;
-  annualizedValueReturn?: number | null;
+/** One way of measuring return; `period` is missing when the scope cannot support it. */
+export interface PerformanceReturnView {
+  period?: number | null;
+  /** Yearly rate: the period value compounded to a year (from 30 days of history). */
+  annualized?: number | null;
+  /** Cumulative curve, filled for history requests only. */
+  series?: ReturnData[];
+  unavailableReason?: string | null;
+  /** Stable code of `unavailableReason`, for showing translated text. */
+  unavailableReasonCode?: string | null;
 }
+
+export interface PerformanceReturns {
+  /** Time-weighted: deposits and withdrawals do not move it. */
+  twr: PerformanceReturnView;
+  /** Money-weighted: gain over the average invested capital. */
+  moneyWeighted: PerformanceReturnView;
+  /** Gain over book cost, for holdings accounts over their full history. */
+  returnOnCost: PerformanceReturnView;
+}
+
+export type PerformanceReturnViewKey = keyof PerformanceReturns;
 
 export interface PerformanceAttribution {
   contributions: number;

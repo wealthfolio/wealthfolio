@@ -26,6 +26,8 @@
   "auto_update_title": "自動アップデート",
   "auto_update_enable": "アップデートの自動確認を有効にする",
   "auto_update_description": "有効にすると、アプリケーションの起動時にWealthfolioが自動的にアップデートを確認します。ヘルプメニューから手動で確認することもできます。",
+  "return_method_title": "リターンの計算方法",
+  "return_method_label": "アプリ全体で表示するリターン",
   "auto_update_error_description": "自動アップデート設定の更新に失敗しました。もう一度お試しください。",
   "database_encryption_title": "データベースの暗号化",
   "database_encryption_enable": "保存データを暗号化する",

@@ -26,6 +26,8 @@
   "auto_update_title": "Atualizações automáticas",
   "auto_update_enable": "Ativar a busca automática de atualizações",
   "auto_update_description": "Quando ativado, o Wealthfolio buscará atualizações automaticamente ao iniciar o aplicativo. Você também pode buscar atualizações manualmente pelo menu Ajuda.",
+  "return_method_title": "Método de rentabilidade",
+  "return_method_label": "Rentabilidade mostrada em todo o aplicativo",
   "auto_update_error_description": "Não foi possível atualizar as configurações de atualização automática. Tente novamente.",
   "database_encryption_title": "Criptografia do banco de dados",
   "database_encryption_enable": "Criptografar os dados armazenados",

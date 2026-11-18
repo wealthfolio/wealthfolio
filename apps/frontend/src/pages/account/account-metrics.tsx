@@ -1,4 +1,5 @@
-import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
+import { useReturnMethod } from "@/hooks/use-return-method";
+import { performancePeriodPnl, presentedReturn } from "@/lib/performance";
 import { isValuationComplete } from "@/lib/valuation";
 import { AccountValuation, CurrentValuationSplit, PerformanceResult } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
@@ -43,6 +44,8 @@ interface AccountMetricsProps {
   balanceLabel?: string;
   /** If true, shows holdings-mode return cards instead of transaction return cards. */
   isHoldingsMode?: boolean;
+  /** The full history is selected. */
+  isAllTime?: boolean;
   balanceWarning?: {
     label: string;
     onClick: () => void;
@@ -100,12 +103,14 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   balanceEditDisabled = false,
   balanceLabel,
   isHoldingsMode = false,
+  isAllTime = false,
   balanceWarning,
 }) => {
   const dateFormatting = useDateFormatting();
   const [isEditingBalance, setIsEditingBalance] = useState(false);
 
   const { t } = useTranslation();
+  const { returnView } = useReturnMethod();
   const resolvedBalanceLabel = balanceLabel ?? t("account:cash_balance");
   // Never substitute FX-converted totals for missing native balances.
   const cashBalances = cashCurrencySplit?.flatMap(({ currency, valueLocal }) =>
@@ -165,7 +170,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   const displayCurrency = valuation?.accountCurrency || valuation?.baseCurrency;
   const performanceCurrency = performance?.scope.currency || displayCurrency;
   const performancePnl = performancePeriodPnl(performance);
-  const performanceReturn = performanceSummaryReturn(performance);
+  const performanceReturn = presentedReturn(performance, returnView)?.value ?? null;
   const allTimeReturnAmount = valuation.totalValue - valuation.netContribution;
   const allTimeReturnValue = isValuationComplete(valuation.valueStatus) ? (
     <GainAmount value={allTimeReturnAmount} currency={displayCurrency} className="text-sm" />
@@ -354,6 +359,8 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
             isLoading={isPerformanceLoading}
             performanceError={performanceError}
             isHoldingsMode={isHoldingsMode}
+            isAllTime={isAllTime}
+            returnView={returnView}
           />
         </CardContent>
         <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
@@ -364,7 +371,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           ) : isHoldingsMode ? (
             <>
               <p className="text-muted-foreground m-0 p-0 text-xs">
-                {t("account:twr_irr_require_transactions")}
+                {t("account:holdings_returns_note")}
               </p>
               {lastUpdated && (
                 <p className="text-muted-foreground m-0 p-0 text-xs">

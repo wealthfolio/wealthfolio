@@ -4,6 +4,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking
+
+- `PerformanceResult.returns` holds one view per return method, each with its
+  own meaning for every kind of account: `twr` (time-weighted), `moneyWeighted`
+  (gain over the average invested capital; `annualized` compounds it to a yearly
+  rate) and `returnOnCost` (gain over book cost, for holdings accounts over
+  their full history). Each view has `period`, `annualized`, `series` and an
+  `unavailableReason` when `period` is missing. The flat `twr`, `annualizedTwr`,
+  `irr`, `annualizedIrr`, `valueReturn` and `annualizedValueReturn` fields are
+  removed; `valueReturn` meant something different for holdings, transaction and
+  mixed scopes.
+- `PerformanceResult.mode`, the top-level `series`, `summary.percent`,
+  `summary.method`, `summary.percentStatus` and the `ReturnMethod` type are
+  removed. Read the curve from `returns.<view>.series`, and pick the view to
+  show from `Settings.defaultReturnMetric` (`'twr'` or `'irr'`).
+
 ## [3.13.1] - 2026-11-18
 
 ### Changed

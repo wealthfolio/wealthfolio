@@ -11,7 +11,6 @@
   "error_calculating": "Error calculating performance data",
   "not_available": "N/A",
   "not_plotted": "Not plotted",
-  "reference": "Reference",
   "unknown": "Unknown",
   "remove_item": "Remove {{name}}",
   "time_period": "Time Period",
@@ -55,32 +54,58 @@
     "holdings": "Holdings mode"
   },
   "exclusion": {
-    "holdings_not_mwr": "MWR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
+    "holdings_not_mwr": "MWR isn't available over a holdings account's full history because deposits and withdrawals aren't tracked.",
     "no_data": "Performance data is not available for this selection.",
-    "no_series": "No chart series is available for this period.",
-    "holdings_not_twr": "Holdings-mode accounts use Value Return and are not plotted with TWR.",
-    "transaction_not_value": "Transaction-mode accounts use TWR and are not plotted with Value Return.",
     "no_overlap": "No overlapping chart dates with the selected item."
   },
   "comparison_notice": {
-    "different_methods": "Different return methods cannot share the same chart. Select a muted chip to switch the chart mode.",
     "not_enough_overlap": "These selected items do not have enough overlapping chart dates with the active chart.",
+    "missing_return": "These selected items have no return for this method and period.",
     "not_plotted_count_one": "{{count}} selected item is not plotted",
     "not_plotted_count_other": "{{count}} selected items are not plotted"
+  },
+  "return_view": {
+    "twr": "Time-weighted",
+    "money_weighted": "Money-weighted",
+    "return_on_cost": "Return on investment (ROI)",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "How your investments did, as if you never added or withdrew money. Use it to compare with an index.",
+    "money_weighted_explainer": "What your money actually earned, counting when you added or withdrew it.",
+    "return_on_cost_explainer": "Your gain compared with what you paid for your holdings.",
+    "method_label": "Return method",
+    "trigger_label": "{{method}} {{value}}: see both methods and switch",
+    "chosen_unavailable": "{{method}} isn't available here.",
+    "reason": {
+      "mixed_twr": "Not available for portfolios that mix accounts tracked by holdings and by transactions.",
+      "holdings_full_history": "Not available over the full history of an account tracked by holdings, because its deposits and withdrawals aren't recorded.",
+      "roi_holdings_only": "ROI applies to accounts tracked by holdings, over their full history.",
+      "unknown_flow": "A deposit or withdrawal in this period has no known amount.",
+      "no_capital": "No money was invested on average over this period.",
+      "coverage": "Some holdings have no price at the start or end of this period.",
+      "not_enough_history": "Not enough history in this period.",
+      "mixed_coverage": "Some accounts in this portfolio have no gain or invested amount to add up."
+    }
   },
   "metric": {
     "return": "Return",
     "time_weighted_return": "Time-Weighted Return",
     "time_weighted_short": "Time-weighted",
+    "twr_short": "TWR",
     "money_weighted_return": "Money-Weighted Return",
     "money_weighted_short": "Money-weighted",
     "mwr_short": "MWR",
     "annualized_mwr": "Annualized MWR",
     "ann_mwr_short": "Ann. MWR",
-    "value_return": "Value Return",
-    "value_return_short": "Value return",
+    "annualized_twr": "Annualized TWR",
+    "ann_twr_short": "Ann. TWR",
+    "return_on_cost": "Return on Investment (ROI)",
+    "return_on_cost_short": "ROI",
     "price_return": "Price Return",
     "price_return_short": "Price return",
+    "benchmark_money_weighted": "Money-weighted (your deposits)",
+    "benchmark_money_weighted_short": "With your deposits",
     "volatility": "Volatility",
     "max_drawdown": "Max Drawdown",
     "max_drawdown_short": "Max drawdown",
@@ -97,7 +122,8 @@
   },
   "empty": {
     "title": "No performance data",
-    "description": "Select accounts to compare their performance over time."
+    "description": "Select accounts to compare their performance over time.",
+    "no_curve": "There's a return for this selection, but no chart for this period."
   },
   "attribution": {
     "partial_data": "Partial data",
@@ -126,12 +152,12 @@
     "distributions_desc": "Cash withdrawn from the account"
   },
   "metric_info": {
-    "time_weighted_return": "Time-weighted return (TWR) measures investment performance after removing the effect of deposits and withdrawals. Periods under one year are shown as selected-period returns; periods of one year or longer are shown annualized when available.",
-    "money_weighted_return": "Money-weighted return (MWR) measures performance using the size and timing of external cash flows. It is calculated with IRR/XIRR; for periods of one year or longer, annualized XIRR is the standard display.",
-    "irr": "Internal rate of return (IRR) measures money-weighted performance using the size and timing of external cash flows. For periods of one year or longer, annualized XIRR is the standard display.",
+    "time_weighted_return": "Time-weighted return (TWR) shows how your investments did, as if you never added or withdrew money. Use it to compare with an index. From one year on, it is also shown as a yearly rate.",
+    "money_weighted_return": "Money-weighted return (MWR) shows what your money actually earned, counting when you added or withdrew it: the gain divided by the average amount invested. From one year on, it is also shown as a yearly rate.",
     "simple_return": "Simple return compares total gain or loss with net contributions. It is cumulative and not time weighted.",
-    "value_return": "Value return measures the change in account value over the selected period when transaction-level cash flows are not available.",
+    "return_on_cost": "Return on investment (ROI) compares your gain with what you paid for your holdings. Holdings accounts use it over their full history, where deposits and withdrawals are not tracked.",
     "price_return": "Price return measures the selected symbol's price change over the selected period.",
+    "benchmark_money_weighted": "The benchmark's money-weighted return with your own deposits and withdrawals replayed into it: what your money would have earned there, on the same dates. Prices only, without currency effects.",
     "volatility": "Volatility measures the dispersion of returns for a given investment. Higher volatility means the investment can change dramatically over a short period. It is annualized from calendar-daily returns.",
     "max_drawdown": "Maximum Drawdown represents the largest percentage decline from a peak to a subsequent trough in portfolio value during the specified period. It indicates downside risk.",
     "annualized_return": "Annualized return is the average yearly compounded rate for the selected period. It is not the cumulative total gain or loss.",

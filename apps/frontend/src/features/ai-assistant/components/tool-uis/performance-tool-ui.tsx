@@ -23,6 +23,9 @@ import {
   performanceToolPeriodPnl,
   type PerformanceToolResult as PerformanceResult,
 } from "./performance-tool-semantics";
+import { returnViewShortName } from "@/components/return-percent";
+import { useReturnMethod } from "@/hooks/use-return-method";
+import { presentReturnViews, type ChosenReturnView } from "@/lib/performance";
 import { CompactToolCard } from "./shared";
 
 // ============================================================================
@@ -36,9 +39,16 @@ interface GetPerformanceArgs {
   displayMode?: "compact" | "full";
 }
 
-function summaryReturn(result: PerformanceResult): number | null {
-  if (result.summaryPercentStatus !== "complete") return null;
-  return result.summaryPercent ?? null;
+/** The chosen return method, or the labelled stand-in the rest of the app shows. */
+function chosenToolReturn(result: PerformanceResult, chosen: ChosenReturnView) {
+  return presentReturnViews(
+    {
+      value: (view) => result.returns[view].period,
+      annualized: (view) => result.returns[view].annualized,
+      reason: (view) => result.returns[view].unavailableReason,
+    },
+    chosen,
+  );
 }
 
 // ============================================================================
@@ -132,6 +142,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
 
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
+  const { returnView } = useReturnMethod();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
   const parsed = useMemo(
@@ -202,18 +213,20 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     accountLabel,
   );
-  const summaryReturnValue = summaryReturn(parsed);
+  const presented = chosenToolReturn(parsed, returnView);
+  const summaryReturnValue = presented?.value ?? null;
   const periodPnlAmount = performanceToolPeriodPnl(parsed);
-  const suppressReturnMetrics = parsed.summaryPercentStatus !== "complete";
-  const annualizedReturn = suppressReturnMetrics
-    ? null
-    : (parsed.annualizedTwr ?? parsed.annualizedValueReturn);
-  const irr = suppressReturnMetrics ? null : parsed.irr;
-  const annualizedIrr = suppressReturnMetrics ? null : parsed.annualizedIrr;
+  const annualizedReturn = presented?.annualized ?? null;
   const annualizedLabel =
-    parsed.annualizedTwr == null
-      ? t("ai:performance.annualizedReturn")
-      : t("ai:performance.annualizedTwr");
+    presented?.view === "twr"
+      ? t("performance:metric.annualized_twr")
+      : presented?.view === "moneyWeighted"
+        ? t("performance:metric.annualized_mwr")
+        : t("ai:performance.annualizedReturn");
+  // The other method, side by side with the chosen one.
+  const otherView: ChosenReturnView = returnView === "twr" ? "moneyWeighted" : "twr";
+  const otherReturn = parsed.returns[otherView].period;
+  const otherAnnualized = parsed.returns[otherView].annualized;
   const isPositiveReturn = summaryReturnValue == null ? null : summaryReturnValue >= 0;
   const TrendIcon = isPositiveReturn ? Icons.TrendingUp : Icons.TrendingDown;
 
@@ -258,6 +271,11 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
                 ? t("ai:performance.notAvailableUpper")
                 : formatPercentSigned(summaryReturnValue)}
             </span>
+            {presented && (
+              <span className="text-muted-foreground text-xs">
+                {returnViewShortName(presented.view, t)}
+              </span>
+            )}
           </div>
           {periodPnlAmount != null && (
             <span
@@ -287,14 +305,18 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
             isPositive={annualizedReturn == null ? null : annualizedReturn >= 0}
           />
           <MetricCard
-            label={t("ai:performance.irr")}
-            value={irr == null ? t("ai:performance.notAvailable") : formatPercentSigned(irr)}
-            subValue={
-              annualizedIrr == null
-                ? undefined
-                : t("ai:performance.irrAnn", { value: formatPercentSigned(annualizedIrr) })
+            label={returnViewShortName(otherView, t)}
+            value={
+              otherReturn == null
+                ? t("ai:performance.notAvailable")
+                : formatPercentSigned(otherReturn)
             }
-            isPositive={irr == null ? null : irr >= 0}
+            subValue={
+              otherAnnualized == null
+                ? undefined
+                : t("ai:performance.irrAnn", { value: formatPercentSigned(otherAnnualized) })
+            }
+            isPositive={otherReturn == null ? null : otherReturn >= 0}
           />
           <MetricCard
             label={t("ai:performance.volatility")}

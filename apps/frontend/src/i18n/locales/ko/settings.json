@@ -26,6 +26,8 @@
   "auto_update_title": "자동 업데이트",
   "auto_update_enable": "자동 업데이트 확인 사용",
   "auto_update_description": "이 옵션을 사용하면 Wealthfolio가 앱을 시작할 때 자동으로 업데이트를 확인합니다. 도움말 메뉴에서 수동으로 업데이트를 확인할 수도 있습니다.",
+  "return_method_title": "수익률 계산 방식",
+  "return_method_label": "앱 전체에 표시되는 수익률",
   "auto_update_error_description": "자동 업데이트 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
   "database_encryption_title": "데이터베이스 암호화",
   "database_encryption_enable": "저장된 데이터 암호화",

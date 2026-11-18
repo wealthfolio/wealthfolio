@@ -3,6 +3,8 @@ import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
+import { returnViewName, returnViewShortName } from "@/components/return-percent";
+import { useReturnMethod } from "@/hooks/use-return-method";
 import type { HistoryChartMarkerTone } from "@/components/history-chart-marker";
 import { activityMarkerLabel, activityMarkerTone } from "@/pages/asset/asset-history-markers";
 import type { ActivityDetails } from "@/lib/types";
@@ -47,11 +49,7 @@ import {
   HoldingType,
   isLiabilityAccountType,
 } from "@/lib/constants";
-import {
-  performanceSummaryReturn,
-  performancePeriodPnl,
-  simpleReturnFromNetContribution,
-} from "@/lib/performance";
+import { presentedReturn, performancePeriodPnl } from "@/lib/performance";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -621,15 +619,13 @@ const AccountPage = () => {
   }, [appTimezone, cashAuditActivities, selectedCashAuditTarget]);
 
   const frontendGainLossAmount = performancePeriodPnl(accountPerformance);
-  const frontendSummaryReturn = performanceSummaryReturn(accountPerformance);
+  // An account valued without every exchange rate has no all-time gain.
+  const isAllTimeIncomplete =
+    metricsValuation != null && !isValuationComplete(metricsValuation.valueStatus);
   const allTimeReturnAmount =
-    metricsValuation && isValuationComplete(metricsValuation.valueStatus)
+    metricsValuation && !isAllTimeIncomplete
       ? metricsValuation.totalValue - metricsValuation.netContribution
       : null;
-  const allTimeSimpleReturn = simpleReturnFromNetContribution(
-    allTimeReturnAmount,
-    metricsValuation?.netContribution,
-  );
   const gainLossAmountToDisplay =
     selectedIntervalCode === "ALL" && !isHoldingsMode
       ? allTimeReturnAmount
@@ -682,25 +678,17 @@ const AccountPage = () => {
     setSelectedIntervalCode(code);
   };
 
-  const percentageToDisplay = useMemo(() => {
-    // Holdings mode has no transaction cash-flow history, so show value return.
-    if (isHoldingsMode) {
-      return frontendSummaryReturn;
-    }
-    if (selectedIntervalCode === "ALL") {
-      return allTimeSimpleReturn;
-    }
-    if (accountPerformance) {
-      return performanceSummaryReturn(accountPerformance);
-    }
-    return null;
-  }, [
-    accountPerformance,
-    selectedIntervalCode,
-    frontendSummaryReturn,
-    allTimeSimpleReturn,
-    isHoldingsMode,
-  ]);
+  // The chosen return method, or a labelled stand-in when the account cannot
+  // support it, as on its Dashboard card. Over a period starting at the
+  // account's inception this page counts the first day's gain and the
+  // Dashboard does not, as for the gain amount.
+  const { returnView } = useReturnMethod();
+  // Nor an all-time return, as for its gain.
+  const presentedAccountReturn =
+    selectedIntervalCode === "ALL" && !isHoldingsMode && isAllTimeIncomplete
+      ? null
+      : presentedReturn(accountPerformance, returnView);
+  const percentageToDisplay = presentedAccountReturn?.value ?? null;
 
   const handleAccountSwitch = (selectedAccount: Account) => {
     navigate(`/accounts/${selectedAccount.id}`);
@@ -1110,11 +1098,22 @@ const AccountPage = () => {
                                   {t("account:not_available")}
                                 </span>
                               ) : (
-                                <GainPercent
-                                  value={percentageToDisplay}
-                                  variant="badge"
-                                  className="text-xs"
-                                />
+                                <>
+                                  <GainPercent
+                                    value={percentageToDisplay}
+                                    variant="badge"
+                                    className="text-xs"
+                                  />
+                                  {/* Only a stand-in is labelled, as on the Dashboard. */}
+                                  {presentedAccountReturn?.isFallback && (
+                                    <span
+                                      className="text-muted-foreground text-xs"
+                                      title={returnViewName(presentedAccountReturn.view, t)}
+                                    >
+                                      {returnViewShortName(presentedAccountReturn.view, t)}
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
@@ -1205,6 +1204,7 @@ const AccountPage = () => {
                   hideBalanceEdit={isHoldingsMode || isLiabilityAccount}
                   balanceEditDisabled={isCurrentValuationLoading || Boolean(currentValuationError)}
                   isHoldingsMode={isHoldingsMode}
+                  isAllTime={selectedIntervalCode === "ALL"}
                   balanceLabel={
                     isLiabilityAccount ? t("account:balance_label") : t("account:cash_balance")
                   }

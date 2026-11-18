@@ -3,6 +3,10 @@ import { render, screen } from "@/test/render";
 import { describe, expect, it, vi } from "vitest";
 import AccountMetrics from "./account-metrics";
 
+vi.mock("@/hooks/use-return-method", () => ({
+  useReturnMethod: () => ({ returnView: "twr", setReturnView: vi.fn() }),
+}));
+
 vi.mock("@/pages/account/performance-grid", () => ({
   PerformanceGrid: () => <div>performance-grid</div>,
 }));
@@ -83,8 +87,7 @@ function createPerformance(overrides: Partial<PerformanceResult> = {}): Performa
   return {
     scope: { id: "account-1", currency: "USD" },
     period: { startDate: "2026-06-01", endDate: "2026-06-30" },
-    mode: "valueReturn",
-    returns: { valueReturn: null },
+    returns: { twr: {}, moneyWeighted: {}, returnOnCost: {} },
     attribution: {
       contributions: 0,
       distributions: 0,
@@ -101,16 +104,12 @@ function createPerformance(overrides: Partial<PerformanceResult> = {}): Performa
     basisStatus: "complete",
     summary: {
       amount: null,
-      percent: null,
-      method: "valueReturn",
       basis: "bookBasis",
       quality: "partial",
       amountStatus: "unavailable",
-      percentStatus: "unavailable",
       basisStatus: "complete",
       reasons: [],
     },
-    series: [],
     ...overrides,
   };
 }
@@ -223,14 +222,12 @@ describe("AccountMetrics", () => {
           performanceEligibleValueBase: 150,
         })}
         performance={createPerformance({
+          returns: { twr: {}, moneyWeighted: {}, returnOnCost: { period: 0.5 } },
           summary: {
             amount: 50,
-            percent: 0.5,
-            method: "valueReturn",
             basis: "bookBasis",
             quality: "ok",
             amountStatus: "complete",
-            percentStatus: "complete",
             basisStatus: "complete",
             reasons: [],
           },

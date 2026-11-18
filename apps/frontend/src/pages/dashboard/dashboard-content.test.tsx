@@ -68,6 +68,7 @@ vi.mock("@wealthfolio/ui", async () => {
   return {
     GainAmount: ({ value }: { value: number }) => <span>{`gain-amount:${value}`}</span>,
     GainPercent: ({ value }: { value: number }) => <span>{`gain-percent:${value}`}</span>,
+    useNumberFormatting: () => ({ formatPercent: (value: number) => `${value * 100}%` }),
     getInitialIntervalData: (code?: "ALL" | "3M", asOf?: Date) =>
       uiMocks.realIntervals
         ? getInitialIntervalData(code, asOf)
@@ -251,7 +252,8 @@ describe("DashboardContent", () => {
     mockUseQuery.mockReturnValue({
       isLoading: false,
       data: {
-        summary: { amountStatus: "complete", percentStatus: "complete", amount: 25, percent: 0.25 },
+        summary: { amountStatus: "complete", amount: 25 },
+        returns: { twr: { period: 0.25 }, moneyWeighted: { period: 0.25 }, returnOnCost: {} },
       },
     } as unknown as ReturnType<typeof useQuery>);
     render(<DashboardContent />);
@@ -304,12 +306,8 @@ describe("DashboardContent", () => {
       mockUseQuery.mockReturnValue({
         isLoading: false,
         data: {
-          summary: {
-            amountStatus: "complete",
-            percentStatus: "complete",
-            amount: 25,
-            percent: 0.25,
-          },
+          summary: { amountStatus: "complete", amount: 25 },
+          returns: { twr: { period: 0.25 }, moneyWeighted: { period: 0.25 }, returnOnCost: {} },
         },
       } as unknown as ReturnType<typeof useQuery>);
       render(<DashboardContent />);
@@ -349,13 +347,10 @@ describe("DashboardContent", () => {
       data: {
         scope: { id: "portfolio:all", currency: "USD" },
         period: { startDate: "2026-03-01", endDate: "2026-06-01" },
-        mode: "timeWeighted",
         returns: {
-          twr: 0.1,
-          annualizedTwr: null,
-          irr: null,
-          annualizedIrr: null,
-          valueReturn: 0.1,
+          twr: { period: 0.1 },
+          moneyWeighted: { period: 0.1 },
+          returnOnCost: {},
         },
         attribution: {
           contributions: 0,
@@ -381,7 +376,6 @@ describe("DashboardContent", () => {
           warnings: ["Backend performance warning that belongs in Health Center."],
           notApplicableReasons: [],
         },
-        series: [],
       },
     } as unknown as ReturnType<typeof useQuery>);
 

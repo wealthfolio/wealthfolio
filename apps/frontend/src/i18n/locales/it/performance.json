@@ -11,7 +11,6 @@
   "error_calculating": "Errore nel calcolo dei dati di performance",
   "not_available": "N/D",
   "not_plotted": "Non rappresentato",
-  "reference": "Riferimento",
   "unknown": "Sconosciuto",
   "remove_item": "Rimuovi {{name}}",
   "time_period": "Periodo di tempo",
@@ -55,33 +54,59 @@
     "holdings": "Modalità posizioni"
   },
   "exclusion": {
-    "holdings_not_mwr": "Il rendimento ponderato per il capitale (MWR) non è disponibile in modalità sole posizioni perché i flussi di cassa delle transazioni non vengono registrati.",
+    "holdings_not_mwr": "L'MWR non è disponibile su tutta la storia di un conto per posizioni, perché versamenti e prelievi non sono registrati.",
     "no_data": "I dati di performance non sono disponibili per questa selezione.",
-    "no_series": "Nessuna serie del grafico disponibile per questo periodo.",
-    "holdings_not_twr": "I conti in modalità posizioni usano il Rendimento da valore e non vengono rappresentati con il TWR.",
-    "transaction_not_value": "I conti in modalità transazioni usano il TWR e non vengono rappresentati con il Rendimento da valore.",
     "no_overlap": "Nessuna data del grafico coincide con l'elemento selezionato."
   },
   "comparison_notice": {
-    "different_methods": "Metodi di rendimento diversi non possono condividere lo stesso grafico. Seleziona un'etichetta attenuata per cambiare la modalità del grafico.",
     "not_enough_overlap": "Questi elementi selezionati non hanno abbastanza date del grafico in comune con il grafico attivo.",
+    "missing_return": "Questi elementi selezionati non hanno un rendimento per questo metodo e periodo.",
     "not_plotted_count_one": "{{count}} elemento selezionato non è rappresentato",
     "not_plotted_count_many": "{{count}} elementi selezionati non sono rappresentati",
     "not_plotted_count_other": "{{count}} elementi selezionati non sono rappresentati"
+  },
+  "return_view": {
+    "twr": "Ponderato nel tempo",
+    "money_weighted": "Ponderato per il capitale",
+    "return_on_cost": "Ritorno sull'investimento (ROI)",
+    "twr_short": "TWR",
+    "money_weighted_short": "MWR",
+    "return_on_cost_short": "ROI",
+    "twr_explainer": "Come sono andati i tuoi investimenti, come se non avessi mai aggiunto o prelevato denaro. Utile per il confronto con un indice.",
+    "money_weighted_explainer": "Quanto ha guadagnato davvero il tuo denaro, considerando quando l'hai aggiunto o prelevato.",
+    "return_on_cost_explainer": "Il tuo guadagno rispetto a quanto hai pagato per le tue posizioni.",
+    "method_label": "Metodo di rendimento",
+    "trigger_label": "{{method}} {{value}}: vedi entrambi i metodi e cambia",
+    "chosen_unavailable": "{{method}} non è disponibile qui.",
+    "reason": {
+      "mixed_twr": "Non disponibile per portafogli che mescolano conti per posizioni e conti per transazioni.",
+      "holdings_full_history": "Non disponibile su tutta la storia di un conto per posizioni, perché versamenti e prelievi non sono registrati.",
+      "roi_holdings_only": "Il ROI si applica ai conti per posizioni, su tutta la loro storia.",
+      "unknown_flow": "Un versamento o prelievo in questo periodo non ha un importo noto.",
+      "no_capital": "In media non è stato investito denaro in questo periodo.",
+      "coverage": "Alcune posizioni non hanno un prezzo all'inizio o alla fine di questo periodo.",
+      "not_enough_history": "Storico insufficiente in questo periodo.",
+      "mixed_coverage": "Alcuni conti di questo portafoglio non hanno guadagno o importo investito da sommare."
+    }
   },
   "metric": {
     "return": "Rendimento",
     "time_weighted_return": "Rendimento ponderato nel tempo",
     "time_weighted_short": "Ponderato nel tempo",
+    "twr_short": "TWR",
     "money_weighted_return": "Rendimento ponderato per il capitale",
     "money_weighted_short": "Ponderato per il capitale",
     "mwr_short": "MWR",
     "annualized_mwr": "MWR annualizzato",
     "ann_mwr_short": "MWR ann.",
-    "value_return": "Rendimento da valore",
-    "value_return_short": "Rend. da valore",
+    "annualized_twr": "TWR annualizzato",
+    "ann_twr_short": "TWR ann.",
+    "return_on_cost": "Ritorno sull'investimento (ROI)",
+    "return_on_cost_short": "ROI",
     "price_return": "Rendimento da prezzo",
     "price_return_short": "Rend. da prezzo",
+    "benchmark_money_weighted": "Ponderato per il capitale (i tuoi versamenti)",
+    "benchmark_money_weighted_short": "Con i tuoi versamenti",
     "volatility": "Volatilità",
     "max_drawdown": "Drawdown massimo",
     "max_drawdown_short": "Drawdown max.",
@@ -98,7 +123,8 @@
   },
   "empty": {
     "title": "Nessun dato di performance",
-    "description": "Seleziona i conti per confrontarne la performance nel tempo."
+    "description": "Seleziona i conti per confrontarne la performance nel tempo.",
+    "no_curve": "Questa selezione ha un rendimento, ma nessun grafico per questo periodo."
   },
   "attribution": {
     "partial_data": "Dati parziali",
@@ -127,12 +153,12 @@
     "distributions_desc": "Liquidità prelevata dal conto"
   },
   "metric_info": {
-    "time_weighted_return": "Il rendimento ponderato nel tempo (TWR) misura la performance dell’investimento eliminando l’effetto di versamenti e prelievi. Per periodi inferiori a un anno viene mostrato il rendimento del periodo selezionato; per periodi di almeno un anno viene mostrato annualizzato, se disponibile.",
-    "money_weighted_return": "Il rendimento ponderato per il capitale (MWR) misura la performance considerando importo e tempistica dei flussi di cassa esterni. È calcolato con IRR/XIRR; per periodi di almeno un anno, la visualizzazione standard è lo XIRR annualizzato.",
-    "irr": "Il tasso interno di rendimento (IRR) misura la performance ponderata per il capitale considerando importo e tempistica dei flussi di cassa esterni. Per periodi di almeno un anno, la visualizzazione standard è lo XIRR annualizzato.",
+    "time_weighted_return": "Il rendimento ponderato nel tempo (TWR) mostra come sono andati i tuoi investimenti, come se non avessi mai aggiunto o prelevato denaro. Usalo per il confronto con un indice. Da un anno in su viene mostrato anche come tasso annuo.",
+    "money_weighted_return": "Il rendimento ponderato per il capitale (MWR) mostra quanto ha guadagnato davvero il tuo denaro, considerando quando l'hai aggiunto o prelevato: il guadagno diviso per il capitale medio investito. Da un anno in su viene mostrato anche come tasso annuo.",
     "simple_return": "Il rendimento semplice confronta il guadagno o la perdita totale con i versamenti netti. È cumulativo e non è ponderato nel tempo.",
-    "value_return": "Il rendimento del valore misura la variazione del valore del conto nel periodo selezionato quando non sono disponibili flussi di cassa a livello di transazione.",
+    "return_on_cost": "Il ritorno sull'investimento (ROI) confronta il tuo guadagno con quanto hai pagato per le tue posizioni. I conti per posizioni lo usano su tutta la loro storia, perché versamenti e prelievi non vi sono registrati.",
     "price_return": "Il rendimento del prezzo misura la variazione del prezzo del titolo selezionato nel periodo selezionato.",
+    "benchmark_money_weighted": "Il rendimento ponderato per il capitale del benchmark se i tuoi versamenti e prelievi vi fossero stati fatti nelle stesse date: quanto avrebbe guadagnato lì il tuo denaro. Solo prezzi, senza effetti valutari.",
     "volatility": "La volatilità misura la dispersione dei rendimenti di un investimento. Una volatilità maggiore indica che il valore può cambiare notevolmente in poco tempo. È annualizzata a partire dai rendimenti di ogni giorno di calendario.",
     "max_drawdown": "Il drawdown massimo rappresenta il maggiore calo percentuale dal picco a un minimo successivo del valore del portafoglio nel periodo indicato. Indica il rischio di ribasso.",
     "annualized_return": "Il rendimento annualizzato è il tasso composto annuo medio del periodo selezionato. Non è il guadagno o la perdita totale cumulata.",

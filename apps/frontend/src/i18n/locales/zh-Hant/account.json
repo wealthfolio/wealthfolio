@@ -105,7 +105,7 @@
   "unrealized_pnl": "未實現損益",
   "not_available": "不適用",
   "more_count": "+{{count}} 項",
-  "twr_irr_require_transactions": "TWR 與 IRR 需要交易追蹤。",
+  "holdings_returns_note": "以持倉追蹤的帳戶在完整歷史中顯示 ROI；較短期間的報酬根據快照估算。",
   "last_updated": "最後更新：{{date}}",
   "from_to": "從 {{start}} 至 {{end}}",
   "snapshot": {
@@ -154,16 +154,15 @@
   "action_transfer_holdings": "移轉持有部位",
   "review_cash_impact": "查看現金影響",
   "metric": {
-    "value_return": "價值報酬率",
+    "return_on_cost": "投資報酬率（ROI）",
     "total_pnl": "總損益",
     "total_pnl_info": "所選期間內的總獲利或虧損。",
     "annualized_twr": "年化 TWR",
-    "annualized_irr": "年化 IRR",
-    "irr": "IRR",
+    "mwr": "金額加權報酬率",
     "cumulative_twr": "累積 TWR",
-    "period_irr": "期間 IRR",
+    "cumulative_mwr": "累積 MWR",
     "twr_hover_hint": " 將滑鼠懸停在該值上以查看累積 TWR。",
-    "irr_hover_hint": " 將滑鼠懸停在該值上以查看所選期間的 IRR。"
+    "mwr_hover_hint": " 將游標移到數值上可查看累積 MWR。"
   },
   "more_count_other": "+{{count}} 項",
   "more_count_one": "+{{count}} 項"

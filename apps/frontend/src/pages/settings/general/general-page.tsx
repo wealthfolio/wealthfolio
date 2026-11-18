@@ -7,6 +7,7 @@ import { BaseCurrencySettings } from "./currency-settings";
 import { DatabaseEncryptionSettings } from "./database-encryption-settings";
 import { ExchangeRatesSettings } from "./exchange-rates/exchange-rates-settings";
 import { LanguageRegionSettings } from "./language-region-settings";
+import { ReturnMethodSettings } from "./return-method-settings";
 
 export default function GeneralSettingsPage() {
   const { t } = useTranslation();
@@ -21,6 +22,9 @@ export default function GeneralSettingsPage() {
       <Separator />
       <BaseCurrencySettings />
       <LanguageRegionSettings />
+      <div className="pt-6">
+        <ReturnMethodSettings />
+      </div>
       <div className="pt-6">
         <ExchangeRatesSettings />
       </div>

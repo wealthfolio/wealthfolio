@@ -16,6 +16,8 @@
   "auto_update_title": "Automatische Updates",
   "auto_update_enable": "Automatische Update-Prüfung aktivieren",
   "auto_update_description": "Wenn aktiviert, prüft Wealthfolio beim Start automatisch auf Updates. Sie können weiterhin manuell im Hilfe-Menü nach Updates suchen.",
+  "return_method_title": "Renditemethode",
+  "return_method_label": "In der gesamten App angezeigte Rendite",
   "auto_update_error_description": "Auto-Update-Einstellungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
   "database_encryption_title": "Datenbankverschlüsselung",
   "database_encryption_enable": "Gespeicherte Daten verschlüsseln",

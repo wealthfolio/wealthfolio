@@ -9,13 +9,14 @@ import { useHoldings } from "@/hooks/use-holdings";
 import { HoldingsScopeNotice } from "@/components/holdings-scope-notice";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
-import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
+import { ReturnPercent } from "@/components/return-percent";
+import { performancePeriodPnl } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
-import { GainAmount, GainPercent, IntervalSelector } from "@wealthfolio/ui";
+import { GainAmount, IntervalSelector } from "@wealthfolio/ui";
 import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
 import { PeriodNavigation } from "@/features/spending/components/period-navigation";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
@@ -152,7 +153,6 @@ export function DashboardContent({
       !isValuationComplete(portfolioCurrentValuation?.summary.valueStatus)) ||
     hasIncompleteHistory;
   const gainLossAmount = hasIncompletePeriod ? null : performancePeriodPnl(portfolioPerformance);
-  const simpleReturn = hasIncompletePeriod ? null : performanceSummaryReturn(portfolioPerformance);
   const isCurrentValuationUnavailable =
     !isCurrentValuationLoading &&
     (!isValuationComplete(portfolioCurrentValuation?.summary.valueStatus) ||
@@ -254,17 +254,12 @@ export function DashboardContent({
                 )}
                 {/* Stretch: the row centres its items, so an empty divider has no height. */}
                 <div className="border-secondary my-1 self-stretch border-e pe-2" />
-                {simpleReturn == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
-                ) : (
-                  <GainPercent
-                    className="lg:text-md text-sm font-light"
-                    value={simpleReturn}
-                    animated={true}
-                  />
-                )}
+                <ReturnPercent
+                  result={hasIncompletePeriod ? null : portfolioPerformance}
+                  className="lg:text-md text-sm font-light"
+                  unavailableClassName="lg:text-md text-sm font-light"
+                  animated={true}
+                />
               </>
             )}
             {period.isHistorical && (

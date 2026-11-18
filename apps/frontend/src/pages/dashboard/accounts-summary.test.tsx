@@ -194,6 +194,7 @@ interface PerformanceFixture {
   pnl: number | null;
   returnValue: number | null;
   dataQuality?: PerformanceResult["dataQuality"];
+  returns?: PerformanceResult["returns"];
 }
 
 function createPerformanceResult(
@@ -205,13 +206,11 @@ function createPerformanceResult(
   return {
     scope: overrides.scope ?? { id: "performance-1", currency: "USD" },
     period: overrides.period ?? { startDate: null, endDate: null },
-    mode: overrides.mode ?? "timeWeighted",
     returns: overrides.returns ?? {
-      twr: returnValue,
-      annualizedTwr: null,
-      irr: null,
-      annualizedIrr: null,
-      valueReturn: returnValue,
+      twr:
+        returnValue == null ? { unavailableReason: "TWR unavailable." } : { period: returnValue },
+      moneyWeighted: { unavailableReason: "MWR unavailable." },
+      returnOnCost: { unavailableReason: "Return on cost unavailable." },
     },
     attribution: overrides.attribution ?? {
       contributions: 0,
@@ -239,12 +238,9 @@ function createPerformanceResult(
     },
     summary: overrides.summary ?? {
       amount: pnl,
-      percent: returnValue,
-      method: overrides.mode ?? "timeWeighted",
       basis: overrides.isMixedTrackingMode ? "mixed" : "marketValue",
       quality: overrides.dataQuality?.status ?? "ok",
       amountStatus: pnl == null ? "unavailable" : "complete",
-      percentStatus: returnValue == null ? "unavailable" : "complete",
       basisStatus: overrides.basisStatus ?? "notApplicable",
       reasons: [
         ...(overrides.dataQuality?.warnings ?? []),
@@ -252,7 +248,6 @@ function createPerformanceResult(
       ],
     },
     basisStatus: overrides.basisStatus,
-    series: overrides.series ?? [],
     isHoldingsMode: overrides.isHoldingsMode,
     isMixedTrackingMode: overrides.isMixedTrackingMode,
   };
@@ -328,6 +323,7 @@ function renderAccountsSummary({
       pnl: performance.pnl,
       returnValue: performance.returnValue,
       dataQuality: performance.dataQuality,
+      returns: performance.returns,
     });
   }
 
@@ -668,6 +664,32 @@ describe("AccountsSummary", () => {
     expect(within(row as HTMLElement).getByText("value:USD:125")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("value:USD:100")).not.toBeInTheDocument();
     expect(within(row as HTMLElement).getByText("gain-percent:0.25")).toBeInTheDocument();
+  });
+
+  it("labels a card whose chosen return method is unavailable", () => {
+    // A holdings account over its full history has no TWR: its return on cost stands in.
+    renderAccountsSummary({
+      accounts: [createAccount({ id: "held", name: "Held Account" })],
+      valuations: [createValuation({ accountId: "held", totalValue: 112, totalValueBase: 112 })],
+      currentValuations: [
+        createCurrentValuation({ accountId: "held", totalValue: 112, totalValueBase: 112 }),
+      ],
+      performanceByAccountId: {
+        held: {
+          pnl: 12,
+          returnValue: null,
+          returns: {
+            twr: { unavailableReason: "TWR unavailable for holdings-only scopes." },
+            moneyWeighted: { unavailableReason: "MWR unavailable." },
+            returnOnCost: { period: 0.12 },
+          },
+        },
+      },
+    });
+
+    const row = screen.getByText("Held Account").closest("a");
+    expect(within(row as HTMLElement).getByText("gain-percent:0.12")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("ROI")).toBeInTheDocument();
   });
 
   it("displays a foreign-currency account in its own currency, not the base currency", () => {

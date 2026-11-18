@@ -1034,6 +1034,7 @@ export interface Settings {
   /** Text size name (small, default, large, extra-large). Absent on hosts without it. */
   textSize?: string;
   baseCurrency: string;
+  /** Return method the person chose: 'twr' time-weighted, 'irr' money-weighted; legacy 'valueReturn' reads as money-weighted. */
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;
   onboardingCompleted: boolean;
@@ -1271,14 +1272,12 @@ export interface ReturnData {
 export interface PerformanceResult {
   scope: PerformanceScopeDescriptor;
   period: PerformancePeriod;
-  mode: ReturnMethod;
   returns: PerformanceReturns;
   attribution: PerformanceAttribution;
   risk: PerformanceRisk;
   dataQuality: PerformanceDataQuality;
   basisStatus?: BasisStatus;
   summary?: PerformanceSummary;
-  series: ReturnData[];
   isHoldingsMode?: boolean;
   isMixedTrackingMode?: boolean;
 }
@@ -1296,12 +1295,6 @@ export interface PerformancePeriod {
   endDate?: string | null;
 }
 
-export type ReturnMethod =
-  | 'timeWeighted'
-  | 'valueReturn'
-  | 'symbolPriceBased'
-  | 'notApplicable';
-
 export type PerformanceSummaryBasis =
   | 'marketValue'
   | 'bookBasis'
@@ -1311,25 +1304,33 @@ export type PerformanceSummaryStatus = 'complete' | 'unavailable';
 
 export interface PerformanceSummary {
   amount?: number | null;
-  percent?: number | null;
-  method: ReturnMethod;
   basis: PerformanceSummaryBasis;
   quality: PerformanceDataQuality['status'];
   amountStatus: PerformanceSummaryStatus;
-  percentStatus: PerformanceSummaryStatus;
   basisStatus: BasisStatus;
   reasons: string[];
 }
 
+/** One way of measuring return; `period` is missing when the scope cannot support it. */
+export interface PerformanceReturnView {
+  period?: number | null;
+  /** Yearly rate: the period value compounded to a year (from 30 days of history). */
+  annualized?: number | null;
+  /** Cumulative curve, filled by `calculateHistory` only. */
+  series?: ReturnData[];
+  /** Why `period` is missing. */
+  unavailableReason?: string | null;
+  /** Stable code of `unavailableReason` (e.g. `MIXED_TWR_NOT_APPLICABLE`). */
+  unavailableReasonCode?: string | null;
+}
+
 export interface PerformanceReturns {
-  twr?: number | null;
-  annualizedTwr?: number | null;
-  /** Selected-period money-weighted return derived from annualized XIRR. */
-  irr?: number | null;
-  /** Annualized XIRR using dated cash flows. */
-  annualizedIrr?: number | null;
-  valueReturn?: number | null;
-  annualizedValueReturn?: number | null;
+  /** Time-weighted: deposits and withdrawals do not move it. */
+  twr: PerformanceReturnView;
+  /** Money-weighted: gain over the average invested capital. */
+  moneyWeighted: PerformanceReturnView;
+  /** Gain over book cost, for holdings accounts over their full history. */
+  returnOnCost: PerformanceReturnView;
 }
 
 export interface PerformanceAttribution {

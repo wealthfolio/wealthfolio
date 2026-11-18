@@ -105,7 +105,7 @@
   "unrealized_pnl": "미실현 손익",
   "not_available": "N/A",
   "more_count": "+{{count}}개 더보기",
-  "twr_irr_require_transactions": "TWR과 IRR은 거래 내역 추적이 필요합니다.",
+  "holdings_returns_note": "보유 종목으로 관리하는 계좌는 전체 기간에 ROI를 표시하며, 더 짧은 기간의 수익률은 스냅샷으로 추정합니다.",
   "last_updated": "마지막 업데이트: {{date}}",
   "from_to": "{{start}}부터 {{end}}까지",
   "snapshot": {
@@ -154,16 +154,15 @@
   "action_transfer_holdings": "보유 종목 이전",
   "review_cash_impact": "현금 영향 검토",
   "metric": {
-    "value_return": "가치 수익률",
+    "return_on_cost": "투자수익률(ROI)",
     "total_pnl": "총 손익",
     "total_pnl_info": "선택한 기간의 총 손익입니다.",
     "annualized_twr": "연환산 TWR",
-    "annualized_irr": "연환산 IRR",
-    "irr": "IRR",
+    "mwr": "금액가중수익률",
     "cumulative_twr": "누적 TWR",
-    "period_irr": "기간 IRR",
+    "cumulative_mwr": "누적 MWR",
     "twr_hover_hint": " 값 위에 마우스를 올리면 누적 TWR을 볼 수 있습니다.",
-    "irr_hover_hint": " 값 위에 마우스를 올리면 선택한 기간의 IRR을 볼 수 있습니다."
+    "mwr_hover_hint": " 값 위에 마우스를 올리면 누적 MWR이 표시됩니다."
   },
   "more_count_other": "+{{count}}개 더보기"
 }

@@ -157,6 +157,31 @@ describe("useSettingsMutation", () => {
     expect(invalidated).not.toContain(QueryKeys.ALTERNATIVE_HOLDINGS);
   });
 
+  it("switches the return method without refetching performance or a toast", async () => {
+    vi.mocked(updateSettings).mockResolvedValue({
+      language: "en",
+      onboardingCompleted: true,
+      defaultReturnMetric: "irr",
+    } as Settings);
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSettingsMutation(vi.fn(), vi.fn()), { wrapper });
+
+    // Every performance response already holds both methods; the switch only picks one.
+    await act(async () => {
+      await result.current.mutateAsync({ defaultReturnMetric: "irr" });
+    });
+
+    const invalidated = invalidate.mock.calls.flatMap((call) => call[0]?.queryKey ?? []);
+    expect(invalidated).toEqual([QueryKeys.SETTINGS]);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
   it("saves appearance changes without a confirmation toast", async () => {
     vi.mocked(updateSettings).mockResolvedValue({
       language: "en",

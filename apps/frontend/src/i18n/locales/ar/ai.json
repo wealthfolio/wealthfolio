@@ -449,11 +449,9 @@
   },
   "performance": {
     "annualizedReturn": "العائد المحسوب على أساس سنوي",
-    "annualizedTwr": "TWR على أساس سنوي",
     "error": "تعذر تحميل بيانات الأداء",
     "fetched": "تم جلب مقاييس الأداء",
     "interrupted": "تمت مقاطعة الطلب أو فشل.",
-    "irr": "معدل العائد الداخلي",
     "irrAnn": "{{value}} سنويًا",
     "maxDrawdown": "أقصى تراجع",
     "notAvailable": "غير متاح",

@@ -423,10 +423,8 @@
     "today": "本日",
     "title": "パフォーマンス",
     "annualizedReturn": "年率リターン",
-    "annualizedTwr": "年率時間加重リターン",
     "notAvailable": "該当なし",
     "notAvailableUpper": "該当なし",
-    "irr": "IRR",
     "irrAnn": "{{value}}(年率)",
     "volatility": "ボラティリティ",
     "maxDrawdown": "最大ドローダウン"

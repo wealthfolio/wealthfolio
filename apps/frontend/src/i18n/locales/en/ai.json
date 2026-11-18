@@ -435,10 +435,8 @@
     "today": "Today",
     "title": "Performance",
     "annualizedReturn": "Annualized Return",
-    "annualizedTwr": "Annualized TWR",
     "notAvailable": "n/a",
     "notAvailableUpper": "N/A",
-    "irr": "IRR",
     "irrAnn": "{{value}} ann.",
     "volatility": "Volatility",
     "maxDrawdown": "Max Drawdown"

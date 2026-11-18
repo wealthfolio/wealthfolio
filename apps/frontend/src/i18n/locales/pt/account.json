@@ -105,7 +105,7 @@
   "unrealized_pnl": "L/P não realizado",
   "not_available": "N/D",
   "more_count": "+{{count}} mais",
-  "twr_irr_require_transactions": "TWR e IRR requerem rastreamento de transações.",
+  "holdings_returns_note": "Contas por posições mostram o ROI em todo o histórico; as rentabilidades de períodos mais curtos são estimadas a partir de instantâneos.",
   "last_updated": "Última atualização: {{date}}",
   "from_to": "De {{start}} a {{end}}",
   "snapshot": {
@@ -155,16 +155,15 @@
   "action_transfer_holdings": "Transferir posições",
   "review_cash_impact": "Revisar impacto no caixa",
   "metric": {
-    "value_return": "Rentabilidade por valor",
+    "return_on_cost": "Retorno sobre o Investimento (ROI)",
     "total_pnl": "L/P total",
     "total_pnl_info": "Lucro ou prejuízo total durante o período selecionado.",
     "annualized_twr": "TWR anualizada",
-    "annualized_irr": "IRR anualizada",
-    "irr": "IRR",
+    "mwr": "Rentabilidade Ponderada por Dinheiro",
     "cumulative_twr": "TWR acumulado",
-    "period_irr": "IRR do período",
+    "cumulative_mwr": "MWR acumulado",
     "twr_hover_hint": " Passe o cursor sobre o valor para ver o TWR acumulado.",
-    "irr_hover_hint": " Passe o cursor sobre o valor para ver o IRR do período selecionado."
+    "mwr_hover_hint": " Passe o cursor sobre o valor para ver o MWR acumulado."
   },
   "more_count_one": "+{{count}} mais",
   "more_count_other": "+{{count}} mais",
