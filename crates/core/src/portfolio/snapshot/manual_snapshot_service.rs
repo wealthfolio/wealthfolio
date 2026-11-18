@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use chrono::{NaiveDate, TimeZone, Utc};
@@ -11,6 +11,7 @@ use crate::accounts::Account;
 use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode};
 use crate::errors::{DatabaseError, Error, Result, ValidationError};
 use crate::fx::FxServiceTrait;
+use crate::portfolio::coordinator::blocking;
 use crate::portfolio::snapshot::{
     validate_snapshot_write_date, AccountStateSnapshot, Position, SnapshotServiceTrait,
     SnapshotSource,
@@ -263,6 +264,21 @@ impl ManualSnapshotService {
         })
     }
 
+    /// Every asset the account's saved snapshots hold. This reads the account's
+    /// whole history, so it runs off the async workers.
+    async fn asset_ids_in_history(&self, account_id: &str) -> Result<HashSet<String>> {
+        let snapshot_service = self.snapshot_service.clone();
+        let account_id = account_id.to_string();
+        blocking(move || {
+            Ok(snapshot_service
+                .get_holdings_keyframes(&account_id, None, None)?
+                .into_iter()
+                .flat_map(|snapshot| snapshot.positions.into_keys())
+                .collect())
+        })
+        .await
+    }
+
     pub async fn save_manual_snapshot(
         &self,
         request: ManualSnapshotRequest,
@@ -278,6 +294,7 @@ impl ManualSnapshotService {
         // account. Checked for every holding before anything is written, on
         // the asset saving would use: the one named by ID, or else the stored
         // one its listing matches, read without changing anything.
+        let mut account_history: Option<HashSet<String>> = None;
         for holding in &request.positions {
             if holding.quantity.is_zero() {
                 continue;
@@ -299,7 +316,23 @@ impl ManualSnapshotService {
                     Some(holding.currency.as_str()),
                 )
             });
-            if asset.is_some_and(|asset| asset.kind.is_alternative()) {
+            let Some(asset) = asset else { continue };
+            if !asset.kind.is_alternative() {
+                continue;
+            }
+            // Until 3.11 a custom "Other" holding was stored with the OTHER kind;
+            // one any of this account's snapshots holds stays editable.
+            let already_held = if asset.kind == AssetKind::Other {
+                if account_history.is_none() {
+                    account_history = Some(self.asset_ids_in_history(&request.account_id).await?);
+                }
+                account_history
+                    .as_ref()
+                    .is_some_and(|asset_ids| asset_ids.contains(&asset.id))
+            } else {
+                false
+            };
+            if !already_held {
                 return Err(Error::Validation(
                     ValidationError::AlternativeAssetNotInAccount,
                 ));
@@ -762,6 +795,77 @@ mod tests {
             assert!(closes(&quotes).is_empty(), "{kind:?}: no price written");
             assert!(stored(&snapshots).is_empty(), "{kind:?}: no snapshot saved");
         }
+    }
+
+    #[tokio::test]
+    async fn a_custom_other_holding_the_account_already_holds_stays_editable() {
+        let date = day("2026-01-15");
+        let (service, _, snapshots) = service_for_kind(Vec::new(), AssetKind::Other);
+        let mut positions = HashMap::new();
+        positions.insert(ASSET_ID.to_string(), Position::default());
+        let earlier = AccountStateSnapshot {
+            account_id: ACCOUNT_ID.to_string(),
+            snapshot_date: day("2026-01-10"),
+            positions,
+            ..Default::default()
+        };
+        snapshots
+            .save_snapshots(&[earlier])
+            .await
+            .expect("earlier snapshot stored");
+
+        service
+            .save_manual_snapshot(request(date))
+            .await
+            .expect("a held custom asset stays editable");
+    }
+
+    #[tokio::test]
+    async fn a_custom_other_holding_in_an_older_snapshot_stays_editable() {
+        let (service, _, snapshots) = service_for_kind(Vec::new(), AssetKind::Other);
+        let mut positions = HashMap::new();
+        positions.insert(ASSET_ID.to_string(), Position::default());
+        let older = AccountStateSnapshot {
+            id: "older".to_string(),
+            account_id: ACCOUNT_ID.to_string(),
+            snapshot_date: day("2026-01-05"),
+            positions,
+            ..Default::default()
+        };
+        let latest_without_it = AccountStateSnapshot {
+            id: "latest".to_string(),
+            account_id: ACCOUNT_ID.to_string(),
+            snapshot_date: day("2026-01-10"),
+            ..Default::default()
+        };
+        snapshots
+            .save_snapshots(&[older, latest_without_it])
+            .await
+            .expect("earlier snapshots stored");
+
+        service
+            .save_manual_snapshot(request(day("2026-01-15")))
+            .await
+            .expect("the holding can be put back");
+    }
+
+    #[tokio::test]
+    async fn a_custom_other_asset_the_account_does_not_hold_is_refused() {
+        let date = day("2026-01-15");
+        let (service, _, snapshots) = service_for_kind(Vec::new(), AssetKind::Other);
+
+        let refused = service
+            .save_manual_snapshot(request(date))
+            .await
+            .expect_err("a net worth item is not pulled into an account");
+
+        assert!(
+            refused
+                .to_string()
+                .contains(ALTERNATIVE_ASSET_NOT_IN_ACCOUNT),
+            "{refused}"
+        );
+        assert!(stored(&snapshots).is_empty(), "no snapshot saved");
     }
 
     #[tokio::test]
