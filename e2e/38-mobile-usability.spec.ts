@@ -166,6 +166,8 @@ for (const direction of ["ltr", "rtl"]) {
       // Focus it by keyboard, so the outline shows as it does for a keyboard user.
       for (let i = 0; i < 4; i++) {
         await page.keyboard.press("Tab");
+        // The dialog's focus guard hands focus back on the next frame.
+        await page.evaluate(() => new Promise(requestAnimationFrame));
         if (await button.evaluate((el) => el === document.activeElement)) break;
       }
       await expect(button).toBeFocused();
