@@ -379,6 +379,16 @@ pub(crate) mod tests {
                             "Berkshire Hathaway Inc.".to_string(),
                             "BRK-B".to_string(),
                         ))
+                    } else if source_symbol.eq_ignore_ascii_case("OAA1") {
+                        // The only listings a search finds are German ones of an
+                        // unrelated company, as Yahoo returns for this ticker.
+                        Some((
+                            "OAA1".to_string(),
+                            "XSTU".to_string(),
+                            "EUR".to_string(),
+                            "Power Metals Corp.".to_string(),
+                            "OAA1.SG".to_string(),
+                        ))
                     } else if source_symbol.eq_ignore_ascii_case("VOD.L") {
                         Some((
                             "VOD".to_string(),
@@ -522,10 +532,13 @@ pub(crate) mod tests {
                         .as_deref()
                         .and_then(wealthfolio_market_data::mic_to_currency)
                         .map(str::to_string);
+                    // As in the real resolver, the activity's currency names the
+                    // listing only when the row also names a venue.
+                    let has_market_hint = input.exchange_mic.is_some() || suffix_mic.is_some();
                     let activity_quote_ccy = input
                         .activity_currency
                         .clone()
-                        .filter(|currency| !currency.trim().is_empty());
+                        .filter(|currency| has_market_hint && !currency.trim().is_empty());
                     let (quote_ccy, quote_ccy_source) = resolve_import_quote_ccy_precedence(
                         explicit_quote_ccy.as_deref().or(pair_quote.as_deref()),
                         existing_quote_ccy.as_deref(),
@@ -3904,6 +3917,220 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+
+    fn broker_buy(account_id: &str, symbol: &str, currency: &str) -> NewActivity {
+        NewActivity {
+            id: None,
+            account_id: account_id.to_string(),
+            asset: Some(AssetResolutionInput {
+                symbol: Some(symbol.to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2026-11-02".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(25)),
+            amount: Some(dec!(250)),
+            currency: currency.to_string(),
+            fee: None,
+            tax: None,
+            status: Some(ActivityStatus::Posted),
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: Some("SNAPTRADE".to_string()),
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        }
+    }
+
+    fn broker_sync_service(
+        account: &Account,
+        assets: Vec<Asset>,
+    ) -> (ActivityService, Arc<MockAssetService>) {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(account.clone());
+        let asset_service = Arc::new(MockAssetService::new());
+        for asset in assets {
+            asset_service.add_asset(asset);
+        }
+        let service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        (service, asset_service)
+    }
+
+    /// A broker ticker without a venue is not filed under a listing the search
+    /// found in another currency: Fidelity's `OAA1` in a USD account matches
+    /// only Stuttgart shares of an unrelated company.
+    #[tokio::test]
+    async fn sync_keeps_a_ticker_bare_when_the_searched_listing_trades_in_another_currency() {
+        let account = create_test_account("acc-fidelity", "USD");
+        let (service, asset_service) = broker_sync_service(&account, Vec::new());
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].instrument_exchange_mic, None);
+        assert_eq!(assets[0].quote_ccy, "USD");
+        assert_eq!(assets[0].instrument_key.as_deref(), Some("EQUITY:OAA1"));
+    }
+
+    /// A listing is kept when it trades in the activity's currency, even if
+    /// the account's currency differs.
+    #[tokio::test]
+    async fn sync_takes_a_searched_listing_in_the_activity_currency() {
+        let account = create_test_account("acc-cad", "CAD");
+        let (service, asset_service) = broker_sync_service(&account, Vec::new());
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "EUR")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(
+            assets[0].instrument_key.as_deref(),
+            Some("EQUITY:OAA1@XSTU")
+        );
+    }
+
+    /// One venue decision per symbol: activities of one ticker in different
+    /// currencies land on one asset, not on a listed and a bare one.
+    #[tokio::test]
+    async fn sync_files_a_ticker_traded_in_two_currencies_on_one_asset() {
+        let account = create_test_account("acc-cad", "CAD");
+        let (service, asset_service) = broker_sync_service(&account, Vec::new());
+
+        let result = service
+            .prepare_activities_for_sync(
+                vec![
+                    broker_buy(&account.id, "OAA1", "EUR"),
+                    broker_buy(&account.id, "OAA1", "CAD"),
+                ],
+                &account,
+            )
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert_eq!(assets.len(), 1, "{assets:?}");
+        assert_eq!(
+            assets[0].instrument_key.as_deref(),
+            Some("EQUITY:OAA1@XSTU")
+        );
+        assert_eq!(
+            result.prepared[0].activity.get_symbol_id(),
+            result.prepared[1].activity.get_symbol_id()
+        );
+    }
+
+    /// The broker's own currency for the symbol counts: a fund listed in EUR
+    /// that the broker reports in the account's USD keeps its listing.
+    #[tokio::test]
+    async fn sync_takes_a_searched_listing_in_the_symbols_currency() {
+        let account = create_test_account("acc-usd", "USD");
+        let (service, asset_service) = broker_sync_service(&account, Vec::new());
+        let mut buy = broker_buy(&account.id, "OAA1", "USD");
+        buy.asset.as_mut().unwrap().quote_ccy = Some("EUR".to_string());
+
+        let result = service
+            .prepare_activities_for_sync(vec![buy], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(
+            assets[0].instrument_key.as_deref(),
+            Some("EQUITY:OAA1@XSTU")
+        );
+    }
+
+    /// An asset already filed under the searched listing keeps its activities,
+    /// so a holding is not split across two assets; the user moves it by
+    /// clearing the asset's exchange.
+    #[tokio::test]
+    async fn sync_keeps_using_an_asset_already_on_the_searched_listing() {
+        let account = create_test_account("acc-fidelity", "USD");
+        let mut existing = create_test_asset_with_instrument(
+            "oaa1-xstu",
+            "OAA1",
+            Some("XSTU"),
+            Some(InstrumentType::Equity),
+            "EUR",
+        );
+        existing.instrument_key = Some("EQUITY:OAA1@XSTU".to_string());
+        let (service, asset_service) = broker_sync_service(&account, vec![existing]);
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(
+            result.prepared[0].activity.get_symbol_id(),
+            Some("oaa1-xstu")
+        );
+        assert_eq!(asset_service.get_assets().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_guessed_venue_must_trade_in_a_currency_the_broker_used() {
+        let guess =
+            |mic: Option<&str>, quote_ccy: &str, existing: Option<&str>| AssetResolutionOutput {
+                exchange_mic: mic.map(str::to_string),
+                quote_ccy: Some(quote_ccy.to_string()),
+                existing_asset_id: existing.map(str::to_string),
+                ..Default::default()
+            };
+        let traded = |currencies: &[&str]| -> HashSet<String> {
+            currencies
+                .iter()
+                .filter_map(|currency| ActivityService::trade_currency_key(currency))
+                .collect()
+        };
+
+        assert!(!ActivityService::guessed_venue_fits(
+            &guess(Some("XSTU"), "EUR", None),
+            &traded(&["USD"])
+        ));
+        assert!(ActivityService::guessed_venue_fits(
+            &guess(Some("XSTU"), "EUR", None),
+            &traded(&["USD", "eur "])
+        ));
+        // A pence listing trades in pounds.
+        assert!(ActivityService::guessed_venue_fits(
+            &guess(Some("XLON"), "GBp", None),
+            &traded(&["GBP"])
+        ));
+        assert!(ActivityService::guessed_venue_fits(
+            &guess(Some("XSTU"), "EUR", Some("oaa1-xstu")),
+            &traded(&["USD"])
+        ));
+        assert!(ActivityService::guessed_venue_fits(
+            &guess(None, "EUR", None),
+            &traded(&["USD"])
+        ));
     }
 
     #[tokio::test]

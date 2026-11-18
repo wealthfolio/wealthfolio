@@ -269,6 +269,7 @@
     "select_type": "选择类型",
     "exchange": "交易所",
     "select_exchange": "选择交易所",
+    "no_exchange": "无交易所",
     "search_exchanges": "搜索交易所……",
     "contract_multiplier": "合约乘数",
     "contract_multiplier_hint": "每份合约代表的标的单位数。留空则使用标准值 {{default}}。",

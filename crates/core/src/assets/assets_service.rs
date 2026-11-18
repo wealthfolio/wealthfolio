@@ -1365,10 +1365,18 @@ impl AssetService {
         let mut conflicting_asset = None;
         let effective_quote_mode = payload.quote_mode.unwrap_or(existing_asset.quote_mode);
 
-        payload.instrument_exchange_mic = payload
-            .instrument_exchange_mic
-            .as_deref()
-            .and_then(normalized_lookup_key);
+        // `Some(None)` clears the exchange; a blank MIC is treated as absent.
+        let requested_exchange_mic: Option<Option<String>> =
+            match payload.instrument_exchange_mic.take() {
+                Some(Some(mic)) => normalized_lookup_key(&mic).map(Some),
+                Some(None) => Some(None),
+                None => None,
+            };
+        payload.instrument_exchange_mic = requested_exchange_mic.clone();
+        let effective_exchange_mic = match &requested_exchange_mic {
+            Some(mic) => mic.as_deref(),
+            None => existing_asset.instrument_exchange_mic.as_deref(),
+        };
 
         let effective_instrument_type = payload
             .instrument_type
@@ -1379,7 +1387,7 @@ impl AssetService {
             let should_refresh_quote_ccy = Self::should_refresh_market_quote_ccy_on_mic_change(
                 effective_quote_mode,
                 payload.quote_ccy.as_deref(),
-                payload.instrument_exchange_mic.as_deref(),
+                requested_exchange_mic.clone().flatten().as_deref(),
                 existing_asset.instrument_exchange_mic.as_deref(),
             );
 
@@ -1391,10 +1399,7 @@ impl AssetService {
                     .or(payload.display_code.as_deref())
                     .or(existing_asset.instrument_symbol.as_deref())
                     .or(existing_asset.display_code.as_deref()),
-                payload
-                    .instrument_exchange_mic
-                    .as_deref()
-                    .or(existing_asset.instrument_exchange_mic.as_deref()),
+                effective_exchange_mic,
                 if should_refresh_quote_ccy {
                     None
                 } else {
@@ -1422,16 +1427,13 @@ impl AssetService {
                         .or(existing_asset.display_code.as_deref())
                         .and_then(normalized_lookup_key)
             });
-            let exchange_changed = payload
-                .instrument_exchange_mic
-                .as_deref()
-                .is_some_and(|mic| {
-                    normalized_lookup_key(mic)
-                        != existing_asset
-                            .instrument_exchange_mic
-                            .as_deref()
-                            .and_then(normalized_lookup_key)
-                });
+            let exchange_changed = requested_exchange_mic.as_ref().is_some_and(|mic| {
+                mic.as_deref().and_then(normalized_lookup_key)
+                    != existing_asset
+                        .instrument_exchange_mic
+                        .as_deref()
+                        .and_then(normalized_lookup_key)
+            });
             let identity_changed = symbol_changed
                 || exchange_changed
                 || effective_instrument_type != existing_asset.instrument_type
@@ -1466,7 +1468,8 @@ impl AssetService {
             payload.display_code = canonical.display_code.or(payload.display_code.clone());
             payload.instrument_exchange_mic = canonical
                 .instrument_exchange_mic
-                .or(payload.instrument_exchange_mic.clone());
+                .map(Some)
+                .or(requested_exchange_mic);
             if effective_quote_mode == QuoteMode::Market {
                 payload.quote_ccy = canonical.quote_ccy.or(payload.quote_ccy.clone());
             }
@@ -1488,11 +1491,10 @@ impl AssetService {
                                 .as_deref()
                                 .unwrap_or(&existing_asset.quote_ccy)
                         ),
-                        _ => match payload
-                            .instrument_exchange_mic
-                            .as_deref()
-                            .or(existing_asset.instrument_exchange_mic.as_deref())
-                        {
+                        _ => match payload.instrument_exchange_mic.as_ref().map_or(
+                            existing_asset.instrument_exchange_mic.as_deref(),
+                            Option::as_deref,
+                        ) {
                             Some(mic) => format!("{prefix}@{mic}"),
                             None => prefix,
                         },
@@ -3803,8 +3805,8 @@ mod tests {
             if payload.instrument_symbol.is_some() {
                 asset.instrument_symbol = payload.instrument_symbol;
             }
-            if payload.instrument_exchange_mic.is_some() {
-                asset.instrument_exchange_mic = payload.instrument_exchange_mic;
+            if let Some(mic) = payload.instrument_exchange_mic {
+                asset.instrument_exchange_mic = mic;
             }
             asset.provider_config = payload.provider_config;
             if payload.metadata.is_some() {
@@ -4462,7 +4464,7 @@ mod tests {
                     quote_ccy: Some("GBP".to_string()),
                     instrument_type: Some(InstrumentType::Equity),
                     instrument_symbol: Some("VWRPL.XC".to_string()),
-                    instrument_exchange_mic: Some(" bcxe ".to_string()),
+                    instrument_exchange_mic: Some(Some(" bcxe ".to_string())),
                     provider_config: None,
                     metadata: None,
                 },
@@ -4524,7 +4526,7 @@ mod tests {
                     quote_ccy: Some("GBP".to_string()),
                     instrument_type: Some(InstrumentType::Equity),
                     instrument_symbol: Some("VWRP".to_string()),
-                    instrument_exchange_mic: Some("CXE".to_string()),
+                    instrument_exchange_mic: Some(Some("CXE".to_string())),
                     provider_config: None,
                     metadata: None,
                 },
@@ -4558,7 +4560,7 @@ mod tests {
                         name: Some("Renamed".to_string()),
                         notes: "New notes".to_string(),
                         display_code: Some("VWRPL.XC".to_string()),
-                        instrument_exchange_mic: mic.map(str::to_string),
+                        instrument_exchange_mic: mic.map(|mic| Some(mic.to_string())),
                         instrument_symbol: None,
                         kind: None,
                         quote_mode: None,
@@ -4599,7 +4601,7 @@ mod tests {
         let profile = |mic: &str| UpdateAssetProfile {
             name: Some("Original".to_string()),
             notes: String::new(),
-            instrument_exchange_mic: Some(format!(" {} ", mic.to_lowercase())),
+            instrument_exchange_mic: Some(Some(format!(" {} ", mic.to_lowercase()))),
             display_code: None,
             instrument_symbol: None,
             kind: None,
@@ -4618,7 +4620,12 @@ mod tests {
             Some("twin")
         );
         assert_eq!(
-            collision.profile.instrument_exchange_mic.as_deref(),
+            collision
+                .profile
+                .instrument_exchange_mic
+                .clone()
+                .flatten()
+                .as_deref(),
             Some("XNAS")
         );
 
@@ -4627,7 +4634,11 @@ mod tests {
             .unwrap();
         assert!(free.conflicting_asset.is_none());
         assert_eq!(
-            free.profile.instrument_exchange_mic.as_deref(),
+            free.profile
+                .instrument_exchange_mic
+                .clone()
+                .flatten()
+                .as_deref(),
             Some("XLON")
         );
         assert_eq!(free.profile.quote_ccy.as_deref(), Some("GBp"));
@@ -4665,7 +4676,7 @@ mod tests {
                     UpdateAssetProfile {
                         name: Some("Should not save".to_string()),
                         notes: "Should not save".to_string(),
-                        instrument_exchange_mic: Some(target_mic.to_string()),
+                        instrument_exchange_mic: Some(Some(target_mic.to_string())),
                         display_code: None,
                         instrument_symbol: None,
                         kind: None,
@@ -4691,6 +4702,179 @@ mod tests {
                 Some(format!("EQUITY:ABC@{target_mic}"))
             );
         }
+    }
+
+    fn oaa1_on_stuttgart() -> Asset {
+        Asset {
+            id: "oaa1".to_string(),
+            name: Some("Power Metals Corp.".to_string()),
+            display_code: Some("OAA1".to_string()),
+            instrument_symbol: Some("OAA1".to_string()),
+            instrument_exchange_mic: Some("XSTU".to_string()),
+            instrument_key: Some("EQUITY:OAA1@XSTU".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            kind: AssetKind::Investment,
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "EUR".to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn exchange_update(
+        instrument_exchange_mic: Option<Option<String>>,
+        quote_ccy: &str,
+    ) -> UpdateAssetProfile {
+        UpdateAssetProfile {
+            name: Some("Power Metals Corp.".to_string()),
+            notes: String::new(),
+            instrument_exchange_mic,
+            display_code: None,
+            instrument_symbol: None,
+            kind: None,
+            quote_mode: None,
+            quote_ccy: Some(quote_ccy.to_string()),
+            instrument_type: None,
+            provider_config: None,
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn exchange_mic_update_tells_a_clear_from_an_omission() {
+        let cleared: UpdateAssetProfile = serde_json::from_value(
+            serde_json::json!({ "notes": "", "instrumentExchangeMic": null }),
+        )
+        .unwrap();
+        assert_eq!(cleared.instrument_exchange_mic, Some(None));
+        let omitted: UpdateAssetProfile =
+            serde_json::from_value(serde_json::json!({ "notes": "" })).unwrap();
+        assert_eq!(omitted.instrument_exchange_mic, None);
+        let set: UpdateAssetProfile = serde_json::from_value(
+            serde_json::json!({ "notes": "", "instrumentExchangeMic": "XNAS" }),
+        )
+        .unwrap();
+        assert_eq!(set.instrument_exchange_mic, Some(Some("XNAS".to_string())));
+    }
+
+    /// Clearing the exchange re-keys the asset in place, so its activities and
+    /// quotes stay with it.
+    #[tokio::test]
+    async fn update_asset_profile_clears_the_exchange() {
+        let service = test_asset_service(vec![oaa1_on_stuttgart()], TestQuoteService::default());
+
+        let preview = service
+            .preview_asset_profile_update("oaa1", exchange_update(Some(None), "USD"))
+            .unwrap();
+        assert!(preview.conflicting_asset.is_none());
+        assert_eq!(preview.profile.instrument_exchange_mic, Some(None));
+
+        let asset = service
+            .update_asset_profile("oaa1", exchange_update(Some(None), "USD"))
+            .await
+            .unwrap();
+        assert_eq!(asset.id, "oaa1");
+        assert_eq!(asset.instrument_exchange_mic, None);
+        assert_eq!(asset.instrument_symbol.as_deref(), Some("OAA1"));
+        assert_eq!(asset.quote_ccy, "USD");
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_keeps_the_exchange_when_the_update_leaves_it_out() {
+        let service = test_asset_service(vec![oaa1_on_stuttgart()], TestQuoteService::default());
+
+        let asset = service
+            .update_asset_profile("oaa1", exchange_update(None, "EUR"))
+            .await
+            .unwrap();
+        assert_eq!(asset.instrument_exchange_mic.as_deref(), Some("XSTU"));
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_refuses_a_clear_onto_an_existing_bare_asset() {
+        let bare = Asset {
+            id: "oaa1-bare".to_string(),
+            instrument_exchange_mic: None,
+            instrument_key: Some("EQUITY:OAA1".to_string()),
+            quote_ccy: "USD".to_string(),
+            ..oaa1_on_stuttgart()
+        };
+        let service =
+            test_asset_service(vec![oaa1_on_stuttgart(), bare], TestQuoteService::default());
+
+        let error = service
+            .update_asset_profile("oaa1", exchange_update(Some(None), "USD"))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("ASSET_IDENTITY_CONFLICT"));
+        let unchanged = service.asset_repository.get_by_id("oaa1").unwrap();
+        assert_eq!(unchanged.instrument_exchange_mic.as_deref(), Some("XSTU"));
+    }
+
+    /// Without a venue, a search hit reports its listing's currency, which
+    /// broker sync checks against the activity's before using the venue.
+    #[tokio::test]
+    async fn resolve_import_reports_a_searched_listing_in_its_own_currency() {
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result(
+                "OAA1",
+                vec![yahoo_search_result(
+                    "OAA1.SG",
+                    "OAA1",
+                    "XSTU",
+                    "Power Metals Corp.",
+                    "EUR",
+                    "OAA1.SG",
+                )],
+            ),
+        );
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("OAA1", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.exchange_mic.as_deref(), Some("XSTU"));
+        assert_eq!(output.quote_ccy.as_deref(), Some("EUR"));
+        assert_eq!(output.existing_asset_id, None);
+    }
+
+    /// Once the user clears the exchange and prices the asset in the activity
+    /// currency, the next resolution finds it before any search runs.
+    #[tokio::test]
+    async fn resolve_import_finds_an_asset_whose_exchange_was_cleared_without_searching() {
+        let cleared = Asset {
+            instrument_exchange_mic: None,
+            instrument_key: Some("EQUITY:OAA1".to_string()),
+            quote_ccy: "USD".to_string(),
+            ..oaa1_on_stuttgart()
+        };
+        let quote_service = TestQuoteService::default().with_result(
+            "OAA1",
+            vec![yahoo_search_result(
+                "OAA1.SG",
+                "OAA1",
+                "XSTU",
+                "Power Metals Corp.",
+                "EUR",
+                "OAA1.SG",
+            )],
+        );
+        let search_calls = Arc::clone(&quote_service.search_calls);
+        let service = test_asset_service(vec![cleared], quote_service);
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("OAA1", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.existing_asset_id.as_deref(), Some("oaa1"));
+        assert_eq!(output.exchange_mic, None);
+        assert!(search_calls.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

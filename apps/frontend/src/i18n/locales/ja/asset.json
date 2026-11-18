@@ -269,6 +269,7 @@
     "select_type": "タイプを選択",
     "exchange": "取引所",
     "select_exchange": "取引所を選択",
+    "no_exchange": "取引所なし",
     "search_exchanges": "取引所を検索...",
     "contract_multiplier": "契約乗数",
     "contract_multiplier_hint": "1契約が表す原資産の単位数です。空欄にすると標準値の {{default}} を使用します。",

@@ -365,6 +365,7 @@
     "search_exchanges": "البحث في البورصات...",
     "select_currency": "اختر العملة",
     "select_exchange": "اختر البورصة",
+    "no_exchange": "بدون بورصة",
     "select_frequency": "اختر الدورية",
     "select_provider": "اختر المزود",
     "select_type": "اختر النوع",

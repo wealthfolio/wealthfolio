@@ -947,9 +947,21 @@ pub struct UpdateAssetProfile {
     pub quote_ccy: Option<String>,
     pub instrument_type: Option<InstrumentType>,
     pub instrument_symbol: Option<String>,
-    pub instrument_exchange_mic: Option<String>,
+    /// Absent keeps the exchange, `null` clears it, a MIC sets it.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_exchange_mic_update",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub instrument_exchange_mic: Option<Option<String>>,
     pub provider_config: Option<Value>,
     pub metadata: Option<Value>,
+}
+
+fn deserialize_exchange_mic_update<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 /// The result of previewing an asset profile update.
@@ -1252,7 +1264,7 @@ impl UpdateAssetProfile {
             quote_ccy: Some(asset.quote_ccy.clone()),
             instrument_type: asset.instrument_type.clone(),
             instrument_symbol: asset.instrument_symbol.clone(),
-            instrument_exchange_mic: asset.instrument_exchange_mic.clone(),
+            instrument_exchange_mic: Some(asset.instrument_exchange_mic.clone()),
             provider_config: asset.provider_config.clone(),
             metadata: Some(metadata),
         }

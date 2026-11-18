@@ -85,7 +85,8 @@ use crate::assets::{
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    currency_fraction_digits, get_normalization_rule, normalize_amount, resolve_currency,
+    currency_fraction_digits, get_normalization_rule, normalize_amount, normalize_currency_code,
+    resolve_currency,
 };
 use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
@@ -135,12 +136,6 @@ fn import_asset_resolution_key(activity: &ActivityImport, activity_currency: &st
         normalize_import_resolution_key_part(activity.provider_symbol.as_deref()),
     ]
     .join("::")
-}
-
-/// Resolved symbol information from a market data provider or asset DB lookup.
-#[derive(Debug, Default)]
-struct ResolvedSymbolInfo {
-    exchange_mic: Option<String>,
 }
 
 /// What an update makes of a transfer leg when it turns it into a securities
@@ -4104,11 +4099,11 @@ impl ActivityService {
     /// Resolves (symbol, currency, optional ISIN) keys to exchange MICs in batch.
     /// AssetService owns import asset resolution, including local DB matching and
     /// provider fallback; ActivityService only consumes the exchange result.
-    /// Returns a `ResolvedSymbolInfo` for each resolution key.
+    /// Returns the resolver's output for each resolution key.
     async fn resolve_symbols_batch(
         &self,
         resolution_keys: HashSet<SymbolResolutionKey>,
-    ) -> HashMap<SymbolResolutionKey, ResolvedSymbolInfo> {
+    ) -> HashMap<SymbolResolutionKey, crate::assets::AssetResolutionOutput> {
         if resolution_keys.is_empty() {
             return HashMap::new();
         }
@@ -4151,40 +4146,35 @@ impl ActivityService {
 
         outputs
             .into_iter()
-            .filter_map(|output| {
-                key_by_input.remove(&output.key).map(|key| {
-                    (
-                        key,
-                        ResolvedSymbolInfo {
-                            exchange_mic: output.exchange_mic,
-                        },
-                    )
-                })
-            })
+            .filter_map(|output| key_by_input.remove(&output.key).map(|key| (key, output)))
             .collect()
     }
 
-    /// Convenience wrapper: resolves symbols using a single currency for all.
-    /// Used by callers where per-activity currency isn't available (broker sync, prepare).
-    /// Returns only exchange MIC (name not needed for those callers).
-    async fn resolve_symbols_batch_single_currency(
-        &self,
-        symbols: HashSet<String>,
-        currency: &str,
-    ) -> HashMap<String, Option<String>> {
-        let pairs: HashSet<(String, String)> = symbols
-            .into_iter()
-            .map(|s| (s, currency.to_string()))
-            .collect();
-        let resolution_keys: HashSet<SymbolResolutionKey> = pairs
-            .into_iter()
-            .map(|(symbol, currency)| (symbol, currency, None))
-            .collect();
-        self.resolve_symbols_batch(resolution_keys)
-            .await
-            .into_iter()
-            .map(|((sym, _, _), info)| (sym, info.exchange_mic))
-            .collect()
+    /// Whether a venue the resolver found for a symbol that arrived without one
+    /// may name the asset. Broker sync applies it without review, so a listing
+    /// must trade in a currency the broker used for that symbol, its activities'
+    /// or the symbol's own: `OAA1` from a USD Fidelity account matches only
+    /// German listings of an unrelated company. A venue taken from an asset
+    /// already in the portfolio still applies, so existing assets keep
+    /// resolving where they are.
+    pub(crate) fn guessed_venue_fits(
+        output: &crate::assets::AssetResolutionOutput,
+        trade_currencies: &HashSet<String>,
+    ) -> bool {
+        if output.exchange_mic.is_none() || output.existing_asset_id.is_some() {
+            return true;
+        }
+        output
+            .quote_ccy
+            .as_deref()
+            .and_then(Self::trade_currency_key)
+            .is_none_or(|quote_ccy| trade_currencies.contains(&quote_ccy))
+    }
+
+    /// A currency as `guessed_venue_fits` compares it: major unit, upper case.
+    pub(crate) fn trade_currency_key(currency: &str) -> Option<String> {
+        let currency = currency.trim();
+        (!currency.is_empty()).then(|| normalize_currency_code(currency).to_uppercase())
     }
 
     /// Creates a quote from activity data to serve as a price fallback.
@@ -9531,8 +9521,13 @@ impl ActivityService {
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
 
         // 1. Batch resolve symbols → MICs when live resolution is enabled.
-        let symbol_mic_cache = if mode.allows_live_resolution() {
-            let symbols_to_resolve: HashSet<String> = activities
+        let symbol_mic_cache: HashMap<String, Option<String>> = if mode.allows_live_resolution() {
+            // Every currency the broker used for a symbol in this batch: its
+            // activities' (the account's when blank, as `build_asset_spec`
+            // reads them) and the symbol's own. One venue decision per symbol
+            // keeps all of its activities on one asset.
+            let mut trade_currencies: HashMap<String, HashSet<String>> = HashMap::new();
+            let symbols_to_resolve: HashSet<SymbolResolutionKey> = activities
                 .iter()
                 .filter_map(|a| {
                     let symbol = a.get_symbol_code()?;
@@ -9545,15 +9540,37 @@ impl ActivityService {
                     );
                     let is_cash = symbol.starts_with("CASH:");
                     if !has_mic && !is_cash && !is_non_security_instrument {
-                        Some(symbol.to_string())
+                        trade_currencies
+                            .entry(symbol.to_string())
+                            .or_default()
+                            .extend(
+                                [
+                                    Some(a.currency.as_str())
+                                        .filter(|currency| !currency.trim().is_empty())
+                                        .or(Some(account_currency.as_str())),
+                                    a.get_quote_ccy(),
+                                ]
+                                .into_iter()
+                                .flatten()
+                                .filter_map(Self::trade_currency_key),
+                            );
+                        Some((symbol.to_string(), account_currency.clone(), None))
                     } else {
                         None
                     }
                 })
                 .collect();
 
-            self.resolve_symbols_batch_single_currency(symbols_to_resolve, &account_currency)
+            self.resolve_symbols_batch(symbols_to_resolve)
                 .await
+                .into_iter()
+                .map(|((symbol, _, _), output)| {
+                    let fits = trade_currencies
+                        .get(&symbol)
+                        .is_none_or(|currencies| Self::guessed_venue_fits(&output, currencies));
+                    (symbol, output.exchange_mic.filter(|_| fits))
+                })
+                .collect()
         } else {
             HashMap::new()
         };
