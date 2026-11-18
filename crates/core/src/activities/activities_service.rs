@@ -85,8 +85,7 @@ use crate::assets::{
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    currency_fraction_digits, get_normalization_rule, normalize_amount, normalize_currency_code,
-    resolve_currency,
+    currency_fraction_digits, get_normalization_rule, normalize_amount, resolve_currency,
 };
 use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
@@ -4150,31 +4149,26 @@ impl ActivityService {
             .collect()
     }
 
-    /// Whether a venue the resolver found for a symbol that arrived without one
-    /// may name the asset. Broker sync applies it without review, so a listing
-    /// must trade in a currency the broker used for that symbol, its activities'
-    /// or the symbol's own: `OAA1` from a USD Fidelity account matches only
-    /// German listings of an unrelated company. A venue taken from an asset
-    /// already in the portfolio still applies, so existing assets keep
-    /// resolving where they are.
-    pub(crate) fn guessed_venue_fits(
-        output: &crate::assets::AssetResolutionOutput,
-        trade_currencies: &HashSet<String>,
-    ) -> bool {
-        if output.exchange_mic.is_none() || output.existing_asset_id.is_some() {
-            return true;
-        }
-        output
-            .quote_ccy
-            .as_deref()
-            .and_then(Self::trade_currency_key)
-            .is_none_or(|quote_ccy| trade_currencies.contains(&quote_ccy))
-    }
-
-    /// A currency as `guessed_venue_fits` compares it: major unit, upper case.
-    pub(crate) fn trade_currency_key(currency: &str) -> Option<String> {
-        let currency = currency.trim();
-        (!currency.is_empty()).then(|| normalize_currency_code(currency).to_uppercase())
+    /// Upper-case tickers of securities held without an exchange. Broker sync
+    /// doesn't search for a listing for these: the user cleared the exchange or
+    /// none was ever known, and a search can file a private fund such as
+    /// Fidelity's `OAA1` under an unrelated company's listing.
+    fn tickers_held_without_exchange(&self) -> HashSet<String> {
+        self.asset_service
+            .get_assets()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|asset| {
+                asset.instrument_type == Some(InstrumentType::Equity)
+                    && asset
+                        .instrument_exchange_mic
+                        .as_deref()
+                        .is_none_or(|mic| mic.trim().is_empty())
+            })
+            .filter_map(|asset| asset.instrument_symbol.or(asset.display_code))
+            .map(|symbol| symbol.trim().to_uppercase())
+            .filter(|symbol| !symbol.is_empty())
+            .collect()
     }
 
     /// Creates a quote from activity data to serve as a price fallback.
@@ -9522,11 +9516,7 @@ impl ActivityService {
 
         // 1. Batch resolve symbols → MICs when live resolution is enabled.
         let symbol_mic_cache: HashMap<String, Option<String>> = if mode.allows_live_resolution() {
-            // Every currency the broker used for a symbol in this batch: its
-            // activities' (the account's when blank, as `build_asset_spec`
-            // reads them) and the symbol's own. One venue decision per symbol
-            // keeps all of its activities on one asset.
-            let mut trade_currencies: HashMap<String, HashSet<String>> = HashMap::new();
+            let held_without_exchange = self.tickers_held_without_exchange();
             let symbols_to_resolve: HashSet<SymbolResolutionKey> = activities
                 .iter()
                 .filter_map(|a| {
@@ -9539,21 +9529,11 @@ impl ActivityService {
                         Some(InstrumentType::Crypto | InstrumentType::Fx)
                     );
                     let is_cash = symbol.starts_with("CASH:");
-                    if !has_mic && !is_cash && !is_non_security_instrument {
-                        trade_currencies
-                            .entry(symbol.to_string())
-                            .or_default()
-                            .extend(
-                                [
-                                    Some(a.currency.as_str())
-                                        .filter(|currency| !currency.trim().is_empty())
-                                        .or(Some(account_currency.as_str())),
-                                    a.get_quote_ccy(),
-                                ]
-                                .into_iter()
-                                .flatten()
-                                .filter_map(Self::trade_currency_key),
-                            );
+                    if !has_mic
+                        && !is_cash
+                        && !is_non_security_instrument
+                        && !held_without_exchange.contains(&symbol.trim().to_uppercase())
+                    {
                         Some((symbol.to_string(), account_currency.clone(), None))
                     } else {
                         None
@@ -9564,12 +9544,7 @@ impl ActivityService {
             self.resolve_symbols_batch(symbols_to_resolve)
                 .await
                 .into_iter()
-                .map(|((symbol, _, _), output)| {
-                    let fits = trade_currencies
-                        .get(&symbol)
-                        .is_none_or(|currencies| Self::guessed_venue_fits(&output, currencies));
-                    (symbol, output.exchange_mic.filter(|_| fits))
-                })
+                .map(|((symbol, _, _), output)| (symbol, output.exchange_mic))
                 .collect()
         } else {
             HashMap::new()
