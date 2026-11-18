@@ -385,7 +385,7 @@ fn project_activity_update(
     if was_transfer
         && matches!(
             effective_activity_type(&activity_to_update),
-            "DEPOSIT" | "WITHDRAWAL"
+            "DEPOSIT" | "WITHDRAWAL" | "CREDIT"
         )
     {
         activity_to_update.source_group_id = None;
@@ -546,6 +546,8 @@ fn preserve_source_classification(
                 | (ACTIVITY_TYPE_TRANSFER_OUT, "WITHDRAWAL")
                 | ("DEPOSIT", ACTIVITY_TYPE_TRANSFER_IN)
                 | (ACTIVITY_TYPE_TRANSFER_IN, "DEPOSIT")
+                | ("CREDIT", ACTIVITY_TYPE_TRANSFER_IN)
+                | (ACTIVITY_TYPE_TRANSFER_IN, "CREDIT")
         ) {
             activity.activity_type_override = None;
         }
@@ -6966,6 +6968,53 @@ mod tests {
             .first(&mut conn)
             .expect("stored source group");
         assert_eq!(stored_group, None);
+    }
+
+    /// A card payment changed back to a refund/credit leaves its transfer
+    /// group behind, as a deposit does (#2740).
+    #[tokio::test]
+    async fn transfer_in_reclassified_as_credit_clears_source_group() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_transfer_activity(
+            &mut conn,
+            "orphan-in",
+            "acc-a",
+            "TRANSFER_IN",
+            Some("orphan-group"),
+            Some(r#"{"flow":{"is_external":true}}"#),
+        );
+
+        let updated = repo
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "orphan-in".to_string(),
+                account_id: "acc-a".to_string(),
+                asset: None,
+                activity_type: "CREDIT".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15T00:00:00Z".to_string(),
+                quantity: None,
+                unit_price: None,
+                currency: "USD".to_string(),
+                fee: None,
+                tax: None,
+                amount: None,
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("transfer in becomes a credit");
+
+        assert_eq!(updated.activity_type, "CREDIT");
+        assert_eq!(updated.source_group_id, None);
     }
 
     #[tokio::test]

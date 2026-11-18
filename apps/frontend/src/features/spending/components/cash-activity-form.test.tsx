@@ -290,6 +290,38 @@ describe("CashActivityForm currency", () => {
   });
 });
 
+describe("CashActivityForm card reclassification", () => {
+  // A card holds no deposits, so its payment and refund/credit swap (#2740).
+  it.each([
+    ["CREDIT", "Change to Payment"],
+    ["TRANSFER_IN", "Change to Refund / Credit"],
+    ["WITHDRAWAL", "Change to Balance Transfer / Cash Advance"],
+  ])("offers a card %s the card's own counterpart", (activityType, label) => {
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={{ ...foreignCharge, activityType } as Activity}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Change to Deposit/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps a bank account's credit out of transfer reclassification", () => {
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={{ ...foreignCharge, accountId: "chequing", activityType: "CREDIT" } as Activity}
+      />,
+      { wrapper },
+    );
+    expect(screen.queryByRole("button", { name: /^Change to/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("CashActivityForm category display", () => {
   it.each([
     { parentName: "Food & Dining", name: "Groceries" },

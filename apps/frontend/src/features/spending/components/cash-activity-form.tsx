@@ -735,6 +735,7 @@ export function CashActivityForm({
   const reclassificationField = (
     <CashActivityReclassification
       activity={activity}
+      accountType={selectedAccount?.accountType}
       onSuccess={() => onOpenChange(false)}
       disabled={saveMutation.isPending}
     />

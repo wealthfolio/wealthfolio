@@ -988,6 +988,9 @@ impl ActivityService {
                 | (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL)
                 | (ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN)
                 | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_DEPOSIT)
+                // A credit card's payment, which it cannot hold as a deposit.
+                | (ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_TRANSFER_IN)
+                | (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_CREDIT)
         );
         if cash_reclassification {
             if Self::non_cash_transfer_asset_key(existing).is_some() {
