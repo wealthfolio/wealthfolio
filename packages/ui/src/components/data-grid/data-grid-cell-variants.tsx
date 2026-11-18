@@ -1629,29 +1629,37 @@ export function DateInputCell<TData>({
     }
   }, []);
 
-  const onFieldKeyUp = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      showsUnsavableDateRef.current = dateFieldShowsUnsavableDate(
-        event.currentTarget,
-        valueRef.current,
-        formattingLocale,
-      );
+  const checkFieldDate = React.useCallback(
+    (field: HTMLElement) => {
+      showsUnsavableDateRef.current = dateFieldShowsUnsavableDate(field, valueRef.current, formattingLocale);
     },
     [formattingLocale],
   );
+
+  const onFieldEvent = React.useCallback(
+    (event: React.SyntheticEvent<HTMLDivElement>) => checkFieldDate(event.currentTarget),
+    [checkFieldDate],
+  );
+
+  // Text can arrive without key events, and the grid ends the edit on mouse down,
+  // before the field loses focus and moves an impossible day to a real one.
+  React.useEffect(() => {
+    if (!isEditing) return;
+    const onPointerDown = () => {
+      if (containerRef.current) checkFieldDate(containerRef.current);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [isEditing, checkFieldDate]);
 
   // The grid ends the edit from its own key listener, which runs before this cell's
   // bubbling handlers and can arrive before the last digit's key-up.
   const onFieldKeyDownCapture = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== "Enter" && event.key !== "Tab") return;
-      showsUnsavableDateRef.current = dateFieldShowsUnsavableDate(
-        event.currentTarget,
-        valueRef.current,
-        formattingLocale,
-      );
+      checkFieldDate(event.currentTarget);
     },
-    [formattingLocale],
+    [checkFieldDate],
   );
 
   // A day picked in the calendar ends the edit, as in the date variant; closing the
@@ -1735,7 +1743,12 @@ export function DateInputCell<TData>({
             onOpenChange={onCalendarOpenChange}
             className="w-full"
           >
-            <div className="contents" onKeyDownCapture={onFieldKeyDownCapture} onKeyUpCapture={onFieldKeyUp}>
+            <div
+              className="contents"
+              onBlurCapture={onFieldEvent}
+              onKeyDownCapture={onFieldKeyDownCapture}
+              onKeyUpCapture={onFieldEvent}
+            >
               <RacGroup className="flex w-full items-center gap-1">
                 <DateInputRac dir={direction} className="flex min-w-0 flex-1 items-center text-sm outline-none">
                   {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
