@@ -83,12 +83,41 @@ baseline:
           period_start: 2025-01-06
           quality: ok
           returns:
-            annualized_irr: "-0.8419367"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "-0.02"
-            twr: "-0.02"
-            value_return: "-0.02"
+            money_weighted:
+              annualized: ~
+              period: "-0.02"
+              series:
+                - date: 2025-01-06
+                  value: "0"
+                - date: 2025-01-07
+                  value: "-0.02"
+                - date: 2025-01-08
+                  value: "-0.02"
+                - date: 2025-01-09
+                  value: "-0.02"
+                - date: 2025-01-10
+                  value: "-0.02"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "-0.02"
+              series:
+                - date: 2025-01-06
+                  value: "0"
+                - date: 2025-01-07
+                  value: "-0.02"
+                - date: 2025-01-08
+                  value: "-0.02"
+                - date: 2025-01-09
+                  value: "-0.02"
+                - date: 2025-01-10
+                  value: "-0.02"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "-0.02"
@@ -96,25 +125,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-07
             volatility: "0.19305217"
-          series:
-            - date: 2025-01-06
-              value: "0"
-            - date: 2025-01-07
-              value: "-0.02"
-            - date: 2025-01-08
-              value: "-0.02"
-            - date: 2025-01-09
-              value: "-0.02"
-            - date: 2025-01-10
-              value: "-0.02"
           summary:
             amount: "-20"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "-0.02"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -240,12 +255,41 @@ baseline:
       period_start: 2025-01-06
       quality: ok
       returns:
-        annualized_irr: "-0.8419367"
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: "-0.02"
-        twr: "-0.02"
-        value_return: "-0.02"
+        money_weighted:
+          annualized: ~
+          period: "-0.02"
+          series:
+            - date: 2025-01-06
+              value: "0"
+            - date: 2025-01-07
+              value: "-0.02"
+            - date: 2025-01-08
+              value: "-0.02"
+            - date: 2025-01-09
+              value: "-0.02"
+            - date: 2025-01-10
+              value: "-0.02"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "-0.02"
+          series:
+            - date: 2025-01-06
+              value: "0"
+            - date: 2025-01-07
+              value: "-0.02"
+            - date: 2025-01-08
+              value: "-0.02"
+            - date: 2025-01-09
+              value: "-0.02"
+            - date: 2025-01-10
+              value: "-0.02"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 1
         max_drawdown: "-0.02"
@@ -253,25 +297,11 @@ baseline:
         recovery_date: ~
         trough_date: 2025-01-07
         volatility: "0.19305217"
-      series:
-        - date: 2025-01-06
-          value: "0"
-        - date: 2025-01-07
-          value: "-0.02"
-        - date: 2025-01-08
-          value: "-0.02"
-        - date: 2025-01-09
-          value: "-0.02"
-        - date: 2025-01-10
-          value: "-0.02"
       summary:
         amount: "-20"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "-0.02"
-        percent_status: complete
         quality: ok
   portfolio_flows: []
 scenario: EDGE-QT-02

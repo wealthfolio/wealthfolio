@@ -145,6 +145,38 @@ async fn calculate_performance_history(
     let start = parse_date_optional(body.start_date, "startDate")?;
     let end = parse_date_optional(body.end_date, "endDate")?;
     let tracking_mode = parse_tracking_mode(body.tracking_mode);
+    // A benchmark with a scope replays that scope's deposits and withdrawals.
+    if let (true, Some(filter)) = (body.item_type == "symbol", body.filter.as_ref()) {
+        let base = state
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        // The replay only adds a view: a scope that cannot be resolved leaves
+        // the benchmark's price return.
+        let account_ids = match state
+            .portfolio_service
+            .resolve_account_scope(filter, &base)
+            .map_err(crate::error::ApiError::from)
+            .and_then(|resolved| {
+                let accounts_by_id = performance_accounts_by_id(&state, &resolved.account_ids)?;
+                Ok(performance_account_ids_from_map(
+                    &accounts_by_id,
+                    &resolved.account_ids,
+                ))
+            }) {
+            Ok(account_ids) => account_ids,
+            Err(error) => {
+                tracing::warn!("Benchmark scope not resolved; deposits not replayed: {error}");
+                Vec::new()
+            }
+        };
+        let metrics = state
+            .performance_service
+            .calculate_symbol_performance_replayed(&body.item_id, start, end, &account_ids)
+            .await?;
+        return Ok(Json(metrics));
+    }
     let metrics = if let (true, Some(filter)) = (body.item_type == "account", body.filter.as_ref())
     {
         let base = state

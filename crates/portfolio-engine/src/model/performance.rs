@@ -47,21 +47,42 @@ pub enum SummaryStatus {
     Unavailable,
 }
 
+/// One way of measuring return over the period: its value for the period,
+/// its yearly rate where one is computed, its cumulative curve when a
+/// series was requested, and why the period value is missing when it is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ReturnView {
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub period: Option<Decimal>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub annualized: Option<Decimal>,
+    #[serde(default)]
+    pub series: Vec<SeriesPoint>,
+    #[serde(default)]
+    pub unavailable_reason: Option<QualityNote>,
+}
+
+impl ReturnView {
+    pub(crate) fn unavailable(reason: QualityNote) -> Self {
+        Self {
+            unavailable_reason: Some(reason),
+            ..Self::default()
+        }
+    }
+}
+
+/// Every return the engine computes for a scope. Each view keeps one
+/// meaning for every kind of scope; a host picks which one to show.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Returns {
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub twr: Option<Decimal>,
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub annualized_twr: Option<Decimal>,
-    /// Period money-weighted return derived from the annualized XIRR.
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub irr: Option<Decimal>,
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub annualized_irr: Option<Decimal>,
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub value_return: Option<Decimal>,
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub annualized_value_return: Option<Decimal>,
+    /// Time-weighted: compounded sub-period returns, so deposits and
+    /// withdrawals do not move it.
+    pub twr: ReturnView,
+    /// Money-weighted: gain over the average invested capital (Modified
+    /// Dietz) for the period; the yearly rate compounds it.
+    pub money_weighted: ReturnView,
+    /// Gain over book cost, for holdings accounts over their full history.
+    pub return_on_cost: ReturnView,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -118,16 +139,18 @@ pub struct DataQuality {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Metric {
-    Irr,
-    ValueReturn,
+    Twr,
+    MoneyWeighted,
+    ReturnOnCost,
     Pnl,
 }
 
 impl fmt::Display for Metric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::Irr => "IRR",
-            Self::ValueReturn => "Value return",
+            Self::Twr => "TWR",
+            Self::MoneyWeighted => "Money-weighted return",
+            Self::ReturnOnCost => "ROI",
             Self::Pnl => "P&L",
         })
     }
@@ -185,10 +208,7 @@ pub enum QualityNote {
     NonPositiveStartingQuote,
     PriceSeriesOutOfRange,
     SymbolPriceOnly,
-    SymbolTwrNotApplicable,
-    SymbolIrrNotApplicable,
     HoldingsTwrNotApplicable,
-    HoldingsIrrNotApplicable,
     HoldingsReturnOutOfRange,
     FlowsNotInferred {
         metric: Metric,
@@ -208,10 +228,14 @@ pub enum QualityNote {
         subject: Subject,
     },
     HoldingsFlowsEstimated,
+    HoldingsMoneyWeightedNotApplicable,
+    ReturnOnCostNotApplicable,
+    MoneyWeightedUnknownFlow,
+    MoneyWeightedNoCapital,
+    MoneyWeightedOutOfRange,
     CoverageUnavailable {
         metric: Metric,
     },
-    TransactionNonPositiveStart,
     NetContributionFlows,
     DegradedFlowProvenance,
     PartialUnpricedRows,
@@ -231,12 +255,6 @@ pub enum QualityNote {
         date: NaiveDate,
     },
     TwrNoChain,
-    IrrTwoPointsRequired,
-    IrrUnknownFlow,
-    IrrInsufficientFlows,
-    IrrNoSignChange,
-    IrrCannotEvaluate,
-    IrrNoConvergence,
     AttributionIncomplete {
         #[serde(with = "crate::model::decimal_serde")]
         difference: Decimal,
@@ -268,7 +286,6 @@ pub enum QualityNote {
     },
     MixedScope,
     MixedTwrNotApplicable,
-    MixedIrrNotApplicable,
     MixedSkippedTwoPoints {
         account: String,
     },
@@ -288,9 +305,6 @@ pub enum QualityNote {
         account: String,
     },
     MixedPercentNoDenominator {
-        account: String,
-    },
-    MixedPercentCoverage {
         account: String,
     },
     MixedCoverageDiffers,
@@ -316,20 +330,21 @@ impl fmt::Display for QualityNote {
             NonPositiveStartingQuote => f.write_str("Performance unavailable: starting quote price is non-positive."),
             PriceSeriesOutOfRange => f.write_str("Performance unavailable: the price series is outside the supported range."),
             SymbolPriceOnly => f.write_str("Symbol-only performance uses price quotes only; dividends and distributions are excluded unless the quote series is total-return adjusted."),
-            SymbolTwrNotApplicable => f.write_str("TWR unavailable for symbol-only price performance because there is no portfolio cash-flow scope."),
-            SymbolIrrNotApplicable => f.write_str("IRR unavailable for symbol-only price performance because there are no user cash flows."),
             HoldingsTwrNotApplicable => f.write_str("TWR unavailable for holdings-only scopes because transaction cash flows are not tracked."),
-            HoldingsIrrNotApplicable => f.write_str("IRR unavailable for holdings-only scopes because transaction cash flows are not tracked."),
-            HoldingsReturnOutOfRange => f.write_str("Value return unavailable for holdings-only scope because the compounded return is outside the supported range."),
+            HoldingsReturnOutOfRange => f.write_str("TWR unavailable for holdings-only scope because the compounded return is outside the supported range."),
             FlowsNotInferred { metric, subject } => write!(f, "{metric} unavailable for {subject} because external cash flows could not be inferred from snapshots."),
-            HoldingsValueReturnUnavailable => f.write_str("Value return unavailable for holdings-only scope."),
-            HoldingsNonPositiveStart => f.write_str("Value return unavailable for holdings-only scope because starting total value is zero or negative."),
+            HoldingsValueReturnUnavailable => f.write_str("ROI unavailable for holdings-only scope."),
+            HoldingsNonPositiveStart => f.write_str("TWR unavailable for holdings-only scope because starting total value is zero or negative."),
             NonPositiveBookBasis { metric, subject } => write!(f, "{metric} unavailable for {subject} because ending book basis is zero or negative."),
             IncompleteBookBasis { metric, subject } => write!(f, "{metric} unavailable for {subject} because book basis is incomplete."),
             PnlUnavailable { subject } => write!(f, "P&L unavailable for {subject}."),
             HoldingsFlowsEstimated => f.write_str("External cash flows for this holdings-tracked scope are estimated from position and cash changes between snapshots; cash income received between snapshots may not be captured in period gains."),
+            HoldingsMoneyWeightedNotApplicable => f.write_str("Money-weighted return unavailable over the full history of a holdings account because deposits and withdrawals are not tracked."),
+            ReturnOnCostNotApplicable => f.write_str("ROI (gain over what was paid) applies to holdings accounts over their full history."),
+            MoneyWeightedUnknownFlow => f.write_str("Money-weighted return unavailable because a deposit or withdrawal in the period has no known amount."),
+            MoneyWeightedNoCapital => f.write_str("Money-weighted return unavailable because no capital was invested on average over the period."),
+            MoneyWeightedOutOfRange => f.write_str("Money-weighted return unavailable because it is outside the supported range."),
             CoverageUnavailable { metric } => write!(f, "{metric} unavailable because valuation coverage is unavailable at the period start or end; review missing prices or manual valuations."),
-            TransactionNonPositiveStart => f.write_str("Value return unavailable for transaction-mode scope because starting value is zero or negative."),
             NetContributionFlows => f.write_str("External cash flows were inferred from net contribution deltas for part of this period because gross daily flow data was unavailable; same-day deposits and withdrawals may be netted."),
             DegradedFlowProvenance => f.write_str("External cash flow provenance is incomplete for part of this period; return and attribution results may include degraded flow data."),
             PartialUnpricedRows => f.write_str("Some valuation rows exclude unpriced held positions; returns are computed on the priced subset and may not represent the full scope."),
@@ -339,12 +354,6 @@ impl fmt::Display for QualityNote {
             TwrNegativeDenominator { date } => write!(f, "TWR unavailable for {date} because the return denominator (opening value + inflow) is negative. {REVIEW}"),
             TwrOutOfRange { date } => write!(f, "TWR unavailable for {date} because the compounded return is outside the supported range."),
             TwrNoChain => f.write_str("TWR unavailable: no period starts with positive opening value and denominator of at least 1 base currency unit."),
-            IrrTwoPointsRequired => f.write_str("IRR unavailable: at least two valuation points are required."),
-            IrrUnknownFlow => f.write_str("IRR unavailable because an external flow amount or transfer boundary is unknown."),
-            IrrInsufficientFlows => f.write_str("IRR unavailable: insufficient dated cash flows."),
-            IrrNoSignChange => f.write_str("IRR unavailable: cash flows do not change sign."),
-            IrrCannotEvaluate => f.write_str("IRR unavailable: solver could not evaluate cash flows."),
-            IrrNoConvergence => f.write_str("IRR unavailable: solver did not converge."),
             AttributionIncomplete { difference, tolerance } => write!(f, "Performance attribution is incomplete for this period. Difference: {difference}; tolerance: {tolerance}. Review Health Center for possible data issues."),
             AttributionSkipped { component, activity } => write!(f, "{component} attribution skipped for activity {activity} because FX conversion failed."),
             RealizedSkipped { disposal } => write!(f, "Realized P&L attribution skipped for disposal {disposal} because FX conversion was unavailable."),
@@ -353,9 +362,8 @@ impl fmt::Display for QualityNote {
             ScopedFxSkippedRange { account } => write!(f, "Scoped FX attribution skipped for account {account} because its converted movement is outside the supported range."),
             CashFxUnavailable { account, date } => write!(f, "Cash FX attribution is incomplete for account {account} on {date} because its exposure or valuation rate is unavailable."),
             ExternalMarkerIgnored { group } => write!(f, "Transfer group {group} ignored external transfer metadata because the valid pair is internal to the selected scope."),
-            MixedScope => f.write_str("This scope mixes transaction-mode and holdings-mode accounts, so TWR and IRR are unavailable. The return is a value return over account-level components."),
+            MixedScope => f.write_str("This scope mixes transaction-mode and holdings-mode accounts, so TWR is unavailable. The money-weighted return adds up each account's gain and invested capital."),
             MixedTwrNotApplicable => f.write_str("TWR unavailable for mixed transaction and holdings scopes."),
-            MixedIrrNotApplicable => f.write_str("IRR unavailable for mixed transaction and holdings scopes."),
             MixedSkippedTwoPoints { account } => write!(f, "Mixed performance skipped account {account} because at least two valuation points are required."),
             MixedSkippedNegative { account } => write!(f, "Mixed performance skipped account {account} because it has negative portfolio value in its history. Please review the underlying transactions and holdings."),
             MixedHoldingsFlowsEstimated { account } => write!(f, "External cash flows for holdings account {account} are estimated from position and cash changes between snapshots."),
@@ -363,10 +371,9 @@ impl fmt::Display for QualityNote {
             MixedExcludedBasis { account } => write!(f, "Mixed performance excluded account {account} from all-time gain/loss because its holdings basis is incomplete or unavailable."),
             MixedPercentExcluded { account } => write!(f, "Mixed performance percentage excluded account {account} because its summary amount is unavailable."),
             MixedPercentNoDenominator { account } => write!(f, "Mixed performance percentage unavailable because account {account} contributes to the summary amount but has no valid return denominator."),
-            MixedPercentCoverage { account } => write!(f, "Mixed performance percentage unavailable because account {account} is in scope but has no complete summary amount or return denominator."),
-            MixedCoverageDiffers => f.write_str("Value return unavailable for mixed scope because summary amount and denominator coverage differ."),
-            MixedReturnOutOfRange => f.write_str("Value return unavailable for mixed scope because it is outside the supported range."),
-            MixedNonPositiveDenominators => f.write_str("Value return unavailable for mixed scope because all account-level denominators are zero or negative."),
+            MixedCoverageDiffers => f.write_str("Money-weighted return unavailable for mixed scope because some accounts have no gain or invested capital to add up."),
+            MixedReturnOutOfRange => f.write_str("Money-weighted return unavailable for mixed scope because it is outside the supported range."),
+            MixedNonPositiveDenominators => f.write_str("Money-weighted return unavailable for mixed scope because no capital was invested on average."),
             MixedSeriesUnavailable => f.write_str("Return series unavailable for mixed scopes because transaction and holdings components use different baselines."),
             MixedAttributionUnreconciled { delta } => write!(f, "Mixed performance attribution did not reconcile to the summary amount; unreconciled delta is {delta}."),
         }
@@ -377,13 +384,9 @@ impl fmt::Display for QualityNote {
 pub struct Summary {
     #[serde(default, with = "crate::model::decimal_serde::option")]
     pub amount: Option<Decimal>,
-    #[serde(default, with = "crate::model::decimal_serde::option")]
-    pub percent: Option<Decimal>,
-    pub method: ReturnMethod,
     pub basis: SummaryBasis,
     pub quality: QualityStatus,
     pub amount_status: SummaryStatus,
-    pub percent_status: SummaryStatus,
     pub basis_status: BasisStatus,
     pub reasons: Vec<QualityNote>,
 }
@@ -392,12 +395,9 @@ impl Default for Summary {
     fn default() -> Self {
         Self {
             amount: None,
-            percent: None,
-            method: ReturnMethod::NotApplicable,
             basis: SummaryBasis::NotApplicable,
             quality: QualityStatus::NotApplicable,
             amount_status: SummaryStatus::Unavailable,
-            percent_status: SummaryStatus::Unavailable,
             basis_status: BasisStatus::NotApplicable,
             reasons: Vec::new(),
         }
@@ -424,16 +424,15 @@ pub struct PerformanceResult {
     pub data_quality: DataQuality,
     pub basis_status: BasisStatus,
     pub summary: Summary,
-    pub series: Vec<SeriesPoint>,
     pub is_holdings_mode: bool,
     pub is_mixed_tracking_mode: bool,
-    /// Dated holdings scope with an unpriceable transition: summary amount
-    /// and percent stay unavailable through every summary refresh. Internal
+    /// Dated holdings scope with an unpriceable transition: the summary
+    /// amount and every return stay unavailable through every refresh. Internal
     /// to `measure`; not part of the result a host reads.
     #[serde(skip)]
     pub(crate) holdings_flows_unavailable: bool,
-    /// A period endpoint is UNAVAILABLE: IRR, value return and the headline
-    /// amount stay unavailable through every summary refresh. Internal to
+    /// A period endpoint is UNAVAILABLE: every return and the headline
+    /// amount stay unavailable through every refresh. Internal to
     /// `measure`; not part of the result a host reads.
     #[serde(skip)]
     pub(crate) coverage_unavailable: bool,

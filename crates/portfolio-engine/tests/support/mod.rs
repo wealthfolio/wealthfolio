@@ -909,12 +909,9 @@ pub fn performance_value(result: &PerformanceResult) -> Value {
         "period_start": result.period_start.map(|d| d.to_string()),
         "period_end": result.period_end.map(|d| d.to_string()),
         "returns": {
-            "twr": fmt_opt(result.returns.twr),
-            "annualized_twr": fmt_opt(result.returns.annualized_twr),
-            "irr": fmt_opt(result.returns.irr),
-            "annualized_irr": fmt_opt(result.returns.annualized_irr),
-            "value_return": fmt_opt(result.returns.value_return),
-            "annualized_value_return": fmt_opt(result.returns.annualized_value_return),
+            "twr": return_view_value(&result.returns.twr),
+            "money_weighted": return_view_value(&result.returns.money_weighted),
+            "return_on_cost": return_view_value(&result.returns.return_on_cost),
         },
         "attribution": {
             "contributions": fmt_decimal(result.attribution.contributions),
@@ -937,23 +934,41 @@ pub fn performance_value(result: &PerformanceResult) -> Value {
         },
         "summary": {
             "amount": fmt_opt(result.summary.amount),
-            "percent": fmt_opt(result.summary.percent),
-            "method": enum_str(&result.summary.method),
             "basis": enum_str(&result.summary.basis),
             "quality": enum_str(&result.summary.quality),
             "amount_status": enum_str(&result.summary.amount_status),
-            "percent_status": enum_str(&result.summary.percent_status),
             "basis_status": camel(&result.summary.basis_status),
         },
         "basis_status": camel(&result.basis_status),
         "quality": enum_str(&result.data_quality.status),
         "is_holdings_mode": result.is_holdings_mode,
         "is_mixed_tracking_mode": result.is_mixed_tracking_mode,
-        "series": result.series.iter().map(|p| serde_json::json!({
-            "date": p.date.to_string(),
-            "value": fmt_decimal(p.value),
-        })).collect::<Vec<_>>(),
     })
+}
+
+fn return_view_value(view: &ReturnView) -> Value {
+    serde_json::json!({
+        "period": fmt_opt(view.period),
+        "annualized": fmt_opt(view.annualized),
+        "series": series_value(&view.series),
+        "unavailable_reason": view
+            .unavailable_reason
+            .as_ref()
+            .and_then(|note| serde_json::to_value(note).ok())
+            .and_then(|note| note.get("code").cloned()),
+    })
+}
+
+fn series_value(points: &[SeriesPoint]) -> Vec<Value> {
+    points
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "date": p.date.to_string(),
+                "value": fmt_decimal(p.value),
+            })
+        })
+        .collect()
 }
 
 // ------------------------------------------------------- golden sections

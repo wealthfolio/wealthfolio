@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 35
 ---
 as_of: 2025-01-10
 base_currency: USD
@@ -246,14 +245,59 @@ baseline:
           method: timeWeighted
           period_end: 2025-01-10
           period_start: 2025-01-02
-          quality: partial
+          quality: ok
           returns:
-            annualized_irr: ~
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: ~
-            twr: "0.6"
-            value_return: "0.6"
+            money_weighted:
+              annualized: ~
+              period: "0.6"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+                - date: 2025-01-06
+                  value: "0.2"
+                - date: 2025-01-07
+                  value: "0"
+                - date: 2025-01-08
+                  value: "0.6"
+                - date: 2025-01-09
+                  value: "0.6"
+                - date: 2025-01-10
+                  value: "0.6"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0.6"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+                - date: 2025-01-06
+                  value: "0.2"
+                - date: 2025-01-07
+                  value: "0"
+                - date: 2025-01-08
+                  value: "0.6"
+                - date: 2025-01-09
+                  value: "0.6"
+                - date: 2025-01-10
+                  value: "0.6"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 2
             max_drawdown: "-0.16666667"
@@ -261,34 +305,12 @@ baseline:
             recovery_date: 2025-01-08
             trough_date: 2025-01-07
             volatility: "3.68165355"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
-            - date: 2025-01-06
-              value: "0.2"
-            - date: 2025-01-07
-              value: "0"
-            - date: 2025-01-08
-              value: "0.6"
-            - date: 2025-01-09
-              value: "0.6"
-            - date: 2025-01-10
-              value: "0.6"
           summary:
             amount: "3000"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0.6"
-            percent_status: complete
-            quality: partial
+            quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -490,14 +512,59 @@ baseline:
       method: timeWeighted
       period_end: 2025-01-10
       period_start: 2025-01-02
-      quality: partial
+      quality: ok
       returns:
-        annualized_irr: ~
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: ~
-        twr: "0.6"
-        value_return: "0.6"
+        money_weighted:
+          annualized: ~
+          period: "0.6"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+            - date: 2025-01-06
+              value: "0.2"
+            - date: 2025-01-07
+              value: "0"
+            - date: 2025-01-08
+              value: "0.6"
+            - date: 2025-01-09
+              value: "0.6"
+            - date: 2025-01-10
+              value: "0.6"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0.6"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+            - date: 2025-01-06
+              value: "0.2"
+            - date: 2025-01-07
+              value: "0"
+            - date: 2025-01-08
+              value: "0.6"
+            - date: 2025-01-09
+              value: "0.6"
+            - date: 2025-01-10
+              value: "0.6"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 2
         max_drawdown: "-0.16666667"
@@ -505,33 +572,11 @@ baseline:
         recovery_date: 2025-01-08
         trough_date: 2025-01-07
         volatility: "3.68165355"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "0"
-        - date: 2025-01-04
-          value: "0"
-        - date: 2025-01-05
-          value: "0"
-        - date: 2025-01-06
-          value: "0.2"
-        - date: 2025-01-07
-          value: "0"
-        - date: 2025-01-08
-          value: "0.6"
-        - date: 2025-01-09
-          value: "0.6"
-        - date: 2025-01-10
-          value: "0.6"
       summary:
         amount: "3000"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "0.6"
-        percent_status: complete
-        quality: partial
+        quality: ok
   portfolio_flows: []
 scenario: NOM-CB-03

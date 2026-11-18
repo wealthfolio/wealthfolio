@@ -171,7 +171,7 @@ fn run_pipeline(raw: RawFacts) -> usize {
         true,
     )
     .unwrap();
-    series.values().map(|s| s.days.len()).sum::<usize>() + result.series.len()
+    series.values().map(|s| s.days.len()).sum::<usize>() + result.returns.twr.series.len()
 }
 
 fn scale_01(c: &mut Criterion) {

@@ -83,12 +83,57 @@ baseline:
           period_start: 2025-01-02
           quality: ok
           returns:
-            annualized_irr: "62.02326188"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "0.095"
-            twr: "0.095"
-            value_return: "0.095"
+            money_weighted:
+              annualized: ~
+              period: "0.095"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "-0.005"
+                - date: 2025-01-04
+                  value: "-0.005"
+                - date: 2025-01-05
+                  value: "-0.005"
+                - date: 2025-01-06
+                  value: "0.045"
+                - date: 2025-01-07
+                  value: "0.045"
+                - date: 2025-01-08
+                  value: "0.045"
+                - date: 2025-01-09
+                  value: "0.045"
+                - date: 2025-01-10
+                  value: "0.095"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "0.095"
+              series:
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "-0.005"
+                - date: 2025-01-04
+                  value: "-0.005"
+                - date: 2025-01-05
+                  value: "-0.005"
+                - date: 2025-01-06
+                  value: "0.045"
+                - date: 2025-01-07
+                  value: "0.045"
+                - date: 2025-01-08
+                  value: "0.045"
+                - date: 2025-01-09
+                  value: "0.045"
+                - date: 2025-01-10
+                  value: "0.095"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 4
             max_drawdown: "-0.005"
@@ -96,33 +141,11 @@ baseline:
             recovery_date: 2025-01-06
             trough_date: 2025-01-03
             volatility: "0.43243564"
-          series:
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "-0.005"
-            - date: 2025-01-04
-              value: "-0.005"
-            - date: 2025-01-05
-              value: "-0.005"
-            - date: 2025-01-06
-              value: "0.045"
-            - date: 2025-01-07
-              value: "0.045"
-            - date: 2025-01-08
-              value: "0.045"
-            - date: 2025-01-09
-              value: "0.045"
-            - date: 2025-01-10
-              value: "0.095"
           summary:
             amount: "95"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "0.095"
-            percent_status: complete
             quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
@@ -327,12 +350,57 @@ baseline:
       period_start: 2025-01-02
       quality: ok
       returns:
-        annualized_irr: "62.02326188"
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: "0.095"
-        twr: "0.095"
-        value_return: "0.095"
+        money_weighted:
+          annualized: ~
+          period: "0.095"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "-0.005"
+            - date: 2025-01-04
+              value: "-0.005"
+            - date: 2025-01-05
+              value: "-0.005"
+            - date: 2025-01-06
+              value: "0.045"
+            - date: 2025-01-07
+              value: "0.045"
+            - date: 2025-01-08
+              value: "0.045"
+            - date: 2025-01-09
+              value: "0.045"
+            - date: 2025-01-10
+              value: "0.095"
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: "0.095"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "-0.005"
+            - date: 2025-01-04
+              value: "-0.005"
+            - date: 2025-01-05
+              value: "-0.005"
+            - date: 2025-01-06
+              value: "0.045"
+            - date: 2025-01-07
+              value: "0.045"
+            - date: 2025-01-08
+              value: "0.045"
+            - date: 2025-01-09
+              value: "0.045"
+            - date: 2025-01-10
+              value: "0.095"
+          unavailable_reason: ~
       risk:
         drawdown_duration_days: 4
         max_drawdown: "-0.005"
@@ -340,33 +408,11 @@ baseline:
         recovery_date: 2025-01-06
         trough_date: 2025-01-03
         volatility: "0.43243564"
-      series:
-        - date: 2025-01-02
-          value: "0"
-        - date: 2025-01-03
-          value: "-0.005"
-        - date: 2025-01-04
-          value: "-0.005"
-        - date: 2025-01-05
-          value: "-0.005"
-        - date: 2025-01-06
-          value: "0.045"
-        - date: 2025-01-07
-          value: "0.045"
-        - date: 2025-01-08
-          value: "0.045"
-        - date: 2025-01-09
-          value: "0.045"
-        - date: 2025-01-10
-          value: "0.095"
       summary:
         amount: "95"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
-        method: timeWeighted
-        percent: "0.095"
-        percent_status: complete
         quality: ok
   portfolio_flows: []
 scenario: LIFE-INC-01

@@ -1,6 +1,5 @@
 ---
 source: crates/portfolio-engine/tests/goldens.rs
-assertion_line: 34
 ---
 as_of: 2025-01-05
 base_currency: USD
@@ -37,12 +36,31 @@ baseline:
           period_start: 2025-01-01
           quality: partial
           returns:
-            annualized_irr: ~
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: ~
-            twr: ~
-            value_return: "0"
+            money_weighted:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_MONEY_WEIGHTED_NOT_APPLICABLE
+            return_on_cost:
+              annualized: ~
+              period: "0"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0"
+                - date: 2025-01-03
+                  value: "0"
+                - date: 2025-01-04
+                  value: "0"
+                - date: 2025-01-05
+                  value: "0"
+              unavailable_reason: ~
+            twr:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: HOLDINGS_TWR_NOT_APPLICABLE
           risk:
             drawdown_duration_days: 1
             max_drawdown: "0"
@@ -50,25 +68,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-02
             volatility: "0"
-          series:
-            - date: 2025-01-01
-              value: "0"
-            - date: 2025-01-02
-              value: "0"
-            - date: 2025-01-03
-              value: "0"
-            - date: 2025-01-04
-              value: "0"
-            - date: 2025-01-05
-              value: "0"
           summary:
             amount: "0"
             amount_status: complete
             basis: bookBasis
             basis_status: notApplicable
-            method: valueReturn
-            percent: "0"
-            percent_status: complete
             quality: partial
       tracking_mode: HOLDINGS
       valuations:
@@ -310,12 +314,41 @@ baseline:
           period_start: 2025-01-01
           quality: partial
           returns:
-            annualized_irr: "-0.9938611"
-            annualized_twr: ~
-            annualized_value_return: ~
-            irr: "-0.0542497"
-            twr: "-0.04785366"
-            value_return: "-0.057"
+            money_weighted:
+              annualized: ~
+              period: "-0.05302326"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0.048"
+                - date: 2025-01-03
+                  value: "-0.05428571"
+                - date: 2025-01-04
+                  value: "-0.0534375"
+                - date: 2025-01-05
+                  value: "-0.05302326"
+              unavailable_reason: ~
+            return_on_cost:
+              annualized: ~
+              period: ~
+              series: []
+              unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+            twr:
+              annualized: ~
+              period: "-0.04785366"
+              series:
+                - date: 2025-01-01
+                  value: "0"
+                - date: 2025-01-02
+                  value: "0.048"
+                - date: 2025-01-03
+                  value: "-0.04785366"
+                - date: 2025-01-04
+                  value: "-0.04785366"
+                - date: 2025-01-05
+                  value: "-0.04785366"
+              unavailable_reason: ~
           risk:
             drawdown_duration_days: 1
             max_drawdown: "-0.09146341"
@@ -323,25 +356,11 @@ baseline:
             recovery_date: ~
             trough_date: 2025-01-03
             volatility: "1.14656321"
-          series:
-            - date: 2025-01-01
-              value: "0"
-            - date: 2025-01-02
-              value: "0.048"
-            - date: 2025-01-03
-              value: "-0.04785366"
-            - date: 2025-01-04
-              value: "-0.04785366"
-            - date: 2025-01-05
-              value: "-0.04785366"
           summary:
             amount: "-57"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
-            method: timeWeighted
-            percent: "-0.04785366"
-            percent_status: complete
             quality: partial
       tracking_mode: TRANSACTIONS
       valuations:
@@ -467,12 +486,21 @@ baseline:
       period_start: 2025-01-01
       quality: partial
       returns:
-        annualized_irr: ~
-        annualized_twr: ~
-        annualized_value_return: ~
-        irr: ~
-        twr: ~
-        value_return: "-0.05181818"
+        money_weighted:
+          annualized: ~
+          period: "-0.04851064"
+          series: []
+          unavailable_reason: ~
+        return_on_cost:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: RETURN_ON_COST_NOT_APPLICABLE
+        twr:
+          annualized: ~
+          period: ~
+          series: []
+          unavailable_reason: MIXED_TWR_NOT_APPLICABLE
       risk:
         drawdown_duration_days: ~
         max_drawdown: ~
@@ -480,15 +508,11 @@ baseline:
         recovery_date: ~
         trough_date: ~
         volatility: ~
-      series: []
       summary:
         amount: "-57"
         amount_status: complete
         basis: mixed
         basis_status: notApplicable
-        method: valueReturn
-        percent: "-0.05181818"
-        percent_status: complete
         quality: partial
   portfolio_flows:
     - date: 2025-01-03

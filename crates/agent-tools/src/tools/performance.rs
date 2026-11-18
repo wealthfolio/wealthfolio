@@ -5,7 +5,9 @@ use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wealthfolio_core::accounts::{account_supports_portfolio_scope, AccountPurpose};
-use wealthfolio_core::portfolio::performance::PerformanceResult as CorePerformanceResult;
+use wealthfolio_core::portfolio::performance::{
+    PerformanceResult as CorePerformanceResult, PerformanceReturnView,
+};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use crate::env::AgentEnvironment;
@@ -38,7 +40,6 @@ pub struct GetPerformanceOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_end_date: Option<String>,
     pub currency: String,
-    pub mode: String,
     pub basis_status: String,
     pub summary: PerformanceSummaryOutput,
     pub returns: PerformanceReturnsOutput,
@@ -53,33 +54,47 @@ pub struct GetPerformanceOutput {
 pub struct PerformanceSummaryOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub percent: Option<f64>,
-    pub method: String,
     pub basis: String,
     pub quality: String,
     pub amount_status: String,
-    pub percent_status: String,
     pub basis_status: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
 }
 
+/// One way of measuring return; `period` is missing when the scope cannot
+/// support it, and `unavailableReason` says why.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceReturnViewOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annualized: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceReturnsOutput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub twr: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annualized_twr: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub irr: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annualized_irr: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_return: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annualized_value_return: Option<f64>,
+    /// Time-weighted: deposits and withdrawals do not move it.
+    pub twr: PerformanceReturnViewOutput,
+    /// Money-weighted: gain over the average invested capital; `annualized`
+    /// compounds it to a yearly rate.
+    pub money_weighted: PerformanceReturnViewOutput,
+    /// Gain over book cost, for holdings accounts over their full history.
+    pub return_on_cost: PerformanceReturnViewOutput,
+}
+
+impl PerformanceReturnViewOutput {
+    fn from_view(view: &PerformanceReturnView) -> Self {
+        Self {
+            period: view.period.and_then(|v| v.to_f64()),
+            annualized: view.annualized.and_then(|v| v.to_f64()),
+            unavailable_reason: view.unavailable_reason.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -126,11 +141,9 @@ pub struct PerformanceDataQualityOutput {
 impl PerformanceSummaryOutput {
     fn unavailable(reason: impl Into<String>) -> Self {
         Self {
-            method: "notApplicable".to_string(),
             basis: "notApplicable".to_string(),
             quality: "noData".to_string(),
             amount_status: "unavailable".to_string(),
-            percent_status: "unavailable".to_string(),
             basis_status: "notApplicable".to_string(),
             reasons: vec![reason.into()],
             ..Default::default()
@@ -140,12 +153,9 @@ impl PerformanceSummaryOutput {
     fn from_metrics(metrics: &CorePerformanceResult) -> Self {
         Self {
             amount: metrics.summary.amount.and_then(|v| v.to_f64()),
-            percent: metrics.summary.percent.and_then(|v| v.to_f64()),
-            method: serialized_value(&metrics.summary.method, "notApplicable"),
             basis: serialized_value(&metrics.summary.basis, "notApplicable"),
             quality: serialized_value(&metrics.summary.quality, "partial"),
             amount_status: serialized_value(&metrics.summary.amount_status, "unavailable"),
-            percent_status: serialized_value(&metrics.summary.percent_status, "unavailable"),
             basis_status: serialized_value(&metrics.summary.basis_status, "notApplicable"),
             reasons: metrics.summary.reasons.clone(),
         }
@@ -181,7 +191,7 @@ impl AgentTool for GetPerformance {
     }
 
     fn description(&self) -> &'static str {
-        "Get portfolio performance metrics including TWR, IRR, value return, attribution, volatility, and max drawdown. Omit accountId for aggregate performance across all accounts."
+        "Get portfolio performance: time-weighted return (twr), money-weighted return (gain over average invested capital; annualized compounds it to a yearly rate), ROI (returnOnCost: gain over book cost) for holdings accounts over their full history, attribution, volatility, and max drawdown. A return missing for the scope carries an unavailableReason. Omit accountId for aggregate performance across all accounts."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -243,7 +253,6 @@ impl AgentTool for GetPerformance {
                     period_start_date: start_date.map(|d| d.to_string()),
                     period_end_date: Some(end_date.to_string()),
                     currency: account.currency,
-                    mode: "notApplicable".to_string(),
                     basis_status: "notApplicable".to_string(),
                     summary: PerformanceSummaryOutput::unavailable(reason.clone()),
                     data_quality: PerformanceDataQualityOutput {
@@ -300,7 +309,6 @@ impl AgentTool for GetPerformance {
                 .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?
         };
 
-        let mode = serialized_value(&metrics.mode, "notApplicable");
         let basis_status = serialized_value(&metrics.basis_status, "notApplicable");
         let summary = PerformanceSummaryOutput::from_metrics(&metrics);
         let data_quality_status = serialized_value(&metrics.data_quality.status, "partial");
@@ -314,19 +322,16 @@ impl AgentTool for GetPerformance {
             } else {
                 metrics.scope.currency
             },
-            mode,
             basis_status,
             summary,
             returns: PerformanceReturnsOutput {
-                twr: metrics.returns.twr.and_then(|v| v.to_f64()),
-                annualized_twr: metrics.returns.annualized_twr.and_then(|v| v.to_f64()),
-                irr: metrics.returns.irr.and_then(|v| v.to_f64()),
-                annualized_irr: metrics.returns.annualized_irr.and_then(|v| v.to_f64()),
-                value_return: metrics.returns.value_return.and_then(|v| v.to_f64()),
-                annualized_value_return: metrics
-                    .returns
-                    .annualized_value_return
-                    .and_then(|v| v.to_f64()),
+                twr: PerformanceReturnViewOutput::from_view(&metrics.returns.twr),
+                money_weighted: PerformanceReturnViewOutput::from_view(
+                    &metrics.returns.money_weighted,
+                ),
+                return_on_cost: PerformanceReturnViewOutput::from_view(
+                    &metrics.returns.return_on_cost,
+                ),
             },
             attribution: PerformanceAttributionOutput {
                 contributions: metrics.attribution.contributions.to_f64().unwrap_or(0.0),

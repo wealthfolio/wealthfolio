@@ -10,7 +10,9 @@ use support::*;
 use wealthfolio_portfolio_engine::model::{
     AccountId, PerformanceResult, QualityNote, SummaryStatus, ValueStatus,
 };
-use wealthfolio_portfolio_engine::{measure_account, measure_scope, MeasureProfile, Window};
+use wealthfolio_portfolio_engine::{
+    measure_account, measure_scope, scope_cash_flows, MeasureProfile, Window,
+};
 
 const REPORT: &str = r#"
 id: PERFORMANCE-WINDOW-INCEPTION
@@ -88,7 +90,7 @@ fn full_history_ranges_include_the_first_day_gain_without_changing_returns() {
         scope(&p, &["acc"], window(None)),
     ] {
         assert_gain(&all, dec!(107.97));
-        assert_eq!(all.returns.twr, Some(dec!(0.01142909)));
+        assert_eq!(all.returns.twr.period, Some(dec!(0.01142909)));
         for start in ["2021-10-30", "2025-10-30", "2026-01-30"] {
             for bounded in [
                 account(&p, "acc", window(Some(start))),
@@ -97,7 +99,6 @@ fn full_history_ranges_include_the_first_day_gain_without_changing_returns() {
                 assert_gain(&bounded, dec!(107.97));
                 assert_eq!(bounded.attribution, all.attribution);
                 assert_eq!(bounded.returns, all.returns);
-                assert_eq!(bounded.series, all.series);
                 assert_eq!(bounded.risk, all.risk);
                 assert_eq!(bounded.period_start, all.period_start);
                 assert_eq!(bounded.period_end, all.period_end);
@@ -261,10 +262,16 @@ observed_snapshots:
         let bounded = scope(&p, &["acc", "holdings"], window(Some(start)));
         assert_gain(&bounded, dec!(127.97)); // 107.97 + 20 period gain.
         assert_eq!(bounded.attribution.contributions, dec!(1000));
-        assert_eq!(bounded.returns.twr, None);
-        assert_eq!(bounded.returns.irr, None);
-        assert_eq!(bounded.returns.value_return, Some(dec!(0.09878421)));
-        assert!(bounded.series.is_empty());
+        assert_eq!(bounded.returns.twr.period, None);
+        // No IRR across components: the yearly rate compounds the period value.
+        assert!(bounded.returns.money_weighted.annualized.is_some());
+        // Money-weighted: (107.97 + 20) gain over (1000 contributed + 200
+        // holdings opening value) of capital.
+        assert_eq!(
+            bounded.returns.money_weighted.period,
+            Some(dec!(0.10664167))
+        );
+        assert!(bounded.returns.money_weighted.series.is_empty());
         assert!(bounded
             .data_quality
             .warnings
@@ -273,8 +280,13 @@ observed_snapshots:
     let within = scope(&p, &["acc", "holdings"], window(Some("2026-02-01")));
     assert_gain(&within, dec!(32.52));
     assert_eq!(
-        within.series.last().map(|point| point.value),
-        within.returns.value_return
+        within
+            .returns
+            .money_weighted
+            .series
+            .last()
+            .map(|point| point.value),
+        within.returns.money_weighted.period
     );
     assert!(!within
         .data_quality
@@ -288,8 +300,9 @@ observed_snapshots:
         MeasureProfile::Summary,
         MeasureProfile::Dashboard,
     ] {
-        // Summaries do not request a series. Dashboard still uses opening-close
-        // changes even when transactions begin inside the selected window.
+        // Every profile counts the transactions' first-day gain when they
+        // begin inside the window, so the Dashboard matches the account page.
+        // A gain measured from inception cannot be drawn as a bounded series.
         let result = measure_scope(
             &inputs,
             "portfolio",
@@ -299,20 +312,16 @@ observed_snapshots:
             profile == MeasureProfile::Dashboard,
         )
         .unwrap();
-        if profile == MeasureProfile::Dashboard {
-            assert_gain(&result, dec!(32.52));
-            assert_eq!(
-                result.series.last().map(|point| point.value),
-                result.returns.value_return
-            );
-        } else {
-            assert_gain(&result, dec!(127.97));
-            assert!(result.series.is_empty());
-        }
-        assert!(!result
-            .data_quality
-            .warnings
-            .contains(&QualityNote::MixedSeriesUnavailable));
+        assert_gain(&result, dec!(127.97));
+        assert!(result.returns.money_weighted.series.is_empty());
+        assert_eq!(
+            result
+                .data_quality
+                .warnings
+                .contains(&QualityNote::MixedSeriesUnavailable),
+            profile == MeasureProfile::Dashboard,
+            "{profile:?}: only a series request reports the missing series"
+        );
     }
     // Holdings-only retains the existing book-basis vs period distinction.
     assert_eq!(
@@ -344,7 +353,7 @@ fn inception_selection_preserves_unavailable_and_missing_history() {
         ] {
             assert_eq!(result.summary.amount_status, SummaryStatus::Unavailable);
             assert_eq!(result.summary.amount, None);
-            assert_eq!(result.returns.twr, None);
+            assert_eq!(result.returns.twr.period, None);
         }
     }
     let mut p = pipeline(REPORT);
@@ -359,7 +368,7 @@ fn inception_selection_preserves_unavailable_and_missing_history() {
 }
 
 #[test]
-fn dashboard_keeps_its_existing_endpoint_value_change() {
+fn dashboard_counts_the_first_days_gain_like_the_account_page() {
     let p = pipeline(REPORT);
     let lots = p.lots();
     let inputs = p.measure_inputs(&lots);
@@ -384,7 +393,50 @@ fn dashboard_keeps_its_existing_endpoint_value_change() {
             )
             .unwrap(),
         ] {
-            assert_eq!(result.summary.amount, Some(dec!(12.52)));
+            // 107.97 earned on the 1000 deposited, including the first day's
+            // 95.45, as the full calculation reports it.
+            assert_eq!(result.summary.amount, Some(dec!(107.97)));
         }
     }
+}
+
+#[test]
+fn scope_cash_flows_follow_the_money_weighted_opening() {
+    let p = pipeline(
+        r#"
+id: PERFORMANCE-WINDOW-REPLAY
+policy: { base_currency: USD, timezone: UTC, as_of: 2026-10-30 }
+accounts:
+  - { id: acc, currency: USD }
+assets:
+  - { id: vt, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc, type: DEPOSIT, date: 2026-01-30T07:00:00Z, amount: 1000 }
+  - { id: buy, account: acc, type: BUY, date: 2026-01-30T08:00:00Z, asset: vt, quantity: 1, unit_price: 50, amount: 50 }
+  - { id: dep2, account: acc, type: DEPOSIT, date: 2026-03-02T07:00:00Z, amount: 500 }
+quotes:
+  - { asset: vt, day: 2026-01-30, close: 145.45 }
+  - { asset: vt, day: 2026-10-30, close: 157.97 }
+"#,
+    );
+    let lots = p.lots();
+    let inputs = p.measure_inputs(&lots);
+    let ids = [AccountId::new("acc")];
+    let day = |date: &str| date.parse::<chrono::NaiveDate>().unwrap();
+
+    // From inception: the money contributed by the first close.
+    let all = scope_cash_flows(&inputs, &ids, window(None))
+        .unwrap()
+        .unwrap();
+    assert_eq!(all.opening_date, day("2026-01-30"));
+    assert_eq!(all.opening_capital, dec!(1000));
+    assert_eq!(all.flows, vec![(day("2026-03-02"), dec!(500), dec!(0))]);
+
+    // After inception: the first close of the window (950 cash + 145.45).
+    let later = scope_cash_flows(&inputs, &ids, window(Some("2026-02-15")))
+        .unwrap()
+        .unwrap();
+    assert_eq!(later.opening_date, day("2026-02-15"));
+    assert_eq!(later.opening_capital, dec!(1095.45));
+    assert_eq!(later.flows, all.flows);
 }
