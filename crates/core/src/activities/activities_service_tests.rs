@@ -3993,6 +3993,7 @@ pub(crate) mod tests {
             quote_ccy,
         );
         asset.instrument_key = Some("EQUITY:OAA1".to_string());
+        asset.quote_mode = QuoteMode::Market;
         asset
     }
 
@@ -4055,6 +4056,77 @@ pub(crate) mod tests {
                 "{case}: searched for a listing"
             );
         }
+    }
+
+    /// A blank exchange is no exchange.
+    #[tokio::test]
+    async fn sync_treats_a_blank_exchange_as_no_exchange() {
+        let account = create_test_account("acc-fidelity", "USD");
+        let mut asset = oaa1_without_an_exchange("USD");
+        asset.instrument_exchange_mic = Some("  ".to_string());
+        let (service, asset_service) = broker_sync_service(&account, vec![asset]);
+
+        service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(asset_service
+            .resolve_import_asset_input_batches
+            .lock()
+            .unwrap()
+            .is_empty());
+    }
+
+    /// A bare asset next to a listed one must not take over the listed holding:
+    /// its activities stay on the listing and keep their market price.
+    #[tokio::test]
+    async fn sync_keeps_activities_on_a_listing_that_has_a_bare_twin() {
+        let account = create_test_account("acc-eur", "EUR");
+        let mut listed = create_test_asset_with_instrument(
+            "oaa1-xstu",
+            "OAA1",
+            Some("XSTU"),
+            Some(InstrumentType::Equity),
+            "EUR",
+        );
+        listed.instrument_key = Some("EQUITY:OAA1@XSTU".to_string());
+        listed.quote_mode = QuoteMode::Market;
+        let (service, asset_service) =
+            broker_sync_service(&account, vec![listed, oaa1_without_an_exchange("EUR")]);
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "EUR")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_linked_to(&result, "oaa1-xstu");
+        assert_eq!(asset_service.get_assets().unwrap().len(), 2);
+    }
+
+    /// A manually priced asset that shares a ticker doesn't capture broker
+    /// activity for the real security.
+    #[tokio::test]
+    async fn sync_still_searches_when_a_manual_asset_shares_the_ticker() {
+        let account = create_test_account("acc-usd", "USD");
+        let mut manual = oaa1_without_an_exchange("EUR");
+        manual.quote_mode = QuoteMode::Manual;
+        let (service, asset_service) = broker_sync_service(&account, vec![manual]);
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert!(
+            assets
+                .iter()
+                .any(|asset| asset.instrument_key.as_deref() == Some("EQUITY:OAA1@XSTU")),
+            "{assets:?}"
+        );
     }
 
     /// An exchange the broker sends is a fact, not a guess.
