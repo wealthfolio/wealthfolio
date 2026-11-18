@@ -29,6 +29,25 @@ interface AssetDialogState {
   initialAsset?: Partial<NewAsset>;
 }
 
+/** A manual asset for a row marked custom, under the name the import found for it. */
+function buildCustomAssetDraft(symbol: string, name: string, fallbackCurrency: string): NewAsset {
+  return buildNewAssetFromSearchResult(
+    {
+      symbol,
+      shortName: name,
+      longName: name,
+      exchange: "MANUAL",
+      index: "MANUAL",
+      quoteType: "EQUITY",
+      score: 0,
+      typeDisplay: "Custom Asset",
+      dataSource: "MANUAL",
+      quoteMode: "MANUAL",
+    },
+    fallbackCurrency,
+  );
+}
+
 function buildEditableAssetDraft(
   item: ImportAssetPreviewItem,
   candidateDraft: DraftActivity | undefined,
@@ -527,19 +546,9 @@ export function AssetReviewStep({ isHoldingsMode = false }: AssetReviewStepProps
       const candidate = candidateMap.get(item.key);
       const symbol = candidate?.draft.symbol || item.key;
       const fallbackCurrency = candidate?.draft.currency || state.parseConfig.defaultCurrency;
-      const assetDraft = buildNewAssetFromSearchResult(
-        {
-          symbol,
-          shortName: symbol,
-          longName: symbol,
-          exchange: "MANUAL",
-          index: "MANUAL",
-          quoteType: "EQUITY",
-          score: 0,
-          typeDisplay: "Custom Asset",
-          dataSource: "MANUAL",
-          quoteMode: "MANUAL",
-        },
+      const assetDraft = buildCustomAssetDraft(
+        symbol,
+        candidate?.draft.symbolName || item.draft?.name || symbol,
         fallbackCurrency,
       );
       const nextDrafts = applyAssetResolution(draftActivities, item.key, assetDraft, {
@@ -569,19 +578,9 @@ export function AssetReviewStep({ isHoldingsMode = false }: AssetReviewStepProps
       const candidate = candidateMap.get(item.key);
       const symbol = candidate?.draft.symbol || item.key;
       const fallbackCurrency = candidate?.draft.currency || state.parseConfig.defaultCurrency;
-      const assetDraft = buildNewAssetFromSearchResult(
-        {
-          symbol,
-          shortName: symbol,
-          longName: symbol,
-          exchange: "MANUAL",
-          index: "MANUAL",
-          quoteType: "EQUITY",
-          score: 0,
-          typeDisplay: "Custom Asset",
-          dataSource: "MANUAL",
-          quoteMode: "MANUAL",
-        },
+      const assetDraft = buildCustomAssetDraft(
+        symbol,
+        candidate?.draft.symbolName || item.draft?.name || symbol,
         fallbackCurrency,
       );
       nextDrafts = applyAssetResolution(nextDrafts, item.key, assetDraft, {
