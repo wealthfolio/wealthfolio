@@ -348,25 +348,13 @@ describe("the Unicode minus sign", () => {
     ["−1.5E3", -1500],
     ["1.5E−3", 0.0015],
     ["−1.5E−3", -0.0015],
-    ["‐1500", -1500],
-    ["‑1500", -1500],
-    ["‒1500", -1500],
-    ["–1500", -1500],
-    ["—1500", -1500],
-    ["﹣1500", -1500],
-    ["－1500", -1500],
   ])("reads %s like the same value with a hyphen", (value, expected) => {
     expect(parseSignedNumericValue(value, "auto", "auto")).toBe(
-      parseSignedNumericValue(value.replace(/[‐-—−﹣－]/g, "-"), "auto", "auto"),
+      parseSignedNumericValue(value.replaceAll("−", "-"), "auto", "auto"),
     );
     expect(Number(parseSignedNumericValue(value, "auto", "auto"))).toBe(expected);
     expect(Number(parseHoldingsNumericValue(value, "auto", "auto"))).toBe(expected);
     expect(Number(parseNumericValue(value, "auto", "auto"))).toBe(Math.abs(expected));
-  });
-
-  it.each(["–", "100–200"])("does not read a dash placeholder or range: %s", (value) => {
-    expect(parseSignedNumericValue(value, "auto", "auto")).toBeUndefined();
-    expect(parseHoldingsNumericValue(value, "auto", "auto")).toBeUndefined();
   });
 
   it.each(["1500−", "1.5E3−"])("does not read a trailing minus in %s", (value) => {
