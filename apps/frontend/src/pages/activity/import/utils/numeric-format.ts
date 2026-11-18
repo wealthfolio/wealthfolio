@@ -14,6 +14,11 @@ const NUMERIC_FIELDS: string[] = [
   ImportFormat.FX_RATE,
 ];
 
+/** Some number formats write negatives with U+2212 instead of a hyphen. */
+export function normalizeMinusSign(value: string): string {
+  return value.trim().replace(/−/g, "-");
+}
+
 /**
  * Drops a currency label around a number: "US$1,500", "Rs. 1,500", "1,500 usd".
  * A dot after one or two letters ends an abbreviation ("Rs.100"); after a three-letter
@@ -35,7 +40,7 @@ function classifyNumericFormat(
   thousandsSeparator: string,
 ): "." | "," | "ambiguous" | undefined {
   if (!value) return undefined;
-  let normalized = value.trim();
+  let normalized = normalizeMinusSign(value);
   if (normalized.startsWith("(") && normalized.endsWith(")")) {
     normalized = normalized.slice(1, -1);
   }
