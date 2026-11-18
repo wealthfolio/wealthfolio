@@ -22,7 +22,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Skeleton } from "../ui/skeleton";
 import { Textarea } from "../ui/textarea";
 import { Icons } from "../ui/icons";
-import { type CalendarDate, fromDate, getLocalTimeZone, parseDate, toCalendarDateTime } from "@internationalized/date";
+import {
+  type CalendarDate,
+  type CalendarIdentifier,
+  createCalendar,
+  fromDate,
+  getLocalTimeZone,
+  parseDate,
+  toCalendar,
+  toCalendarDateTime,
+} from "@internationalized/date";
 import {
   Button as RacButton,
   DateInput as DateInputRac,
@@ -1504,6 +1513,22 @@ function getDateOnlyTimestamp(value: Date | string | undefined): number | null {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
+// Whether the date field shows something it can't save: an empty segment, or a date
+// that doesn't exist. For 31 April, react-aria shows what was typed but reports another
+// date, so the shown segments are compared with the reported date in the field's calendar.
+function dateFieldShowsUnsavableDate(field: HTMLElement, value: string, locale: string): boolean {
+  const segments = Array.from(field.querySelectorAll<HTMLElement>('[role="spinbutton"]'));
+  if (segments.some((segment) => segment.hasAttribute("data-placeholder"))) return true;
+  const reported = toCalendarDate(value);
+  if (!reported) return segments.length > 0;
+  const calendar = createCalendar(new Intl.DateTimeFormat(locale).resolvedOptions().calendar as CalendarIdentifier);
+  const date = toCalendar(reported, calendar);
+  return (["day", "month", "year"] as const).some((type) => {
+    const segment = segments.find((candidate) => candidate.getAttribute("data-type") === type);
+    return segment !== undefined && Number(segment.getAttribute("aria-valuenow")) !== date[type];
+  });
+}
+
 export function DateInputCell<TData>({
   cell,
   tableMeta,
@@ -1539,6 +1564,7 @@ export function DateInputCell<TData>({
   valueRef.current = value;
   const isCalendarOpenRef = React.useRef(false);
   const pickedFromCalendarRef = React.useRef(false);
+  const showsUnsavableDateRef = React.useRef(false);
 
   // Compare by date-only timestamp instead of reference for Date objects
   const prevTimestampRef = React.useRef(getDateOnlyTimestamp(initialValue));
@@ -1548,9 +1574,14 @@ export function DateInputCell<TData>({
     setValue(toDateInputString(initialValue));
   }
 
-  const onBlur = React.useCallback(() => {
-    if (readOnly) {
-      tableMeta?.onCellEditingStop?.();
+  // Saves the edited date. A date the field can't save keeps the stored one.
+  const commitEdit = React.useCallback(() => {
+    // An empty value also covers platforms whose date segments can't be read back.
+    if (showsUnsavableDateRef.current || !valueRef.current) {
+      showsUnsavableDateRef.current = false;
+      const stored = toDateInputString(initialValue);
+      valueRef.current = stored;
+      setValue(stored);
       return;
     }
     const currentValue = valueRef.current;
@@ -1567,16 +1598,50 @@ export function DateInputCell<TData>({
     if (newTimestamp !== oldTimestamp) {
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
     }
+  }, [tableMeta, rowIndex, columnId, initialValue]);
+
+  const onBlur = React.useCallback(() => {
+    if (!readOnly) commitEdit();
     tableMeta?.onCellEditingStop?.();
-  }, [tableMeta, rowIndex, columnId, initialValue, readOnly]);
+  }, [tableMeta, readOnly, commitEdit]);
 
   const onChange = React.useCallback((date: CalendarDate | null) => {
     const next = date ? date.toString() : "";
     // Updated here too, so stopping the edit in the same event saves this value.
     valueRef.current = next;
     setValue(next);
-    if (isCalendarOpenRef.current) pickedFromCalendarRef.current = true;
+    // Leaving the field also reports a change, with an impossible day already moved
+    // to a real one, so only a calendar pick clears what the typed field showed.
+    if (isCalendarOpenRef.current) {
+      pickedFromCalendarRef.current = true;
+      showsUnsavableDateRef.current = false;
+    }
   }, []);
+
+  const onFieldKeyUp = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      showsUnsavableDateRef.current = dateFieldShowsUnsavableDate(
+        event.currentTarget,
+        valueRef.current,
+        formattingLocale,
+      );
+    },
+    [formattingLocale],
+  );
+
+  // The grid ends the edit from its own key listener, which runs before this cell's
+  // bubbling handlers and can arrive before the last digit's key-up.
+  const onFieldKeyDownCapture = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== "Tab") return;
+      showsUnsavableDateRef.current = dateFieldShowsUnsavableDate(
+        event.currentTarget,
+        valueRef.current,
+        formattingLocale,
+      );
+    },
+    [formattingLocale],
+  );
 
   // A day picked in the calendar ends the edit, as in the date variant; closing the
   // calendar without picking (Escape, click outside) returns to the typed field.
@@ -1596,54 +1661,22 @@ export function DateInputCell<TData>({
 
   React.useEffect(() => {
     // When editing stops (transitions from true to false), save the value
-    if (wasEditingRef.current && !isEditing) {
-      const currentValue = valueRef.current;
-      const date = currentValue ? parseDateLocal(currentValue) : undefined;
-      const initialDate = initialValue
-        ? initialValue instanceof Date
-          ? initialValue
-          : parseDateLocal(initialValue)
-        : undefined;
-
-      const newTimestamp = getDateOnlyTimestamp(date);
-      const oldTimestamp = getDateOnlyTimestamp(initialDate);
-      if (!readOnly && newTimestamp !== oldTimestamp) {
-        tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
-      }
+    if (wasEditingRef.current && !isEditing && !readOnly) {
+      commitEdit();
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, initialValue, readOnly, tableMeta, rowIndex, columnId]);
+  }, [isEditing, readOnly, commitEdit]);
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (isEditing) {
         if (event.key === "Enter") {
           event.preventDefault();
-          const date = value ? parseDateLocal(value) : undefined;
-          const initialDate = initialValue
-            ? initialValue instanceof Date
-              ? initialValue
-              : parseDateLocal(initialValue)
-            : undefined;
-          const newTimestamp = getDateOnlyTimestamp(date);
-          const oldTimestamp = getDateOnlyTimestamp(initialDate);
-          if (newTimestamp !== oldTimestamp) {
-            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
-          }
+          commitEdit();
           tableMeta?.onCellEditingStop?.({ moveToNextRow: true });
         } else if (event.key === "Tab") {
           event.preventDefault();
-          const date = value ? parseDateLocal(value) : undefined;
-          const initialDate = initialValue
-            ? initialValue instanceof Date
-              ? initialValue
-              : parseDateLocal(initialValue)
-            : undefined;
-          const newTimestamp = getDateOnlyTimestamp(date);
-          const oldTimestamp = getDateOnlyTimestamp(initialDate);
-          if (newTimestamp !== oldTimestamp) {
-            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
-          }
+          commitEdit();
           tableMeta?.onCellEditingStop?.({
             direction: event.shiftKey ? "previous" : "next",
           });
@@ -1659,7 +1692,7 @@ export function DateInputCell<TData>({
         });
       }
     },
-    [isEditing, isFocused, initialValue, tableMeta, rowIndex, columnId, value],
+    [isEditing, isFocused, initialValue, tableMeta, commitEdit],
   );
 
   return (
@@ -1691,17 +1724,19 @@ export function DateInputCell<TData>({
             onOpenChange={onCalendarOpenChange}
             className="w-full"
           >
-            <RacGroup className="flex w-full items-center gap-1">
-              <DateInputRac dir={direction} className="flex min-w-0 flex-1 items-center text-sm outline-none">
-                {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
-              </DateInputRac>
-              <RacButton
-                aria-label={t("ui:datePicker.pick", "Pick a date")}
-                className="text-muted-foreground/80 hover:text-foreground focus-visible:outline-ring flex size-5 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:outline-2"
-              >
-                <Icons.CalendarIcon size={14} />
-              </RacButton>
-            </RacGroup>
+            <div className="contents" onKeyDownCapture={onFieldKeyDownCapture} onKeyUpCapture={onFieldKeyUp}>
+              <RacGroup className="flex w-full items-center gap-1">
+                <DateInputRac dir={direction} className="flex min-w-0 flex-1 items-center text-sm outline-none">
+                  {(segment) => <DateSegment segment={segment} className="px-px py-0" />}
+                </DateInputRac>
+                <RacButton
+                  aria-label={t("ui:datePicker.pick", "Pick a date")}
+                  className="text-muted-foreground/80 hover:text-foreground focus-visible:outline-ring flex size-5 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:outline-2"
+                >
+                  <Icons.CalendarIcon size={14} />
+                </RacButton>
+              </RacGroup>
+            </div>
             <RacPopover
               {...portalScopeProps}
               className="bg-background text-popover-foreground z-50 rounded-lg border shadow-lg outline-hidden"

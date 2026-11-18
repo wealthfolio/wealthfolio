@@ -106,6 +106,137 @@ describe("DateInputCell formatting region", () => {
     expect(update.value.getDate()).toBe(12);
   });
 
+  it("does not save a day the month doesn't have", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [day, month] = screen.getAllByRole("spinbutton");
+    await user.click(month);
+    await user.keyboard("4");
+    await user.click(day);
+    await user.keyboard("31");
+    await user.click(document.body);
+
+    expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["after the last digit is released", "31{Tab}"],
+    ["while the last digit is still held", "3{1>}{Tab}{/1}"],
+  ])("does not save 31 April on Tab %s", async (_when, keys) => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [day, month] = screen.getAllByRole("spinbutton");
+    await user.click(month);
+    await user.keyboard("4");
+    await user.click(day);
+    await user.keyboard(keys);
+
+    expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not save a month that doesn't have the typed day", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [day, month] = screen.getAllByRole("spinbutton");
+    await user.click(day);
+    await user.keyboard("31");
+    await user.click(month);
+    await user.keyboard("11");
+    await user.click(document.body);
+
+    expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not save a year that doesn't have 29 February", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [day, month, year] = screen.getAllByRole("spinbutton");
+    await user.click(year);
+    await user.keyboard("2028");
+    await user.click(month);
+    await user.keyboard("2");
+    await user.click(day);
+    await user.keyboard("29");
+    await user.click(year);
+    await user.keyboard("2029");
+    await user.click(document.body);
+
+    expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  it("saves a valid month and year typed over the stored date", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [, month, year] = screen.getAllByRole("spinbutton");
+    await user.click(month);
+    await user.keyboard("12");
+    await user.click(year);
+    await user.keyboard("2032");
+    await user.click(document.body);
+
+    const update = onDataUpdate.mock.calls[0]?.[0] as { value: Date };
+    expect(update.value.getFullYear()).toBe(2032);
+    expect(update.value.getMonth()).toBe(11);
+    expect(update.value.getDate()).toBe(11);
+  });
+
+  it("saves a month typed with a leading zero while its last digit is held", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [, month] = screen.getAllByRole("spinbutton");
+    await user.click(month);
+    await user.keyboard("0{6>}{Tab}{/6}");
+
+    const update = onDataUpdate.mock.calls[0]?.[0] as { value: Date };
+    expect(update.value.getMonth()).toBe(5);
+    expect(update.value.getDate()).toBe(11);
+  });
+
+  it("saves the corrected date after an impossible day", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    const [day, month] = screen.getAllByRole("spinbutton");
+    await user.click(month);
+    await user.keyboard("4");
+    await user.click(day);
+    await user.keyboard("31");
+    await user.click(day);
+    await user.keyboard("30");
+    await user.click(document.body);
+
+    const update = onDataUpdate.mock.calls[0]?.[0] as { value: Date };
+    expect(update.value.getMonth()).toBe(3);
+    expect(update.value.getDate()).toBe(30);
+  });
+
+  it("keeps the saved date when the date is cleared", async () => {
+    const user = userEvent.setup();
+    const onDataUpdate = vi.fn();
+    renderCell({ locale: "en-GB", isEditing: true, onDataUpdate });
+
+    for (const segment of screen.getAllByRole("spinbutton")) {
+      await user.click(segment);
+      await user.keyboard("{Backspace}{Backspace}{Backspace}{Backspace}");
+    }
+    await user.click(document.body);
+
+    expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
   it("picks a day from the calendar and ends the edit", async () => {
     const user = userEvent.setup();
     const onCellEditingStop = vi.fn();
