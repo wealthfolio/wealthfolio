@@ -1,7 +1,8 @@
 # Security-Level Targets — Design Note
 
-Status: Proposal, to agree before any schema, migration or API Date: 2026-11-09
-Authors: @Jonjon-prog Reviewers: @afadil, @kwaich
+Status: Proposal, to agree before any schema, migration or API Date: 2026-11-09,
+revised 2026-11-18 after review Authors: @Jonjon-prog Reviewers: @afadil,
+@kwaich
 
 Context: §9 of
 [`self-directed-rebalancing-design.md`](./self-directed-rebalancing-design.md),
@@ -18,11 +19,16 @@ follow. It does not reopen the shape.
 
 `§` numbers refer to the self-directed rebalancing design. This note's own
 sections are written "section N". Statements about current code were checked on
-`main` at `fc695b2ea`, and statements about #2587 at its head `07f0cdbd8`. Every
-figure in the examples was recomputed with a throwaway simulation of the rules
-below, kept outside the repository (single-class securities, no accounts, no
-whole units). The same simulation ran the random checks quoted in sections 3.3
-and 3.4. It models the rules, not the Rust code.
+`main` at `fc695b2ea`, and again at `a1d108e33` for the allocation code in
+`crates/core`, which has not changed since; statements about #2587 were checked
+at its head `07f0cdbd8`. Every figure in the examples was recomputed with a
+simulation kept outside the repository. It follows `run_sequence` and
+`apply_limits` in `worksheet_calculator.rs`, without accounts, funding
+restricted to some securities, minimum line size or a cash category. Section 3.5
+gives its random checks. It models the rules, not the Rust code.
+
+The review on 2026-11-17 settled the questions of the first revision; section 7
+records the answers, and sections 3.3 to 3.5 are rewritten accordingly.
 
 ---
 
@@ -76,9 +82,13 @@ anything beyond the nested weights:
   class (section 5). A user who plans by class and a stock picker edit the same
   figures from opposite ends. The editor opens by security when every class with
   a weight has security weights, and by class otherwise; a toggle switches.
-  Nothing about the mode is stored. A security classified in several classes
-  keeps its own split when its total changes: a 60/40 fund going from 10 % to 12
-  % of the portfolio becomes 7.2 % in Equity and 4.8 % in Fixed income.
+  Nothing about the mode is stored, so the calculation cannot tell the two
+  entries apart and treats them the same: a class weight derived from its
+  securities bounds the class exactly as a typed one does (section 3.3). A class
+  that is only partly weighted shows its rest as a row in both entries, as
+  agreed in review. A security classified in several classes keeps its own split
+  when its total changes: a 60/40 fund going from 10 % to 12 % of the portfolio
+  becomes 7.2 % in Equity and 4.8 % in Fixed income.
 - **One number per change.** Changing AAPL from 30 % to 35 % is one input. The
   editor's existing redistribution (`redistribute` in
   `target-weight-editor.tsx`) takes the difference from the rows that are
@@ -88,6 +98,17 @@ anything beyond the nested weights:
   saved appears in the editor as a row with no weight, under the class it is
   classified in, as #2587 already does for its flat rows. Until it has a weight
   it belongs to its class's rest (section 3.1).
+- **Securities not held yet are added from a list.** The editor gets the
+  worksheet's Add position control (`AddPositionButton` in
+  `allocation-worksheet-tab.tsx`): a search over the assets the app already
+  knows (`useAssets`, which leaves out FX and alternative assets), without the
+  ones already in the target. The asset must be classified in the target's
+  taxonomy to be saved with a weight (section 5.4). In the by-security entry the
+  row lands under its class, and a class that had no weight gets one, equal to
+  the row's share. In the by-class entry it can only be added under a class that
+  has a weight. An asset the app does not know yet has to be added to the app
+  first; the target editor adds no way to do that. Section 4.1 covers what the
+  worksheet does with it.
 
 Worked example, one class. AAPL 30, MSFT 20, NVDA 25, GOOGL 25, all Equity.
 Equity is stored at 100 % and nobody typed it; the four shares within Equity are
@@ -109,29 +130,24 @@ is rounded up, by largest remainder (the rounding #2587's `spread_bps` uses):
 AAPL gets 33.34 %. Shown back as a share of the portfolio, AAPL is then 90 % ×
 33.34 % = 30.006 %.
 
-**Display: one decimal suggested.** This note suggests showing security weights
-the way the editor shows category weights now (`target-weight-editor.tsx`): one
-decimal on screen, input accepted to 0.01 %.
+**Display: one decimal, agreed in review.** Security weights show the way the
+editor shows category weights now (`target-weight-editor.tsx`): one decimal on
+screen, input accepted to 0.01 %.
 
 - AAPL reads 30.0 %, so the round trip above never shows.
 - The cost is the one category weights already pay: a typed 33.33 % reads 33.3
   %, and three equal weights (3333 / 3333 / 3334 bps) read 33.3 % each while the
   total reads 100.0 %.
 
-**What two decimals would change.** Much of the app shows percentages with two
-decimals: `formatPercent` defaults to two (`packages/ui/src/lib/formatting.ts`),
-and about half of its calls in the frontend rely on that default, while the
+**Why not two decimals.** Much of the app shows percentages with two decimals:
+`formatPercent` defaults to two (`packages/ui/src/lib/formatting.ts`), and about
+half of its calls in the frontend rely on that default, while the
 allocation-target screens ask for one. Classification weights, also stored in
 bps, have shown two decimals since `9f0570bb8`. Two decimals would align
 security weights with the rest of the app, and would show 33.33 / 33.33 / 33.34
 as typed. But AAPL would read 30.01 % after a reload, in the by-security entry,
-whenever its class is below 100 %. Two ways to live with that:
-
-- accept it: the difference stays under 0.01 point, and appears only in the
-  by-security entry of a class below 100 %;
-- remove it: store shares in a unit finer than bps (for instance millionths of
-  the category), unlike every other weight. That decision belongs to the schema,
-  so it has to come before S2 (section 7, question 4).
+whenever its class is below 100 %, unless shares were stored in a unit finer
+than bps, unlike every other weight.
 
 With one class at 100 % there is no round trip at all, whatever the display.
 
@@ -178,7 +194,7 @@ port it credit kwaich with a `Co-authored-by` trailer. Checked in the PR at
 | Account cleanup coverage                                     | `storage-sqlite/src/accounts/cleanup_tests.rs`                                                                                                                                    | Kept                                                                                                                                                                                                |
 | Adapters and commands                                        | Tauri and Axum handlers, `listAllocationTargetAssetWeights`, web `core.ts`, `adapter-command-parity.test.ts`                                                                      | Kept, with `categoryId` in the payload                                                                                                                                                              |
 | Spreading a removed weight                                   | `spread_bps`, `spread_into_target`, `remove_asset_from_targets`                                                                                                                   | Spreading is not needed: a weight that disappears falls into its category's rest (section 5.7). The largest-remainder rounding of `spread_bps` is the one the by-security entry needs (section 1.4) |
-| Snapshot restore of a table referencing assets               | ca4e8bd61                                                                                                                                                                         | Depends on the asset foreign key (section 7, question 4)                                                                                                                                            |
+| Snapshot restore of a table referencing assets               | ca4e8bd61                                                                                                                                                                         | Not needed: no foreign key on `asset_id` (section 5.7)                                                                                                                                              |
 | Blocking the local delete of a weighted asset                | `delete` in `storage-sqlite/src/assets/repository.rs`                                                                                                                             | Optional (section 5.7)                                                                                                                                                                              |
 | Flat type                                                    | `TargetType`, `INDIVIDUAL_SECURITIES_TAXONOMY_ID`, synthetic taxonomy in `worksheet_service.rs`, `get_security_holding_contributions_for_accounts`, flat drift and rails branches | Not used: the nested shape reads the existing taxonomy contributions, which already carry the asset of each contribution                                                                            |
 
@@ -205,8 +221,8 @@ T(rest,c)   = (1 − Σ_i w(i,c)/10000) × T(c)
 gap(rest,c) = T(rest,c) − Σ_{j∈R(c)} v(j,c)
 ```
 
-Each weighted security, and the rest, is a _part_ of the category. The parts'
-gaps add up to the category gap of §4.2:
+Each weighted security, and the rest, is a _part_ of the category; the review
+calls them target lines. The parts' gaps add up to the category gap of §4.2:
 
 ```
 Σ_i gap(i,c) + gap(rest,c) = T(c) − Σ_all v(·,c) = category_gap(c)
@@ -278,6 +294,8 @@ has a weight, against its share of the portfolio:
 p(i)    = w(i,c)/10000 × target_bps(c)       // bps of the portfolio
 band(i) = band_type.effective_band_bps(p(i), drift_band_bps, relative_factor_bps)
 ```
+
+The review confirmed this status against the share of the portfolio.
 
 Without this a stock picker would never see anything outside range: their single
 class is always at 100 % of 100 %, and Overview's target card reports "inside
@@ -352,40 +370,71 @@ Rebalance exactly two, cash first.
   4.1). The rest's intent is then spread over R(c) by §4.2.
 
 - **Reductions allowed** (Rebalance step 2), measured on the projection after
-  step 1, in two pieces:
+  step 1. The review proposed treating each part as a target line and running
+  the lines through the engine as categories run today: every line moves toward
+  its own target, nothing in §4.6 changes. The note keeps that, with one bound:
+  as in step 1, a class only ever moves toward its own target. Step 2 is
+  computed in two pieces:
   1. _Category move._ The category's remaining gap is shared exactly as above,
      on its own side: an underweight category increases the parts below their
      target that can take it, an overweight one reduces the parts above their
      target that can give it, never below their target. The category only ever
      moves toward its target, as today.
-  2. _Internal swap._ Parts still above their target that can give a reduction,
-     and parts still below their target that can take an increase, exchange
-     equal amounts: S = min(total excess, total shortfall), each side spread in
-     proportion. A part that cannot execute stays out of the swap, and a part
+  2. _Exchange between parts._ Parts still above their target that can give a
+     reduction, and parts still below their target that can take an increase,
+     exchange equal amounts: S = min(total excess, total shortfall), each side
+     spread in proportion. A part that cannot execute stays out, and a part
      above its target offers no more than it can actually sell: its reducible
      holdings, less what the category move already reduces. Otherwise §4.6 step
-     1 (held quantity) would cut the sale and not the purchase. With both sides
-     bounded this way, the swap never moves the category.
+     1 (held quantity) would cut the sale and not the purchase.
 
-  When every part can execute, the two pieces together bring each part exactly
-  to its target. A category without weights has one part, so only the category
-  move applies: §4.2 as today, and the test
-  `a_category_already_on_target_produces_nothing` keeps holding for it. Over 20
-  000 generated targets without weights, the simulation found no difference from
+  What a part below its target cannot take stays unresolved for its category
+  (§4.4), even when the category as a whole is on target, so the user sees why
+  the other parts did not move.
+
+  The two pieces produce intents, nothing more. They are combined into one net
+  amount per security (§4.5) and go through §4.6 like any other: no factor of
+  its own, no reservation. When every part can execute, the two pieces bring
+  each part exactly to its target, which is what running each line on its own
+  gives. A category without weights has one part, so only the category move
+  applies: §4.2 as today, and the test
+  `a_category_already_on_target_produces_nothing` keeps holding for it. None of
+  the 13 348 generated targets without weights in section 3.5 differs from
   today's rule.
 
-Why two pieces rather than "each part receives its own gap". The target of the
-§4.4 example in section 3.1, in Rebalance: VWCE alone in Equity at 40 000 with a
-50 % weight, Fixed income 40 % held at 50 000, 10 000 cash. Giving each part its
-own gap sells 10 000 of VWCE while Equity is 20 000 below its target and its
-rest cannot be bought: the category moves away from its target. With two pieces,
-VWCE is left alone, Fixed income is reduced to 40 000, and Equity's 20 000 is
-unresolved.
+Why the bound. The two pieces and lines run on their own differ only when a part
+cannot execute: a rest with no security to carry it, or a weighted security left
+out, without a usable price or protected from sale. Lines run on their own then
+move the other parts to their targets anyway, and take the class away from its
+own:
+
+- The target of the §4.4 example in section 3.1, in Rebalance: VWCE alone in
+  Equity at 40 000 with a 50 % weight, Fixed income 40 % held at 50 000, 10 000
+  cash. Lines on their own sell 10 000 of VWCE while Equity is 20 000 below its
+  target and its rest cannot be bought; Equity ends at 30 000 and 30 000 stays
+  as cash. With the bound, VWCE is left alone, Fixed income is reduced to 40
+  000, and Equity's 20 000 is unresolved.
+- Equity 60 % held as AAPL 30 000 and MSFT 30 000, both weighted at 10 % of
+  Equity, so the rest is 80 % with no security; Fixed income 40 % on target, no
+  cash. Lines on their own sell 24 000 of each, and Equity falls from 60 000 to
+  12 000 with 48 000 left in cash. With the bound nothing moves, and the rest of
+  Equity shows as unresolved (48 000, `NoRecordedSecurity`). The editor already
+  shows the empty rest before saving (section 3.1).
+- The stock picker of section 1.4, with AAPL left out of increases this time:
+  AAPL 40 000 and MSFT 60 000, 50 % each of Equity at 100 %, no cash. Lines on
+  their own sell 10 000 of MSFT into cash. With the bound MSFT is not sold,
+  since nothing else in the class can take the proceeds, and AAPL's 10 000 is
+  unresolved. This is the cost of the bound for someone who does not plan by
+  class: MSFT stays above its target until AAPL is allowed again or the user
+  types the sale.
+
+Over the generated targets of section 3.5, lines run on their own take a class
+further from its target 1 885 times, against 174 with the bound and none today.
 
 In Rebalance the example of this section continues: step 1 puts the 10 000 cash
 on AAPL (40 000 / 20 000, Equity on target); in step 2 the category move is zero
-and the internal swap reduces VWCE by 10 000 and increases AAPL by 10 000,
-ending at 30 000 / 30 000 before limits.
+and the exchange reduces VWCE by 10 000 and increases AAPL by 10 000, ending at
+30 000 / 30 000 before limits.
 
 **What the user sees.** The worksheet keeps its structure (§5): one line per
 security, the same controls, the same calculated or edited status. Setup states
@@ -395,87 +444,103 @@ proportions." A weighted security not held in scope appears in Setup's security
 list as named by the target. Unresolved parts show next to their category, as
 today.
 
-### 3.4 Internal swaps and the limits of §4.6
+### 3.4 The limits of §4.6, unchanged
 
-Before the limits of §4.6, the rule never takes a category past its target, nor
-a weighted security past its own (random checks over 20 000 generated targets,
-with random eligibility and protected positions: no case). §4.6 then acts on one
-net amount per security, as afadil asked on 2026-09-01 (#1612, comment
-5499526997), with one factor for every reduction when the turnover cap binds
-(step 2) and one factor for every increase when funding is short (step 4), as he
-decided on 2026-09-03 (comment 5526490781):
+§4.6 acts on one net amount per security, as afadil asked on 2026-09-01 (#1612,
+comment 5499526997), with one factor for every reduction when the turnover cap
+binds (step 2) and one factor for every increase when funding is short (step 4),
+as he decided on 2026-09-03 (comment 5526490781):
 
 > Let's scale all positive net adjustments equally when funding is short. Keep
 > cash-first to reduce sells. It should not protect specific increases. This
 > uses all available funding and removes the need for `cash_committed`.
 
-Without weights, step 2 only increases or only reduces a category, so neither
-factor can take it past its target: the simulation found no case, with or
-without random eligibility and protected positions. An internal swap puts a
-reduction and an increase in the same category. When the two factors differ, the
-category itself moves:
+This note changes none of it. No part passes its own target through its own
+amounts: before the limits every part moves toward it, and both factors and the
+whole-unit floor only shorten a move (section 3.5). A security classified in
+several classes is the exception, below.
+
+A class can still end on the other side of its target. Without weights, step 2
+only increases or only reduces a category, so the two factors cannot take it
+past its target. An exchange between parts puts a reduction and an increase in
+the same class, and when the two factors differ the class moves:
 
 - **The turnover cap binds**, so the reduction factor is below the increase
-  factor, and the category ends **above** its target. Example: Equity 60 % on
+  factor, and the class ends **above** its target. Example: Equity 60 % on
   target but split VWCE 40 000 / AAPL 20 000 (weights 50 / 50), Fixed income 40
   % held at 30 000, 10 000 cash, a 5 % cap. The cap halves the VWCE sale,
-  funding scales the increases by 0.75, and Equity ends at 62 500.
+  funding scales the increases by 0.75, and Equity ends at 62 500, Fixed income
+  at 37 500.
 - **Funding is short**, for instance because a position elsewhere is protected,
-  so the increase factor is below the reduction factor: the swap's sale pays for
-  another category, and the category ends **below** its target. Example: Equity
-  60 % split VWCE 40 000 / AAPL 20 000 (weights 50 / 50), Fixed income 30 % held
-  at 20 000, Gold 10 % held at 20 000 under a do-not-sell constraint, no cash.
+  so the increase factor is below the reduction factor: the exchange's sale pays
+  for another class, and the class ends **below** its target. Example: Equity 60
+  % split VWCE 40 000 / AAPL 20 000 (weights 50 / 50), Fixed income 30 % held at
+  20 000, Gold 10 % held at 20 000 under a do-not-sell constraint, no cash.
   Equity ends at 55 000 and Fixed income at 25 000. Without weights nothing
   happens, since Fixed income has no funding.
 
-Four ways to handle it, each computed by the simulation. The last column counts
-the categories that ended above or below their target over 20 000 generated
-targets.
+The review accepted these results: every part moves toward its own target, and
+the class's position is reported where §4.5 already reports a category outside
+its range, in the outside-range strip and Current · Projected · Target. In
+section 3.5 this happens to 117 classes over 13 004 generated targets with
+weights (91 above, 26 below).
 
-| Option                                     | What it does                                                                                                                                            | Cap example                                         | Shortfall example                  | Above / below | Change to §4.6                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------- | ------------- | -------------------------------------------------------------- |
-| **B**, keep §4.6 as written                | Reports the category outside its range, in the outside-range strip and Current · Projected · Target (§4.5)                                              | Equity 62 500, Fixed income 37 500                  | Equity 55 000, Fixed income 25 000 | 402 / 129     | None                                                           |
-| **F**, a ceiling per category after step 4 | A weighted category that would end above its target has its net increases scaled by one factor to land on it; the money left is remaining cash (step 7) | Equity 60 000, Fixed income 37 500, 2 500 cash left | Equity 55 000, Fixed income 25 000 | 0 / 129       | One step after step 4, for weighted categories only            |
-| **F2**, F plus a floor                     | As F; in addition, when funding is short, the sale of an internal swap takes the same factor as its purchase, so it never pays for another category     | Equity 60 000, Fixed income 37 500, 2 500 cash left | Equity 60 000, Fixed income 20 000 | 0 / 0         | F's step, and a swap's sale can be scaled below the cap factor |
-| **A**, a swap scaled as one movement       | Both halves of an internal swap take the reduction factor; the swap's sale pays only for the swap's purchase                                            | Equity 60 000, Fixed income 40 000                  | Equity 60 000, Fixed income 20 000 | 0 / 0         | Swap purchases leave the single increase factor of step 4      |
+A security classified in several classes moves each of them by its
+classification (§4.5), so an amount placed for one class's part also moves
+another class's parts. Categories already do this to each other today, and
+section 3.5 measures it.
 
-- None of the four changes anything for a target without weights, and none
-  spends more than the funding available (simulation).
-- F acts in 2.0 % of the generated targets. When it does, it leaves a median of
-  1.8 points of the planning total unspent. It does not touch the second case.
-- F2 adds a floor to F. When funding is short, the common increase factor is
-  computed with the swaps left aside, since each pays for itself; every
-  increase, swap purchases included, takes that one factor, and each swap's sale
-  takes it too. This is computed once, not iterated. In the shortfall example
-  the factor is zero, so nothing moves, as without weights. The floor changes
-  the result in 2.2 % of the generated targets. F2 keeps the single increase
-  factor of step 4 in every case; its cost is F's unspent cash, and a swap that
-  sells less than the cap would allow when its purchase cannot be funded.
-- A also keeps a category from falling below its target, and spends all the cash
-  in the cap example. Tying a swap's purchase to the cap factor rather than to
-  the step 4 factor is, however, a reservation close to the `cash_committed`
-  afadil removed.
-- A variant combines A's handling of the cap with F2's floor: it spends all the
-  cash in the cap example, like A, and moves nothing in the shortfall example,
-  like F2 (0 / 0 as well). It is not detailed further here.
-- For A, F2 and the variant, a security classified in several classes inside a
-  swap needs a rule of its own (not simulated).
+The first revision of this note (`a3f33f2e8`) compared three changes to §4.6
+that would keep a weighted class from passing its target (F, F2 and A). The
+review kept §4.6 as written, so they are not carried forward.
 
-Rejected:
+### 3.5 Simulation checks
 
-- No internal swap at all: a stock picker's single class is always on target, so
-  Rebalance would never adjust anything.
-- Swaps only when they fit entirely under the cap: the result jumps, and a whole
-  kind of adjustment is dropped.
-- Scaling the whole of step 2 by the cap factor before netting: it brings back
-  afadil's case of 2026-09-01, where +500 and −300 with a cap of 100 must give
-  +200, not +400.
+Random targets: one to four classes, one to eight securities, 15 % of them not
+held, 15 % left out of increases, 15 % not reducible, 5 % without a price, and a
+turnover cap on half the targets, Invest cash or Rebalance at random. Weights on
+85 % of the targets, adding up to 100 % in a category three times out of ten.
+Seed fixed; 20 000 targets per scenario. "Lines" is the rule of the review run
+on its own, "bound" is the rule of section 3.3, "today" is the current engine
+with the weights ignored.
 
-The note does not pick among B, F, F2 and A; the choice is section 7,
-question 1. In short: B changes nothing and reports; F prevents the overshoot
-only; F2 prevents both effects and keeps the single increase factor, at the cost
-of cash left unspent; A prevents both and spends the cash, at the cost of a
-reservation.
+| Check, single-class securities, fractional amounts          | Today | Lines       | Bound   |
+| ----------------------------------------------------------- | ----- | ----------- | ------- |
+| Targets without weights that differ from today (of 6 996)   | –     | 0           | 0       |
+| Parts ending past their own target                          | 0     | 0           | 0       |
+| Invest cash: classes ending above their target              | 0     | 0           | 0       |
+| Rebalance: classes ending past their target (above / below) | 0 / 0 | 176 / 1 069 | 91 / 26 |
+| Classes ending further from their target                    | 0     | 1 885       | 174     |
+| … of which with a part that cannot execute                  | 0     | 1 716       | 43      |
+
+With the bound, every class that ends further from its target does so only once
+the turnover cap or the funding factor applies, as in section 3.4; none does
+before the limits.
+
+- **Unheld weighted securities.** Of 2 896 below their target, eligible and
+  priced, 2 742 receive an amount. The other 154 are in Rebalance, in a class
+  already at or above its target, where nothing can be reduced or where the
+  category move already takes everything that can be sold.
+- **Securities in several classes** (30 % of securities split between two
+  classes). Parts pass their target only through a security classified in
+  another class as well: every part that passed its target held one. Today 1 023
+  categories end past their target this way; with the bound, 1 332 classes do,
+  and 1 492 parts.
+- **The by-security entry** (every class 100 % weighted, so every rest is
+  empty). The cause behind most of the gap between lines and bound goes away,
+  but not the others: lines on their own take a class further from its target 1
+  742 times, against 436 with the bound.
+
+**Whole units** (§4.6 step 5, prices drawn between 5 and 2 000). The floor
+applies after both factors and only shortens a move, so no part passes its
+target. An exchange floors its sale and its purchase separately, so a class that
+was on target can end up to about one unit above or below it: with the bound 938
+classes end past their target, 150 by more than one unit of the dearest security
+of the class (97 with fractional amounts). Remaining cash below zero, which
+`remaining_cash` reports as a funding gap when a floored sale raises less than
+the purchase it was paying for, exists today in 1 249 of 13 004 targets and
+reaches 1 461 with the bound, at most about two units of the dearest security.
+Neither is redistributed (§4.6 step 7).
 
 ---
 
@@ -509,15 +574,39 @@ reservation.
   gives nothing. In the category move its share of a reduction goes to the other
   parts above their target, never below it; what is left stays a negative
   unresolved amount, as `split_gap` returns today for a category with nothing
-  reducible. It takes no part in an internal swap.
+  reducible. It takes no part in an exchange between parts.
 - A weighted security not held in scope has v = 0 and gap = T(i,c), so it
-  receives a calculated amount. This extends §4.1, where an added security gets
-  nothing from §4.2. Setup lists it with Increase on by default: the target
-  names it, which is a fact, not a selection. Two code paths change for it:
-  `securities_from` builds securities only from held contributions, and
+  receives a calculated amount, as the review asked: it has no holdings to split
+  by, so its part buys it anyway. This extends §4.1, where an added security
+  gets nothing from §4.2. In Rebalance it receives nothing only when its class
+  is already at or above its target and nothing else in the class can be sold to
+  pay for it (section 3.5). Setup lists it with Increase on by default: the
+  target names it, which is a fact, not a selection. Two code paths change for
+  it: `securities_from` builds securities only from held contributions, and
   `project_categories` skips a security whose classified value is zero. An
   unheld weighted security has to enter with its price and its taxonomy
-  assignment, and its amount has to be projected by that assignment.
+  assignment, and its amount has to be projected by that assignment. Without a
+  usable price its part cannot take anything, and its share is handled like an
+  excluded security's (`NoUsablePrice`).
+- An unheld security without a weight stays in its class's rest and receives
+  nothing, as an added security does today.
+- A class nothing is held in. Today its whole gap is unresolved
+  (`NoRecordedSecurity`) and the user types an amount for a security added in
+  Setup. With a weight, an unheld security carries the class. Example: Equity 50
+  % held as VWCE 60 000, Fixed income 40 % as BND 30 000, and a new class, Gold
+  10 %, weighted 100 % on SGLN, which is not held; 10 000 cash.
+
+  | Gold weights         | Mode        | Today                                                        | With the weight                                                                      |
+  | -------------------- | ----------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+  | SGLN 100 %           | Invest cash | BND +10 000; Gold's 10 000 unresolved                        | BND +5 000, SGLN +5 000                                                              |
+  | SGLN 100 %           | Rebalance   | VWCE −10 000, BND +10 000; 10 000 cash left, Gold unresolved | VWCE −10 000, BND +10 000, SGLN +10 000                                              |
+  | SGLN 60 %, rest 40 % | Invest cash | as with SGLN 100 %                                           | BND +6 250, SGLN +3 750; the rest's 4 000 unresolved                                 |
+  | SGLN 60 %, rest 40 % | Rebalance   | as with SGLN 100 %                                           | VWCE −10 000, BND +10 000, SGLN +6 000; 4 000 cash left, the rest's 4 000 unresolved |
+
+  In Invest cash the 10 000 is shared between Fixed income's gap and Gold's in
+  proportion (factor 0.5, then 0.625), as cash is shared between categories
+  today. A class that stays unresolved does not hold the other classes back:
+  their reductions and increases are those of today.
 
 ### 4.2 Accounts (§6)
 
@@ -534,12 +623,11 @@ amount is split between its securities; nothing is recalculated after step 2.
 Reductions inside a category count toward the turnover cap like any other.
 
 Section 3.3 in Rebalance with a 5 % turnover cap (5 000): before limits, AAPL
-+20 000 (10 000 from cash, 10 000 from the swap) and VWCE −10 000. §4.6 step 2
-scales the reduction to 5 000. Funding is 10 000 cash plus 5 000 proceeds, so
++20 000 (10 000 from cash, 10 000 from the exchange) and VWCE −10 000. §4.6 step
+2 scales the reduction to 5 000. Funding is 10 000 cash plus 5 000 proceeds, so
 step 4 scales AAPL to +15 000 (factor 0.75). Result: VWCE 35 000, AAPL 25 000,
-Equity 60 000, with both factors stated; the four options of section 3.4 give
-the same result here, since only Equity receives cash. Section 3.4 covers the
-cases where the two factors move a category.
+Equity 60 000, with both factors stated. Section 3.4 covers the cases where the
+two factors move a category.
 
 ### 4.4 Drift and Overview
 
@@ -649,8 +737,8 @@ ON allocation_target_asset_weights(target_id);
 Against #2587's migration: `category_id` is added and joins the unique key.
 `is_required` is dropped: a weighted security always has a row to show, so the
 flag has nothing to decide. `allocation_targets` gets no `target_type` column,
-and none of the five type triggers is needed. The foreign key on `asset_id` is
-left open (section 7, question 4).
+and none of the five type triggers is needed. There is no foreign key on
+`asset_id`, as agreed in review, like the #1177 constraints (section 5.7).
 
 No foreign key to the category. Category weights are deleted and reinserted with
 new ids on every save (`build_domain_weights` draws a new UUID per row, and the
@@ -666,8 +754,7 @@ replaces the security weights in the same transaction.
 
 The unit is bps of the category, as every other weight is in bps. With weights
 displayed at one decimal, as the editor does today, its round trip (section 1.4)
-never shows. Two decimals would make it show unless shares get a finer unit,
-which is why the display is settled with the schema (section 7, question 4).
+never shows. One decimal and bps of the category were agreed in review.
 
 ### 5.4 Write path and API
 
@@ -724,14 +811,14 @@ Starting from the known limitations of #2587:
 2. **A weight edited offline for a security another device deleted.** With
    `asset_id REFERENCES assets ON DELETE RESTRICT`, as in #2587, the insert
    fails its foreign key and is dead-lettered, leaving that target short on the
-   deleting device. Without the key, the row lands and is ignored on read.
+   deleting device. Without the key, as agreed, the row lands and is ignored on
+   read.
 3. **A remote asset delete, or a snapshot restore that drops a security.** #2587
    spreads the weight over the target's other securities to keep its 100 %
    total. Nested weights add up to at most 100 % by design: a missing security's
    share falls into the rest, so nothing needs spreading. Without the asset
-   foreign key nothing is needed at all. With it, the remote delete still has to
-   delete the rows, and the restore still needs #2587's stash, both without the
-   spreading.
+   foreign key, as agreed, nothing is needed at all: no delete handling, no
+   restore stash.
 4. **An unknown asset resolved.** Required: otherwise the user's number silently
    joins the rest after a routine import fix. #2587's
    `reassign_allocation_target_weights`, keyed by (target, category, security).
@@ -773,60 +860,62 @@ Starting from the known limitations of #2587:
 
 ### 6.3 Milestones
 
-| #     | Content                                                                                                                                                                                                                                                                      | Verify                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1    | Calculation in core: parts and rest, the split rules of section 3.3, the option of section 3.4 that afadil picks, unresolved parts, unheld weighted securities projected by their assignment. Pure functions in `worksheet_calculator.rs`, weights passed in, nothing stored | core tests for every example in sections 3 and 4: partial category, a rest without a security, an empty rest, an explicit zero, the gap × weight counterexample, the capped redistribution when a weighted security is excluded, unpriced or protected, the two-piece step 2 and its moving-away counterexample, the cap and shortfall examples of section 3.4, an unheld weighted security moving its category, two passes and no more; a target without weights gives today's results; every existing `worksheet_calculator` test unchanged |
-| S2    | Persistence, API and sync: the table of section 5.3 from #2587, repository, validation, read-path tolerance, unknown-asset merge, Tauri and Axum, adapters, sync registration                                                                                                | storage tests for save, replace, delete and outbox rows; `cleanup_tests`; the adapted reassign test; read-path tests (category not weighted, missing asset, sum above 100 %); `adapter-command-parity.test.ts`; `cargo check` of both runtimes, fmt and Clippy; the migration on a populated database leaves existing targets and weights unchanged                                                                                                                                                                                           |
-| S3    | Worksheet and drift services: weights loaded into S1, the Setup statement, holdings targets and statuses, the count of weighted securities outside range                                                                                                                     | service tests: a target without security weights gives the same adjustments and drift report as before (snapshot); the adapted split-across-rows test; the band examples of section 3.2                                                                                                                                                                                                                                                                                                                                                       |
-| S4    | Editor, Overview, export and copy: rows per category with a rest row, explicit zero, entry by class or by security, Equal weight start; the Overview line; the export header; every locale                                                                                   | vitest: both entries write the same stored weights, AAPL 30 → 35 is one input, rounding adds up to 100 % of the class; copy-contract test and `i18n:check`; export snapshot; the changed flows checked on screen, left-to-right and `?dir=rtl`                                                                                                                                                                                                                                                                                                |
-| Later | Add-on SDK field for security weights (section 4.8)                                                                                                                                                                                                                          | type-bridge tests and SDK changelog                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| #     | Content                                                                                                                                                                                                                                                                        | Verify                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1    | Calculation in core: parts and rest, the split rules of section 3.3 with the class bound in step 2, §4.6 unchanged, unresolved parts, unheld weighted securities projected by their assignment. Pure functions in `worksheet_calculator.rs`, weights passed in, nothing stored | core tests for every example in sections 3 and 4: partial category, a rest without a security, an empty rest, an explicit zero, the gap × weight counterexample, the capped redistribution when a weighted security is excluded, unpriced or protected, the two-piece step 2 and the three examples of its bound, the cap and shortfall examples of section 3.4, the same results in whole units within one unit, an unheld weighted security moving its category, the new class of section 4.1, two passes and no more; a target without weights gives today's results; every existing `worksheet_calculator` test unchanged |
+| S2    | Persistence, API and sync: the table of section 5.3 from #2587, repository, validation, read-path tolerance, unknown-asset merge, Tauri and Axum, adapters, sync registration                                                                                                  | storage tests for save, replace, delete and outbox rows; `cleanup_tests`; the adapted reassign test; read-path tests (category not weighted, missing asset, sum above 100 %); `adapter-command-parity.test.ts`; `cargo check` of both runtimes, fmt and Clippy; the migration on a populated database leaves existing targets and weights unchanged                                                                                                                                                                                                                                                                           |
+| S3    | Worksheet and drift services: weights loaded into S1, the Setup statement, holdings targets and statuses, the count of weighted securities outside range                                                                                                                       | service tests: a target without security weights gives the same adjustments and drift report as before (snapshot); the adapted split-across-rows test; the band examples of section 3.2                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S4    | Editor, Overview, export and copy: rows per category with a rest row, explicit zero, entry by class or by security, Equal weight start; the Overview line; the export header; every locale                                                                                     | vitest: both entries write the same stored weights, AAPL 30 → 35 is one input, rounding adds up to 100 % of the class; copy-contract test and `i18n:check`; export snapshot; the changed flows checked on screen, left-to-right and `?dir=rtl`                                                                                                                                                                                                                                                                                                                                                                                |
+| Later | Add-on SDK field for security weights (section 4.8)                                                                                                                                                                                                                            | type-bridge tests and SDK changelog                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ---
 
-## 7. Open questions for @afadil
+## 7. Review answers and open questions
 
-Only what blocks a milestone. The shape is settled and not part of these.
+Settled in review on 2026-11-17:
 
-1. **Internal swaps under the limits of §4.6** (section 3.4). Without weights, a
-   category in step 2 is only increased or only reduced, so the two factors of
-   §4.6 cannot take it past its target. A swap inside a weighted category can,
-   in both directions. Which option?
-   - **B**: keep §4.6 as written and report the category outside its range.
-   - **F**: a weighted category never ends above its target; the money left is
-     remaining cash, and a category can still end below its target when funding
-     is short.
-   - **F2**: F, plus a floor: when funding is short, a swap's sale takes its
-     purchase's factor, so no category ends below its target either. The single
-     increase factor of step 4 holds in every case.
-   - **A**: a swap's purchase is scaled with its sale by the cap factor, which
-     prevents both effects and spends all the cash, at the cost of a reservation
-     close to the `cash_committed` you removed on 2026-09-03.
+1. **Limits of §4.6.** Each weighted security and the rest of its class are
+   target lines, run through the engine like categories, with §4.6 unchanged
+   (option B of the first revision). Invest cash fills a class only up to its
+   own gap, split toward the lines below their target, and an unheld weighted
+   security's line buys it (sections 3.3 and 4.1). Condition: targets without
+   weights come out unchanged and no line passes its own target. Both hold in
+   section 3.5, with fractional amounts and whole units; a security classified
+   in several classes can still carry a line past its target, as it carries
+   categories today.
+2. **Status of weighted securities.** The target-wide band evaluated on each
+   weighted security against its share of the portfolio (section 3.2).
+3. **The #1836 stock picker.** The by-security entry, showing the rest of a
+   class when it is only partly weighted (section 1.4).
+4. **Schema.** No foreign key on `asset_id`, one decimal on screen, shares in
+   bps of the category (sections 5.3 and 5.7).
 
-   Answering also confirms the split of section 3.3: toward each part's target,
-   with the capped redistribution and the two-piece step 2. Blocks S1.
+Open, both block S1:
 
-2. **(b), the status of weighted securities.** The target-wide band evaluated on
-   each weighted security against its share of the portfolio, with a separate
-   count beside `out_of_band_count` (section 3.2). Or against its share of the
-   category? Blocks S3.
-3. **The #1836 stock picker.** Entry by security in the editor, class weights
-   derived from it, storage nested (section 1.4). Agreed as the answer to #1836?
-   Blocks S4.
-4. **Two schema details.** (i) `asset_id` without a foreign key, like the #1177
-   constraints, which removes the cases in section 5.7 items 2 and 3
-   (recommended), or `REFERENCES assets ON DELETE RESTRICT` as in #2587, with
-   its remote-delete and restore handling? (ii) Display and unit: one decimal,
-   as the allocation-target screens show today, with shares in bps of the
-   category (suggested); or two decimals like most of the app, either accepting
-   a 0.01 round trip in the by-security entry or storing shares in a finer unit
-   (section 1.4). Blocks S2.
+- **The class bound in Rebalance step 2** (section 3.3). Lines run on their own
+  and the bound give the same amounts whenever every line can execute. When one
+  cannot (a rest with no security, a weighted security left out, unpriced or
+  protected), lines run on their own move the other lines to their targets and
+  take the class away from its target: in section 3.5, 1 885 times against 174
+  with the bound, all of those from the limits of section 3.4; in one example
+  Equity falls from 60 000 to 12 000. The bound keeps §4.6 as it is. Its cost is
+  the stock picker case of section 3.3: an overweight security is not sold while
+  the only security of its class that could take the proceeds is left out.
+  Agreed to keep the bound?
+- **Unresolved parts in a class on target** (section 3.3). Added in this
+  revision, not discussed yet: a part below its target that cannot take an
+  increase is reported as unresolved for its category even when the category as
+  a whole is on target. Without it, the second example of section 3.3 shows
+  nothing at all, and the user cannot see why AAPL and MSFT stay above their
+  targets. Today an unresolved amount is always a whole category's gap; this
+  makes it possible for one part of a category. Agreed?
 
 ---
 
 ## 8. Changes to the self-directed design once agreed
 
 These lines of the design change with this note, and are folded back into it
-once the questions above are answered:
+once the open questions above are answered:
 
 - §2, row "Which security inside a category": the user's weight where stated,
   otherwise the rule, mechanically.
@@ -840,12 +929,11 @@ once the questions above are answered:
   left is unresolved. §4.2 gives it to the other eligible securities without a
   ceiling.
 - §4.5: Rebalance step 2 in a weighted category has two pieces, a category move
-  and an internal swap; in a category on target only the swap acts. The number
-  of passes does not change, and categories without weights are unchanged.
-- §4.6, depending on question 1: nothing with B; with F, a step after step 4 for
-  weighted categories; with F2, that step, and a swap's sale taking its
-  purchase's factor when funding is short; with A, the purchase of an internal
-  swap takes the reduction factor instead of the step 4 factor.
+  and an exchange between its parts; in a category on target only the exchange
+  acts. The number of passes does not change, and categories without weights are
+  unchanged. A weighted category can end outside its range when the two factors
+  of §4.6 differ, reported as any category is.
+- §4.6 is unchanged.
 - §8: the header's allocation rule says which categories use security weights.
 - §9 and §12: "no schema, no migration, no API" and "Future" point to this note
   and its milestones.
@@ -864,6 +952,7 @@ once the questions above are answered:
 - [Issue #1836](https://github.com/wealthfolio/wealthfolio/issues/1836).
 - PR #1612, comments 5499526997 (limits on net amounts, 2026-09-01) and
   5526490781 (one factor for every increase, 2026-09-03).
+- PR #2600, comment 6964235292 (review of the first revision, 2026-11-17).
 - PR #1177 (constraints and turnover cap) and its execution-policy design.
 - e71a80634 (add-on SDK read of allocation targets).
 - Code checked on `main` at `fc695b2ea`: `worksheet_calculator.rs`,
