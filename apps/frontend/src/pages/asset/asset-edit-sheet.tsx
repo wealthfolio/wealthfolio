@@ -735,7 +735,10 @@ export function AssetEditSheet({
           instrumentType: values.instrumentType || null,
           quoteMode: values.quoteMode,
           quoteCcy: values.quoteCcy,
-          instrumentExchangeMic: normalizedMic || null,
+          // null clears the exchange, so send it only when there is one to
+          // clear; an untouched empty field leaves a newer stored one alone.
+          instrumentExchangeMic:
+            normalizedMic || (normalizeMic(asset.instrumentExchangeMic) ? null : undefined),
           providerConfig: serializedOverrides,
           metadata: newMetadata,
         });

@@ -1391,14 +1391,15 @@ impl AssetService {
                 existing_asset.instrument_exchange_mic.as_deref(),
             );
 
+            let identity_symbol = payload
+                .instrument_symbol
+                .as_deref()
+                .or(payload.display_code.as_deref())
+                .or(existing_asset.instrument_symbol.as_deref())
+                .or(existing_asset.display_code.as_deref());
             let mut canonical = canonicalize_market_identity(
                 effective_instrument_type.clone(),
-                payload
-                    .instrument_symbol
-                    .as_deref()
-                    .or(payload.display_code.as_deref())
-                    .or(existing_asset.instrument_symbol.as_deref())
-                    .or(existing_asset.display_code.as_deref()),
+                identity_symbol,
                 effective_exchange_mic,
                 if should_refresh_quote_ccy {
                     None
@@ -1409,6 +1410,21 @@ impl AssetService {
                         .or(Some(existing_asset.quote_ccy.as_str()))
                 },
             );
+            if requested_exchange_mic == Some(None)
+                && matches!(
+                    effective_instrument_type,
+                    Some(InstrumentType::Equity | InstrumentType::Option | InstrumentType::Metal)
+                )
+            {
+                // A cleared exchange names no venue, so a trailing `.X` stays
+                // on the ticker rather than becoming one: `ZAAA.F` on Cboe
+                // Canada is a share class, not a Frankfurt listing. Only these
+                // types read a suffix as a venue.
+                let symbol = identity_symbol.and_then(normalized_lookup_key);
+                canonical.instrument_symbol = symbol.clone();
+                canonical.display_code = symbol;
+                canonical.instrument_exchange_mic = None;
+            }
 
             let requested_symbol = payload.instrument_symbol.as_deref().or_else(|| {
                 payload.display_code.as_deref().filter(|code| {
@@ -4776,6 +4792,75 @@ mod tests {
         assert_eq!(asset.instrument_exchange_mic, None);
         assert_eq!(asset.instrument_symbol.as_deref(), Some("OAA1"));
         assert_eq!(asset.quote_ccy, "USD");
+    }
+
+    /// A cleared exchange doesn't turn a ticker's `.X` into a venue: `ZAAA.F`
+    /// on Cboe Canada is a share class, not a Frankfurt listing.
+    #[tokio::test]
+    async fn update_asset_profile_clear_keeps_a_suffixed_ticker_as_stored() {
+        let hedged_class = Asset {
+            id: "zaaa".to_string(),
+            display_code: Some("ZAAA.F".to_string()),
+            instrument_symbol: Some("ZAAA.F".to_string()),
+            instrument_exchange_mic: Some("NEOE".to_string()),
+            instrument_key: Some("EQUITY:ZAAA.F@NEOE".to_string()),
+            quote_ccy: "CAD".to_string(),
+            ..oaa1_on_stuttgart()
+        };
+        let service = test_asset_service(vec![hedged_class], TestQuoteService::default());
+
+        let asset = service
+            .update_asset_profile("zaaa", exchange_update(Some(None), "CAD"))
+            .await
+            .unwrap();
+        assert_eq!(asset.instrument_symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(asset.display_code.as_deref(), Some("ZAAA.F"));
+        assert_eq!(asset.instrument_exchange_mic, None);
+    }
+
+    /// Clearing an exchange set on an FX pair by mistake keeps the pair's
+    /// symbol; it doesn't take the display code.
+    #[tokio::test]
+    async fn update_asset_profile_clear_keeps_an_fx_pair_symbol() {
+        let pair = Asset {
+            id: "eurusd".to_string(),
+            display_code: Some("EUR/USD".to_string()),
+            instrument_symbol: Some("EUR".to_string()),
+            instrument_exchange_mic: Some("XNAS".to_string()),
+            instrument_type: Some(InstrumentType::Fx),
+            instrument_key: Some("FX:EUR/USD".to_string()),
+            kind: AssetKind::Fx,
+            quote_ccy: "USD".to_string(),
+            ..oaa1_on_stuttgart()
+        };
+        let service = test_asset_service(vec![pair], TestQuoteService::default());
+        let mut update = exchange_update(Some(None), "USD");
+        update.display_code = Some("EUR/USD".to_string());
+
+        let asset = service
+            .update_asset_profile("eurusd", update)
+            .await
+            .unwrap();
+        assert_eq!(asset.instrument_symbol.as_deref(), Some("EUR"));
+        assert_eq!(asset.instrument_exchange_mic, None);
+    }
+
+    #[test]
+    fn metadata_only_update_leaves_the_exchange_alone() {
+        let without_exchange = Asset {
+            instrument_exchange_mic: None,
+            ..oaa1_on_stuttgart()
+        };
+        assert_eq!(
+            UpdateAssetProfile::metadata_only(&without_exchange, serde_json::json!({}))
+                .instrument_exchange_mic,
+            None
+        );
+        assert_eq!(
+            UpdateAssetProfile::metadata_only(&oaa1_on_stuttgart(), serde_json::json!({}))
+                .instrument_exchange_mic,
+            Some(Some("XSTU".to_string()))
+        );
     }
 
     #[tokio::test]
