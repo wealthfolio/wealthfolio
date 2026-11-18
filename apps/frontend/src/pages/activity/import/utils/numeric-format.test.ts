@@ -339,6 +339,66 @@ describe("exponents followed by a sign", () => {
   });
 });
 
+describe("the Unicode minus sign", () => {
+  it.each([
+    ["−1500", -1500],
+    ["−1,500.50", -1500.5],
+    ["−$1,500.50", -1500.5],
+    ["(−1500)", -1500],
+    ["−1.5E3", -1500],
+    ["1.5E−3", 0.0015],
+  ])("reads %s like the same value with a hyphen", (value, expected) => {
+    expect(parseSignedNumericValue(value, "auto", "auto")).toBe(
+      parseSignedNumericValue(value.replaceAll("−", "-"), "auto", "auto"),
+    );
+    expect(Number(parseSignedNumericValue(value, "auto", "auto"))).toBe(expected);
+    expect(Number(parseHoldingsNumericValue(value, "auto", "auto"))).toBe(expected);
+    expect(Number(parseNumericValue(value, "auto", "auto"))).toBe(Math.abs(expected));
+  });
+
+  it.each(["1500−", "1.5E3−"])("does not read a trailing minus in %s", (value) => {
+    expect(parseSignedNumericValue(value, "auto", "auto")).toBeUndefined();
+    expect(parseHoldingsNumericValue(value, "auto", "auto")).toBeUndefined();
+  });
+
+  it("uses a negative value as evidence for the column's decimal separator", () => {
+    expect(analyzeNumericColumn(["−1,50"], "auto", "auto").decimalSeparator).toBe(",");
+  });
+
+  it.each([
+    ["TRANSFER", "−1500", "", "WITHDRAWAL"],
+    ["TRADE", "", "−10", "SELL"],
+  ])("takes the direction of a %s row from the sign", (type, amount, quantity, expected) => {
+    const [draft] = createDraftActivities(
+      [["2026-01-15", type, amount, quantity]],
+      ["Date", "Type", "Amount", "Quantity"],
+      {
+        ...mapping,
+        fieldMappings: {
+          date: "Date",
+          activityType: "Type",
+          amount: "Amount",
+          quantity: "Quantity",
+        },
+        activityMappings: { DEPOSIT: ["TRANSFER"], BUY: ["TRADE"] },
+      },
+      parseConfig,
+      "account-1",
+    );
+    expect(draft.activityType).toBe(expected);
+  });
+
+  it("keeps a negative cash balance in a holdings import", () => {
+    const snapshots = parseHoldingsSnapshots(
+      ["Date", "Symbol", "Quantity"],
+      [["2026-01-15", "$CASH", "−2500"]],
+      { date: "Date", symbol: "Symbol", quantity: "Quantity" },
+      parseConfig,
+    );
+    expect(snapshots[0].cashBalances).toEqual({ USD: "-2500" });
+  });
+});
+
 describe("holdings column parsing", () => {
   it.each([
     ["EUR 12,50", "12.50"],
