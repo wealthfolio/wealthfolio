@@ -4663,16 +4663,12 @@ impl ActivityService {
 
         match self.asset_service.get_asset_by_id(asset_id) {
             Ok(existing_asset) => {
-                // A custom `OTHER` asset has no instrument type, so the type
-                // inferred from its symbol says nothing about which asset this is.
-                let is_untyped_other = existing_asset.kind == AssetKind::Other
-                    && existing_asset.instrument_type.is_none();
                 if has_identity
                     && !Self::asset_matches_submitted_identity(
                         &existing_asset,
                         submitted_symbol,
                         submitted_exchange_mic,
-                        submitted_instrument_type.filter(|_| !is_untyped_other),
+                        submitted_instrument_type,
                         submitted_quote_ccy,
                     )
                 {
