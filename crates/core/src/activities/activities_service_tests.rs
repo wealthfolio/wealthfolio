@@ -23552,6 +23552,53 @@ pub(crate) mod tests {
         assert!(reviewed[0].is_valid, "{:?}", reviewed[0].errors);
     }
 
+    /// What the activity forms send for a custom "Other" asset picked in symbol search.
+    fn legacy_fund_picked_in_search() -> AssetResolutionInput {
+        AssetResolutionInput {
+            id: Some("legacy-fund".to_string()),
+            symbol: Some("LEGACY".to_string()),
+            name: Some("Legacy fund".to_string()),
+            quote_mode: Some("MANUAL".to_string()),
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("OTHER".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn a_custom_other_asset_picked_in_search_stays_the_same_asset() {
+        let (service, asset_service, activity_repository, _) = alternative_assets_service();
+        with_custom_other_asset(&asset_service);
+        activity_repository.add_activity(create_stored_activity(
+            "old-buy",
+            "acc-1",
+            Some("legacy-fund"),
+        ));
+
+        let created = service
+            .create_activity(transfer_in(legacy_fund_picked_in_search()))
+            .await
+            .expect("the picked asset is saved");
+        assert_eq!(created.asset_id.as_deref(), Some("legacy-fund"));
+
+        let updated = service
+            .update_activity(create_test_activity_update(
+                "old-buy",
+                "acc-1",
+                Some(legacy_fund_picked_in_search()),
+                "USD",
+            ))
+            .await
+            .expect("the picked asset can be edited");
+        assert_eq!(updated.asset_id.as_deref(), Some("legacy-fund"));
+
+        let assets = asset_service.get_assets().unwrap();
+        let held: Vec<_> = assets.iter().filter(|asset| asset.id != "barn").collect();
+        assert_eq!(held.len(), 1, "no second asset is created");
+        assert_eq!(held[0].kind, AssetKind::Other);
+        assert_eq!(held[0].instrument_type, None);
+    }
+
     /// The Buy form sends the picked asset's ID with a symbol that doesn't match it.
     #[tokio::test]
     async fn an_other_asset_picked_by_id_with_another_symbol_is_not_recreated() {
