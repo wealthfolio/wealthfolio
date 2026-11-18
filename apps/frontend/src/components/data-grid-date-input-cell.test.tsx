@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { DateInputCell } from "@wealthfolio/ui/components/data-grid/data-grid-cell-variants";
 import type { Cell, TableMeta } from "@tanstack/react-table";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface TestRow {
   date: Date;
@@ -136,6 +136,49 @@ describe("DateInputCell formatting region", () => {
     await user.keyboard(keys);
 
     expect(onDataUpdate).not.toHaveBeenCalled();
+  });
+
+  describe("on iOS, where segments are text boxes without a numeric value", () => {
+    const segment = (type: string) =>
+      screen.getAllByRole("textbox").find((el) => el.getAttribute("data-type") === type)!;
+
+    beforeEach(() => {
+      vi.spyOn(window.navigator, "platform", "get").mockReturnValue("iPhone");
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it.each([["en-GB"], ["ar-EG"]])("does not save 31 April in %s", async (locale) => {
+      const user = userEvent.setup();
+      const onDataUpdate = vi.fn();
+      renderCell({ locale, isEditing: true, onDataUpdate });
+
+      await user.click(segment("month"));
+      await user.keyboard("4");
+      await user.click(segment("day"));
+      await user.keyboard("31");
+      await user.click(document.body);
+
+      expect(onDataUpdate).not.toHaveBeenCalled();
+    });
+
+    it.each([["en-GB"], ["ar-EG"]])("saves a real date in %s", async (locale) => {
+      const user = userEvent.setup();
+      const onDataUpdate = vi.fn();
+      renderCell({ locale, isEditing: true, onDataUpdate });
+
+      await user.click(segment("month"));
+      await user.keyboard("4");
+      await user.click(segment("day"));
+      await user.keyboard("30");
+      await user.click(document.body);
+
+      const update = onDataUpdate.mock.calls[0]?.[0] as { value: Date };
+      expect(update.value.getMonth()).toBe(3);
+      expect(update.value.getDate()).toBe(30);
+    });
   });
 
   it("does not save a month that doesn't have the typed day", async () => {
