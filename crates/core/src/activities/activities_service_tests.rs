@@ -3984,12 +3984,22 @@ pub(crate) mod tests {
         (service, asset_service)
     }
 
-    /// A broker ticker without a venue is not filed under a listing the search
-    /// found in another currency: Fidelity's `OAA1` in a USD account matches
-    /// only Stuttgart shares of an unrelated company.
+    fn oaa1_without_an_exchange(quote_ccy: &str) -> Asset {
+        let mut asset = create_test_asset_with_instrument(
+            "oaa1",
+            "OAA1",
+            None,
+            Some(InstrumentType::Equity),
+            quote_ccy,
+        );
+        asset.instrument_key = Some("EQUITY:OAA1".to_string());
+        asset
+    }
+
+    /// A ticker sync sees for the first time takes the listing the search found.
     #[tokio::test]
-    async fn sync_keeps_a_ticker_bare_when_the_searched_listing_trades_in_another_currency() {
-        let account = create_test_account("acc-fidelity", "USD");
+    async fn sync_files_a_new_ticker_on_the_searched_listing() {
+        let account = create_test_account("acc-usd", "USD");
         let (service, asset_service) = broker_sync_service(&account, Vec::new());
 
         let result = service
@@ -4001,35 +4011,108 @@ pub(crate) mod tests {
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1);
         assert_linked_to(&result, &assets[0].id);
-        assert_eq!(assets[0].instrument_exchange_mic, None);
-        assert_eq!(assets[0].quote_ccy, "USD");
-        assert_eq!(assets[0].instrument_key.as_deref(), Some("EQUITY:OAA1"));
-    }
-
-    /// A listing is kept when it trades in the activity's currency, even if
-    /// the account's currency differs.
-    #[tokio::test]
-    async fn sync_takes_a_searched_listing_in_the_activity_currency() {
-        let account = create_test_account("acc-cad", "CAD");
-        let (service, asset_service) = broker_sync_service(&account, Vec::new());
-
-        let result = service
-            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "EUR")], &account)
-            .await
-            .expect("sync preparation");
-
-        assert!(result.errors.is_empty(), "{:?}", result.errors);
-        let assets = asset_service.get_assets().unwrap();
-        assert_eq!(assets.len(), 1);
-        assert_linked_to(&result, &assets[0].id);
         assert_eq!(
             assets[0].instrument_key.as_deref(),
             Some("EQUITY:OAA1@XSTU")
         );
     }
 
+    /// Once a ticker is held without an exchange, sync doesn't search for one,
+    /// whatever currency the asset or the activity is in. Clearing `OAA1` and
+    /// leaving it priced in EUR must not bring back the Stuttgart listing.
+    #[tokio::test]
+    async fn sync_keeps_a_ticker_held_without_an_exchange_off_every_listing() {
+        for (asset_ccy, activity_ccy, symbol) in [
+            ("USD", "USD", "OAA1"),
+            ("EUR", "USD", "OAA1"),
+            ("USD", "EUR", "OAA1"),
+            ("USD", "USD", "oaa1"),
+        ] {
+            let account = create_test_account("acc-fidelity", "USD");
+            let (service, asset_service) =
+                broker_sync_service(&account, vec![oaa1_without_an_exchange(asset_ccy)]);
+
+            let result = service
+                .prepare_activities_for_sync(
+                    vec![broker_buy(&account.id, symbol, activity_ccy)],
+                    &account,
+                )
+                .await
+                .expect("sync preparation");
+
+            let case = format!("{symbol} in {activity_ccy}, asset in {asset_ccy}");
+            assert!(result.errors.is_empty(), "{case}: {:?}", result.errors);
+            let assets = asset_service.get_assets().unwrap();
+            assert_eq!(assets.len(), 1, "{case}: {assets:?}");
+            assert_linked_to(&result, "oaa1");
+            assert_eq!(assets[0].instrument_exchange_mic, None, "{case}");
+            assert!(
+                asset_service
+                    .resolve_import_asset_input_batches
+                    .lock()
+                    .unwrap()
+                    .is_empty(),
+                "{case}: searched for a listing"
+            );
+        }
+    }
+
+    /// An exchange the broker sends is a fact, not a guess.
+    #[tokio::test]
+    async fn sync_uses_an_exchange_the_broker_sends_for_a_ticker_held_without_one() {
+        let account = create_test_account("acc-fidelity", "USD");
+        let (service, asset_service) =
+            broker_sync_service(&account, vec![oaa1_without_an_exchange("USD")]);
+        let mut buy = broker_buy(&account.id, "OAA1", "USD");
+        buy.asset.as_mut().unwrap().exchange_mic = Some("XNAS".to_string());
+
+        let result = service
+            .prepare_activities_for_sync(vec![buy], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert!(
+            assets
+                .iter()
+                .any(|asset| asset.instrument_key.as_deref() == Some("EQUITY:OAA1@XNAS")),
+            "{assets:?}"
+        );
+    }
+
+    /// Only a security held without an exchange settles the ticker: a crypto
+    /// asset that happens to share the code says nothing about the listing.
+    #[tokio::test]
+    async fn sync_still_searches_when_only_another_kind_of_asset_shares_the_ticker() {
+        let account = create_test_account("acc-usd", "USD");
+        let mut crypto = create_test_asset_with_instrument(
+            "oaa1-crypto",
+            "OAA1",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        );
+        crypto.instrument_key = Some("CRYPTO:OAA1/USD".to_string());
+        let (service, asset_service) = broker_sync_service(&account, vec![crypto]);
+
+        let result = service
+            .prepare_activities_for_sync(vec![broker_buy(&account.id, "OAA1", "USD")], &account)
+            .await
+            .expect("sync preparation");
+
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let assets = asset_service.get_assets().unwrap();
+        assert!(
+            assets
+                .iter()
+                .any(|asset| asset.instrument_key.as_deref() == Some("EQUITY:OAA1@XSTU")),
+            "{assets:?}"
+        );
+    }
+
     /// One venue decision per symbol: activities of one ticker in different
-    /// currencies land on one asset, not on a listed and a bare one.
+    /// currencies land on one asset.
     #[tokio::test]
     async fn sync_files_a_ticker_traded_in_two_currencies_on_one_asset() {
         let account = create_test_account("acc-cad", "CAD");
@@ -4038,7 +4121,7 @@ pub(crate) mod tests {
         let result = service
             .prepare_activities_for_sync(
                 vec![
-                    broker_buy(&account.id, "OAA1", "EUR"),
+                    broker_buy(&account.id, "OAA1", "USD"),
                     broker_buy(&account.id, "OAA1", "CAD"),
                 ],
                 &account,
@@ -4049,30 +4132,6 @@ pub(crate) mod tests {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
         let assets = asset_service.get_assets().unwrap();
         assert_eq!(assets.len(), 1, "{assets:?}");
-        assert_linked_to(&result, &assets[0].id);
-        assert_eq!(
-            assets[0].instrument_key.as_deref(),
-            Some("EQUITY:OAA1@XSTU")
-        );
-    }
-
-    /// The broker's own currency for the symbol counts: a fund listed in EUR
-    /// that the broker reports in the account's USD keeps its listing.
-    #[tokio::test]
-    async fn sync_takes_a_searched_listing_in_the_symbols_currency() {
-        let account = create_test_account("acc-usd", "USD");
-        let (service, asset_service) = broker_sync_service(&account, Vec::new());
-        let mut buy = broker_buy(&account.id, "OAA1", "USD");
-        buy.asset.as_mut().unwrap().quote_ccy = Some("EUR".to_string());
-
-        let result = service
-            .prepare_activities_for_sync(vec![buy], &account)
-            .await
-            .expect("sync preparation");
-
-        assert!(result.errors.is_empty(), "{:?}", result.errors);
-        let assets = asset_service.get_assets().unwrap();
-        assert_eq!(assets.len(), 1);
         assert_linked_to(&result, &assets[0].id);
         assert_eq!(
             assets[0].instrument_key.as_deref(),
@@ -4107,45 +4166,6 @@ pub(crate) mod tests {
             Some("oaa1-xstu")
         );
         assert_eq!(asset_service.get_assets().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn a_guessed_venue_must_trade_in_a_currency_the_broker_used() {
-        let guess =
-            |mic: Option<&str>, quote_ccy: &str, existing: Option<&str>| AssetResolutionOutput {
-                exchange_mic: mic.map(str::to_string),
-                quote_ccy: Some(quote_ccy.to_string()),
-                existing_asset_id: existing.map(str::to_string),
-                ..Default::default()
-            };
-        let traded = |currencies: &[&str]| -> HashSet<String> {
-            currencies
-                .iter()
-                .filter_map(|currency| ActivityService::trade_currency_key(currency))
-                .collect()
-        };
-
-        assert!(!ActivityService::guessed_venue_fits(
-            &guess(Some("XSTU"), "EUR", None),
-            &traded(&["USD"])
-        ));
-        assert!(ActivityService::guessed_venue_fits(
-            &guess(Some("XSTU"), "EUR", None),
-            &traded(&["USD", "eur "])
-        ));
-        // A pence listing trades in pounds.
-        assert!(ActivityService::guessed_venue_fits(
-            &guess(Some("XLON"), "GBp", None),
-            &traded(&["GBP"])
-        ));
-        assert!(ActivityService::guessed_venue_fits(
-            &guess(Some("XSTU"), "EUR", Some("oaa1-xstu")),
-            &traded(&["USD"])
-        ));
-        assert!(ActivityService::guessed_venue_fits(
-            &guess(None, "EUR", None),
-            &traded(&["USD"])
-        ));
     }
 
     #[tokio::test]
