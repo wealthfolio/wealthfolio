@@ -32,6 +32,7 @@ import {
   toCalendar,
   toCalendarDateTime,
 } from "@internationalized/date";
+import { NumberParser } from "@internationalized/number";
 import {
   Button as RacButton,
   DateInput as DateInputRac,
@@ -1513,11 +1514,19 @@ function getDateOnlyTimestamp(value: Date | string | undefined): number | null {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
+// The number a date segment shows. On iOS, react-aria's segments are text boxes with no
+// numeric value, so the number comes from the text, without its direction marks.
+function dateSegmentNumber(segment: HTMLElement, locale: string): number {
+  const value = segment.getAttribute("aria-valuenow");
+  if (value !== null) return Number(value);
+  return new NumberParser(locale).parse((segment.textContent ?? "").replace(/[⁦-⁩]/g, ""));
+}
+
 // Whether the date field shows something it can't save: an empty segment, or a date
 // that doesn't exist. For 31 April, react-aria shows what was typed but reports another
 // date, so the shown segments are compared with the reported date in the field's calendar.
 function dateFieldShowsUnsavableDate(field: HTMLElement, value: string, locale: string): boolean {
-  const segments = Array.from(field.querySelectorAll<HTMLElement>('[role="spinbutton"]'));
+  const segments = Array.from(field.querySelectorAll<HTMLElement>('[data-type]:not([data-type="literal"])'));
   if (segments.some((segment) => segment.hasAttribute("data-placeholder"))) return true;
   const reported = toCalendarDate(value);
   if (!reported) return segments.length > 0;
@@ -1525,7 +1534,9 @@ function dateFieldShowsUnsavableDate(field: HTMLElement, value: string, locale: 
   const date = toCalendar(reported, calendar);
   return (["day", "month", "year"] as const).some((type) => {
     const segment = segments.find((candidate) => candidate.getAttribute("data-type") === type);
-    return segment !== undefined && Number(segment.getAttribute("aria-valuenow")) !== date[type];
+    if (segment === undefined) return false;
+    const shown = dateSegmentNumber(segment, locale);
+    return !Number.isNaN(shown) && shown !== date[type];
   });
 }
 
