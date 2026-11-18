@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Query, Json};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use wealthfolio_core::errors::{Error as CoreError, ValidationError};
 use wealthfolio_core::portfolios::{AccountScope, ResolvedAccountScope};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_core::{
@@ -16,8 +17,8 @@ use wealthfolio_core::{
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
             validate_holdings_import_snapshot, CashBalanceInput,
             HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
-            ManualHoldingInput, ManualHoldingsEntry, ManualSnapshotRequest, ManualSnapshotService,
-            SnapshotSource,
+            ManualHoldingInput, ManualHoldingsEntry, ManualHoldingsSaveError,
+            ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
         },
         valuation::{
             CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
@@ -26,7 +27,11 @@ use wealthfolio_core::{
     quotes::MarketSyncMode,
 };
 
-use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppState};
+use crate::{
+    api::shared::holdings_account_ids,
+    error::{ApiError, ApiResult},
+    main_lib::AppState,
+};
 
 use super::dto::{
     AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsFilterBody,
@@ -671,6 +676,18 @@ pub async fn delete_snapshot_handler(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+/// A refusal the user can act on keeps its code and message. Other failures
+/// stay as text, as before the save moved into core: the response and its
+/// error code stay those of an untyped failure.
+fn manual_holdings_error(error: ManualHoldingsSaveError) -> ApiError {
+    match error {
+        ManualHoldingsSaveError::Save(
+            refusal @ CoreError::Validation(ValidationError::AlternativeAssetNotInAccount),
+        ) => refusal.into(),
+        other => anyhow::anyhow!(other.to_string()).into(),
+    }
+}
+
 pub async fn save_manual_holdings_handler(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(req): Json<SaveManualHoldingsRequest>,
@@ -713,9 +730,7 @@ pub async fn save_manual_holdings_handler(
         },
     )
     .await
-    // As text, as before the save moved into core: the response and its
-    // error code stay those of an untyped failure.
-    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    .map_err(manual_holdings_error)?;
 
     // SnapshotService emits the dated HoldingsChanged event after persistence.
 
@@ -983,4 +998,36 @@ async fn import_single_snapshot_impl(
         .map_err(|e| anyhow::anyhow!("Failed to save snapshot: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::response::IntoResponse;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_refused_holdings_save_keeps_its_code_and_message() {
+        let response = manual_holdings_error(ManualHoldingsSaveError::Save(CoreError::Validation(
+            ValidationError::AlternativeAssetNotInAccount,
+        )))
+        .into_response();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body reads");
+        let body: serde_json::Value = serde_json::from_slice(&body).expect("JSON body");
+        assert_eq!(body["errorCode"], "ALTERNATIVE_ASSET_NOT_IN_ACCOUNT");
+        assert_eq!(
+            body["message"],
+            wealthfolio_core::assets::ALTERNATIVE_ASSET_NOT_IN_ACCOUNT
+        );
+    }
+
+    #[test]
+    fn other_holdings_save_failures_stay_untyped() {
+        let error = manual_holdings_error(ManualHoldingsSaveError::Invalid("bad row".to_string()));
+        assert!(matches!(error, ApiError::Anyhow(_)));
+    }
 }
