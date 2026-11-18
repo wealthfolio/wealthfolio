@@ -269,6 +269,7 @@
     "select_type": "Select type",
     "exchange": "Exchange",
     "select_exchange": "Select exchange",
+    "no_exchange": "No exchange",
     "search_exchanges": "Search exchanges...",
     "contract_multiplier": "Contract multiplier",
     "contract_multiplier_hint": "Each contract represents this many underlying units. Leave empty to use the standard {{default}}.",

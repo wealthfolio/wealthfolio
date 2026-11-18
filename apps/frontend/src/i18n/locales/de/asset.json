@@ -269,6 +269,7 @@
     "select_type": "Typ auswählen",
     "exchange": "Börse",
     "select_exchange": "Börse auswählen",
+    "no_exchange": "Keine Börse",
     "search_exchanges": "Börsen suchen...",
     "contract_multiplier": "Kontraktmultiplikator",
     "contract_multiplier_hint": "Jeder Kontrakt entspricht so vielen Basiswerteinheiten. Leer lassen für den Standardwert {{default}}.",

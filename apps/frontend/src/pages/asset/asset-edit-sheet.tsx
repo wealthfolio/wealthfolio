@@ -589,8 +589,12 @@ export function AssetEditSheet({
       });
     }
 
+    // Funds that don't trade on an exchange, such as a broker's own funds. An
+    // empty value saves as null, which clears the exchange.
+    options.unshift({ value: "", label: t("asset:editSheet.no_exchange") });
+
     return options;
-  }, [exchanges, currentMic, asset?.exchangeName]);
+  }, [exchanges, currentMic, asset?.exchangeName, t]);
 
   // Split taxonomies by selection type
   const { singleSelectTaxonomies, multiSelectTaxonomies } = useMemo(() => {
@@ -1053,6 +1057,7 @@ export function AssetEditSheet({
                               <FormLabel>{t("asset:editSheet.exchange")}</FormLabel>
                               <FormControl>
                                 <SearchableSelect
+                                  aria-label={t("asset:editSheet.exchange")}
                                   options={exchangeOptions}
                                   value={field.value ?? ""}
                                   onValueChange={field.onChange}
