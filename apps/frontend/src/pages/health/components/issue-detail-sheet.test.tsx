@@ -373,6 +373,17 @@ describe("IssueDetailSheet", () => {
                 ],
                 date: "2026-06-08",
               },
+              {
+                ...diagnostic,
+                fingerprint: "span-without-date-row",
+                code: "INCOMPLETE_BASIS_SNAPSHOT",
+                title: "Missing cost basis",
+                evidence: [
+                  { label: "Asset", value: "BARE — No Date Row", route: "/holdings/asset_bare" },
+                ],
+                date: "2026-07-01",
+                dateRange: { start: "2026-07-01", end: "2026-07-20" },
+              },
             ],
           }}
           open={true}
@@ -390,6 +401,8 @@ describe("IssueDetailSheet", () => {
     expect(screen.getByText("2026-06-01 – 2026-06-15")).toBeInTheDocument();
     // A diagnostic with one date keeps showing that date.
     expect(screen.getByText("2026-06-08")).toBeInTheDocument();
+    // The span does not depend on the evidence carrying a date row.
+    expect(screen.getByText("2026-07-01 – 2026-07-20")).toBeInTheDocument();
   });
 
   it("renders a compact root cause with one deep-linked row per item, no technical labels", () => {
